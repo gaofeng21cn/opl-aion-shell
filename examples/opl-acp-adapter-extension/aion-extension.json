@@ -1,0 +1,22 @@
+{
+  "name": "opl-acp-extension",
+  "displayName": "OPL ACP Adapter Bootstrap",
+  "version": "0.1.0",
+  "description": "Minimal extension manifest that contributes an OPL ACP adapter bootstrap for local OPL session runtime integration.",
+  "author": "OPL Contributors",
+  "contributes": {
+    "acpAdapters": [
+      {
+        "id": "opl-acp",
+        "name": "OPL ACP Adapter",
+        "description": "Bootstrap ACP adapter entry for the planned local OPL session runtime bridge.",
+        "connectionType": "cli",
+        "cliCommand": "opl",
+        "defaultCliPath": "opl",
+        "acpArgs": ["session-runtime", "--acp"],
+        "authRequired": false,
+        "supportsStreaming": false
+      }
+    ]
+  }
+}
