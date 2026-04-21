@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { describe, expect, it } from 'vitest';
 
 import { resolveAcpAdapters } from '../../../src/process/extensions/resolvers/AcpAdapterResolver';
@@ -9,9 +10,26 @@ import { ExtensionManifestSchema, type LoadedExtension } from '../../../src/proc
 const fixtureRoot = path.resolve(__dirname, '../../fixtures/opl-acp-extension');
 const manifestPath = path.join(fixtureRoot, 'aion-extension.json');
 
+function resolveNodeExecutable() {
+  const candidates = [
+    '/opt/homebrew/bin/node',
+    '/usr/local/bin/node',
+    execFileSync('/bin/sh', ['-lc', 'command -v node'], {
+      encoding: 'utf8',
+    }).trim(),
+  ];
+
+  const resolved = candidates.find((candidate) => candidate && fs.existsSync(candidate));
+  if (!resolved) {
+    throw new Error('Failed to resolve a runnable node executable for OPL ACP smoke tests.');
+  }
+  return resolved;
+}
+
 describe('extensions/AcpAdapterResolver', () => {
   it('loads the OPL ACP fixture manifest and resolves an ACP adapter entry', () => {
-    process.env.OPL_ACP_BRIDGE_CMD = process.execPath;
+    const nodeExecutable = resolveNodeExecutable();
+    process.env.OPL_ACP_BRIDGE_CMD = nodeExecutable;
     process.env.OPL_ACP_BRIDGE_ENTRY = '/tmp/opl-cli-entry.ts';
     const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
     const resolved = resolveEnvInObject(raw);
@@ -33,8 +51,8 @@ describe('extensions/AcpAdapterResolver', () => {
     expect(adapters[0]).toMatchObject({
       id: 'opl-acp',
       name: 'OPL ACP Adapter',
-      cliCommand: process.execPath,
-      defaultCliPath: process.execPath,
+      cliCommand: nodeExecutable,
+      defaultCliPath: nodeExecutable,
       connectionType: 'cli',
       acpArgs: ['--experimental-strip-types', '/tmp/opl-cli-entry.ts', 'session', 'runtime', '--acp'],
       _source: 'extension',
