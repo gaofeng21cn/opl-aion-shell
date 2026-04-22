@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawn } from 'node:child_process';
+import { buildLaunchEnv } from './launch-env.mjs';
 
 function parseArgs(argv) {
   const flags = new Set(argv.filter((x) => x.startsWith('--')));
@@ -10,23 +11,16 @@ function parseArgs(argv) {
   return { flags, values };
 }
 
-function resolveLaunchExtensionsPath(projectRoot, flags) {
-  const useExamples = flags.has('--examples');
-  const useOpl = flags.has('--opl');
-
-  if (useExamples && useOpl) {
-    throw new Error('Choose either --examples or --opl, not both.');
+function buildDevFallbackArgs(projectRoot, flags, passthroughArgs) {
+  const args = [path.join(projectRoot, 'scripts', 'dev-bootstrap.mjs'), 'launch', 'start'];
+  if (flags.has('--opl')) {
+    args.push('--opl');
   }
-
-  if (useOpl) {
-    return path.join(projectRoot, 'examples', 'opl-acp-adapter-extension');
+  if (flags.has('--examples')) {
+    args.push('--examples');
   }
-
-  if (useExamples) {
-    return path.join(projectRoot, 'examples');
-  }
-
-  return null;
+  args.push(...passthroughArgs);
+  return args;
 }
 
 function isWindows() {
@@ -81,11 +75,34 @@ async function main() {
   const dryRun = flags.has('--dry-run');
   const shouldClean = !flags.has('--no-clean');
   const passthroughArgs = values;
+  const env = buildLaunchEnv(projectRoot, flags);
 
   const packaged = resolvePackagedApp(projectRoot);
   if (!packaged) {
-    console.error('[packaged-launch] No unpacked app found under out/. Run `just build-package` first.');
-    process.exit(1);
+    const devFallbackArgs = buildDevFallbackArgs(projectRoot, flags, passthroughArgs);
+    console.log('[packaged-launch] No unpacked app found under out/. Falling back to dev mode.');
+    console.log('[packaged-launch] Build a packaged app with `just build-package` to test packaged mode.');
+    console.log(`[packaged-launch] dev command: ${process.execPath} ${devFallbackArgs.join(' ')}`);
+    console.log(`[packaged-launch] cwd: ${projectRoot}`);
+    console.log(`[packaged-launch] AIONUI_EXTENSIONS_PATH: ${env.AIONUI_EXTENSIONS_PATH || '(unset)'}`);
+
+    if (dryRun) return;
+
+    const child = spawn(process.execPath, devFallbackArgs, {
+      cwd: projectRoot,
+      env,
+      stdio: 'inherit',
+      shell: false,
+    });
+
+    child.on('exit', (code, signal) => {
+      if (signal) {
+        process.kill(process.pid, signal);
+        return;
+      }
+      process.exit(code ?? 0);
+    });
+    return;
   }
 
   if (shouldClean) {
@@ -93,16 +110,6 @@ async function main() {
     await killProcessByName('AionUi');
     await killProcessByName('electron.exe');
     await killProcessByName('electron');
-  }
-
-  const env = {
-    ...process.env,
-  };
-  const extensionsPath = resolveLaunchExtensionsPath(projectRoot, flags);
-  if (extensionsPath) {
-    env.AIONUI_EXTENSIONS_PATH = extensionsPath;
-  } else {
-    delete env.AIONUI_EXTENSIONS_PATH;
   }
 
   console.log(`[packaged-launch] executable: ${packaged.executablePath}`);
