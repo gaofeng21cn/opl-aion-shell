@@ -68,7 +68,7 @@ function resolveNodeExecutable() {
 }
 
 function shellSingleQuote(value: string) {
-  return `'${value.replace(/'/g, `'\"'\"'`)}'`;
+  return `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
 function createFakeCodexExecutable(tempDir: string) {
@@ -169,14 +169,16 @@ describe('integration/oplAcpBridgeSmoke', () => {
 
       const initialize = responses.find((entry) => entry.id === 'opl-init-1') as Record<string, unknown> | undefined;
       const created = responses.find((entry) => entry.id === 'opl-create-1') as Record<string, unknown> | undefined;
+      expect(initialize).toBeTruthy();
+      expect(created).toBeTruthy();
 
       expect(initialize?.ok).toBe(true);
-      expect((initialize?.result as { surface_id: string }).surface_id).toBe('opl_acp_stdio_bridge');
+      expect((initialize!.result as { surface_id: string }).surface_id).toBe('opl_acp_stdio_bridge');
       expect(created?.ok).toBe(true);
-      expect((created?.result as { session_id: string }).session_id).toBe('sess-aion-smoke-1');
-      expect(
-        ((created?.result as { task_acceptance: { task_id: string } }).task_acceptance).task_id,
-      ).toBe('task-aion-smoke-1');
+      expect((created!.result as { session_id: string }).session_id).toBe('sess-aion-smoke-1');
+      expect((created!.result as { task_acceptance: { task_id: string } }).task_acceptance.task_id).toBe(
+        'task-aion-smoke-1'
+      );
     } finally {
       fs.rmSync(isolatedExtensionsPath, { recursive: true, force: true });
       restoreEnv();
@@ -223,7 +225,7 @@ describe('integration/oplAcpBridgeSmoke', () => {
         {
           OPL_CODEX_BIN: fakeCodexPath,
           NODE_NO_WARNINGS: '1',
-        },
+        }
       );
 
       const initializeResult = connection.getInitializeResult();
@@ -236,16 +238,14 @@ describe('integration/oplAcpBridgeSmoke', () => {
       const promptResult = await connection.sendPrompt('Aion ACP smoke prompt');
       expect(promptResult.stopReason).toBe('end_turn');
 
-      const chunkUpdates = updates.filter(
-        (entry) => entry.update.sessionUpdate === 'agent_message_chunk',
-      ) as Array<{ update: { content?: { type?: string; text?: string } } }>;
+      const chunkUpdates = updates.filter((entry) => entry.update.sessionUpdate === 'agent_message_chunk') as Array<{
+        update: { content?: { type?: string; text?: string } };
+      }>;
       expect(chunkUpdates.length).toBeGreaterThan(0);
       expect(
-        chunkUpdates.some((entry) => entry.update.content?.type === 'text' && entry.update.content.text?.length),
+        chunkUpdates.some((entry) => entry.update.content?.type === 'text' && entry.update.content.text?.length)
       ).toBe(true);
-      expect(
-        chunkUpdates.some((entry) => entry.update.content?.text?.includes('Fake Codex reply:')),
-      ).toBe(true);
+      expect(chunkUpdates.some((entry) => entry.update.content?.text?.includes('Fake Codex reply:'))).toBe(true);
     } finally {
       await connection.disconnect().catch(() => undefined);
       fs.rmSync(isolatedExtensionsPath, { recursive: true, force: true });
@@ -254,7 +254,7 @@ describe('integration/oplAcpBridgeSmoke', () => {
     }
   });
 
-  it('exposes OPL adapter and detected agent with consistent backend identity for UI list consumption', async () => {
+  it('exposes OPL adapter and detected agent with both UI identity and extension launch identity', async () => {
     const isolatedExtensionsPath = createIsolatedOplExtensionRoot();
     const restoreEnv = applyEnvOverrides({
       OPL_ACP_BRIDGE_CMD: resolveNodeExecutable(),
@@ -279,8 +279,10 @@ describe('integration/oplAcpBridgeSmoke', () => {
       expect(detected).toBeTruthy();
       expect(detected?.isExtension).toBe(true);
       expect(detected?.extensionName).toBe('opl-acp-extension');
+      expect(detected?.customAgentId).toBe('ext:opl-acp-extension:opl-acp');
 
-      // UI side uses adapter list + detected agent list by backend key.
+      // UI list still uses the adapter backend identity, while launch routing uses
+      // the extension customAgentId so the process side can resolve manifest acpArgs/env.
       expect(detected?.backend).toBe(adapter?.id);
       expect(detected?.name).toBe(adapter?.name);
     } finally {

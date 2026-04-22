@@ -5,7 +5,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { TProviderWithModel } from '../../src/common/config/storage';
 import { buildAgentConversationParams } from '../../src/common/utils/buildAgentConversationParams';
+
+const mockModel = {} as unknown as TProviderWithModel;
 
 describe('buildAgentConversationParams', () => {
   it('builds ACP params for regular backends', () => {
@@ -14,7 +17,7 @@ describe('buildAgentConversationParams', () => {
       name: 'Conversation Name',
       agentName: 'Qwen Code',
       workspace: '/workspace',
-      model: {} as any,
+      model: mockModel,
       cliPath: '/usr/local/bin/qwen',
       currentModelId: 'qwen3-coder-plus',
       sessionMode: 'yolo',
@@ -46,7 +49,7 @@ describe('buildAgentConversationParams', () => {
       name: 'Preset Gemini',
       agentName: 'Preset Gemini',
       workspace: '/workspace',
-      model: { id: 'provider-1', useModel: 'gemini-2.0-flash' } as any,
+      model: { id: 'provider-1', useModel: 'gemini-2.0-flash' } as unknown as TProviderWithModel,
       customAgentId: 'assistant-1',
       isPreset: true,
       presetAgentType: 'gemini',
@@ -75,7 +78,7 @@ describe('buildAgentConversationParams', () => {
       backend: 'remote',
       name: 'Remote Conversation',
       workspace: '/workspace',
-      model: {} as any,
+      model: mockModel,
       customAgentId: 'remote-agent-id',
     });
 
@@ -87,6 +90,36 @@ describe('buildAgentConversationParams', () => {
         workspace: '/workspace',
         customWorkspace: true,
         remoteAgentId: 'remote-agent-id',
+      }),
+    });
+  });
+
+  it('builds ACP params for extension adapters routed through customAgentId', () => {
+    const params = buildAgentConversationParams({
+      backend: 'custom',
+      name: 'OPL ACP Conversation',
+      agentName: 'OPL ACP',
+      workspace: '/workspace',
+      model: mockModel,
+      cliPath: '/usr/local/bin/node',
+      customAgentId: 'ext:opl-acp-extension:opl-acp',
+      currentModelId: 'gpt-5.4',
+      sessionMode: 'default',
+    });
+
+    expect(params).toEqual({
+      type: 'acp',
+      name: 'OPL ACP Conversation',
+      model: {},
+      extra: expect.objectContaining({
+        workspace: '/workspace',
+        customWorkspace: true,
+        backend: 'custom',
+        agentName: 'OPL ACP',
+        cliPath: '/usr/local/bin/node',
+        customAgentId: 'ext:opl-acp-extension:opl-acp',
+        currentModelId: 'gpt-5.4',
+        sessionMode: 'default',
       }),
     });
   });
