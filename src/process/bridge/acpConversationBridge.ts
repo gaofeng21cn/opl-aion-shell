@@ -43,8 +43,9 @@ export function initAcpConversationBridge(workerTaskManager: IWorkerTaskManager)
   });
 
   // Get all detected execution engines, enriched with MCP transport support info.
-  ipcBridge.acpConversation.getAvailableAgents.provider(() => {
+  ipcBridge.acpConversation.getAvailableAgents.provider(async () => {
     try {
+      await agentRegistry.initialize();
       const agents = agentRegistry.getDetectedAgents();
       const enriched = agents.map((agent) => ({
         ...agent,
@@ -63,12 +64,12 @@ export function initAcpConversationBridge(workerTaskManager: IWorkerTaskManager)
         isPreset: 'isPreset' in agent ? (agent.isPreset as boolean | undefined) : undefined,
         customAgentId: 'customAgentId' in agent ? (agent.customAgentId as string | undefined) : undefined,
       }));
-      return Promise.resolve({ success: true as const, data });
+      return { success: true as const, data };
     } catch (error) {
-      return Promise.resolve({
+      return {
         success: false as const,
         msg: error instanceof Error ? error.message : 'Unknown error',
-      });
+      };
     }
   });
 
