@@ -253,4 +253,39 @@ describe('integration/oplAcpBridgeSmoke', () => {
       restoreEnv();
     }
   });
+
+  it('exposes OPL adapter and detected agent with consistent backend identity for UI list consumption', async () => {
+    const isolatedExtensionsPath = createIsolatedOplExtensionRoot();
+    const restoreEnv = applyEnvOverrides({
+      OPL_ACP_BRIDGE_CMD: resolveNodeExecutable(),
+      OPL_ACP_BRIDGE_ENTRY: oplCliEntry,
+      AIONUI_EXTENSIONS_PATH: isolatedExtensionsPath,
+      AIONUI_E2E_TEST: '1',
+    });
+
+    try {
+      const extensionRegistry = ExtensionRegistry.getInstance();
+      await extensionRegistry.initialize();
+
+      const adapter = extensionRegistry
+        .getAcpAdapters()
+        .find((entry) => (entry as { id?: unknown }).id === 'opl-acp') as OplAdapter | undefined;
+      expect(adapter).toBeTruthy();
+
+      await agentRegistry.refreshExtensionAgents();
+      const detected = agentRegistry
+        .getDetectedAgents()
+        .find((agent) => agent.kind === 'acp' && agent.backend === 'opl-acp') as AcpDetectedAgent | undefined;
+      expect(detected).toBeTruthy();
+      expect(detected?.isExtension).toBe(true);
+      expect(detected?.extensionName).toBe('opl-acp-extension');
+
+      // UI side uses adapter list + detected agent list by backend key.
+      expect(detected?.backend).toBe(adapter?.id);
+      expect(detected?.name).toBe(adapter?.name);
+    } finally {
+      fs.rmSync(isolatedExtensionsPath, { recursive: true, force: true });
+      restoreEnv();
+    }
+  });
 });

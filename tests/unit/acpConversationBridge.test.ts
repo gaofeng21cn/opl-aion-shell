@@ -34,6 +34,7 @@ vi.mock('../../src/common', () => ({
 
 vi.mock('../../src/process/agent/AgentRegistry', () => ({
   agentRegistry: {
+    initialize: vi.fn(async () => {}),
     getDetectedAgents: vi.fn(() => []),
     refreshCustomAgents: vi.fn(async () => {}),
   },
@@ -146,6 +147,14 @@ describe('acpConversationBridge', () => {
     expect(result.success).toBe(true);
     expect(result.data).toHaveLength(1);
     expect(result.data[0].supportedTransports).toEqual(['stdio']);
+  });
+
+  it('getAvailableAgents triggers detector initialization before reading agent list', async () => {
+    const { agentRegistry } = await import('../../src/process/agent/AgentRegistry');
+
+    await handlers['getAvailableAgents']();
+
+    expect(agentRegistry.initialize).toHaveBeenCalledTimes(1);
   });
 
   it('getAvailableAgents returns error when registry throws', async () => {
