@@ -188,6 +188,7 @@ vx.toml
 kylindoc/
 .workspace/
 lint-results.txt
+.worktrees
 .worktrees/
 
 # Superpowers brainstorm tool (runtime files, session data)
