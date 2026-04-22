@@ -50,7 +50,7 @@ describe('extensions/AcpAdapterResolver', () => {
     expect(adapters).toHaveLength(1);
     expect(adapters[0]).toMatchObject({
       id: 'opl-acp',
-      name: 'OPL ACP Adapter',
+      name: 'OPL',
       cliCommand: nodeExecutable,
       defaultCliPath: nodeExecutable,
       connectionType: 'cli',

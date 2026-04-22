@@ -10,6 +10,25 @@ function parseArgs(argv) {
   return { flags, values };
 }
 
+function resolveLaunchExtensionsPath(projectRoot, flags) {
+  const useExamples = flags.has('--examples');
+  const useOpl = flags.has('--opl');
+
+  if (useExamples && useOpl) {
+    throw new Error('Choose either --examples or --opl, not both.');
+  }
+
+  if (useOpl) {
+    return path.join(projectRoot, 'examples', 'opl-acp-adapter-extension');
+  }
+
+  if (useExamples) {
+    return path.join(projectRoot, 'examples');
+  }
+
+  return null;
+}
+
 function isWindows() {
   return process.platform === 'win32';
 }
@@ -78,12 +97,17 @@ async function main() {
 
   const env = {
     ...process.env,
-    AIONUI_EXTENSIONS_PATH: path.join(projectRoot, 'examples'),
   };
+  const extensionsPath = resolveLaunchExtensionsPath(projectRoot, flags);
+  if (extensionsPath) {
+    env.AIONUI_EXTENSIONS_PATH = extensionsPath;
+  } else {
+    delete env.AIONUI_EXTENSIONS_PATH;
+  }
 
   console.log(`[packaged-launch] executable: ${packaged.executablePath}`);
   console.log(`[packaged-launch] cwd: ${packaged.cwd}`);
-  console.log(`[packaged-launch] AIONUI_EXTENSIONS_PATH: ${env.AIONUI_EXTENSIONS_PATH}`);
+  console.log(`[packaged-launch] AIONUI_EXTENSIONS_PATH: ${env.AIONUI_EXTENSIONS_PATH || '(unset)'}`);
 
   if (dryRun) return;
 
