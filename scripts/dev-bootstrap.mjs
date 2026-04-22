@@ -24,6 +24,25 @@ function parseArgs(argv) {
   return { command, values, flags };
 }
 
+function resolveLaunchExtensionsPath(projectRoot, flags) {
+  const useExamples = flags.has('--examples') || flags.has('--extensions');
+  const useOpl = flags.has('--opl');
+
+  if (useExamples && useOpl) {
+    throw new Error('Choose either --examples or --opl, not both.');
+  }
+
+  if (useOpl) {
+    return path.resolve(projectRoot, 'examples', 'opl-acp-adapter-extension');
+  }
+
+  if (useExamples) {
+    return path.resolve(projectRoot, 'examples');
+  }
+
+  return null;
+}
+
 function getPidsListeningOnPort(port) {
   try {
     if (isWindows()) {
@@ -150,10 +169,10 @@ function doctor() {
   }
 }
 
-function launch(scriptName, withExtensions) {
+function launch(scriptName, flags) {
   if (!scriptName) {
     throw new Error(
-      'Missing script name. Usage: node scripts/dev-bootstrap.mjs launch <start|webui|cli> [--extensions]'
+      'Missing script name. Usage: node scripts/dev-bootstrap.mjs launch <start|webui|cli> [--opl|--examples]'
     );
   }
 
@@ -164,9 +183,12 @@ function launch(scriptName, withExtensions) {
   }
 
   const env = { ...process.env };
-  if (withExtensions) {
-    env.AIONUI_EXTENSIONS_PATH = path.resolve(process.cwd(), 'examples');
+  const extensionsPath = resolveLaunchExtensionsPath(process.cwd(), flags);
+  if (extensionsPath) {
+    env.AIONUI_EXTENSIONS_PATH = extensionsPath;
     log(`AIONUI_EXTENSIONS_PATH=${env.AIONUI_EXTENSIONS_PATH}`);
+  } else {
+    delete env.AIONUI_EXTENSIONS_PATH;
   }
 
   const child = spawn('bun', ['run', scriptName], {
@@ -194,7 +216,7 @@ function main() {
   }
 
   if (command === 'launch') {
-    launch(values[0], flags.has('--extensions'));
+    launch(values[0], flags);
     return;
   }
 

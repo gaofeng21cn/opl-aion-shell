@@ -1,15 +1,15 @@
 {
   "name": "opl-acp-extension",
-  "displayName": "OPL ACP Adapter Bootstrap",
+  "displayName": "OPL",
   "version": "0.1.0",
-  "description": "Minimal extension manifest that contributes an OPL ACP adapter bootstrap for local OPL session runtime integration.",
+  "description": "Codex-default OPL adapter for local AionUI sessions.",
   "author": "OPL Contributors",
   "contributes": {
     "acpAdapters": [
       {
         "id": "opl-acp",
-        "name": "OPL ACP Adapter",
-        "description": "Bootstrap ACP adapter entry for the planned local OPL session runtime bridge.",
+        "name": "OPL",
+        "description": "OPL session runtime built on the Codex-default adapter path.",
         "connectionType": "cli",
         "cliCommand": "${env:OPL_ACP_BRIDGE_CMD}",
         "defaultCliPath": "${env:OPL_ACP_BRIDGE_CMD}",

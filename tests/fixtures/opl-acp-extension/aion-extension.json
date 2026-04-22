@@ -1,15 +1,15 @@
 {
   "name": "opl-acp-extension",
-  "displayName": "OPL ACP Fixture Extension",
+  "displayName": "OPL",
   "version": "0.1.0",
-  "description": "Test fixture extension that contributes a minimal OPL ACP adapter bootstrap.",
+  "description": "Fixture extension that contributes the Codex-default OPL adapter.",
   "author": "AionUi Test",
   "contributes": {
     "acpAdapters": [
       {
         "id": "opl-acp",
-        "name": "OPL ACP Adapter",
-        "description": "Fixture adapter for validating OPL ACP bootstrap manifest parsing.",
+        "name": "OPL",
+        "description": "Fixture adapter for validating the OPL session runtime wiring.",
         "connectionType": "cli",
         "cliCommand": "${env:OPL_ACP_BRIDGE_CMD}",
         "defaultCliPath": "${env:OPL_ACP_BRIDGE_CMD}",
