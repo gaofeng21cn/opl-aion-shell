@@ -2,6 +2,7 @@
 import { execSync, spawn } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
+import { buildLaunchEnv } from './launch-env.mjs';
 
 const DEFAULT_PORTS = [5173, 9230];
 const KILLABLE_NAMES = new Set(['electron', 'aionui', 'aionui.exe']);
@@ -22,25 +23,6 @@ function parseArgs(argv) {
   const flags = new Set(rest.filter((x) => x.startsWith('--')));
   const values = rest.filter((x) => !x.startsWith('--'));
   return { command, values, flags };
-}
-
-function resolveLaunchExtensionsPath(projectRoot, flags) {
-  const useExamples = flags.has('--examples') || flags.has('--extensions');
-  const useOpl = flags.has('--opl');
-
-  if (useExamples && useOpl) {
-    throw new Error('Choose either --examples or --opl, not both.');
-  }
-
-  if (useOpl) {
-    return path.resolve(projectRoot, 'examples', 'opl-acp-adapter-extension');
-  }
-
-  if (useExamples) {
-    return path.resolve(projectRoot, 'examples');
-  }
-
-  return null;
 }
 
 function getPidsListeningOnPort(port) {
@@ -182,14 +164,8 @@ function launch(scriptName, flags) {
     log(`killed ${killedByName.length + killedByPort.length} stale process(es)`);
   }
 
-  const env = { ...process.env };
-  const extensionsPath = resolveLaunchExtensionsPath(process.cwd(), flags);
-  if (extensionsPath) {
-    env.AIONUI_EXTENSIONS_PATH = extensionsPath;
-    log(`AIONUI_EXTENSIONS_PATH=${env.AIONUI_EXTENSIONS_PATH}`);
-  } else {
-    delete env.AIONUI_EXTENSIONS_PATH;
-  }
+  const env = buildLaunchEnv(process.cwd(), flags, { allowLegacyExtensionsFlag: true });
+  log(`AIONUI_EXTENSIONS_PATH=${env.AIONUI_EXTENSIONS_PATH || '(unset)'}`);
 
   const child = spawn('bun', ['run', scriptName], {
     cwd: process.cwd(),

@@ -55,6 +55,31 @@ export class ExtensionLoader {
     }
 
     const extensions: LoadedExtension[] = [];
+    const baseManifestPath = path.join(baseDir, EXTENSION_MANIFEST_FILE);
+
+    // Support env-provided paths that point directly at one extension directory.
+    if (existsSync(baseManifestPath)) {
+      try {
+        const loaded = await this.loadManifest(baseDir, baseManifestPath, source);
+        if (loaded) {
+          extensions.push(loaded);
+        }
+      } catch (error) {
+        if (error instanceof UndefinedEnvVariableError) {
+          if (!this.options.continueOnError) {
+            throw error;
+          }
+          console.error(`[Extensions] Failed to load extension from ${baseDir}: ${error.message}`);
+        } else {
+          console.warn(
+            `[Extensions] Failed to load extension from ${baseDir}:`,
+            error instanceof Error ? error.message : error
+          );
+        }
+      }
+      return extensions;
+    }
+
     try {
       const entries = await fs.readdir(baseDir, { withFileTypes: true });
       for (const entry of entries) {

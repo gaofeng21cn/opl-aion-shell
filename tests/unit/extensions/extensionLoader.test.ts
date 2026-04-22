@@ -79,6 +79,27 @@ describe('extensions/ExtensionLoader', () => {
     expect(extByName.has('dev-example')).toBe(false);
   });
 
+  it('loads an env path that points directly to one extension directory', async () => {
+    const sandbox = createTempDir('aionui-loader-direct-');
+    const homeDir = path.join(sandbox, 'home');
+    const envExtensionDir = path.join(sandbox, 'opl-acp-adapter-extension');
+    const projectRoot = path.join(sandbox, 'project');
+
+    fs.mkdirSync(projectRoot, { recursive: true });
+    setSandboxEnv(homeDir);
+    process.chdir(projectRoot);
+    process.env.AIONUI_EXTENSIONS_PATH = envExtensionDir;
+
+    createExtension(sandbox, 'opl-acp-adapter-extension', 'opl-acp-extension', '0.1.0');
+
+    const loaded = await new ExtensionLoader().loadAll();
+
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]?.manifest.name).toBe('opl-acp-extension');
+    expect(loaded[0]?.directory).toBe(envExtensionDir);
+    expect(loaded[0]?.source).toBe('env');
+  });
+
   it('keeps E2E discovery hermetic by ignoring user, appdata, and implicit example sources', async () => {
     const sandbox = createTempDir('aionui-loader-e2e-');
     const homeDir = path.join(sandbox, 'home');
