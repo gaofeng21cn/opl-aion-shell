@@ -3,12 +3,10 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-import { resolveEnvInObject } from '../../src/process/extensions/resolvers/utils/envResolver';
 import { resolveAcpAdapters } from '../../src/process/extensions/resolvers/AcpAdapterResolver';
-import { ExtensionManifestSchema, type LoadedExtension } from '../../src/process/extensions/types';
+import { ExtensionLoader } from '../../src/process/extensions/ExtensionLoader';
+import type { LoadedExtension } from '../../src/process/extensions/types';
 
-const fixtureRoot = path.resolve(__dirname, '../fixtures/opl-acp-extension');
-const manifestPath = path.join(fixtureRoot, 'aion-extension.json');
 const oplCliEntry = path.resolve(process.cwd(), '../one-person-lab/src/cli.ts');
 
 function resolveNodeExecutable() {
@@ -33,20 +31,19 @@ function shellSingleQuote(value: string) {
 
 describe('integration/oplAcpBridgeSmoke', () => {
 
-  it('resolves the OPL ACP adapter fixture and completes a real initialize + session_create smoke', async () => {
+  it('discovers the OPL ACP adapter through Aion extension loading and completes a real initialize + session_create smoke', async () => {
     process.env.OPL_ACP_BRIDGE_CMD = resolveNodeExecutable();
     process.env.OPL_ACP_BRIDGE_ENTRY = oplCliEntry;
+    process.env.AIONUI_EXTENSIONS_PATH = path.resolve(process.cwd(), 'examples');
 
-    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    const resolved = resolveEnvInObject(raw);
-    const parsed = ExtensionManifestSchema.parse(resolved);
+    const loader = new ExtensionLoader({ continueOnError: false });
+    const loadedExtensions = await loader.loadAll();
+    const oplExtension = loadedExtensions.find((entry) => entry.manifest.name === 'opl-acp-extension') as
+      | LoadedExtension
+      | undefined;
 
-    const loadedExtension: LoadedExtension = {
-      manifest: parsed,
-      directory: fixtureRoot,
-      source: 'env',
-    };
-    const adapter = resolveAcpAdapters([loadedExtension])[0] as {
+    expect(oplExtension).toBeTruthy();
+    const adapter = resolveAcpAdapters([oplExtension as LoadedExtension])[0] as {
       cliCommand: string;
       acpArgs: string[];
     };
