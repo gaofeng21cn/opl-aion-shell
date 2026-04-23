@@ -42,6 +42,7 @@
 ## 📋 クイックナビゲーション
 
 <p align="center">
+
 [✨ Cowork の実演](#-cowork-の実演) ·
 [🤔 なぜ AionUi を選ぶのか？](#-なぜ-aionui-を-claude-cowork-より選ぶのか) ·
 [🚀 クイックスタート](#-クイックスタート) ·
