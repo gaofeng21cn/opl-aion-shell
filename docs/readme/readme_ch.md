@@ -71,6 +71,17 @@
 
 ---
 
+## OPL 图形壳
+
+当 AionUi 和 `OPL` 一起使用时，它承担的是可选 GUI shell，而不是重新定义默认 runtime。
+`OPL` 的默认路径仍然是 `one-person-lab` 里的 `Codex` 加 OPL skill pack；当你希望把这条同样的运行路径放进 GUI 里时，再用 `--opl` 启动 AionUi。
+
+- `opl` 继续是默认持续交互前门
+- `opl exec` 继续是一次性前门
+- AionUi 通过 OPL adapter/extension 发现同一套本地 session/runtime surface
+
+---
+
 ## 内置 Agent — 安装即用，零配置
 
 AionUi 自带完整的 AI Agent。不像其他工具需要你手动安装各种 CLI 工具，**AionUi 装好就能用，开箱即用**。

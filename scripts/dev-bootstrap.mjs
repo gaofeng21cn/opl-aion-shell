@@ -154,7 +154,7 @@ function doctor() {
 function launch(scriptName, flags) {
   if (!scriptName) {
     throw new Error(
-      'Missing script name. Usage: node scripts/dev-bootstrap.mjs launch <start|webui|cli> [--opl|--examples]'
+      'Missing script name. Usage: node scripts/dev-bootstrap.mjs launch <start|webui|cli> [--opl (enable the OPL GUI-shell adapter; requires one-person-lab) | --examples]'
     );
   }
 
