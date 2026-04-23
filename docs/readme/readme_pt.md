@@ -42,6 +42,7 @@
 ## 📋 Navegação rápida
 
 <p align="center">
+
 [✨ Cowork em ação](#-cowork-em-ação) ·
 [🤔 Por que escolher AionUi?](#-por-que-escolher-aionui-sobre-claude-cowork) ·
 [🚀 Início rápido](#-início-rápido) ·

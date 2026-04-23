@@ -42,6 +42,7 @@
 ## 📋 Hızlı Gezinme
 
 <p align="center">
+
 [✨ Cowork Eylemde](#-cowork-eylemde) ·
 [🤔 Neden AionUi'yi Seçmelisiniz?](#-neden-aionui-claude-cowork-yerine) ·
 [🚀 Hızlı Başlangıç](#-hızlı-başlangıç) ·
