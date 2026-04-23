@@ -57,7 +57,9 @@ export function buildLaunchEnv(projectRoot, flags, options = {}) {
   if (hasFlag(flags, '--opl')) {
     const oplWorkspaceRoot = resolveOplWorkspaceRoot(projectRoot);
     if (!oplWorkspaceRoot) {
-      throw new Error('Failed to resolve one-person-lab workspace root for the OPL ACP bridge.');
+      throw new Error(
+        'Failed to resolve one-person-lab workspace root for the OPL GUI-shell adapter (Codex runtime + OPL skill pack).'
+      );
     }
 
     env.OPL_ACP_BRIDGE_CMD = env.OPL_ACP_BRIDGE_CMD || process.execPath;

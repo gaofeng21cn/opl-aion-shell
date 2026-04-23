@@ -71,6 +71,17 @@
 
 ---
 
+## OPL GUI Shell
+
+When AionUi is used with `OPL`, it acts as an optional GUI shell rather than redefining the runtime.
+The default OPL path remains `Codex` plus the OPL skill pack from `one-person-lab`; launch AionUi with `--opl` when you want that same runtime in a GUI.
+
+- `opl` remains the default interactive frontdoor
+- `opl exec` remains the one-shot frontdoor
+- AionUi consumes the OPL adapter/extension to discover the same local session/runtime surface
+
+---
+
 ## Built-in Agent — Install & Go, Zero Configuration
 
 AionUi ships with a complete AI agent engine. Unlike tools that require you to install CLI agents separately, **AionUi works the moment you install it**.
