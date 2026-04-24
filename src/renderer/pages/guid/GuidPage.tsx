@@ -341,10 +341,16 @@ const GuidPage: React.FC = () => {
 
   // Clear resetAssistant from location.state after the hook has consumed it,
   // so that re-renders don't re-trigger the reset logic.
+  //
+  // Must go through React Router's navigate — raw window.history.replaceState
+  // with `location.pathname` would write the HashRouter virtual path (e.g.
+  // '/guid') into the browser's real URL and strip the leading '#'. On the
+  // next hard reload, the browser would then request '/guid' directly from
+  // the dev server (which has no SPA fallback) and 404.
   useEffect(() => {
     if (!resetAssistantRequested) return;
-    window.history.replaceState(null, '', `${location.pathname}${location.search}${location.hash}`);
-  }, [resetAssistantRequested, location.pathname, location.search, location.hash]);
+    navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
+  }, [resetAssistantRequested, location.pathname, location.search, location.hash, navigate]);
 
   useEffect(() => {
     const node = descriptionTextRef.current;
@@ -424,15 +430,25 @@ const GuidPage: React.FC = () => {
       const customAgentId = agentSelection.selectedAgentInfo?.customAgentId;
       if (!customAgentId || nextType === currentPresetAgentType) return;
       try {
-        const agents = ((await ConfigStorage.get('acp.customAgents')) || []) as AcpBackendConfig[];
-        const idx = agents.findIndex((a) => a.id === customAgentId);
-        if (idx < 0) {
-          Message.warning(t('common.failed', { defaultValue: 'Failed' }));
-          return;
+        const [presetAssistants, localAgents] = await Promise.all([
+          ConfigStorage.get('assistants').then((v) => (v || []) as AcpBackendConfig[]),
+          ConfigStorage.get('acp.customAgents').then((v) => (v || []) as AcpBackendConfig[]),
+        ]);
+        const presetIdx = presetAssistants.findIndex((a) => a.id === customAgentId);
+        if (presetIdx >= 0) {
+          const updated = [...presetAssistants];
+          updated[presetIdx] = { ...updated[presetIdx], presetAgentType: nextType };
+          await ConfigStorage.set('assistants', updated);
+        } else {
+          const localIdx = localAgents.findIndex((a) => a.id === customAgentId);
+          if (localIdx < 0) {
+            Message.warning(t('common.failed', { defaultValue: 'Failed' }));
+            return;
+          }
+          const updated = [...localAgents];
+          updated[localIdx] = { ...updated[localIdx], presetAgentType: nextType };
+          await ConfigStorage.set('acp.customAgents', updated);
         }
-        const updated = [...agents];
-        updated[idx] = { ...updated[idx], presetAgentType: nextType };
-        await ConfigStorage.set('acp.customAgents', updated);
         await agentSelection.refreshCustomAgents();
         const agentName = ACP_BACKENDS_ALL[nextType as keyof typeof ACP_BACKENDS_ALL]?.name || nextType;
         Message.success(t('guid.switchedToAgent', { agent: agentName }));
@@ -465,21 +481,11 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  // AionCLI does not support Google Auth — filter it out
-  const isAionrs = effectiveAgentType === 'aionrs';
-  const filteredModelList = useMemo(
-    () =>
-      isAionrs
-        ? modelSelection.modelList.filter((p) => !p.platform?.toLowerCase().includes('gemini-with-google-auth'))
-        : modelSelection.modelList,
-    [isAionrs, modelSelection.modelList]
-  );
-
   // Build the model selector node
   const modelSelectorNode = (
     <GuidModelSelector
       isGeminiMode={isGeminiMode}
-      modelList={filteredModelList}
+      modelList={modelSelection.modelList}
       currentModel={modelSelection.currentModel}
       setCurrentModel={modelSelection.setCurrentModel}
       geminiModeLookup={modelSelection.geminiModeLookup}

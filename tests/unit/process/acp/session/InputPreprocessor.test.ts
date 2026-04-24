@@ -1,6 +1,12 @@
 // tests/unit/process/acp/session/InputPreprocessor.test.ts
+import nodePath from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, it, expect, vi } from 'vitest';
 import { InputPreprocessor } from '@process/acp/session/InputPreprocessor';
+
+function toExpectedResourceUri(filePath: string): string {
+  return pathToFileURL(nodePath.resolve(filePath)).toString();
+}
 
 describe('InputPreprocessor', () => {
   it('returns text-only content when no files', () => {
@@ -16,6 +22,23 @@ describe('InputPreprocessor', () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ type: 'text', text: 'check this' });
     expect(result[1]).toEqual({ type: 'text', text: '[File: /foo/bar.ts]\ncontent of /foo/bar.ts' });
+  });
+
+  it('keeps image uploads as resource links instead of inlining them', () => {
+    const readFile = vi.fn();
+    const pp = new InputPreprocessor(readFile);
+    const result = pp.process('what is this image', ['/foo/demo.jpg']);
+
+    expect(readFile).not.toHaveBeenCalled();
+    expect(result).toEqual([
+      { type: 'text', text: 'what is this image' },
+      {
+        type: 'resource_link',
+        name: 'demo.jpg',
+        uri: toExpectedResourceUri('/foo/demo.jpg'),
+        mimeType: 'image/jpeg',
+      },
+    ]);
   });
 
   it('resolves @file references in text', () => {
@@ -34,6 +57,22 @@ describe('InputPreprocessor', () => {
     const result = pp.process('check this', ['/nonexistent.ts']);
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('text');
+  });
+
+  it('falls back to a resource link when a file content looks binary', () => {
+    const readFile = vi.fn(() => '\u0000\u0001binary');
+    const pp = new InputPreprocessor(readFile);
+    const result = pp.process('check this', ['/foo/blob.bin']);
+
+    expect(readFile).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([
+      { type: 'text', text: 'check this' },
+      {
+        type: 'resource_link',
+        name: 'blob.bin',
+        uri: toExpectedResourceUri('/foo/blob.bin'),
+      },
+    ]);
   });
 
   it('deduplicates uploaded files from @references', () => {

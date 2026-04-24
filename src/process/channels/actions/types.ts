@@ -39,6 +39,7 @@ export interface IActionContext {
   // Helper functions
   sendMessage: (message: IUnifiedOutgoingMessage) => Promise<string>;
   editMessage: (messageId: string, message: IUnifiedOutgoingMessage) => Promise<void>;
+  flushTextDraft?: () => Promise<void>;
 }
 
 /**

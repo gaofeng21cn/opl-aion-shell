@@ -88,7 +88,13 @@ describe('WeixinMonitor — text message delivery', () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(agentChat).toHaveBeenCalledOnce();
-    expect(agentChat).toHaveBeenCalledWith({ conversationId: 'user_123', text: 'Hi there' });
+    expect(agentChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'user_123',
+        text: 'Hi there',
+        sendTextNow: expect.any(Function),
+      })
+    );
 
     expect(sentBody).toBeDefined();
     const body = sentBody as {
@@ -96,6 +102,41 @@ describe('WeixinMonitor — text message delivery', () => {
     };
     expect(body.msg.to_user_id).toBe('user_123');
     expect(body.msg.item_list[0].text_item.text).toBe('Hello back!');
+  });
+
+  it('exposes sendTextNow to agent.chat for immediate text delivery', async () => {
+    const agentChat = vi.fn().mockImplementation(async (req: { sendTextNow?: (text: string) => Promise<void> }) => {
+      await req.sendTextNow?.('segment now');
+      return {};
+    });
+    const sentBodies: unknown[] = [];
+    const controller = mockFetchOnce(
+      {
+        ret: 0,
+        msgs: [
+          {
+            from_user_id: 'user_now',
+            context_token: 'ctx_now',
+            item_list: [{ type: 1, text_item: { text: 'Hi' } }],
+          },
+        ],
+        get_updates_buf: '',
+      },
+      (body) => {
+        sentBodies.push(body);
+      }
+    );
+
+    startMonitor(makeOpts({ agent: { chat: agentChat }, abortSignal: controller.signal }));
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(sentBodies).toHaveLength(1);
+    const body = sentBodies[0] as {
+      msg: { to_user_id: string; context_token?: string; item_list: Array<{ text_item: { text: string } }> };
+    };
+    expect(body.msg.to_user_id).toBe('user_now');
+    expect(body.msg.context_token).toBe('ctx_now');
+    expect(body.msg.item_list[0]?.text_item.text).toBe('segment now');
   });
 
   it('uses voice_item.text as inbound text and merges it with text messages', async () => {
@@ -118,10 +159,13 @@ describe('WeixinMonitor — text message delivery', () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(agentChat).toHaveBeenCalledOnce();
-    expect(agentChat).toHaveBeenCalledWith({
-      conversationId: 'user_voice',
-      text: '先看这个\n\n这是语音转文字',
-    });
+    expect(agentChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'user_voice',
+        text: '先看这个\n\n这是语音转文字',
+        sendTextNow: expect.any(Function),
+      })
+    );
   });
 
   it('does not call agent.chat for non-text items (image type=2)', async () => {
@@ -208,11 +252,14 @@ describe('WeixinMonitor — text message delivery', () => {
     startMonitor(makeOpts({ agent: { chat: agentChat }, abortSignal: controller.signal }));
     await new Promise((r) => setTimeout(r, 80));
 
-    expect(agentChat).toHaveBeenCalledWith({
-      conversationId: 'user_media_send',
-      text: 'send it',
-      attachments: undefined,
-    });
+    expect(agentChat).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'user_media_send',
+        text: 'send it',
+        attachments: undefined,
+        sendTextNow: expect.any(Function),
+      })
+    );
     expect(sendBodies).toHaveLength(3);
 
     const captionBody = sendBodies[0] as { msg: { item_list: Array<{ text_item: { text: string } }> } };

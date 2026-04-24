@@ -222,10 +222,8 @@ export class AcpSession {
   }
 
   setModel(modelId: string): void {
-    if (this._status === 'idle' || this._status === 'error') {
-      throw new AcpError('INVALID_STATE', `Cannot set model in ${this._status}`);
-    }
     this.configTracker.setDesiredModel(modelId);
+    if (this._status === 'idle' || this._status === 'error') return;
     const { client, sessionId } = this.lifecycle;
     if (this._status === 'active' && client && sessionId) {
       client
@@ -237,10 +235,8 @@ export class AcpSession {
   }
 
   setMode(modeId: string): void {
-    if (this._status === 'idle' || this._status === 'error') {
-      throw new AcpError('INVALID_STATE', `Cannot set mode in ${this._status}`);
-    }
     this.configTracker.setDesiredMode(modeId);
+    if (this._status === 'idle' || this._status === 'error') return;
     const { client, sessionId } = this.lifecycle;
     if (this._status === 'active' && client && sessionId) {
       client
@@ -389,7 +385,20 @@ export class AcpSession {
         return;
       }
 
+      case 'active': {
+        // Process exited while idle (no prompt in flight).  This is a normal
+        // lifecycle event — e.g. the agent bridge (codex-acp) may shut down
+        // after an inactivity timeout.  Silently transition to "suspended" so
+        // the next sendMessage triggers a fresh spawn.  Do NOT emit a crash
+        // signal: the user would see a scary "process exited unexpectedly"
+        // error even though the conversation completed normally.
+        this.lifecycle.clearClient();
+        this.setStatus('suspended');
+        return;
+      }
+
       default: {
+        // starting / resuming — process died during bootstrap, treat as crash
         this.lifecycle.clearClient();
         this.emitCrashSignalIfProcessDied(info);
         this.setStatus('suspended');

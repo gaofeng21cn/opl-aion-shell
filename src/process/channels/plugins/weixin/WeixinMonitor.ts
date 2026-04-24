@@ -24,6 +24,7 @@ export type WeixinChatRequest = {
   conversationId: string;
   text?: string;
   attachments?: WeixinAttachment[];
+  sendTextNow?: (text: string) => Promise<void>;
 };
 
 export type WeixinChatResponse = {
@@ -674,6 +675,8 @@ async function runMonitor(
             conversationId,
             text,
             attachments: attachments.length > 0 ? attachments : undefined,
+            sendTextNow: (outgoingText) =>
+              callSendMessage(baseUrl, token, wechatUin, conversationId, outgoingText, msg.context_token),
           });
         } catch (agentErr) {
           // oxlint-disable-next-line eslint/no-await-in-loop

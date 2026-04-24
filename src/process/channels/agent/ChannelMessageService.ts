@@ -33,11 +33,29 @@ interface IStreamState {
   finishCount: number;
   /** Last visible message type seen in the stream */
   lastVisibleMessageType?: TMessage['type'];
+  /** Whether the current stream has emitted assistant-visible answer content */
+  hasAnswerMessage?: boolean;
+  /** Whether the current stream has emitted only progress/tool/status content so far */
+  hasNonAnswerMessage?: boolean;
   /** Timer used to wait for a continuation turn after a tool-only finish */
   finishTimer?: ReturnType<typeof setTimeout>;
 }
 
 const TOOL_CONTINUATION_WAIT_MS = 15_000;
+
+function isNonAnswerMessage(message: TMessage): boolean {
+  if (message.type === 'agent_status') {
+    return message.content.status !== 'error';
+  }
+  return (
+    message.type === 'tool_group' ||
+    message.type === 'tool_call' ||
+    message.type === 'acp_tool_call' ||
+    message.type === 'codex_tool_call' ||
+    message.type === 'plan' ||
+    message.type === 'thinking'
+  );
+}
 
 /**
  * ChannelMessageService - Manages message sending for Channel
@@ -128,7 +146,7 @@ export class ChannelMessageService {
     if (event.type === 'finish') {
       stream.finishCount++;
       if (stream.turnCount === 0 || stream.finishCount >= stream.turnCount) {
-        const shouldWaitForContinuation = stream.lastVisibleMessageType === 'tool_group';
+        const shouldWaitForContinuation = Boolean(stream.hasNonAnswerMessage && !stream.hasAnswerMessage);
         if (shouldWaitForContinuation) {
           this.clearFinishTimer(stream);
           stream.finishTimer = setTimeout(() => {
@@ -153,6 +171,11 @@ export class ChannelMessageService {
     }
 
     stream.lastVisibleMessageType = message.type;
+    if (isNonAnswerMessage(message)) {
+      stream.hasNonAnswerMessage = true;
+    } else {
+      stream.hasAnswerMessage = true;
+    }
 
     let messageList = this.messageListMap.get(conversationId);
     if (!messageList) {
@@ -246,12 +269,14 @@ export class ChannelMessageService {
         turnCount: 0,
         finishCount: 0,
         lastVisibleMessageType: undefined,
+        hasAnswerMessage: false,
+        hasNonAnswerMessage: false,
         finishTimer: undefined,
       });
 
       // Build payload based on agent type.
-      // Gemini and Aionrs expect { input }, ACP expects { content }.
-      const useInputPayload = task.type === 'gemini' || task.type === 'aionrs';
+      // Gemini expects { input }; aionrs and all other agents expect { content }.
+      const useInputPayload = task.type === 'gemini';
       const payload: { input?: string; content?: string; msg_id: string } = useInputPayload
         ? { input: message, msg_id: msgId }
         : { content: message, msg_id: msgId };
