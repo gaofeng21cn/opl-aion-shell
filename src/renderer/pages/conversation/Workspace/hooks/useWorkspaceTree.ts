@@ -10,7 +10,6 @@ import { emitter } from '@/renderer/utils/emitter';
 import { dispatchWorkspaceHasFilesEvent } from '@/renderer/utils/workspace/workspaceEvents';
 import { useCallback, useRef, useState } from 'react';
 import type { SelectedNodeRef } from '../types';
-import { getFirstLevelKeys } from '../utils/treeHelpers';
 
 interface UseWorkspaceTreeOptions {
   workspace: string;
@@ -89,16 +88,9 @@ export function useWorkspaceTree({ workspace, conversation_id, eventPrefix }: Us
             setTreeKey(Math.random());
           }
 
-          // 首次加载时展开第一层，后续刷新时保留用户已展开的目录
-          // On first load expand first level; on subsequent refreshes preserve user-expanded dirs
+          // Keep the workspace tree collapsed by default; folders load deeper content on explicit expansion.
           if (isFirstLoadRef.current) {
-            setExpandedKeys(getFirstLevelKeys(res));
-          } else {
-            setExpandedKeys((prev) => {
-              const firstLevel = getFirstLevelKeys(res);
-              // Merge: keep user-expanded keys + ensure first level is always expanded
-              return [...new Set([...prev, ...firstLevel])];
-            });
+            setExpandedKeys([]);
           }
 
           // 根据是否有文件决定工作空间面板的展开/折叠状态

@@ -430,8 +430,8 @@ export function initConversationBridge(
         root: workspace,
         fileService,
         abortController: buildLastAbortController(),
-        maxDepth: search ? 10 : 3, // Keep workspace tree responsive and avoid oversized IPC payloads.
-        maxChildrenPerDirectory: search ? undefined : 500,
+        maxDepth: search ? 10 : 1, // Keep workspace tree responsive; deeper folders load on explicit expansion.
+        maxChildrenPerDirectory: search ? undefined : 200,
         search: {
           text: search,
           onProcess(result) {

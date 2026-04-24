@@ -1150,9 +1150,11 @@ export function initFsBridge(): void {
         return skills;
       }
 
+      const excludedAutoSkills = new Set(['aionui-skills', 'office-cli', 'officecli']);
       const entries = await fs.readdir(autoSkillsDir, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        if (excludedAutoSkills.has(entry.name)) continue;
 
         const skillMdPath = path.join(autoSkillsDir, entry.name, 'SKILL.md');
         try {

@@ -10,6 +10,7 @@ import { ConfigStorage, type ICssTheme } from '@/common/config/storage';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
 import onePersonLabLogo from '@/renderer/assets/logos/brand/one-person-lab.svg';
+import onePersonLabLogoDark from '@/renderer/assets/logos/brand/one-person-lab-dark.svg';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
@@ -25,6 +26,7 @@ import { processCustomCss } from '@renderer/utils/theme/customCssProcessor';
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
 import { useOplBrandName } from '@renderer/hooks/system/useOplBrandName';
+import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
 import '@renderer/styles/layout.css';
@@ -97,6 +99,8 @@ const Layout: React.FC<{
   const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
   const oplBrandName = useOplBrandName();
+  const { theme } = useThemeContext();
+  const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
@@ -456,7 +460,7 @@ const Layout: React.FC<{
                   })}
                   onClick={onClick}
                 >
-                  <img src={onePersonLabLogo} alt='' className='w-full h-full object-contain' />
+                  <img src={siderLogo} alt='' className='w-full h-full object-contain' />
                 </div>
                 <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>{oplBrandName}</div>
                 {isMobile && !collapsed && (

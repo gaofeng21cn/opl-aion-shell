@@ -161,7 +161,7 @@ export class AcpSkillManager {
       return;
     }
 
-    const excludeSet = new Set(['aionui-skills', ...(excludeSkills ?? [])]);
+    const excludeSet = new Set(['aionui-skills', 'office-cli', 'officecli', ...(excludeSkills ?? [])]);
 
     try {
       const entries = await fs.readdir(builtinDir, { withFileTypes: true });

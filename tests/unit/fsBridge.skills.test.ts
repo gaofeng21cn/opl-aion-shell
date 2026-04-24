@@ -350,6 +350,34 @@ describe('fsBridge skills functionality', () => {
     });
   });
 
+  describe('listBuiltinAutoSkills', () => {
+    it('hides disabled AionUI auto skills from the visible auto-injected list', async () => {
+      const autoBase = path.resolve('/mock/userData/builtin-skills/_builtin');
+      mockFsStore[autoBase] = { isDirectory: true };
+      for (const [dirName, skillName] of [
+        ['aionui-skills', 'aionui-skills'],
+        ['office-cli', 'officecli'],
+        ['cron', 'cron'],
+        ['skill-creator', 'skill-creator'],
+      ]) {
+        mockFsStore[path.join(autoBase, dirName)] = { isDirectory: true };
+        mockFsStore[path.join(autoBase, dirName, 'SKILL.md')] = {
+          content: `---
+name: ${skillName}
+description: ${skillName}
+---
+`,
+          isDirectory: false,
+        };
+      }
+
+      const handler = await getProvider('listBuiltinAutoSkills');
+      const result = await handler();
+
+      expect(result.map((skill: any) => skill.name)).toEqual(['cron', 'skill-creator']);
+    });
+  });
+
   describe('detectAndCountExternalSkills', () => {
     it('should detect direct skills and nested skill packs from common and custom paths', async () => {
       const geminiPath = path.resolve('/mock/home/.gemini/skills');

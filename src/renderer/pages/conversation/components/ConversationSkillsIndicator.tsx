@@ -39,14 +39,16 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
     'morph-ppt',
   ];
   const priorityByName = new Map(prioritySkills.map((name, index) => [name, index]));
-  const visibleSkills = [...(loadedSkills ?? [])].sort((a, b) => {
+  const visibleSkills = Array.from(
+    new Map((loadedSkills ?? []).map((skill) => [skill.name, skill])).values()
+  ).sort((a, b) => {
     const aPriority = priorityByName.get(a.name) ?? Number.MAX_SAFE_INTEGER;
     const bPriority = priorityByName.get(b.name) ?? Number.MAX_SAFE_INTEGER;
     if (aPriority !== bPriority) return aPriority - bPriority;
     return a.name.localeCompare(b.name);
   });
 
-  if (!loadedSkills || loadedSkills.length === 0) return null;
+  if (!loadedSkills || visibleSkills.length === 0) return null;
 
   const handleSkillClick = (skillName: string) => {
     navigate(`/settings/capabilities?tab=skills&highlight=${encodeURIComponent(skillName)}`);
@@ -55,7 +57,7 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
   const content = (
     <div className='max-w-320px max-h-300px overflow-y-auto'>
       <div className='text-12px font-500 text-t-secondary mb-8px'>
-        {t('conversation.skills.loaded')} ({loadedSkills.length})
+        {t('conversation.skills.loaded')} ({visibleSkills.length})
       </div>
       <div className='flex flex-col gap-4px'>
         {visibleSkills.map((skill) => (
@@ -80,7 +82,7 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
       >
         <Lightning theme='filled' size={14} fill={iconColors.primary} strokeWidth={2} style={{ lineHeight: 0 }} />
         <span className='text-13px text-t-primary lh-[1]' data-testid='skills-indicator-count'>
-          {loadedSkills.length}
+          {visibleSkills.length}
         </span>
       </span>
     </Popover>

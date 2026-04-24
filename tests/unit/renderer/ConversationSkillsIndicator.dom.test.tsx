@@ -129,3 +129,20 @@ it('prioritizes OPL family and companion skills in the compact popover', () => {
   expect(renderedNames.slice(0, 3)).toEqual(['mas', 'superpowers', 'officecli-docx']);
   expect(screen.getByText('4')).toBeInTheDocument();
 });
+
+
+it('deduplicates repeated loaded skills by display name', () => {
+  const skills = [
+    { name: 'mas', description: 'mas' },
+    { name: 'officecli', description: 'builtin office cli' },
+    { name: 'officecli', description: 'codex officecli' },
+    { name: 'officecli-docx', description: 'docx' },
+  ];
+
+  render(<ConversationSkillsIndicator conversation={createConversation(skills)} />);
+
+  const renderedNames = screen.getAllByTestId('skill-row').map((node) => node.textContent);
+  expect(renderedNames).toEqual(['mas', 'officecli', 'officecli-docx']);
+  expect(screen.getByTestId('skills-indicator-count')).toHaveTextContent('3');
+  expect(screen.getByText(/conversation\.skills\.loaded/)).toHaveTextContent('(3)');
+});
