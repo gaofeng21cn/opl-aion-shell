@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
-import { openExternalUrl, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/hooks/ConversationTabsContext';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
 import AgentPillBar from './components/AgentPillBar';
@@ -18,9 +18,6 @@ import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
-import QuickActionButtons from './components/QuickActionButtons';
-import SkillsMarketBanner from './components/SkillsMarketBanner';
-import FeedbackReportModal from '@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
@@ -38,6 +35,8 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
 
+const OPL_VISIBLE_AGENT_BACKENDS = new Set(['codex', 'hermes', 'mas', 'mag', 'rca']);
+
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -49,17 +48,6 @@ const GuidPage: React.FC = () => {
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
 
   const localeKey = resolveLocaleKey(i18n.language);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-
-  // Open external link
-  const openLink = useCallback(async (url: string) => {
-    try {
-      await openExternalUrl(url);
-    } catch (error) {
-      console.error('Failed to open external link:', error);
-    }
-  }, []);
-
   // --- Skills state ---
   const [builtinAutoSkills, setBuiltinAutoSkills] = useState<Array<{ name: string; description: string }>>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
@@ -416,18 +404,25 @@ const GuidPage: React.FC = () => {
   }, [agentSelection.isPresetAgent, selectedAssistantDescription]);
 
   const currentPresetAgentType = selectedAssistantRecord?.presetAgentType || 'gemini';
+  const oplVisibleAgents = useMemo(() => {
+    return agentSelection.availableAgents?.filter((agent) => {
+      if (agent.isPreset) return true;
+      return OPL_VISIBLE_AGENT_BACKENDS.has(agent.backend);
+    });
+  }, [agentSelection.availableAgents]);
+
   const agentSwitcherItems = useMemo(() => {
-    if (!agentSelection.availableAgents) return [];
-    // Build from detected execution engines, excluding preset assistants and remote agents
-    return agentSelection.availableAgents
-      .filter((a) => !a.isPreset && a.backend !== 'remote')
-      .map((a) => ({
-        key: a.backend,
-        label: a.name,
-        isCurrent: a.backend === currentPresetAgentType,
-        isExtension: a.isExtension,
+    if (!oplVisibleAgents) return [];
+    // Build from detected OPL execution engines, excluding preset assistants and remote agents.
+    return oplVisibleAgents
+      .filter((agent) => !agent.isPreset && agent.backend !== 'remote')
+      .map((agent) => ({
+        key: agent.backend,
+        label: agent.name,
+        isCurrent: agent.backend === currentPresetAgentType,
+        isExtension: agent.isExtension,
       }));
-  }, [agentSelection.availableAgents, currentPresetAgentType]);
+  }, [oplVisibleAgents, currentPresetAgentType]);
   const effectiveAgentLogo = useMemo(
     () => getAgentLogo(agentSelection.currentEffectiveAgentInfo.agentType),
     [agentSelection.currentEffectiveAgentInfo.agentType]
@@ -543,7 +538,6 @@ const GuidPage: React.FC = () => {
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
       <div ref={guidContainerRef} className={styles.guidContainer}>
-        <SkillsMarketBanner />
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
             {agentSelection.isPresetAgent ? (
@@ -690,11 +684,11 @@ const GuidPage: React.FC = () => {
                 />
               ) : null}
             </div>
-          ) : agentSelection.availableAgents === undefined ? (
+          ) : oplVisibleAgents === undefined ? (
             <AgentPillBarSkeleton />
-          ) : agentSelection.availableAgents.length > 0 ? (
+          ) : oplVisibleAgents.length > 0 ? (
             <AgentPillBar
-              availableAgents={agentSelection.availableAgents}
+              availableAgents={oplVisibleAgents}
               selectedAgentKey={agentSelection.selectedAgentKey}
               getAgentKey={agentSelection.getAgentKey}
               onSelectAgent={handleSelectAgentFromPillBar}
@@ -750,13 +744,6 @@ const GuidPage: React.FC = () => {
           />
         </div>
 
-        <QuickActionButtons
-          onOpenLink={openLink}
-          onOpenBugReport={() => setShowFeedbackModal(true)}
-          inactiveBorderColor={inactiveBorderColor}
-          activeShadow={activeShadow}
-        />
-        <FeedbackReportModal visible={showFeedbackModal} onCancel={() => setShowFeedbackModal(false)} />
       </div>
     </ConfigProvider>
   );

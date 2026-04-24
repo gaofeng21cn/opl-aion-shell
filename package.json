@@ -1,12 +1,12 @@
 {
-  "name": "AionUi",
+  "name": "OPL",
   "version": "1.9.21",
-  "description": "Transform your command-line AI agent into a modern, efficient AI Chat interface.",
+  "description": "One Person Lab desktop workbench for Codex, MAS, MAG, and RCA."
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
-    "name": "AionUi",
-    "email": "service@aionui.com"
+    "name": "One Person Lab",
+    "email": "service@onepersonlab.local"
   },
   "main": "./out/main/index.js",
   "scripts": {
@@ -250,5 +250,5 @@
   "patchedDependencies": {
     "7zip-bin@5.2.0": "patches/7zip-bin@5.2.0.patch"
   },
-  "productName": "AionUi"
+  "productName": "OPL"
 }

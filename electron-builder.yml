@@ -1,12 +1,12 @@
-appId: com.aionui.app
-productName: AionUi
-executableName: AionUi
-copyright: Copyright © 2024 AionUi
+appId: cn.onepersonlab.opl
+productName: OPL
+executableName: OPL
+copyright: Copyright © 2026 One Person Lab
 
 protocols:
-  - name: AionUi Protocol
+  - name: OPL Protocol
     schemes:
-      - aionui
+      - opl
 
 asar:
   smartUnpack: true
@@ -172,17 +172,17 @@ linux:
   icon: resources/app.png
   artifactName: ${productName}-${version}-${os}-${arch}.${ext}
   category: Utility
-  maintainer: aionui
-  vendor: aionui
+  maintainer: one-person-lab
+  vendor: one-person-lab
   synopsis: ${description}
   description: ${description}
   desktop:
     entry:
-      Name: AionUi
+      Name: OPL
       Comment: ${description}
-      Icon: aionui
+      Icon: opl
       Categories: Office;Utility;
-      MimeType: x-scheme-handler/aionui;
+      MimeType: x-scheme-handler/opl;
 
 npmRebuild: false
 buildDependenciesFromSource: false
@@ -224,7 +224,7 @@ electronDownload:
 
 publish:
   provider: github
-  owner: iOfficeAI
-  repo: AionUi
+  owner: gaofeng21cn
+  repo: opl-aion-shell
   publishAutoUpdate: true
   releaseType: release
