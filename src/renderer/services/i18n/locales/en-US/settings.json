@@ -970,6 +970,18 @@
       }
     },
     "brandTitle": "App name",
-    "brandDescription": "Set the name shown next to the top-left icon. The default is One Person Lab."
+    "brandDescription": "Set the name shown next to the top-left icon. The default is One Person Lab.",
+    "appearanceTitle": "Appearance theme",
+    "appearanceDescription": "Choose the app style used by One Person Lab."
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "A clean macOS-style shell with a quiet sidebar, white workspace, and soft selection states.",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "Use the original AionUI visual style.",
+    "active": "Active",
+    "apply": "Apply",
+    "applied": "Appearance theme applied",
+    "applyFailed": "Failed to apply appearance theme"
   }
 }

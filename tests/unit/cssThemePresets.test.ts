@@ -185,6 +185,7 @@ describe('CssThemeSettings preset structure', () => {
     'retroma-nocturne-parchment',
     'discourse-horizon',
     'glittering-input-field',
+    'opl-codex-shell',
   ];
 
   it.each(expectedThemes)('should have CSS file for theme: %s', (theme) => {
@@ -196,5 +197,16 @@ describe('CssThemeSettings preset structure', () => {
     for (const file of cssFiles) {
       expect(expectedFiles).toContain(file);
     }
+  });
+
+  it('OPL Codex Shell should be a token-first shell overlay theme', () => {
+    const css = cssMap.get('opl-codex-shell.css')!;
+    expect(css).toContain('--opl-codex-sidebar-bg');
+    expect(css).toContain('--opl-codex-main-bg');
+    expect(css).toContain('--opl-codex-accent');
+    expect(css).toContain('.layout-sider');
+    expect(css).toContain('.app-titlebar');
+    expect(css).toContain('.chat-history__item');
+    expect(css).not.toMatch(/\.arco-layout\s*>\s*\.arco-layout/);
   });
 });

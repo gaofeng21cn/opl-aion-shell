@@ -24,6 +24,7 @@ import retromaY2kCss from './presets/retroma-y2k.css?raw';
 import retromaObsidianBookCss from './presets/retroma-obsidian-book.css?raw';
 import discourseHorizonCss from './presets/discourse-horizon.css?raw';
 import glitteringInputFieldCss from './presets/glittering-input-field.css?raw';
+import oplCodexShellCss from './presets/opl-codex-shell.css?raw';
 
 /**
  * 默认主题 ID / Default theme ID
@@ -103,6 +104,14 @@ export const PRESET_THEMES: ICssTheme[] = [
     name: 'Glittering Input Field',
     isPreset: true,
     css: glitteringInputFieldCss,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  },
+  {
+    id: 'opl-codex-shell',
+    name: 'OPL Codex Shell',
+    isPreset: true,
+    css: oplCodexShellCss,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },

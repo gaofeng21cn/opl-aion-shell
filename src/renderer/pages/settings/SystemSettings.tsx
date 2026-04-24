@@ -23,6 +23,7 @@ import {
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 import AboutModalContent from '@/renderer/components/settings/SettingsModal/contents/AboutModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import OplAppearanceThemeSettings from './OplAppearanceThemeSettings';
 
 type OplModuleStatus = {
   module_id: string;
@@ -217,6 +218,18 @@ const OplEnvironmentContent: React.FC = () => {
             onBlur={handleBrandNameBlur}
             onPressEnter={handleBrandNameBlur}
           />
+        </div>
+      </Card>
+
+      <Card bordered className='rounded-xl'>
+        <div className='flex flex-col gap-12px'>
+          <Typography.Text className='font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.appearanceTitle')}
+          </Typography.Text>
+          <Typography.Text className='text-t-secondary'>
+            {t('settings.oplEnvironmentPage.appearanceDescription')}
+          </Typography.Text>
+          <OplAppearanceThemeSettings />
         </div>
       </Card>
 

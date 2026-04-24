@@ -972,6 +972,18 @@
       }
     },
     "brandTitle": "應用名稱",
-    "brandDescription": "設定左上角圖示旁顯示的名稱。預設使用 One Person Lab。"
+    "brandDescription": "設定左上角圖示旁顯示的名稱。預設使用 One Person Lab。",
+    "appearanceTitle": "外觀主題",
+    "appearanceDescription": "選擇 One Person Lab 使用的應用風格。"
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "更接近 macOS 的清爽介面：淺色側欄、白色工作區和柔和的選取狀態。",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "使用 AionUI 原始視覺風格。",
+    "active": "已啟用",
+    "apply": "套用",
+    "applied": "已套用外觀主題",
+    "applyFailed": "套用外觀主題失敗"
   }
 }

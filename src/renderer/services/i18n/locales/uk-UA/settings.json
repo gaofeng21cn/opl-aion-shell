@@ -888,6 +888,18 @@
       }
     },
     "brandTitle": "Назва застосунку",
-    "brandDescription": "Задайте назву поруч із піктограмою вгорі ліворуч. Типово: One Person Lab."
+    "brandDescription": "Задайте назву поруч із піктограмою вгорі ліворуч. Типово: One Person Lab.",
+    "appearanceTitle": "Тема оформлення",
+    "appearanceDescription": "Виберіть стиль застосунку для One Person Lab."
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "Чиста оболонка у стилі macOS: спокійна бічна панель, біла робоча область і м’які стани вибору.",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "Використовувати оригінальний візуальний стиль AionUI.",
+    "active": "Активно",
+    "apply": "Застосувати",
+    "applied": "Тему оформлення застосовано",
+    "applyFailed": "Не вдалося застосувати тему оформлення"
   }
 }

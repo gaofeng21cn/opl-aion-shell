@@ -970,6 +970,18 @@
       }
     },
     "brandTitle": "Uygulama adı",
-    "brandDescription": "Sol üst simgenin yanında gösterilecek adı ayarlayın. Varsayılan değer One Person Lab."
+    "brandDescription": "Sol üst simgenin yanında gösterilecek adı ayarlayın. Varsayılan değer One Person Lab.",
+    "appearanceTitle": "Görünüm teması",
+    "appearanceDescription": "One Person Lab için kullanılacak uygulama stilini seçin."
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "Sakin kenar çubuğu, beyaz çalışma alanı ve yumuşak seçim durumlarıyla macOS tarzı temiz bir kabuk.",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "Özgün AionUI görsel stilini kullanır.",
+    "active": "Etkin",
+    "apply": "Uygula",
+    "applied": "Görünüm teması uygulandı",
+    "applyFailed": "Görünüm teması uygulanamadı"
   }
 }

@@ -972,6 +972,18 @@
       }
     },
     "brandTitle": "앱 이름",
-    "brandDescription": "왼쪽 위 아이콘 옆에 표시할 이름을 설정합니다. 기본값은 One Person Lab입니다."
+    "brandDescription": "왼쪽 위 아이콘 옆에 표시할 이름을 설정합니다. 기본값은 One Person Lab입니다.",
+    "appearanceTitle": "외관 테마",
+    "appearanceDescription": "One Person Lab에서 사용할 앱 스타일을 선택합니다."
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "차분한 사이드바, 흰색 작업 영역, 부드러운 선택 상태를 갖춘 macOS 느낌의 깔끔한 셸입니다.",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "기본 AionUI 시각 스타일을 사용합니다.",
+    "active": "활성",
+    "apply": "적용",
+    "applied": "외관 테마를 적용했습니다",
+    "applyFailed": "외관 테마 적용 실패"
   }
 }

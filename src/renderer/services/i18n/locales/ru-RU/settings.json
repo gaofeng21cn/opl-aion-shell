@@ -972,6 +972,18 @@
       }
     },
     "brandTitle": "Название приложения",
-    "brandDescription": "Задайте имя рядом со значком в левом верхнем углу. По умолчанию: One Person Lab."
+    "brandDescription": "Задайте имя рядом со значком в левом верхнем углу. По умолчанию: One Person Lab.",
+    "appearanceTitle": "Тема оформления",
+    "appearanceDescription": "Выберите стиль приложения для One Person Lab."
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "Чистая оболочка в стиле macOS: спокойная боковая панель, белая рабочая область и мягкие состояния выбора.",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "Использовать исходный визуальный стиль AionUI.",
+    "active": "Активно",
+    "apply": "Применить",
+    "applied": "Тема оформления применена",
+    "applyFailed": "Не удалось применить тему оформления"
   }
 }

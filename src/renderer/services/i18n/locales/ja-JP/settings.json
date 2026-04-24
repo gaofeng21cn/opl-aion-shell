@@ -972,6 +972,18 @@
       }
     },
     "brandTitle": "アプリ名",
-    "brandDescription": "左上のアイコン横に表示する名前を設定します。既定は One Person Lab です。"
+    "brandDescription": "左上のアイコン横に表示する名前を設定します。既定は One Person Lab です。",
+    "appearanceTitle": "外観テーマ",
+    "appearanceDescription": "One Person Lab で使用するアプリスタイルを選択します。"
+  },
+  "oplAppearance": {
+    "codexStyle": "Codex App Style",
+    "codexStyleDescription": "静かなサイドバー、白いワークスペース、柔らかな選択状態を備えた macOS 風のクリーンなシェルです。",
+    "aionDefault": "AionUI Default",
+    "aionDefaultDescription": "元の AionUI ビジュアルスタイルを使用します。",
+    "active": "有効",
+    "apply": "適用",
+    "applied": "外観テーマを適用しました",
+    "applyFailed": "外観テーマの適用に失敗しました"
   }
 }
