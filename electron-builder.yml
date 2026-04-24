@@ -1,6 +1,6 @@
 appId: cn.onepersonlab.opl
-productName: OPL
-executableName: OPL
+productName: One Person Lab
+executableName: One Person Lab
 copyright: Copyright © 2026 One Person Lab
 
 protocols:
@@ -178,7 +178,7 @@ linux:
   description: ${description}
   desktop:
     entry:
-      Name: OPL
+      Name: One Person Lab
       Comment: ${description}
       Icon: opl
       Categories: Office;Utility;

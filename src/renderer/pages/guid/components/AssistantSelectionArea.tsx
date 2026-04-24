@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import coworkSvg from '@/renderer/assets/icons/cowork.svg';
+import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
+import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
+import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
 import {
   useDetectedAgents,
   useAssistantEditor,
@@ -17,15 +19,11 @@ import AssistantEditDrawer from '@/renderer/pages/settings/AssistantSettings/Ass
 import DeleteAssistantModal from '@/renderer/pages/settings/AssistantSettings/DeleteAssistantModal';
 import SkillConfirmModals from '@/renderer/pages/settings/AssistantSettings/SkillConfirmModals';
 import { resolveAvatarImageSrc } from '@/renderer/pages/settings/AssistantSettings/assistantUtils';
-import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
 import styles from '../index.module.css';
 import type { AcpBackendConfig, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { Message } from '@arco-design/web-react';
-import { Plus, Robot } from '@icon-park/react';
 import React, { useCallback, useLayoutEffect, useMemo } from 'react';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 
 type AssistantSelectionAreaProps = {
   isPresetAgent: boolean;
@@ -39,8 +37,6 @@ type AssistantSelectionAreaProps = {
   onFocusInput: () => void;
   onRegisterOpenDetails?: (openDetails: (() => void) | null) => void;
 };
-
-const OPL_VISIBLE_PRESET_IDS = new Set(['academic-paper', 'morph-ppt', 'pitch-deck', 'data-dashboard', 'word-creator', 'pptx-creator', 'xlsx-creator']);
 
 const resolveAssistantCandidateIds = (assistantId: string): string[] => {
   const stripped = assistantId.replace(/^builtin-/, '');
@@ -60,16 +56,9 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   onRegisterOpenDetails,
 }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [agentMessage, agentMessageContext] = Message.useMessage({ maxCount: 10 });
 
-  const avatarImageMap: Record<string, string> = useMemo(
-    () => ({
-      'cowork.svg': coworkSvg,
-      '\u{1F6E0}\u{FE0F}': coworkSvg,
-    }),
-    []
-  );
+  const avatarImageMap: Record<string, string> = useMemo(() => ({}), []);
 
   const { assistants, activeAssistantId, setActiveAssistantId, activeAssistant, isExtensionAssistant, loadAssistants } =
     useAssistantList();
@@ -98,6 +87,39 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   });
 
   const editAvatarImage = resolveAvatarImageSrc(editor.editAvatar, avatarImageMap);
+
+  const oplModules = useMemo(
+    () => [
+      {
+        id: 'mas',
+        logo: masLogo,
+        label: localeKey === 'zh-CN' ? 'MAS 医学研究' : 'MAS Research',
+        prompt:
+          localeKey === 'zh-CN'
+            ? '@MAS 帮我推进一个医学研究任务：'
+            : '@MAS Help me advance a medical research task: ',
+      },
+      {
+        id: 'mag',
+        logo: magLogo,
+        label: localeKey === 'zh-CN' ? 'MAG 基金申请' : 'MAG Grants',
+        prompt:
+          localeKey === 'zh-CN'
+            ? '@MAG 帮我推进一个基金申请任务：'
+            : '@MAG Help me advance a grant task: ',
+      },
+      {
+        id: 'rca',
+        logo: rcaLogo,
+        label: localeKey === 'zh-CN' ? 'RCA 汇报材料' : 'RCA Presentations',
+        prompt:
+          localeKey === 'zh-CN'
+            ? '@RCA 帮我推进一个汇报或幻灯片任务：'
+            : '@RCA Help me prepare a presentation task: ',
+      },
+    ],
+    [localeKey]
+  );
 
   const modalTree = (
     <>
@@ -297,55 +319,24 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   return (
     <div className='mt-12px w-full'>
       <div className='flex flex-wrap gap-8px justify-center'>
-        {customAgents
-          .filter((a) => a.isPreset && a.enabled !== false && OPL_VISIBLE_PRESET_IDS.has(a.id.replace(/^builtin-/, '')))
-          .toSorted((a, b) => {
-            if (a.id === 'cowork') return -1;
-            if (b.id === 'cowork') return 1;
-            return 0;
-          })
-          .map((assistant) => {
-            const avatarValue = assistant.avatar?.trim();
-            const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
-            const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
-            const avatarImage = mappedAvatar || resolvedAvatar;
-            const isImageAvatar = Boolean(
-              avatarImage &&
-              (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) ||
-                /^(https?:|aion-asset:\/\/|file:\/\/|data:)/i.test(avatarImage))
-            );
-            return (
-              <div
-                key={assistant.id}
-                data-testid={`preset-pill-${assistant.id}`}
-                className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
-                style={{
-                  borderWidth: '1px',
-                  borderColor: 'color-mix(in srgb, var(--color-border-2) 70%, transparent)',
-                }}
-                onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
-              >
-                {isImageAvatar ? (
-                  <img src={avatarImage} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />
-                ) : avatarValue ? (
-                  <span style={{ fontSize: 16, lineHeight: '18px' }}>{avatarValue}</span>
-                ) : (
-                  <Robot theme='outline' size={16} />
-                )}
-                <span className='text-14px text-2 hover:text-1'>
-                  {assistant.nameI18n?.[localeKey] || assistant.name}
-                </span>
-              </div>
-            );
-          })}
-        <div
-          data-testid='btn-add-preset'
-          className='flex items-center justify-center h-28px w-28px rd-50% bg-fill-0 hover:bg-fill-2 cursor-pointer b-1 b-dashed select-none transition-colors'
-          style={{ borderWidth: '1px', borderColor: 'color-mix(in srgb, var(--color-border-2) 70%, transparent)' }}
-          onClick={() => navigate('/settings/assistants')}
-        >
-          <Plus theme='outline' size={14} className='line-height-0 text-[var(--color-text-3)]' />
-        </div>
+        {oplModules.map((module) => (
+          <div
+            key={module.id}
+            data-testid={`opl-module-pill-${module.id}`}
+            className='h-28px group flex items-center gap-8px px-16px rd-100px cursor-pointer transition-all b-1 b-solid bg-fill-0 hover:bg-fill-1 select-none'
+            style={{
+              borderWidth: '1px',
+              borderColor: 'color-mix(in srgb, var(--color-border-2) 70%, transparent)',
+            }}
+            onClick={() => {
+              onSetInput(module.prompt);
+              onFocusInput();
+            }}
+          >
+            <img src={module.logo} alt='' width={16} height={16} style={{ objectFit: 'contain' }} />
+            <span className='text-14px text-2 hover:text-1'>{module.label}</span>
+          </div>
+        ))}
       </div>
       {modalTree}
     </div>

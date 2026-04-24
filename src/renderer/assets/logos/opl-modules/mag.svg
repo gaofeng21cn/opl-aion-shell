@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Med Auto Grant logo">
+  <title>Med Auto Grant</title>
+  <defs>
+    <linearGradient id="bg" x1="28" y1="20" x2="292" y2="300" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFDF7"/><stop offset="1" stop-color="#FFF2D9"/></linearGradient>
+    <linearGradient id="panel" x1="78" y1="48" x2="244" y2="274" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#FFF6E3"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"><feDropShadow dx="0" dy="10" stdDeviation="13" flood-color="#B47A18" flood-opacity="0.16"/></filter>
+  </defs>
+  <rect x="16" y="16" width="288" height="288" rx="64" fill="url(#bg)" stroke="#E3C27B" stroke-width="2.5"/>
+  <g filter="url(#shadow)">
+    <rect x="76" y="48" width="168" height="224" rx="38" fill="url(#panel)" stroke="#D89C27" stroke-width="3"/>
+    <path d="M112 104H208" stroke="#C9AA70" stroke-width="9" stroke-linecap="round"/>
+    <path d="M112 136H184" stroke="#E7D1A6" stroke-width="9" stroke-linecap="round"/>
+    <path d="M112 218H198" stroke="#E7D1A6" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="160" cy="174" r="44" fill="#D89C27"/>
+    <path d="M138 176L154 192L184 154" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M128 236H192" stroke="#D89C27" stroke-width="14" stroke-linecap="round" opacity="0.22"/>
+  </g>
+  <circle cx="68" cy="82" r="10" fill="#D89C27" fill-opacity="0.18"/>
+  <circle cx="254" cy="246" r="12" fill="#F3B44B" fill-opacity="0.22"/>
+</svg>

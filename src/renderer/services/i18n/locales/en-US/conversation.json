@@ -1,7 +1,7 @@
 {
   "welcome": {
-    "title": "What should OPL move forward?",
-    "placeholder": "Describe the goal, upload materials, or select a MAS/MAG/RCA workspace...",
+    "title": "Let One Person Lab advance your research, grants, and presentations",
+    "placeholder": "Describe a task, such as analyzing a study, drafting a grant, or preparing a meeting deck...",
     "uploadFile": "Upload Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",
@@ -14,10 +14,10 @@
     "clearWorkspace": "Remove folder",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "What can OPL do?",
+    "quickActionsTitle": "What can One Person Lab do?",
     "quickActionFeedback": "Got feedback or suggestions?",
     "quickActionStar": "Like us? Give us a star!",
-    "skillsMarket": "OPL Skills Market",
+    "skillsMarket": "One Person Lab Skills",
     "skillsMarketDesc": "Search and activate community Skills on demand. Configure once, available for all agents.",
     "skillsMarketDetails": "View More >>"
   },
