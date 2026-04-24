@@ -522,7 +522,7 @@
   "needHelpTooltip": "如需帮助，请查看",
   "googleCloudProjectPlaceholder": "请输入 Google Cloud Project ID",
   "noAvailableModels": "暂无可用模型",
-  "appDescription": "One Person Lab 的桌面工作台，用于启动 OPL、MAS、MAG、RCA 与本地 Product API。",
+  "appDescription": "One Person Lab 的桌面工作台，用于启动 OPL、MAS、MDS、MAG、RCA 与本地 Product API。",
   "helpDocumentation": "帮助文档",
   "updateLog": "更新日志",
   "feedback": "意见反馈",
@@ -911,5 +911,5 @@
     "path": "路径",
     "providerNote": "服务商和 API 密钥设置在模型页面管理。Aion CLI 支持：Anthropic、OpenAI、AWS Bedrock。"
   },
-  "oplEnvironment": "OPL 环境"
+  "oplEnvironment": "One Person Lab 环境"
 }

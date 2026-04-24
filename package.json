@@ -1,7 +1,7 @@
 {
-  "name": "OPL",
+  "name": "one-person-lab",
   "version": "1.9.21",
-  "description": "One Person Lab desktop workbench for Codex, MAS, MAG, and RCA."
+  "description": "One Person Lab desktop workbench for Codex, MAS, MAG, and RCA.",
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
@@ -250,5 +250,5 @@
   "patchedDependencies": {
     "7zip-bin@5.2.0": "patches/7zip-bin@5.2.0.patch"
   },
-  "productName": "OPL"
+  "productName": "One Person Lab"
 }
