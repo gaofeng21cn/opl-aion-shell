@@ -25,6 +25,7 @@ import { AionrsApprovalStore, type AionrsManager } from '../task/AionrsManager';
 import type OpenClawAgentManager from '../task/OpenClawAgentManager';
 import { prepareFirstMessage } from '../task/agentUtils';
 import { AcpSkillManager } from '../task/AcpSkillManager';
+import { mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
 import { refreshTrayMenu } from '@process/utils/tray';
 import { copyFilesToDirectory, readDirectoryRecursive } from '@process/utils';
 import { computeOpenClawIdentityHash } from '@process/utils/openclawUtils';
@@ -133,8 +134,24 @@ export function initConversationBridge(
       // Codex now runs through AcpAgentManager — remap type to 'acp' with backend hint
       const createParams =
         params.type === 'codex'
-          ? { ...params, type: 'acp' as const, extra: { ...params.extra, backend: 'codex' as const } }
-          : params;
+          ? {
+              ...params,
+              type: 'acp' as const,
+              extra: {
+                ...params.extra,
+                backend: 'codex' as const,
+                enabledSkills: mergeOplDefaultCodexSkills(params.extra?.enabledSkills),
+              },
+            }
+          : params.extra?.backend === 'codex'
+            ? {
+                ...params,
+                extra: {
+                  ...params.extra,
+                  enabledSkills: mergeOplDefaultCodexSkills(params.extra?.enabledSkills),
+                },
+              }
+            : params;
       const conversation = await conversationService.createConversation({
         ...createParams,
         source: 'aionui',

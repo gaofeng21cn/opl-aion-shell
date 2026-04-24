@@ -88,14 +88,15 @@ export const resolveRemoteAccess = (config: WebUIUserConfig, isRemoteMode: boole
 
 export const restoreDesktopWebUIFromPreferences = async (): Promise<void> => {
   try {
-    const enabled = (await ProcessConfig.get(DESKTOP_WEBUI_ENABLED_KEY)) === true;
+    const enabledPreference = await ProcessConfig.get(DESKTOP_WEBUI_ENABLED_KEY);
+    const enabled = enabledPreference !== false;
     if (!enabled) return;
 
     const [allowRemotePref, portPref] = await Promise.all([
       ProcessConfig.get(DESKTOP_WEBUI_ALLOW_REMOTE_KEY),
       ProcessConfig.get(DESKTOP_WEBUI_PORT_KEY),
     ]);
-    const allowRemote = allowRemotePref === true;
+    const allowRemote = allowRemotePref !== false;
     const preferredPort = typeof portPref === 'number' && portPref > 0 ? portPref : SERVER_CONFIG.DEFAULT_PORT;
 
     const instance = await startWebServerWithInstance(preferredPort, allowRemote);

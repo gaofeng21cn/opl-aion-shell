@@ -59,12 +59,20 @@ export function findNodeByKey(list: IDirOrFile[], key: string): IDirOrFile | nul
  * Get first level node keys (for initial expansion)
  */
 export function getFirstLevelKeys(nodes: IDirOrFile[]): string[] {
-  if (nodes.length > 0 && nodes[0].relativePath === '') {
-    // 如果第一个节点是根节点（relativePath 为空），展开它
-    // If first node is root (empty relativePath), expand it
-    return [''];
+  const keys: string[] = [];
+  for (const node of nodes) {
+    if (!node.isFile && node.relativePath != null) {
+      keys.push(node.relativePath);
+    }
+    if (node.relativePath === '' && node.children) {
+      for (const child of node.children) {
+        if (!child.isFile && child.relativePath) {
+          keys.push(child.relativePath);
+        }
+      }
+    }
   }
-  return [];
+  return [...new Set(keys)];
 }
 
 /**

@@ -912,5 +912,62 @@
     "path": "路徑",
     "providerNote": "服務商和 API 金鑰設定在模型頁面管理。Aion CLI 支援：Anthropic、OpenAI、AWS Bedrock。"
   },
-  "oplEnvironment": "OPL Environment"
+  "oplEnvironment": "OPL Environment",
+  "oplEnvironmentPage": {
+    "title": "環境管理",
+    "description": "管理 One Person Lab 執行依賴、MAS/MDS/MAG/RCA 模組、Codex skills、遠端 WebUI 和桌面 App。",
+    "maintenanceTitle": "一鍵維護",
+    "maintenanceDescription": "直接呼叫本機 OPL CLI 執行環境檢查、模組更新和安裝修復；狀態會在執行後重新整理。",
+    "managedTag": "OPL 管理",
+    "currentVersion": "目前：{{version}}",
+    "latestVersion": "最新：{{version}}",
+    "actions": {
+      "doctor": "檢查環境",
+      "refresh": "重新整理版本",
+      "repair": "修復安裝",
+      "openRemote": "開啟遠端連線",
+      "update": "更新"
+    },
+    "messages": {
+      "loadModulesFailed": "讀取模組狀態失敗",
+      "commandFailed": "命令執行失敗",
+      "doctorComplete": "環境檢查完成",
+      "repairComplete": "安裝修復完成",
+      "updateComplete": "{{name}} 更新完成"
+    },
+    "status": {
+      "notDetected": "未偵測",
+      "notInstalled": "未安裝",
+      "managedByApp": "由 App / CLI 管理"
+    },
+    "items": {
+      "codex": {
+        "role": "核心執行環境",
+        "latest": "由 Codex CLI 管理"
+      },
+      "hermes": {
+        "role": "長任務與服務依賴",
+        "latest": "由 Hermes-Agent 管理"
+      },
+      "module": {
+        "latest": "GitHub main"
+      },
+      "mas": {
+        "role": "醫學研究模組"
+      },
+      "mds": {
+        "role": "MAS 深度研究依賴"
+      },
+      "mag": {
+        "role": "基金申請模組"
+      },
+      "rca": {
+        "role": "報告與簡報模組"
+      },
+      "gui": {
+        "role": "桌面圖形介面",
+        "latest": "Release 最新版"
+      }
+    }
+  }
 }
