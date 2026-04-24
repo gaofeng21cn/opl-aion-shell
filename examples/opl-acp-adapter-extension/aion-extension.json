@@ -2,20 +2,20 @@
   "name": "opl-acp-extension",
   "displayName": "OPL",
   "version": "0.1.0",
-  "description": "Codex-default OPL GUI-shell adapter for local AionUI sessions.",
+  "description": "Codex-default OPL GUI shell for local AionUI sessions.",
   "author": "OPL Contributors",
   "contributes": {
     "acpAdapters": [
       {
         "id": "opl-acp",
         "name": "OPL",
-        "description": "Attach AionUI to the local OPL Codex-default session path.",
+        "description": "Launch the local OPL GUI shell on the Codex-default session path.",
         "connectionType": "cli",
         "cliCommand": "${env:OPL_ACP_BRIDGE_CMD}",
         "defaultCliPath": "${env:OPL_ACP_BRIDGE_CMD}",
         "acpArgs": ["--experimental-strip-types", "${env:OPL_ACP_BRIDGE_ENTRY}", "session", "runtime", "--acp"],
         "authRequired": false,
-        "supportsStreaming": false
+        "supportsStreaming": true
       }
     ]
   }

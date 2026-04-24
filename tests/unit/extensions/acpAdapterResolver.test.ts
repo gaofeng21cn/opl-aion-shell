@@ -55,6 +55,8 @@ describe('extensions/AcpAdapterResolver', () => {
       defaultCliPath: nodeExecutable,
       connectionType: 'cli',
       acpArgs: ['--experimental-strip-types', '/tmp/opl-cli-entry.ts', 'session', 'runtime', '--acp'],
+      description: 'Launch the local OPL GUI shell on the Codex-default session path.',
+      supportsStreaming: true,
       _source: 'extension',
       _extensionName: 'opl-acp-extension',
     });

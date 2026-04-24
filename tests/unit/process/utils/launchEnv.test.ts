@@ -75,4 +75,26 @@ describe('scripts/launch-env', () => {
     expect(env.OPL_ACP_BRIDGE_CMD).toBe(process.execPath);
     expect(env.OPL_ACP_BRIDGE_ENTRY).toBe(path.join(oplRoot, 'src', 'cli.ts'));
   });
+
+  it('fails with OPL GUI shell wording when --opl cannot resolve one-person-lab', () => {
+    const workspaceRoot = createTempRoot('aionui-launch-missing-opl-');
+    const projectRoot = path.join(workspaceRoot, 'opl-aion-shell');
+    fs.mkdirSync(path.join(projectRoot, 'examples', 'opl-acp-adapter-extension'), { recursive: true });
+
+    const flags = new Set(['--opl']);
+
+    expect(() =>
+      withEnv(
+        {
+          OPL_ACP_WORKSPACE_ROOT: path.join(workspaceRoot, 'missing-one-person-lab'),
+          OPL_ACP_BRIDGE_CMD: undefined,
+          OPL_ACP_BRIDGE_ENTRY: undefined,
+          AIONUI_EXTENSIONS_PATH: undefined,
+        },
+        () => buildLaunchEnv(projectRoot, flags)
+      )
+    ).toThrow(
+      'Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).'
+    );
+  });
 });

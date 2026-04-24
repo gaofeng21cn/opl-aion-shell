@@ -81,6 +81,9 @@ async function main() {
   if (!packaged) {
     const devFallbackArgs = buildDevFallbackArgs(projectRoot, flags, passthroughArgs);
     console.log('[packaged-launch] No unpacked app found under out/. Falling back to dev mode.');
+    if (flags.has('--opl')) {
+      console.log('[packaged-launch] OPL GUI shell fallback: reusing the Codex-default bridge env in dev mode.');
+    }
     console.log('[packaged-launch] Build a packaged app with `just build-package` to test packaged mode.');
     console.log(`[packaged-launch] dev command: ${process.execPath} ${devFallbackArgs.join(' ')}`);
     console.log(`[packaged-launch] cwd: ${projectRoot}`);
@@ -114,6 +117,9 @@ async function main() {
 
   console.log(`[packaged-launch] executable: ${packaged.executablePath}`);
   console.log(`[packaged-launch] cwd: ${packaged.cwd}`);
+  if (flags.has('--opl')) {
+    console.log('[packaged-launch] OPL GUI shell mode: packaged app will reuse the Codex-default bridge env.');
+  }
   console.log(`[packaged-launch] AIONUI_EXTENSIONS_PATH: ${env.AIONUI_EXTENSIONS_PATH || '(unset)'}`);
 
   if (dryRun) return;

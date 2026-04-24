@@ -15,8 +15,11 @@ import type { LoadedExtension } from '../../src/process/extensions/types';
 
 type OplAdapter = {
   id: string;
+  name: string;
+  description?: string;
   cliCommand: string;
   acpArgs: string[];
+  supportsStreaming?: boolean;
 };
 
 function resolveOplWorkspaceRoot() {
@@ -113,7 +116,12 @@ describe('integration/oplAcpBridgeSmoke', () => {
 
       expect(oplExtension).toBeTruthy();
       const adapter = resolveAcpAdapters([oplExtension as LoadedExtension])[0] as OplAdapter;
-      expect(adapter.id).toBe('opl-acp');
+      expect(adapter).toMatchObject({
+        id: 'opl-acp',
+        name: 'OPL',
+        description: 'Launch the local OPL GUI shell on the Codex-default session path.',
+        supportsStreaming: true,
+      });
 
       const requests = [
         { id: 'opl-init-1', command: 'initialize' },
@@ -285,6 +293,7 @@ describe('integration/oplAcpBridgeSmoke', () => {
       // the extension customAgentId so the process side can resolve manifest acpArgs/env.
       expect(detected?.backend).toBe(adapter?.id);
       expect(detected?.name).toBe(adapter?.name);
+      expect(detected?.name).toBe('OPL');
     } finally {
       fs.rmSync(isolatedExtensionsPath, { recursive: true, force: true });
       restoreEnv();

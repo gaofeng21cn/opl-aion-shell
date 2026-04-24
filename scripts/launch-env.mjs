@@ -31,13 +31,16 @@ export function resolveLaunchExtensionsPath(projectRoot, flags, options = {}) {
 
 export function resolveOplWorkspaceRoot(projectRoot) {
   const envOverride = process.env.OPL_ACP_WORKSPACE_ROOT;
+  if (envOverride) {
+    return fs.existsSync(path.join(envOverride, 'src', 'cli.ts')) ? envOverride : null;
+  }
+
   const candidates = [
-    envOverride,
     path.resolve(projectRoot, '../../one-person-lab'),
     path.resolve(projectRoot, '../one-person-lab'),
     path.resolve(projectRoot, 'one-person-lab'),
     '/Users/gaofeng/workspace/one-person-lab',
-  ].filter(Boolean);
+  ];
 
   return candidates.find((candidate) => fs.existsSync(path.join(candidate, 'src', 'cli.ts'))) ?? null;
 }
@@ -57,9 +60,7 @@ export function buildLaunchEnv(projectRoot, flags, options = {}) {
   if (hasFlag(flags, '--opl')) {
     const oplWorkspaceRoot = resolveOplWorkspaceRoot(projectRoot);
     if (!oplWorkspaceRoot) {
-      throw new Error(
-        'Failed to resolve one-person-lab workspace root for the OPL GUI-shell adapter (Codex runtime + OPL skill pack).'
-      );
+      throw new Error('Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).');
     }
 
     env.OPL_ACP_BRIDGE_CMD = env.OPL_ACP_BRIDGE_CMD || process.execPath;

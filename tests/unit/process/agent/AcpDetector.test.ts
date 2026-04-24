@@ -35,7 +35,7 @@ describe('AcpDetector.detectExtensionAgents', () => {
     mockGetAcpAdapters.mockReturnValue([
       {
         id: 'opl-acp',
-        name: 'OPL ACP',
+        name: 'OPL',
         cliCommand: 'node',
         defaultCliPath: '/usr/local/bin/node',
         acpArgs: ['--experimental-strip-types', '/tmp/opl-cli.ts', 'session', 'runtime', '--acp'],
@@ -50,7 +50,7 @@ describe('AcpDetector.detectExtensionAgents', () => {
     expect(agents).toEqual([
       expect.objectContaining({
         id: 'opl-acp',
-        name: 'OPL ACP',
+        name: 'OPL',
         backend: 'opl-acp',
         cliPath: '/usr/local/bin/node',
         acpArgs: ['--experimental-strip-types', '/tmp/opl-cli.ts', 'session', 'runtime', '--acp'],

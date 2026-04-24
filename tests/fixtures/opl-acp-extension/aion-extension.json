@@ -2,14 +2,14 @@
   "name": "opl-acp-extension",
   "displayName": "OPL",
   "version": "0.1.0",
-  "description": "Fixture extension that contributes the Codex-default OPL adapter.",
+  "description": "Fixture extension that contributes the Codex-default OPL GUI shell.",
   "author": "AionUi Test",
   "contributes": {
     "acpAdapters": [
       {
         "id": "opl-acp",
         "name": "OPL",
-        "description": "Fixture adapter for validating the OPL session runtime wiring.",
+        "description": "Launch the local OPL GUI shell on the Codex-default session path.",
         "connectionType": "cli",
         "cliCommand": "${env:OPL_ACP_BRIDGE_CMD}",
         "defaultCliPath": "${env:OPL_ACP_BRIDGE_CMD}",
@@ -21,7 +21,7 @@
           "--acp"
         ],
         "authRequired": false,
-        "supportsStreaming": false
+        "supportsStreaming": true
       }
     ]
   }
