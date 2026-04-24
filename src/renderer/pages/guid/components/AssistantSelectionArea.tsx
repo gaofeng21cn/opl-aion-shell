@@ -40,6 +40,8 @@ type AssistantSelectionAreaProps = {
   onRegisterOpenDetails?: (openDetails: (() => void) | null) => void;
 };
 
+const OPL_VISIBLE_PRESET_IDS = new Set(['academic-paper', 'morph-ppt', 'pitch-deck', 'data-dashboard', 'word-creator', 'pptx-creator', 'xlsx-creator']);
+
 const resolveAssistantCandidateIds = (assistantId: string): string[] => {
   const stripped = assistantId.replace(/^builtin-/, '');
   return Array.from(new Set([assistantId, `builtin-${stripped}`, stripped]));
@@ -296,7 +298,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
     <div className='mt-12px w-full'>
       <div className='flex flex-wrap gap-8px justify-center'>
         {customAgents
-          .filter((a) => a.isPreset && a.enabled !== false)
+          .filter((a) => a.isPreset && a.enabled !== false && OPL_VISIBLE_PRESET_IDS.has(a.id.replace(/^builtin-/, '')))
           .toSorted((a, b) => {
             if (a.id === 'cowork') return -1;
             if (b.id === 'cowork') return 1;

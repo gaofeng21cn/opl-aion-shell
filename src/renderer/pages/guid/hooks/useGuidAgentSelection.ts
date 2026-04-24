@@ -78,7 +78,7 @@ export const useGuidAgentSelection = ({
   resetAssistant,
   locationKey,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('aionrs');
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('codex');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
@@ -235,8 +235,8 @@ export const useGuidAgentSelection = ({
 
     if (resetAssistant && !resetHandledRef.current) {
       resetHandledRef.current = true;
-      const firstCliAgent = availableAgents.find((a) => !a.isPreset);
-      const fallbackKey = firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
+      const preferredAgent = availableAgents.find((a) => getAgentKey(a) === 'codex') || availableAgents.find((a) => !a.isPreset);
+      const fallbackKey = preferredAgent ? getAgentKey(preferredAgent) : 'codex';
       _setSelectedAgentKey(fallbackKey);
       ConfigStorage.set('guid.lastSelectedAgent', fallbackKey).catch((error) => {
         console.error('Failed to save reset agent key:', error);
@@ -270,10 +270,10 @@ export const useGuidAgentSelection = ({
           }
         }
 
-        // No saved preference or stale key — default to first detected engine
-        const firstAgent = availableAgents[0];
-        if (firstAgent) {
-          _setSelectedAgentKey(getAgentKey(firstAgent));
+        // No saved preference or stale key — prefer Codex for OPL, then first detected engine.
+        const preferredAgent = availableAgents.find((agent) => getAgentKey(agent) === 'codex') || availableAgents[0];
+        if (preferredAgent) {
+          _setSelectedAgentKey(getAgentKey(preferredAgent));
         }
       } catch (error) {
         console.error('Failed to load last selected agent:', error);
