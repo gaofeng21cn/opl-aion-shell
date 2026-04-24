@@ -430,7 +430,8 @@ export function initConversationBridge(
         root: workspace,
         fileService,
         abortController: buildLastAbortController(),
-        maxDepth: 10, // 支持更深的目录结构 / Support deeper directory structures
+        maxDepth: search ? 10 : 3, // Keep workspace tree responsive and avoid oversized IPC payloads.
+        maxChildrenPerDirectory: search ? undefined : 500,
         search: {
           text: search,
           onProcess(result) {

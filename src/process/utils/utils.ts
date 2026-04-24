@@ -155,6 +155,7 @@ export async function readDirectoryRecursive(
     abortController?: AbortController;
     fileService?: { shouldIgnoreFile(path: string): boolean };
     maxDepth?: number;
+    maxChildrenPerDirectory?: number;
     search?: {
       text: string;
       onProcess?(result: { file: number; dir: number; match?: IDirOrFile }): void;
@@ -162,7 +163,7 @@ export async function readDirectoryRecursive(
     };
   }
 ): Promise<IDirOrFile> {
-  const { root = dirPath, maxDepth = 1, fileService, search, abortController } = options || {};
+  const { root = dirPath, maxDepth = 1, maxChildrenPerDirectory, fileService, search, abortController } = options || {};
   const { text: searchText, onProcess: onSearchProcess = () => {}, process = { file: 0, dir: 1 } } = search || {};
 
   const matchSearch = searchText ? (fullPath: string) => fullPath.includes(searchText) : (_: string) => false;
@@ -204,7 +205,12 @@ export async function readDirectoryRecursive(
   }
   checkStatus();
 
-  for (const item of items) {
+  const visibleItems =
+    typeof maxChildrenPerDirectory === 'number' && maxChildrenPerDirectory > 0
+      ? items.slice(0, maxChildrenPerDirectory)
+      : items;
+
+  for (const item of visibleItems) {
     checkStatus();
     if (item === 'node_modules') continue;
     const itemPath = path.join(dirPath, item);

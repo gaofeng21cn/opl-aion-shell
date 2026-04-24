@@ -114,3 +114,18 @@ describe('ConversationSkillsIndicator', () => {
     );
   });
 });
+
+it('prioritizes OPL family and companion skills in the compact popover', () => {
+  const skills = [
+    { name: 'write', description: 'write' },
+    { name: 'officecli-docx', description: 'docx' },
+    { name: 'mas', description: 'mas' },
+    { name: 'superpowers', description: 'superpowers' },
+  ];
+
+  render(<ConversationSkillsIndicator conversation={createConversation(skills)} />);
+
+  const renderedNames = screen.getAllByTestId('skill-row').map((node) => node.textContent);
+  expect(renderedNames.slice(0, 3)).toEqual(['mas', 'superpowers', 'officecli-docx']);
+  expect(screen.getByText('4')).toBeInTheDocument();
+});

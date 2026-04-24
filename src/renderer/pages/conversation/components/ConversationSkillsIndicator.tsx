@@ -27,6 +27,24 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
 
   const loadedSkills = (conversation?.extra as { loadedSkills?: Array<{ name: string; description: string }> })
     ?.loadedSkills;
+  const prioritySkills = [
+    'mas',
+    'mag',
+    'rca',
+    'superpowers',
+    'officecli',
+    'officecli-docx',
+    'officecli-pptx',
+    'officecli-xlsx',
+    'morph-ppt',
+  ];
+  const priorityByName = new Map(prioritySkills.map((name, index) => [name, index]));
+  const visibleSkills = [...(loadedSkills ?? [])].sort((a, b) => {
+    const aPriority = priorityByName.get(a.name) ?? Number.MAX_SAFE_INTEGER;
+    const bPriority = priorityByName.get(b.name) ?? Number.MAX_SAFE_INTEGER;
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return a.name.localeCompare(b.name);
+  });
 
   if (!loadedSkills || loadedSkills.length === 0) return null;
 
@@ -40,9 +58,10 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
         {t('conversation.skills.loaded')} ({loadedSkills.length})
       </div>
       <div className='flex flex-col gap-4px'>
-        {loadedSkills.map((skill) => (
+        {visibleSkills.map((skill) => (
           <div
             key={skill.name}
+            data-testid='skill-row'
             className='flex items-center gap-8px py-4px px-8px rounded-4px hover:bg-2 cursor-pointer text-13px text-t-primary truncate'
             onClick={() => handleSkillClick(skill.name)}
           >

@@ -1,15 +1,9 @@
-/**
- * @license
- * Copyright 2025 AionUi (aionui.com)
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { describe, expect, it } from 'vitest';
-import { mergeOplDefaultCodexSkills, OPL_DEFAULT_CODEX_SKILLS } from '@/common/config/oplSkills';
+import { describe, it, expect } from 'vitest';
+import { OPL_DEFAULT_CODEX_SKILLS, mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 describe('OPL default Codex skills', () => {
-  it('adds MAS, MAG, and RCA to plain Codex conversations', () => {
+  it('adds MAS, MAG, RCA, superpowers, and Office skills to plain Codex conversations', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'One Person Lab',
@@ -20,7 +14,18 @@ describe('OPL default Codex skills', () => {
     expect(params.extra?.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
   });
 
-  it('preserves user-enabled skills after the OPL default family skills', () => {
-    expect(mergeOplDefaultCodexSkills(['officecli', 'mas'])).toEqual(['mas', 'mag', 'rca', 'officecli']);
+  it('preserves user-enabled skills after the OPL default family and companion skills', () => {
+    expect(mergeOplDefaultCodexSkills(['officecli', 'mas', 'custom-skill'])).toEqual([
+      'mas',
+      'mag',
+      'rca',
+      'superpowers',
+      'officecli',
+      'officecli-docx',
+      'officecli-pptx',
+      'officecli-xlsx',
+      'morph-ppt',
+      'custom-skill',
+    ]);
   });
 });
