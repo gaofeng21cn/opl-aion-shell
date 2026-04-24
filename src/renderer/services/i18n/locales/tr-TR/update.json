@@ -21,5 +21,8 @@
   "autoUpdateMode": "Otomatik güncelleme modu",
   "showInFolder": "Klasörde göster",
   "openFile": "Dosyayı aç",
-  "errorTitle": "Güncelleme başarısız"
+  "errorTitle": "Güncelleme başarısız",
+  "oplVersion": "OPL sürümü: {{version}}",
+  "guiVersion": "GUI sürümü: {{version}}",
+  "releaseSource": "Sürüm kaynağı: {{repo}} · {{channel}}"
 }

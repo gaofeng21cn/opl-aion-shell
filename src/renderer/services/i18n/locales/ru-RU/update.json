@@ -35,5 +35,8 @@
     "downloadNoBody": "Ответ загрузки не содержит данные",
     "missingUrl": "Отсутствует URL",
     "checkReturnedNull": "Проверка обновлений не вернула результат (режим разработки)"
-  }
+  },
+  "oplVersion": "Версия OPL: {{version}}",
+  "guiVersion": "Версия GUI: {{version}}",
+  "releaseSource": "Источник релиза: {{repo}} · {{channel}}"
 }

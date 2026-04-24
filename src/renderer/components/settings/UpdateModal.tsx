@@ -17,12 +17,20 @@ type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'dow
 
 type UpdateInfo = UpdateReleaseInfo;
 
+type AppVersions = {
+  oplVersion: string;
+  guiVersion: string;
+  releaseRepo: string;
+  releaseChannel: string;
+};
+
 const UpdateModal: React.FC = () => {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('checking');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [currentVersion, setCurrentVersion] = useState<string>('');
+  const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
   const [downloadId, setDownloadId] = useState<string | null>(null);
   const [progress, setProgress] = useState({ percent: 0, speed: '', total: 0, transferred: 0 });
   const [errorMsg, setErrorMsg] = useState('');
@@ -36,6 +44,7 @@ const UpdateModal: React.FC = () => {
     setStatus('checking');
     setUpdateInfo(null);
     setCurrentVersion('');
+    setAppVersions(null);
     setDownloadId(null);
     setProgress({ percent: 0, speed: '', total: 0, transferred: 0 });
     setErrorMsg('');
@@ -58,6 +67,12 @@ const UpdateModal: React.FC = () => {
   const checkForUpdates = async () => {
     setStatus('checking');
     try {
+      const versions = await ipcBridge.application.appVersions.invoke().catch((error): null => {
+        console.warn('Failed to load app version metadata:', error);
+        return null;
+      });
+      setAppVersions(versions);
+
       // Try auto-update (electron-updater) first
       let autoUpdateOk = false;
       try {
@@ -283,6 +298,25 @@ const UpdateModal: React.FC = () => {
     });
   };
 
+  const renderVersionSummary = () => {
+    if (!appVersions) return null;
+
+    return (
+      <div className='mt-10px text-12px text-t-tertiary leading-relaxed'>
+        <div>
+          {t('update.oplVersion', { version: appVersions.oplVersion })} ·{' '}
+          {t('update.guiVersion', { version: appVersions.guiVersion })}
+        </div>
+        <div>
+          {t('update.releaseSource', {
+            repo: appVersions.releaseRepo,
+            channel: appVersions.releaseChannel,
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (status) {
       case 'checking':
@@ -293,6 +327,7 @@ const UpdateModal: React.FC = () => {
               <div className='absolute inset-0 border-3 border-primary border-t-transparent rounded-full animate-spin' />
             </div>
             <div className='text-15px text-t-primary font-500'>{t('update.checking')}</div>
+            {renderVersionSummary()}
           </div>
         );
 
@@ -306,6 +341,7 @@ const UpdateModal: React.FC = () => {
             <div className='text-13px text-t-tertiary'>
               {t('update.currentVersion', { version: currentVersion || '-' })}
             </div>
+            {renderVersionSummary()}
           </div>
         );
 
@@ -326,6 +362,7 @@ const UpdateModal: React.FC = () => {
                       {updateInfo?.version || autoUpdateInfo?.version}
                     </span>
                   </div>
+                  {renderVersionSummary()}
                 </div>
               </div>
               <div className='flex items-center gap-12px'>

@@ -21,5 +21,8 @@
   "autoUpdateMode": "자동 업데이트 모드",
   "showInFolder": "폴더에서 보기",
   "openFile": "파일 열기",
-  "errorTitle": "업데이트 실패"
+  "errorTitle": "업데이트 실패",
+  "oplVersion": "OPL 버전: {{version}}",
+  "guiVersion": "GUI 버전: {{version}}",
+  "releaseSource": "릴리스 소스: {{repo}} · {{channel}}"
 }

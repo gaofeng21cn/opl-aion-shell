@@ -120,7 +120,7 @@ win:
     #    - msi
     - zip
   icon: resources/app.ico # Use the checked-in Windows icon resource for executable metadata/icon patching
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -129,7 +129,7 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   differentialPackage: false
 
 mac:
@@ -137,7 +137,7 @@ mac:
     - dmg
     - zip
   icon: resources/app.icns
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -170,7 +170,7 @@ linux:
   target:
     - deb
   icon: resources/app.png
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: Utility
   maintainer: one-person-lab
   vendor: one-person-lab
@@ -225,6 +225,6 @@ electronDownload:
 publish:
   provider: github
   owner: gaofeng21cn
-  repo: opl-aion-shell
+  repo: one-person-lab
   publishAutoUpdate: true
   releaseType: release

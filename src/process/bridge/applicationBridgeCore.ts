@@ -11,6 +11,7 @@
  */
 import os from 'os';
 import path from 'path';
+import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePath } from '@process/utils';
@@ -18,6 +19,15 @@ import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePat
 export function initApplicationBridgeCore(): void {
   ipcBridge.application.systemInfo.provider(() => {
     return Promise.resolve(getSystemDir());
+  });
+
+  ipcBridge.application.appVersions.provider(() => {
+    return Promise.resolve({
+      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || app.getVersion(),
+      guiVersion: app.getVersion(),
+      releaseRepo: process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
+      releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',
+    });
   });
 
   ipcBridge.application.updateSystemInfo.provider(async ({ cacheDir, workDir }) => {

@@ -1934,14 +1934,17 @@ export type I18nKey =
   | 'update.downloadingTitle'
   | 'update.errorTitle'
   | 'update.goToRelease'
+  | 'update.guiVersion'
   | 'update.installNow'
   | 'update.modalTitle'
   | 'update.noCompatibleAsset'
   | 'update.noCompatibleAssetManual'
   | 'update.noReleaseNotes'
   | 'update.openFile'
+  | 'update.oplVersion'
   | 'update.readyToInstall'
   | 'update.readyToInstallDesc'
+  | 'update.releaseSource'
   | 'update.showInFolder'
   | 'update.upToDateTitle';
 

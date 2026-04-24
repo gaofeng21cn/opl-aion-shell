@@ -161,6 +161,10 @@ export const application = {
     { cacheDir: string; workDir: string; logDir: string; platform: string; arch: string },
     void
   >('system.info'), // 获取系统信息
+  appVersions: bridge.buildProvider<
+    { oplVersion: string; guiVersion: string; releaseRepo: string; releaseChannel: string },
+    void
+  >('app.versions'),
   getPath: bridge.buildProvider<string, { name: 'desktop' | 'home' | 'downloads' }>('app.get-path'), // 获取系统路径
   updateSystemInfo: bridge.buildProvider<IBridgeResponse, { cacheDir: string; workDir: string }>('system.update-info'), // 更新系统信息
   getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),

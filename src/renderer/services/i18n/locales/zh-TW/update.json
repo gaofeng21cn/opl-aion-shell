@@ -21,5 +21,8 @@
   "autoUpdateMode": "自動更新模式",
   "showInFolder": "在資料夾中顯示",
   "openFile": "開啟檔案",
-  "errorTitle": "更新失敗"
+  "errorTitle": "更新失敗",
+  "oplVersion": "OPL 版本：{{version}}",
+  "guiVersion": "GUI 版本：{{version}}",
+  "releaseSource": "更新來源：{{repo}} · {{channel}}"
 }

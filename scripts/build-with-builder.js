@@ -385,7 +385,18 @@ if (forceBuild) console.log('⚡ --force: Force full rebuild');
 
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
+function ensureOplReleaseVersionEnv() {
+  if (!process.env.OPL_RELEASE_VERSION || !process.env.OPL_RELEASE_VERSION.trim()) {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    process.env.OPL_RELEASE_VERSION = `${yy}.${now.getMonth() + 1}.${now.getDate()}`;
+  }
+  console.log(`🏷️  OPL release version: ${process.env.OPL_RELEASE_VERSION}`);
+}
+
 try {
+  ensureOplReleaseVersionEnv();
+
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   if (packageJson.main !== './out/main/index.js') {

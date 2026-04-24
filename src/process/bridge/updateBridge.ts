@@ -54,7 +54,7 @@ interface AutoUpdateCheckParams {
   includePrerelease?: boolean;
 }
 
-const DEFAULT_REPO = 'gaofeng21cn/opl-aion-shell';
+const DEFAULT_REPO = 'gaofeng21cn/one-person-lab';
 const DEFAULT_USER_AGENT = 'One Person Lab';
 const ALLOWED_ASSET_EXTS = new Set(['.exe', '.msi', '.dmg', '.zip', '.deb', '.rpm']);
 const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
@@ -180,7 +180,7 @@ export const pickRecommendedAsset = (
 };
 
 const resolveRepo = (requestRepo?: string): string => {
-  const envRepo = process.env.OPL_GITHUB_REPO?.trim() || process.env.AIONUI_GITHUB_REPO?.trim();
+  const envRepo = process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || process.env.AIONUI_GITHUB_REPO?.trim();
   const repo = (requestRepo || envRepo || DEFAULT_REPO).trim();
   return repo || DEFAULT_REPO;
 };
@@ -453,10 +453,10 @@ export function initUpdateBridge(): void {
       try {
         const repo = resolveRepo(params?.repo);
         const includePrerelease = Boolean(params?.includePrerelease);
-        const currentVersion = app.getVersion();
+        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || app.getVersion();
 
         // EN: Versioning note
-        // Update comparisons are pure semver: `app.getVersion()` (packaged app version) vs release `tag_name`.
+        // Update comparisons use the OPL release version when provided, falling back to `app.getVersion()`.
         // If you want dev/prerelease updates to work reliably, CI must inject a prerelease semver into
         // `package.json#version` for dev builds (e.g. `1.7.2-dev.1234+sha.abcdef0`) so semver ordering holds.
         // We intentionally avoid heuristics based on tag strings when the app version is a stable semver.

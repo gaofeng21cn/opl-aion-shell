@@ -21,5 +21,8 @@
   "autoUpdateMode": "Режим автоматичного оновлення",
   "showInFolder": "Показати в папці",
   "openFile": "Відкрити файл",
-  "errorTitle": "Помилка оновлення"
+  "errorTitle": "Помилка оновлення",
+  "oplVersion": "Версія OPL: {{version}}",
+  "guiVersion": "Версія GUI: {{version}}",
+  "releaseSource": "Джерело релізу: {{repo}} · {{channel}}"
 }
