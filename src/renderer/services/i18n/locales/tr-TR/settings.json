@@ -910,5 +910,62 @@
     "path": "Yol",
     "providerNote": "Sağlayıcı ve API anahtarı ayarları Modeller sayfasında yönetilir. Aion CLI destekler: Anthropic, OpenAI, AWS Bedrock."
   },
-  "oplEnvironment": "OPL Environment"
+  "oplEnvironment": "OPL Environment",
+  "oplEnvironmentPage": {
+    "title": "Environment Management",
+    "description": "Manage One Person Lab runtime dependencies, MAS/MDS/MAG/RCA modules, Codex skills, Remote WebUI, and the desktop app.",
+    "maintenanceTitle": "One-click maintenance",
+    "maintenanceDescription": "Run local OPL CLI checks, module updates, and install repair. Status refreshes after each action.",
+    "managedTag": "OPL managed",
+    "currentVersion": "Current: {{version}}",
+    "latestVersion": "Latest: {{version}}",
+    "actions": {
+      "doctor": "Check environment",
+      "refresh": "Refresh versions",
+      "repair": "Repair install",
+      "openRemote": "Open Remote Connection",
+      "update": "Update"
+    },
+    "messages": {
+      "loadModulesFailed": "Failed to read module status",
+      "commandFailed": "Command failed",
+      "doctorComplete": "Environment check complete",
+      "repairComplete": "Install repair complete",
+      "updateComplete": "{{name}} update complete"
+    },
+    "status": {
+      "notDetected": "Not detected",
+      "notInstalled": "Not installed",
+      "managedByApp": "Managed by App / CLI"
+    },
+    "items": {
+      "codex": {
+        "role": "Core execution environment",
+        "latest": "Managed by Codex CLI"
+      },
+      "hermes": {
+        "role": "Long-running task and service dependency",
+        "latest": "Managed by Hermes-Agent"
+      },
+      "module": {
+        "latest": "GitHub main"
+      },
+      "mas": {
+        "role": "Medical research module"
+      },
+      "mds": {
+        "role": "MAS deep-research dependency"
+      },
+      "mag": {
+        "role": "Grant authoring module"
+      },
+      "rca": {
+        "role": "Report and slide module"
+      },
+      "gui": {
+        "role": "Desktop GUI",
+        "latest": "Latest release"
+      }
+    }
+  }
 }

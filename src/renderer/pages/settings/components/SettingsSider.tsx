@@ -127,7 +127,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       },
       opl: {
         id: 'opl',
-        label: t('settings.oplEnvironment', { defaultValue: 'OPL Environment' }),
+        label: t('settings.oplEnvironment', { defaultValue: 'Environment Management' }),
         icon: <Toolkit />,
         path: 'opl',
       },

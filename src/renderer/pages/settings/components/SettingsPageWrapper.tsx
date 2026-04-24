@@ -37,7 +37,7 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
     },
     opl: {
       id: 'opl',
-      label: t('settings.oplEnvironment', { defaultValue: 'OPL Environment' }),
+      label: t('settings.oplEnvironment', { defaultValue: 'Environment Management' }),
       icon: <Toolkit theme='outline' size='16' />,
       path: 'opl',
     },

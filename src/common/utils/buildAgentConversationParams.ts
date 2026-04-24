@@ -7,6 +7,7 @@
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { TProviderWithModel } from '@/common/config/storage';
 import type { AcpBackend, AcpBackendAll } from '@/common/types/acpTypes';
+import { mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
 
 export type BuildAgentConversationPresetResources = {
   rules?: string;
@@ -79,7 +80,10 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   };
 
   if (isPreset) {
-    extra.enabledSkills = presetResources?.enabledSkills;
+    extra.enabledSkills =
+      effectivePresetType === 'codex'
+        ? mergeOplDefaultCodexSkills(presetResources?.enabledSkills)
+        : presetResources?.enabledSkills;
     extra.excludeBuiltinSkills = presetResources?.excludeBuiltinSkills;
     extra.presetAssistantId = effectivePresetAssistantId;
     if (type === 'gemini') {
@@ -89,6 +93,14 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       if (type === 'acp') {
         extra.backend = effectivePresetType as AcpBackend;
       }
+    }
+  } else if (backend === 'codex') {
+    extra.enabledSkills = mergeOplDefaultCodexSkills(extra.enabledSkills);
+    extra.backend = 'codex' as AcpBackendAll;
+    extra.agentName = agentName || name;
+    if (cliPath) extra.cliPath = cliPath;
+    if (customAgentId) {
+      extra.customAgentId = customAgentId;
     }
   } else if (type === 'remote') {
     extra.remoteAgentId = customAgentId;

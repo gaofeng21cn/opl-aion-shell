@@ -81,8 +81,8 @@ const WebuiModalContent: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [startLoading, setStartLoading] = useState(false);
   const port = WEBUI_DEFAULT_PORT;
-  const [webuiEnabled, setWebuiEnabled] = useState(false);
-  const [allowRemotePreference, setAllowRemotePreference] = useState(false);
+  const [webuiEnabled, setWebuiEnabled] = useState(true);
+  const [allowRemotePreference, setAllowRemotePreference] = useState(true);
   const [cachedIP, setCachedIP] = useState<string | null>(null);
   const [cachedPassword, setCachedPassword] = useState<string | null>(null);
   // 标记密码是否可以明文显示（首次启动且未复制过）/ Flag for plaintext password display (first startup and not copied)
@@ -107,11 +107,11 @@ const WebuiModalContent: React.FC = () => {
     setLoading(true);
     try {
       const [savedEnabled, savedAllowRemote] = await Promise.all([
-        ConfigStorage.get(DESKTOP_WEBUI_ENABLED_KEY).catch(() => false),
-        ConfigStorage.get(DESKTOP_WEBUI_ALLOW_REMOTE_KEY).catch(() => false),
+        ConfigStorage.get(DESKTOP_WEBUI_ENABLED_KEY).catch((): undefined => undefined),
+        ConfigStorage.get(DESKTOP_WEBUI_ALLOW_REMOTE_KEY).catch((): undefined => undefined),
       ]);
-      setWebuiEnabled(savedEnabled === true);
-      setAllowRemotePreference(savedAllowRemote === true);
+      setWebuiEnabled(savedEnabled !== false);
+      setAllowRemotePreference(savedAllowRemote !== false);
 
       let result: { success: boolean; data?: IWebUIStatus } | null = null;
 
@@ -147,7 +147,7 @@ const WebuiModalContent: React.FC = () => {
             prev || {
               running: false,
               port: WEBUI_DEFAULT_PORT,
-              allowRemote: false,
+              allowRemote: savedAllowRemote !== false,
               localUrl: `http://localhost:${WEBUI_DEFAULT_PORT}`,
               adminUsername: 'admin',
             }
@@ -172,7 +172,7 @@ const WebuiModalContent: React.FC = () => {
           ...(prev || { adminUsername: 'admin' }),
           running: true,
           port: data.port ?? prev?.port ?? WEBUI_DEFAULT_PORT,
-          allowRemote: prev?.allowRemote ?? false,
+          allowRemote: prev?.allowRemote ?? allowRemotePreference,
           localUrl: data.localUrl ?? `http://localhost:${data.port ?? WEBUI_DEFAULT_PORT}`,
           networkUrl: data.networkUrl,
           lanIP: prev?.lanIP,

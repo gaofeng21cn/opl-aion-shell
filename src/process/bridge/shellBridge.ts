@@ -6,12 +6,45 @@
 
 import { shell } from 'electron';
 import { ipcBridge } from '@/common';
-import { exec, spawn } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module']);
+
+function assertAllowedOplArgs(args: string[]): void {
+  if (args.length === 0) {
+    throw new Error('Missing OPL command');
+  }
+  if (!ALLOWED_OPL_COMMANDS.has(args[0])) {
+    throw new Error(`Unsupported OPL command: ${args[0]}`);
+  }
+  if (args.some((arg) => /[;&|`$<>]/.test(arg))) {
+    throw new Error('Unsupported shell metacharacter in OPL command');
+  }
+  if (args[0] === 'module' && args[1] && !['install', 'update', 'reinstall'].includes(args[1])) {
+    throw new Error(`Unsupported OPL module action: ${args[1]}`);
+  }
+}
+
+async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  assertAllowedOplArgs(args);
+  try {
+    const result = await execFileAsync('opl', args, { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
+    return { exitCode: 0, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException & { code?: number; stdout?: string; stderr?: string };
+    return {
+      exitCode: typeof err.code === 'number' ? err.code : 1,
+      stdout: err.stdout ?? '',
+      stderr: err.stderr ?? err.message,
+    };
+  }
+}
 
 /**
  * Check if a command exists in PATH
@@ -259,6 +292,8 @@ export function initShellBridge(): void {
         return false;
     }
   });
+
+  ipcBridge.shell.runOplCommand.provider(async ({ args }) => runOplCli(args));
 
   // Open folder with specified tool
   ipcBridge.shell.openFolderWith.provider(async ({ folderPath, tool }) => {

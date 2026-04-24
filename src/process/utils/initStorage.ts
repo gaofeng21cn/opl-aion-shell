@@ -6,6 +6,7 @@
 
 import { mkdirSync as _mkdirSync, existsSync, readdirSync, readFileSync } from 'fs';
 import fs from 'fs/promises';
+import os from 'os';
 import path from 'path';
 import { getPlatformServices } from '@/common/platform';
 import { application } from '@/common/adapter/ipcBridge';
@@ -338,7 +339,8 @@ const getAssistantsDir = () => {
  * Get skills scripts directory path
  */
 const getSkillsDir = () => {
-  return path.join(cacheDir, STORAGE_PATH.skills);
+  const codexHome = process.env.CODEX_HOME?.trim();
+  return path.join(codexHome || path.join(os.homedir(), '.codex'), 'skills');
 };
 
 /**
@@ -424,7 +426,7 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
 
   // Sync builtin skills to a dedicated directory (config/builtin-skills/).
   // This directory is fully managed by the app: overwrite existing, remove stale.
-  // User-custom skills live in config/skills/ and are never touched.
+  // User-custom skills live in the Codex skills directory and are never touched.
   if (existsSync(builtinSkillsDir)) {
     try {
       if (!existsSync(builtinSkillsCopyDir)) {
