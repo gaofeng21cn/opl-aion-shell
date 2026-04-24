@@ -933,7 +933,9 @@
       "commandFailed": "Command failed",
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
-      "updateComplete": "{{name}} update complete"
+      "updateComplete": "{{name}} update complete",
+      "brandNameSaved": "アプリ名を保存しました",
+      "brandNameSaveFailed": "アプリ名の保存に失敗しました"
     },
     "status": {
       "notDetected": "Not detected",
@@ -968,6 +970,8 @@
         "role": "Desktop GUI",
         "latest": "Latest release"
       }
-    }
+    },
+    "brandTitle": "アプリ名",
+    "brandDescription": "左上のアイコン横に表示する名前を設定します。既定は One Person Lab です。"
   }
 }

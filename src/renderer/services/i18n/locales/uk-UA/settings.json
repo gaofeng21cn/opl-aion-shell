@@ -849,7 +849,9 @@
       "commandFailed": "Command failed",
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
-      "updateComplete": "{{name}} update complete"
+      "updateComplete": "{{name}} update complete",
+      "brandNameSaved": "Назву застосунку збережено",
+      "brandNameSaveFailed": "Не вдалося зберегти назву застосунку"
     },
     "status": {
       "notDetected": "Not detected",
@@ -884,6 +886,8 @@
         "role": "Desktop GUI",
         "latest": "Latest release"
       }
-    }
+    },
+    "brandTitle": "Назва застосунку",
+    "brandDescription": "Задайте назву поруч із піктограмою вгорі ліворуч. Типово: One Person Lab."
   }
 }

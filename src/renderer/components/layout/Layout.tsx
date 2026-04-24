@@ -24,6 +24,7 @@ import { useMultiAgentDetection } from '@renderer/hooks/agent/useMultiAgentDetec
 import { processCustomCss } from '@renderer/utils/theme/customCssProcessor';
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
+import { useOplBrandName } from '@renderer/hooks/system/useOplBrandName';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
 import '@renderer/styles/layout.css';
@@ -95,6 +96,7 @@ const Layout: React.FC<{
   const [customCss, setCustomCss] = useState<string>('');
   const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
+  const oplBrandName = useOplBrandName();
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
@@ -456,7 +458,7 @@ const Layout: React.FC<{
                 >
                   <img src={onePersonLabLogo} alt='' className='w-full h-full object-contain' />
                 </div>
-                <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>One Person Lab</div>
+                <div className='flex-1 text-20px text-1 collapsed-hidden font-bold'>{oplBrandName}</div>
                 {isMobile && !collapsed && (
                   <button
                     type='button'

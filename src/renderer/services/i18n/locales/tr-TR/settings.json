@@ -931,7 +931,9 @@
       "commandFailed": "Command failed",
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
-      "updateComplete": "{{name}} update complete"
+      "updateComplete": "{{name}} update complete",
+      "brandNameSaved": "Uygulama adı kaydedildi",
+      "brandNameSaveFailed": "Uygulama adı kaydedilemedi"
     },
     "status": {
       "notDetected": "Not detected",
@@ -966,6 +968,8 @@
         "role": "Desktop GUI",
         "latest": "Latest release"
       }
-    }
+    },
+    "brandTitle": "Uygulama adı",
+    "brandDescription": "Sol üst simgenin yanında gösterilecek adı ayarlayın. Varsayılan değer One Person Lab."
   }
 }

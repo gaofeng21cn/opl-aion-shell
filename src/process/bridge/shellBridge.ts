@@ -31,10 +31,16 @@ function assertAllowedOplArgs(args: string[]): void {
   }
 }
 
-async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
-  assertAllowedOplArgs(args);
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\''`)}'`;
+}
+
+async function runLoginShell(
+  command: string,
+  timeout: number
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   try {
-    const result = await execFileAsync('opl', args, { timeout: 120_000, maxBuffer: 10 * 1024 * 1024 });
+    const result = await execFileAsync('/bin/zsh', ['-lc', command], { timeout, maxBuffer: 20 * 1024 * 1024 });
     return { exitCode: 0, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
   } catch (error) {
     const err = error as NodeJS.ErrnoException & { code?: number; stdout?: string; stderr?: string };
@@ -44,6 +50,48 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
       stderr: err.stderr ?? err.message,
     };
   }
+}
+
+function buildOplCommand(args: string[]): string {
+  return ['command -v opl >/dev/null || exit 127', ['opl', ...args].map(shellQuote).join(' ')].join(' && ');
+}
+
+function buildOplBootstrapCommand(args: string[]): string {
+  const commandArgs = ['opl', ...args].map(shellQuote).join(' ');
+  return [
+    'set -euo pipefail',
+    'command -v git >/dev/null',
+    'command -v npm >/dev/null',
+    'OPL_ROOT="${OPL_INSTALL_ROOT:-$HOME/workspace/one-person-lab}"',
+    'OPL_REPO_URL="${OPL_REPO_URL:-https://github.com/gaofeng21cn/one-person-lab.git}"',
+    'mkdir -p "$(dirname "$OPL_ROOT")"',
+    'if [ ! -d "$OPL_ROOT/.git" ]; then git clone "$OPL_REPO_URL" "$OPL_ROOT"; fi',
+    'cd "$OPL_ROOT"',
+    'git fetch --all --prune',
+    'npm install',
+    'npm link',
+    commandArgs,
+  ].join(' && ');
+}
+
+async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  assertAllowedOplArgs(args);
+  const timeout = args[0] === 'install' ? 30 * 60_000 : 120_000;
+  const directResult = await runLoginShell(buildOplCommand(args), timeout);
+  if (directResult.exitCode !== 127 || args[0] !== 'install') {
+    return directResult;
+  }
+
+  const bootstrapResult = await runLoginShell(buildOplBootstrapCommand(args), 30 * 60_000);
+  return {
+    ...bootstrapResult,
+    stdout: [
+      '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab into ~/workspace/one-person-lab.',
+      bootstrapResult.stdout,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  };
 }
 
 /**

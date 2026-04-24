@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Grid, Message, Space, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Grid, Input, Message, Space, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
 import mdsLogo from '@/renderer/assets/logos/opl-modules/mds.svg';
@@ -14,6 +14,12 @@ import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
 import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import { ConfigStorage } from '@/common/config/storage';
+import {
+  dispatchOplBrandNameChanged,
+  normalizeOplBrandName,
+  OPL_DEFAULT_BRAND_NAME,
+} from '@/renderer/hooks/system/useOplBrandName';
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 import AboutModalContent from '@/renderer/components/settings/SettingsModal/contents/AboutModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
@@ -123,6 +129,7 @@ const OplEnvironmentContent: React.FC = () => {
   const [message, contextHolder] = Message.useMessage();
   const [runningAction, setRunningAction] = useState<string | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<OplModuleStatus[]>([]);
+  const [brandName, setBrandName] = useState(OPL_DEFAULT_BRAND_NAME);
 
   const loadModules = useCallback(async () => {
     setRunningAction('modules');
@@ -142,6 +149,12 @@ const OplEnvironmentContent: React.FC = () => {
     void loadModules();
   }, [loadModules]);
 
+  useEffect(() => {
+    ConfigStorage.get('opl.brandName')
+      .then((value) => setBrandName(normalizeOplBrandName(value)))
+      .catch(() => setBrandName(OPL_DEFAULT_BRAND_NAME));
+  }, []);
+
   const statusByModuleId = useMemo(() => {
     const map = new Map<string, OplModuleStatus>();
     for (const status of moduleStatuses) {
@@ -149,6 +162,17 @@ const OplEnvironmentContent: React.FC = () => {
     }
     return map;
   }, [moduleStatuses]);
+
+  const handleBrandNameBlur = useCallback(() => {
+    const normalized = normalizeOplBrandName(brandName);
+    setBrandName(normalized);
+    ConfigStorage.set('opl.brandName', normalized)
+      .then(() => {
+        dispatchOplBrandNameChanged();
+        message.success(t('settings.oplEnvironmentPage.messages.brandNameSaved'));
+      })
+      .catch(() => message.error(t('settings.oplEnvironmentPage.messages.brandNameSaveFailed')));
+  }, [brandName, message, t]);
 
   const runOplCommand = useCallback(
     async (args: string[], actionId: string, successText: string) => {
@@ -177,6 +201,24 @@ const OplEnvironmentContent: React.FC = () => {
         </Typography.Title>
         <Typography.Text className='text-t-secondary'>{t('settings.oplEnvironmentPage.description')}</Typography.Text>
       </div>
+
+      <Card bordered className='rounded-xl'>
+        <div className='flex flex-col gap-12px'>
+          <Typography.Text className='font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.brandTitle')}
+          </Typography.Text>
+          <Typography.Text className='text-t-secondary'>
+            {t('settings.oplEnvironmentPage.brandDescription')}
+          </Typography.Text>
+          <Input
+            value={brandName}
+            placeholder={OPL_DEFAULT_BRAND_NAME}
+            onChange={setBrandName}
+            onBlur={handleBrandNameBlur}
+            onPressEnter={handleBrandNameBlur}
+          />
+        </div>
+      </Card>
 
       <Card bordered className='rounded-xl'>
         <div className='flex flex-col gap-12px'>
