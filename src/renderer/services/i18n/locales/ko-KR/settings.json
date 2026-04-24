@@ -933,7 +933,9 @@
       "commandFailed": "Command failed",
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
-      "updateComplete": "{{name}} update complete"
+      "updateComplete": "{{name}} update complete",
+      "brandNameSaved": "앱 이름을 저장했습니��",
+      "brandNameSaveFailed": "앱 이름 저장에 실패했습니다"
     },
     "status": {
       "notDetected": "Not detected",
@@ -968,6 +970,8 @@
         "role": "Desktop GUI",
         "latest": "Latest release"
       }
-    }
+    },
+    "brandTitle": "앱 이름",
+    "brandDescription": "왼쪽 위 아이콘 옆에 표시할 이름을 설정합니다. 기본값은 One Person Lab입니다."
   }
 }

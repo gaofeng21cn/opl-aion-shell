@@ -78,6 +78,8 @@ export interface IConfigStorageRefer {
   'mcp.agentInstallStatus': Record<string, string[]>;
   language: string;
   theme: string;
+  /** Sidebar and titlebar display name for the One Person Lab app. */
+  'opl.brandName'?: string;
   colorScheme: string;
   /** Persisted app-wide UI zoom factor for Display settings */
   'ui.zoomFactor'?: number;

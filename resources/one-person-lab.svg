@@ -1,33 +1,27 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="One Person Lab app icon">
   <title>One Person Lab</title>
   <defs>
-    <linearGradient id="bg" x1="112" y1="96" x2="912" y2="928" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#08233D"/>
-      <stop offset="0.56" stop-color="#0F4D7D"/>
-      <stop offset="1" stop-color="#2BB8B0"/>
+    <linearGradient id="card" x1="168" y1="118" x2="856" y2="906" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#F4FAFF"/>
+      <stop offset="1" stop-color="#E3F1FF"/>
     </linearGradient>
-    <linearGradient id="card" x1="238" y1="210" x2="786" y2="824" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#F8FCFF"/>
-      <stop offset="1" stop-color="#DCEEFF"/>
-    </linearGradient>
-    <filter id="shadow" x="80" y="80" width="864" height="864" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="28" stdDeviation="34" flood-color="#031323" flood-opacity="0.24"/>
+    <filter id="cardShadow" x="96" y="88" width="832" height="848" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="24" stdDeviation="36" flood-color="#0E385D" flood-opacity="0.16"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#0E385D" flood-opacity="0.10"/>
     </filter>
   </defs>
-  <rect x="64" y="64" width="896" height="896" rx="210" fill="url(#bg)"/>
-  <g filter="url(#shadow)">
-    <rect x="214" y="190" width="596" height="644" rx="118" fill="url(#card)" fill-opacity="0.98"/>
-    <path d="M512 270C392.706 270 296 366.706 296 486C296 605.294 392.706 702 512 702C631.294 702 728 605.294 728 486" stroke="#0E385D" stroke-width="34" stroke-linecap="round"/>
-    <path d="M512 332C426.948 332 358 400.948 358 486C358 571.052 426.948 640 512 640C597.052 640 666 571.052 666 486" stroke="#2BB8B0" stroke-width="30" stroke-linecap="round"/>
-    <circle cx="512" cy="486" r="76" fill="#0E385D"/>
-    <circle cx="512" cy="486" r="34" fill="#7CE8E0"/>
-    <rect x="332" y="746" width="360" height="34" rx="17" fill="#0E385D" fill-opacity="0.18"/>
-    <rect x="384" y="736" width="256" height="34" rx="17" fill="#0E385D" fill-opacity="0.28"/>
-    <circle cx="356" cy="358" r="28" fill="#2BB8B0"/>
-    <circle cx="684" cy="358" r="28" fill="#F3B44B"/>
-    <circle cx="684" cy="634" r="28" fill="#7CA7FF"/>
-    <path d="M381 376L459 446" stroke="#0E385D" stroke-width="20" stroke-linecap="round"/>
-    <path d="M644 376L565 446" stroke="#0E385D" stroke-width="20" stroke-linecap="round"/>
-    <path d="M644 619L566 530" stroke="#0E385D" stroke-width="20" stroke-linecap="round"/>
-  </g>
+  <rect x="132" y="112" width="760" height="800" rx="178" fill="url(#card)" filter="url(#cardShadow)"/>
+  <path d="M512 236C373.929 236 262 347.929 262 486C262 624.071 373.929 736 512 736C650.071 736 762 624.071 762 486" stroke="#0E385D" stroke-width="40" stroke-linecap="round"/>
+  <path d="M512 304C411.484 304 330 385.484 330 486C330 586.516 411.484 668 512 668C612.516 668 694 586.516 694 486" stroke="#2BB8B0" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="512" cy="486" r="86" fill="#0E385D"/>
+  <circle cx="512" cy="486" r="38" fill="#7CE8E0"/>
+  <rect x="326" y="778" width="372" height="36" rx="18" fill="#0E385D" fill-opacity="0.16"/>
+  <rect x="384" y="762" width="256" height="36" rx="18" fill="#0E385D" fill-opacity="0.26"/>
+  <circle cx="346" cy="354" r="30" fill="#2BB8B0"/>
+  <circle cx="690" cy="354" r="30" fill="#F3B44B"/>
+  <circle cx="690" cy="638" r="30" fill="#7CA7FF"/>
+  <path d="M374 374L456 448" stroke="#0E385D" stroke-width="22" stroke-linecap="round"/>
+  <path d="M650 374L568 448" stroke="#0E385D" stroke-width="22" stroke-linecap="round"/>
+  <path d="M650 620L568 532" stroke="#0E385D" stroke-width="22" stroke-linecap="round"/>
 </svg>

@@ -932,7 +932,9 @@
       "commandFailed": "命令执行失败",
       "doctorComplete": "环境检查完成",
       "repairComplete": "安装修复完成",
-      "updateComplete": "{{name}} 更新完成"
+      "updateComplete": "{{name}} 更新完成",
+      "brandNameSaved": "应用名称已保存",
+      "brandNameSaveFailed": "应用名称保存失败"
     },
     "status": {
       "notDetected": "未检测",
@@ -967,6 +969,8 @@
         "role": "桌面图形界面",
         "latest": "Release 最新版"
       }
-    }
+    },
+    "brandTitle": "应用名称",
+    "brandDescription": "设置左上角图标旁显示的名称。默认使用 One Person Lab。"
   }
 }

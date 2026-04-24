@@ -933,7 +933,9 @@
       "commandFailed": "命令執行失敗",
       "doctorComplete": "環境檢查完成",
       "repairComplete": "安裝修復完成",
-      "updateComplete": "{{name}} 更新完成"
+      "updateComplete": "{{name}} 更新完成",
+      "brandNameSaved": "應用名稱已儲存",
+      "brandNameSaveFailed": "應用名稱儲存失敗"
     },
     "status": {
       "notDetected": "未偵測",
@@ -968,6 +970,8 @@
         "role": "桌面圖形介面",
         "latest": "Release 最新版"
       }
-    }
+    },
+    "brandTitle": "應用名稱",
+    "brandDescription": "設定左上角圖示旁顯示的名稱。預設使用 One Person Lab。"
   }
 }
