@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { CODEX_MODE_FULL_AUTO_NO_SANDBOX } from '@/common/types/codex/codexModes';
 import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
 import type { IProvider } from '@/common/config/storage';
 import { ConfigStorage } from '@/common/config/storage';
@@ -89,6 +90,61 @@ export const useGuidAgentSelection = ({
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
   const [cachedConfigOptions, setCachedConfigOptions] = useState<AcpSessionConfigOption[]>([]);
   const [pendingConfigOptions, setPendingConfigOptions] = useState<Record<string, string>>({});
+
+  const readSystemCodexConfig = useCallback(async (): Promise<{
+    model?: string;
+    reasoningEffort?: string;
+    sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
+  }> => {
+    try {
+      const home = await ipcBridge.application.getPath.invoke({ name: 'home' });
+      const configPath = `${home}/.codex/config.toml`;
+      const content = await ipcBridge.fs.readFile.invoke({ path: configPath });
+      const readString = (key: string) => {
+        const match = content.match(new RegExp(`^\\s*${key}\\s*=\\s*\"([^\"]+)\"`, 'm'));
+        return match?.[1]?.trim();
+      };
+      const sandboxMode = readString('sandbox_mode');
+      return {
+        model: readString('model'),
+        reasoningEffort: readString('model_reasoning_effort'),
+        sandboxMode:
+          sandboxMode === 'read-only' || sandboxMode === 'workspace-write' || sandboxMode === 'danger-full-access'
+            ? sandboxMode
+            : undefined,
+      };
+    } catch {
+      return {};
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const syncSystemCodexDefaults = async () => {
+      const systemConfig = await readSystemCodexConfig();
+      if (cancelled) return;
+
+      const acpConfig = (await ConfigStorage.get('acp.config')) || {};
+      const codexConfig = acpConfig.codex || {};
+      const nextCodexConfig = {
+        ...codexConfig,
+        preferredMode: CODEX_MODE_FULL_AUTO_NO_SANDBOX,
+        preferredModelId: systemConfig.model || codexConfig.preferredModelId,
+      };
+      await ConfigStorage.set('acp.config', { ...acpConfig, codex: nextCodexConfig });
+
+      const appCodexConfig = (await ConfigStorage.get('codex.config')) || {};
+      await ConfigStorage.set('codex.config', {
+        ...appCodexConfig,
+        sandboxMode: systemConfig.sandboxMode || 'danger-full-access',
+      });
+    };
+
+    void syncSystemCodexDefaults();
+    return () => {
+      cancelled = true;
+    };
+  }, [readSystemCodexConfig]);
 
   // Wrap setSelectedAgentKey to also save to storage
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -358,30 +414,37 @@ export const useGuidAgentSelection = ({
         : selectedAgentKey;
 
     let cancelled = false;
-    // Read preferred model from acp.config[backend], fallback to cached model list default
-    void ConfigStorage.get('acp.config')
-      .then((config) => {
+    const loadPreferredModel = async () => {
+      try {
+        const config = await ConfigStorage.get('acp.config');
         if (cancelled) return;
         const preferred = (config?.[backend as AcpBackendAll] as Record<string, unknown>)?.preferredModelId as
           | string
           | undefined;
-        if (preferred) {
+        if (backend === 'codex') {
+          const systemConfig = await readSystemCodexConfig();
+          if (!cancelled) {
+            _setSelectedAcpModel(systemConfig.model || preferred || acpCachedModels[backend]?.currentModelId || null);
+          }
+        } else if (preferred) {
           _setSelectedAcpModel(preferred);
         } else {
           const cachedInfo = acpCachedModels[backend];
           _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
         }
-      })
-      .catch(() => {
+      } catch {
         if (cancelled) return;
         const cachedInfo = acpCachedModels[backend];
         _setSelectedAcpModel(cachedInfo?.currentModelId ?? null);
-      });
+      }
+    };
+
+    void loadPreferredModel();
 
     return () => {
       cancelled = true;
     };
-  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType]);
+  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType, readSystemCodexConfig]);
 
   // Read preferred mode or fallback to legacy yoloMode config
   useEffect(() => {
@@ -424,6 +487,11 @@ export const useGuidAgentSelection = ({
           }
         }
 
+        if (configKey === 'codex') {
+          _setSelectedMode(CODEX_MODE_FULL_AUTO_NO_SANDBOX);
+          return;
+        }
+
         // 2. Fallback: legacy yoloMode
         if (yoloMode) {
           const yoloValues: Record<string, string> = {
@@ -444,7 +512,7 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedAgent, isPresetAgent, currentEffectiveAgentInfo.agentType]);
+  }, [selectedAgent, isPresetAgent, currentEffectiveAgentInfo.agentType, readSystemCodexConfig]);
 
   const currentAcpCachedModelInfo = useMemo(() => {
     // For preset agents, resolve to the actual backend type for model list lookup
@@ -459,17 +527,18 @@ export const useGuidAgentSelection = ({
     // Fallback: when no cached models exist for codex (e.g., first launch or stale cache),
     // use the hardcoded default list so the Guid page shows a model selector immediately.
     if (backend === 'codex' && DEFAULT_CODEX_MODELS.length > 0) {
+      const selectedModel = selectedAcpModel || DEFAULT_CODEX_MODELS[0].id;
       return {
         source: 'models' as const,
-        currentModelId: DEFAULT_CODEX_MODELS[0].id,
-        currentModelLabel: DEFAULT_CODEX_MODELS[0].label,
+        currentModelId: selectedModel,
+        currentModelLabel: selectedModel,
         availableModels: DEFAULT_CODEX_MODELS.map((m) => ({ id: m.id, label: m.label })),
         canSwitch: true,
       } satisfies AcpModelInfo;
     }
 
     return null;
-  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType]);
+  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType, readSystemCodexConfig]);
 
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {

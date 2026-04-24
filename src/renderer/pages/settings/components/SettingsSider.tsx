@@ -2,20 +2,7 @@ import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import {
-  Cat,
-  Communication,
-  Computer,
-  Earth,
-  Gemini,
-  Info,
-  Lightning,
-  LinkCloud,
-  Puzzle,
-  Robot,
-  Speed,
-  System,
-} from '@icon-park/react';
+import { Communication, Earth, Info, Lightning, Puzzle, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,18 +11,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-export const BUILTIN_TAB_IDS = [
-  'gemini',
-  'agent',
-  'model',
-  'assistants',
-  'capabilities',
-  'display',
-  'webui',
-  'pet',
-  'system',
-  'about',
-] as const;
+export const BUILTIN_TAB_IDS = ['capabilities', 'webui', 'opl', 'system', 'about'] as const;
 
 /**
  * Legacy anchor IDs that have been merged into other tabs.
@@ -53,8 +29,8 @@ export const LEGACY_ANCHOR_REMAP: Record<string, string> = {
  * Extension tabs anchored between these builtins inherit the enclosing group visually.
  */
 const GROUP_HEADER_BEFORE: Record<string, string> = {
-  gemini: 'settings.groupAiCore',
-  display: 'settings.groupApp',
+  capabilities: 'settings.groupAiCore',
+  system: 'settings.groupApp',
   about: 'settings.groupAbout',
 };
 
@@ -137,40 +113,30 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const { menus, groupHeaderAt } = useMemo(() => {
     // Build builtin items
     const builtinMap: Record<string, SiderItem> = {
-      gemini: { id: 'gemini', label: t('settings.gemini'), icon: <Gemini />, path: 'gemini' },
-      model: { id: 'model', label: t('settings.model'), icon: <LinkCloud />, path: 'model' },
-      assistants: {
-        id: 'assistants',
-        label: t('settings.assistants', { defaultValue: 'Assistants' }),
-        icon: <Robot />,
-        path: 'assistants',
-      },
-      agent: {
-        id: 'agent',
-        label: t('settings.agents', { defaultValue: 'Agents' }),
-        icon: <Speed />,
-        path: 'agent',
-      },
       capabilities: {
         id: 'capabilities',
         label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
         icon: <Lightning />,
         path: 'capabilities',
       },
-      display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
       webui: {
         id: 'webui',
         label: t('settings.webui'),
         icon: isDesktop ? <Earth /> : <Communication />,
         path: 'webui',
       },
-      pet: { id: 'pet', label: t('pet.desktopPet'), icon: <Cat />, path: 'pet' },
+      opl: {
+        id: 'opl',
+        label: t('settings.oplEnvironment', { defaultValue: 'OPL Environment' }),
+        icon: <Toolkit />,
+        path: 'opl',
+      },
       system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
       about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
     };
 
     // Start with ordered builtin IDs, hiding desktop-only tabs in browser mode
-    const result: SiderItem[] = BUILTIN_TAB_IDS.filter((id) => isDesktop || id !== 'pet').map((id) => builtinMap[id]);
+    const result: SiderItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]);
 
     // Extension tabs with position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();

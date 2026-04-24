@@ -1,7 +1,7 @@
 {
   "welcome": {
-    "title": "Hi，今天要推进什么工作？",
-    "placeholder": "发消息、上传文件，或打开一个工作目录...",
+    "title": "OPL 可以帮你推进什么？",
+    "placeholder": "描述目标、上传材料，或选择 MAS/MAG/RCA 工作目录...",
     "uploadFile": "上传文件",
     "linkFolder": "打开文件夹",
     "newConversation": "新会话",

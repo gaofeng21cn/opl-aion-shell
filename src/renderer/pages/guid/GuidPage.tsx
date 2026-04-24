@@ -11,9 +11,7 @@ import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useConversationTabs } from '@/renderer/pages/conversation/hooks/ConversationTabsContext';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
-import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
-import { AgentPillBarSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
@@ -684,16 +682,6 @@ const GuidPage: React.FC = () => {
                 />
               ) : null}
             </div>
-          ) : oplVisibleAgents === undefined ? (
-            <AgentPillBarSkeleton />
-          ) : oplVisibleAgents.length > 0 ? (
-            <AgentPillBar
-              availableAgents={oplVisibleAgents}
-              selectedAgentKey={agentSelection.selectedAgentKey}
-              getAgentKey={agentSelection.getAgentKey}
-              onSelectAgent={handleSelectAgentFromPillBar}
-              suppressSelectionAnimation={resetAssistantRequested}
-            />
           ) : null}
 
           <GuidInputCard
@@ -703,7 +691,7 @@ const GuidPage: React.FC = () => {
             onPaste={guidInput.onPaste}
             onFocus={guidInput.handleTextareaFocus}
             onBlur={guidInput.handleTextareaBlur}
-            placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
+            placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')}
             isInputActive={guidInput.isInputFocused}
             isFileDragging={guidInput.isFileDragging}
             activeBorderColor={activeBorderColor}

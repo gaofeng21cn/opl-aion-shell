@@ -911,5 +911,6 @@
     "version": "バージョン",
     "path": "パス",
     "providerNote": "プロバイダーとAPIキーの設定はモデルページで管理します。Aion CLIは以下をサポート：Anthropic、OpenAI、AWS Bedrock。"
-  }
+  },
+  "oplEnvironment": "OPL Environment"
 }

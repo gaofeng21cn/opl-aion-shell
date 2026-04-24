@@ -166,9 +166,9 @@
   "notification": "Notifications",
   "cronNotificationEnabled": "Scheduled Task Completion",
   "promptTimeout": "LLM Prompt Timeout (s)",
-  "groupAiCore": "AI Core",
-  "groupApp": "Application",
-  "groupAbout": "Other",
+  "groupAiCore": "Capabilities",
+  "groupApp": "Runtime",
+  "groupAbout": "About",
   "agentIdleTimeout": "Agent Idle Timeout (min)",
   "agentIdleTimeoutDesc": "Kill idle agent processes after this duration to free memory",
   "gemini": "Gemini CLI",
@@ -522,7 +522,7 @@
   "needHelpTooltip": "If you need help, please check",
   "googleCloudProjectPlaceholder": "Enter your Google Cloud Project ID",
   "noAvailableModels": "No available models",
-  "appDescription": "Free, local, open-source GUI app for Gemini CLI",
+  "appDescription": "One Person Lab desktop workbench for OPL, MAS, MAG, RCA, and the local Product API.",
   "helpDocumentation": "Help Documentation",
   "updateLog": "Update Log",
   "feedback": "Feedback",
@@ -909,5 +909,6 @@
     "version": "Version",
     "path": "Path",
     "providerNote": "Provider and API key settings are managed in the Models page. Aion CLI supports: Anthropic, OpenAI, AWS Bedrock."
-  }
+  },
+  "oplEnvironment": "OPL Environment"
 }
