@@ -136,6 +136,192 @@ describe('WeixinPlugin — Promise bridge', () => {
     expect(response.text).toBe('final complete text');
   });
 
+  it('sends completed text drafts through injected sendTextNow without duplicating final response text', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const firstMsgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.editMessage(msg.chatId, firstMsgId, { type: 'text', text: 'first draft' });
+      await plugin.editMessage(msg.chatId, firstMsgId, { type: 'text', text: 'first final' });
+
+      const secondMsgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: 'second draft' });
+      await plugin.editMessage(msg.chatId, secondMsgId, {
+        type: 'text',
+        text: 'second final',
+        replyMarkup: {},
+      });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    const response = await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['first final', 'second final']);
+    expect(response.text).toBeUndefined();
+  });
+
+  it('does not send duplicate messages for updates within one text draft', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const msgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.editMessage(msg.chatId, msgId, { type: 'text', text: 'partial' });
+      await plugin.editMessage(msg.chatId, msgId, { type: 'text', text: 'complete' });
+      await plugin.editMessage(msg.chatId, msgId, { type: 'text', text: 'complete', replyMarkup: {} });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['complete']);
+  });
+
+  it('does not send the thinking placeholder when a draft is flushed explicitly', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const msgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.flushTextDraft(msg.chatId);
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: 'real answer',
+        replyMarkup: {},
+      });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    const response = await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['real answer']);
+    expect(response.text).toBeUndefined();
+  });
+
+  it('sends legitimate assistant text that begins with the thinking placeholder literal', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const msgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: '⏳ Thinking... is the literal text you asked me to print.',
+        replyMarkup: {},
+      });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    const response = await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['⏳ Thinking... is the literal text you asked me to print.']);
+    expect(response.text).toBeUndefined();
+  });
+
+  it('flushes an assistant text draft before a silent intermediate event', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const msgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: '好，我来做几个基础操作。',
+      });
+      await plugin.flushTextDraft(msg.chatId);
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: '操作完成。',
+        replyMarkup: {},
+      });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    const response = await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['好，我来做几个基础操作。', '操作完成。']);
+    expect(response.text).toBeUndefined();
+  });
+
+  it('does not resend an already flushed draft when finalization repeats the same text', async () => {
+    const WeixinPlugin = await loadPluginClass();
+    const plugin = new WeixinPlugin();
+    await plugin.initialize(createConfig());
+
+    const sentNow: string[] = [];
+    plugin.onMessage(async (msg) => {
+      const msgId = await plugin.sendMessage(msg.chatId, { type: 'text', text: '⏳ Thinking...' });
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: '好，我来做几个基础操作。',
+      });
+      await plugin.flushTextDraft(msg.chatId);
+      await plugin.editMessage(msg.chatId, msgId, {
+        type: 'text',
+        text: '好，我来做几个基础操作。',
+        replyMarkup: {},
+      });
+    });
+
+    await plugin.start();
+    const { agent } = mockStartFn.mock.calls[0][0] as MonitorOptions;
+    const response = await agent.chat({
+      conversationId: 'user_abc',
+      text: 'hi',
+      sendTextNow: async (text) => {
+        sentNow.push(text);
+      },
+    });
+
+    expect(sentNow).toEqual(['好，我来做几个基础操作。']);
+    expect(response.text).toBeUndefined();
+  });
+
   it('resolves mediaActions even when final visible text is empty', async () => {
     const WeixinPlugin = await loadPluginClass();
     const plugin = new WeixinPlugin();

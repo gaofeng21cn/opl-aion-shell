@@ -19,7 +19,13 @@ const RESPONSE_TIMEOUT_MS = 5 * 60 * 1000;
 interface PendingResponse {
   resolve: (response: WeixinChatResponse) => void;
   reject: (error: Error) => void;
-  accumulatedText: string;
+  draftText: string;
+  hasDraft: boolean;
+  sentTextNow: boolean;
+  lastSentText?: string;
+  sendTextNow?: (text: string) => Promise<void>;
+  sendQueue: Promise<void>;
+  sendError?: Error;
   mediaActions: IChannelMediaAction[];
   timer: ReturnType<typeof setTimeout>;
 }
@@ -80,7 +86,11 @@ export class WeixinPlugin extends BasePlugin {
   async sendMessage(chatId: string, message: IUnifiedOutgoingMessage): Promise<string> {
     const pending = this.pendingResponses.get(chatId);
     if (pending && message.text !== undefined) {
-      pending.accumulatedText = stripHtml(message.text);
+      this.flushDraft(pending);
+      this.updateDraft(pending, message.text);
+    }
+    if (pending && message.mediaActions) {
+      pending.mediaActions = message.mediaActions;
     }
     return `weixin_pending_${chatId}`;
   }
@@ -90,20 +100,34 @@ export class WeixinPlugin extends BasePlugin {
     if (!pending) return;
 
     if (message.text !== undefined) {
-      pending.accumulatedText = stripHtml(message.text);
+      this.updateDraft(pending, message.text);
     }
     if (message.mediaActions) {
       pending.mediaActions = message.mediaActions;
     }
 
     if (message.replyMarkup !== undefined) {
+      this.flushDraft(pending);
+      await pending.sendQueue;
       clearTimeout(pending.timer);
       this.pendingResponses.delete(chatId);
+      if (pending.sendError) {
+        pending.reject(pending.sendError);
+        return;
+      }
       pending.resolve({
-        text: pending.accumulatedText || undefined,
+        text: pending.sentTextNow ? undefined : pending.draftText || undefined,
         mediaActions: pending.mediaActions,
       });
     }
+  }
+
+  async flushTextDraft(chatId: string): Promise<void> {
+    const pending = this.pendingResponses.get(chatId);
+    if (!pending) return;
+
+    this.flushDraft(pending);
+    await pending.sendQueue;
   }
 
   getActiveUserCount(): number {
@@ -140,7 +164,11 @@ export class WeixinPlugin extends BasePlugin {
       this.pendingResponses.set(conversationId, {
         resolve,
         reject,
-        accumulatedText: '',
+        draftText: '',
+        hasDraft: false,
+        sentTextNow: false,
+        sendTextNow: request.sendTextNow,
+        sendQueue: Promise.resolve(),
         mediaActions: [],
         timer,
       });
@@ -162,13 +190,19 @@ export class WeixinPlugin extends BasePlugin {
       }
 
       this.emitMessage(unified)
-        .then(() => {
+        .then(async () => {
           const pending = this.pendingResponses.get(conversationId);
           if (pending) {
+            this.flushDraft(pending);
+            await pending.sendQueue;
             clearTimeout(pending.timer);
             this.pendingResponses.delete(conversationId);
+            if (pending.sendError) {
+              pending.reject(pending.sendError);
+              return;
+            }
             pending.resolve({
-              text: pending.accumulatedText || undefined,
+              text: pending.sentTextNow ? undefined : pending.draftText || undefined,
               mediaActions: pending.mediaActions,
             });
           }
@@ -179,6 +213,46 @@ export class WeixinPlugin extends BasePlugin {
           reject(error instanceof Error ? error : new Error(String(error)));
         });
     });
+  }
+
+  private updateDraft(pending: PendingResponse, text: string): void {
+    const plainText = stripHtml(text);
+    const trimmedPlainText = plainText.trim();
+    if (!trimmedPlainText || trimmedPlainText === '⏳ Thinking...') {
+      pending.draftText = '';
+      pending.hasDraft = false;
+      return;
+    }
+    if (pending.sentTextNow && plainText === pending.lastSentText) {
+      pending.draftText = '';
+      pending.hasDraft = false;
+      return;
+    }
+
+    pending.draftText = plainText;
+    pending.hasDraft = pending.draftText.trim().length > 0;
+  }
+
+  private flushDraft(pending: PendingResponse): void {
+    if (!pending.hasDraft) return;
+
+    const text = pending.draftText;
+    pending.hasDraft = false;
+
+    if (!pending.sendTextNow) {
+      return;
+    }
+
+    const sendTextNow = pending.sendTextNow;
+    pending.sentTextNow = true;
+    pending.lastSentText = text;
+    pending.draftText = '';
+    pending.sendQueue = pending.sendQueue
+      .then(() => sendTextNow(text))
+      .then((): void => undefined)
+      .catch((error: unknown) => {
+        pending.sendError = error instanceof Error ? error : new Error(String(error));
+      });
   }
 
   /**

@@ -118,6 +118,19 @@ function formatTextForPlatform(text: string, platform: PluginType): string {
   return escapeHtml(text);
 }
 
+function isWeixinPlatform(platform: PluginType): boolean {
+  return platform === 'weixin' || platform === 'wecom';
+}
+
+function canFlushTextDraft(plugin: unknown): plugin is { flushTextDraft: (chatId: string) => Promise<void> } {
+  return (
+    typeof plugin === 'object' &&
+    plugin !== null &&
+    'flushTextDraft' in plugin &&
+    typeof plugin.flushTextDraft === 'function'
+  );
+}
+
 function buildRejectedChannelSendNotices(
   rejectedActions: Array<{ path: string; fileName?: string; reason: string }>
 ): string[] {
@@ -194,7 +207,7 @@ function convertTMessageToOutgoing(
   message: TMessage,
   platform: PluginType,
   isComplete = false
-): IUnifiedOutgoingMessage {
+): IUnifiedOutgoingMessage | null {
   switch (message.type) {
     case 'text': {
       // 根据平台格式化文本
@@ -220,6 +233,9 @@ function convertTMessageToOutgoing(
     }
 
     case 'tool_group': {
+      if (isWeixinPlatform(platform)) {
+        return null;
+      }
       // 显示工具调用状态
       // Show tool call status
       const toolLines = message.content.map((tool) => {
@@ -241,16 +257,6 @@ function convertTMessageToOutgoing(
       // Check if there are tools that need confirmation
       const confirmingTool = message.content.find((tool) => tool.status === 'Confirming' && tool.confirmationDetails);
       if (confirmingTool && confirmingTool.confirmationDetails) {
-        // WeChat (weixin) uses yoloMode — tool confirmations are auto-approved in the background.
-        // Showing "Continue?" without interactive buttons is confusing, so just show tool progress.
-        if (platform === 'weixin' || platform === 'wecom') {
-          return {
-            type: 'text',
-            text: toolLines.join('\n') || '⏳ 正在执行工具...',
-            parseMode: 'HTML',
-          };
-        }
-
         // 根据确认类型生成选项
         // Generate options based on confirmation type
         const options = getConfirmationOptions(confirmingTool.confirmationDetails.type);
@@ -278,6 +284,9 @@ function convertTMessageToOutgoing(
     }
 
     case 'tool_call': {
+      if (isWeixinPlatform(platform)) {
+        return null;
+      }
       const statusIcon = message.content.status === 'success' ? '✅' : message.content.status === 'error' ? '❌' : '⏳';
       const name = formatTextForPlatform(message.content.name || '', platform);
       return {
@@ -289,6 +298,9 @@ function convertTMessageToOutgoing(
 
     case 'acp_permission':
     case 'codex_permission': {
+      if (isWeixinPlatform(platform)) {
+        return null;
+      }
       // Channels (Telegram/Lark) use automatic approval via yoloMode.
       // Show a subtle indicator instead of an error message.
       return {
@@ -298,9 +310,36 @@ function convertTMessageToOutgoing(
       };
     }
 
+    case 'acp_tool_call':
+    case 'codex_tool_call':
+    case 'plan':
+      return isWeixinPlatform(platform)
+        ? null
+        : {
+            type: 'text',
+            text: '⏳ Working...',
+            parseMode: 'HTML',
+          };
+
+    case 'agent_status':
+      if (isWeixinPlatform(platform)) {
+        return null;
+      }
+      return {
+        type: 'text',
+        text:
+          message.content.status === 'error'
+            ? `❌ ${formatTextForPlatform(message.content.agentName || message.content.backend || 'Agent error', platform)}`
+            : `⏳ ${formatTextForPlatform(message.content.agentName || message.content.backend || 'Agent', platform)}`,
+        parseMode: 'HTML',
+      };
+
     default:
       // 其他类型暂不支持，显示通用消息
       // Other types not supported yet, show generic message
+      if (isWeixinPlatform(platform)) {
+        return null;
+      }
       return {
         type: 'text',
         text: '⏳ Processing...',
@@ -366,6 +405,7 @@ export class ActionExecutor {
       originalMessageId: message.id,
       sendMessage: async (msg) => plugin.sendMessage(chatId, msg),
       editMessage: async (msgId, msg) => plugin.editMessage(chatId, msgId, msg),
+      flushTextDraft: canFlushTextDraft(plugin) ? async () => plugin.flushTextDraft(chatId) : undefined,
     };
 
     try {
@@ -657,6 +697,18 @@ export class ActionExecutor {
           // 转换消息格式（根据平台）
           // Convert message format (based on platform)
           const outgoingMessage = convertTMessageToOutgoing(message, context.platform as PluginType, false);
+          if (!outgoingMessage) {
+            if (pendingUpdateTimer) {
+              clearTimeout(pendingUpdateTimer);
+              pendingUpdateTimer = null;
+            }
+            if (pendingMessage) {
+              await doEditMessage(pendingMessage);
+              pendingMessage = null;
+            }
+            await context.flushTextDraft?.();
+            return;
+          }
 
           // Strip replyMarkup during streaming to prevent premature card finalization.
           // Tool confirmation cards set replyMarkup (e.g., for Confirming status),
@@ -790,7 +842,7 @@ export class ActionExecutor {
             }
           : {
               type: 'text',
-              text: '✅ Done',
+              text: isWeixinPlatform(context.platform) ? '⚠️ No response content.' : '✅ Done',
               parseMode: 'HTML',
               replyMarkup: finalReplyMarkup,
             };
