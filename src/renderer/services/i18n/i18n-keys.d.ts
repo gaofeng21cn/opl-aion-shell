@@ -1452,6 +1452,7 @@ export type I18nKey =
   | 'settings.officialWebsite'
   | 'settings.openDevTools'
   | 'settings.openai'
+  | 'settings.oplEnvironment'
   | 'settings.packyapiAnthropicDetected'
   | 'settings.packyapiOpenAIDetected'
   | 'settings.pdfToPptAssistantDesc'

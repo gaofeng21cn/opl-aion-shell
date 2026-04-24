@@ -1,7 +1,7 @@
 {
   "welcome": {
-    "title": "Hi, what's your plan for today?",
-    "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
+    "title": "What should OPL move forward?",
+    "placeholder": "Describe the goal, upload materials, or select a MAS/MAG/RCA workspace...",
     "uploadFile": "Upload Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",

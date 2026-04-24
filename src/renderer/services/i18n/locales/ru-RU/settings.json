@@ -911,5 +911,6 @@
     "skills": "Навыки",
     "tools": "Инструменты"
   },
-  "capabilities": "Возможности"
+  "capabilities": "Возможности",
+  "oplEnvironment": "OPL Environment"
 }

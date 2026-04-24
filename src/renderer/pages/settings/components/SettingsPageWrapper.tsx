@@ -4,19 +4,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
-import {
-  Cat,
-  Communication,
-  Computer,
-  Earth,
-  Gemini,
-  Info,
-  Lightning,
-  LinkCloud,
-  Puzzle,
-  Robot,
-  System,
-} from '@icon-park/react';
+import { Communication, Earth, Info, Lightning, Puzzle, System, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
@@ -35,31 +23,11 @@ type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
 
 export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): NavItem[] {
   const builtinMap: Record<string, NavItem> = {
-    gemini: { id: 'gemini', label: t('settings.gemini'), icon: <Gemini theme='outline' size='16' />, path: 'gemini' },
-    model: { id: 'model', label: t('settings.model'), icon: <LinkCloud theme='outline' size='16' />, path: 'model' },
-    assistants: {
-      id: 'assistants',
-      label: t('settings.assistants', { defaultValue: 'Assistants' }),
-      icon: <Robot theme='outline' size='16' />,
-      path: 'assistants',
-    },
-    agent: {
-      id: 'agent',
-      label: t('settings.agents', { defaultValue: 'Agents' }),
-      icon: <Robot theme='outline' size='16' />,
-      path: 'agent',
-    },
     capabilities: {
       id: 'capabilities',
       label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
       icon: <Lightning theme='outline' size='16' />,
       path: 'capabilities',
-    },
-    display: {
-      id: 'display',
-      label: t('settings.display'),
-      icon: <Computer theme='outline' size='16' />,
-      path: 'display',
     },
     webui: {
       id: 'webui',
@@ -67,7 +35,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />,
       path: 'webui',
     },
-    pet: { id: 'pet', label: t('pet.desktopPet'), icon: <Cat theme='outline' size='16' />, path: 'pet' },
+    opl: {
+      id: 'opl',
+      label: t('settings.oplEnvironment', { defaultValue: 'OPL Environment' }),
+      icon: <Toolkit theme='outline' size='16' />,
+      path: 'opl',
+    },
     system: { id: 'system', label: t('settings.system'), icon: <System theme='outline' size='16' />, path: 'system' },
     about: { id: 'about', label: t('settings.about'), icon: <Info theme='outline' size='16' />, path: 'about' },
   };
