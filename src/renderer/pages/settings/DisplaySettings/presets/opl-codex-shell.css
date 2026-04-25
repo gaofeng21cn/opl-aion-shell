@@ -201,6 +201,10 @@ body,
   background: var(--opl-codex-sidebar-bg) !important;
 }
 
+.layout-sider-logo {
+  display: none !important;
+}
+
 .app-titlebar {
   background: var(--opl-codex-sidebar-bg) !important;
   border-bottom: 1px solid var(--opl-codex-border) !important;

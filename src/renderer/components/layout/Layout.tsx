@@ -455,7 +455,7 @@ const Layout: React.FC<{
                 )}
               >
                 <div
-                  className={classNames('shrink-0 size-40px relative rd-0.5rem overflow-hidden', {
+                  className={classNames('layout-sider-logo shrink-0 size-40px relative rd-0.5rem overflow-hidden', {
                     '!size-24px': collapsed,
                   })}
                   onClick={onClick}
