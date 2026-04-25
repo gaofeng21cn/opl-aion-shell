@@ -8,6 +8,9 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, Input, Message, Space, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
+import codexLogo from '@/renderer/assets/logos/tools/coding/codex.svg';
+import hermesLogo from '@/renderer/assets/logos/brand/hermes.svg';
+import onePersonLabLogo from '@/renderer/assets/logos/brand/app.png';
 import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
 import mdsLogo from '@/renderer/assets/logos/opl-modules/mds.svg';
 import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
@@ -59,17 +62,19 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
     name: 'Codex CLI',
     roleKey: 'settings.oplEnvironmentPage.items.codex.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.codex.latest',
+    logo: codexLogo,
   },
   {
     id: 'hermes',
     name: 'Hermes-Agent',
     roleKey: 'settings.oplEnvironmentPage.items.hermes.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.hermes.latest',
+    logo: hermesLogo,
   },
   {
     id: 'mas',
     moduleId: 'medautoscience',
-    name: 'MAS',
+    name: 'Med AutoScience (MAS)',
     roleKey: 'settings.oplEnvironmentPage.items.mas.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
     logo: masLogo,
@@ -77,7 +82,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'mds',
     moduleId: 'meddeepscientist',
-    name: 'MDS',
+    name: 'Med DeepScientist (MDS)',
     roleKey: 'settings.oplEnvironmentPage.items.mds.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
     logo: mdsLogo,
@@ -85,7 +90,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'mag',
     moduleId: 'medautogrant',
-    name: 'MAG',
+    name: 'Med AutoGrant (MAG)',
     roleKey: 'settings.oplEnvironmentPage.items.mag.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
     logo: magLogo,
@@ -93,7 +98,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'rca',
     moduleId: 'redcube',
-    name: 'RCA',
+    name: 'RedCube AI (RCA)',
     roleKey: 'settings.oplEnvironmentPage.items.rca.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
     logo: rcaLogo,
@@ -103,6 +108,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
     name: 'One Person Lab App',
     roleKey: 'settings.oplEnvironmentPage.items.gui.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.gui.latest',
+    logo: onePersonLabLogo,
   },
 ];
 
