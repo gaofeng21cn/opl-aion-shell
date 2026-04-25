@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
-import packageJson from '../../../../../../package.json';
+import { ipcBridge } from '@/common';
 
 type LinkItem =
   | { title: string; url: string; icon: React.ReactNode; onClick?: never }
@@ -24,10 +24,16 @@ const AboutModalContent: React.FC = () => {
   const isElectron = isElectronDesktop();
 
   const [includePrerelease, setIncludePrerelease] = useState(false);
+  const [versions, setVersions] = useState<{ oplVersion: string; guiVersion: string } | null>(null);
   useEffect(() => {
     const saved = localStorage.getItem('update.includePrerelease');
     setIncludePrerelease(saved === 'true');
-  }, []);
+    if (isElectron) {
+      void ipcBridge.application.appVersions.invoke().then(setVersions).catch((error) => {
+        console.warn('Failed to load app versions:', error);
+      });
+    }
+  }, [isElectron]);
 
   const handlePrereleaseChange = (val: boolean) => {
     setIncludePrerelease(val);
@@ -56,7 +62,7 @@ const AboutModalContent: React.FC = () => {
     },
     {
       title: t('settings.updateLog'),
-      url: 'https://github.com/gaofeng21cn/opl-aion-shell/releases',
+      url: 'https://github.com/gaofeng21cn/one-person-lab/releases',
       icon: <Right theme='outline' size='16' />,
     },
   ];
@@ -81,8 +87,13 @@ const AboutModalContent: React.FC = () => {
             </Typography.Text>
             <div className='flex items-center justify-center gap-8px mb-16px'>
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                v{packageJson.version}
+                OPL v{versions?.oplVersion || '26.4.25'}
               </span>
+              {versions?.guiVersion && (
+                <span className='px-10px py-4px rd-6px text-12px bg-fill-1 text-t-tertiary font-500'>
+                  GUI v{versions.guiVersion}
+                </span>
+              )}
             </div>
 
             {/* Check Update Section */}
