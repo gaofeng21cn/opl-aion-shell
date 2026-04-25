@@ -217,11 +217,15 @@ body,
   color: var(--opl-codex-text) !important;
 }
 
-.app-titlebar__brand,
-.app-titlebar__brand-mobile,
-.app-titlebar__brand-logo,
-.app-titlebar__brand-text {
+.app-titlebar--mobile .app-titlebar__brand-mobile,
+.app-titlebar--mobile .app-titlebar__brand-logo,
+.app-titlebar--mobile .app-titlebar__brand-text {
   display: none !important;
+}
+
+.app-titlebar__brand,
+.app-titlebar__brand-desktop {
+  display: flex !important;
 }
 
 .chat-history__item,

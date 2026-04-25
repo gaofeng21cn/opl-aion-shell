@@ -522,7 +522,7 @@
   "needHelpTooltip": "Yardıma ihtiyacınız varsa, lütfen kontrol edin",
   "googleCloudProjectPlaceholder": "Google Cloud Proje ID'nizi girin",
   "noAvailableModels": "Mevcut model yok",
-  "appDescription": "Gemini CLI için ücretsiz, yerel, açık kaynaklı GUI uygulaması",
+  "appDescription": "Desktop workbench for One Person Lab",
   "helpDocumentation": "Yardım Dokümantasyonu",
   "updateLog": "Güncelleme Günlüğü",
   "feedback": "Geri Bildirim",

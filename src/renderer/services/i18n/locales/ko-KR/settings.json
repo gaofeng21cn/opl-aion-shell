@@ -522,7 +522,7 @@
   "needHelpTooltip": "도움이 필요하시면 확인하세요",
   "googleCloudProjectPlaceholder": "Google Cloud 프로젝트 ID 입력",
   "noAvailableModels": "사용 가능한 모델 없음",
-  "appDescription": "무료, 로컬, 오픈 소스 Gemini CLI용 GUI 앱",
+  "appDescription": "Desktop workbench for One Person Lab",
   "helpDocumentation": "도움말 문서",
   "updateLog": "업데이트 로그",
   "feedback": "피드백",

@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Grid, Input, Message, Space, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Input, Message, Space, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
 import mdsLogo from '@/renderer/assets/logos/opl-modules/mds.svg';
@@ -132,8 +132,8 @@ const OplEnvironmentContent: React.FC = () => {
   const [moduleStatuses, setModuleStatuses] = useState<OplModuleStatus[]>([]);
   const [brandName, setBrandName] = useState(OPL_DEFAULT_BRAND_NAME);
 
-  const loadModules = useCallback(async () => {
-    setRunningAction('modules');
+  const loadModules = useCallback(async (showLoading = false) => {
+    if (showLoading) setRunningAction('modules');
     try {
       const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
       if (result.exitCode !== 0) {
@@ -142,12 +142,12 @@ const OplEnvironmentContent: React.FC = () => {
       }
       setModuleStatuses(parseModules(result.stdout));
     } finally {
-      setRunningAction(null);
+      if (showLoading) setRunningAction(null);
     }
   }, [message, t]);
 
   useEffect(() => {
-    void loadModules();
+    void loadModules(false);
   }, [loadModules]);
 
   useEffect(() => {
@@ -255,7 +255,7 @@ const OplEnvironmentContent: React.FC = () => {
             <Button
               icon={<UpdateRotation theme='outline' />}
               loading={runningAction === 'modules'}
-              onClick={() => void loadModules()}
+              onClick={() => void loadModules(true)}
             >
               {t('settings.oplEnvironmentPage.actions.refresh')}
             </Button>
@@ -275,62 +275,51 @@ const OplEnvironmentContent: React.FC = () => {
         </div>
       </Card>
 
-      <Grid.Row gutter={[12, 12]}>
-        {OPL_ENVIRONMENT_ITEMS.map((item) => {
-          const status = item.moduleId ? statusByModuleId.get(item.moduleId) : undefined;
-          return (
-            <Grid.Col key={item.id} xs={24} sm={12} md={12} lg={8}>
-              <Card bordered className='rounded-xl h-full'>
-                <div className='flex items-start gap-10px'>
+      <Card bordered className='rounded-xl overflow-hidden'>
+        <div className='flex flex-col divide-y divide-border-1'>
+          {OPL_ENVIRONMENT_ITEMS.map((item) => {
+            const status = item.moduleId ? statusByModuleId.get(item.moduleId) : undefined;
+            const currentVersion = item.moduleId
+              ? formatModuleVersion(status, t)
+              : t('settings.oplEnvironmentPage.status.managedByApp');
+            return (
+              <div key={item.id} className='flex items-center justify-between gap-16px px-16px py-14px'>
+                <div className='flex items-center gap-12px min-w-0'>
                   {item.logo ? (
-                    <img src={item.logo} alt='' width={28} height={28} className='shrink-0 rd-6px' />
+                    <img src={item.logo} alt='' width={28} height={28} className='shrink-0 rd-7px' />
                   ) : (
-                    <div className='w-28px h-28px shrink-0 rd-6px bg-fill-2 flex items-center justify-center text-12px font-700'>
+                    <div className='w-28px h-28px shrink-0 rd-7px bg-fill-2 flex items-center justify-center text-11px font-700'>
                       {item.name.slice(0, 2)}
                     </div>
                   )}
-                  <div className='min-w-0 flex-1'>
-                    <div className='flex items-center gap-8px flex-wrap'>
-                      <Typography.Text className='font-600 text-t-primary'>{item.name}</Typography.Text>
-                      <Tag size='small' color='arcoblue'>
-                        {t('settings.oplEnvironmentPage.managedTag')}
-                      </Tag>
-                    </div>
-                    <Typography.Paragraph className='text-13px text-t-secondary mt-4px mb-0'>
-                      {t(item.roleKey)}
-                    </Typography.Paragraph>
-                    <Typography.Paragraph className='text-12px text-t-tertiary mt-6px mb-0'>
-                      {t('settings.oplEnvironmentPage.currentVersion', {
-                        version: item.moduleId
-                          ? formatModuleVersion(status, t)
-                          : t('settings.oplEnvironmentPage.status.managedByApp'),
-                      })}
-                    </Typography.Paragraph>
-                    <Typography.Paragraph className='text-12px text-t-tertiary mt-2px mb-10px'>
-                      {t('settings.oplEnvironmentPage.latestVersion', { version: t(item.latestVersionKey) })}
-                    </Typography.Paragraph>
-                    <Button
-                      size='mini'
-                      disabled={!item.moduleId}
-                      loading={runningAction === `update-${item.id}`}
-                      onClick={() => {
-                        if (!item.moduleId) return;
-                        void runOplCommand(
-                          ['module', 'update', '--module', item.moduleId],
-                          `update-${item.id}`,
-                          t('settings.oplEnvironmentPage.messages.updateComplete', { name: item.name })
-                        );
-                      }}
-                    >
-                      {t('settings.oplEnvironmentPage.actions.update')}
-                    </Button>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>{item.name}</Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary truncate'>{t(item.roleKey)}</Typography.Text>
                   </div>
                 </div>
-              </Card>
-            </Grid.Col>
-          );
-        })}
-      </Grid.Row>
+                <div className='flex items-center gap-12px shrink-0'>
+                  <Typography.Text className='text-12px text-t-tertiary hidden sm:block'>{currentVersion}</Typography.Text>
+                  <Button
+                    size='mini'
+                    disabled={!item.moduleId}
+                    loading={runningAction === `update-${item.id}`}
+                    onClick={() => {
+                      if (!item.moduleId) return;
+                      void runOplCommand(
+                        ['module', 'update', '--module', item.moduleId],
+                        `update-${item.id}`,
+                        t('settings.oplEnvironmentPage.messages.updateComplete', { name: item.name })
+                      );
+                    }}
+                  >
+                    {t('settings.oplEnvironmentPage.actions.update')}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
     </div>
   );
 };

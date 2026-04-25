@@ -348,7 +348,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             <span className='app-titlebar__brand-text'>{mobileCenterTitle}</span>
           </span>
         ) : (
-          appTitle
+          <span className='app-titlebar__brand-desktop'>{appTitle}</span>
         )}
       </div>
       <div ref={toolbarRef} className='app-titlebar__toolbar'>

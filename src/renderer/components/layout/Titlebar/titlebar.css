@@ -223,3 +223,11 @@
   background-color: #c10f1f;
   color: #fff;
 }
+
+
+.app-titlebar__brand-desktop {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  color: var(--text-primary);
+}

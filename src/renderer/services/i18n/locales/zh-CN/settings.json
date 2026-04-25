@@ -522,7 +522,7 @@
   "needHelpTooltip": "如需帮助，请查看",
   "googleCloudProjectPlaceholder": "请输入 Google Cloud Project ID",
   "noAvailableModels": "暂无可用模型",
-  "appDescription": "One Person Lab 的桌面工作台，用于启动 OPL、MAS、MDS、MAG、RCA。",
+  "appDescription": "One Person Lab 的桌面工作台",
   "helpDocumentation": "帮助文档",
   "updateLog": "更新日志",
   "feedback": "意见反馈",

@@ -522,7 +522,7 @@
   "needHelpTooltip": "ヘルプが必要な場合は、",
   "googleCloudProjectPlaceholder": "Google Cloud プロジェクト ID を入力してください",
   "noAvailableModels": "利用可能なモデルがありません",
-  "appDescription": "Gemini CLI のための無料・ローカル・オープンソース GUI アプリ",
+  "appDescription": "Desktop workbench for One Person Lab",
   "helpDocumentation": "ヘルプドキュメント",
   "updateLog": "アップデートログ",
   "feedback": "フィードバック",
