@@ -1,3 +1,4 @@
+import { AcpError } from '@process/acp/errors/AcpError';
 import { normalizeError } from '@process/acp/errors/errorNormalize';
 import type { AcpMetrics } from '@process/acp/metrics/AcpMetrics';
 import type { AuthNegotiator } from '@process/acp/session/AuthNegotiator';
@@ -23,6 +24,7 @@ export type PromptHost = {
 export class PromptExecutor {
   private pendingPrompt: PromptContent | null = null;
   private readonly timer: PromptTimer;
+  private activeReject: ((error: AcpError) => void) | null = null;
 
   constructor(
     private readonly host: PromptHost,
@@ -70,7 +72,11 @@ export class PromptExecutor {
 
     try {
       this.timer.start();
-      const result = await lifecycle.client.prompt(lifecycle.sessionId, content);
+      const result = await new Promise<Awaited<ReturnType<typeof lifecycle.client.prompt>>>((resolve, reject) => {
+        this.activeReject = reject;
+        lifecycle.client.prompt(lifecycle.sessionId, content).then(resolve, reject);
+      });
+      this.activeReject = null;
       this.timer.stop();
 
       // Fallback: emit usage from PromptResponse for backends that don't send usage_update
@@ -82,6 +88,7 @@ export class PromptExecutor {
         });
       }
     } catch (err) {
+      this.activeReject = null;
       this.timer.stop();
       this.host.messageTranslator.onTurnEnd();
       this.handlePromptError(err, content);
@@ -155,12 +162,18 @@ export class PromptExecutor {
     this.timer.stop();
   }
 
+  recordActivity(): void {
+    this.timer.reset();
+  }
+
   private handleTimeout(): void {
     if (this.host.status !== 'prompting') return;
     this.cancel();
+    const error = new AcpError('PROMPT_TIMEOUT', 'Prompt timed out', { retryable: true });
+    this.activeReject?.(error);
     this.host.callbacks.onSignal({
       type: 'error',
-      message: 'Prompt timed out',
+      message: error.message,
       recoverable: true,
     });
   }

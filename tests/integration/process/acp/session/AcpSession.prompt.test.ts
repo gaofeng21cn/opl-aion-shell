@@ -85,6 +85,34 @@ describe('AcpSession prompt flow', () => {
     await expect(session.sendMessage('hello')).rejects.toThrow(/Cannot send in idle state/);
   });
 
+  it('recordPromptActivity extends active prompt timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      client.prompt = vi.fn(() => new Promise(() => {}));
+      const session = new AcpSession(baseConfig, clientFactory, callbacks, { promptTimeoutMs: 100 });
+      session.start();
+      await vi.runAllTimersAsync();
+      await vi.waitFor(() => expect(session.status).toBe('active'));
+
+      const sendPromise = session.sendMessage('long running');
+      sendPromise.catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(90);
+      session.recordPromptActivity();
+      await vi.advanceTimersByTimeAsync(90);
+
+      expect(client.cancel).not.toHaveBeenCalled();
+      expect(callbacks.onSignal).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', message: 'Prompt timed out' })
+      );
+
+      await vi.advanceTimersByTimeAsync(20);
+      await vi.waitFor(() => expect(client.cancel).toHaveBeenCalledOnce());
+      await expect(sendPromise).rejects.toThrow(/Prompt timed out/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('sendMessage from suspended triggers resume (T16)', async () => {
     const session = await startSession();
     await session.suspend();

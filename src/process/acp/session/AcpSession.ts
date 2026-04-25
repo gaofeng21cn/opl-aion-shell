@@ -145,7 +145,7 @@ export class AcpSession {
         setStatus: (s) => this.setStatus(s),
         enterError: (msg) => this.enterError(msg),
       },
-      options?.promptTimeoutMs ?? 300_000
+      options?.promptTimeoutMs ?? 43_200_000
     );
   }
 
@@ -208,6 +208,12 @@ export class AcpSession {
         return;
       default:
         throw new AcpError('INVALID_STATE', `Cannot send in ${this._status} state`);
+    }
+  }
+
+  recordPromptActivity(): void {
+    if (this._status === 'prompting') {
+      this.promptExecutor.recordActivity();
     }
   }
 

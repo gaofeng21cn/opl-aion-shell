@@ -193,11 +193,11 @@ export class AcpAgentV2 {
     const callbacks: SessionCallbacks = this.buildCallbacks();
     const clientFactory = new LegacyConnectorFactory();
 
-    // Resolve prompt timeout: per-backend → global → default (300s)
+    // Resolve prompt timeout: per-backend → global → default (12h)
     const acpConfig = (await ProcessConfig.get('acp.config')) as Record<string, { promptTimeout?: number }> | undefined;
     const backendTimeout = acpConfig?.[this.agentConfig.agentBackend]?.promptTimeout;
     const globalTimeout = await ProcessConfig.get('acp.promptTimeout');
-    const timeoutSec = backendTimeout || globalTimeout || 300;
+    const timeoutSec = backendTimeout || globalTimeout || 43_200;
     const promptTimeoutMs = Math.max(30, timeoutSec) * 1000;
 
     const sessionOptions: SessionOptions = {
@@ -237,6 +237,7 @@ export class AcpAgentV2 {
       },
 
       onMessage: (message: TMessage) => {
+        this.session?.recordPromptActivity();
         // Merge tool call updates with their original tool_call before emitting
         const resolved =
           message.type === 'acp_tool_call' ? this.mergeToolCall(message as IMessageAcpToolCall) : message;
@@ -335,6 +336,7 @@ export class AcpAgentV2 {
       },
 
       onContextUsage: (usage: ContextUsage) => {
+        this.session?.recordPromptActivity();
         this.onStreamEvent({
           type: 'acp_context_usage',
           conversation_id: this.conversationId,
@@ -344,6 +346,7 @@ export class AcpAgentV2 {
       },
 
       onPermissionRequest: (data) => {
+        this.session?.recordPromptActivity();
         if (this.onSignalEvent) {
           this.onSignalEvent({
             type: 'acp_permission',

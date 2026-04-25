@@ -106,8 +106,8 @@ export class AcpConnection {
   private models: AcpSessionModels | null = null;
   private modes: AcpSessionModes | null = null;
 
-  // Configurable prompt timeout in milliseconds (default: 300000 = 5 minutes)
-  private promptTimeoutMs: number = 300000;
+  // Configurable prompt timeout in milliseconds (default: 12 hours)
+  private promptTimeoutMs: number = 43_200_000;
 
   // Performance tracking: timestamp when last prompt was sent
   private lastPromptSentAt: number = 0;
@@ -124,7 +124,7 @@ export class AcpConnection {
 
   /**
    * Set the prompt timeout duration in seconds.
-   * @param seconds - Timeout in seconds (minimum 30, default 300)
+   * @param seconds - Timeout in seconds (minimum 30, default 43200)
    */
   setPromptTimeout(seconds: number): void {
     this.promptTimeoutMs = Math.max(30, seconds) * 1000;
