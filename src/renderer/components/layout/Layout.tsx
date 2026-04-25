@@ -11,10 +11,11 @@ import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
 import onePersonLabLogo from '@/renderer/assets/logos/brand/one-person-lab.svg';
 import onePersonLabLogoDark from '@/renderer/assets/logos/brand/one-person-lab-dark.svg';
-import { Layout as ArcoLayout } from '@arco-design/web-react';
+import { Layout as ArcoLayout, Message } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutContext } from '@renderer/hooks/context/LayoutContext';
 import { NavigationHistoryProvider } from '@renderer/hooks/context/NavigationHistoryContext';
@@ -100,6 +101,7 @@ const Layout: React.FC<{
   const { onClick } = useDebug();
   const oplBrandName = useOplBrandName();
   const { theme } = useThemeContext();
+  const { t } = useTranslation();
   const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
   const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
@@ -107,6 +109,45 @@ const Layout: React.FC<{
   useNotificationClick();
   const navigate = useNavigate();
   useConversationShortcuts({ navigate });
+  useEffect(() => {
+    if (!isElectronDesktop()) return;
+
+    let cancelled = false;
+    const prepareEnvironment = async () => {
+      const preparedAt = await ConfigStorage.get('opl.firstLaunchInstallPreparedAt');
+      if (preparedAt || cancelled) return;
+
+      const hide = Message.loading({
+        content: t('settings.oplFirstLaunch.preparing'),
+        duration: 0,
+      });
+      try {
+        const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['install', '--skip-gui-open'] });
+        if (cancelled) return;
+
+        if (result.exitCode === 0) {
+          await ConfigStorage.set('opl.firstLaunchInstallPreparedAt', Date.now());
+          Message.success(t('settings.oplFirstLaunch.complete'));
+          return;
+        }
+
+        Message.error(result.stderr || result.stdout || t('settings.oplFirstLaunch.failed'));
+        void navigate('/settings/opl');
+      } catch (error) {
+        if (!cancelled) {
+          Message.error(error instanceof Error ? error.message : t('settings.oplFirstLaunch.failed'));
+          void navigate('/settings/opl');
+        }
+      } finally {
+        hide();
+      }
+    };
+
+    void prepareEnvironment();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate, t]);
   const location = useLocation();
   const workspaceAvailable =
     location.pathname.startsWith('/conversation/') || (TEAM_MODE_ENABLED && location.pathname.startsWith('/team/'));

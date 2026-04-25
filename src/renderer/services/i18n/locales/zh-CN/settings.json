@@ -984,5 +984,10 @@
     "apply": "应用",
     "applied": "已应用外观主题",
     "applyFailed": "应用外观主题失败"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab 正在准备本机环境与 Codex，请稍候…",
+    "complete": "本机环境和 Codex 已准备完成",
+    "failed": "环境准备失败，请到设置-环境管理中修复安装"
   }
 }

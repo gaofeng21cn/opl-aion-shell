@@ -983,5 +983,10 @@
     "apply": "Apply",
     "applied": "Appearance theme applied",
     "applyFailed": "Failed to apply appearance theme"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab is preparing the local environment and Codex…",
+    "complete": "Local environment and Codex are ready",
+    "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install."
   }
 }

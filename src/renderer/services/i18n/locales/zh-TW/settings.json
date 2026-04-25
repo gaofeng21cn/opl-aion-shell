@@ -985,5 +985,10 @@
     "apply": "套用",
     "applied": "已套用外觀主題",
     "applyFailed": "套用外觀主題失敗"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab 正在準備本機環境與 Codex，請稍候…",
+    "complete": "本機環境和 Codex 已準備完成",
+    "failed": "環境準備失敗，請到設定-環境管理中修復安裝"
   }
 }
