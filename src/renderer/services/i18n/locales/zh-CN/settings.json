@@ -973,13 +973,13 @@
     "brandTitle": "应用名称",
     "brandDescription": "设置左上角图标旁显示的名称。默认使用 One Person Lab。",
     "appearanceTitle": "外观主题",
-    "appearanceDescription": "选择 One Person Lab 使用的应用风格。"
+    "appearanceDescription": "选择应用风格。"
   },
   "oplAppearance": {
     "codexStyle": "Codex App Style",
     "codexStyleDescription": "更接近 macOS 的清爽界面：浅色侧栏、白色工作区和柔和的选中状态。",
     "aionDefault": "AionUI Default",
-    "aionDefaultDescription": "使用 AionUI 原始视觉风格。",
+    "aionDefaultDescription": "AionUI 原始风格。",
     "active": "已启用",
     "apply": "应用",
     "applied": "已应用外观主题",
