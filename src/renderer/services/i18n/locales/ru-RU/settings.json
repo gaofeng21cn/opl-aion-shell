@@ -915,7 +915,7 @@
   "oplEnvironment": "OPL Environment",
   "oplEnvironmentPage": {
     "title": "Environment Management",
-    "description": "Manage One Person Lab runtime dependencies, MAS/MDS/MAG/RCA modules, Codex skills, Remote WebUI, and the desktop app.",
+    "description": "Manage One Person Lab runtime dependencies, MAS/MDS/MAG/RCA modules, Codex skills, and the desktop app.",
     "maintenanceTitle": "One-click maintenance",
     "maintenanceDescription": "Run local OPL CLI checks, module updates, and install repair. Status refreshes after each action.",
     "managedTag": "OPL managed",
