@@ -914,7 +914,7 @@
   "oplEnvironment": "环境管理",
   "oplEnvironmentPage": {
     "title": "环境管理",
-    "description": "管理 One Person Lab 运行依赖、MAS/MDS/MAG/RCA 模组、Codex skills 和桌面 App。",
+    "description": "管理 One Person Lab 运行依赖、MAS/MDS/MAG/RCA 模组、Codex skills、远程连接和桌面 App。",
     "maintenanceTitle": "一键维护",
     "maintenanceDescription": "直接调用本机 OPL CLI 执行环境检查、模块更新和安装修复；状态会在执行后刷新。",
     "managedTag": "OPL 管理",

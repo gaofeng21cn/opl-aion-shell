@@ -221,14 +221,6 @@ body,
   color: var(--opl-codex-text) !important;
 }
 
-.app-titlebar__brand,
-.app-titlebar__brand-mobile,
-.app-titlebar__brand-logo,
-.app-titlebar__brand-text,
-.app-titlebar__brand-desktop {
-  display: none !important;
-}
-
 .chat-history__item,
 .settings-sider__item {
   border-radius: 10px !important;
