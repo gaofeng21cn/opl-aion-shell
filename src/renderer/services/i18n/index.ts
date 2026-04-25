@@ -42,6 +42,8 @@ const localeData: LocaleData = {
 };
 
 const fallbackLocale = localeData[DEFAULT_LANGUAGE] ?? {};
+const envDefaultLanguage = import.meta.env.VITE_OPL_DEFAULT_LANGUAGE || import.meta.env.VITE_AIONUI_DEFAULT_LANGUAGE;
+const configuredDefaultLanguage = normalizeLanguageCode(envDefaultLanguage || DEFAULT_LANGUAGE);
 
 // Cache for loaded translations
 const loadedTranslations = new Map<string, Record<string, unknown>>();
@@ -81,7 +83,7 @@ i18n
         translation: fallbackLocale,
       },
     },
-    lng: (typeof localStorage !== 'undefined' ? localStorage.getItem('i18nextLng') : null) || DEFAULT_LANGUAGE,
+    lng: (typeof localStorage !== 'undefined' ? localStorage.getItem('i18nextLng') : null) || configuredDefaultLanguage,
     fallbackLng: DEFAULT_LANGUAGE,
     debug: false,
     interpolation: { escapeValue: false },
@@ -94,7 +96,7 @@ i18n
 async function initLanguage(): Promise<void> {
   try {
     const savedLanguage = await ConfigStorage.get('language');
-    const language = savedLanguage || normalizeLanguageCode(navigator.language || DEFAULT_LANGUAGE);
+    const language = savedLanguage || configuredDefaultLanguage;
     await ensureAndSwitch(i18n, language, loadLocaleModules);
     // Sync to localStorage so next page load can use it as a fast hint
     if (typeof localStorage !== 'undefined') {

@@ -1,5 +1,7 @@
 FROM node:20-slim AS builder
 WORKDIR /app
+ARG VITE_OPL_DEFAULT_LANGUAGE=zh-CN
+ENV VITE_OPL_DEFAULT_LANGUAGE=${VITE_OPL_DEFAULT_LANGUAGE}
 
 # Install bun
 RUN npm install -g bun
@@ -20,6 +22,11 @@ RUN node scripts/build-server.mjs
 FROM oven/bun:latest AS runtime
 WORKDIR /app
 
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 # Copy only build artifacts and production deps
 COPY --from=builder /app/dist-server ./dist-server
 COPY --from=builder /app/out/renderer ./out/renderer
@@ -31,6 +38,7 @@ ENV PORT=3000
 ENV NODE_ENV=production
 ENV ALLOW_REMOTE=true
 ENV DATA_DIR=/data
+ENV VITE_OPL_DEFAULT_LANGUAGE=zh-CN
 
 # SQLite data volume — mount with: -v $(pwd)/data:/data
 VOLUME ["/data"]

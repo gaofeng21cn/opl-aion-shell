@@ -8,6 +8,7 @@ import type { WebSocketServer } from 'ws';
 import { WebSocket } from 'ws';
 import type { IncomingMessage } from 'http';
 import { TokenMiddleware } from '@process/webserver/auth/middleware/TokenMiddleware';
+import { isNoAuthWebUIMode } from '@process/webserver/config/authMode';
 import { WEBSOCKET_CONFIG } from '../config/constants';
 import { SHOW_OPEN_REQUEST_EVENT } from '@/common/adapter/constant';
 
@@ -56,7 +57,7 @@ export class WebSocketManager {
       }
 
       ws.off('message', bufferMessage);
-      this.addClient(ws, token!);
+      this.addClient(ws, token ?? 'opl-webui-noauth');
       this.setupMessageHandler(ws, onMessage);
       this.setupCloseHandler(ws);
       this.setupErrorHandler(ws);
@@ -75,6 +76,10 @@ export class WebSocketManager {
    * Validate connection
    */
   private async validateConnection(ws: WebSocket, token: string | null): Promise<boolean> {
+    if (isNoAuthWebUIMode()) {
+      return true;
+    }
+
     if (!token) {
       ws.close(WEBSOCKET_CONFIG.CLOSE_CODES.POLICY_VIOLATION, 'No token provided');
       return false;

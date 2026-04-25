@@ -10,6 +10,7 @@ import * as cookie from 'cookie';
 import { AuthService } from '../service/AuthService';
 import { UserRepository } from '../repository/UserRepository';
 import { AUTH_CONFIG } from '../../config/constants';
+import { attachNoAuthUser, isNoAuthWebUIMode } from '../../config/authMode';
 
 /**
  * Token 负载接口
@@ -132,6 +133,12 @@ export const createAuthMiddleware = (type: 'json' | 'html' = 'json') => {
   const strategy = ValidatorFactory.create(type);
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    if (isNoAuthWebUIMode()) {
+      attachNoAuthUser(req);
+      next();
+      return;
+    }
+
     // 1. 提取 token / Extract token
     const token = TokenExtractor.extract(req);
 

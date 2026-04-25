@@ -13,6 +13,7 @@ import { TokenUtils } from '@process/webserver/auth/middleware/TokenMiddleware';
 import { createAppError } from '../middleware/errorHandler';
 import { authRateLimiter, authenticatedActionLimiter, apiRateLimiter } from '../middleware/security';
 import { verifyQRTokenDirect } from '@process/bridge/webuiQR';
+import { getNoAuthUser, isNoAuthWebUIMode } from '../config/authMode';
 
 /**
  * QR 登录页面 HTML（静态，不包含用户输入）
@@ -181,6 +182,17 @@ export function registerAuthRoutes(app: Express): void {
   // Rate limit auth status endpoint to prevent enumeration
   // 为认证状态端点添加速率限制以防止枚举攻击
   app.get('/api/auth/status', apiRateLimiter, (_req: Request, res: Response) => {
+    if (isNoAuthWebUIMode()) {
+      res.json({
+        success: true,
+        needsSetup: false,
+        userCount: 1,
+        isAuthenticated: true,
+        authMode: 'none',
+      });
+      return;
+    }
+
     Promise.all([UserRepository.hasUsers(), UserRepository.countUsers()])
       .then(([hasUsers, userCount]) => {
         res.json({
@@ -208,12 +220,12 @@ export function registerAuthRoutes(app: Express): void {
   app.get(
     '/api/auth/user',
     apiRateLimiter,
-    AuthMiddleware.authenticateToken,
+    isNoAuthWebUIMode() ? (_req: Request, _res: Response, next) => next() : AuthMiddleware.authenticateToken,
     authenticatedActionLimiter,
     (req: Request, res: Response) => {
       res.json({
         success: true,
-        user: req.user,
+        user: req.user ?? getNoAuthUser(),
       });
     }
   );
