@@ -14,7 +14,6 @@ import { ipcBridge } from '@/common';
 import { removeFromMessageCache } from '@process/utils/message';
 import {
   getSkillsDir,
-  getBuiltinSkillsCopyDir,
   getSystemDir,
   ProcessChat,
   ProcessConfig,
@@ -593,10 +592,9 @@ export function initConversationBridge(
       // Provide absolute skills directory so agent can resolve relative script paths
       // e.g. "skills/star-office-helper/scripts/..." → "${skillsDir}/star-office-helper/scripts/..."
       const skillsDir = getSkillsDir();
-      const builtinSkillsCopyDir = getBuiltinSkillsCopyDir();
       agentContent = agentContent.replace(
         '[User Request]',
-        `[Skills Directory]\nBuiltin skills: ${builtinSkillsCopyDir}\nUser skills: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them under the appropriate directory.\n\n[User Request]`
+        `[Skills Directory]\nCodex skills: ${skillsDir}\nWhen skill instructions reference relative paths like "skills/{name}/scripts/...", resolve them under the Codex skills directory.\n\n[User Request]`
       );
     }
 

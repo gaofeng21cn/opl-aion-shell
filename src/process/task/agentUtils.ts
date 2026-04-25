@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getSkillsDir, getBuiltinSkillsCopyDir, loadSkillsContent } from '@process/utils/initStorage';
+import { getSkillsDir, loadSkillsContent } from '@process/utils/initStorage';
 import { AcpSkillManager, buildSkillsIndexText, type SkillIndex } from './AcpSkillManager';
 import { getTeamGuidePrompt } from '@process/team/prompts/teamGuidePrompt.ts';
 import { resolveLeaderAssistantLabel } from '@process/team/prompts/teamGuideAssistant.ts';
@@ -117,11 +117,10 @@ export async function prepareFirstMessageWithSkillsIndex(
     instructions.push(config.presetContext);
   }
 
-  // 2. 加载 skills 索引（包括内置 skills + 可选 skills）
-  // Load skills INDEX (including builtin skills + optional skills)
+  // 2. 加载 Codex skills 索引
+  // Load Codex skills INDEX
   // 使用单例模式避免重复文件系统扫描 / Use singleton to avoid repeated filesystem scans
   const skillManager = AcpSkillManager.getInstance(config.enabledSkills);
-  // discoverSkills 会自动先加载内置 skills / discoverSkills auto-loads builtin skills first
   await skillManager.discoverSkills(config.enabledSkills, config.excludeBuiltinSkills);
 
   // 只有当有任何 skills 时才注入 / Only inject if there are any skills
@@ -134,8 +133,6 @@ export async function prepareFirstMessageWithSkillsIndex(
       // getSkillsDir() already returns CLI-safe path (symlink on macOS)
       // getSkillsDir() 已返回 CLI 安全路径（macOS 上使用符号链接）
       const skillsDir = getSkillsDir();
-      const builtinSkillsCopyDir = getBuiltinSkillsCopyDir();
-      const builtinSkillsDir = builtinSkillsCopyDir + '/_builtin';
       const indexText = buildSkillsIndexText(skillsIndex);
 
       // 告诉 Agent skills 文件的位置，让它按需读取
@@ -143,17 +140,10 @@ export async function prepareFirstMessageWithSkillsIndex(
       const skillsInstruction = `${indexText}
 
 [Skills Location]
-Skills are stored in three locations:
-- Builtin skills (auto-enabled): ${builtinSkillsDir}/{skill-name}/SKILL.md
-- Bundled skills: ${builtinSkillsCopyDir}/{skill-name}/SKILL.md
-- User custom skills: ${skillsDir}/{skill-name}/SKILL.md
+Codex skills: ${skillsDir}/{skill-name}/SKILL.md
 
 Each skill has a SKILL.md file containing detailed instructions.
-To use a skill, read its SKILL.md file when needed.
-
-For example:
-- Builtin "cron" skill: ${builtinSkillsDir}/cron/SKILL.md
-- Bundled "pptx" skill: ${builtinSkillsCopyDir}/pptx/SKILL.md`;
+To use a skill, read its SKILL.md file when needed.`;
 
       instructions.push(skillsInstruction);
     }

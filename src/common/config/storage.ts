@@ -201,7 +201,11 @@ export interface IConfigStorageRefer {
 }
 
 export interface IEnvStorageRefer {
-  'aionui.dir': {
+  'opl.dir'?: {
+    workDir: string;
+    cacheDir: string;
+  };
+  'aionui.dir'?: {
     workDir: string;
     cacheDir: string;
   };

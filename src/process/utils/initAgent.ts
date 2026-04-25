@@ -15,7 +15,7 @@ export { hasNativeSkillSupport };
 import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import path from 'path';
-import { getSkillsDir, getBuiltinSkillsCopyDir, getAutoSkillsDir, getSystemDir } from './initStorage';
+import { getSkillsDir, getSystemDir } from './initStorage';
 import { computeOpenClawIdentityHash } from './openclawUtils';
 
 /**
@@ -51,48 +51,16 @@ export async function setupAssistantWorkspace(
   // The caller should use prompt injection as fallback.
   if (!skillsDirs) return;
 
-  const autoSkillsDir = getAutoSkillsDir();
   const userSkillsDir = getSkillsDir();
 
   for (const skillsRelDir of skillsDirs) {
     const targetSkillsDir = path.join(workspace, skillsRelDir);
     await fs.mkdir(targetSkillsDir, { recursive: true });
 
-    // Always symlink _builtin skills for all native-skill backends
-    let autoSkillNames: string[] = [];
-    try {
-      autoSkillNames = await fs.readdir(autoSkillsDir);
-    } catch {
-      // _builtin dir not ready yet, skip
-    }
-    const excludeSet = new Set(options.excludeBuiltinSkills ?? []);
-    for (const skillName of autoSkillNames) {
-      if (excludeSet.has(skillName)) continue;
-      const sourceSkillDir = path.join(autoSkillsDir, skillName);
-      const targetSkillDir = path.join(targetSkillsDir, skillName);
-      try {
-        await fs.stat(sourceSkillDir);
-        try {
-          await fs.lstat(targetSkillDir);
-          // Already exists, skip
-        } catch {
-          await fs.symlink(sourceSkillDir, targetSkillDir, 'junction');
-          console.log(`[setupAssistantWorkspace] Symlinked builtin skill: ${skillName} -> ${targetSkillDir}`);
-        }
-      } catch {
-        console.warn(`[setupAssistantWorkspace] Builtin skill directory not found: ${sourceSkillDir}`);
-      }
-    }
-
     // Symlink optional enabled skills
     for (const skillName of options.enabledSkills ?? []) {
-      // Skip if already symlinked as a builtin skill
-      if (autoSkillNames.includes(skillName)) continue;
-
-      // Try builtin-skills/ first, then user skills/
-      const builtinCandidate = path.join(getBuiltinSkillsCopyDir(), skillName);
       const userCandidate = path.join(userSkillsDir, skillName);
-      const sourceSkillDir = existsSync(builtinCandidate) ? builtinCandidate : userCandidate;
+      const sourceSkillDir = userCandidate;
       const targetSkillDir = path.join(targetSkillsDir, skillName);
 
       try {

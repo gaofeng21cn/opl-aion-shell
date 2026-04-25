@@ -48,10 +48,10 @@ const STORAGE_PATH = {
   config: 'aionui-config.txt',
   chatMessage: 'aionui-chat-message.txt',
   chat: 'aionui-chat.txt',
-  env: '.aionui-env',
+  env: '.opl-env',
   assistants: 'assistants',
   skills: 'skills',
-  builtinSkills: 'builtin-skills',
+  builtinSkills: 'opl-builtin-skills',
   cronSkills: 'cron-skills',
 };
 
@@ -242,7 +242,7 @@ const JsonFileBuilder = <S extends object = Record<string, unknown>>(filePath: s
 
 const envFile = JsonFileBuilder<IEnvStorageRefer>(path.join(getHomePage(), STORAGE_PATH.env));
 
-const dirConfig = envFile.getSync('aionui.dir');
+const dirConfig = envFile.getSync('opl.dir') || envFile.getSync('aionui.dir');
 
 const cacheDir = dirConfig?.cacheDir || getHomePage();
 
@@ -424,33 +424,16 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
   const builtinSkillsCopyDir = getBuiltinSkillsCopyDir();
   const userSkillsDir = getSkillsDir();
 
-  // Sync builtin skills to a dedicated directory (config/builtin-skills/).
-  // This directory is fully managed by the app: overwrite existing, remove stale.
-  // User-custom skills live in the Codex skills directory and are never touched.
-  if (existsSync(builtinSkillsDir)) {
+  // OPL uses the Codex skills directory as the single user-visible skills source.
+  // AionUI bundled skills are intentionally not copied into app storage by default.
+  if (existsSync(builtinSkillsCopyDir)) {
     try {
-      if (!existsSync(builtinSkillsCopyDir)) {
-        mkdirSync(builtinSkillsCopyDir);
-      }
-      await copyDirectoryRecursively(builtinSkillsDir, builtinSkillsCopyDir, {
-        overwrite: true,
-      });
-      // Remove stale: entries in dest that no longer exist in source
-      const srcNames = new Set(
-        readdirSync(builtinSkillsDir, { withFileTypes: true })
-          .filter((e) => e.isDirectory())
-          .map((e) => e.name)
-      );
-      for (const entry of readdirSync(builtinSkillsCopyDir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        if (!srcNames.has(entry.name)) {
-          await fs.rm(path.join(builtinSkillsCopyDir, entry.name), { recursive: true, force: true });
-        }
-      }
+      await fs.rm(builtinSkillsCopyDir, { recursive: true, force: true });
     } catch (error) {
-      console.warn(`[AionUi] Failed to sync builtin skills directory:`, error);
+      console.warn(`[One Person Lab] Failed to remove stale bundled skills directory:`, error);
     }
   }
+
 
   // Ensure user skills directory exists
   if (!existsSync(userSkillsDir)) {
@@ -1149,15 +1132,10 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
   }
 
   const skillsDir = getSkillsDir();
-  const builtinSkillsDir = getAutoSkillsDir();
   const skillContents: string[] = [];
 
   for (const skillName of enabledSkills) {
-    // 1. Auto-enabled builtin: builtin-skills/_builtin/{skillName}/SKILL.md
-    const builtinSkillFile = path.join(builtinSkillsDir, skillName, 'SKILL.md');
-    // 2. Bundled skill: builtin-skills/{skillName}/SKILL.md
-    const bundledSkillFile = path.join(getBuiltinSkillsCopyDir(), skillName, 'SKILL.md');
-    // 3. User custom: skills/{skillName}/SKILL.md
+    // User custom: skills/{skillName}/SKILL.md
     const skillDirFile = path.join(skillsDir, skillName, 'SKILL.md');
     // 向后兼容：扁平结构 {skillName}.md
     // Backward compatible: flat structure {skillName}.md
@@ -1166,11 +1144,7 @@ export const loadSkillsContent = async (enabledSkills: string[]): Promise<string
     try {
       let content: string | null = null;
 
-      if (existsSync(builtinSkillFile)) {
-        content = await fs.readFile(builtinSkillFile, 'utf-8');
-      } else if (existsSync(bundledSkillFile)) {
-        content = await fs.readFile(bundledSkillFile, 'utf-8');
-      } else if (existsSync(skillDirFile)) {
+      if (existsSync(skillDirFile)) {
         content = await fs.readFile(skillDirFile, 'utf-8');
       } else if (existsSync(skillFlatFile)) {
         content = await fs.readFile(skillFlatFile, 'utf-8');

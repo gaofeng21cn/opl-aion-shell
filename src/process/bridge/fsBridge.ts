@@ -17,8 +17,6 @@ import {
   getSystemDir,
   getAssistantsDir,
   getSkillsDir,
-  getBuiltinSkillsCopyDir,
-  getAutoSkillsDir,
   ProcessConfig,
 } from '@process/utils/initStorage';
 import { readDirectoryRecursive } from '@process/utils';
@@ -1086,13 +1084,9 @@ export function initFsBridge(): void {
         }
       };
 
-      // Read builtin skills from the dedicated builtin-skills/ directory
-      const builtinSkillsDir = getBuiltinSkillsCopyDir();
-      const builtinCountBefore = skills.length;
-      await readSkillsFromDir(builtinSkillsDir, 'builtin');
-      const builtinCount = skills.length - builtinCountBefore;
+      // 读取 Codex skills 目录 / Read the canonical Codex skills directory
+      const builtinCount = 0;
 
-      // 读取用户自定义 skills
       const userSkillsDir = getSkillsDir();
       const userCountBefore = skills.length;
       await readSkillsFromDir(userSkillsDir, 'custom');
@@ -1138,98 +1132,9 @@ export function initFsBridge(): void {
     }
   });
 
-  // 获取内置自动注入 skills 列表 / List builtin auto-injected skills from _builtin directory
-  ipcBridge.fs.listBuiltinAutoSkills.provider(async () => {
-    try {
-      const autoSkillsDir = getAutoSkillsDir();
-      const skills: Array<{ name: string; description: string }> = [];
+  // OPL keeps Codex skills as the single visible skills source.
+  ipcBridge.fs.listBuiltinAutoSkills.provider(async () => []);
 
-      try {
-        await fs.access(autoSkillsDir);
-      } catch {
-        return skills;
-      }
-
-      const excludedAutoSkills = new Set(['aionui-skills', 'office-cli', 'officecli']);
-      const entries = await fs.readdir(autoSkillsDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-        if (excludedAutoSkills.has(entry.name)) continue;
-
-        const skillMdPath = path.join(autoSkillsDir, entry.name, 'SKILL.md');
-        try {
-          const content = await fs.readFile(skillMdPath, 'utf-8');
-          const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-          if (frontMatterMatch) {
-            const yaml = frontMatterMatch[1];
-            const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-            const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-            skills.push({
-              name: nameMatch ? nameMatch[1].trim() : entry.name,
-              description: descMatch ? descMatch[1].trim() : '',
-            });
-          }
-        } catch {
-          // SKILL.md not found or unreadable, skip
-        }
-      }
-
-      console.log(`[fsBridge] Listed ${skills.length} builtin auto-injected skills`);
-      return skills;
-    } catch (error) {
-      console.error('[fsBridge] Failed to list builtin auto skills:', error);
-      return [];
-    }
-  });
-
-  // 读取 skill 信息（不导入）/ Read skill info without importing
-  ipcBridge.fs.readSkillInfo.provider(async ({ skillPath }) => {
-    try {
-      // 验证 SKILL.md 文件存在 / Verify SKILL.md file exists
-      const skillMdPath = path.join(skillPath, 'SKILL.md');
-      try {
-        await fs.access(skillMdPath);
-      } catch {
-        return {
-          success: false,
-          msg: 'SKILL.md file not found in the selected directory',
-        };
-      }
-
-      // 读取 SKILL.md 获取 skill 信息 / Read SKILL.md to get skill info
-      const content = await fs.readFile(skillMdPath, 'utf-8');
-      const frontMatterMatch = content.match(/^---\s*\n([\s\S]*?)\n---/);
-      let skillName = path.basename(skillPath); // 默认使用目录名 / Default to directory name
-      let skillDescription = '';
-
-      if (frontMatterMatch) {
-        const yaml = frontMatterMatch[1];
-        const nameMatch = yaml.match(/^name:\s*(.+)$/m);
-        const descMatch = yaml.match(/^description:\s*['"]?(.+?)['"]?$/m);
-        if (nameMatch) {
-          skillName = nameMatch[1].trim();
-        }
-        if (descMatch) {
-          skillDescription = descMatch[1].trim();
-        }
-      }
-
-      return {
-        success: true,
-        data: {
-          name: skillName,
-          description: skillDescription,
-        },
-        msg: 'Skill info loaded successfully',
-      };
-    } catch (error) {
-      console.error('[fsBridge] Failed to read skill info:', error);
-      return {
-        success: false,
-        msg: `Failed to read skill info: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  });
 
   // 导入 skill 目录 / Import skill directory
   ipcBridge.fs.importSkill.provider(async ({ skillPath }) => {
@@ -1262,9 +1167,6 @@ export function initFsBridge(): void {
       const userSkillsDir = getSkillsDir();
       const targetDir = path.join(userSkillsDir, skillName);
 
-      // Check if skill already exists in both builtin and user directories
-      const builtinTargetDir = path.join(getBuiltinSkillsCopyDir(), skillName);
-
       try {
         await fs.access(targetDir);
         // Skill already exists in user directory, treat as success (skip copy)
@@ -1279,15 +1181,7 @@ export function initFsBridge(): void {
         // User skill doesn't exist
       }
 
-      try {
-        await fs.access(builtinTargetDir);
-        return {
-          success: false,
-          msg: `Skill "${skillName}" already exists in builtin skills`,
-        };
-      } catch {
-        // Builtin skill doesn't exist, proceed with copy
-      }
+
 
       // 复制整个目录 / Copy entire directory
       await copyDirectory(skillPath, targetDir);
@@ -1719,7 +1613,7 @@ export function initFsBridge(): void {
   // 获取技能存储路径 / Get skill storage paths
   ipcBridge.fs.getSkillPaths.provider(async () => ({
     userSkillsDir: getSkillsDir(),
-    builtinSkillsDir: getBuiltinSkillsCopyDir(),
+    builtinSkillsDir: '',
   }));
 
   // 将 skill 同步导出到外部目录 / Export skill to external directory via symlink
@@ -1756,68 +1650,8 @@ export function initFsBridge(): void {
     }
   });
 
-  // Skills Market: inject the aionui-skills builtin skill
-  ipcBridge.fs.enableSkillsMarket.provider(async () => {
-    try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
-      const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
-      await fs.mkdir(skillDir, { recursive: true });
+  // OPL does not expose AionUI Skills Market injection.
+  ipcBridge.fs.enableSkillsMarket.provider(async () => ({ success: true, msg: 'Skills Market is managed by OPL' }));
 
-      // Copy the bundled SKILL.md (concise entry-point version)
-      // The full 600+ line API doc is fetched by agents at runtime via curl
-      const content = await readBundledSkillsMarketMd();
-      await fs.writeFile(path.join(skillDir, 'SKILL.md'), content, 'utf-8');
-
-      // Reset AcpSkillManager singleton so it re-discovers builtin skills
-      const { AcpSkillManager } = await import('@process/task/AcpSkillManager');
-      AcpSkillManager.resetInstance();
-
-      return { success: true, msg: 'Skills Market skill enabled' };
-    } catch (error) {
-      console.error('[fsBridge] Failed to enable Skills Market:', error);
-      return {
-        success: false,
-        msg: `Failed to enable Skills Market: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  });
-
-  // Skills Market: remove the aionui-skills builtin skill
-  ipcBridge.fs.disableSkillsMarket.provider(async () => {
-    try {
-      const { getAutoSkillsDir } = await import('@process/utils/initStorage');
-      const skillDir = path.join(getAutoSkillsDir(), 'aionui-skills');
-      await fs.rm(skillDir, { recursive: true, force: true });
-
-      // Reset AcpSkillManager singleton so it re-discovers builtin skills
-      const { AcpSkillManager } = await import('@process/task/AcpSkillManager');
-      AcpSkillManager.resetInstance();
-
-      return { success: true, msg: 'Skills Market skill disabled' };
-    } catch (error) {
-      console.error('[fsBridge] Failed to disable Skills Market:', error);
-      return {
-        success: false,
-        msg: `Failed to disable Skills Market: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  });
-}
-
-/**
- * Read the bundled SKILL.md for aionui-skills from app resources.
- *
- * This is a concise entry-point version (~30 lines) that tells agents
- * to fetch the full API documentation via curl at runtime.
- * The full 600+ line SKILL.md should NOT be injected via [LOAD_SKILL]
- * as it would overwhelm the conversation context.
- */
-async function readBundledSkillsMarketMd(): Promise<string> {
-  try {
-    const fallbackPath = path.join(getBuiltinSkillsCopyDir(), 'aionui-skills', 'SKILL.md');
-    return await fs.readFile(fallbackPath, 'utf-8');
-  } catch (error) {
-    console.warn('[fsBridge] Failed to read bundled aionui-skills SKILL.md:', error);
-    return `---\nname: aionui-skills\ndescription: "Access the AionUI Skills registry — discover and download AI agent skills."\n---\n\n# AionUI Skills Registry\n\nFetch full instructions:\n\n\`\`\`bash\nmkdir -p ~/.config/aionui-skills\ncurl -s https://skills.aionui.com/SKILL.md > ~/.config/aionui-skills/SKILL.md\n\`\`\`\n\nThen read and follow the instructions in that file.\n`;
-  }
+  ipcBridge.fs.disableSkillsMarket.provider(async () => ({ success: true, msg: 'Skills Market is managed by OPL' }));
 }

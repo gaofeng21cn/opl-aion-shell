@@ -23,7 +23,7 @@ export function initApplicationBridgeCore(): void {
 
   ipcBridge.application.appVersions.provider(() => {
     return Promise.resolve({
-      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || app.getVersion(),
+      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || '26.4.25',
       guiVersion: app.getVersion(),
       releaseRepo: process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
       releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',
@@ -42,7 +42,7 @@ export function initApplicationBridgeCore(): void {
       if (oldDir.cacheDir !== safeCacheDir) {
         await copyDirectoryRecursively(oldDir.cacheDir, safeCacheDir);
       }
-      await ProcessEnv.set('aionui.dir', { cacheDir: safeCacheDir, workDir: safeWorkDir });
+      await ProcessEnv.set('opl.dir', { cacheDir: safeCacheDir, workDir: safeWorkDir });
       return { success: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

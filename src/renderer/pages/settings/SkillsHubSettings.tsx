@@ -82,19 +82,12 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = tru
       const skills = await ipcBridge.fs.listAvailableSkills.invoke();
       setAvailableSkills(skills);
 
-      const external = await ipcBridge.fs.detectAndCountExternalSkills.invoke();
-      if (external.success && external.data) {
-        setExternalSources(external.data);
-        if (external.data.length > 0 && !activeSourceTab) {
-          setActiveSourceTab(external.data[0].source);
-        }
-      }
+      setExternalSources([]);
 
       const paths = await ipcBridge.fs.getSkillPaths.invoke();
       setSkillPaths(paths);
 
-      const autoSkills = await ipcBridge.fs.listBuiltinAutoSkills.invoke();
-      setBuiltinAutoSkills(autoSkills);
+      setBuiltinAutoSkills([]);
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       Message.error(t('settings.skillsHub.fetchError', { defaultValue: 'Failed to fetch skills' }));
@@ -229,7 +222,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = tru
     }
   }, [customPathName, customPathValue, handleRefreshExternal]);
 
-  const totalExternal = externalSources.reduce((sum, src) => sum + src.skills.length, 0);
+  const totalExternal = 0;
   const activeSource = externalSources.find((s) => s.source === activeSourceTab);
 
   const filteredExternalSkills = useMemo(() => {

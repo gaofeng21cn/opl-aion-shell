@@ -206,6 +206,8 @@ describe('CssThemeSettings preset structure', () => {
     expect(css).toContain('--opl-codex-accent');
     expect(css).toContain('.layout-sider');
     expect(css).toContain('.app-titlebar');
+    expect(css).toContain('.app-titlebar__brand');
+    expect(css).toContain('display: none !important');
     expect(css).toContain('.chat-history__item');
     expect(css).not.toMatch(/\.arco-layout\s*>\s*\.arco-layout/);
   });

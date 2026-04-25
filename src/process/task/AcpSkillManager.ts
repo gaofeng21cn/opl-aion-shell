@@ -15,7 +15,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { existsSync } from 'fs';
-import { getSkillsDir, getBuiltinSkillsCopyDir, getAutoSkillsDir } from '@process/utils/initStorage';
+import { getSkillsDir, getAutoSkillsDir } from '@process/utils/initStorage';
 import { ExtensionRegistry } from '@process/extensions';
 
 /**
@@ -268,8 +268,7 @@ export class AcpSkillManager {
    * @param excludeBuiltinSkills - 排除的内置自动注入 skills / Builtin auto-injected skills to exclude
    */
   async discoverSkills(enabledSkills?: string[], excludeBuiltinSkills?: string[]): Promise<void> {
-    // 始终先加载内置 skills / Always load builtin skills first
-    await this.discoverAutoSkills(excludeBuiltinSkills);
+    // OPL uses Codex skills as the canonical skills source. Bundled auto skills stay disabled by default.
 
     // 加载扩展贡献的 skills / Load extension-contributed skills
     await this.discoverExtensionSkills(enabledSkills);
@@ -283,8 +282,8 @@ export class AcpSkillManager {
       return;
     }
 
-    // Scan both builtin-skills/ (bundled, non-_builtin) and skills/ (user custom)
-    const dirsToScan = [getBuiltinSkillsCopyDir(), this.skillsDir];
+    // Scan Codex skills only.
+    const dirsToScan = [this.skillsDir];
 
     for (const dir of dirsToScan) {
       if (!existsSync(dir)) continue;
