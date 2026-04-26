@@ -978,7 +978,7 @@
   },
   "oplAppearance": {
     "codexStyle": "Codex App Style",
-    "codexStyleDescription": "更接近 macOS 的清爽界面：浅色侧栏、白色工作区和柔和的选中状态。",
+    "codexStyleDescription": "浅色侧栏、白色工作区。",
     "aionDefault": "AionUI Default",
     "aionDefaultDescription": "AionUI 原始风格。",
     "active": "已启用",
