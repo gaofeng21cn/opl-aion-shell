@@ -22,7 +22,6 @@ import { NavigationHistoryProvider } from '@renderer/hooks/context/NavigationHis
 import { useDeepLink } from '@renderer/hooks/system/useDeepLink';
 import { useNotificationClick } from '@renderer/hooks/system/useNotificationClick';
 import { useDirectorySelection } from '@renderer/hooks/file/useDirectorySelection';
-import { useMultiAgentDetection } from '@renderer/hooks/agent/useMultiAgentDetection';
 import { processCustomCss } from '@renderer/utils/theme/customCssProcessor';
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
@@ -30,11 +29,16 @@ import { useOplBrandName } from '@renderer/hooks/system/useOplBrandName';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
+import {
+  claimOplFirstLaunchPreparationMessage,
+  releaseOplFirstLaunchPreparationMessage,
+  startOplFirstLaunchEnvironmentPreparation,
+} from './oplFirstLaunchPreparation';
 import '@renderer/styles/layout.css';
 
 const useDebug = () => {
   const [count, setCount] = useState(0);
-  const timer = useRef<any>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onClick = () => {
     const open = () => {
       ipcBridge.application.openDevTools.invoke().catch((error) => {
@@ -52,9 +56,14 @@ const useDebug = () => {
       }
       return prev + 1;
     });
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
+    if (timer.current) {
       clearTimeout(timer.current);
+    }
+    timer.current = setTimeout(() => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
+      timer.current = null;
       setCount(0);
     }, 1000);
   };
@@ -71,6 +80,10 @@ const SIDER_DRAG_HYSTERESIS = 6;
 const MOBILE_SIDER_WIDTH_RATIO = 0.67;
 const MOBILE_SIDER_MIN_WIDTH = 260;
 const MOBILE_SIDER_MAX_WIDTH = 420;
+type LayoutSiderInjectedProps = {
+  onSessionClick: () => void;
+  collapsed: boolean;
+};
 
 const detectMobileViewportOrTouch = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -97,13 +110,11 @@ const Layout: React.FC<{
     typeof window === 'undefined' ? 390 : window.innerWidth
   );
   const [customCss, setCustomCss] = useState<string>('');
-  const [shouldMountUpdateModal, setShouldMountUpdateModal] = useState(false);
   const { onClick } = useDebug();
   const oplBrandName = useOplBrandName();
   const { theme } = useThemeContext();
   const { t } = useTranslation();
   const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
-  const { contextHolder: multiAgentContextHolder } = useMultiAgentDetection();
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   useDeepLink();
   useNotificationClick();
@@ -113,25 +124,49 @@ const Layout: React.FC<{
     if (!isElectronDesktop()) return;
 
     let cancelled = false;
+    let hideLoadingMessage: ReturnType<typeof Message.loading> | undefined;
+    let releaseMessageOwner: (() => void) | undefined;
+
+    const releaseOwnedMessage = () => {
+      if (releaseMessageOwner) {
+        releaseMessageOwner();
+        releaseMessageOwner = undefined;
+      }
+      if (hideLoadingMessage) {
+        hideLoadingMessage();
+        hideLoadingMessage = undefined;
+      }
+    };
+
     const prepareEnvironment = async () => {
       const preparedAt = await ConfigStorage.get('opl.firstLaunchInstallPreparedAt');
       if (preparedAt || cancelled) return;
 
-      const hide = Message.loading({
-        content: t('settings.oplFirstLaunch.preparing'),
-        duration: 0,
-      });
-      try {
-        const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['install', '--skip-gui-open'] });
-        if (cancelled) return;
+      const messageOwner = Symbol('opl-first-launch-preparation-message');
+      const preparationPromise = startOplFirstLaunchEnvironmentPreparation();
+      const ownsMessage = claimOplFirstLaunchPreparationMessage(messageOwner);
+      if (ownsMessage) {
+        releaseMessageOwner = () => releaseOplFirstLaunchPreparationMessage(messageOwner);
+        hideLoadingMessage = Message.loading({
+          content: t('settings.oplFirstLaunch.preparing'),
+          duration: 0,
+        });
+      }
 
-        if (result.exitCode === 0) {
-          await ConfigStorage.set('opl.firstLaunchInstallPreparedAt', Date.now());
+      try {
+        const result = await preparationPromise;
+        if (cancelled || !ownsMessage) return;
+
+        if (result.status === 'already-prepared') {
+          return;
+        }
+
+        if (result.status === 'prepared') {
           Message.success(t('settings.oplFirstLaunch.complete'));
           return;
         }
 
-        Message.error(result.stderr || result.stdout || t('settings.oplFirstLaunch.failed'));
+        Message.error(result.message || t('settings.oplFirstLaunch.failed'));
         void navigate('/settings/opl');
       } catch (error) {
         if (!cancelled) {
@@ -139,13 +174,14 @@ const Layout: React.FC<{
           void navigate('/settings/opl');
         }
       } finally {
-        hide();
+        releaseOwnedMessage();
       }
     };
 
     void prepareEnvironment();
     return () => {
       cancelled = true;
+      releaseOwnedMessage();
     };
   }, [navigate, t]);
   const location = useLocation();
@@ -358,7 +394,6 @@ const Layout: React.FC<{
 
     // Handle pause all tasks request from tray / 托盘请求暂停所有任务
     const handlePauseAllTasks = async () => {
-      const { ipcBridge } = await import('@/common');
       const result = await ipcBridge.task.stopAll.invoke();
       if (result?.success) {
         // Navigate to settings page to show task status
@@ -522,13 +557,13 @@ const Layout: React.FC<{
               </ArcoLayout.Header>
               <ArcoLayout.Content className='pt-8px px-8px pb-0 layout-sider-content'>
                 {React.isValidElement(sider)
-                  ? React.cloneElement(sider, {
+                  ? React.cloneElement(sider as React.ReactElement<Partial<LayoutSiderInjectedProps>>, {
                       onSessionClick: () => {
                         cleanupSiderTooltips();
                         if (isMobile) setCollapsed(true);
                       },
                       collapsed,
-                    } as any)
+                    })
                   : sider}
               </ArcoLayout.Content>
               {!isMobile && (
@@ -557,7 +592,6 @@ const Layout: React.FC<{
               }
             >
               <Outlet />
-              {multiAgentContextHolder}
               {directorySelectionContextHolder}
               <PwaPullToRefresh />
               <Suspense fallback={null}>
