@@ -15,7 +15,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const prepareBundledBun = require('./prepareBundledBun');
-const prepareAionrs = require('./prepareAionrs');
 
 function patchAionCliCoreForOpl() {
   const packageJsonPath = path.resolve(__dirname, '../node_modules/@office-ai/aioncli-core/package.json');
@@ -550,8 +549,6 @@ try {
 
   // 5b. Prepare hub resources (index.json + extension zips for offline fallback)
   execSync('node scripts/prepareHubResources.js', { stdio: 'inherit', env: process.env });
-  // 5b. Prepare aionrs binary (Rust CLI for agent integration)
-  prepareAionrs();
 
   // 6. 运行 electron-builder 生成分发包（DMG/ZIP/EXE等）
   // Run electron-builder to create distributables (DMG/ZIP/EXE, etc.)
