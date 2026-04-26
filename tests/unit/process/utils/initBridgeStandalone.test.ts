@@ -6,11 +6,7 @@ const mocks = vi.hoisted(() => ({
   initFileWatchBridge: vi.fn(),
   initFsBridge: vi.fn(),
   initConversationBridge: vi.fn(),
-  initGeminiConversationBridge: vi.fn(),
-  initGeminiBridge: vi.fn(),
-  initBedrockBridge: vi.fn(),
   initAcpConversationBridge: vi.fn(),
-  initAuthBridge: vi.fn(),
   initModelBridge: vi.fn(),
   initPreviewHistoryBridge: vi.fn(),
   initDocumentBridge: vi.fn(),
@@ -18,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   initOfficeWatchBridge: vi.fn(),
   initChannelBridge: vi.fn(),
   initDatabaseBridge: vi.fn(),
-  initExtensionsBridge: vi.fn(),
   initSystemSettingsBridge: vi.fn(),
   initCronBridge: vi.fn(),
   initMcpBridge: vi.fn(),
@@ -26,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   initTaskBridge: vi.fn(),
   initStarOfficeBridge: vi.fn(),
   initSpeechToTextBridge: vi.fn(),
-  initHubBridge: vi.fn(),
   initializeRegistry: vi.fn(async () => {}),
   loggerConfig: vi.fn(),
 }));
@@ -74,20 +68,8 @@ vi.mock('@process/bridge/fsBridge', () => ({
 vi.mock('@process/bridge/conversationBridge', () => ({
   initConversationBridge: (...args: unknown[]) => mocks.initConversationBridge(...args),
 }));
-vi.mock('@process/bridge/geminiConversationBridge', () => ({
-  initGeminiConversationBridge: (...args: unknown[]) => mocks.initGeminiConversationBridge(...args),
-}));
-vi.mock('@process/bridge/geminiBridge', () => ({
-  initGeminiBridge: (...args: unknown[]) => mocks.initGeminiBridge(...args),
-}));
-vi.mock('@process/bridge/bedrockBridge', () => ({
-  initBedrockBridge: (...args: unknown[]) => mocks.initBedrockBridge(...args),
-}));
 vi.mock('@process/bridge/acpConversationBridge', () => ({
   initAcpConversationBridge: (...args: unknown[]) => mocks.initAcpConversationBridge(...args),
-}));
-vi.mock('@process/bridge/authBridge', () => ({
-  initAuthBridge: (...args: unknown[]) => mocks.initAuthBridge(...args),
 }));
 vi.mock('@process/bridge/modelBridge', () => ({
   initModelBridge: (...args: unknown[]) => mocks.initModelBridge(...args),
@@ -110,9 +92,6 @@ vi.mock('@process/bridge/channelBridge', () => ({
 vi.mock('@process/bridge/databaseBridge', () => ({
   initDatabaseBridge: (...args: unknown[]) => mocks.initDatabaseBridge(...args),
 }));
-vi.mock('@process/bridge/extensionsBridge', () => ({
-  initExtensionsBridge: (...args: unknown[]) => mocks.initExtensionsBridge(...args),
-}));
 vi.mock('@process/bridge/systemSettingsBridge', () => ({
   initSystemSettingsBridge: (...args: unknown[]) => mocks.initSystemSettingsBridge(...args),
 }));
@@ -134,21 +113,19 @@ vi.mock('@process/bridge/starOfficeBridge', () => ({
 vi.mock('@process/bridge/speechToTextBridge', () => ({
   initSpeechToTextBridge: (...args: unknown[]) => mocks.initSpeechToTextBridge(...args),
 }));
-vi.mock('@process/bridge/hubBridge', () => ({
-  initHubBridge: (...args: unknown[]) => mocks.initHubBridge(...args),
-}));
 
 describe('initBridgeStandalone', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('registers the hub bridge and initializes ACP detection', async () => {
+  it('registers OPL standalone bridges and initializes ACP detection', async () => {
     const mod = await import('../../../../src/process/utils/initBridgeStandalone');
 
     await mod.initBridgeStandalone();
 
-    expect(mocks.initHubBridge).toHaveBeenCalledTimes(1);
+    expect(mocks.initAcpConversationBridge).toHaveBeenCalledTimes(1);
+    expect(mocks.initConversationBridge).toHaveBeenCalledTimes(1);
     expect(mocks.initializeRegistry).toHaveBeenCalledTimes(1);
   });
 });

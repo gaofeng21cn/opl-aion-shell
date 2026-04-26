@@ -7,8 +7,6 @@
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@process/channels/types';
 import { acpConversation, channel } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
-import GeminiModelSelector from '@/renderer/pages/conversation/platforms/gemini/GeminiModelSelector';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
 import { Button, Dropdown, Empty, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -43,7 +41,6 @@ const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ 
 
 interface WeixinConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
 }
 
@@ -54,7 +51,7 @@ const getRemainingTime = (expiresAt: number) => {
 
 const formatTime = (timestamp: number) => new Date(timestamp).toLocaleString();
 
-const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, onStatusChange }) => {
   const { t } = useTranslation();
 
   const [loginState, setLoginState] = useState<LoginState>(
@@ -79,7 +76,7 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
     backend: string;
     name?: string;
     customAgentId?: string;
-  }>({ backend: 'gemini' });
+  }>({ backend: 'codex' });
 
   // Close EventSource on unmount to prevent connection leaks.
   useEffect(() => {
@@ -233,7 +230,7 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
         ) {
           const s = saved as { backend: string; customAgentId?: string; name?: string };
           setSelectedAgent({
-            backend: s.backend,
+            backend: s.backend === 'gemini' || s.backend === 'aionrs' ? 'codex' : s.backend,
             customAgentId: s.customAgentId,
             name: s.name,
           });
@@ -371,12 +368,11 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
     }
   };
 
-  const isGeminiAgent = selectedAgent.backend === 'gemini' || selectedAgent.backend === 'aionrs';
   const agentOptions: Array<{
     backend: string;
     name: string;
     customAgentId?: string;
-  }> = availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
+  }> = availableAgents.length > 0 ? availableAgents : [{ backend: 'codex', name: 'Codex' }];
 
   const handleDisconnect = async () => {
     try {
@@ -530,16 +526,9 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
         label={t('settings.assistant.defaultModel', 'Default Model')}
         description={t('settings.weixin.defaultModelDesc', 'Model used for WeChat conversations')}
       >
-        <GeminiModelSelector
-          selection={isGeminiAgent ? modelSelection : undefined}
-          disabled={!isGeminiAgent}
-          label={
-            !isGeminiAgent
-              ? t('settings.assistant.autoFollowCliModel', 'Automatically follow the model when CLI is running')
-              : undefined
-          }
-          variant='settings'
-        />
+        <Button type='secondary' disabled>
+          {t('settings.assistant.autoFollowCliModel', 'Auto-follow Codex runtime model')}
+        </Button>
       </PreferenceRow>
 
       {/* Next Steps Guide - shown when connected but no authorized users yet */}

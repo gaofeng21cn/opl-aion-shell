@@ -1,85 +1,12 @@
-import { ipcBridge } from '@/common';
-import type { IProvider, TChatConversation, TProviderWithModel } from '@/common/config/storage';
+import type { TChatConversation } from '@/common/config/storage';
 import { Spin } from '@arco-design/web-react';
-import React, { Suspense, useCallback } from 'react';
-import { useGeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
-import { useAionrsModelSelection } from '@/renderer/pages/conversation/platforms/aionrs/useAionrsModelSelection';
+import React, { Suspense } from 'react';
 import TeamChatEmptyState from './TeamChatEmptyState';
 
 const AcpChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/acp/AcpChat'));
-const AionrsChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/aionrs/AionrsChat'));
-const GeminiChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/gemini/GeminiChat'));
 const OpenClawChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/openclaw/OpenClawChat'));
 const NanobotChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/nanobot/NanobotChat'));
 const RemoteChat = React.lazy(() => import('@/renderer/pages/conversation/platforms/remote/RemoteChat'));
-
-// Narrow to Gemini conversations so model field is always available
-type GeminiConversation = Extract<TChatConversation, { type: 'gemini' }>;
-
-/** Gemini sub-component manages model selection state without adding a ChatLayout wrapper */
-const GeminiTeamChat: React.FC<{
-  conversation: GeminiConversation;
-  hideSendBox?: boolean;
-  teamId?: string;
-  agentSlotId?: string;
-  emptySlot?: React.ReactNode;
-}> = ({ conversation, hideSendBox, teamId, agentSlotId, emptySlot }) => {
-  const onSelectModel = useCallback(
-    async (_provider: IProvider, modelName: string) => {
-      const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
-      return Boolean(ok);
-    },
-    [conversation.id]
-  );
-
-  const modelSelection = useGeminiModelSelection({ initialModel: conversation.model, onSelectModel });
-
-  return (
-    <GeminiChat
-      conversation_id={conversation.id}
-      workspace={conversation.extra.workspace}
-      modelSelection={modelSelection}
-      hideSendBox={hideSendBox}
-      teamId={teamId}
-      agentSlotId={agentSlotId}
-      emptySlot={emptySlot}
-    />
-  );
-};
-
-// Narrow to Aionrs conversations so model field is always available
-type AionrsConversation = Extract<TChatConversation, { type: 'aionrs' }>;
-
-/** Aionrs sub-component manages model selection state without adding a ChatLayout wrapper */
-const AionrsTeamChat: React.FC<{
-  conversation: AionrsConversation;
-  teamId?: string;
-  agentSlotId?: string;
-  emptySlot?: React.ReactNode;
-}> = ({ conversation, teamId, agentSlotId, emptySlot }) => {
-  const onSelectModel = useCallback(
-    async (_provider: IProvider, modelName: string) => {
-      const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
-      return Boolean(ok);
-    },
-    [conversation.id]
-  );
-
-  const modelSelection = useAionrsModelSelection({ initialModel: conversation.model, onSelectModel });
-
-  return (
-    <AionrsChat
-      conversation_id={conversation.id}
-      workspace={conversation.extra.workspace}
-      modelSelection={modelSelection}
-      teamId={teamId}
-      agentSlotId={agentSlotId}
-      emptySlot={emptySlot}
-    />
-  );
-};
 
 type TeamChatViewProps = {
   conversation: TChatConversation;
@@ -125,27 +52,6 @@ const TeamChatView: React.FC<TeamChatViewProps> = ({ conversation, hideSendBox, 
             workspace={conversation.extra?.workspace}
             backend='codex'
             agentName={agentName ?? (conversation.extra as { agentName?: string })?.agentName}
-            hideSendBox={hideSendBox}
-            teamId={teamId}
-            agentSlotId={agentSlotId}
-            emptySlot={emptySlot}
-          />
-        );
-      case 'aionrs':
-        return (
-          <AionrsTeamChat
-            key={conversation.id}
-            conversation={conversation as AionrsConversation}
-            teamId={teamId}
-            agentSlotId={agentSlotId}
-            emptySlot={emptySlot}
-          />
-        );
-      case 'gemini':
-        return (
-          <GeminiTeamChat
-            key={conversation.id}
-            conversation={conversation}
             hideSendBox={hideSendBox}
             teamId={teamId}
             agentSlotId={agentSlotId}

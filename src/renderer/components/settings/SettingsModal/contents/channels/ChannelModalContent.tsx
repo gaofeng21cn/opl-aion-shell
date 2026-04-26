@@ -5,13 +5,8 @@
  */
 
 import type { IChannelPluginStatus } from '@process/channels/types';
-import type { IProvider, TProviderWithModel } from '@/common/config/storage';
 import { channel, webui, type IWebUIStatus } from '@/common/adapter/ipcBridge';
-import { ConfigStorage } from '@/common/config/storage';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useModelProviderList } from '@/renderer/hooks/agent/useModelProviderList';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
-import { useGeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
 import { Input, InputNumber, Message, Select, Switch } from '@arco-design/web-react';
 import { CheckOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -24,13 +19,6 @@ import LarkConfigForm from './LarkConfigForm';
 import TelegramConfigForm from './TelegramConfigForm';
 import WeixinConfigForm from './WeixinConfigForm';
 import WecomConfigForm from './WecomConfigForm';
-
-type ChannelModelConfigKey =
-  | 'assistant.telegram.defaultModel'
-  | 'assistant.lark.defaultModel'
-  | 'assistant.dingtalk.defaultModel'
-  | 'assistant.weixin.defaultModel'
-  | 'assistant.wecom.defaultModel';
 
 type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
 
@@ -46,121 +34,6 @@ type ExtensionFieldSchema = {
 type ExtensionFieldValues = Record<string, Record<string, string | number | boolean>>;
 
 const BUILTIN_CHANNEL_TYPES = new Set(['telegram', 'lark', 'dingtalk', 'weixin', 'wecom', 'slack', 'discord']);
-
-/**
- * Internal hook: wraps useGeminiModelSelection with ConfigStorage persistence
- * for a specific channel config key (e.g. 'assistant.telegram.defaultModel').
- *
- * Restoration is done by resolving the saved model reference into a full
- * TProviderWithModel and passing it as `initialModel` — this avoids triggering
- * the onSelectModel callback (and its toast) on mount.
- */
-const useChannelModelSelection = (configKey: ChannelModelConfigKey): GeminiModelSelection => {
-  const { t } = useTranslation();
-
-  // Resolve persisted model into a full TProviderWithModel for initialModel.
-  // useModelProviderList is SWR-backed so the duplicate call inside
-  // useGeminiModelSelection is deduplicated automatically.
-  const { providers } = useModelProviderList();
-  const [resolvedInitialModel, setResolvedInitialModel] = useState<TProviderWithModel | undefined>(undefined);
-  const [restored, setRestored] = useState(false);
-  const retryCountRef = useRef(0);
-
-  // Cap retries to prevent infinite re-runs when a saved provider ID is stale
-  // (e.g. provider deleted, or agent switched to a non-gemini backend).
-  // The Google Auth provider typically loads within 1-2 SWR cycles, so 5 is generous.
-  const MAX_RESTORE_RETRIES = 5;
-
-  useEffect(() => {
-    if (restored || providers.length === 0) return;
-
-    const restore = async () => {
-      try {
-        const saved = (await ConfigStorage.get(configKey)) as { id: string; useModel: string } | undefined;
-        if (!saved?.id || !saved?.useModel) {
-          // Nothing saved — mark restored so we don't keep retrying
-          setRestored(true);
-          return;
-        }
-
-        const provider = providers.find((p) => p.id === saved.id);
-        if (!provider) {
-          retryCountRef.current += 1;
-          if (retryCountRef.current >= MAX_RESTORE_RETRIES) {
-            // Provider is permanently missing — give up to avoid infinite retries
-            setRestored(true);
-          }
-          // The Google Auth provider may load after API-key providers;
-          // leaving restored=false lets this effect re-run when providers update.
-          return;
-        }
-
-        // Google Auth provider's model array only contains top-level modes
-        // ('auto', 'auto-gemini-2.5', 'manual'), but sub-model values like
-        // 'gemini-2.5-flash' are also valid — skip strict membership check.
-        const isGoogleAuth = provider.platform?.toLowerCase().includes('gemini-with-google-auth');
-        if (isGoogleAuth || provider.model?.includes(saved.useModel)) {
-          setResolvedInitialModel({
-            ...provider,
-            useModel: saved.useModel,
-          } as TProviderWithModel);
-        }
-        setRestored(true);
-      } catch (error) {
-        console.error(`[ChannelSettings] Failed to restore model for ${configKey}:`, error);
-        setRestored(true);
-      }
-    };
-
-    void restore();
-  }, [configKey, providers, restored]);
-
-  // Only called on explicit user selection — not during restoration
-  const onSelectModel = useCallback(
-    async (provider: IProvider, modelName: string) => {
-      try {
-        const modelRef = { id: provider.id, useModel: modelName };
-        await ConfigStorage.set(configKey, modelRef);
-
-        // Derive platform from configKey and sync to channel system
-        const platform = configKey.replace('assistant.', '').replace('.defaultModel', '') as
-          | 'telegram'
-          | 'lark'
-          | 'dingtalk'
-          | 'weixin'
-          | 'wecom';
-        const agentKey = `assistant.${platform}.agent` as const;
-        const currentAgent = await ConfigStorage.get(agentKey);
-        await channel.syncChannelSettings
-          .invoke({
-            platform,
-            agent: (currentAgent as {
-              backend: string;
-              customAgentId?: string;
-              name?: string;
-            }) || {
-              backend: 'gemini',
-            },
-            model: modelRef,
-          })
-          .catch((err) => console.warn(`[ChannelSettings] syncChannelSettings failed for ${platform}:`, err));
-
-        Message.success(t('settings.assistant.modelSwitched', 'Model switched successfully'));
-        return true;
-      } catch (error) {
-        console.error(`[ChannelSettings] Failed to save model for ${configKey}:`, error);
-        Message.error(t('settings.assistant.modelSaveFailed', 'Failed to save model'));
-        return false;
-      }
-    },
-    [configKey, t]
-  );
-
-  return useGeminiModelSelection({
-    initialModel: resolvedInitialModel,
-    onSelectModel,
-  });
-};
 
 /**
  * Assistant Settings Content Component
@@ -199,13 +72,6 @@ const ChannelModalContent: React.FC = () => {
     weixin: true,
     wecom: true,
   });
-
-  // Model selection state — uses unified hook with ConfigStorage persistence
-  const telegramModelSelection = useChannelModelSelection('assistant.telegram.defaultModel');
-  const larkModelSelection = useChannelModelSelection('assistant.lark.defaultModel');
-  const dingtalkModelSelection = useChannelModelSelection('assistant.dingtalk.defaultModel');
-  const weixinModelSelection = useChannelModelSelection('assistant.weixin.defaultModel');
-  const wecomModelSelection = useChannelModelSelection('assistant.wecom.defaultModel');
 
   // Load plugin status
   const loadPluginStatus = useCallback(async () => {
@@ -718,11 +584,9 @@ const ChannelModalContent: React.FC = () => {
       disabled: enableLoading,
       isConnected: pluginStatus?.connected || false,
       botUsername: pluginStatus?.botUsername,
-      defaultModel: telegramModelSelection.currentModel?.useModel,
       content: (
         <TelegramConfigForm
           pluginStatus={pluginStatus}
-          modelSelection={telegramModelSelection}
           onStatusChange={setPluginStatus}
           onTokenChange={(token) => {
             telegramTokenRef.current = token;
@@ -739,14 +603,7 @@ const ChannelModalContent: React.FC = () => {
       enabled: larkPluginStatus?.enabled || false,
       disabled: larkEnableLoading,
       isConnected: larkPluginStatus?.connected || false,
-      defaultModel: larkModelSelection.currentModel?.useModel,
-      content: (
-        <LarkConfigForm
-          pluginStatus={larkPluginStatus}
-          modelSelection={larkModelSelection}
-          onStatusChange={setLarkPluginStatus}
-        />
-      ),
+      content: <LarkConfigForm pluginStatus={larkPluginStatus} onStatusChange={setLarkPluginStatus} />,
     };
 
     const dingtalkChannel: ChannelConfig = {
@@ -757,14 +614,7 @@ const ChannelModalContent: React.FC = () => {
       enabled: dingtalkPluginStatus?.enabled || false,
       disabled: dingtalkEnableLoading,
       isConnected: dingtalkPluginStatus?.connected || false,
-      defaultModel: dingtalkModelSelection.currentModel?.useModel,
-      content: (
-        <DingTalkConfigForm
-          pluginStatus={dingtalkPluginStatus}
-          modelSelection={dingtalkModelSelection}
-          onStatusChange={setDingtalkPluginStatus}
-        />
-      ),
+      content: <DingTalkConfigForm pluginStatus={dingtalkPluginStatus} onStatusChange={setDingtalkPluginStatus} />,
     };
 
     const weixinChannel: ChannelConfig = {
@@ -775,14 +625,7 @@ const ChannelModalContent: React.FC = () => {
       enabled: weixinPluginStatus?.enabled || false,
       disabled: weixinEnableLoading,
       isConnected: weixinPluginStatus?.connected || false,
-      defaultModel: weixinModelSelection.currentModel?.useModel,
-      content: (
-        <WeixinConfigForm
-          pluginStatus={weixinPluginStatus}
-          modelSelection={weixinModelSelection}
-          onStatusChange={setWeixinPluginStatus}
-        />
-      ),
+      content: <WeixinConfigForm pluginStatus={weixinPluginStatus} onStatusChange={setWeixinPluginStatus} />,
     };
 
     const wecomChannel: ChannelConfig = {
@@ -793,11 +636,9 @@ const ChannelModalContent: React.FC = () => {
       enabled: wecomPluginStatus?.enabled || false,
       disabled: wecomEnableLoading,
       isConnected: wecomPluginStatus?.connected || false,
-      defaultModel: wecomModelSelection.currentModel?.useModel,
       content: (
         <WecomConfigForm
           pluginStatus={wecomPluginStatus}
-          modelSelection={wecomModelSelection}
           onStatusChange={setWecomPluginStatus}
           webuiStatus={webuiStatus}
         />
@@ -872,18 +713,13 @@ const ChannelModalContent: React.FC = () => {
     dingtalkPluginStatus,
     extensionStatuses,
     extensionLoadingMap,
-    telegramModelSelection,
-    larkModelSelection,
-    dingtalkModelSelection,
     enableLoading,
     larkEnableLoading,
     dingtalkEnableLoading,
     weixinPluginStatus,
     weixinEnableLoading,
-    weixinModelSelection,
     wecomPluginStatus,
     wecomEnableLoading,
-    wecomModelSelection,
     webuiStatus,
     renderExtensionConfigForm,
     t,

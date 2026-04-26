@@ -13,7 +13,6 @@
  * the app is launched from Finder / launchd instead of a terminal.
  */
 
-import { getPlatformServices } from '@/common/platform';
 import { execFile, execFileSync, spawn } from 'child_process';
 import { accessSync, existsSync, readdirSync } from 'fs';
 import os from 'os';
@@ -21,25 +20,6 @@ import path from 'path';
 
 /** Enable ACP performance diagnostics via ACP_PERF=1 */
 const PERF_LOG = process.env.ACP_PERF === '1';
-
-// ---------------------------------------------------------------------------
-// Bundled bun runtime
-// ---------------------------------------------------------------------------
-
-/**
- * Get the directory containing the bundled bun binary.
- * Returns the path to `resources/bundled-bun/<platform>-<arch>/` which contains
- * the bun executable. Returns null if the directory doesn't exist.
- */
-export function getBundledBunDir(): string | null {
-  const resourcesPath = getPlatformServices().paths.isPackaged()
-    ? process.resourcesPath
-    : path.join(process.cwd(), 'resources');
-  const platform = process.platform === 'win32' ? 'win32' : process.platform;
-  const arch = process.arch;
-  const bunDir = path.join(resourcesPath, 'bundled-bun', `${platform}-${arch}`);
-  return existsSync(bunDir) ? bunDir : null;
-}
 
 /**
  * Get the path to the user's bun global bin directory.
@@ -419,13 +399,6 @@ export function getEnhancedEnv(customEnv?: Record<string, string>): Record<strin
     mergedPath = mergePaths(mergedPath, posixExtraPaths.join(':'));
   }
 
-  // Prepend bundled bun directory (highest priority — ensures extensions always
-  // have access to bun/bunx even if the user hasn't installed it)
-  const bundledBunDir = getBundledBunDir();
-  if (bundledBunDir) {
-    mergedPath = `${bundledBunDir}${separator}${mergedPath}`;
-  }
-
   return {
     ...process.env,
     ...shellEnv,
@@ -565,17 +538,12 @@ export function getWindowsShellExecutionOptions(): {
  * @param env - Environment to use for locating node/npx (should include shell PATH)
  * @returns Absolute path to a modern npx, or bare `npx` as fallback
  */
-export function normalizeNpxArgsForBundledBun(args: string[]): string[] {
+export function normalizeNpxArgsForNpx(args: string[]): string[] {
   return args.filter((arg) => arg !== '-y' && arg !== '--yes' && arg !== '--prefer-offline');
 }
 
 export function resolveNpxPath(_env: Record<string, string | undefined>): string {
-  const bundledBunDir = getBundledBunDir();
-  if (bundledBunDir) {
-    return path.join(bundledBunDir, process.platform === 'win32' ? 'bun.exe' : 'bun');
-  }
-
-  return process.platform === 'win32' ? 'bun.exe' : 'bun';
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
 }
 
 /**

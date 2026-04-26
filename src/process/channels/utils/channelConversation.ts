@@ -25,18 +25,14 @@ export function buildChannelConversationExtra(args: {
   enabledSkills?: string[];
 } {
   const enabledSkills = getChannelEnabledSkills(args.platform);
+  const backend = args.backend === 'gemini' || args.backend === 'aionrs' ? 'codex' : args.backend;
 
-  if (
-    args.backend === 'gemini' ||
-    args.backend === 'aionrs' ||
-    args.backend === 'codex' ||
-    args.backend === 'openclaw-gateway'
-  ) {
+  if (backend === 'codex' || backend === 'openclaw-gateway') {
     return enabledSkills ? { enabledSkills } : {};
   }
 
   return {
-    backend: args.backend as AcpBackend,
+    backend: backend as AcpBackend,
     customAgentId: args.customAgentId,
     agentName: args.agentName,
     ...(enabledSkills ? { enabledSkills } : {}),

@@ -373,16 +373,16 @@ describe('ConversationServiceImpl.createWithMigration', () => {
 describe('ConversationServiceImpl.createConversation', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('creates and saves a gemini conversation', async () => {
+  it('creates and saves a Codex ACP conversation', async () => {
     const repo = makeRepo();
     const svc = new ConversationServiceImpl(repo);
     const result = await svc.createConversation({
-      type: 'gemini',
-      model: { provider: 'google', model: 'gemini-2.0-flash' } as any,
-      extra: { workspace: '/ws' },
+      type: 'acp',
+      model: {} as any,
+      extra: { workspace: '/ws', backend: 'codex' },
     });
-    expect(result.type).toBe('gemini');
-    expect(repo.createConversation).toHaveBeenCalledWith(expect.objectContaining({ type: 'gemini' }));
+    expect(result.type).toBe('acp');
+    expect(repo.createConversation).toHaveBeenCalledWith(expect.objectContaining({ type: 'acp' }));
   });
 
   it('creates and saves an acp conversation', async () => {
@@ -415,10 +415,11 @@ describe('ConversationServiceImpl.createConversation', () => {
     const repo = makeRepo();
     const svc = new ConversationServiceImpl(repo);
     const result = await svc.createConversation({
-      type: 'gemini',
-      model: { provider: 'gemini', model: 'gemini-2.0-flash' } as any,
+      type: 'acp',
+      model: {} as any,
       extra: {
         workspace: '/workspace',
+        backend: 'codex',
         cronJobId: 'job-123',
       },
     });
@@ -436,12 +437,12 @@ describe('ConversationServiceImpl.createConversation', () => {
   });
 
   it('does not overwrite factory-produced extra fields with params extra', async () => {
-    const { createGeminiAgent } = await import('../../src/process/utils/initAgent');
-    vi.mocked(createGeminiAgent).mockResolvedValueOnce({
+    const { createAcpAgent } = await import('../../src/process/utils/initAgent');
+    vi.mocked(createAcpAgent).mockResolvedValueOnce({
       id: 'agent-conv-id',
-      name: 'Gemini Agent',
-      type: 'gemini',
-      model: { provider: 'gemini', model: 'gemini-2.0-flash' },
+      name: 'Codex Agent',
+      type: 'acp',
+      model: {},
       createTime: 1000,
       modifyTime: 1000,
       source: 'create' as const,
@@ -452,10 +453,11 @@ describe('ConversationServiceImpl.createConversation', () => {
     const svc = new ConversationServiceImpl(repo);
 
     await svc.createConversation({
-      type: 'gemini',
-      model: { provider: 'gemini', model: 'gemini-2.0-flash' } as any,
+      type: 'acp',
+      model: {} as any,
       extra: {
         workspace: '/params-workspace', // Should be ignored (factory takes precedence)
+        backend: 'codex',
         cronJobId: 'job-123', // Should be added (not in factory)
       },
     });

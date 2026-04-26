@@ -43,7 +43,7 @@ describe('buildAgentConversationParams', () => {
     });
   });
 
-  it('builds preset gemini params with rules and enabled skills', () => {
+  it('normalizes retired Gemini preset params to Codex ACP', () => {
     const params = buildAgentConversationParams({
       backend: 'gemini',
       name: 'Preset Gemini',
@@ -60,15 +60,16 @@ describe('buildAgentConversationParams', () => {
     });
 
     expect(params).toEqual({
-      type: 'gemini',
+      type: 'acp',
       name: 'Preset Gemini',
       model: { id: 'provider-1', useModel: 'gemini-2.0-flash' },
       extra: expect.objectContaining({
         workspace: '/workspace',
         customWorkspace: true,
         presetAssistantId: 'assistant-1',
-        presetRules: 'PRESET RULES',
-        enabledSkills: ['skill-a'],
+        presetContext: 'PRESET RULES',
+        enabledSkills: expect.arrayContaining(['mas', 'mag', 'rca', 'skill-a']),
+        backend: 'codex',
       }),
     });
   });

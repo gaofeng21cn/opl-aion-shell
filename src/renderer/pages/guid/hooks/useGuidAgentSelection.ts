@@ -229,7 +229,7 @@ export const useGuidAgentSelection = ({
       const assistant = customAgents.find((a) => a.id === customAgentId);
       if (assistant) {
         return {
-          backend: assistant.presetAgentType || 'gemini',
+          backend: assistant.presetAgentType || 'codex',
           name: assistant.name,
           customAgentId: assistant.id,
           isPreset: true,
@@ -291,7 +291,8 @@ export const useGuidAgentSelection = ({
 
     if (resetAssistant && !resetHandledRef.current) {
       resetHandledRef.current = true;
-      const preferredAgent = availableAgents.find((a) => getAgentKey(a) === 'codex') || availableAgents.find((a) => !a.isPreset);
+      const preferredAgent =
+        availableAgents.find((a) => getAgentKey(a) === 'codex') || availableAgents.find((a) => !a.isPreset);
       const fallbackKey = preferredAgent ? getAgentKey(preferredAgent) : 'codex';
       _setSelectedAgentKey(fallbackKey);
       ConfigStorage.set('guid.lastSelectedAgent', fallbackKey).catch((error) => {
@@ -450,7 +451,8 @@ export const useGuidAgentSelection = ({
   useEffect(() => {
     _setSelectedMode('default');
     // For preset agents, use the effective backend type for config lookup and mode saving
-    const configKey = isPresetAgent ? currentEffectiveAgentInfo.agentType : selectedAgent;
+    const rawConfigKey = isPresetAgent ? currentEffectiveAgentInfo.agentType : selectedAgent;
+    const configKey = rawConfigKey === 'gemini' || rawConfigKey === 'aionrs' ? 'codex' : rawConfigKey;
     selectedAgentRef.current = configKey;
     if (!configKey) return;
 
@@ -462,19 +464,10 @@ export const useGuidAgentSelection = ({
         let preferred: string | undefined;
         let yoloMode = false;
 
-        if (configKey === 'gemini') {
-          const config = await ConfigStorage.get('gemini.config');
-          preferred = config?.preferredMode;
-          yoloMode = config?.yoloMode ?? false;
-        } else if (configKey === 'aionrs') {
-          const config = await ConfigStorage.get('aionrs.config');
-          preferred = config?.preferredMode;
-        } else {
-          const config = await ConfigStorage.get('acp.config');
-          const backendConfig = config?.[configKey as AcpBackendAll] as Record<string, unknown> | undefined;
-          preferred = backendConfig?.preferredMode as string | undefined;
-          yoloMode = (backendConfig?.yoloMode as boolean) ?? false;
-        }
+        const config = await ConfigStorage.get('acp.config');
+        const backendConfig = config?.[configKey as AcpBackendAll] as Record<string, unknown> | undefined;
+        preferred = backendConfig?.preferredMode as string | undefined;
+        yoloMode = (backendConfig?.yoloMode as boolean) ?? false;
 
         if (cancelled) return;
 
@@ -543,7 +536,7 @@ export const useGuidAgentSelection = ({
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
     const firstCliAgent = availableAgents?.find((a) => !a.isPreset);
-    return firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
+    return firstCliAgent ? getAgentKey(firstCliAgent) : 'codex';
   }, [availableAgents]);
 
   return {

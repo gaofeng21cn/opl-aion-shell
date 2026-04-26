@@ -436,7 +436,6 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     }
   }
 
-
   // Ensure user skills directory exists
   if (!existsSync(userSkillsDir)) {
     mkdirSync(userSkillsDir);
@@ -577,8 +576,7 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
       preset.id === 'openclaw-setup' ||
       preset.id === 'star-office-helper' ||
       preset.id === 'story-roleplay' ||
-      preset.id === 'moltbook' ||
-      preset.id === 'beautiful-mermaid';
+      preset.id === 'moltbook';
 
     assistants.push({
       id: `builtin-${preset.id}`,

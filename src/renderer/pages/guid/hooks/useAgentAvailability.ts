@@ -25,19 +25,15 @@ type UseAgentAvailabilityResult = {
  * Determines whether agents are available and provides fallback resolution.
  */
 export const useAgentAvailability = ({
-  modelList,
-  isGoogleAuth,
   availableAgents,
   resolvePresetAgentType,
 }: UseAgentAvailabilityOptions): UseAgentAvailabilityResult => {
   const isMainAgentAvailable = useCallback(
     (agentType: string): boolean => {
-      if (agentType === 'gemini') {
-        return isGoogleAuth || (modelList != null && modelList.length > 0);
-      }
-      return availableAgents?.some((agent) => agent.backend === agentType) ?? false;
+      const backend = agentType === 'gemini' || agentType === 'aionrs' ? 'codex' : agentType;
+      return availableAgents?.some((agent) => agent.backend === backend) ?? backend === 'codex';
     },
-    [modelList, availableAgents, isGoogleAuth]
+    [availableAgents]
   );
 
   const getEffectiveAgentType = useCallback(

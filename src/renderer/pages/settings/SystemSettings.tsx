@@ -70,11 +70,21 @@ type CoreEngines = {
   hermes?: CoreEngineStatus;
 };
 
+type WorkspaceRootStatus = {
+  selected_path?: string | null;
+  health_status?: string | null;
+};
+
 type SystemInitializePayload = {
   system_initialize?: {
     core_engines?: CoreEngines;
     domain_modules?: {
       modules?: OplModuleStatus[];
+    };
+    workspace_root?: WorkspaceRootStatus;
+    recommended_next_action?: {
+      action_id?: string;
+      label?: string;
     };
   };
 };
@@ -244,6 +254,7 @@ const OplEnvironmentContent: React.FC = () => {
   const [runningAction, setRunningAction] = useState<string | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<OplModuleStatus[]>([]);
   const [coreEngines, setCoreEngines] = useState<CoreEngines>({});
+  const [workspaceRoot, setWorkspaceRoot] = useState<WorkspaceRootStatus | undefined>();
   const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
   const [brandName, setBrandName] = useState(OPL_DEFAULT_BRAND_NAME);
 
@@ -262,6 +273,7 @@ const OplEnvironmentContent: React.FC = () => {
           const initialize = parseSystemInitialize(systemResult.stdout);
           setCoreEngines(initialize?.core_engines ?? {});
           setModuleStatuses(initialize?.domain_modules?.modules ?? []);
+          setWorkspaceRoot(initialize?.workspace_root);
           return;
         }
 
@@ -326,8 +338,21 @@ const OplEnvironmentContent: React.FC = () => {
         setRunningAction(null);
       }
     },
-    [loadEnvironment, message]
+    [loadEnvironment, message, t]
   );
+
+  const handleChooseWorkspaceRoot = useCallback(async () => {
+    const result = await ipcBridge.dialog.showOpen.invoke({
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    const selectedPath = result?.[0];
+    if (!selectedPath) return;
+    await runOplCommand(
+      ['workspace', 'root', 'set', '--path', selectedPath],
+      'workspace-root',
+      t('settings.oplEnvironmentPage.messages.workspaceRootSaved')
+    );
+  }, [runOplCommand, t]);
 
   return (
     <div className='flex flex-col gap-16px'>
@@ -354,6 +379,27 @@ const OplEnvironmentContent: React.FC = () => {
             onBlur={handleBrandNameBlur}
             onPressEnter={handleBrandNameBlur}
           />
+        </div>
+      </Card>
+
+      <Card bordered className='rounded-xl'>
+        <div className='flex items-center justify-between gap-16px'>
+          <div className='min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.workspaceRootTitle')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary truncate'>
+              {workspaceRoot?.selected_path || t('settings.oplEnvironmentPage.workspaceRootMissing')}
+            </Typography.Text>
+            {workspaceRoot?.health_status && (
+              <Tag size='small' color={workspaceRoot.health_status === 'ready' ? 'green' : 'orange'}>
+                {workspaceRoot.health_status}
+              </Tag>
+            )}
+          </div>
+          <Button loading={runningAction === 'workspace-root'} onClick={() => void handleChooseWorkspaceRoot()}>
+            {t('settings.oplEnvironmentPage.actions.chooseWorkspaceRoot')}
+          </Button>
         </div>
       </Card>
 

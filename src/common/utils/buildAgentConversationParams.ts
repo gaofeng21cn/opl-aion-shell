@@ -33,12 +33,13 @@ export type BuildAgentConversationInput = {
   extra?: Partial<ICreateConversationParams['extra']>;
 };
 
+function normalizeBackend(backend: string): string {
+  if (backend === 'gemini' || backend === 'aionrs') return 'codex';
+  return backend;
+}
+
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
-  switch (backend) {
-    case 'gemini':
-      return 'gemini';
-    case 'aionrs':
-      return 'aionrs';
+  switch (normalizeBackend(backend)) {
     case 'openclaw-gateway':
     case 'openclaw':
       return 'openclaw-gateway';
@@ -70,9 +71,10 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     extra: extraOverrides,
   } = input;
 
-  const effectivePresetType = presetAgentType || backend;
+  const normalizedBackend = normalizeBackend(backend);
+  const effectivePresetType = normalizeBackend(presetAgentType || normalizedBackend);
   const effectivePresetAssistantId = presetAssistantId || customAgentId;
-  const type = getConversationTypeForBackend(isPreset ? effectivePresetType : backend);
+  const type = getConversationTypeForBackend(isPreset ? effectivePresetType : normalizedBackend);
   const extra: ICreateConversationParams['extra'] = {
     workspace,
     customWorkspace,
@@ -94,7 +96,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
         extra.backend = effectivePresetType as AcpBackend;
       }
     }
-  } else if (backend === 'codex') {
+  } else if (normalizedBackend === 'codex') {
     extra.enabledSkills = mergeOplDefaultCodexSkills(extra.enabledSkills);
     extra.backend = 'codex' as AcpBackendAll;
     extra.agentName = agentName || name;
@@ -105,7 +107,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   } else if (type === 'remote') {
     extra.remoteAgentId = customAgentId;
   } else if (type === 'acp' || type === 'openclaw-gateway') {
-    extra.backend = backend as AcpBackendAll;
+    extra.backend = normalizedBackend as AcpBackendAll;
     extra.agentName = agentName || name;
     if (cliPath) extra.cliPath = cliPath;
     if (customAgentId) {

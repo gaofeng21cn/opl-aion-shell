@@ -47,18 +47,6 @@ files:
   - node_modules/default-browser-id/**/*
   - node_modules/run-applescript/**/*
   - node_modules/bundle-name/**/*
-  # tree-sitter WASM dependencies
-  - node_modules/web-tree-sitter/**/*
-  - node_modules/tree-sitter-bash/**/*
-  # CRITICAL: Exclude ALL tree-sitter native binaries to prevent signing issues
-  - '!**/node_modules/tree-sitter-*/prebuilds/**'
-  - '!**/node_modules/tree-sitter-*/build/**'
-  - '!**/node_modules/tree-sitter-*/src/**'
-  - '!**/node_modules/tree-sitter-*/**/*.node'
-  - '!**/node_modules/tree-sitter-*/**/*.obj'
-  - '!**/node_modules/tree-sitter-*/**/*.o'
-  - '!**/node_modules/tree-sitter-*/**/*.cc'
-  - '!**/node_modules/tree-sitter-*/**/*.c'
   # Exclude dev/test files
   - '!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}'
   - '!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples}/**/*'
@@ -69,6 +57,10 @@ files:
   - '!**/node_modules/**/*.{tsbuildinfo,flow}'
   - '!**/node_modules/**/.bin/**'
   - '!**/node_modules/**/{docs,documentation}/**/*'
+  - '!**/node_modules/**/{benchmark,benchmarks,coverage}/**/*'
+  - '!**/node_modules/**/*.{ts,mts,cts,tsx,jsx,md,markdown,map,flow,tsbuildinfo}'
+  - '!**/node_modules/**/*.{c,cc,cpp,cxx,h,hpp,hh,proto}'
+  - '!**/node_modules/**/{.github,.vscode}/**/*'
   # Exclude system files
   - '!**/{.DS_Store,.git,.gitignore,.gitattributes}'
   - '!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}'
@@ -104,17 +96,11 @@ files:
   - '!**/node_modules/refractor/**'
   - '!**/node_modules/shiki/**'
   - '!**/node_modules/streamdown/**'
-  # OPL's default runtime is Codex. The retained AionUI Gemini runtime can fall
-  # back to approximate OpenAI token counting when tiktoken is unavailable.
+  # OPL's default runtime is Codex; tokenizer extras are not needed in package.
   - '!**/node_modules/tiktoken/**'
-  # OPL does not bundle direct Google Cloud telemetry exporters. The build
-  # script replaces @office-ai/aioncli-core's GCP exporter module with a small
-  # explicit stub before Vite/electron-builder run.
   - '!**/node_modules/@google-cloud/**'
   - '!**/node_modules/googleapis/**'
   - '!**/node_modules/googleapis-common/**'
-  - '!**/node_modules/@office-ai/aioncli-core/dist/docs/**'
-  - '!**/node_modules/@office-ai/aioncli-core/dist/src/**/*.test.js'
   # Keep better_sqlite3.node and runtime JS, but drop compile sources and object
   # files that are not needed by the packaged app.
   - '!**/node_modules/better-sqlite3/deps/**'
@@ -124,6 +110,9 @@ files:
   - '!**/node_modules/better-sqlite3/build/Release/{sqlite3.a,test_extension.node}'
   - '!**/node_modules/@anthropic-ai/claude-code/vendor/**'
   - '!**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/**'
+  - '!**/node_modules/electron-winstaller/**'
+  - '!**/node_modules/postject/**'
+  - '!**/node_modules/@electron/windows-sign/**'
   # Exclude JAR files and JNI libraries that cause notarization issues
   - '!**/*.jar'
   - '!**/*.jnilib'
@@ -137,11 +126,15 @@ files:
   - 'node_modules/qrcode-terminal/vendor/**'
   # Exclude vite source maps
   - '!**/*.map'
+  - '!**/node_modules/node-pty/prebuilds/win32-*/**'
+  - '!**/node_modules/node-pty/prebuilds/linux-*/**'
+  - '!**/node_modules/node-pty/prebuilds/darwin-x64/**'
   # Exclude syntax highlighter languages (keep common ones)
   - '!**/out/**/react-syntax-highlighter_languages_highlight_*'
   - 'out/**/react-syntax-highlighter_languages_highlight_{javascript,typescript,python,java,cpp,c,html,css,json,xml,yaml,shell,bash,dockerfile,sql,markdown,go,rust,php}'
   # Ensure vendor chunks from manual splitting are included
   - 'out/renderer/**/vendor-*.js'
+  - '!out/main/assistant/**/*'
   # Remap viteStaticCopy output (out/main/assistant/, out/main/static/)
   # to root-level directories inside the asar, so runtime path resolution stays simple.
   - from: out/main/assistant
@@ -154,10 +147,6 @@ extraResources:
     to: .
   - from: resources/app.png
     to: app.png
-  - from: resources/bundled-bun
-    to: bundled-bun
-  - from: resources/hub
-    to: hub
 win:
   target:
     - nsis
@@ -247,9 +236,6 @@ asarUnpack:
   - '**/node_modules/default-browser-id/**/*'
   - '**/node_modules/run-applescript/**/*'
   - '**/node_modules/bundle-name/**/*'
-  # tree-sitter WASM files need to be unpacked for fs.readFile access
-  - '**/node_modules/web-tree-sitter/**/*'
-  - '**/node_modules/tree-sitter-bash/**/*'
   # skills/ and assistant/ no longer need asarUnpack:
   # initStorage copies them from asar to config/builtin-skills/ and config/assistants/
   # at startup, so all runtime reads go through the user directory, not asar.

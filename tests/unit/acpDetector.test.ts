@@ -10,6 +10,7 @@ const mockDetectExtensionAgents = vi.fn(async () => []);
 const mockDetectCustomAgents = vi.fn(async () => []);
 const mockClearEnvCache = vi.fn();
 const mockIsCliAvailable = vi.fn(() => false);
+const mockGetRemoteAgents = vi.fn(() => []);
 
 vi.mock('@process/agent/acp/AcpDetector', () => ({
   acpDetector: {
@@ -19,6 +20,12 @@ vi.mock('@process/agent/acp/AcpDetector', () => ({
     clearEnvCache: (...args: unknown[]) => mockClearEnvCache(...args),
     isCliAvailable: (...args: unknown[]) => mockIsCliAvailable(...args),
   },
+}));
+
+vi.mock('@process/services/database', () => ({
+  getDatabase: vi.fn().mockResolvedValue({
+    getRemoteAgents: (...args: unknown[]) => mockGetRemoteAgents(...args),
+  }),
 }));
 
 import type { AcpDetectedAgent } from '../../src/common/types/detectedAgent';
@@ -59,6 +66,7 @@ describe('AgentRegistry', () => {
     mockDetectExtensionAgents.mockResolvedValue([]);
     mockDetectCustomAgents.mockResolvedValue([]);
     mockIsCliAvailable.mockReturnValue(false);
+    mockGetRemoteAgents.mockReturnValue([]);
   });
 
   describe('initialize', () => {
@@ -78,12 +86,10 @@ describe('AgentRegistry', () => {
       await registry.initialize();
       const agents = registry.getDetectedAgents();
 
-      // Aionrs always first, Gemini always second, then ACP agents
-      expect(agents).toHaveLength(4);
-      expect(agents[0].backend).toBe('aionrs');
-      expect(agents[1].backend).toBe('gemini');
-      expect(agents[2]).toMatchObject({ backend: 'claude', cliPath: 'claude' });
-      expect(agents[3]).toMatchObject({ backend: 'qwen', cliPath: 'qwen' });
+      expect(agents).toHaveLength(2);
+      expect(agents[0]).toMatchObject({ backend: 'claude', cliPath: 'claude' });
+      expect(agents[1]).toMatchObject({ backend: 'qwen', cliPath: 'qwen' });
+      expect(mockDetectExtensionAgents).not.toHaveBeenCalled();
     });
 
     it('should skip built-in CLIs that are not available', async () => {
@@ -95,50 +101,19 @@ describe('AgentRegistry', () => {
       await registry.initialize();
       const agents = registry.getDetectedAgents();
 
-      expect(agents).toHaveLength(3); // gemini + aionrs + claude
+      expect(agents).toHaveLength(1);
       expect(agents.find((a) => a.backend === 'qwen')).toBeUndefined();
       expect(agents.find((a) => a.backend === 'auggie')).toBeUndefined();
     });
 
-    it('should always include Aionrs first and Gemini second', async () => {
+    it('should not add legacy Aionrs or Gemini agents when no Codex ACP backend is detected', async () => {
       const registry = await createFreshRegistry();
       await registry.initialize();
       const agents = registry.getDetectedAgents();
 
-      expect(agents).toHaveLength(2); // aionrs + gemini
-      expect(agents[0]).toMatchObject({ backend: 'aionrs', name: 'Aion CLI' });
-      expect(agents[1]).toMatchObject({ backend: 'gemini', name: 'Gemini CLI' });
-    });
-
-    it('should detect extension-contributed agents when CLI is available', async () => {
-      mockDetectExtensionAgents.mockResolvedValue([
-        makeAcpAgent({
-          id: 'goose',
-          name: 'Goose',
-          backend: 'custom',
-          cliPath: 'goose',
-          isExtension: true,
-          extensionName: 'aionext-goose',
-        }),
-      ]);
-
-      const registry = await createFreshRegistry();
-      await registry.initialize();
-      const agents = registry.getDetectedAgents();
-
-      const gooseAgent = agents.find((a) => a.kind === 'acp' && a.cliPath === 'goose');
-      expect(gooseAgent).toBeDefined();
-    });
-
-    it('should skip extension agents whose CLI is not available', async () => {
-      // detectExtensionAgents returns empty when CLI not available
-      mockDetectExtensionAgents.mockResolvedValue([]);
-
-      const registry = await createFreshRegistry();
-      await registry.initialize();
-      const agents = registry.getDetectedAgents();
-
-      expect(agents).toHaveLength(2); // gemini + aionrs
+      expect(agents).toHaveLength(0);
+      expect(agents.find((a) => a.backend === 'aionrs')).toBeUndefined();
+      expect(agents.find((a) => a.backend === 'gemini')).toBeUndefined();
     });
 
     it('should not run twice (isDetected guard)', async () => {
@@ -152,7 +127,7 @@ describe('AgentRegistry', () => {
 
       // detectBuiltinAgents called only during first init
       expect(mockDetectBuiltinAgents).toHaveBeenCalledTimes(1);
-      expect(mockDetectExtensionAgents).toHaveBeenCalledTimes(1);
+      expect(mockDetectExtensionAgents).not.toHaveBeenCalled();
 
       await registry.initialize(); // third call — still no-op
       expect(mockDetectBuiltinAgents).toHaveBeenCalledTimes(1);
@@ -163,15 +138,11 @@ describe('AgentRegistry', () => {
     it('should deduplicate by backend — builtin wins over extension with same backend', async () => {
       mockDetectBuiltinAgents.mockResolvedValue([
         makeAcpAgent({ id: 'qwen', name: 'Qwen Code', backend: 'qwen', cliPath: 'qwen' }),
-      ]);
-      mockDetectExtensionAgents.mockResolvedValue([
         makeAcpAgent({
-          id: 'qwen-ext',
-          name: 'Qwen Code',
+          id: 'qwen-duplicate',
+          name: 'Qwen Duplicate',
           backend: 'qwen',
-          cliPath: 'bunx @qwen/qwen',
-          isExtension: true,
-          extensionName: 'aionext-qwen',
+          cliPath: '/opt/qwen',
         }),
       ]);
 
@@ -181,44 +152,21 @@ describe('AgentRegistry', () => {
 
       const qwenAgents = agents.filter((a) => a.backend === 'qwen');
       expect(qwenAgents).toHaveLength(1);
-      expect(qwenAgents[0].cliPath).toBe('qwen'); // builtin wins
+      expect(qwenAgents[0].cliPath).toBe('qwen'); // first detected backend wins
       expect(qwenAgents[0].isExtension).toBeUndefined();
     });
 
-    it('should keep extension agent when no builtin has the same backend', async () => {
-      mockDetectExtensionAgents.mockResolvedValue([
-        makeAcpAgent({
-          id: 'unique',
-          name: 'Unique Agent',
-          backend: 'unique',
-          cliPath: 'custom-cli',
-          isExtension: true,
-          extensionName: 'ext-unique',
-        }),
-      ]);
-
+    it('should return no agents for empty detector results', async () => {
       const registry = await createFreshRegistry();
       await registry.initialize();
       const agents = registry.getDetectedAgents();
 
-      const agent = agents.find((a) => a.backend === 'unique');
-      expect(agent).toBeDefined();
-      expect(agent!.isExtension).toBe(true);
-    });
-
-    it('should always include aionrs and gemini', async () => {
-      const registry = await createFreshRegistry();
-      await registry.initialize();
-      const agents = registry.getDetectedAgents();
-
-      expect(agents).toHaveLength(2);
-      expect(agents[0].backend).toBe('aionrs');
-      expect(agents[1].backend).toBe('gemini');
+      expect(agents).toHaveLength(0);
     });
   });
 
   describe('refreshExtensionAgents', () => {
-    it('should remove old extension agents and add newly detected ones', async () => {
+    it('should ignore AionUI extension-contributed ACP agents', async () => {
       mockDetectBuiltinAgents.mockResolvedValue([
         makeAcpAgent({ id: 'claude', name: 'Claude Code', backend: 'claude', cliPath: 'claude' }),
       ]);
@@ -228,7 +176,6 @@ describe('AgentRegistry', () => {
 
       expect(registry.getDetectedAgents().find((a) => a.isExtension)).toBeUndefined();
 
-      // Now an extension is installed that contributes a new CLI
       mockDetectExtensionAgents.mockResolvedValue([
         makeAcpAgent({
           id: 'new',
@@ -244,62 +191,14 @@ describe('AgentRegistry', () => {
       const agents = registry.getDetectedAgents();
 
       const extAgent = agents.find((a) => a.kind === 'acp' && a.cliPath === 'new-ext-cli');
-      expect(extAgent).toBeDefined();
-      expect(extAgent!.isExtension).toBe(true);
-    });
-
-    it('should remove extension agents whose CLI is no longer available', async () => {
-      mockDetectExtensionAgents.mockResolvedValue([
-        makeAcpAgent({
-          id: 'temp',
-          name: 'Temp',
-          backend: 'custom',
-          cliPath: 'ext-cli',
-          isExtension: true,
-          extensionName: 'ext-temp',
-        }),
-      ]);
-
-      const registry = await createFreshRegistry();
-      await registry.initialize();
-      expect(registry.getDetectedAgents().find((a) => a.kind === 'acp' && a.cliPath === 'ext-cli')).toBeDefined();
-
-      // CLI removed — detectExtensionAgents returns empty
-      mockDetectExtensionAgents.mockResolvedValue([]);
-      await registry.refreshExtensionAgents();
-
-      expect(registry.getDetectedAgents().find((a) => a.kind === 'acp' && a.cliPath === 'ext-cli')).toBeUndefined();
-    });
-
-    it('should deduplicate by backend after refresh — builtin wins', async () => {
-      mockDetectBuiltinAgents.mockResolvedValue([
-        makeAcpAgent({ id: 'qwen', name: 'Qwen Code', backend: 'qwen', cliPath: 'qwen' }),
-      ]);
-
-      const registry = await createFreshRegistry();
-      await registry.initialize();
-
-      // Extension contributes same backend as builtin
-      mockDetectExtensionAgents.mockResolvedValue([
-        makeAcpAgent({
-          id: 'qwen-ext',
-          name: 'Qwen Ext',
-          backend: 'qwen',
-          cliPath: 'bunx @qwen/qwen',
-          isExtension: true,
-          extensionName: 'aionext-qwen',
-        }),
-      ]);
-
-      await registry.refreshExtensionAgents();
-      const qwenAgents = registry.getDetectedAgents().filter((a) => a.backend === 'qwen');
-      expect(qwenAgents).toHaveLength(1);
-      expect(qwenAgents[0].cliPath).toBe('qwen'); // builtin wins
+      expect(extAgent).toBeUndefined();
+      expect(mockDetectExtensionAgents).not.toHaveBeenCalled();
+      expect(agents.map((agent) => agent.backend)).toEqual(['claude']);
     });
   });
 
   describe('refreshBuiltinAgents', () => {
-    it('should keep Aionrs and Gemini ahead of builtin agents after refresh', async () => {
+    it('should refresh builtin ACP agents without adding legacy Aionrs or Gemini agents', async () => {
       mockDetectBuiltinAgents.mockResolvedValue([
         makeAcpAgent({ id: 'claude', name: 'Claude Code', backend: 'claude', cliPath: 'claude' }),
         makeAcpAgent({ id: 'qwen', name: 'Qwen Code', backend: 'qwen', cliPath: 'qwen' }),
@@ -311,9 +210,7 @@ describe('AgentRegistry', () => {
       await registry.refreshBuiltinAgents();
       const agents = registry.getDetectedAgents();
 
-      expect(agents[0].backend).toBe('aionrs');
-      expect(agents[1].backend).toBe('gemini');
-      expect(agents.slice(2).map((agent) => agent.backend)).toEqual(['claude', 'qwen']);
+      expect(agents.map((agent) => agent.backend)).toEqual(['claude', 'qwen']);
     });
 
     it('should clear env cache before re-detecting', async () => {
@@ -326,7 +223,10 @@ describe('AgentRegistry', () => {
   });
 
   describe('hasAgents', () => {
-    it('should return true after initialization (Gemini is always present)', async () => {
+    it('should return true after initialization when a Codex ACP backend is detected', async () => {
+      mockDetectBuiltinAgents.mockResolvedValue([
+        makeAcpAgent({ id: 'codex', name: 'Codex', backend: 'codex', cliPath: 'codex' }),
+      ]);
       const registry = await createFreshRegistry();
       await registry.initialize();
       expect(registry.hasAgents()).toBe(true);
@@ -350,7 +250,7 @@ describe('AgentRegistry', () => {
 
       expect(mockClearEnvCache).toHaveBeenCalled();
       expect(mockDetectBuiltinAgents).toHaveBeenCalledTimes(1);
-      expect(mockDetectExtensionAgents).toHaveBeenCalledTimes(1);
+      expect(mockDetectExtensionAgents).not.toHaveBeenCalled();
     });
   });
 });

@@ -5,9 +5,6 @@
 
 const { execSync } = require('child_process');
 
-// Note: web-tree-sitter is now a direct dependency in package.json
-// No need for symlinks or copying - npm will install it directly to node_modules
-
 function runPostInstall() {
   try {
     // Check if we're in a CI environment

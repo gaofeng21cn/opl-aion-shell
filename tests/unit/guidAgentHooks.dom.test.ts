@@ -67,7 +67,7 @@ describe('useAgentAvailability', () => {
   ];
 
   const stubResolvePresetAgentType = (info: { backend: string; customAgentId?: string } | undefined) =>
-    info?.customAgentId ? 'gemini' : (info?.backend ?? 'gemini');
+    info?.customAgentId ? 'codex' : (info?.backend ?? 'codex');
 
   // -- isMainAgentAvailable ---------------------------------------------------
 
@@ -98,12 +98,12 @@ describe('useAgentAvailability', () => {
     expect(result.current.isMainAgentAvailable('codex')).toBe(false);
   });
 
-  it('isMainAgentAvailable returns true for gemini when isGoogleAuth is true', () => {
+  it('isMainAgentAvailable maps legacy gemini to Codex availability', () => {
     const { result } = renderHook(() =>
       useAgentAvailability({
         modelList: [],
-        isGoogleAuth: true,
-        availableAgents: [],
+        isGoogleAuth: false,
+        availableAgents: [{ backend: 'codex', name: 'Codex' }],
         resolvePresetAgentType: stubResolvePresetAgentType,
       })
     );
@@ -111,7 +111,7 @@ describe('useAgentAvailability', () => {
     expect(result.current.isMainAgentAvailable('gemini')).toBe(true);
   });
 
-  it('isMainAgentAvailable returns true for gemini when modelList has entries', () => {
+  it('isMainAgentAvailable no longer treats model providers as Gemini availability', () => {
     const { result } = renderHook(() =>
       useAgentAvailability({
         modelList: defaultModelList,
@@ -121,7 +121,7 @@ describe('useAgentAvailability', () => {
       })
     );
 
-    expect(result.current.isMainAgentAvailable('gemini')).toBe(true);
+    expect(result.current.isMainAgentAvailable('gemini')).toBe(false);
   });
 
   it('isMainAgentAvailable returns false for gemini when no auth and no models', () => {
@@ -219,16 +219,16 @@ describe('usePresetAssistantResolver', () => {
     expect(result.current.resolvePresetAgentType({ backend: 'qwen', customAgentId: 'agent-beta' })).toBe('qwen');
   });
 
-  it('resolvePresetAgentType defaults to gemini for unknown preset agent', () => {
+  it('resolvePresetAgentType defaults to codex for unknown preset agent', () => {
     const { result } = renderHook(() => usePresetAssistantResolver({ customAgents, localeKey: 'en-US' }));
 
-    expect(result.current.resolvePresetAgentType({ backend: 'claude', customAgentId: 'unknown-id' })).toBe('gemini');
+    expect(result.current.resolvePresetAgentType({ backend: 'claude', customAgentId: 'unknown-id' })).toBe('codex');
   });
 
-  it('resolvePresetAgentType returns gemini when agentInfo is undefined', () => {
+  it('resolvePresetAgentType returns codex when agentInfo is undefined', () => {
     const { result } = renderHook(() => usePresetAssistantResolver({ customAgents, localeKey: 'en-US' }));
 
-    expect(result.current.resolvePresetAgentType(undefined)).toBe('gemini');
+    expect(result.current.resolvePresetAgentType(undefined)).toBe('codex');
   });
 
   // -- resolveEnabledSkills ---------------------------------------------------

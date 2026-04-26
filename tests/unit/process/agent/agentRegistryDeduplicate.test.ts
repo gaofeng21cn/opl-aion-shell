@@ -90,18 +90,14 @@ describe('AgentRegistry.deduplicate', () => {
     mockGetRemoteAgents.mockReturnValue([]);
   });
 
-  it('keeps the first agent when two agents share the same backend', async () => {
+  it('keeps the first builtin agent when two agents share the same backend', async () => {
     mockDetectBuiltinAgents.mockResolvedValue([
       makeAcpAgent({ id: 'qwen-v1', name: 'Qwen v1', backend: 'qwen', cliPath: '/usr/bin/qwen' }),
-    ]);
-    mockDetectExtensionAgents.mockResolvedValue([
       makeAcpAgent({
         id: 'qwen-v2',
         name: 'Qwen v2',
         backend: 'qwen',
         cliPath: '/ext/qwen',
-        isExtension: true,
-        extensionName: 'ext-qwen',
       }),
     ]);
 
@@ -146,7 +142,7 @@ describe('AgentRegistry.deduplicate', () => {
     expect(remoteAgents.map((a) => a.remoteAgentId)).toEqual(['r1', 'r2']);
   });
 
-  it('builtin wins over extension with same backend (merge order priority)', async () => {
+  it('does not load AionUI extension-contributed ACP agents in the OPL default registry', async () => {
     mockDetectBuiltinAgents.mockResolvedValue([
       makeAcpAgent({ id: 'claude', name: 'Claude Code', backend: 'claude', cliPath: 'claude' }),
     ]);
@@ -169,17 +165,15 @@ describe('AgentRegistry.deduplicate', () => {
     expect(claudeAgents).toHaveLength(1);
     expect(claudeAgents[0].id).toBe('claude');
     expect(claudeAgents[0].isExtension).toBeUndefined();
+    expect(mockDetectExtensionAgents).not.toHaveBeenCalled();
   });
 
-  it('returns aionrs + gemini for empty sub-detector results', async () => {
+  it('returns no agents for empty sub-detector results', async () => {
     const registry = await createFreshRegistry();
     await registry.initialize();
     const agents = registry.getDetectedAgents();
 
-    // Only the always-present agents
-    expect(agents).toHaveLength(2);
-    expect(agents[0].backend).toBe('aionrs');
-    expect(agents[1].backend).toBe('gemini');
+    expect(agents).toHaveLength(0);
   });
 
   it('returns a single agent unchanged (no false dedup)', async () => {
@@ -191,9 +185,8 @@ describe('AgentRegistry.deduplicate', () => {
     await registry.initialize();
     const agents = registry.getDetectedAgents();
 
-    // aionrs + gemini + codex
-    expect(agents).toHaveLength(3);
-    expect(agents[2]).toMatchObject({ id: 'codex', backend: 'codex' });
+    expect(agents).toHaveLength(1);
+    expect(agents[0]).toMatchObject({ id: 'codex', backend: 'codex' });
   });
 
   it('keeps multiple remote agents alongside a single non-remote backend', async () => {
@@ -209,8 +202,7 @@ describe('AgentRegistry.deduplicate', () => {
     await registry.initialize();
     const agents = registry.getDetectedAgents();
 
-    // aionrs + gemini + claude + 2 remotes
-    expect(agents).toHaveLength(5);
+    expect(agents).toHaveLength(3);
     const remoteAgents = agents.filter((a) => a.kind === 'remote');
     expect(remoteAgents).toHaveLength(2);
     const claudeAgents = agents.filter((a) => a.backend === 'claude');

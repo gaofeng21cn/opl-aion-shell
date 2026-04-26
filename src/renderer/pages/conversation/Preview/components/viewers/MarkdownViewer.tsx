@@ -15,6 +15,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
 import SyntaxHighlighter from 'react-syntax-highlighter';
 import { vs, vs2015 } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import rehypeKatex from 'rehype-katex';
@@ -22,12 +23,10 @@ import rehypeRaw from 'rehype-raw';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import { Streamdown } from 'streamdown';
 import MarkdownEditor from '../editors/MarkdownEditor';
 import SelectionToolbar from '../renderers/SelectionToolbar';
 import { useContainerScroll, useContainerScrollTarget } from '../../hooks/useScrollSyncHelpers';
 import { convertLatexDelimiters } from '@/renderer/utils/chat/latexDelimiters';
-import MermaidBlock from '@/renderer/components/Markdown/MermaidBlock';
 
 interface MarkdownPreviewProps {
   content: string; // Markdown 内容 / Markdown content
@@ -223,7 +222,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
   // 🎯 使用流式打字动画 Hook / Use typing animation Hook
   const previewSource = useMemo(() => convertLatexDelimiters(rewriteExternalMediaUrls(content)), [content]);
 
-  const { displayedContent, isAnimating } = useTypingAnimation({
+  const { displayedContent } = useTypingAnimation({
     content: previewSource,
     enabled: viewMode === 'preview', // 仅在预览模式下启用 / Only enable in preview mode
     speed: 50, // 50 字符/秒 / 50 characters per second
@@ -423,11 +422,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               boxSizing: 'border-box',
             }}
           >
-            <Streamdown
-              // 核心功能：解析不完整的 Markdown，优化流式渲染体验 / Core feature: parse incomplete Markdown for optimal streaming
-              parseIncompleteMarkdown={true}
-              // 启用动画效果（当正在打字时）/ Enable animation when typing
-              isAnimating={isAnimating}
+            <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
               rehypePlugins={[rehypeRaw, rehypeKatex]}
               components={{
@@ -471,10 +466,6 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
                     }
                   }
 
-                  if (language === 'mermaid') {
-                    return <MermaidBlock code={codeContent} showOpenInPanelButton={false} />;
-                  }
-
                   // 代码高亮 / Code highlighting
                   return language ? (
                     <SyntaxHighlighter
@@ -503,7 +494,7 @@ const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({
               }}
             >
               {displayedContent}
-            </Streamdown>
+            </ReactMarkdown>
           </div>
         )}
       </div>

@@ -908,49 +908,6 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
     },
   },
   {
-    id: 'beautiful-mermaid',
-    avatar: '📈',
-    presetAgentType: 'gemini',
-    resourceDir: 'src/process/resources/assistant/beautiful-mermaid',
-    ruleFiles: {
-      'en-US': 'beautiful-mermaid.md',
-      'zh-CN': 'beautiful-mermaid.zh-CN.md',
-    },
-    defaultEnabledSkills: ['mermaid'],
-    nameI18n: {
-      'en-US': 'Beautiful Mermaid',
-      'zh-CN': 'Beautiful Mermaid',
-      'ru-RU': 'Beautiful Mermaid',
-      'uk-UA': 'Beautiful Mermaid',
-    },
-    descriptionI18n: {
-      'en-US':
-        'Create flowcharts, sequence diagrams, state diagrams, class diagrams, and ER diagrams with beautiful themes.',
-      'zh-CN': '创建流程图、时序图、状态图、类图和 ER 图，支持多种精美主题。',
-      'ru-RU': 'Создаёт блок-схемы, sequence-, state-, class- и ER-диаграммы с красивыми темами оформления.',
-      'uk-UA':
-        'Створюйте блок-схеми, діаграми послідовності, станів, класів та ER-діаграми з красивими темами оформлення.',
-    },
-    promptsI18n: {
-      'en-US': [
-        'Draw a detailed user login authentication flowchart',
-        'Create an API sequence diagram for payment processing',
-        'Create a system architecture diagram',
-      ],
-      'zh-CN': ['绘制详细的用户登录认证流程图', '创建支付处理的 API 时序图', '创建系统架构图'],
-      'ru-RU': [
-        'Нарисуй подробную блок-схему аутентификации при входе пользователя',
-        'Создай sequence-диаграмму API для обработки платежей',
-        'Создай диаграмму системной архитектуры',
-      ],
-      'uk-UA': [
-        'Намалювати детальну блок-схему автентифікації користувача',
-        'Створити діаграму послідовності API для обробки платежів',
-        'Створити діаграму архітектури системи',
-      ],
-    },
-  },
-  {
     id: 'story-roleplay',
     avatar: '📖',
     presetAgentType: 'gemini',

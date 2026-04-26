@@ -64,7 +64,6 @@
     "test:e2e:team:comm": "playwright test --config playwright.config.ts tests/e2e/specs/team-communication.e2e.ts --reporter=list",
     "prepare": "husky",
     "postinstall": "node scripts/postinstall.js",
-    "test:packaged:bun": "vitest run tests/integration/bundled-bun-packaged.test.ts",
     "test:bun": "bun test src/process/services/database/drivers/*.bun.test.ts",
     "server:start": "NODE_ENV=development bun dist-server/server.mjs",
     "server:start:remote": "NODE_ENV=development ALLOW_REMOTE=true bun dist-server/server.mjs",
@@ -87,13 +86,11 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@floating-ui/react": "^0.27.16",
-    "@google/genai": "^1.16.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
     "@icon-park/react": "^1.4.2",
     "@larksuiteoapi/node-sdk": "^1.58.0",
     "@modelcontextprotocol/sdk": "^1.20.0",
     "@monaco-editor/react": "^4.7.0",
-    "@office-ai/aioncli-core": "^0.30.6",
     "@office-ai/platform": "^0.3.16",
     "@sentry/electron": "^7.10.0",
     "@types/bcryptjs": "^2.4.6",
@@ -127,7 +124,6 @@
     "jsonwebtoken": "^9.0.2",
     "katex": "^0.16.22",
     "mammoth": "^1.11.0",
-    "mermaid": "^11.13.0",
     "multer": "^2.1.1",
     "openai": "^5.12.2",
     "pptx2json": "^0.0.10",
@@ -149,13 +145,11 @@
     "semver": "^7.7.2",
     "smol-toml": "^1.6.1",
     "stream-browserify": "^3.0.0",
-    "streamdown": "^1.5.1",
     "strip-json-comments": "^3.1.1",
     "swr": "^2.3.6",
     "tiny-csrf": "^1.1.6",
     "turndown": "^7.2.2",
     "turndown-plugin-gfm": "^1.0.2",
-    "web-tree-sitter": "^0.25.10",
     "ws": "^8.18.3",
     "xlsx-republish": "^0.20.3",
     "zod": "^3.25.76"
@@ -207,8 +201,7 @@
     "vitest": "^4.0.18"
   },
   "optionalDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.46.2",
-    "electron-winstaller": "^5.4.0"
+    "@rollup/rollup-win32-x64-msvc": "^4.46.2"
   },
   "resolutions": {
     "body-parser": "^2.2.1",

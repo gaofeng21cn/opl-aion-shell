@@ -13,7 +13,7 @@
 import type { ChildProcess, SpawnOptions } from 'child_process';
 import { execFile as execFileCb, execFileSync, spawn } from 'child_process';
 import { promisify } from 'util';
-import { promises as fs, rmSync } from 'fs';
+import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
 import {
@@ -27,12 +27,11 @@ import {
   getEnhancedEnv,
   getWindowsShellExecutionOptions,
   loadFullShellEnvironment,
-  normalizeNpxArgsForBundledBun,
+  normalizeNpxArgsForNpx,
   resolveNpxPath,
 } from '@process/utils/shellEnv';
 import { readClaudeProviderEnvFromCcSwitch } from '@process/services/ccSwitchModelSource';
 import { mainWarn } from '@process/utils/mainLogger';
-import { getPlatformServices } from '@/common/platform';
 
 const execFile = promisify(execFileCb);
 
@@ -130,8 +129,8 @@ function isCodexMetaPackageOptionalDependencyError(errorMessage: string): boolea
  * Prepare a clean environment for ACP backends.
  *
  * Merges the full user shell environment (including custom env vars like
- * API keys exported in .zshrc) with the enhanced env (PATH merging,
- * bundled tool paths). Then removes Electron-injected NODE_OPTIONS,
+ * API keys exported in .zshrc) with the enhanced env (PATH merging).
+ * Then removes Electron-injected NODE_OPTIONS,
  * npm lifecycle vars, and other env vars that interfere with child
  * Node.js processes.
  */
@@ -142,7 +141,7 @@ export async function prepareCleanEnv(): Promise<Record<string, string | undefin
   const cleanEnv = getEnhancedEnv();
 
   // Merge full shell env as base, then overlay getEnhancedEnv on top
-  // so that PATH merging and bundled bun injection are preserved,
+  // so that PATH merging is preserved,
   // while user-defined vars (e.g. SSS_API_KEY) from .zshrc are included.
   const merged: Record<string, string | undefined> = {
     ...fullShellEnv,
@@ -163,32 +162,6 @@ export async function prepareCleanEnv(): Promise<Record<string, string | undefin
     if (key.startsWith('npm_')) {
       delete merged[key];
     }
-  }
-
-  // Redirect bun cache AND temp directories out of the system temp folder.
-  // On Windows, antivirus software (e.g. Windows Defender) actively scans
-  // %TEMP%, causing EPERM (NtSetInformationFile) when bun/bunx tries to
-  // rename files.  BUN_INSTALL_CACHE_DIR and BUN_TMPDIR alone are not
-  // enough — bunx creates its working directory (`bunx-<uid>-<pkg>`) under
-  // the OS TMP/TEMP path, so the *source* files of the move operation are
-  // still locked by the antivirus scanner.  Override TMP/TEMP on Windows so
-  // the entire bun file-operation chain stays inside userData.
-  const userDataDir = getPlatformServices().paths.getDataDir();
-  if (!merged.BUN_INSTALL_CACHE_DIR) {
-    merged.BUN_INSTALL_CACHE_DIR = path.join(userDataDir, 'bun-cache');
-  }
-  if (!merged.BUN_TMPDIR) {
-    merged.BUN_TMPDIR = path.join(userDataDir, 'bun-tmp');
-  }
-  if (process.platform === 'win32') {
-    merged.TMP = merged.BUN_TMPDIR;
-    merged.TEMP = merged.BUN_TMPDIR;
-  }
-  console.log(`[ACP] BUN_INSTALL_CACHE_DIR=${merged.BUN_INSTALL_CACHE_DIR}`);
-  console.log(`[ACP] BUN_TMPDIR=${merged.BUN_TMPDIR}`);
-  if (process.platform === 'win32') {
-    console.log(`[ACP] TMP=${merged.TMP}`);
-    console.log(`[ACP] TEMP=${merged.TEMP}`);
   }
 
   return merged;
@@ -289,10 +262,9 @@ export function createGenericSpawnConfig(
   let spawnArgs: string[];
 
   if (cliPath.startsWith('npx ')) {
-    // Route legacy npx package launchers through the bundled bun runtime.
     const parts = cliPath.split(' ').filter(Boolean);
     spawnCommand = resolveNpxPath(env);
-    spawnArgs = ['x', '--bun', ...normalizeNpxArgsForBundledBun(parts.slice(1)), ...effectiveAcpArgs];
+    spawnArgs = ['-y', ...normalizeNpxArgsForNpx(parts.slice(1)), ...effectiveAcpArgs];
   } else if (isWindows) {
     // On Windows with shell: true, let cmd.exe handle the full command string.
     // This correctly supports paths with spaces (e.g., "C:\Program Files\agent.exe")
@@ -336,53 +308,6 @@ export type NpxPrepareResult = {
   extraArgs?: string[];
 };
 
-// ── Bunx cache corruption detection & cleanup ──────────────────────
-
-/**
- * Detect bunx cache corruption from stderr.
- * bun x may fail to install all transitive dependencies (known bun issue),
- * producing "Cannot find package" (Unix) or "Cannot find module" (Windows).
- */
-export function isBunxCacheCorruption(stderr: string): boolean {
-  return /Cannot find (?:package|module)/i.test(stderr);
-}
-
-/**
- * Extract the bunx cache root directory from the error path in stderr and delete it.
- *
- * Stderr from bun contains the full path to the missing module, e.g.:
- *   Unix:    /tmp/bunx-501-@zed-industries/claude-agent-acp@0.21.0/node_modules/...
- *   Windows: C:\Users\...\Temp\bunx-1743022513-@zed-industries\claude-agent-acp@0.21.0\node_modules\...
- *
- * We extract everything up to the versioned package dir (before /node_modules)
- * and remove it so the next `bun x` invocation does a fresh install.
- *
- * @returns The cache directory that was cleared, or null if extraction failed.
- */
-export function clearBunxCache(stderr: string): string | null {
-  const match = stderr.match(/([^\s'"]*[/\\]bunx-\d+[^\s/\\]*[/\\][^\s/\\]+@[^\s/\\]+)[/\\]node_modules/);
-  if (!match) return null;
-
-  const cacheDir = match[1];
-  try {
-    rmSync(cacheDir, { recursive: true, force: true });
-    return cacheDir;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Detect bun "moving to cache dir" EPERM failures.
- * On Windows, antivirus (Windows Defender) locks files during scanning,
- * causing NtSetInformationFile EPERM when bun tries to rename packages
- * into the cache directory. A short delay and retry usually succeeds
- * once the scanner releases the file handle.
- */
-export function isBunCacheMoveFailed(stderr: string): boolean {
-  return /moving\s+"[^"]+"\s+to cache dir failed[\s\S]*EPERM/i.test(stderr);
-}
-
 // ── Backend-specific connectors ─────────────────────────────────────
 
 /**
@@ -405,7 +330,7 @@ export function spawnNpxBackend(
     detached?: boolean;
   } = {}
 ): SpawnResult {
-  const spawnArgs = ['x', '--bun', npxPackage, ...normalizeNpxArgsForBundledBun(extraArgs)];
+  const spawnArgs = ['-y', npxPackage, ...normalizeNpxArgsForNpx(extraArgs)];
 
   const spawnStart = Date.now();
   // detached: true creates a new session (setsid) so the child has no controlling terminal.
@@ -424,7 +349,7 @@ export function spawnNpxBackend(
   if (detached) {
     child.unref();
   }
-  console.log(`[ACP-PERF] ${backend}: process spawned ${Date.now() - spawnStart}ms (bundled bun)`);
+  console.log(`[ACP-PERF] ${backend}: process spawned ${Date.now() - spawnStart}ms (npx)`);
 
   return { child, isDetached: detached };
 }
@@ -589,45 +514,6 @@ async function connectNpxBackend(config: {
     await setup(spawnNpxBackend(backend, npxPackage, npxCommand, cleanEnv, workingDir, isWindows, false, opts));
   } catch (error) {
     await cleanup();
-
-    // Detect bunx cache corruption (missing transitive dependencies).
-    // bun x caches packages in a temp dir but sometimes fails to install all
-    // transitive deps (known bun issue). Clearing the cache and retrying once
-    // forces a fresh install with complete dependencies.
-    const errMsg = error instanceof Error ? error.message : '';
-
-    // Retry 1: bunx cache corruption (missing transitive dependencies)
-    if (isBunxCacheCorruption(errMsg)) {
-      const cleared = clearBunxCache(errMsg);
-      if (cleared) {
-        console.log(`[ACP ${backend}] Cleared corrupted bunx cache: ${cleared}, retrying...`);
-        await setup(spawnNpxBackend(backend, npxPackage, npxCommand, cleanEnv, workingDir, isWindows, false, opts));
-        return;
-      }
-    }
-
-    // Retry 2: Windows Defender EPERM on cache move.
-    // Antivirus releases file handles after scanning completes; a short
-    // delay lets the lock clear before the second attempt.
-    if (isBunCacheMoveFailed(errMsg)) {
-      console.warn(`[ACP ${backend}] Bun cache move EPERM (likely antivirus), waiting 2s before retry...`);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      try {
-        await setup(spawnNpxBackend(backend, npxPackage, npxCommand, cleanEnv, workingDir, isWindows, false, opts));
-        return;
-      } catch (retryError) {
-        await cleanup();
-        const retryMsg = retryError instanceof Error ? retryError.message : '';
-        if (isBunCacheMoveFailed(retryMsg)) {
-          console.error(
-            `[ACP ${backend}] Bun cache move EPERM persists after retry.`,
-            'User may need to add bun-cache directory to antivirus exclusions.'
-          );
-        }
-        throw retryError;
-      }
-    }
-
     throw error;
   }
 }

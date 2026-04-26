@@ -7,8 +7,6 @@
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@process/channels/types';
 import { acpConversation, channel } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
-import GeminiModelSelector from '@/renderer/pages/conversation/platforms/gemini/GeminiModelSelector';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -47,17 +45,11 @@ const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ 
 
 interface TelegramConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   onTokenChange?: (token: string) => void;
 }
 
-const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
-  pluginStatus,
-  modelSelection,
-  onStatusChange,
-  onTokenChange,
-}) => {
+const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({ pluginStatus, onStatusChange, onTokenChange }) => {
   const { t } = useTranslation();
 
   const [telegramToken, setTelegramToken] = useState('');
@@ -74,7 +66,7 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
     Array<{ backend: string; name: string; customAgentId?: string; isPreset?: boolean; isExtension?: boolean }>
   >([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: string; name?: string; customAgentId?: string }>({
-    backend: 'gemini',
+    backend: 'codex',
   });
 
   // Load pending pairings
@@ -136,13 +128,14 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
         }
 
         if (saved && typeof saved === 'object' && 'backend' in saved && typeof (saved as any).backend === 'string') {
+          const savedBackend = (saved as any).backend as string;
           setSelectedAgent({
-            backend: (saved as any).backend as string,
+            backend: savedBackend === 'gemini' || savedBackend === 'aionrs' ? 'codex' : savedBackend,
             customAgentId: (saved as any).customAgentId,
             name: (saved as any).name,
           });
         } else if (typeof saved === 'string') {
-          setSelectedAgent({ backend: saved as string });
+          setSelectedAgent({ backend: saved === 'gemini' || saved === 'aionrs' ? 'codex' : saved });
         }
       } catch (error) {
         console.error('[TelegramConfig] Failed to load agents:', error);
@@ -320,9 +313,8 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
     return `${remaining} min`;
   };
 
-  const isGeminiAgent = selectedAgent.backend === 'gemini' || selectedAgent.backend === 'aionrs';
   const agentOptions: Array<{ backend: string; name: string; customAgentId?: string; isExtension?: boolean }> =
-    availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
+    availableAgents.length > 0 ? availableAgents : [{ backend: 'codex', name: 'Codex' }];
 
   return (
     <div className='flex flex-col gap-24px'>
@@ -461,16 +453,9 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
         label={t('settings.assistant.defaultModel', 'Default Model')}
         description={t('settings.assistant.defaultModelDesc', 'Model used for Telegram conversations')}
       >
-        <GeminiModelSelector
-          selection={isGeminiAgent ? modelSelection : undefined}
-          disabled={!isGeminiAgent}
-          label={
-            !isGeminiAgent
-              ? t('settings.assistant.autoFollowCliModel', 'Automatically follow the model when CLI is running')
-              : undefined
-          }
-          variant='settings'
-        />
+        <Button type='secondary' disabled>
+          {t('settings.assistant.autoFollowCliModel', 'Auto-follow Codex runtime model')}
+        </Button>
       </PreferenceRow>
 
       {/* Next Steps Guide - show when bot is enabled and no authorized users yet */}

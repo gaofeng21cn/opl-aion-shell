@@ -31,7 +31,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { ProcessConfig } from '@process/utils/initStorage';
-import { getEnhancedEnv, normalizeNpxArgsForBundledBun, resolveNpxPath } from '@process/utils/shellEnv';
+import { getEnhancedEnv, normalizeNpxArgsForNpx, resolveNpxPath } from '@process/utils/shellEnv';
 import { readClaudeModelInfoFromCcSwitch } from '@process/services/ccSwitchModelSource';
 import { AcpConnection } from './AcpConnection';
 import { AcpApprovalStore, createAcpApprovalKey } from './ApprovalStore';
@@ -1694,10 +1694,9 @@ export class AcpAgent {
       let args: string[];
 
       if (this.extra.cliPath.startsWith('npx ')) {
-        // Route legacy npx launchers through bundled bun.
         const parts = this.extra.cliPath.split(' ');
         command = resolveNpxPath(cleanEnv);
-        args = ['x', '--bun', ...normalizeNpxArgsForBundledBun(parts.slice(1)), loginArg];
+        args = ['-y', ...normalizeNpxArgsForNpx(parts.slice(1)), loginArg];
       } else {
         // For regular paths like '/usr/local/bin/qwen' or '/usr/local/bin/claude'
         command = this.extra.cliPath;

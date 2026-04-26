@@ -8,8 +8,6 @@ import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from 
 import { acpConversation, channel, type IWebUIStatus } from '@/common/adapter/ipcBridge';
 import { ConfigStorage } from '@/common/config/storage';
 import { openExternalUrl } from '@/renderer/utils/platform';
-import GeminiModelSelector from '@/renderer/pages/conversation/platforms/gemini/GeminiModelSelector';
-import type { GeminiModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGeminiModelSelection';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -52,19 +50,13 @@ const SectionHeader: React.FC<{ title: string; action?: React.ReactNode }> = ({ 
 
 interface WecomConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GeminiModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
   webuiStatus: IWebUIStatus | null;
 }
 
 const WECOM_DEV_DOCS_URL = 'https://developer.work.weixin.qq.com/document/path/101463';
 
-const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
-  pluginStatus,
-  modelSelection,
-  onStatusChange,
-  webuiStatus,
-}) => {
+const WecomConfigForm: React.FC<WecomConfigFormProps> = ({ pluginStatus, onStatusChange, webuiStatus }) => {
   const { t } = useTranslation();
 
   const [botId, setBotId] = useState('');
@@ -82,7 +74,7 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
     Array<{ backend: string; name: string; customAgentId?: string; isPreset?: boolean }>
   >([]);
   const [selectedAgent, setSelectedAgent] = useState<{ backend: string; name?: string; customAgentId?: string }>({
-    backend: 'gemini',
+    backend: 'codex',
   });
 
   // Load pending pairings
@@ -144,13 +136,14 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
         }
 
         if (saved && typeof saved === 'object' && 'backend' in saved && typeof (saved as any).backend === 'string') {
+          const savedBackend = (saved as any).backend as string;
           setSelectedAgent({
-            backend: (saved as any).backend as string,
+            backend: savedBackend === 'gemini' || savedBackend === 'aionrs' ? 'codex' : savedBackend,
             customAgentId: (saved as any).customAgentId,
             name: (saved as any).name,
           });
         } else if (typeof saved === 'string') {
-          setSelectedAgent({ backend: saved as string });
+          setSelectedAgent({ backend: saved === 'gemini' || saved === 'aionrs' ? 'codex' : saved });
         }
       } catch (error) {
         console.error('[WecomConfig] Failed to load agents:', error);
@@ -307,9 +300,8 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
   };
 
   const hasExistingUsers = authorizedUsers.length > 0;
-  const isGeminiAgent = selectedAgent.backend === 'gemini' || selectedAgent.backend === 'aionrs';
   const agentOptions: Array<{ backend: string; name: string; customAgentId?: string; isExtension?: boolean }> =
-    availableAgents.length > 0 ? availableAgents : [{ backend: 'gemini', name: 'Gemini CLI' }];
+    availableAgents.length > 0 ? availableAgents : [{ backend: 'codex', name: 'Codex' }];
 
   return (
     <div className='flex flex-col gap-24px'>
@@ -507,14 +499,9 @@ const WecomConfigForm: React.FC<WecomConfigFormProps> = ({
         label={t('settings.assistant.defaultModel', 'Model')}
         description={t('settings.wecom.defaultModelDesc', 'Used for Agent conversations')}
       >
-        <GeminiModelSelector
-          selection={isGeminiAgent ? modelSelection : undefined}
-          disabled={!isGeminiAgent}
-          label={
-            !isGeminiAgent ? t('settings.assistant.autoFollowCliModel', 'Auto-follow CLI runtime model') : undefined
-          }
-          variant='settings'
-        />
+        <Button type='secondary' disabled>
+          {t('settings.assistant.autoFollowCliModel', 'Auto-follow Codex runtime model')}
+        </Button>
       </PreferenceRow>
 
       {/* Connection Status */}

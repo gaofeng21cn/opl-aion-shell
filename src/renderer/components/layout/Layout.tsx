@@ -166,6 +166,12 @@ const Layout: React.FC<{
           return;
         }
 
+        if (result.status === 'setup-needed') {
+          Message.warning(result.message || t('settings.oplFirstLaunch.setupNeeded'));
+          void navigate('/settings/opl');
+          return;
+        }
+
         Message.error(result.message || t('settings.oplFirstLaunch.failed'));
         void navigate('/settings/opl');
       } catch (error) {

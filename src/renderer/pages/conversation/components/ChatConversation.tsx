@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IProvider, TChatConversation, TProviderWithModel } from '@/common/config/storage';
+import type { TChatConversation } from '@/common/config/storage';
 import { uuid } from '@/common/utils';
 import addChatIcon from '@/renderer/assets/icons/add-chat.svg';
 import { CronJobManager } from '@/renderer/pages/cron';
@@ -13,7 +13,7 @@ import { usePresetAssistantInfo, resolveAssistantConfigId } from '@/renderer/hoo
 import { iconColors } from '@/renderer/styles/colors';
 import { Button, Dropdown, Menu, Tooltip, Typography } from '@arco-design/web-react';
 import { History } from '@icon-park/react';
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
@@ -24,13 +24,7 @@ import ChatSider from './ChatSider';
 import NanobotChat from '../platforms/nanobot/NanobotChat';
 import OpenClawChat from '../platforms/openclaw/OpenClawChat';
 import RemoteChat from '../platforms/remote/RemoteChat';
-import GeminiChat from '../platforms/gemini/GeminiChat';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
-import GeminiModelSelector from '../platforms/gemini/GeminiModelSelector';
-import { useGeminiModelSelection } from '../platforms/gemini/useGeminiModelSelection';
-import AionrsChat from '../platforms/aionrs/AionrsChat';
-import AionrsModelSelector from '../platforms/aionrs/AionrsModelSelector';
-import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import { usePreviewContext } from '../Preview';
 import StarOfficeMonitorCard from '../platforms/openclaw/StarOfficeMonitorCard.tsx';
 import ConversationSkillsIndicator from './ConversationSkillsIndicator';
@@ -134,124 +128,6 @@ const _AddNewConversation: React.FC<{ conversation: TChatConversation }> = ({ co
   );
 };
 
-// 仅抽取 Gemini 会话，确保包含模型信息
-// Narrow to Gemini conversations so model field is always available
-type GeminiConversation = Extract<TChatConversation, { type: 'gemini' }>;
-
-const GeminiConversationPanel: React.FC<{
-  conversation: GeminiConversation;
-  sliderTitle: React.ReactNode;
-  hideSendBox?: boolean;
-}> = ({ conversation, sliderTitle, hideSendBox }) => {
-  // Save model selection to conversation via IPC
-  const onSelectModel = useCallback(
-    async (_provider: IProvider, modelName: string) => {
-      const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
-      return Boolean(ok);
-    },
-    [conversation.id]
-  );
-
-  // Share model selection state between header and send box
-  const modelSelection = useGeminiModelSelection({ initialModel: conversation.model, onSelectModel });
-  const workspaceEnabled = Boolean(conversation.extra?.workspace);
-
-  // 使用统一的 Hook 获取预设助手信息 / Use unified hook for preset assistant info
-  const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
-  const geminiAssistantId = resolveAssistantConfigId(conversation) ?? undefined;
-
-  const chatLayoutProps = {
-    title: conversation.name,
-    siderTitle: sliderTitle,
-    sider: <ChatSider conversation={conversation} />,
-    headerLeft: <GeminiModelSelector selection={modelSelection} />,
-    headerExtra: (
-      <div className='flex items-center gap-8px'>
-        <ConversationSkillsIndicator conversation={conversation} />
-        <CronJobManager
-          conversationId={conversation.id}
-          cronJobId={conversation.extra?.cronJobId as string | undefined}
-          hasCronSkill={hasLoadedSkill(conversation, 'cron')}
-        />
-      </div>
-    ),
-    workspaceEnabled,
-    backend: 'gemini' as const,
-    presetAssistant: presetAssistantInfo ? { ...presetAssistantInfo, id: geminiAssistantId } : undefined,
-  };
-
-  return (
-    <ChatLayout {...chatLayoutProps} conversationId={conversation.id} workspacePath={conversation.extra.workspace}>
-      <GeminiChat
-        conversation_id={conversation.id}
-        workspace={conversation.extra.workspace}
-        modelSelection={modelSelection}
-        cronJobId={conversation.extra?.cronJobId as string | undefined}
-        hideSendBox={hideSendBox}
-        sessionMode={conversation.extra?.sessionMode}
-      />
-    </ChatLayout>
-  );
-};
-
-type AionrsConversation = Extract<TChatConversation, { type: 'aionrs' }>;
-
-const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; sliderTitle: React.ReactNode }> = ({
-  conversation,
-  sliderTitle,
-}) => {
-  const onSelectModel = useCallback(
-    async (_provider: IProvider, modelName: string) => {
-      const selected = { ..._provider, useModel: modelName } as TProviderWithModel;
-      // Kill running agent on model switch — will be rebuilt with new model on next message
-      await ipcBridge.conversation.stop.invoke({ conversation_id: conversation.id });
-      const ok = await ipcBridge.conversation.update.invoke({ id: conversation.id, updates: { model: selected } });
-      return Boolean(ok);
-    },
-    [conversation.id]
-  );
-
-  const modelSelection = useAionrsModelSelection({
-    initialModel: conversation.model,
-    onSelectModel,
-  });
-  const workspaceEnabled = Boolean(conversation.extra?.workspace);
-  const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
-  const aionrsAssistantId = resolveAssistantConfigId(conversation) ?? undefined;
-
-  const chatLayoutProps = {
-    title: conversation.name,
-    siderTitle: sliderTitle,
-    sider: <ChatSider conversation={conversation} />,
-    headerLeft: <AionrsModelSelector selection={modelSelection} />,
-    headerExtra: (
-      <div className='flex items-center gap-8px'>
-        <ConversationSkillsIndicator conversation={conversation} />
-        <CronJobManager
-          conversationId={conversation.id}
-          cronJobId={conversation.extra?.cronJobId as string | undefined}
-          hasCronSkill={hasLoadedSkill(conversation, 'cron')}
-        />
-      </div>
-    ),
-    workspaceEnabled,
-    backend: 'aionrs' as const,
-    presetAssistant: presetAssistantInfo ? { ...presetAssistantInfo, id: aionrsAssistantId } : undefined,
-  };
-
-  return (
-    <ChatLayout {...chatLayoutProps} conversationId={conversation.id}>
-      <AionrsChat
-        conversation_id={conversation.id}
-        workspace={conversation.extra.workspace}
-        modelSelection={modelSelection}
-        sessionMode={conversation.extra?.sessionMode}
-      />
-    </ChatLayout>
-  );
-};
-
 const ChatConversation: React.FC<{
   conversation?: TChatConversation;
   hideSendBox?: boolean;
@@ -260,12 +136,11 @@ const ChatConversation: React.FC<{
   const { openPreview } = usePreviewContext();
   const workspaceEnabled = Boolean(conversation?.extra?.workspace);
 
-  const isGeminiConversation = conversation?.type === 'gemini';
-  const isAionrsConversation = conversation?.type === 'aionrs';
+  const isUnsupportedProviderConversation = conversation?.type === 'gemini' || conversation?.type === 'aionrs';
 
   // 使用统一的 Hook 获取预设助手信息（ACP/Codex 会话）
   // Use unified hook for preset assistant info (ACP/Codex conversations)
-  const acpConversation = isGeminiConversation || isAionrsConversation ? undefined : conversation;
+  const acpConversation = isUnsupportedProviderConversation ? undefined : conversation;
   const { info: presetAssistantInfo, isLoading: isLoadingPreset } = usePresetAssistantInfo(acpConversation);
   const acpAssistantId = acpConversation ? (resolveAssistantConfigId(acpConversation) ?? undefined) : undefined;
 
@@ -273,7 +148,7 @@ const ChatConversation: React.FC<{
   const assistantDisplayName = presetAssistantInfo?.name || conversationAgentName;
 
   const conversationNode = useMemo(() => {
-    if (!conversation || isGeminiConversation || isAionrsConversation) return null;
+    if (!conversation || isUnsupportedProviderConversation) return null;
     switch (conversation.type) {
       case 'acp':
         return (
@@ -337,7 +212,7 @@ const ChatConversation: React.FC<{
       default:
         return null;
     }
-  }, [conversation, isGeminiConversation, isAionrsConversation, assistantDisplayName, hideSendBox]);
+  }, [conversation, isUnsupportedProviderConversation, assistantDisplayName, hideSendBox]);
 
   const sliderTitle = useMemo(() => {
     return (
@@ -348,10 +223,9 @@ const ChatConversation: React.FC<{
   }, [t]);
 
   // For ACP/Codex conversations, use AcpModelSelector that can show/switch models.
-  // For other non-Gemini conversations, show disabled GeminiModelSelector.
   // NOTE: This must be placed before the Gemini early return to maintain consistent hook order.
   const modelSelector = useMemo(() => {
-    if (!conversation || isGeminiConversation || isAionrsConversation) return undefined;
+    if (!conversation || isUnsupportedProviderConversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; currentModelId?: string };
       return (
@@ -365,25 +239,8 @@ const ChatConversation: React.FC<{
     if (conversation.type === 'codex') {
       return <AcpModelSelector conversationId={conversation.id} />;
     }
-    return <GeminiModelSelector disabled={true} />;
-  }, [conversation, isGeminiConversation, isAionrsConversation]);
-
-  if (conversation && conversation.type === 'aionrs') {
-    return <AionrsConversationPanel key={conversation.id} conversation={conversation} sliderTitle={sliderTitle} />;
-  }
-
-  if (conversation && conversation.type === 'gemini') {
-    // Gemini 会话独立渲染，带右上角模型选择
-    // Render Gemini layout with dedicated top-right model selector
-    return (
-      <GeminiConversationPanel
-        key={conversation.id}
-        conversation={conversation}
-        sliderTitle={sliderTitle}
-        hideSendBox={hideSendBox}
-      />
-    );
-  }
+    return undefined;
+  }, [conversation, isUnsupportedProviderConversation]);
 
   // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
   // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo
@@ -397,17 +254,15 @@ const ChatConversation: React.FC<{
           backend:
             conversation?.type === 'acp'
               ? conversation?.extra?.backend
-              : conversation?.type === 'aionrs'
-                ? 'aionrs'
-                : conversation?.type === 'codex'
-                  ? 'codex'
-                  : conversation?.type === 'openclaw-gateway'
-                    ? 'openclaw-gateway'
-                    : conversation?.type === 'nanobot'
-                      ? 'nanobot'
-                      : conversation?.type === 'remote'
-                        ? 'remote'
-                        : undefined,
+              : conversation?.type === 'codex'
+                ? 'codex'
+                : conversation?.type === 'openclaw-gateway'
+                  ? 'openclaw-gateway'
+                  : conversation?.type === 'nanobot'
+                    ? 'nanobot'
+                    : conversation?.type === 'remote'
+                      ? 'remote'
+                      : undefined,
           agentName: conversationAgentName,
         };
 

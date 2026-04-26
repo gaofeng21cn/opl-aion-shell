@@ -5,15 +5,7 @@
  */
 
 import { acpDetector } from '@process/agent/acp/AcpDetector';
-import type {
-  AcpDetectedAgent,
-  AionrsDetectedAgent,
-  DetectedAgent,
-  GeminiDetectedAgent,
-  NanobotDetectedAgent,
-  OpenClawDetectedAgent,
-  RemoteDetectedAgent,
-} from '@/common/types/detectedAgent';
+import type { AcpDetectedAgent, DetectedAgent, RemoteDetectedAgent } from '@/common/types/detectedAgent';
 import { isAgentKind } from '@/common/types/detectedAgent';
 import type { RemoteAgentConfig } from '@process/agent/remote/types';
 
@@ -24,14 +16,8 @@ import type { RemoteAgentConfig } from '@process/agent/remote/types';
  * `getDetectedAgents()` API consumed by IPC bridges.
  *
  * Sources:
- *   - Gemini       — always present (no CLI detection)
- *   - ACP builtin  — CLI agents on PATH (claude, qwen, codex, …)
- *   - ACP extension — contributed by hub extensions
+ *   - ACP builtin  — OPL keeps Codex enabled by default.
  *   - Remote       — user-configured WebSocket agents (from DB)
- *   - Aionrs       — always present (Rust binary, availability resolved at runtime)
- *   - OpenClaw GW  — detected via `openclaw` CLI on PATH
- *   - Nanobot      — detected via `nanobot` CLI on PATH
- *   - Custom ACP   — user-defined ACP CLIs from ConfigStorage 'assistants'
  *
  * Preset assistants (prompt-only presets with no CLI binary) are NOT
  * execution engines — they live in the configuration layer and reference
@@ -44,61 +30,11 @@ class AgentRegistry {
 
   // Cache sub-detector results for partial refresh
   private builtinAgents: AcpDetectedAgent[] = [];
-  private extensionAgents: AcpDetectedAgent[] = [];
   private remoteAgents: RemoteDetectedAgent[] = [];
   private otherAgents: DetectedAgent[] = [];
-  private customAgents: AcpDetectedAgent[] = [];
 
-  private createGeminiAgent(): GeminiDetectedAgent {
-    return {
-      id: 'gemini',
-      name: 'Gemini CLI',
-      kind: 'gemini',
-      available: true,
-      backend: 'gemini',
-    };
-  }
-
-  private createAionrsAgent(): AionrsDetectedAgent {
-    return {
-      id: 'aionrs',
-      name: 'Aion CLI',
-      kind: 'aionrs',
-      available: true,
-      backend: 'aionrs',
-    };
-  }
-
-  /**
-   * Detect non-ACP CLI agents (openclaw-gateway, nanobot) via CLI availability.
-   * Uses the same `which`/`where` check as AcpDetector.
-   */
   private detectOtherCliAgents(): DetectedAgent[] {
-    const agents: DetectedAgent[] = [];
-
-    if (acpDetector.isCliAvailable('openclaw')) {
-      agents.push({
-        id: 'openclaw-gateway',
-        name: 'OpenClaw Gateway',
-        kind: 'openclaw-gateway',
-        available: true,
-        backend: 'openclaw-gateway',
-        cliPath: 'openclaw',
-      } satisfies OpenClawDetectedAgent);
-    }
-
-    if (acpDetector.isCliAvailable('nanobot')) {
-      agents.push({
-        id: 'nanobot',
-        name: 'Nanobot',
-        kind: 'nanobot',
-        available: true,
-        backend: 'nanobot',
-        cliPath: 'nanobot',
-      } satisfies NanobotDetectedAgent);
-    }
-
-    return agents;
+    return [];
   }
 
   private async loadRemoteAgents(): Promise<RemoteDetectedAgent[]> {
@@ -126,8 +62,7 @@ class AgentRegistry {
 
   /**
    * Deduplicate agents by backend ID. First occurrence wins — merge order
-   * determines priority: Aionrs > Gemini > Builtin > Other > Remote > Extension > Custom.
-   * When an extension contributes the same backend as a builtin, the builtin wins.
+   * determines priority: Builtin > Other > Remote.
    *
    * Remote and custom agents share their `backend` string but are individually
    * addressable via their unique `id`, so they skip backend dedup.
@@ -149,13 +84,9 @@ class AgentRegistry {
   // prettier-ignore
   private merge(): void {
     this.detectedAgents = this.deduplicate([
-      this.createAionrsAgent(),
-      this.createGeminiAgent(),
       ...this.builtinAgents,
       ...this.otherAgents,
       ...this.remoteAgents,
-      ...this.extensionAgents,
-      ...this.customAgents,
     ]);
   }
 
@@ -183,17 +114,13 @@ class AgentRegistry {
   private async detectAll(): Promise<void> {
     acpDetector.clearEnvCache();
 
-    const [builtinAgents, extensionAgents, remoteAgents, customAgents] = await Promise.all([
+    const [builtinAgents, remoteAgents] = await Promise.all([
       acpDetector.detectBuiltinAgents(),
-      acpDetector.detectExtensionAgents(),
       this.loadRemoteAgents(),
-      acpDetector.detectCustomAgents(),
     ]);
 
     this.builtinAgents = builtinAgents;
-    this.extensionAgents = extensionAgents;
     this.remoteAgents = remoteAgents;
-    this.customAgents = customAgents;
     this.otherAgents = this.detectOtherCliAgents();
     this.merge();
   }
@@ -261,7 +188,8 @@ class AgentRegistry {
   async refreshExtensionAgents(): Promise<void> {
     await this.runExclusiveMutation(async () => {
       acpDetector.clearEnvCache();
-      this.extensionAgents = await acpDetector.detectExtensionAgents();
+      // OPL does not expose AionUI extension-contributed ACP adapters.
+      this.otherAgents = this.detectOtherCliAgents();
       this.merge();
     });
   }
@@ -283,7 +211,8 @@ class AgentRegistry {
    */
   async refreshCustomAgents(): Promise<void> {
     await this.runExclusiveMutation(async () => {
-      this.customAgents = await acpDetector.detectCustomAgents();
+      // Custom ACP agents belong to the upstream AionUI extension surface.
+      this.otherAgents = this.detectOtherCliAgents();
       this.merge();
     });
   }

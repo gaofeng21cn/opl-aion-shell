@@ -21,7 +21,6 @@ import type {
   AcpSessionConfigOption,
 } from '@/common/types/acpTypes';
 import { ACP_BACKENDS_ALL } from '@/common/types/acpTypes';
-import { ExtensionRegistry } from '@process/extensions';
 import { getDatabase } from '@process/services/database';
 import { ProcessConfig } from '@process/utils/initStorage';
 import { addMessage, addOrUpdateMessage, nextTickToLocalFinish } from '@process/utils/message';
@@ -84,9 +83,6 @@ type BufferedStreamTextMessage = {
 };
 
 type CustomAgentLaunchConfig = Pick<AcpBackendConfig, 'id' | 'name' | 'defaultCliPath' | 'acpArgs' | 'env'>;
-type ExtensionAdapterLaunchConfig = CustomAgentLaunchConfig & {
-  extensionName?: string;
-};
 
 class AcpAgentManager extends BaseAgentManager<AcpAgentManagerData, AcpPermissionOption> {
   workspace: string;
@@ -423,33 +419,8 @@ ${collectedResponses.join('\n')}`;
     }
   }
 
-  /**
-   * Check native skill support: for builtin backends, consult ACP_BACKENDS_ALL;
-   * for extension agents, check the adapter's skillsDirs from the manifest.
-   */
   private resolveNativeSkillSupport(): boolean {
-    if (hasNativeSkillSupport(this.options.backend)) return true;
-
-    // For extension agents (backend: 'custom'), check the adapter's skillsDirs
-    if (this.options.backend === 'custom' && this.options.customAgentId?.startsWith('ext:')) {
-      try {
-        const [, extensionName, ...idParts] = this.options.customAgentId.split(':');
-        const adapterId = idParts.join(':');
-        const adapter = ExtensionRegistry.getInstance()
-          .getAcpAdapters()
-          .find((item) => {
-            const r = item as Record<string, unknown>;
-            return r._extensionName === extensionName && r.id === adapterId;
-          }) as Record<string, unknown> | undefined;
-        if (adapter && Array.isArray(adapter.skillsDirs) && adapter.skillsDirs.length > 0) {
-          return true;
-        }
-      } catch {
-        // ExtensionRegistry not available
-      }
-    }
-
-    return false;
+    return hasNativeSkillSupport(this.options.backend);
   }
 
   // ── Config resolution helpers for initAgent ──────────────────────────
@@ -464,64 +435,15 @@ ${collectedResponses.join('\n')}`;
     customEnv?: Record<string, string>;
     yoloMode?: boolean;
   }> {
-    const extensionLaunchConfig = this.resolveExtensionLaunchConfig(data);
-    if (extensionLaunchConfig) {
-      return {
-        cliPath: extensionLaunchConfig.defaultCliPath?.trim() || data.cliPath,
-        customArgs: extensionLaunchConfig.acpArgs,
-        customEnv: extensionLaunchConfig.env,
-      };
-    }
-
     if (data.customAgentId) {
       return this.resolveCustomAgentCliConfig(data);
     }
     return this.resolveBuiltinBackendConfig(data);
   }
 
-  private resolveExtensionLaunchConfig(data: AcpAgentManagerData): ExtensionAdapterLaunchConfig | undefined {
-    const adapters = ExtensionRegistry.getInstance().getAcpAdapters() as Array<Record<string, unknown>>;
-    if (!Array.isArray(adapters) || adapters.length === 0) {
-      return undefined;
-    }
-
-    if (data.customAgentId?.startsWith('ext:')) {
-      const [, extensionName, ...idParts] = data.customAgentId.split(':');
-      const adapterId = idParts.join(':');
-      const adapter = adapters.find((item) => {
-        return item._extensionName === extensionName && item.id === adapterId;
-      });
-      return adapter ? this.toExtensionLaunchConfig(adapter, data.customAgentId) : undefined;
-    }
-
-    const backendId = typeof data.backend === 'string' ? data.backend.trim() : '';
-    if (!backendId || backendId in ACP_BACKENDS_ALL) {
-      return undefined;
-    }
-
-    const adapter = adapters.find((item) => item.id === backendId);
-    return adapter ? this.toExtensionLaunchConfig(adapter, backendId) : undefined;
-  }
-
-  private toExtensionLaunchConfig(
-    adapter: Record<string, unknown>,
-    fallbackId: string
-  ): ExtensionAdapterLaunchConfig {
-    return {
-      id: typeof adapter.id === 'string' ? adapter.id : fallbackId,
-      name: typeof adapter.name === 'string' ? adapter.name : fallbackId,
-      defaultCliPath: typeof adapter.defaultCliPath === 'string' ? adapter.defaultCliPath : undefined,
-      acpArgs: Array.isArray(adapter.acpArgs)
-        ? adapter.acpArgs.filter((v): v is string => typeof v === 'string')
-        : undefined,
-      env: typeof adapter.env === 'object' && adapter.env ? (adapter.env as Record<string, string>) : undefined,
-      extensionName: typeof adapter._extensionName === 'string' ? adapter._extensionName : undefined,
-    };
-  }
-
   /**
    * Resolve CLI config for a custom agent backend.
-   * Looks up assistants config by UUID, falling back to extension-contributed adapters.
+   * Looks up assistants config by UUID.
    */
   private async resolveCustomAgentCliConfig(data: AcpAgentManagerData): Promise<{
     cliPath?: string;
@@ -529,23 +451,9 @@ ${collectedResponses.join('\n')}`;
     customEnv?: Record<string, string>;
   }> {
     const customAgents = await ProcessConfig.get('assistants');
-    let customAgentConfig: CustomAgentLaunchConfig | undefined = customAgents?.find(
+    const customAgentConfig: CustomAgentLaunchConfig | undefined = customAgents?.find(
       (agent) => agent.id === data.customAgentId
     );
-
-    // Fallback: extension adapter (customAgentId format: ext:{extensionName}:{adapterId})
-    if (!customAgentConfig && data.customAgentId!.startsWith('ext:')) {
-      const extensionLaunchConfig = this.resolveExtensionLaunchConfig(data);
-      if (extensionLaunchConfig) {
-        customAgentConfig = {
-          id: data.customAgentId,
-          name: extensionLaunchConfig.name,
-          defaultCliPath: extensionLaunchConfig.defaultCliPath,
-          acpArgs: extensionLaunchConfig.acpArgs,
-          env: extensionLaunchConfig.env,
-        };
-      }
-    }
 
     if (!customAgentConfig?.defaultCliPath) {
       return { cliPath: data.cliPath };

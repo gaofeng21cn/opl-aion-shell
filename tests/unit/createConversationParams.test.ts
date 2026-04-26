@@ -5,6 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { OPL_DEFAULT_CODEX_SKILLS } from '../../src/common/config/oplSkills';
 import { resolveLocaleKey } from '../../src/common/utils';
 
 const loadPresetAssistantResources = vi.fn();
@@ -80,9 +81,11 @@ describe('createConversationParams', () => {
       customAgentId: 'builtin-cowork',
       localeKey: 'tr-TR',
     });
-    expect(params.extra.presetRules).toBe('preset rules');
-    expect(params.extra.enabledSkills).toEqual(['moltbook']);
-    expect(params.model.useModel).toBe('gpt-4.1');
+    expect(params.type).toBe('acp');
+    expect(params.extra.backend).toBe('codex');
+    expect(params.extra.presetContext).toBe('preset rules');
+    expect(params.extra.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS, 'moltbook']);
+    expect(params.model).toEqual({});
   });
 
   it('maps acp preset assistants to presetContext and backend', async () => {
@@ -109,7 +112,7 @@ describe('createConversationParams', () => {
     expect(params.extra.backend).toBe('codebuddy');
   });
 
-  it('falls back to gemini-placeholder when no provider configured for gemini (preset)', async () => {
+  it('maps legacy gemini preset assistants to Codex ACP without requiring a model provider', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'gemini preset rules',
       skills: '',
@@ -129,11 +132,14 @@ describe('createConversationParams', () => {
       'en'
     );
 
-    expect(params.model.id).toBe('gemini-placeholder');
-    expect(params.model.platform).toBe('gemini-with-google-auth');
+    expect(params.type).toBe('acp');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
+    expect(params.extra.presetContext).toBe('gemini preset rules');
+    expect(params.extra.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
   });
 
-  it('falls back to gemini-placeholder when no provider configured for gemini (CLI)', async () => {
+  it('maps legacy gemini CLI agents to Codex ACP without requiring a model provider', async () => {
     configGet.mockResolvedValue([]); // No providers
 
     const params = await buildCliAgentParams(
@@ -144,12 +150,13 @@ describe('createConversationParams', () => {
       '/tmp/workspace'
     );
 
-    expect(params.type).toBe('gemini');
-    expect(params.model.id).toBe('gemini-placeholder');
-    expect(params.model.platform).toBe('gemini-with-google-auth');
+    expect(params.type).toBe('acp');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
+    expect(params.extra.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
   });
 
-  it('resolves aionrs model from enabled provider', async () => {
+  it('maps legacy aionrs CLI agents to Codex ACP without requiring a model provider', async () => {
     configGet.mockResolvedValue([
       {
         id: 'provider-1',
@@ -170,23 +177,25 @@ describe('createConversationParams', () => {
       '/tmp/workspace'
     );
 
-    expect(params.type).toBe('aionrs');
-    expect(params.model.id).toBe('provider-1');
-    expect(params.model.useModel).toBe('gpt-4.1');
+    expect(params.type).toBe('acp');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
+    expect(params.extra.agentName).toBe('Aion CLI Agent');
   });
 
-  it('throws error for aionrs if no provider configured', async () => {
+  it('does not require a configured provider for legacy aionrs agents', async () => {
     configGet.mockResolvedValue([]);
 
-    await expect(
-      buildCliAgentParams(
-        {
-          backend: 'aionrs',
-          name: 'Aion CLI Agent',
-        },
-        '/tmp/workspace'
-      )
-    ).rejects.toThrow('No model provider configured');
+    const params = await buildCliAgentParams(
+      {
+        backend: 'aionrs',
+        name: 'Aion CLI Agent',
+      },
+      '/tmp/workspace'
+    );
+
+    expect(params.type).toBe('acp');
+    expect(params.extra.backend).toBe('codex');
   });
 
   it('sets empty model for ACP backend in buildCliAgentParams', async () => {
@@ -298,18 +307,20 @@ describe('createConversationParams', () => {
     expect(params.extra.currentModelId).toBe('gpt-5');
   });
 
-  it('throws error for aionrs if no enabled provider', async () => {
+  it('ignores disabled model providers for legacy aionrs agents', async () => {
     configGet.mockResolvedValue([{ id: 'p1', enabled: false, model: ['m1'] }]);
-    await expect(buildCliAgentParams({ backend: 'aionrs', name: 'Agent' }, '/tmp')).rejects.toThrow(
-      'No enabled model provider for Aion CLI'
-    );
+    const params = await buildCliAgentParams({ backend: 'aionrs', name: 'Agent' }, '/tmp');
+    expect(params.type).toBe('acp');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
   });
 
-  it('throws error for gemini if no enabled provider', async () => {
+  it('ignores disabled model providers for legacy gemini agents', async () => {
     configGet.mockResolvedValue([{ id: 'p1', enabled: false, model: ['m1'] }]);
-    // Note: buildCliAgentParams for gemini uses resolveGeminiModel which catches the error
     const params = await buildCliAgentParams({ backend: 'gemini', name: 'Agent' }, '/tmp');
-    expect(params.model.id).toBe('gemini-placeholder');
+    expect(params.type).toBe('acp');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
   });
 
   it('maps various backends correctly', async () => {
@@ -326,7 +337,7 @@ describe('createConversationParams', () => {
     }
   });
 
-  it('falls back to first model if none enabled for aionrs', async () => {
+  it('does not select model providers for legacy aionrs agents', async () => {
     configGet.mockResolvedValue([
       {
         id: 'p1',
@@ -341,7 +352,8 @@ describe('createConversationParams', () => {
     ]);
 
     const params = await buildCliAgentParams({ backend: 'aionrs', name: 'A' }, '/tmp');
-    expect(params.model.useModel).toBe('m1');
+    expect(params.model).toEqual({});
+    expect(params.extra.backend).toBe('codex');
   });
 
   it('handles missing cliPath for acp backend', async () => {

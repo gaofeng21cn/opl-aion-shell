@@ -71,12 +71,12 @@ function resolveDefaultAppAsarPath(): string | null {
 }
 
 function getAsarEntries(asarPath: string): Set<string> {
-  const candidates = process.platform === 'win32' ? ['bunx.cmd', 'bunx', 'npx.cmd', 'npx'] : ['bunx', 'npx'];
+  const candidates = process.platform === 'win32' ? ['npx.cmd', 'npx'] : ['npx'];
   let output = '';
 
   for (const cmd of candidates) {
     try {
-      const args = cmd.startsWith('bunx') ? ['--bun', 'asar', 'list', asarPath] : ['--yes', 'asar', 'list', asarPath];
+      const args = ['--yes', 'asar', 'list', asarPath];
       output = execFileSync(cmd, args, {
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -91,7 +91,7 @@ function getAsarEntries(asarPath: string): Set<string> {
   }
 
   if (!output.trim()) {
-    throw new Error('Failed to list app.asar entries via bunx/npx asar');
+    throw new Error('Failed to list app.asar entries via npx asar');
   }
 
   return new Set(

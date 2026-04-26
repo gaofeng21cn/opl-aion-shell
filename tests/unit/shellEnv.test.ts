@@ -416,16 +416,16 @@ describe('resolveNpxPath', () => {
     Object.defineProperty(process, 'platform', { value: originalPlatform });
   });
 
-  it('prefers the bundled bun binary on Windows', async () => {
+  it('uses npx.cmd on Windows', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
 
     const { resolveNpxPath } = await import('@process/utils/shellEnv');
     const result = resolveNpxPath({ PATH: '/tooling' });
 
-    expect(result.endsWith('bun.exe')).toBe(true);
+    expect(result).toBe('npx.cmd');
   });
 
-  it('falls back to bun.exe when bundled bun is unavailable on Windows', async () => {
+  it('uses npx.cmd when no bundled runtime is present on Windows', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
 
     vi.doMock('fs', async () => {
@@ -443,7 +443,7 @@ describe('resolveNpxPath', () => {
 
     const { resolveNpxPath } = await import('@process/utils/shellEnv');
 
-    expect(resolveNpxPath({ PATH: '/tooling' })).toBe('bun.exe');
+    expect(resolveNpxPath({ PATH: '/tooling' })).toBe('npx.cmd');
   });
 });
 

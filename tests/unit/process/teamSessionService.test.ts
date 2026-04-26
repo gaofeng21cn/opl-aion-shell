@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '../../../src/common/config/storage';
+import { OPL_DEFAULT_CODEX_SKILLS } from '../../../src/common/config/oplSkills';
 import type { IConversationService } from '../../../src/process/services/IConversationService';
 import type { ITeamRepository } from '../../../src/process/team/repository/ITeamRepository';
 import type { TTeam, TeamAgent } from '../../../src/common/types/teamTypes';
@@ -95,7 +96,7 @@ describe('TeamSessionService', () => {
     vi.clearAllMocks();
   });
 
-  it('resolves a real gemini model instead of an empty placeholder', async () => {
+  it('routes legacy gemini team conversations through Codex ACP', async () => {
     mockConfigGet.mockImplementation(async () => undefined);
 
     const repo = makeRepo();
@@ -114,18 +115,18 @@ describe('TeamSessionService', () => {
 
     expect(conversationService.createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'gemini',
-        model: expect.objectContaining({
-          platform: 'gemini-with-google-auth',
+        type: 'acp',
+        model: {},
+        extra: expect.objectContaining({
+          backend: 'codex',
+          enabledSkills: [...OPL_DEFAULT_CODEX_SKILLS],
+          teamId: expect.any(String),
         }),
       })
     );
-    // Must have a concrete useModel, not the bare 'default' placeholder
-    const callArgs = (conversationService.createConversation as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(callArgs.model.useModel).not.toBe('default');
   });
 
-  it('uses configured gemini provider model when available', async () => {
+  it('does not route legacy gemini team conversations through configured Gemini providers', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'model.config') {
         return [
@@ -160,12 +161,11 @@ describe('TeamSessionService', () => {
 
     expect(conversationService.createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'gemini',
-        model: expect.objectContaining({
-          id: 'provider-gemini',
-          platform: 'gemini',
-          apiKey: 'test-key',
-          useModel: 'gemini-2.5-pro',
+        type: 'acp',
+        model: {},
+        extra: expect.objectContaining({
+          backend: 'codex',
+          enabledSkills: [...OPL_DEFAULT_CODEX_SKILLS],
         }),
       })
     );
@@ -318,15 +318,13 @@ describe('TeamSessionService', () => {
 
     expect(conversationService.createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: 'gemini',
-        model: expect.objectContaining({
-          id: 'provider-1',
-          useModel: 'gemini-2.0-flash',
-        }),
+        type: 'acp',
+        model: {},
         extra: expect.objectContaining({
+          backend: 'codex',
           presetAssistantId: 'assistant-1',
-          presetRules: 'PRESET RULES',
-          enabledSkills: ['skill-a'],
+          presetContext: 'PRESET RULES',
+          enabledSkills: [...OPL_DEFAULT_CODEX_SKILLS, 'skill-a'],
         }),
       })
     );

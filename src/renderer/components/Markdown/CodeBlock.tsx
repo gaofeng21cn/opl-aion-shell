@@ -14,7 +14,6 @@ import { Message } from '@arco-design/web-react';
 import { Copy, Down, Up } from '@icon-park/react';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import MermaidBlock from './MermaidBlock';
 import { formatCode, getDiffLineStyle } from './markdownUtils';
 
 const PREVIEW_LINES = 3;
@@ -100,10 +99,6 @@ function CodeBlock(props: CodeBlockProps) {
         // Fall through to render as code block if KaTeX fails
       }
     }
-  }
-
-  if (language === 'mermaid') {
-    return <MermaidBlock code={formatCode(children)} style={props.codeStyle} />;
   }
 
   if (!String(children).includes('\n')) {

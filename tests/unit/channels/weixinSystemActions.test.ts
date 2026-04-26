@@ -2,10 +2,6 @@
  * Tests that SystemActions handles 'weixin' platform in all three ternary chains.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
-import { GOOGLE_AUTH_PROVIDER_ID } from '@/common/config/constants';
 import { getChannelDefaultModel } from '@process/channels/actions/SystemActions';
 import { buildChannelConversationExtra, getChannelEnabledSkills } from '@process/channels/utils';
 
@@ -99,109 +95,14 @@ describe('SystemActions weixin platform handling', () => {
     mockGetDetectedAgents.mockReturnValue([]);
   });
 
-  it('getChannelDefaultModel reads assistant.weixin.defaultModel for weixin platform', async () => {
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'assistant.weixin.defaultModel') {
-        return Promise.resolve({ id: 'p1', useModel: 'gemini-2.0-flash' });
-      }
-      return Promise.resolve(undefined);
-    });
-
-    const callsBefore = mockGet.mock.calls.length;
-    await getChannelDefaultModel('weixin');
-    const newCalls = mockGet.mock.calls.slice(callsBefore).map(([key]) => key);
-
-    expect(newCalls).toContain('assistant.weixin.defaultModel');
-    expect(newCalls).not.toContain('assistant.telegram.defaultModel');
-  });
-
-  it('getChannelDefaultModel still reads assistant.telegram.defaultModel for telegram', async () => {
-    mockGet.mockResolvedValue(undefined);
-
-    const callsBefore = mockGet.mock.calls.length;
-    await getChannelDefaultModel('telegram');
-    const newCalls = mockGet.mock.calls.slice(callsBefore).map(([key]) => key);
-
-    expect(newCalls).toContain('assistant.telegram.defaultModel');
-    expect(newCalls).not.toContain('assistant.weixin.defaultModel');
-  });
-
-  it('getChannelDefaultModel reads assistant.wecom.defaultModel for wecom platform', async () => {
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'assistant.wecom.defaultModel') {
-        return Promise.resolve({ id: 'p1', useModel: 'gemini-2.0-flash' });
-      }
-      return Promise.resolve(undefined);
-    });
-
-    await getChannelDefaultModel('wecom');
-
-    expect(mockGet).toHaveBeenCalledWith('assistant.wecom.defaultModel');
-    expect(mockGet).not.toHaveBeenCalledWith('assistant.telegram.defaultModel');
-  });
-
-  it('uses local Gemini OAuth credentials when the saved weixin model is Google Auth', async () => {
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'model.config') return Promise.resolve([]);
-      if (key === 'assistant.weixin.defaultModel') {
-        return Promise.resolve({ id: GOOGLE_AUTH_PROVIDER_ID, useModel: 'gemini-2.5-pro' });
-      }
-      return Promise.resolve(undefined);
-    });
-    vi.spyOn(os, 'homedir').mockReturnValue('/tmp/test-home');
-    vi.spyOn(fs.promises, 'readFile').mockResolvedValue(JSON.stringify({ access_token: 'token' }) as never);
-
+  it('uses Codex schema model for channel conversations', async () => {
     const result = await getChannelDefaultModel('weixin');
 
-    expect(result.id).toBe(GOOGLE_AUTH_PROVIDER_ID);
-    expect(result.platform).toBe('gemini-with-google-auth');
-    expect(result.useModel).toBe('gemini-2.5-pro');
-    expect(fs.promises.readFile).toHaveBeenCalledWith(
-      path.join('/tmp/test-home', '.gemini', 'oauth_creds.json'),
-      'utf-8'
-    );
-  });
-
-  it('falls back to a Gemini API-key provider when Google Auth is selected but local creds are missing', async () => {
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'model.config') {
-        return Promise.resolve([
-          {
-            id: 'gemini-api',
-            platform: 'gemini',
-            apiKey: 'sk-test',
-            model: ['gemini-2.0-flash', 'gemini-2.5-pro'],
-          },
-        ]);
-      }
-      if (key === 'assistant.weixin.defaultModel') {
-        return Promise.resolve({ id: GOOGLE_AUTH_PROVIDER_ID, useModel: 'gemini-2.5-pro' });
-      }
-      return Promise.resolve(undefined);
-    });
-    vi.spyOn(os, 'homedir').mockReturnValue('/tmp/test-home');
-    vi.spyOn(fs.promises, 'readFile').mockRejectedValue(new Error('missing creds'));
-
-    const result = await getChannelDefaultModel('weixin');
-
-    expect(result.id).toBe('gemini-api');
-    expect(result.platform).toBe('gemini');
-    expect(result.useModel).toBe('gemini-2.5-pro');
-  });
-
-  it('falls back to Google Auth credentials when no API-key provider exists', async () => {
-    mockGet.mockImplementation((key: string) => {
-      if (key === 'model.config') return Promise.resolve([]);
-      return Promise.resolve(undefined);
-    });
-    vi.spyOn(os, 'homedir').mockReturnValue('/tmp/test-home');
-    vi.spyOn(fs.promises, 'readFile').mockResolvedValue(JSON.stringify({ refresh_token: 'refresh' }) as never);
-
-    const result = await getChannelDefaultModel('weixin');
-
-    expect(result.id).toBe(GOOGLE_AUTH_PROVIDER_ID);
-    expect(result.platform).toBe('gemini-with-google-auth');
-    expect(result.useModel).toBe('gemini-2.0-flash');
+    expect(result.id).toBe('codex_system');
+    expect(result.platform).toBe('codex');
+    expect(result.useModel).toBe('gpt-5.5');
+    expect(mockGet).not.toHaveBeenCalledWith('model.config');
+    expect(mockGet).not.toHaveBeenCalledWith('assistant.weixin.defaultModel');
   });
 
   it('enables weixin-file-send only for weixin channel conversations', () => {

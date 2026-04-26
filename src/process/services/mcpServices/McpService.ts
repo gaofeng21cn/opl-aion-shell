@@ -4,25 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { execSync } from 'child_process';
 import type { IMcpServer } from '@/common/config/storage';
-import { ClaudeMcpAgent } from './agents/ClaudeMcpAgent';
-import { CodebuddyMcpAgent } from './agents/CodebuddyMcpAgent';
-import { QwenMcpAgent } from './agents/QwenMcpAgent';
-import { GeminiMcpAgent } from './agents/GeminiMcpAgent';
-import { AionuiMcpAgent } from './agents/AionuiMcpAgent';
 import { CodexMcpAgent } from './agents/CodexMcpAgent';
-import { OpencodeMcpAgent } from './agents/OpencodeMcpAgent';
-import { AionrsMcpAgent } from './agents/AionrsMcpAgent';
 import type { IMcpProtocol, DetectedMcpServer, McpConnectionTestResult, McpSyncResult, McpSource } from './McpProtocol';
 
 /**
  * MCP服务 - 负责协调各个Agent的MCP操作协议
  * 新架构：只定义协议，具体实现由各个Agent类完成
  *
- * Agent 类型说明：
- * - AcpBackend ('claude', 'qwen', 'gemini', 'codex'等): 支持的 ACP 后端
- * - 'aionui': @office-ai/aioncli-core (AionUi 本地管理的 Gemini 实现)
+ * OPL only manages Codex MCP configuration by default.
  */
 export class McpService {
   private agents: Map<McpSource, IMcpProtocol>;
@@ -42,55 +32,8 @@ export class McpService {
     return queued;
   }
 
-  private isCliAvailable(cliCommand: string): boolean {
-    const isWindows = process.platform === 'win32';
-    const whichCommand = isWindows ? 'where' : 'which';
-
-    // Keep original behavior: prefer where/which, then fallback on Windows to Get-Command.
-    // 保持原逻辑：优先使用 where/which，Windows 下失败再回退到 Get-Command。
-    try {
-      execSync(`${whichCommand} ${cliCommand}`, {
-        encoding: 'utf-8',
-        stdio: 'pipe',
-        timeout: 1000,
-      });
-      return true;
-    } catch {
-      if (!isWindows) return false;
-    }
-
-    if (isWindows) {
-      try {
-        // PowerShell fallback for shim scripts like *.ps1 (vfox)
-        // PowerShell 回退，支持 *.ps1 shim（例如 vfox）
-        execSync(
-          `powershell -NoProfile -NonInteractive -Command "Get-Command -All ${cliCommand} | Select-Object -First 1 | Out-Null"`,
-          {
-            encoding: 'utf-8',
-            stdio: 'pipe',
-            timeout: 1000,
-          }
-        );
-        return true;
-      } catch {
-        return false;
-      }
-    }
-
-    return false;
-  }
-
   constructor() {
-    this.agents = new Map([
-      ['claude', new ClaudeMcpAgent()],
-      ['codebuddy', new CodebuddyMcpAgent()],
-      ['qwen', new QwenMcpAgent()],
-      ['gemini', new GeminiMcpAgent()],
-      ['aionui', new AionuiMcpAgent()], // AionUi 本地 @office-ai/aioncli-core
-      ['codex', new CodexMcpAgent()],
-      ['opencode', new OpencodeMcpAgent()],
-      ['aionrs', new AionrsMcpAgent()], // Aion CLI (Rust binary, TOML config)
-    ]);
+    this.agents = new Map([['codex', new CodexMcpAgent()]]);
   }
 
   /**
@@ -100,53 +43,8 @@ export class McpService {
     return this.agents.get(backend);
   }
 
-  /**
-   * 根据 agent 配置获取正确的 MCP agent 实例
-   * Fork Gemini (cliPath=undefined) 使用 AionuiMcpAgent
-   * Native Gemini (cliPath='gemini') 使用 GeminiMcpAgent
-   *
-   * Get the correct MCP agent instance based on agent config.
-   * Fork Gemini (cliPath=undefined) uses AionuiMcpAgent.
-   * Native Gemini (cliPath='gemini') uses GeminiMcpAgent.
-   */
   private getAgentForConfig(agent: { backend: string; cliPath?: string }): IMcpProtocol | undefined {
-    // Fork Gemini 使用 AionuiMcpAgent 管理 MCP 配置
-    // Fork Gemini uses AionuiMcpAgent to manage MCP config
-    if (agent.backend === 'gemini' && !agent.cliPath) {
-      return this.agents.get('aionui');
-    }
     return this.agents.get(agent.backend as McpSource);
-  }
-
-  /**
-   * 确保原生 Gemini CLI 在 agent 列表中（如果已安装但不在列表中）
-   * AcpDetector 返回的是 fork Gemini (cliPath=undefined)，但 MCP 操作需要同时处理原生 Gemini CLI
-   *
-   * Ensure native Gemini CLI is in the agent list (if installed but not present).
-   * AcpDetector returns fork Gemini (cliPath=undefined), but MCP operations need native Gemini CLI too.
-   */
-  private addNativeGeminiIfNeeded(
-    agents: Array<{ backend: string; name: string; cliPath?: string }>
-  ): Array<{ backend: string; name: string; cliPath?: string }> {
-    const hasNativeGemini = agents.some((a) => a.backend === 'gemini' && a.cliPath === 'gemini');
-    if (hasNativeGemini) return agents;
-
-    try {
-      if (!this.isCliAvailable('gemini')) return agents;
-
-      const allAgents = [
-        ...agents,
-        {
-          backend: 'gemini',
-          name: 'Google Gemini CLI',
-          cliPath: 'gemini',
-        },
-      ];
-      console.log('[McpService] Added native Gemini CLI to agent list');
-      return allAgents;
-    } catch {
-      return agents;
-    }
   }
 
   /**
@@ -158,14 +56,13 @@ export class McpService {
     source: McpSource;
   } {
     const agentInstance = this.getAgentForConfig(agent);
-    const source: McpSource = agent.backend === 'gemini' && !agent.cliPath ? 'gemini' : (agent.backend as McpSource);
+    const source = agent.backend as McpSource;
     return { agentInstance, source };
   }
 
   /**
    * Merge detection results by source so the UI sees a single entry per agent.
-   * This also prevents duplicate Gemini rows when both built-in Gemini and the
-   * native Gemini CLI expose the same MCP server names.
+   * This prevents duplicate rows for the same source.
    */
   private mergeDetectedServers(results: DetectedMcpServer[]): DetectedMcpServer[] {
     const merged = new Map<McpSource, Map<string, IMcpServer>>();
@@ -191,8 +88,6 @@ export class McpService {
   /**
    * 从检测到的ACP agents中获取MCP配置（并发版本）
    *
-   * 注意：此方法还会额外检测原生 Gemini CLI 的 MCP 配置，
-   * 即使它在 ACP 配置中是禁用的（因为 fork 的 Gemini 用于 ACP）
    */
   getAgentMcpConfigs(
     agents: Array<{
@@ -202,11 +97,8 @@ export class McpService {
     }>
   ): Promise<DetectedMcpServer[]> {
     return this.withServiceLock(async () => {
-      // 创建完整的检测列表，包含 ACP agents 和额外的原生 Gemini CLI
-      const allAgentsToCheck = this.addNativeGeminiIfNeeded(agents);
-
       // 并发执行所有agent的MCP检测
-      const promises = allAgentsToCheck.map(async (agent) => {
+      const promises = agents.map(async (agent) => {
         try {
           const { agentInstance, source } = this.getDetectionTarget(agent);
           if (!agentInstance) {
@@ -239,7 +131,6 @@ export class McpService {
 
   /**
    * Get supported transport types for a given agent config.
-   * Fork Gemini (backend='gemini', no cliPath) uses AionuiMcpAgent.
    */
   getSupportedTransportsForAgent(agent: { backend: string; cliPath?: string }): string[] {
     const agentInstance = this.getAgentForConfig(agent as { backend: string; cliPath?: string });
@@ -280,15 +171,9 @@ export class McpService {
     }
 
     return this.withServiceLock(async () => {
-      // 确保原生 Gemini CLI 也在同步列表中
-      // Ensure native Gemini CLI is also in the sync list
-      const allAgents = this.addNativeGeminiIfNeeded(agents);
-
       // 并发执行所有agent的MCP同步
-      const promises = allAgents.map(async (agent) => {
+      const promises = agents.map(async (agent) => {
         try {
-          // 使用 getAgentForConfig 来正确区分 fork Gemini 和 native Gemini
-          // Use getAgentForConfig to correctly distinguish fork Gemini from native Gemini
           const agentInstance = this.getAgentForConfig(agent);
           if (!agentInstance) {
             console.warn(`[McpService] Skipping MCP sync for unsupported backend: ${agent.backend}`);
@@ -333,15 +218,9 @@ export class McpService {
     }>
   ): Promise<McpSyncResult> {
     return this.withServiceLock(async () => {
-      // 确保原生 Gemini CLI 也在删除列表中
-      // Ensure native Gemini CLI is also in the removal list
-      const allAgents = this.addNativeGeminiIfNeeded(agents);
-
       // 并发执行所有agent的MCP删除
-      const promises = allAgents.map(async (agent) => {
+      const promises = agents.map(async (agent) => {
         try {
-          // 使用 getAgentForConfig 来正确区分 fork Gemini 和 native Gemini
-          // Use getAgentForConfig to correctly distinguish fork Gemini from native Gemini
           const agentInstance = this.getAgentForConfig(agent);
           if (!agentInstance) {
             console.warn(`[McpService] Skipping MCP removal for unsupported backend: ${agent.backend}`);

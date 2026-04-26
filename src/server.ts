@@ -17,7 +17,6 @@ import { logEnvironmentDiagnostics } from './process/utils/shellEnv';
 import { startWebServerWithInstance } from './process/webserver';
 import { cleanupWebAdapter } from './process/webserver/adapter';
 import initStorage from './process/utils/initStorage';
-import { ExtensionRegistry } from './process/extensions';
 import { getChannelManager } from './process/channels';
 import { closeDatabase } from './process/services/database/export';
 
@@ -91,13 +90,6 @@ async function main(): Promise<void> {
 
   // Initialize storage (respects DATA_DIR env var)
   await initStorage();
-
-  // Initialize Extension Registry (scan and resolve all extensions)
-  try {
-    await ExtensionRegistry.getInstance().initialize();
-  } catch (error) {
-    console.error('[server] Failed to initialize ExtensionRegistry:', error);
-  }
 
   // Initialize Channel subsystem
   try {

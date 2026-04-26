@@ -68,22 +68,12 @@ vi.mock('@/common/config/storage', () => ({
   ConfigStorage: { get: vi.fn(async () => undefined), set: vi.fn(async () => {}) },
 }));
 
-vi.mock('@/renderer/pages/conversation/platforms/gemini/GeminiModelSelector', () => ({
-  default: ({ label }: { label?: string }) => <div data-testid='model-selector'>{label}</div>,
-}));
-
 vi.mock('qrcode.react', () => ({
   QRCodeSVG: ({ value }: { value: string }) => <div data-testid='webui-qr'>{value}</div>,
 }));
 
 import WeixinConfigForm from '@/renderer/components/settings/SettingsModal/contents/channels/WeixinConfigForm';
 import { ConfigStorage } from '@/common/config/storage';
-
-const noopModelSelection = {
-  currentModel: undefined,
-  isLoading: false,
-  onSelectModel: vi.fn(),
-} as any;
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -132,17 +122,17 @@ describe('WeixinConfigForm', () => {
   });
 
   it('renders login button in idle state', () => {
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
     expect(screen.getByText('Scan to Login')).toBeTruthy();
   });
 
-  it('shows auto-follow label when a non-gemini agent is selected', async () => {
+  it('shows Codex runtime model follow label', async () => {
     vi.mocked(ConfigStorage.get).mockResolvedValueOnce({ backend: 'claude', name: 'Claude' });
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText('Automatically follow the model when CLI is running')).toBeTruthy();
+      expect(screen.getByText('Auto-follow Codex runtime model')).toBeTruthy();
     });
   });
 
@@ -150,7 +140,7 @@ describe('WeixinConfigForm', () => {
     // weixinLoginStart never resolves in this test — stays in loading
     mockWeixinLoginStart.mockReturnValue(new Promise(() => {}));
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -169,7 +159,7 @@ describe('WeixinConfigForm', () => {
     });
     mockWeixinLoginStart.mockReturnValue(new Promise(() => {}));
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -198,7 +188,7 @@ describe('WeixinConfigForm', () => {
     });
     mockWeixinLoginStart.mockReturnValue(new Promise(() => {}));
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -224,13 +214,7 @@ describe('WeixinConfigForm', () => {
       status: 'running' as const,
     };
 
-    render(
-      <WeixinConfigForm
-        pluginStatus={pluginStatus as any}
-        modelSelection={noopModelSelection}
-        onStatusChange={vi.fn()}
-      />
-    );
+    render(<WeixinConfigForm pluginStatus={pluginStatus as any} onStatusChange={vi.fn()} />);
 
     expect(screen.getByText('Connected')).toBeTruthy();
     // Login button should not be shown
@@ -248,13 +232,7 @@ describe('WeixinConfigForm', () => {
       status: 'stopped' as const,
     };
 
-    render(
-      <WeixinConfigForm
-        pluginStatus={pluginStatus as any}
-        modelSelection={noopModelSelection}
-        onStatusChange={vi.fn()}
-      />
-    );
+    render(<WeixinConfigForm pluginStatus={pluginStatus as any} onStatusChange={vi.fn()} />);
 
     expect(screen.queryByText('Connected')).toBeNull();
     expect(screen.getByText('Scan to Login')).toBeTruthy();
@@ -268,9 +246,7 @@ describe('WeixinConfigForm', () => {
       data: [{ id: 'weixin_default', type: 'weixin', enabled: true, hasToken: true, status: 'running' }],
     });
 
-    render(
-      <WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={onStatusChange} />
-    );
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={onStatusChange} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -308,7 +284,7 @@ describe('WeixinConfigForm', () => {
     window.electronAPI = {} as typeof window.electronAPI;
     mockEnablePlugin.mockResolvedValueOnce({ success: false, msg: 'Enable failed' });
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -328,7 +304,7 @@ describe('WeixinConfigForm', () => {
   it('resets to idle when SSE error event contains expired message', async () => {
     window.electronAPI = {} as typeof window.electronAPI;
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -353,7 +329,7 @@ describe('WeixinConfigForm', () => {
   it('resets to idle when SSE error event contains non-expired message', async () => {
     window.electronAPI = {} as typeof window.electronAPI;
 
-    render(<WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />);
+    render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -388,13 +364,7 @@ describe('WeixinConfigForm', () => {
       status: 'running' as const,
     };
 
-    render(
-      <WeixinConfigForm
-        pluginStatus={pluginStatus as any}
-        modelSelection={noopModelSelection}
-        onStatusChange={vi.fn()}
-      />
-    );
+    render(<WeixinConfigForm pluginStatus={pluginStatus as any} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Disconnect'));
@@ -407,9 +377,7 @@ describe('WeixinConfigForm', () => {
   it('closes EventSource on component unmount', async () => {
     window.electronAPI = {} as typeof window.electronAPI;
 
-    const { unmount } = render(
-      <WeixinConfigForm pluginStatus={null} modelSelection={noopModelSelection} onStatusChange={vi.fn()} />
-    );
+    const { unmount } = render(<WeixinConfigForm pluginStatus={null} onStatusChange={vi.fn()} />);
 
     await act(async () => {
       fireEvent.click(screen.getByText('Scan to Login'));
@@ -442,7 +410,6 @@ describe('WeixinConfigForm', () => {
       return (
         <WeixinConfigForm
           pluginStatus={status}
-          modelSelection={noopModelSelection}
           onStatusChange={(nextStatus) => {
             onStatusChange(nextStatus);
             setStatus(nextStatus);

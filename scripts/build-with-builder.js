@@ -14,45 +14,6 @@ const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const prepareBundledBun = require('./prepareBundledBun');
-
-function patchAionCliCoreForOpl() {
-  const packageJsonPath = path.resolve(__dirname, '../node_modules/@office-ai/aioncli-core/package.json');
-  const gcpExportersPath = path.resolve(
-    __dirname,
-    '../node_modules/@office-ai/aioncli-core/dist/src/telemetry/gcp-exporters.js'
-  );
-
-  if (!fs.existsSync(packageJsonPath) || !fs.existsSync(gcpExportersPath)) {
-    console.warn('⚠️  @office-ai/aioncli-core not found; skipping OPL telemetry package trim');
-    return false;
-  }
-
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  const current = fs.readFileSync(gcpExportersPath, 'utf8');
-  const stub = `const GCP_TELEMETRY_DISABLED_MESSAGE = 'GCP telemetry exporters are not bundled in One Person Lab builds.';\n\nclass DisabledGcpTelemetryExporter {\n  constructor() {\n    throw new Error(GCP_TELEMETRY_DISABLED_MESSAGE);\n  }\n}\n\nexport class GcpTraceExporter extends DisabledGcpTelemetryExporter {}\nexport class GcpMetricExporter extends DisabledGcpTelemetryExporter {}\nexport class GcpLogExporter extends DisabledGcpTelemetryExporter {}\n`;
-
-  if (current === stub) {
-    return false;
-  }
-
-  const expectedMarkers = [
-    '@google-cloud/opentelemetry-cloud-trace-exporter',
-    '@google-cloud/opentelemetry-cloud-monitoring-exporter',
-    '@google-cloud/logging',
-  ];
-  const canPatch = packageJson.version === '0.30.6' && expectedMarkers.every((marker) => current.includes(marker));
-
-  if (!canPatch) {
-    throw new Error(
-      `Unsupported @office-ai/aioncli-core telemetry exporter layout (${packageJson.version}); update OPL package trim before building.`
-    );
-  }
-
-  fs.writeFileSync(gcpExportersPath, stub);
-  console.log('🧹 Patched @office-ai/aioncli-core GCP telemetry exporters for OPL packaging');
-  return true;
-}
 
 // DMG retry logic for macOS: detects DMG creation failures by checking artifacts
 // (.app exists but .dmg missing) and retries only the DMG step using
@@ -484,10 +445,8 @@ try {
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
   }
 
-  const dependencyPatchChanged = patchAionCliCoreForOpl();
-
   // 2. Check if we can skip Vite build (incremental build)
-  const skipViteBuild = shouldSkipViteBuild(skipVite, forceBuild || dependencyPatchChanged);
+  const skipViteBuild = shouldSkipViteBuild(skipVite, forceBuild);
 
   if (!skipViteBuild) {
     // Run electron-vite to build all bundles (main + preload + renderer)
@@ -543,14 +502,7 @@ try {
     return;
   }
 
-  // 5. Prepare bundled bun/bunx binaries (for packaged runtime usage)
-  // This only affects packaging assets; runtime integration will be added in a future PR.
-  prepareBundledBun();
-
-  // 5b. Prepare hub resources (index.json + extension zips for offline fallback)
-  execSync('node scripts/prepareHubResources.js', { stdio: 'inherit', env: process.env });
-
-  // 6. 运行 electron-builder 生成分发包（DMG/ZIP/EXE等）
+  // 5. 运行 electron-builder 生成分发包（DMG/ZIP/EXE等）
   // Run electron-builder to create distributables (DMG/ZIP/EXE, etc.)
   // Always disable auto-publish to avoid electron-builder's implicit tag-based publishing
   // Publishing is handled by a separate release job in CI

@@ -131,6 +131,11 @@ function canFlushTextDraft(plugin: unknown): plugin is { flushTextDraft: (chatId
   );
 }
 
+function normalizeChannelBackend(backend: string | undefined): string {
+  if (!backend || backend === 'gemini' || backend === 'aionrs') return 'codex';
+  return backend;
+}
+
 function buildRejectedChannelSendNotices(
   rejectedActions: Array<{ path: string; fileName?: string; reason: string }>
 ): string[] {
@@ -453,7 +458,7 @@ export class ActionExecutor {
       if (!session || !session.conversationId) {
         const source = platform;
 
-        // Read selected agent for this platform (defaults to Gemini)
+        // Read selected agent for this platform (defaults to Codex)
         let savedAgent: unknown = undefined;
         try {
           savedAgent = await ProcessConfig.get(
@@ -462,11 +467,11 @@ export class ActionExecutor {
         } catch {
           // ignore
         }
-        const backend = (
+        const backend = normalizeChannelBackend(
           savedAgent && typeof savedAgent === 'object' && typeof (savedAgent as any).backend === 'string'
             ? (savedAgent as any).backend
-            : 'gemini'
-        ) as string;
+            : 'codex'
+        );
         const customAgentId =
           savedAgent && typeof savedAgent === 'object'
             ? ((savedAgent as any).customAgentId as string | undefined)
@@ -495,25 +500,7 @@ export class ActionExecutor {
         let sessionConversation: TChatConversation | null = existing ?? null;
         if (!sessionConversation) {
           try {
-            if (backend === 'gemini') {
-              sessionConversation = await conversationServiceSingleton.createConversation({
-                type: 'gemini',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: conversationExtra,
-              });
-            } else if (backend === 'aionrs') {
-              sessionConversation = await conversationServiceSingleton.createConversation({
-                type: 'aionrs',
-                model,
-                name: conversationName,
-                source,
-                channelChatId: chatId,
-                extra: conversationExtra,
-              });
-            } else if (backend === 'codex') {
+            if (backend === 'codex') {
               sessionConversation = await conversationServiceSingleton.createConversation({
                 type: 'acp',
                 model,
@@ -557,7 +544,7 @@ export class ActionExecutor {
           session = await this.sessionManager.createSessionWithConversation(
             channelUser,
             sessionConversation.id,
-            agentType as ChannelAgentType,
+            (backend === 'codex' ? 'codex' : agentType) as ChannelAgentType,
             undefined,
             chatId
           );

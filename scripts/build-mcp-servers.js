@@ -24,8 +24,7 @@ const SHARED_OPTIONS = {
   tsconfig: path.join(ROOT, 'tsconfig.json'),
   loader: { '.wasm': 'empty' },
   define: {
-    // @office-ai/aioncli-core uses import.meta.url for version detection.
-    // Provide a valid file: URL so fileURLToPath() does not throw at startup.
+    // Provide a valid file: URL for dependencies that inspect import.meta.url.
     'import.meta.url': JSON.stringify('file:///C:/placeholder'),
   },
 };

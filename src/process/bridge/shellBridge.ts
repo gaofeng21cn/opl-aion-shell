@@ -14,7 +14,7 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system']);
+const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system', 'workspace']);
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -34,6 +34,15 @@ function assertAllowedOplArgs(args: string[]): void {
   }
   if (args[0] === 'system' && args[1] && args[1] !== 'initialize') {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
+  }
+  if (args[0] === 'workspace') {
+    const isRead = args.length === 2 && args[1] === 'root';
+    const isDoctor = args.length === 3 && args[1] === 'root' && args[2] === 'doctor';
+    const isSet =
+      args.length === 5 && args[1] === 'root' && args[2] === 'set' && args[3] === '--path' && path.isAbsolute(args[4]);
+    if (!isRead && !isDoctor && !isSet) {
+      throw new Error(`Unsupported OPL workspace action: ${args.slice(1).join(' ')}`);
+    }
   }
 }
 
@@ -59,11 +68,15 @@ async function runLoginShell(
 }
 
 function buildOplCommand(args: string[]): string {
-  return ['command -v opl >/dev/null || exit 127', ['opl', ...args].map(shellQuote).join(' ')].join(' && ');
+  const envPrefix = args[0] === 'modules' || args[0] === 'system' || args[0] === 'workspace' ? 'OPL_OUTPUT=json ' : '';
+  return ['command -v opl >/dev/null || exit 127', `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`].join(
+    ' && '
+  );
 }
 
 function buildOplBootstrapCommand(args: string[]): string {
-  const commandArgs = ['opl', ...args].map(shellQuote).join(' ');
+  const envPrefix = args[0] === 'modules' || args[0] === 'system' || args[0] === 'workspace' ? 'OPL_OUTPUT=json ' : '';
+  const commandArgs = `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`;
   return [
     'set -euo pipefail',
     'command -v git >/dev/null',

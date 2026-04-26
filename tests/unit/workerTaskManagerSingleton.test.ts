@@ -23,10 +23,6 @@ vi.mock('../../src/process/task/AcpAgentManager', () => ({
   },
 }));
 
-vi.mock('../../src/process/task/GeminiAgentManager', () => ({
-  GeminiAgentManager: vi.fn().mockImplementation(() => ({ type: 'gemini', kill: vi.fn() })),
-}));
-
 vi.mock('../../src/process/task/OpenClawAgentManager', () => ({
   default: vi.fn().mockImplementation(() => ({ type: 'openclaw-gateway', kill: vi.fn() })),
 }));
@@ -43,12 +39,12 @@ describe('workerTaskManagerSingleton', () => {
     workerTaskManager.clear();
   });
 
-  it('prefers persisted currentModelId from conversation.extra for acp tasks', async () => {
+  it('prefers persisted currentModelId from conversation.extra for codex acp tasks', async () => {
     mockGetConversation.mockResolvedValue({
       id: 'conv-extra-model',
       type: 'acp',
-      model: { useModel: 'gemini-2.0-flash' },
-      extra: { backend: 'gemini', currentModelId: 'gemini-2.5-pro' },
+      model: { useModel: 'gpt-5.5' },
+      extra: { backend: 'codex', currentModelId: 'gpt-5.5' },
     });
 
     await workerTaskManager.getOrBuildTask('conv-extra-model');
@@ -56,17 +52,17 @@ describe('workerTaskManagerSingleton', () => {
     expect(mockAcpManager).toHaveBeenCalledWith(
       expect.objectContaining({
         conversation_id: 'conv-extra-model',
-        currentModelId: 'gemini-2.5-pro',
+        currentModelId: 'gpt-5.5',
       })
     );
   });
 
-  it('falls back to conversation.model.useModel when no persisted currentModelId exists', async () => {
+  it('does not fallback to conversation.model.useModel when no persisted codex currentModelId exists', async () => {
     mockGetConversation.mockResolvedValue({
       id: 'conv-model-fallback',
       type: 'acp',
-      model: { useModel: 'gemini-2.0-flash' },
-      extra: { backend: 'gemini' },
+      model: { useModel: 'gpt-5.5' },
+      extra: { backend: 'codex' },
     });
 
     await workerTaskManager.getOrBuildTask('conv-model-fallback');
@@ -74,7 +70,7 @@ describe('workerTaskManagerSingleton', () => {
     expect(mockAcpManager).toHaveBeenCalledWith(
       expect.objectContaining({
         conversation_id: 'conv-model-fallback',
-        currentModelId: 'gemini-2.0-flash',
+        currentModelId: undefined,
       })
     );
   });

@@ -43,10 +43,10 @@ vi.mock('@process/utils/shellEnv', () => ({
     process.platform === 'win32' ? { shell: true, windowsHide: true } : {}
   ),
   loadFullShellEnvironment: vi.fn(async () => ({ PATH: '/usr/bin' })),
-  normalizeNpxArgsForBundledBun: vi.fn((args: string[]) =>
+  normalizeNpxArgsForNpx: vi.fn((args: string[]) =>
     args.filter((arg) => arg !== '-y' && arg !== '--yes' && arg !== '--prefer-offline')
   ),
-  resolveNpxPath: vi.fn(() => '/bundled/bun'),
+  resolveNpxPath: vi.fn(() => 'npx'),
   resolveNpxDirect: vi.fn(() => null),
 }));
 
@@ -88,20 +88,20 @@ describe('spawnNpxBackend - Windows UTF-8 fix', () => {
   });
 
   it('uses npxCommand directly on non-Windows (no chcp prefix)', () => {
-    spawnNpxBackend('claude', '@pkg/cli@1.0.0', '/bundled/bun', {}, '/cwd', false, false);
+    spawnNpxBackend('claude', '@pkg/cli@1.0.0', '/usr/local/bin/npx', {}, '/cwd', false, false);
 
     expect(mockSpawn).toHaveBeenCalledWith(
-      '/bundled/bun',
+      '/usr/local/bin/npx',
       expect.any(Array),
       expect.objectContaining({ shell: false })
     );
   });
 
   it('prefixes command with chcp 65001 on Windows to enable UTF-8', () => {
-    spawnNpxBackend('claude', '@pkg/cli@1.0.0', '/bundled/bun', {}, '/cwd', true, false);
+    spawnNpxBackend('claude', '@pkg/cli@1.0.0', 'C:\\nodejs\\npx.cmd', {}, '/cwd', true, false);
 
     const [command, , options] = mockSpawn.mock.calls[0];
-    expect(command).toBe('chcp 65001 >nul && "/bundled/bun"');
+    expect(command).toBe('chcp 65001 >nul && "C:\\nodejs\\npx.cmd"');
     expect(options).toMatchObject({ shell: true });
   });
 
@@ -113,12 +113,11 @@ describe('spawnNpxBackend - Windows UTF-8 fix', () => {
     expect(command).toBe(`chcp 65001 >nul && "${npxWithSpaces}"`);
   });
 
-  it('passes bun x --bun and package name as spawn args', () => {
+  it('passes npx -y and package name as spawn args', () => {
     spawnNpxBackend('claude', '@pkg/cli@1.0.0', 'npx', {}, '/cwd', false, false);
 
     const [, args] = mockSpawn.mock.calls[0];
-    expect(args).toContain('x');
-    expect(args).toContain('--bun');
+    expect(args).toContain('-y');
     expect(args).toContain('@pkg/cli@1.0.0');
   });
 
@@ -129,11 +128,11 @@ describe('spawnNpxBackend - Windows UTF-8 fix', () => {
     expect(args).not.toContain('--prefer-offline');
   });
 
-  it('omits --yes when preferOffline is false', () => {
+  it('uses npx yes flag when preferOffline is false', () => {
     spawnNpxBackend('claude', '@pkg/cli@1.0.0', 'npx', {}, '/cwd', false, false);
 
     const [, args] = mockSpawn.mock.calls[0];
-    expect(args).not.toContain('--yes');
+    expect(args).toContain('-y');
   });
 
   it('calls child.unref() when detached is true', () => {
@@ -148,7 +147,7 @@ describe('spawnNpxBackend - Windows UTF-8 fix', () => {
     expect(mockChild.unref).not.toHaveBeenCalled();
   });
 
-  it('uses bundled bun command with chcp prefix on Windows', () => {
+  it('uses npx command with chcp prefix on Windows', () => {
     spawnNpxBackend('claude', '@pkg/cli@1.0.0', 'npx.cmd', {}, 'C:\\cwd', true, false);
 
     const [command] = mockSpawn.mock.calls[0];
@@ -162,7 +161,7 @@ describe('spawnNpxBackend - Windows UTF-8 fix', () => {
     expect(command).toBe('chcp 65001 >nul && "C:\\nodejs\\npx.cmd"');
   });
 
-  it('uses bundled bun command directly on non-Windows', () => {
+  it('uses npx command directly on non-Windows', () => {
     spawnNpxBackend('claude', '@pkg/cli@1.0.0', '/usr/local/bin/npx', {}, '/cwd', false, false);
 
     const [command] = mockSpawn.mock.calls[0];
@@ -217,12 +216,11 @@ describe('createGenericSpawnConfig - Windows path handling', () => {
     expect(config.command).toBe('chcp 65001 >nul && "C:\\Program Files\\agent\\agent.exe"');
   });
 
-  it('splits npx package into command and args (no chcp prefix for npx path)', () => {
+  it('splits npx package into command and args', () => {
     const config = createGenericSpawnConfig('npx @pkg/cli', '/cwd', ['--acp'], undefined, { PATH: '/usr/bin' });
 
-    expect(config.command).toBe('/bundled/bun');
-    expect(config.args).toContain('x');
-    expect(config.args).toContain('--bun');
+    expect(config.command).toBe('npx');
+    expect(config.args).toContain('-y');
     expect(config.args).toContain('@pkg/cli');
     expect(config.args).toContain('--acp');
   });
@@ -324,8 +322,8 @@ describe('connectClaude - detached process group', () => {
     await connectClaude('/cwd', { setup, cleanup });
 
     expect(mockSpawn).toHaveBeenCalledWith(
-      '/bundled/bun',
-      expect.arrayContaining(['x', '--bun', '@agentclientprotocol/claude-agent-acp@0.29.2']),
+      'npx',
+      expect.arrayContaining(['-y', '@agentclientprotocol/claude-agent-acp@0.29.2']),
       expect.objectContaining({
         cwd: '/cwd',
         detached: true,
@@ -348,8 +346,8 @@ describe('connectClaude - detached process group', () => {
     await connectClaude('/cwd', { setup, cleanup });
 
     expect(mockSpawn).toHaveBeenCalledWith(
-      '/bundled/bun',
-      expect.arrayContaining(['x', '--bun', '@agentclientprotocol/claude-agent-acp@0.29.2']),
+      'npx',
+      expect.arrayContaining(['-y', '@agentclientprotocol/claude-agent-acp@0.29.2']),
       expect.objectContaining({
         env: expect.objectContaining({
           PATH: '/usr/bin',
@@ -370,7 +368,7 @@ describe('connectClaude - detached process group', () => {
 
     expect(mockSpawn).toHaveBeenCalledWith(
       expect.stringContaining('chcp 65001 >nul &&'),
-      expect.arrayContaining(['x', '--bun', '@agentclientprotocol/claude-agent-acp@0.29.2']),
+      expect.arrayContaining(['-y', '@agentclientprotocol/claude-agent-acp@0.29.2']),
       expect.objectContaining({
         cwd: 'C:\\cwd',
         detached: false,
@@ -460,7 +458,7 @@ describe('connectCodex - Windows package selection', () => {
     vi.clearAllMocks();
   });
 
-  it('uses the direct Windows platform package first with bundled bun', async () => {
+  it('uses the direct Windows platform package first with npx', async () => {
     const hooks = {
       setup: vi.fn(async () => {}),
       cleanup: vi.fn(async () => {}),
@@ -470,8 +468,7 @@ describe('connectCodex - Windows package selection', () => {
 
     const [command, args] = mockSpawn.mock.calls[0];
     expect(command).toContain('chcp 65001 >nul &&');
-    expect(args).toContain('x');
-    expect(args).toContain('--bun');
+    expect(args).toContain('-y');
     expect(args).toContain('@zed-industries/codex-acp-win32-x64@0.9.5');
   });
 
@@ -536,7 +533,7 @@ describe('connectCodex - Linux package selection', () => {
     vi.clearAllMocks();
   });
 
-  it('uses the direct Linux platform package first with bundled bun', async () => {
+  it('uses the direct Linux platform package first with npx', async () => {
     const hooks = {
       setup: vi.fn(async () => {}),
       cleanup: vi.fn(async () => {}),
@@ -545,9 +542,8 @@ describe('connectCodex - Linux package selection', () => {
     await connectCodex('/cwd', hooks);
 
     const [command, args] = mockSpawn.mock.calls[0];
-    expect(command).toBe('/bundled/bun');
-    expect(args).toContain('x');
-    expect(args).toContain('--bun');
+    expect(command).toBe('npx');
+    expect(args).toContain('-y');
     expect(args).toContain('@zed-industries/codex-acp-linux-x64@0.9.5');
   });
 

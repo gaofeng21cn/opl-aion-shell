@@ -12,7 +12,6 @@ import { Button, Typography } from '@arco-design/web-react';
 import { Home, Plus } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import AgentCard from './AgentCard';
 import { AgentHubModal } from './AgentHubModal';
@@ -20,7 +19,6 @@ import InlineAgentEditor from './InlineAgentEditor';
 
 const LocalAgents: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [hubModalVisible, setHubModalVisible] = useState(false);
 
   // Detected agents (include built-in backends and extension-contributed agents, exclude user custom and remote)
@@ -77,10 +75,7 @@ const LocalAgents: React.FC = () => {
     [mutateCustomAgents]
   );
 
-  // Aion CLI and Gemini CLI first among detected agents
-  const aionrsAgent = detectedAgents?.find((a) => a.backend === 'aionrs');
-  const geminiAgent = detectedAgents?.find((a) => a.backend === 'gemini');
-  const otherDetected = detectedAgents?.filter((a) => a.backend !== 'gemini' && a.backend !== 'aionrs') ?? [];
+  const visibleDetected = detectedAgents?.filter((a) => a.backend !== 'gemini' && a.backend !== 'aionrs') ?? [];
 
   const openCustomAgentEditor = useCallback(() => {
     setEditingAgent(null);
@@ -138,29 +133,11 @@ const LocalAgents: React.FC = () => {
         </Typography.Text>
       </div>
       <div className='grid grid-cols-2 gap-10px px-16px md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
-        {aionrsAgent && (
-          <AgentCard
-            type='detected'
-            agent={aionrsAgent}
-            settingsDisabled={false}
-            onSettings={() => navigate('/settings/aionrs')}
-            variant='grid'
-          />
-        )}
-        {geminiAgent && (
-          <AgentCard
-            type='detected'
-            agent={geminiAgent}
-            settingsDisabled={false}
-            onSettings={() => navigate('/settings/gemini')}
-            variant='grid'
-          />
-        )}
-        {otherDetected.map((agent) => (
+        {visibleDetected.map((agent) => (
           <AgentCard key={agent.backend} type='detected' agent={agent} variant='grid' />
         ))}
       </div>
-      {(!detectedAgents || detectedAgents.length === 0) && (
+      {visibleDetected.length === 0 && (
         <Typography.Text type='secondary' className='block px-16px py-16px text-center text-12px'>
           {t('settings.agentManagement.localAgentsEmpty')}
         </Typography.Text>

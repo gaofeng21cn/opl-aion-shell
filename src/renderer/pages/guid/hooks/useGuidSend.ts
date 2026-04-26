@@ -11,11 +11,11 @@ import { buildAgentConversationParams } from '@/common/utils/buildAgentConversat
 import { emitter } from '@/renderer/utils/emitter';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
 import { updateWorkspaceTime } from '@/renderer/utils/workspace/workspaceHistory';
-import { Message } from '@arco-design/web-react';
 import { useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import type { AcpBackend, AvailableAgent, EffectiveAgentInfo } from '../types';
+import { DEFAULT_CODEX_MODEL_ID } from '@/common/types/codex/codexModels';
 
 export type GuidSendDeps = {
   // Input state
@@ -74,8 +74,22 @@ export type GuidSendResult = {
   isButtonDisabled: boolean;
 };
 
+const CODEX_SCHEMA_MODEL = {
+  id: 'codex_system',
+  name: 'Codex',
+  platform: 'codex',
+  baseUrl: '',
+  apiKey: '',
+  useModel: DEFAULT_CODEX_MODEL_ID,
+} as TProviderWithModel;
+
+function normalizeOplAgent(agent: string | undefined): string {
+  if (!agent || agent === 'gemini' || agent === 'aionrs') return 'codex';
+  return agent;
+}
+
 /**
- * Hook that manages the send logic for all conversation types (gemini/openclaw/nanobot/acp).
+ * Hook that manages the send logic for OPL-supported conversation types.
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const {
@@ -103,7 +117,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
     currentEffectiveAgentInfo,
-    isGoogleAuth,
     setMentionOpen,
     setMentionQuery,
     setMentionSelectorOpen,
@@ -111,7 +124,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     navigate,
     closeAllTabs,
     openTab,
-    t,
   } = deps;
   const sendingRef = useRef(false);
 
@@ -130,87 +142,15 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     // Use guid page's local skill state (initialized from assistant config, overridable by user)
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
 
-    const finalEffectiveAgentType = effectiveAgentType;
-
-    // Gemini path
-    if (!selectedAgent || selectedAgent === 'gemini' || (isPreset && finalEffectiveAgentType === 'gemini')) {
-      // The placeholder only makes sense while Google Auth is active — otherwise
-      // it fabricates a logged-out auth type and the chat page fails to load.
-      if (!currentModel && !isGoogleAuth) {
-        Message.warning(t('conversation.noModelConfigured'));
-        return;
-      }
-      const placeholderModel = currentModel || {
-        id: 'gemini-placeholder',
-        name: 'Gemini',
-        useModel: 'default',
-        platform: 'gemini-with-google-auth' as const,
-        baseUrl: '',
-        apiKey: '',
-      };
-      try {
-        const geminiConversationParams = buildAgentConversationParams({
-          backend: 'gemini',
-          name: input,
-          agentName: agentInfo?.name,
-          presetAssistantId,
-          workspace: finalWorkspace,
-          model: placeholderModel,
-          customAgentId: agentInfo?.customAgentId,
-          customWorkspace: isCustomWorkspace,
-          isPreset,
-          presetAgentType: finalEffectiveAgentType,
-          presetResources: isPreset
-            ? {
-                rules: presetRules,
-                enabledSkills,
-                excludeBuiltinSkills,
-              }
-            : undefined,
-          sessionMode: selectedMode,
-          extra: {
-            defaultFiles: files,
-            excludeBuiltinSkills,
-            webSearchEngine:
-              placeholderModel.platform === 'gemini-with-google-auth' ||
-              placeholderModel.platform === 'gemini-vertex-ai'
-                ? 'google'
-                : 'default',
-          },
-        });
-
-        const conversation = await ipcBridge.conversation.create.invoke(geminiConversationParams);
-
-        if (!conversation || !conversation.id) {
-          throw new Error('Failed to create conversation - conversation object is null or missing id');
-        }
-
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          openTab(conversation);
-        }
-
-        emitter.emit('chat.history.refresh');
-
-        const workspacePath = conversation.extra?.workspace || '';
-        const displayMessage = buildDisplayMessage(input, files, workspacePath);
-        const initialMessage = {
-          input: displayMessage,
-          files: files.length > 0 ? files : undefined,
-        };
-        sessionStorage.setItem(`gemini_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
-
-        void navigate(`/conversation/${conversation.id}`);
-      } catch (error: unknown) {
-        console.error('Failed to create Gemini conversation:', error);
-        throw error;
-      }
-      return;
-    }
+    const finalEffectiveAgentType = normalizeOplAgent(effectiveAgentType);
+    const selectedAgentForRoute = normalizeOplAgent(selectedAgent);
+    const selectedAgentKeyForRoute =
+      selectedAgentForRoute === selectedAgent && selectedAgentKey !== 'gemini' && selectedAgentKey !== 'aionrs'
+        ? selectedAgentKey
+        : 'codex';
 
     // OpenClaw Gateway path
-    if (selectedAgent === 'openclaw-gateway') {
+    if (selectedAgentForRoute === 'openclaw-gateway') {
       const openclawAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
       const openclawConversationParams = buildAgentConversationParams({
         backend: openclawAgentInfo?.backend || 'openclaw-gateway',
@@ -269,7 +209,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
 
     // Nanobot path
-    if (selectedAgent === 'nanobot') {
+    if (selectedAgentForRoute === 'nanobot') {
       const nanobotAgentInfo = agentInfo || findAgentByKey(selectedAgentKey);
       const nanobotConversationParams = buildAgentConversationParams({
         backend: nanobotAgentInfo?.backend || 'nanobot',
@@ -318,73 +258,21 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       return;
     }
 
-    // Aionrs path (direct selection or preset assistant with aionrs as main agent)
-    if (selectedAgent === 'aionrs' || (isPreset && finalEffectiveAgentType === 'aionrs')) {
-      if (!currentModel) {
-        Message.warning(t('conversation.noModelConfigured'));
-        return;
-      }
-      try {
-        const conversation = await ipcBridge.conversation.create.invoke({
-          type: 'aionrs',
-          name: input,
-          model: currentModel,
-          extra: {
-            defaultFiles: files,
-            workspace: finalWorkspace,
-            customWorkspace: isCustomWorkspace,
-            presetRules: isPreset ? presetRules : undefined,
-            enabledSkills: isPreset ? enabledSkills : undefined,
-            excludeBuiltinSkills,
-            presetAssistantId,
-            sessionMode: selectedMode,
-          },
-        });
-
-        if (!conversation || !conversation.id) {
-          alert('Failed to create Aion CLI conversation. Please ensure aionrs is installed.');
-          return;
-        }
-
-        if (isCustomWorkspace) {
-          closeAllTabs();
-          updateWorkspaceTime(finalWorkspace);
-          openTab(conversation);
-        }
-
-        emitter.emit('chat.history.refresh');
-
-        const initialMessage = {
-          input,
-          files: files.length > 0 ? files : undefined,
-        };
-        sessionStorage.setItem(`aionrs_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
-
-        await navigate(`/conversation/${conversation.id}`);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create Aion CLI conversation: ${errorMessage}`);
-        throw error;
-      }
-      return;
-    }
-
-    // Remaining agent path (ACP/remote/custom, including preset fallbacks)
+    // Remaining agent path (Codex, remote, or retained explicit custom backends)
     {
       // Agent-type fallback only applies to preset assistants whose primary agent
-      // was unavailable and got switched (e.g. claude → gemini).  For non-preset
-      // agents (including extension-contributed ACP adapters with backend='custom'),
+      // was unavailable and got switched. For non-preset agents
       // we must keep the original selectedAgent so the correct backend/cliPath is used.
-      const agentTypeChanged = isPreset && selectedAgent !== finalEffectiveAgentType;
+      const agentTypeChanged = isPreset && selectedAgentForRoute !== finalEffectiveAgentType;
       const acpBackend: string | undefined = agentTypeChanged
         ? finalEffectiveAgentType
         : isPreset
           ? finalEffectiveAgentType
-          : selectedAgent;
+          : selectedAgentForRoute;
 
       const acpAgentInfo = agentTypeChanged
         ? findAgentByKey(acpBackend as string)
-        : agentInfo || findAgentByKey(selectedAgentKey);
+        : agentInfo || findAgentByKey(selectedAgentKeyForRoute);
 
       if (!acpAgentInfo && !isPreset) {
         console.warn(`${acpBackend} CLI not found, but proceeding to let conversation panel handle it.`);
@@ -396,7 +284,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         agentName: acpAgentInfo?.name,
         presetAssistantId,
         workspace: finalWorkspace,
-        model: currentModel!,
+        model: currentModel || CODEX_SCHEMA_MODEL,
         cliPath: acpAgentInfo?.cliPath,
         customAgentId: acpAgentInfo?.customAgentId,
         customWorkspace: isCustomWorkspace,
@@ -488,7 +376,6 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     navigate,
     closeAllTabs,
     openTab,
-    t,
   ]);
 
   const sendMessageHandler = useCallback(() => {
@@ -526,13 +413,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   ]);
 
   // Calculate button disabled state
-  const isButtonDisabled =
-    loading ||
-    !input.trim() ||
-    ((((!selectedAgent || selectedAgent === 'gemini') && !isPresetAgent) ||
-      (isPresetAgent && currentEffectiveAgentInfo.agentType === 'gemini' && currentEffectiveAgentInfo.isAvailable)) &&
-      !currentModel &&
-      isGoogleAuth);
+  const isButtonDisabled = loading || !input.trim();
 
   return {
     handleSend,

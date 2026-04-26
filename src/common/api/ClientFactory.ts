@@ -4,14 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AuthType } from '@office-ai/aioncli-core';
+import { AuthType } from './authType';
 import type { TProviderWithModel } from '../config/storage';
 import { OpenAIRotatingClient, type OpenAIClientConfig } from './OpenAIRotatingClient';
-import { GeminiRotatingClient, type GeminiClientConfig } from './GeminiRotatingClient';
 import { AnthropicRotatingClient, type AnthropicClientConfig } from './AnthropicRotatingClient';
 import type { RotatingApiClientOptions } from './RotatingApiClient';
 import { getProviderAuthType } from '../utils/platformAuthType';
 import { isNewApiPlatform } from '../utils/platformConstants';
+
+export interface GeminiClientConfig {
+  model?: string;
+  baseURL?: string;
+  requestOptions?: Record<string, unknown>;
+}
 
 export interface ClientOptions {
   timeout?: number;
@@ -20,7 +25,7 @@ export interface ClientOptions {
   rotatingOptions?: RotatingApiClientOptions;
 }
 
-export type RotatingClient = OpenAIRotatingClient | GeminiRotatingClient | AnthropicRotatingClient;
+export type RotatingClient = OpenAIRotatingClient | AnthropicRotatingClient;
 
 /**
  * 为 new-api 网关规范化 base URL
@@ -93,23 +98,11 @@ export class ClientFactory {
       }
 
       case AuthType.USE_GEMINI: {
-        const clientConfig: GeminiClientConfig = {
-          model: provider.useModel,
-          baseURL: baseUrl,
-          ...(options.baseConfig as GeminiClientConfig),
-        };
-
-        return new GeminiRotatingClient(provider.apiKey, clientConfig, rotatingOptions, authType);
+        throw new Error('Gemini API clients are not bundled in One Person Lab builds.');
       }
 
       case AuthType.USE_VERTEX_AI: {
-        const clientConfig: GeminiClientConfig = {
-          model: provider.useModel,
-          // Note: Don't set baseURL for Vertex AI - it uses Google's built-in endpoints
-          ...(options.baseConfig as GeminiClientConfig),
-        };
-
-        return new GeminiRotatingClient(provider.apiKey, clientConfig, rotatingOptions, authType);
+        throw new Error('Vertex AI clients are not bundled in One Person Lab builds.');
       }
 
       case AuthType.USE_ANTHROPIC: {

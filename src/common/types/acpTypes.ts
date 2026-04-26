@@ -308,7 +308,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Claude Code',
     cliCommand: 'claude',
     authRequired: true,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
     skillsDirs: ['.claude/skills'],
   },
@@ -328,7 +328,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'qwen',
     defaultCliPath: 'npx @qwen-code/qwen-code',
     authRequired: true,
-    enabled: true, // ✅ 已验证支持：Qwen CLI v0.0.10+ 支持 --acp
+    enabled: false,
     supportsStreaming: true,
     acpArgs: ['--acp'], // Use --acp instead of deprecated --experimental-acp
     skillsDirs: ['.qwen/skills'],
@@ -350,7 +350,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'codebuddy',
     defaultCliPath: `npx ${CODEBUDDY_ACP_NPX_PACKAGE}`,
     authRequired: true,
-    enabled: true, // ✅ Tencent CodeBuddy Code CLI，使用 `codebuddy --acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['--acp'], // codebuddy 使用 --acp flag
     skillsDirs: ['.codebuddy/skills'],
@@ -360,7 +360,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Goose',
     cliCommand: 'goose',
     authRequired: false,
-    enabled: true, // ✅ Block's Goose CLI，使用 `goose acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // goose 使用子命令而非 flag
     skillsDirs: ['.goose/skills'],
@@ -370,7 +370,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Augment Code',
     cliCommand: 'auggie',
     authRequired: false,
-    enabled: true, // ✅ Augment Code CLI，使用 `auggie --acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['--acp'], // auggie 使用 --acp flag
   },
@@ -379,7 +379,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Kimi CLI',
     cliCommand: 'kimi',
     authRequired: false,
-    enabled: true, // ✅ Kimi CLI (Moonshot)，使用 `kimi acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // kimi 使用 acp 子命令
     skillsDirs: ['.kimi/skills'],
@@ -389,7 +389,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'OpenCode',
     cliCommand: 'opencode',
     authRequired: false,
-    enabled: true, // ✅ OpenCode CLI，使用 `opencode acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // opencode 使用 acp 子命令
     skillsDirs: ['.opencode/skills'],
@@ -400,7 +400,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     cliCommand: 'droid',
     // Droid uses FACTORY_API_KEY from environment, not an interactive auth flow.
     authRequired: false,
-    enabled: true, // ✅ Factory docs: `droid exec --output-format acp` (JetBrains/Zed ACP integration)
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['exec', '--output-format', 'acp'],
     skillsDirs: ['.factory/skills'],
@@ -410,7 +410,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'GitHub Copilot',
     cliCommand: 'copilot',
     authRequired: false,
-    enabled: true, // ✅ GitHub Copilot CLI，使用 `copilot --acp --stdio` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['--acp', '--stdio'], // copilot 使用 --acp --stdio 启动 ACP mode
   },
@@ -419,7 +419,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Qoder CLI',
     cliCommand: 'qodercli',
     authRequired: false,
-    enabled: true, // ✅ Qoder CLI，使用 `qodercli --acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['--acp'], // qoder 使用 --acp flag
   },
@@ -428,7 +428,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Mistral Vibe',
     cliCommand: 'vibe-acp',
     authRequired: false,
-    enabled: true, // ✅ Mistral Vibe CLI，使用 `vibe-acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: [],
     skillsDirs: ['.vibe/skills'],
@@ -440,7 +440,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     // which may match other tools. Users should ensure the Cursor CLI is the `agent` on their PATH.
     cliCommand: 'agent',
     authRequired: true, // Requires active Cursor subscription
-    enabled: true, // ✅ Cursor AI Agent CLI, launched via `agent acp`
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // Cursor uses `agent acp` subcommand
     skillsDirs: ['.cursor/skills'],
@@ -450,7 +450,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Kiro',
     cliCommand: 'kiro-cli',
     authRequired: true, // Requires Kiro / AWS Builder ID login
-    enabled: true, // ✅ Kiro CLI, launched via `kiro-cli acp`
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // Kiro uses `kiro-cli acp` subcommand
   },
@@ -460,7 +460,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     description: 'AI agent by Nous Research with 90+ tools, persistent memory, and multi-platform support',
     cliCommand: 'hermes',
     authRequired: true,
-    enabled: true, // ✅ Nous Research Hermes Agent，使用 `hermes acp` 启动
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['acp'], // hermes 使用 acp 子命令
   },
@@ -469,7 +469,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Snow CLI',
     cliCommand: 'snow',
     authRequired: false,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
     acpArgs: ['--acp'],
   },
@@ -478,7 +478,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     name: 'Custom Agent',
     cliCommand: undefined, // User-configured via settings
     authRequired: false,
-    enabled: true,
+    enabled: false,
     supportsStreaming: false,
   },
 };

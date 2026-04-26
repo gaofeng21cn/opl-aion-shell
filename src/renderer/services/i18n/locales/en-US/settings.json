@@ -924,6 +924,7 @@
       "refresh": "Refresh versions",
       "repair": "Repair install",
       "openRemote": "Open Remote Connection",
+      "chooseWorkspaceRoot": "Choose workspace",
       "install": "Install",
       "update": "Update"
     },
@@ -934,7 +935,8 @@
       "repairComplete": "Install repair complete",
       "updateComplete": "{{name}} update complete",
       "brandNameSaved": "App name saved",
-      "brandNameSaveFailed": "Failed to save app name"
+      "brandNameSaveFailed": "Failed to save app name",
+      "workspaceRootSaved": "Workspace folder saved"
     },
     "status": {
       "notDetected": "Not detected",
@@ -972,6 +974,8 @@
     },
     "brandTitle": "App name",
     "brandDescription": "Set the name shown next to the top-left icon. The default is One Person Lab.",
+    "workspaceRootTitle": "Workspace folder",
+    "workspaceRootMissing": "No workspace folder selected",
     "appearanceTitle": "Appearance theme",
     "appearanceDescription": "Choose the app style."
   },
@@ -988,6 +992,7 @@
   "oplFirstLaunch": {
     "preparing": "One Person Lab is preparing the local environment and Codex…",
     "complete": "Local environment and Codex are ready",
+    "setupNeeded": "Initial setup still needs attention. Continue in Environment Management.",
     "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install."
   }
 }

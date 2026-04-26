@@ -6,6 +6,22 @@ const asar = require('@electron/asar');
 const acorn = require('acorn');
 
 const DEFAULT_OUT_DIR = path.resolve(__dirname, '..', 'out');
+const FORBIDDEN_ASAR_PATTERNS = [
+  /^node_modules\/@office-ai\/aioncli-core(?:\/|$)/,
+  /^node_modules\/@google\/genai(?:\/|$)/,
+  /^node_modules\/googleapis(?:\/|$)/,
+  /^node_modules\/googleapis-common(?:\/|$)/,
+  /^node_modules\/web-tree-sitter(?:\/|$)/,
+  /^node_modules\/electron-winstaller(?:\/|$)/,
+  /^node_modules\/postject(?:\/|$)/,
+  /^node_modules\/@electron\/windows-sign(?:\/|$)/,
+  /^node_modules\/mermaid(?:\/|$)/,
+  /^node_modules\/streamdown(?:\/|$)/,
+  /^node_modules\/cytoscape(?:\/|$)/,
+  /(?:^|\/)bundled-bun(?:\/|$)/,
+  /(?:^|\/)bundled-aionrs(?:\/|$)/,
+  /^out\/renderer\/assets\/(?:Gemini|Aionrs|useGemini|useAionrs)[^/]*\.(?:js|css)$/,
+];
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -425,6 +441,7 @@ function validateAsar(asarPath, options = {}) {
   const scanned = new Set();
   const missing = [];
   const unresolvedBare = [];
+  const forbidden = entries.filter((entry) => FORBIDDEN_ASAR_PATTERNS.some((pattern) => pattern.test(entry)));
 
   while (queue.length > 0) {
     const filePath = queue.shift();
@@ -480,6 +497,7 @@ function validateAsar(asarPath, options = {}) {
     scanned: scanned.size,
     missing,
     unresolvedBare,
+    forbidden,
   };
 }
 
@@ -490,7 +508,7 @@ function main() {
     throw new Error(`No app.asar found under ${parsed.outDir}`);
   }
 
-  let hasMissing = false;
+  let hasFailure = false;
   for (const target of targets) {
     const result = validateAsar(target, {
       entries: parsed.entries,
@@ -498,6 +516,19 @@ function main() {
     });
     console.log(`🔎 Runtime import check: ${target}`);
     console.log(`   scanned ${result.scanned} JS runtime files (${result.files} packaged files)`);
+
+    if (result.forbidden.length > 0) {
+      hasFailure = true;
+      console.error(
+        `   ❌ ${result.forbidden.length} forbidden packaged entr${result.forbidden.length === 1 ? 'y' : 'ies'}:`
+      );
+      for (const entry of result.forbidden.slice(0, 80)) {
+        console.error(`      ${entry}`);
+      }
+      if (result.forbidden.length > 80) {
+        console.error(`      ... ${result.forbidden.length - 80} more omitted`);
+      }
+    }
 
     if (result.missing.length === 0) {
       console.log('   ✅ relative runtime imports are complete');
@@ -507,7 +538,7 @@ function main() {
       continue;
     }
 
-    hasMissing = true;
+    hasFailure = true;
     console.error(`   ❌ ${result.missing.length} missing relative runtime import(s):`);
     for (const issue of result.missing.slice(0, 80)) {
       console.error(`      ${issue.from} -> ${issue.specifier} (expected around ${issue.expected})`);
@@ -518,7 +549,7 @@ function main() {
     }
   }
 
-  if (hasMissing) {
+  if (hasFailure) {
     process.exitCode = 1;
   }
 }
