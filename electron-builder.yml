@@ -105,7 +105,6 @@ files:
   - '!**/node_modules/googleapis/**'
   - '!**/node_modules/googleapis-common/**'
   - '!**/node_modules/@office-ai/aioncli-core/dist/docs/**'
-  - '!**/node_modules/@office-ai/aioncli-core/dist/src/test-utils/**'
   - '!**/node_modules/@office-ai/aioncli-core/dist/src/**/*.test.js'
   # Keep better_sqlite3.node and runtime JS, but drop compile sources and object
   # files that are not needed by the packaged app.
