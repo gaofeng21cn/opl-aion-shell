@@ -234,6 +234,7 @@ describe('CDP configuration functions', () => {
           },
           updateSystemInfo: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },
           systemInfo: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },
+          appVersions: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },
           getPath: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },
           isDevToolsOpened: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },
           openDevTools: { provider: vi.fn(), emit: vi.fn(), invoke: vi.fn() },

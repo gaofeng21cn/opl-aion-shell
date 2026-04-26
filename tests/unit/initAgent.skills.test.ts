@@ -231,20 +231,18 @@ describe('initAgent — skill support', () => {
       expect(symlinkCalls[0].type).toBe('junction');
     });
 
-    it('should prefer builtin-skills/ over user skills/', async () => {
-      existsSyncResults['/mock/builtin-skills/pptx'] = true;
-      statResults['/mock/builtin-skills/pptx'] = true;
+    it('should use the canonical user skills directory for enabled skills', async () => {
+      statResults['/mock/user/skills/pptx'] = true;
 
       await setupAssistantWorkspace('/tmp/workspace', {
         backend: 'claude',
         enabledSkills: ['pptx'],
       });
 
-      expect(symlinkCalls[0].source).toBe('/mock/builtin-skills/pptx');
+      expect(symlinkCalls[0].source).toBe('/mock/user/skills/pptx');
     });
 
-    it('should fall back to user skills/ when not in builtin-skills/', async () => {
-      existsSyncResults['/mock/builtin-skills/custom-skill'] = false;
+    it('should link custom skills from the user skills directory', async () => {
       statResults['/mock/user/skills/custom-skill'] = true;
 
       await setupAssistantWorkspace('/tmp/workspace', {
@@ -255,7 +253,7 @@ describe('initAgent — skill support', () => {
       expect(symlinkCalls[0].source).toBe('/mock/user/skills/custom-skill');
     });
 
-    it('should inject builtin skills from autoSkillsDir and deduplicate from enabledSkills', async () => {
+    it('should not auto-inject AionUI builtin skills into OPL workspaces', async () => {
       readdirResults['/mock/auto-skills'] = ['cron', 'office-cli'];
       statResults['/mock/auto-skills/cron'] = true;
       statResults['/mock/auto-skills/office-cli'] = true;
@@ -266,11 +264,9 @@ describe('initAgent — skill support', () => {
         enabledSkills: ['cron', 'pptx'], // cron is in autoSkillNames — should not duplicate
       });
 
-      // cron (builtin) + office-cli (builtin) + pptx (user), cron not duplicated
-      expect(symlinkCalls).toHaveLength(3);
-      const cronCall = symlinkCalls.find((c) => c.target.includes('cron'));
-      expect(cronCall?.source).toBe('/mock/auto-skills/cron');
-      expect(symlinkCalls.filter((c) => c.target.includes('cron'))).toHaveLength(1);
+      expect(symlinkCalls).toHaveLength(1);
+      expect(symlinkCalls[0].source).toBe('/mock/user/skills/pptx');
+      expect(symlinkCalls[0].target).toBe('/tmp/workspace/.claude/skills/pptx');
     });
 
     it('should skip symlink when target already exists', async () => {

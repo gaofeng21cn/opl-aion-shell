@@ -10,6 +10,7 @@ const t = (key: string, options?: { defaultValue?: string }) => {
     'settings.capabilities': 'Capabilities',
     'settings.display': 'Display',
     'settings.webui': 'WebUI',
+    'settings.oplEnvironment': 'Environment Management',
     'settings.system': 'System',
     'settings.about': 'About',
     'pet.desktopPet': 'Desktop Pet',
@@ -23,27 +24,17 @@ describe('getBuiltinSettingsNavItems', () => {
     const items = getBuiltinSettingsNavItems(false, t);
 
     expect(items.map((item) => item.id)).toEqual([
-      'gemini',
-      'agent',
-      'model',
-      'assistants',
       'capabilities',
-      'display',
       'webui',
-      'pet',
+      'opl',
       'system',
       'about',
     ]);
 
     expect(items.map((item) => item.label)).toEqual([
-      'Gemini',
-      'Agents',
-      'Models',
-      'Assistants',
       'Capabilities',
-      'Display',
       'WebUI',
-      'Desktop Pet',
+      'Environment Management',
       'System',
       'About',
     ]);

@@ -303,7 +303,7 @@ describe('fsBridge skills functionality', () => {
   });
 
   describe('listAvailableSkills', () => {
-    it('should correctly parse SKILL.md and distinguish builtin vs custom', async () => {
+    it('should read Codex skills as the single visible skills source', async () => {
       // Setup filesystem mock state
       const builtinBase = path.resolve('/mock/userData/builtin-skills');
       const userBase = path.resolve('/mock/userData/config/skills');
@@ -341,8 +341,9 @@ describe('fsBridge skills functionality', () => {
 
       const builtin = result.find((s: any) => s.name === 'BuiltinTest');
       expect(builtin).toBeDefined();
-      expect(builtin.isCustom).toBe(false); // Keeps builtin status even though duplicate exists in user dir
-      expect(builtin.description).toBe('A builtin test skill');
+      expect(builtin.isCustom).toBe(true);
+      expect(builtin.source).toBe('custom');
+      expect(builtin.description).toBe('Shadowed custom skill');
 
       const custom = result.find((s: any) => s.name === 'CustomTest');
       expect(custom).toBeDefined();
@@ -351,7 +352,7 @@ describe('fsBridge skills functionality', () => {
   });
 
   describe('listBuiltinAutoSkills', () => {
-    it('hides disabled AionUI auto skills from the visible auto-injected list', async () => {
+    it('does not expose AionUI auto-injected skills in OPL', async () => {
       const autoBase = path.resolve('/mock/userData/builtin-skills/_builtin');
       mockFsStore[autoBase] = { isDirectory: true };
       for (const [dirName, skillName] of [
@@ -374,7 +375,7 @@ description: ${skillName}
       const handler = await getProvider('listBuiltinAutoSkills');
       const result = await handler();
 
-      expect(result.map((skill: any) => skill.name)).toEqual(['cron', 'skill-creator']);
+      expect(result).toEqual([]);
     });
   });
 

@@ -14,7 +14,7 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module']);
+const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system']);
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -28,6 +28,12 @@ function assertAllowedOplArgs(args: string[]): void {
   }
   if (args[0] === 'module' && args[1] && !['install', 'update', 'reinstall'].includes(args[1])) {
     throw new Error(`Unsupported OPL module action: ${args[1]}`);
+  }
+  if (args[0] === 'engine' && args[1] && !['install', 'update', 'reinstall'].includes(args[1])) {
+    throw new Error(`Unsupported OPL engine action: ${args[1]}`);
+  }
+  if (args[0] === 'system' && args[1] && args[1] !== 'initialize') {
+    throw new Error(`Unsupported OPL system action: ${args[1]}`);
   }
 }
 
@@ -76,9 +82,9 @@ function buildOplBootstrapCommand(args: string[]): string {
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assertAllowedOplArgs(args);
-  const timeout = args[0] === 'install' ? 30 * 60_000 : 120_000;
+  const timeout = args[0] === 'install' || args[0] === 'engine' ? 30 * 60_000 : 120_000;
   const directResult = await runLoginShell(buildOplCommand(args), timeout);
-  if (directResult.exitCode !== 127 || args[0] !== 'install') {
+  if (directResult.exitCode !== 127) {
     return directResult;
   }
 

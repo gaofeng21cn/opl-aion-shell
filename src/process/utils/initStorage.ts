@@ -407,11 +407,13 @@ const initBuiltinAssistantRules = async (): Promise<void> => {
     (preset) => !preset.resourceDir && Object.keys(preset.ruleFiles).length > 0
   );
   const rulesDir = presetsNeedDefaultRulesDir ? resolveBuiltinDir('rules') : '';
-  // resolveBuiltinDir("src/process/resources/skills") works for packaged Electron
-  // (viteStaticCopy outputs to skills/ which matches after stripping the prefix),
-  // but in standalone server mode the actual path differs.
-  let builtinSkillsDir = resolveBuiltinDir('src/process/resources/skills');
-  if (!existsSync(builtinSkillsDir)) {
+  const presetsNeedDefaultSkillsDir = ASSISTANT_PRESETS.some(
+    (preset) => !preset.resourceDir && preset.skillFiles && Object.keys(preset.skillFiles).length > 0
+  );
+  // OPL does not package the AionUI bundled skills directory. Only keep this
+  // fallback for legacy presets that explicitly use top-level skillFiles.
+  let builtinSkillsDir = presetsNeedDefaultSkillsDir ? resolveBuiltinDir('src/process/resources/skills') : '';
+  if (presetsNeedDefaultSkillsDir && !existsSync(builtinSkillsDir)) {
     const skillsFallbacks = [
       // Standalone production: bundled alongside server binary by build-server.mjs
       path.join(__dirname, 'skills'),

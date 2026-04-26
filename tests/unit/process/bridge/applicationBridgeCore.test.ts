@@ -5,6 +5,7 @@ vi.mock('@/common', () => ({
     application: {
       systemInfo: { provider: vi.fn() },
       updateSystemInfo: { provider: vi.fn() },
+      appVersions: { provider: vi.fn() },
       getPath: { provider: vi.fn() },
       restart: { provider: vi.fn() },
       openDevTools: { provider: vi.fn() },

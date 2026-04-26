@@ -21,6 +21,7 @@ vi.mock('electron', () => ({
 // Mock child_process
 vi.mock('child_process', () => ({
   exec: vi.fn(),
+  execFile: vi.fn(),
   spawn: vi.fn().mockReturnValue({
     on: vi.fn(),
     unref: vi.fn(),
@@ -59,6 +60,11 @@ vi.mock('@/common', () => ({
       openFolderWith: {
         provider: vi.fn((fn: Function) => {
           registeredProviders['openFolderWith'] = fn;
+        }),
+      },
+      runOplCommand: {
+        provider: vi.fn((fn: Function) => {
+          registeredProviders['runOplCommand'] = fn;
         }),
       },
     },

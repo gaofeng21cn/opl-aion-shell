@@ -14,8 +14,10 @@ const {
   openExternalProvider,
   checkToolInstalledProvider,
   openFolderWithProvider,
+  runOplCommandProvider,
   shellMock,
   execMock,
+  execFileMock,
   spawnMock,
   fsMock,
 } = vi.hoisted(() => ({
@@ -24,12 +26,14 @@ const {
   openExternalProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   checkToolInstalledProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   openFolderWithProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  runOplCommandProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   shellMock: {
     openPath: vi.fn().mockResolvedValue(''),
     showItemInFolder: vi.fn(),
     openExternal: vi.fn().mockResolvedValue(undefined),
   },
   execMock: vi.fn(),
+  execFileMock: vi.fn(),
   spawnMock: vi.fn().mockReturnValue({
     on: vi.fn(),
     unref: vi.fn(),
@@ -67,6 +71,11 @@ vi.mock('@/common', () => ({
           openFolderWithProvider.fn = fn;
         }),
       },
+      runOplCommand: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          runOplCommandProvider.fn = fn;
+        }),
+      },
     },
   },
 }));
@@ -77,6 +86,7 @@ vi.mock('electron', () => ({
 
 vi.mock('child_process', () => ({
   exec: execMock,
+  execFile: execFileMock,
   spawn: spawnMock,
 }));
 
@@ -96,6 +106,7 @@ beforeEach(async () => {
   openExternalProvider.fn = undefined;
   checkToolInstalledProvider.fn = undefined;
   openFolderWithProvider.fn = undefined;
+  runOplCommandProvider.fn = undefined;
 
   // Default mocks
   Object.defineProperty(process, 'platform', { value: 'win32' });
@@ -106,13 +117,14 @@ beforeEach(async () => {
 
 describe('shellBridge', () => {
   describe('initShellBridge', () => {
-    it('registers all five shell providers', () => {
+    it('registers shell providers', () => {
       initShellBridge();
       expect(openFileProvider.fn).toBeDefined();
       expect(showItemInFolderProvider.fn).toBeDefined();
       expect(openExternalProvider.fn).toBeDefined();
       expect(checkToolInstalledProvider.fn).toBeDefined();
       expect(openFolderWithProvider.fn).toBeDefined();
+      expect(runOplCommandProvider.fn).toBeDefined();
     });
   });
 

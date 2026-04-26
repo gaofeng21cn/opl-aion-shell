@@ -4,10 +4,12 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 // === Mocking Dependencies === //
 
+const stableT = vi.hoisted(() => (key: string, options?: any) => options?.defaultValue || key);
+
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: any) => options?.defaultValue || key,
+    t: stableT,
   }),
 }));
 
@@ -148,16 +150,13 @@ describe('SkillsHubSettings Component', () => {
     // Wait for data fetching to complete
     await waitFor(() => {
       expect(mockListAvailableSkills).toHaveBeenCalled();
-      expect(mockDetectAndCountExternalSkills).toHaveBeenCalled();
+      expect(mockGetSkillPaths).toHaveBeenCalled();
     });
 
     // Check headers
-    expect(screen.getByText('Discovered External Skills')).toBeInTheDocument();
+    expect(mockDetectAndCountExternalSkills).not.toHaveBeenCalled();
+    expect(screen.queryByText('Discovered External Skills')).not.toBeInTheDocument();
     expect(screen.getByText('My Skills')).toBeInTheDocument();
-
-    // Check external skills render
-    expect(screen.getByText('Gemini CLI')).toBeInTheDocument();
-    expect(screen.getByText('ExtSkill1')).toBeInTheDocument();
 
     // Check my skills render
     expect(screen.getByText('MySkill1')).toBeInTheDocument();
@@ -177,9 +176,8 @@ describe('SkillsHubSettings Component', () => {
     });
 
     // Get the My Skills search input
-    // The component has two search inputs, the second one is for My Skills
     const searchInputs = screen.getAllByPlaceholderText('Search skills...');
-    const mySkillsSearch = searchInputs[1];
+    const mySkillsSearch = searchInputs[0];
 
     // Search for non-existent skill
     fireEvent.change(mySkillsSearch, { target: { value: 'NotFound' } });
@@ -198,24 +196,21 @@ describe('SkillsHubSettings Component', () => {
     });
   });
 
-  it('should import external skill successfully', async () => {
+  it('should import a skill from a manually selected folder', async () => {
     mockImportSkillWithSymlink.mockResolvedValue({ success: true });
+    mockShowOpen.mockResolvedValue(['/manual/skill']);
 
     render(<SkillsHubSettings />);
 
     await waitFor(() => {
-      expect(screen.getByText('ExtSkill1')).toBeInTheDocument();
+      expect(screen.getByText('MySkill1')).toBeInTheDocument();
     });
 
-    // Find import button for the external skill
-    // ExtSkill1 and ExtSkill2 - first Import button
-    const importButtons = screen.getAllByText('Import');
-    expect(importButtons.length).toBeGreaterThan(0);
-
-    fireEvent.click(importButtons[0]);
+    fireEvent.click(screen.getByText('Import from Folder'));
 
     await waitFor(() => {
-      expect(mockImportSkillWithSymlink).toHaveBeenCalledWith({ skillPath: '/home/gemini/ext1' });
+      expect(mockShowOpen).toHaveBeenCalled();
+      expect(mockImportSkillWithSymlink).toHaveBeenCalledWith({ skillPath: '/manual/skill' });
     });
   });
 
@@ -251,38 +246,16 @@ describe('SkillsHubSettings Component', () => {
     });
   });
 
-  it('should be able to add a custom external path', async () => {
+  it('should keep external skill discovery hidden by default', async () => {
     render(<SkillsHubSettings />);
 
     await waitFor(() => {
-      expect(screen.getByText('Discovered External Skills')).toBeInTheDocument();
+      expect(screen.getByText('My Skills')).toBeInTheDocument();
     });
 
-    // Click Add button (has title "Add" mocked effectively)
-    // Instead of targeting testid, let's grab the add button. In UI it's a Plus icon.
-    const plusIcon = screen.getByTestId('icon-plus');
-    fireEvent.click(plusIcon.parentElement!);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('mock-modal')).toBeInTheDocument();
-    });
-
-    // Add name and path
-    const nameInput = screen.getByPlaceholderText('e.g. My Custom Skills');
-    const pathInput = screen.getByPlaceholderText('e.g. C:\\Users\\me\\.mytools\\skills');
-
-    fireEvent.change(nameInput, { target: { value: 'NewPath' } });
-    fireEvent.change(pathInput, { target: { value: '/foo/bar' } });
-
-    mockAddCustomExternalPath.mockResolvedValue({ success: true });
-
-    // Click Confirm
-    const okButton = screen.getByTestId('modal-ok');
-    fireEvent.click(okButton);
-
-    await waitFor(() => {
-      expect(mockAddCustomExternalPath).toHaveBeenCalledWith({ name: 'NewPath', path: '/foo/bar' });
-    });
+    expect(screen.queryByText('Discovered External Skills')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('icon-plus')).not.toBeInTheDocument();
+    expect(mockAddCustomExternalPath).not.toHaveBeenCalled();
   });
 
   it('should render usage tips correctly', () => {

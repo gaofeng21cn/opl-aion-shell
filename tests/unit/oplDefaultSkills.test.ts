@@ -24,7 +24,7 @@ describe('OPL default Codex skills', () => {
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
-      'morph-ppt',
+      'ui-ux-pro-max',
       'custom-skill',
     ]);
   });

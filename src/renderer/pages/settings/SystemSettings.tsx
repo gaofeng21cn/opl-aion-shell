@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Input, Message, Space, Typography } from '@arco-design/web-react';
+import { Button, Card, Input, Message, Space, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import codexLogo from '@/renderer/assets/logos/tools/coding/codex.svg';
 import hermesLogo from '@/renderer/assets/logos/brand/hermes.svg';
@@ -31,9 +31,12 @@ import OplAppearanceThemeSettings from './OplAppearanceThemeSettings';
 type OplModuleStatus = {
   module_id: string;
   label: string;
+  scope?: string;
   health_status?: string;
   install_origin?: string;
   installed?: boolean;
+  available_actions?: string[];
+  recommended_action?: string | null;
   git?: {
     branch?: string;
     short_sha?: string;
@@ -47,9 +50,42 @@ type OplModulesPayload = {
   };
 };
 
+type CoreEngineStatus = {
+  installed?: boolean;
+  version?: string | null;
+  parsed_version?: string | null;
+  minimum_version?: string | null;
+  version_status?: string | null;
+  default_model?: string | null;
+  default_reasoning_effort?: string | null;
+  provider_base_url?: string | null;
+  health_status?: string | null;
+  issues?: string[];
+};
+
+type CoreEngines = {
+  codex?: CoreEngineStatus;
+  hermes?: CoreEngineStatus;
+};
+
+type SystemInitializePayload = {
+  system_initialize?: {
+    core_engines?: CoreEngines;
+    domain_modules?: {
+      modules?: OplModuleStatus[];
+    };
+  };
+};
+
+type AppVersions = {
+  oplVersion: string;
+  guiVersion: string;
+};
+
 type EnvironmentItem = {
   id: string;
   moduleId?: string;
+  engineId?: 'codex' | 'hermes';
   name: string;
   roleKey: string;
   latestVersionKey: string;
@@ -59,6 +95,7 @@ type EnvironmentItem = {
 const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'codex',
+    engineId: 'codex',
     name: 'Codex CLI',
     roleKey: 'settings.oplEnvironmentPage.items.codex.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.codex.latest',
@@ -66,6 +103,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   },
   {
     id: 'hermes',
+    engineId: 'hermes',
     name: 'Hermes-Agent',
     roleKey: 'settings.oplEnvironmentPage.items.hermes.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.hermes.latest',
@@ -121,6 +159,20 @@ function parseModules(stdout: string): OplModuleStatus[] {
   }
 }
 
+function parseSystemInitialize(stdout: string): SystemInitializePayload['system_initialize'] | null {
+  try {
+    const payload = JSON.parse(stdout) as SystemInitializePayload;
+    return payload.system_initialize ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function firstLine(value?: string | null): string | null {
+  const line = value?.split(/\r?\n/).find((entry) => entry.trim().length > 0)?.trim();
+  return line || null;
+}
+
 function formatModuleVersion(status: OplModuleStatus | undefined, t: (key: string) => string): string {
   if (!status) return t('settings.oplEnvironmentPage.status.notDetected');
   if (!status.installed) return t('settings.oplEnvironmentPage.status.notInstalled');
@@ -130,31 +182,80 @@ function formatModuleVersion(status: OplModuleStatus | undefined, t: (key: strin
   return `${branch}@${sha}${dirty}`;
 }
 
+function formatEngineVersion(engine: CoreEngineStatus | undefined, t: (key: string) => string): string {
+  if (!engine) return t('settings.oplEnvironmentPage.status.notDetected');
+  if (!engine.installed) return t('settings.oplEnvironmentPage.status.notInstalled');
+  return firstLine(engine.version) ?? t('settings.oplEnvironmentPage.status.notDetected');
+}
+
+function formatEngineProfile(engine: CoreEngineStatus | undefined): string | null {
+  if (!engine?.default_model && !engine?.default_reasoning_effort && !engine?.provider_base_url) return null;
+  return [engine.default_model, engine.default_reasoning_effort, engine.provider_base_url]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function formatAppVersion(versions: AppVersions | null, t: (key: string) => string): string {
+  if (!versions) return t('settings.oplEnvironmentPage.status.managedByApp');
+  return `OPL ${versions.oplVersion} · GUI ${versions.guiVersion}`;
+}
+
+function resolveModuleAction(status: OplModuleStatus | undefined): 'install' | 'update' | null {
+  if (!status) return null;
+  if (status.recommended_action === 'install' || status.recommended_action === 'update') {
+    return status.recommended_action;
+  }
+  return null;
+}
+
+function resolveEngineAction(engine: CoreEngineStatus | undefined): 'install' | 'update' | null {
+  if (!engine) return null;
+  return engine.installed ? 'update' : 'install';
+}
+
 const OplEnvironmentContent: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const [runningAction, setRunningAction] = useState<string | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<OplModuleStatus[]>([]);
+  const [coreEngines, setCoreEngines] = useState<CoreEngines>({});
+  const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
   const [brandName, setBrandName] = useState(OPL_DEFAULT_BRAND_NAME);
 
-  const loadModules = useCallback(async (showLoading = false) => {
-    if (showLoading) setRunningAction('modules');
+  const loadEnvironment = useCallback(async (showLoading = false) => {
+    if (showLoading) setRunningAction('refresh');
     try {
-      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
-      if (result.exitCode !== 0) {
-        message.warning(result.stderr || t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+      const [systemResult, versions] = await Promise.all([
+        ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
+        ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),
+      ]);
+      if (versions) {
+        setAppVersions(versions);
+      }
+      if (systemResult.exitCode === 0) {
+        const initialize = parseSystemInitialize(systemResult.stdout);
+        setCoreEngines(initialize?.core_engines ?? {});
+        setModuleStatuses(initialize?.domain_modules?.modules ?? []);
         return;
       }
-      setModuleStatuses(parseModules(result.stdout));
+
+      const modulesResult = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
+      if (modulesResult.exitCode === 0) {
+        setModuleStatuses(parseModules(modulesResult.stdout));
+      } else {
+        message.warning(systemResult.stderr || modulesResult.stderr || t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+      }
+    } catch {
+      message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
     } finally {
       if (showLoading) setRunningAction(null);
     }
   }, [message, t]);
 
   useEffect(() => {
-    void loadModules(false);
-  }, [loadModules]);
+    void loadEnvironment(false);
+  }, [loadEnvironment]);
 
   useEffect(() => {
     ConfigStorage.get('opl.brandName')
@@ -188,7 +289,7 @@ const OplEnvironmentContent: React.FC = () => {
         const result = await ipcBridge.shell.runOplCommand.invoke({ args });
         if (result.exitCode === 0) {
           message.success(successText);
-          await loadModules();
+          await loadEnvironment();
         } else {
           message.error(result.stderr || result.stdout || t('settings.oplEnvironmentPage.messages.commandFailed'));
         }
@@ -196,7 +297,7 @@ const OplEnvironmentContent: React.FC = () => {
         setRunningAction(null);
       }
     },
-    [loadModules, message]
+    [loadEnvironment, message]
   );
 
   return (
@@ -260,8 +361,8 @@ const OplEnvironmentContent: React.FC = () => {
             </Button>
             <Button
               icon={<UpdateRotation theme='outline' />}
-              loading={runningAction === 'modules'}
-              onClick={() => void loadModules(true)}
+              loading={runningAction === 'refresh'}
+              onClick={() => void loadEnvironment(true)}
             >
               {t('settings.oplEnvironmentPage.actions.refresh')}
             </Button>
@@ -285,9 +386,25 @@ const OplEnvironmentContent: React.FC = () => {
         <div className='flex flex-col divide-y divide-border-1'>
           {OPL_ENVIRONMENT_ITEMS.map((item) => {
             const status = item.moduleId ? statusByModuleId.get(item.moduleId) : undefined;
+            const engine = item.engineId ? coreEngines?.[item.engineId] : undefined;
             const currentVersion = item.moduleId
               ? formatModuleVersion(status, t)
-              : t('settings.oplEnvironmentPage.status.managedByApp');
+              : item.engineId
+                ? formatEngineVersion(engine, t)
+                : formatAppVersion(appVersions, t);
+            const targetVersion = t(item.latestVersionKey, { minimumVersion: engine?.minimum_version ?? '' });
+            const detail = item.engineId === 'codex' ? formatEngineProfile(engine) : null;
+            const moduleAction = item.moduleId ? resolveModuleAction(status) : null;
+            const engineAction = item.engineId ? resolveEngineAction(engine) : null;
+            const actionArgs = item.moduleId && moduleAction
+              ? ['module', moduleAction, '--module', item.moduleId]
+              : item.engineId && engineAction
+                ? ['engine', engineAction, '--engine', item.engineId]
+                : null;
+            const actionLabel = moduleAction === 'install' || engineAction === 'install'
+              ? t('settings.oplEnvironmentPage.actions.install')
+              : t('settings.oplEnvironmentPage.actions.update');
+            const actionId = `update-${item.id}`;
             return (
               <div key={item.id} className='flex items-center justify-between gap-16px px-16px py-14px'>
                 <div className='flex items-center gap-12px min-w-0'>
@@ -301,25 +418,46 @@ const OplEnvironmentContent: React.FC = () => {
                   <div className='min-w-0'>
                     <Typography.Text className='block font-600 text-t-primary'>{item.name}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary truncate'>{t(item.roleKey)}</Typography.Text>
+                    {detail && (
+                      <Typography.Text className='block text-12px text-t-tertiary truncate'>{detail}</Typography.Text>
+                    )}
                   </div>
                 </div>
                 <div className='flex items-center gap-12px shrink-0'>
-                  <Typography.Text className='text-12px text-t-tertiary hidden sm:block'>{currentVersion}</Typography.Text>
-                  <Button
-                    size='mini'
-                    disabled={!item.moduleId}
-                    loading={runningAction === `update-${item.id}`}
-                    onClick={() => {
-                      if (!item.moduleId) return;
-                      void runOplCommand(
-                        ['module', 'update', '--module', item.moduleId],
-                        `update-${item.id}`,
-                        t('settings.oplEnvironmentPage.messages.updateComplete', { name: item.name })
-                      );
-                    }}
-                  >
-                    {t('settings.oplEnvironmentPage.actions.update')}
-                  </Button>
+                  <div className='hidden sm:flex flex-col items-end gap-4px'>
+                    <Typography.Text className='text-12px text-t-tertiary'>
+                      {t('settings.oplEnvironmentPage.currentVersion', { version: currentVersion })}
+                    </Typography.Text>
+                    <Typography.Text className='text-12px text-t-tertiary'>
+                      {t('settings.oplEnvironmentPage.latestVersion', { version: targetVersion })}
+                    </Typography.Text>
+                    {(status?.health_status || engine?.health_status) && (
+                      <Tag size='small' color={(status?.health_status ?? engine?.health_status) === 'ready' ? 'green' : 'orange'}>
+                        {status?.health_status ?? engine?.health_status}
+                      </Tag>
+                    )}
+                  </div>
+                  {item.id === 'gui' ? (
+                    <Button size='mini' onClick={() => navigate('/settings/about')}>
+                      {t('settings.checkForUpdates')}
+                    </Button>
+                  ) : (
+                    <Button
+                      size='mini'
+                      disabled={!actionArgs}
+                      loading={runningAction === actionId}
+                      onClick={() => {
+                        if (!actionArgs) return;
+                        void runOplCommand(
+                          actionArgs,
+                          actionId,
+                          t('settings.oplEnvironmentPage.messages.updateComplete', { name: item.name })
+                        );
+                      }}
+                    >
+                      {actionLabel}
+                    </Button>
+                  )}
                 </div>
               </div>
             );

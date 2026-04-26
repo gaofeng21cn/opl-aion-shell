@@ -926,6 +926,7 @@
       "refresh": "Refresh versions",
       "repair": "Repair install",
       "openRemote": "Open Remote Connection",
+      "install": "Install",
       "update": "Update"
     },
     "messages": {
@@ -945,7 +946,7 @@
     "items": {
       "codex": {
         "role": "Core execution environment",
-        "latest": "Managed by Codex CLI"
+        "latest": "Official latest (minimum {{minimumVersion}})"
       },
       "hermes": {
         "role": "Long-running task and service dependency",

@@ -60,12 +60,13 @@ files:
   - '!**/node_modules/tree-sitter-*/**/*.cc'
   - '!**/node_modules/tree-sitter-*/**/*.c'
   # Exclude dev/test files
-  - '!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}'
-  - '!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}'
-  - '!**/node_modules/*/{*.test.js,*.spec.js,*.test.ts,*.spec.ts}'
-  - '!**/node_modules/*.d.ts'
-  - '!**/node_modules/.bin'
-  - '!**/node_modules/*/{docs,documentation,doc}'
+  - '!**/node_modules/**/{CHANGELOG.md,README.md,README,readme.md,readme}'
+  - '!**/node_modules/**/{test,__tests__,tests,powered-test,example,examples}/**/*'
+  - '!**/node_modules/**/{demo,demos}/**/*'
+  - '!**/node_modules/**/*.{test,spec}.{js,ts,mjs,cjs}'
+  - '!**/node_modules/**/*.d.ts'
+  - '!**/node_modules/**/.bin/**'
+  - '!**/node_modules/**/{docs,documentation,doc}/**/*'
   # Exclude system files
   - '!**/{.DS_Store,.git,.gitignore,.gitattributes}'
   - '!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}'
@@ -74,6 +75,45 @@ files:
   # Exclude large packages
   - '!**/node_modules/{@img,@emnapi}/**'
   - '!**/node_modules/@img/sharp-*/**'
+  # OPL renderer bundles these libraries into out/renderer via Vite.
+  # Keeping their original node_modules copies in app.asar duplicates payload.
+  - '!**/node_modules/@arco-design/**'
+  - '!**/node_modules/@codemirror/**'
+  - '!**/node_modules/@icon-park/**'
+  - '!**/node_modules/@monaco-editor/**'
+  - '!**/node_modules/@shikijs/**'
+  - '!**/node_modules/@types/**'
+  - '!**/node_modules/@uiw/**'
+  - '!**/node_modules/@mermaid-js/**'
+  - '!**/node_modules/diff2html/**'
+  - '!**/node_modules/highlight.js/**'
+  - '!**/node_modules/katex/**'
+  - '!**/node_modules/lucide-react/**'
+  - '!**/node_modules/mermaid/**'
+  - '!**/node_modules/monaco-editor/**'
+  - '!**/node_modules/react-syntax-highlighter/**'
+  - '!**/node_modules/refractor/**'
+  - '!**/node_modules/shiki/**'
+  - '!**/node_modules/streamdown/**'
+  # OPL's default runtime is Codex. The retained AionUI Gemini runtime can fall
+  # back to approximate OpenAI token counting when tiktoken is unavailable.
+  - '!**/node_modules/tiktoken/**'
+  # OPL does not bundle direct Google Cloud telemetry exporters. The build
+  # script replaces @office-ai/aioncli-core's GCP exporter module with a small
+  # explicit stub before Vite/electron-builder run.
+  - '!**/node_modules/@google-cloud/**'
+  - '!**/node_modules/googleapis/**'
+  - '!**/node_modules/googleapis-common/**'
+  - '!**/node_modules/@office-ai/aioncli-core/dist/docs/**'
+  - '!**/node_modules/@office-ai/aioncli-core/dist/src/test-utils/**'
+  - '!**/node_modules/@office-ai/aioncli-core/dist/src/**/*.test.js'
+  # Keep better_sqlite3.node and runtime JS, but drop compile sources and object
+  # files that are not needed by the packaged app.
+  - '!**/node_modules/better-sqlite3/deps/**'
+  - '!**/node_modules/better-sqlite3/src/**'
+  - '!**/node_modules/better-sqlite3/build/deps/**'
+  - '!**/node_modules/better-sqlite3/build/Release/{.deps,obj,obj.target}/**'
+  - '!**/node_modules/better-sqlite3/build/Release/{sqlite3.a,test_extension.node}'
   - '!**/node_modules/@anthropic-ai/claude-code/vendor/**'
   - '!**/node_modules/@anthropic-ai/claude-agent-sdk/vendor/**'
   # Exclude JAR files and JNI libraries that cause notarization issues
@@ -93,10 +133,8 @@ files:
   - 'out/**/react-syntax-highlighter_languages_highlight_{javascript,typescript,python,java,cpp,c,html,css,json,xml,yaml,shell,bash,dockerfile,sql,markdown,go,rust,php}'
   # Ensure vendor chunks from manual splitting are included
   - 'out/renderer/**/vendor-*.js'
-  # Remap viteStaticCopy output (out/main/skills/, out/main/assistant/, out/main/static/)
+  # Remap viteStaticCopy output (out/main/assistant/, out/main/static/)
   # to root-level directories inside the asar, so runtime path resolution stays simple.
-  - from: out/main/skills
-    to: skills
   - from: out/main/assistant
     to: assistant
   - from: out/main/static

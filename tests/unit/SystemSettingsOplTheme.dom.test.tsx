@@ -22,6 +22,9 @@ vi.mock('@/common', () => ({
     shell: {
       runOplCommand: { invoke: (...args: unknown[]) => mockRunOplCommand(...args) },
     },
+    application: {
+      appVersions: { invoke: vi.fn().mockResolvedValue({ oplVersion: '26.4.25', guiVersion: '1.9.21' }) },
+    },
   },
 }));
 
@@ -59,6 +62,9 @@ vi.mock('@/renderer/assets/logos/opl-modules/mas.svg', () => ({ default: 'mas.sv
 vi.mock('@/renderer/assets/logos/opl-modules/mds.svg', () => ({ default: 'mds.svg' }));
 vi.mock('@/renderer/assets/logos/opl-modules/mag.svg', () => ({ default: 'mag.svg' }));
 vi.mock('@/renderer/assets/logos/opl-modules/rca.svg', () => ({ default: 'rca.svg' }));
+vi.mock('@/renderer/assets/logos/tools/coding/codex.svg', () => ({ default: 'codex.svg' }));
+vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.svg' }));
+vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));
 
 import SystemSettings from '@/renderer/pages/settings/SystemSettings';
 
@@ -82,7 +88,7 @@ describe('SystemSettings OPL appearance section', () => {
     mockConfigSet.mockResolvedValue(undefined);
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
-      stdout: JSON.stringify({ modules: { items: [] } }),
+      stdout: JSON.stringify({ system_initialize: { core_engines: {}, domain_modules: { modules: [] } } }),
       stderr: '',
     });
   });

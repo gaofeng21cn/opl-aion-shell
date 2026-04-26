@@ -85,7 +85,7 @@ vi.mock('@/renderer/pages/team/components/TeamCreateModal', () => ({
 import Sider from '@/renderer/components/layout/Sider';
 
 describe('Sider team entry visibility', () => {
-  it('keeps the collapsed team icon color stable while using background-only active state', async () => {
+  it('keeps team entries hidden in the simplified OPL sidebar', async () => {
     const teams: TTeam[] = [
       {
         id: 'team-1',
@@ -107,14 +107,13 @@ describe('Sider team entry visibility', () => {
       </MemoryRouter>
     );
 
-    const teamItem = screen.getByTestId('collapsed-team-item-team-1');
-    const teamIcon = screen.getByTestId('collapsed-team-icon-team-1');
-
-    expect(teamItem.className).toContain('!bg-active');
-    expect(teamIcon).toHaveAttribute('data-icon-fill', 'var(--text-primary)');
+    expect(screen.getByTestId('sider-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('sider-search-entry')).toBeInTheDocument();
+    expect(screen.queryByTestId('collapsed-team-item-team-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('collapsed-team-icon-team-1')).not.toBeInTheDocument();
   });
 
-  it('shows the team section when team mode is enabled', async () => {
+  it('renders the OPL conversation sidebar without team or cron sections', async () => {
     mockUseTeamList.mockReturnValue({ teams: [], mutate: vi.fn(), removeTeam: vi.fn() });
 
     render(
@@ -125,10 +124,10 @@ describe('Sider team entry visibility', () => {
 
     expect(screen.getByTestId('sider-toolbar')).toBeInTheDocument();
     expect(screen.getByTestId('sider-search-entry')).toBeInTheDocument();
-    expect(screen.getByTestId('sider-scheduled-entry')).toBeInTheDocument();
-    expect(screen.getByTestId('cron-job-section')).toBeInTheDocument();
+    expect(screen.queryByTestId('sider-scheduled-entry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('cron-job-section')).not.toBeInTheDocument();
     expect(await screen.findByTestId('workspace-grouped-history')).toBeInTheDocument();
     expect(screen.getByTestId('sider-footer')).toBeInTheDocument();
-    expect(screen.getByText('team.sider.title')).toBeInTheDocument();
+    expect(screen.queryByText('team.sider.title')).not.toBeInTheDocument();
   });
 });

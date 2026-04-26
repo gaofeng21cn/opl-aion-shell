@@ -13,7 +13,7 @@ export const OPL_DEFAULT_CODEX_SKILLS = [
   'officecli-docx',
   'officecli-pptx',
   'officecli-xlsx',
-  'morph-ppt',
+  'ui-ux-pro-max',
 ] as const;
 
 export function mergeOplDefaultCodexSkills(enabledSkills?: string[]): string[] {

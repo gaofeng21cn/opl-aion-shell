@@ -926,6 +926,7 @@
       "refresh": "重新整理版本",
       "repair": "修復安裝",
       "openRemote": "開啟遠端連線",
+      "install": "安裝",
       "update": "更新"
     },
     "messages": {
@@ -945,7 +946,7 @@
     "items": {
       "codex": {
         "role": "核心執行環境",
-        "latest": "由 Codex CLI 管理"
+        "latest": "官方 latest（最低 {{minimumVersion}}）"
       },
       "hermes": {
         "role": "長任務與服務依賴",
