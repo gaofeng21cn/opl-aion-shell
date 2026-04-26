@@ -23,7 +23,7 @@ export function initApplicationBridgeCore(): void {
 
   ipcBridge.application.appVersions.provider(() => {
     return Promise.resolve({
-      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || '26.4.25',
+      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || '26.4.27',
       guiVersion: app.getVersion(),
       releaseRepo: process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
       releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',

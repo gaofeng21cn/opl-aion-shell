@@ -22,6 +22,11 @@ type OplSystemInitializePayload = {
       ready_to_launch?: boolean;
       blocking_items?: string[];
     };
+    recommended_skills?: {
+      summary?: {
+        missing?: number;
+      };
+    };
     recommended_next_action?: {
       label?: string;
     };
@@ -42,7 +47,13 @@ const parseInitializePayload = (stdout: string): OplSystemInitializePayload['sys
   }
 };
 
-const readInitializeState = async (): Promise<OplFirstLaunchPreparationResult> => {
+const needsRecommendedSkillInstall = (initialize: OplSystemInitializePayload['system_initialize'] | null): boolean =>
+  (initialize?.recommended_skills?.summary?.missing ?? 0) > 0;
+
+const readInitializeState = async (
+  readyStatus: Extract<OplFirstLaunchPreparationResult['status'], 'already-prepared' | 'prepared'> = 'prepared',
+  options: { installRecommendedSkills?: boolean } = {}
+): Promise<OplFirstLaunchPreparationResult> => {
   const initializeResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INITIALIZE_ARGS] });
   if (initializeResult.exitCode !== 0) {
     return { status: 'failed', message: getFailureMessage(initializeResult) };
@@ -50,8 +61,12 @@ const readInitializeState = async (): Promise<OplFirstLaunchPreparationResult> =
 
   const initialize = parseInitializePayload(initializeResult.stdout);
   if (initialize?.setup_flow?.ready_to_launch) {
+    if (options.installRecommendedSkills && needsRecommendedSkillInstall(initialize)) {
+      return { status: 'setup-needed' };
+    }
+
     await ConfigStorage.set(PREPARED_AT_CONFIG_KEY, Date.now());
-    return { status: 'prepared' };
+    return { status: readyStatus };
   }
 
   const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
@@ -64,15 +79,14 @@ const readInitializeState = async (): Promise<OplFirstLaunchPreparationResult> =
 
 const runOplFirstLaunchEnvironmentPreparation = async (): Promise<OplFirstLaunchPreparationResult> => {
   try {
-    const preparedAt = await ConfigStorage.get(PREPARED_AT_CONFIG_KEY);
-    if (preparedAt) {
-      const state = await readInitializeState();
-      return state.status === 'prepared' ? { status: 'already-prepared' } : state;
+    const initialState = await readInitializeState('already-prepared', { installRecommendedSkills: true });
+    if (initialState.status !== 'setup-needed') {
+      return initialState;
     }
 
     const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
     if (result.exitCode === 0) {
-      return readInitializeState();
+      return readInitializeState('prepared');
     }
 
     return { status: 'failed', message: getFailureMessage(result) };

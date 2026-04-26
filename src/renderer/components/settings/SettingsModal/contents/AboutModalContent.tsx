@@ -87,7 +87,7 @@ const AboutModalContent: React.FC = () => {
             </Typography.Text>
             <div className='flex items-center justify-center gap-8px mb-16px'>
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                OPL v{versions?.oplVersion || '26.4.25'}
+                OPL v{versions?.oplVersion || '26.4.27'}
               </span>
               {versions?.guiVersion && (
                 <span className='px-10px py-4px rd-6px text-12px bg-fill-1 text-t-tertiary font-500'>

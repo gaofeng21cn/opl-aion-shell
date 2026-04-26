@@ -126,11 +126,16 @@ const Layout: React.FC<{
     let cancelled = false;
     let hideLoadingMessage: ReturnType<typeof Message.loading> | undefined;
     let releaseMessageOwner: (() => void) | undefined;
+    let showLoadingTimer: ReturnType<typeof setTimeout> | undefined;
 
     const releaseOwnedMessage = () => {
       if (releaseMessageOwner) {
         releaseMessageOwner();
         releaseMessageOwner = undefined;
+      }
+      if (showLoadingTimer) {
+        clearTimeout(showLoadingTimer);
+        showLoadingTimer = undefined;
       }
       if (hideLoadingMessage) {
         hideLoadingMessage();
@@ -147,10 +152,13 @@ const Layout: React.FC<{
       const ownsMessage = claimOplFirstLaunchPreparationMessage(messageOwner);
       if (ownsMessage) {
         releaseMessageOwner = () => releaseOplFirstLaunchPreparationMessage(messageOwner);
-        hideLoadingMessage = Message.loading({
-          content: t('settings.oplFirstLaunch.preparing'),
-          duration: 0,
-        });
+        showLoadingTimer = setTimeout(() => {
+          if (cancelled) return;
+          hideLoadingMessage = Message.loading({
+            content: t('settings.oplFirstLaunch.preparing'),
+            duration: 0,
+          });
+        }, 800);
       }
 
       try {
@@ -161,10 +169,7 @@ const Layout: React.FC<{
           return;
         }
 
-        if (result.status === 'prepared') {
-          Message.success(t('settings.oplFirstLaunch.complete'));
-          return;
-        }
+        if (result.status === 'prepared') return;
 
         if (result.status === 'setup-needed') {
           Message.warning(result.message || t('settings.oplFirstLaunch.setupNeeded'));

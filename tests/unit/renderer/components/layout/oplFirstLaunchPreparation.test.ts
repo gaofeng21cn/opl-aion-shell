@@ -41,6 +41,38 @@ const readyInitializeResult: OplCommandResult = {
   }),
   stderr: '',
 };
+const missingRecommendedSkillsInitializeResult: OplCommandResult = {
+  exitCode: 0,
+  stdout: JSON.stringify({
+    system_initialize: {
+      setup_flow: {
+        ready_to_launch: true,
+        blocking_items: [],
+      },
+      recommended_skills: {
+        summary: {
+          missing: 2,
+        },
+      },
+    },
+  }),
+  stderr: '',
+};
+const setupNeededInitializeResult: OplCommandResult = {
+  exitCode: 0,
+  stdout: JSON.stringify({
+    system_initialize: {
+      setup_flow: {
+        ready_to_launch: false,
+        blocking_items: ['domain_modules'],
+      },
+      recommended_next_action: {
+        label: 'Install domain modules',
+      },
+    },
+  }),
+  stderr: '',
+};
 
 const createDeferredOplCommandResult = (): {
   promise: Promise<OplCommandResult>;
@@ -59,6 +91,13 @@ const createDeferredOplCommandResult = (): {
       resolveResult(result);
     },
   };
+};
+
+const waitForOplCommandCalls = async (count: number) => {
+  for (let attempt = 0; attempt < 20 && mockRunOplCommand.mock.calls.length < count; attempt += 1) {
+    await Promise.resolve();
+  }
+  expect(mockRunOplCommand).toHaveBeenCalledTimes(count);
 };
 
 describe('oplFirstLaunchPreparation', () => {
@@ -80,24 +119,53 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
+  it('skips OPL install when command-line setup already made the environment launchable', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'already-prepared' });
+
+    expect(mockRunOplCommand).toHaveBeenCalledOnce();
+    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
+  it('runs OPL install to sync missing recommended skills without blocking launch', async () => {
+    mockRunOplCommand
+      .mockResolvedValueOnce(missingRecommendedSkillsInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(readyInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'prepared' });
+
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
   it('reuses one in-flight OPL install across concurrent callers', async () => {
     const deferredRun = createDeferredOplCommandResult();
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockReturnValueOnce(deferredRun.promise).mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(setupNeededInitializeResult)
+      .mockReturnValueOnce(deferredRun.promise)
+      .mockResolvedValueOnce(readyInitializeResult);
 
     const firstPreparation = startOplFirstLaunchEnvironmentPreparation();
     const secondPreparation = startOplFirstLaunchEnvironmentPreparation();
 
     expect(firstPreparation).toBe(secondPreparation);
-    await Promise.resolve();
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['install', '--skip-gui-open'] });
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
 
     deferredRun.resolve({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(firstPreparation).resolves.toEqual({ status: 'prepared' });
     await expect(secondPreparation).resolves.toEqual({ status: 'prepared' });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize'] });
     expect(mockConfigSet).toHaveBeenCalledTimes(1);
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
@@ -105,7 +173,10 @@ describe('oplFirstLaunchPreparation', () => {
   it('allows only one loading message owner while preparation is in flight', async () => {
     const deferredRun = createDeferredOplCommandResult();
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockReturnValueOnce(deferredRun.promise).mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(setupNeededInitializeResult)
+      .mockReturnValueOnce(deferredRun.promise)
+      .mockResolvedValueOnce(readyInitializeResult);
 
     const preparation = startOplFirstLaunchEnvironmentPreparation();
     const firstOwner = Symbol('first');

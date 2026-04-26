@@ -453,7 +453,7 @@ export function initUpdateBridge(): void {
       try {
         const repo = resolveRepo(params?.repo);
         const includePrerelease = Boolean(params?.includePrerelease);
-        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || '26.4.25';
+        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || '26.4.27';
 
         // EN: Versioning note
         // Update comparisons use the OPL release version when provided, falling back to `app.getVersion()`.
