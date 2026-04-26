@@ -66,7 +66,7 @@ vi.mock('@/renderer/assets/logos/tools/coding/codex.svg', () => ({ default: 'cod
 vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.svg' }));
 vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));
 
-import SystemSettings from '@/renderer/pages/settings/SystemSettings';
+import SystemSettings, { resolveEngineAction } from '@/renderer/pages/settings/SystemSettings';
 
 describe('SystemSettings OPL appearance section', () => {
   beforeEach(() => {
@@ -99,5 +99,21 @@ describe('SystemSettings OPL appearance section', () => {
     expect(await screen.findByText('settings.oplEnvironmentPage.appearanceTitle')).toBeInTheDocument();
     expect(screen.getByText('settings.oplEnvironmentPage.appearanceDescription')).toBeInTheDocument();
     expect(screen.getByTestId('opl-appearance-theme-settings')).toBeInTheDocument();
+  });
+});
+
+describe('SystemSettings OPL engine action policy', () => {
+  it('does not offer Codex updates when the installed version is compatible', () => {
+    expect(resolveEngineAction({ installed: true, version_status: 'compatible' }, 'codex')).toBeNull();
+  });
+
+  it('offers Codex updates only when the CLI version needs attention', () => {
+    expect(resolveEngineAction({ installed: true, version_status: 'outdated' }, 'codex')).toBe('update');
+    expect(resolveEngineAction({ installed: true, version_status: 'unknown' }, 'codex')).toBe('update');
+  });
+
+  it('offers Hermes updates only when Hermes reports an available update', () => {
+    expect(resolveEngineAction({ installed: true, update_available: false }, 'hermes')).toBeNull();
+    expect(resolveEngineAction({ installed: true, update_available: true }, 'hermes')).toBe('update');
   });
 });

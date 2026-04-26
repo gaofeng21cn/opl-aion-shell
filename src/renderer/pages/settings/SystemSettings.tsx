@@ -56,6 +56,8 @@ type CoreEngineStatus = {
   parsed_version?: string | null;
   minimum_version?: string | null;
   version_status?: string | null;
+  update_available?: boolean;
+  update_summary?: string | null;
   default_model?: string | null;
   default_reasoning_effort?: string | null;
   provider_base_url?: string | null;
@@ -169,7 +171,10 @@ function parseSystemInitialize(stdout: string): SystemInitializePayload['system_
 }
 
 function firstLine(value?: string | null): string | null {
-  const line = value?.split(/\r?\n/).find((entry) => entry.trim().length > 0)?.trim();
+  const line = value
+    ?.split(/\r?\n/)
+    .find((entry) => entry.trim().length > 0)
+    ?.trim();
   return line || null;
 }
 
@@ -190,9 +195,7 @@ function formatEngineVersion(engine: CoreEngineStatus | undefined, t: (key: stri
 
 function formatEngineProfile(engine: CoreEngineStatus | undefined): string | null {
   if (!engine?.default_model && !engine?.default_reasoning_effort && !engine?.provider_base_url) return null;
-  return [engine.default_model, engine.default_reasoning_effort, engine.provider_base_url]
-    .filter(Boolean)
-    .join(' · ');
+  return [engine.default_model, engine.default_reasoning_effort, engine.provider_base_url].filter(Boolean).join(' · ');
 }
 
 function formatAppVersion(versions: AppVersions | null, t: (key: string) => string): string {
@@ -208,9 +211,30 @@ function resolveModuleAction(status: OplModuleStatus | undefined): 'install' | '
   return null;
 }
 
-function resolveEngineAction(engine: CoreEngineStatus | undefined): 'install' | 'update' | null {
+export function resolveEngineAction(
+  engine: CoreEngineStatus | undefined,
+  engineId: EnvironmentItem['engineId']
+): 'install' | 'update' | null {
   if (!engine) return null;
-  return engine.installed ? 'update' : 'install';
+  if (!engine.installed) return 'install';
+  if (engineId === 'codex') {
+    return engine.version_status === 'outdated' || engine.version_status === 'unknown' ? 'update' : null;
+  }
+  if (engineId === 'hermes') {
+    return engine.update_available ? 'update' : null;
+  }
+  return null;
+}
+
+function formatTargetVersion(
+  item: EnvironmentItem,
+  engine: CoreEngineStatus | undefined,
+  t: (key: string, options?: Record<string, string>) => string
+) {
+  if (item.engineId === 'hermes' && engine?.update_available && engine.update_summary) {
+    return firstLine(engine.update_summary) ?? engine.update_summary;
+  }
+  return t(item.latestVersionKey, { minimumVersion: engine?.minimum_version ?? '' });
 }
 
 const OplEnvironmentContent: React.FC = () => {
@@ -223,35 +247,40 @@ const OplEnvironmentContent: React.FC = () => {
   const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
   const [brandName, setBrandName] = useState(OPL_DEFAULT_BRAND_NAME);
 
-  const loadEnvironment = useCallback(async (showLoading = false) => {
-    if (showLoading) setRunningAction('refresh');
-    try {
-      const [systemResult, versions] = await Promise.all([
-        ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
-        ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),
-      ]);
-      if (versions) {
-        setAppVersions(versions);
-      }
-      if (systemResult.exitCode === 0) {
-        const initialize = parseSystemInitialize(systemResult.stdout);
-        setCoreEngines(initialize?.core_engines ?? {});
-        setModuleStatuses(initialize?.domain_modules?.modules ?? []);
-        return;
-      }
+  const loadEnvironment = useCallback(
+    async (showLoading = false) => {
+      if (showLoading) setRunningAction('refresh');
+      try {
+        const [systemResult, versions] = await Promise.all([
+          ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
+          ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),
+        ]);
+        if (versions) {
+          setAppVersions(versions);
+        }
+        if (systemResult.exitCode === 0) {
+          const initialize = parseSystemInitialize(systemResult.stdout);
+          setCoreEngines(initialize?.core_engines ?? {});
+          setModuleStatuses(initialize?.domain_modules?.modules ?? []);
+          return;
+        }
 
-      const modulesResult = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
-      if (modulesResult.exitCode === 0) {
-        setModuleStatuses(parseModules(modulesResult.stdout));
-      } else {
-        message.warning(systemResult.stderr || modulesResult.stderr || t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+        const modulesResult = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
+        if (modulesResult.exitCode === 0) {
+          setModuleStatuses(parseModules(modulesResult.stdout));
+        } else {
+          message.warning(
+            systemResult.stderr || modulesResult.stderr || t('settings.oplEnvironmentPage.messages.loadModulesFailed')
+          );
+        }
+      } catch {
+        message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+      } finally {
+        if (showLoading) setRunningAction(null);
       }
-    } catch {
-      message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
-    } finally {
-      if (showLoading) setRunningAction(null);
-    }
-  }, [message, t]);
+    },
+    [message, t]
+  );
 
   useEffect(() => {
     void loadEnvironment(false);
@@ -392,18 +421,20 @@ const OplEnvironmentContent: React.FC = () => {
               : item.engineId
                 ? formatEngineVersion(engine, t)
                 : formatAppVersion(appVersions, t);
-            const targetVersion = t(item.latestVersionKey, { minimumVersion: engine?.minimum_version ?? '' });
+            const targetVersion = formatTargetVersion(item, engine, t);
             const detail = item.engineId === 'codex' ? formatEngineProfile(engine) : null;
             const moduleAction = item.moduleId ? resolveModuleAction(status) : null;
-            const engineAction = item.engineId ? resolveEngineAction(engine) : null;
-            const actionArgs = item.moduleId && moduleAction
-              ? ['module', moduleAction, '--module', item.moduleId]
-              : item.engineId && engineAction
-                ? ['engine', engineAction, '--engine', item.engineId]
-                : null;
-            const actionLabel = moduleAction === 'install' || engineAction === 'install'
-              ? t('settings.oplEnvironmentPage.actions.install')
-              : t('settings.oplEnvironmentPage.actions.update');
+            const engineAction = item.engineId ? resolveEngineAction(engine, item.engineId) : null;
+            const actionArgs =
+              item.moduleId && moduleAction
+                ? ['module', moduleAction, '--module', item.moduleId]
+                : item.engineId && engineAction
+                  ? ['engine', engineAction, '--engine', item.engineId]
+                  : null;
+            const actionLabel =
+              moduleAction === 'install' || engineAction === 'install'
+                ? t('settings.oplEnvironmentPage.actions.install')
+                : t('settings.oplEnvironmentPage.actions.update');
             const actionId = `update-${item.id}`;
             return (
               <div key={item.id} className='flex items-center justify-between gap-16px px-16px py-14px'>
@@ -417,7 +448,9 @@ const OplEnvironmentContent: React.FC = () => {
                   )}
                   <div className='min-w-0'>
                     <Typography.Text className='block font-600 text-t-primary'>{item.name}</Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary truncate'>{t(item.roleKey)}</Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary truncate'>
+                      {t(item.roleKey)}
+                    </Typography.Text>
                     {detail && (
                       <Typography.Text className='block text-12px text-t-tertiary truncate'>{detail}</Typography.Text>
                     )}
@@ -432,7 +465,10 @@ const OplEnvironmentContent: React.FC = () => {
                       {t('settings.oplEnvironmentPage.latestVersion', { version: targetVersion })}
                     </Typography.Text>
                     {(status?.health_status || engine?.health_status) && (
-                      <Tag size='small' color={(status?.health_status ?? engine?.health_status) === 'ready' ? 'green' : 'orange'}>
+                      <Tag
+                        size='small'
+                        color={(status?.health_status ?? engine?.health_status) === 'ready' ? 'green' : 'orange'}
+                      >
                         {status?.health_status ?? engine?.health_status}
                       </Tag>
                     )}
