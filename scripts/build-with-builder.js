@@ -229,6 +229,49 @@ function tryRemoveDir(targetDir) {
   }
 }
 
+function findPackagedAsars(rootDir) {
+  if (!fs.existsSync(rootDir)) return [];
+  const found = [];
+  const stack = [rootDir];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile() && entry.name === 'app.asar') {
+        found.push(fullPath);
+      }
+    }
+  }
+
+  return found.sort();
+}
+
+function validatePackagedRuntime(outDir, buildStartedAt) {
+  const asars = findPackagedAsars(outDir).filter((asarPath) => {
+    try {
+      return fs.statSync(asarPath).mtimeMs >= buildStartedAt - 5000;
+    } catch {
+      return false;
+    }
+  });
+
+  if (asars.length === 0) {
+    throw new Error(`No fresh app.asar found under ${outDir}; packaged runtime cannot be validated.`);
+  }
+
+  const validatorPath = path.join(__dirname, 'validate-packaged-runtime.js');
+  for (const asarPath of asars) {
+    execSync(`node "${validatorPath}" --asar "${asarPath}"`, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+  }
+}
+
 function isProcessRunningWindows(imageName) {
   if (process.platform !== 'win32') return false;
   try {
@@ -593,6 +636,7 @@ try {
   }
 
   const builderCommand = `bunx electron-builder ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg}`;
+  const packagingStartedAt = Date.now();
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
@@ -636,6 +680,8 @@ try {
       );
     }
   }
+
+  validatePackagedRuntime(outDir, packagingStartedAt);
 
   console.log('✅ Build completed!');
 } catch (error) {

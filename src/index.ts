@@ -301,11 +301,6 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
-        // Check for updates after 3 seconds delay
-        // 3秒后检查更新
-        setTimeout(() => {
-          void autoUpdaterService.checkForUpdatesAndNotify();
-        }, 3000);
       })
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);
@@ -462,6 +457,19 @@ const handleAppReady = async (): Promise<void> => {
     initializeZoomFactor(undefined);
   }
 
+  // Resolve the app language before any renderer loads so first launch follows
+  // the operating-system language instead of briefly rendering the fallback locale.
+  try {
+    const savedLanguage = await ProcessConfig.get('language');
+    const initialLanguage = await setInitialLanguage(savedLanguage);
+    if (!savedLanguage) {
+      await ProcessConfig.set('language', initialLanguage);
+    }
+    mark('initializeLanguage');
+  } catch (error) {
+    console.error('[index] Failed to initialize i18n language:', error);
+  }
+
   if (isResetPasswordMode) {
     // Handle password reset without creating window
     try {
@@ -557,15 +565,11 @@ const handleAppReady = async (): Promise<void> => {
       .then(() => mark('initializeAcpDetector'))
       .catch((error) => console.error('[ACP] Detection failed:', error));
 
-    // 读取语言设置并初始化主进程 i18n，然后刷新托盘菜单
-    // Read language setting and initialize main process i18n, then refresh tray menu
+    // Refresh tray menu after language initialization.
     try {
-      const savedLanguage = await ProcessConfig.get('language');
-      await setInitialLanguage(savedLanguage);
-      // After language is set, refresh tray menu if it exists
       await refreshTrayMenu();
     } catch (error) {
-      console.error('[index] Failed to initialize i18n language:', error);
+      console.error('[index] Failed to refresh tray menu:', error);
     }
 
     // 监听语言变更，刷新托盘菜单文案 / Listen for language changes to refresh tray menu labels

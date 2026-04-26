@@ -36,6 +36,7 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "validate:packaged-runtime": "node scripts/validate-packaged-runtime.js",
     "i18n:types": "node scripts/generate-i18n-types.js",
     "test": "vitest run",
     "test:watch": "vitest",

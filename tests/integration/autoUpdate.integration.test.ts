@@ -5,6 +5,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Mock @office-ai/platform at module level (before any imports)
 vi.mock('@office-ai/platform', () => ({
@@ -101,6 +103,13 @@ describe('Auto-Update IPC Bridge Integration', () => {
 
       // Should not throw
       expect(() => initUpdateBridge()).not.toThrow();
+    });
+
+    it('should not run electron-updater checks automatically during app startup', () => {
+      const indexFile = path.resolve(__dirname, '../../src/index.ts');
+      const content = fs.readFileSync(indexFile, 'utf-8');
+
+      expect(content).not.toContain('checkForUpdatesAndNotify()');
     });
   });
 

@@ -14,19 +14,20 @@ export const SUPPORTED_LANGUAGES = i18nConfig.supportedLanguages;
 export const DEFAULT_LANGUAGE = i18nConfig.fallbackLanguage;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
-/**
- * Normalize a language code to a supported BCP 47 tag.
- * e.g. 'zh' → 'zh-CN', 'ja_JP' → 'ja-JP'
- */
-export function normalizeLanguageCode(language: string): SupportedLanguage {
-  const normalized = language.replace(/_/g, '-');
+export function tryNormalizeLanguageCode(language: string | null | undefined): SupportedLanguage | undefined {
+  const trimmed = language?.trim();
+  if (!trimmed) return undefined;
 
-  if (SUPPORTED_LANGUAGES.includes(normalized as SupportedLanguage)) {
-    return normalized as SupportedLanguage;
+  const normalized = trimmed.replace(/_/g, '-');
+  const exactMatch = SUPPORTED_LANGUAGES.find((supported) => supported.toLowerCase() === normalized.toLowerCase());
+  if (exactMatch) {
+    return exactMatch as SupportedLanguage;
   }
 
   const langOnly = normalized.toLowerCase().split('-')[0];
   switch (langOnly) {
+    case 'en':
+      return 'en-US';
     case 'zh':
       return 'zh-CN';
     case 'ja':
@@ -40,8 +41,32 @@ export function normalizeLanguageCode(language: string): SupportedLanguage {
     case 'uk':
       return 'uk-UA';
     default:
-      return DEFAULT_LANGUAGE;
+      return undefined;
   }
+}
+
+/**
+ * Normalize a language code to a supported BCP 47 tag.
+ * e.g. 'zh' → 'zh-CN', 'ja_JP' → 'ja-JP'
+ */
+export function normalizeLanguageCode(language: string): SupportedLanguage {
+  return tryNormalizeLanguageCode(language) ?? DEFAULT_LANGUAGE;
+}
+
+export function resolveInitialLanguage(input: {
+  savedLanguage?: string | null;
+  systemLanguages?: Array<string | null | undefined>;
+  fallbackLanguage?: string | null;
+}): SupportedLanguage {
+  const savedLanguage = tryNormalizeLanguageCode(input.savedLanguage);
+  if (savedLanguage) return savedLanguage;
+
+  for (const language of input.systemLanguages ?? []) {
+    const normalized = tryNormalizeLanguageCode(language);
+    if (normalized) return normalized;
+  }
+
+  return normalizeLanguageCode(input.fallbackLanguage || DEFAULT_LANGUAGE);
 }
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {

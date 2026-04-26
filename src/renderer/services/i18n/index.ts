@@ -7,6 +7,7 @@ import i18nConfig from '@/common/config/i18n-config.json';
 import {
   DEFAULT_LANGUAGE,
   normalizeLanguageCode,
+  resolveInitialLanguage,
   mergeWithFallback,
   ensureAndSwitch,
   type LocaleData,
@@ -48,9 +49,6 @@ const configuredDefaultLanguage = normalizeLanguageCode(envDefaultLanguage || DE
 // Cache for loaded translations
 const loadedTranslations = new Map<string, Record<string, unknown>>();
 
-// Pre-populate cache with the synchronously loaded fallback locale
-loadedTranslations.set(DEFAULT_LANGUAGE, fallbackLocale as Record<string, unknown>);
-
 function getLocaleModules(locale: string): Record<string, unknown> {
   const normalized = normalizeLanguageCode(locale);
   const modules = localeData[normalized] ?? fallbackLocale;
@@ -68,13 +66,30 @@ async function loadLocaleModules(locale: string): Promise<Record<string, unknown
   return modules;
 }
 
+function getBrowserLanguages(): string[] {
+  if (typeof navigator === 'undefined') return [];
+  const languages = Array.isArray(navigator.languages) ? navigator.languages : [];
+  return [...languages, navigator.language].filter((language): language is string => Boolean(language));
+}
+
+const initialLanguage = resolveInitialLanguage({
+  systemLanguages: getBrowserLanguages(),
+  fallbackLanguage: configuredDefaultLanguage,
+});
+
+// Pre-populate cache with synchronously loaded locales to avoid initial render mismatch.
+loadedTranslations.set(DEFAULT_LANGUAGE, fallbackLocale as Record<string, unknown>);
+if (initialLanguage !== DEFAULT_LANGUAGE) {
+  loadedTranslations.set(initialLanguage, getLocaleModules(initialLanguage));
+}
+
 // Initialize i18n with fallback locale loaded synchronously to avoid FOUC.
 // NOTE: We intentionally do NOT use i18next-browser-languagedetector here.
 // In WebUI mode the browser's localStorage is on a different origin than the
 // Electron renderer, so the detector would read the wrong (or missing) value
 // and fall back to navigator.language, causing a language mismatch (Issue #1176).
-// Instead, we use localStorage only as a hint for the initial render and let
-// ConfigStorage (which bridges to the main process) be the single source of truth.
+// ConfigStorage is the single source of truth for explicit user choices; when
+// it has no language yet, first launch follows the operating-system language.
 i18n
   .use(initReactI18next)
   .init({
@@ -82,8 +97,15 @@ i18n
       [DEFAULT_LANGUAGE]: {
         translation: fallbackLocale,
       },
+      ...(initialLanguage !== DEFAULT_LANGUAGE
+        ? {
+            [initialLanguage]: {
+              translation: getLocaleModules(initialLanguage),
+            },
+          }
+        : {}),
     },
-    lng: (typeof localStorage !== 'undefined' ? localStorage.getItem('i18nextLng') : null) || configuredDefaultLanguage,
+    lng: initialLanguage,
     fallbackLng: DEFAULT_LANGUAGE,
     debug: false,
     interpolation: { escapeValue: false },
@@ -96,7 +118,11 @@ i18n
 async function initLanguage(): Promise<void> {
   try {
     const savedLanguage = await ConfigStorage.get('language');
-    const language = savedLanguage || configuredDefaultLanguage;
+    const language = resolveInitialLanguage({
+      savedLanguage,
+      systemLanguages: getBrowserLanguages(),
+      fallbackLanguage: configuredDefaultLanguage,
+    });
     await ensureAndSwitch(i18n, language, loadLocaleModules);
     // Sync to localStorage so next page load can use it as a fast hint
     if (typeof localStorage !== 'undefined') {

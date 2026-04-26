@@ -71,7 +71,7 @@ describe('renderer i18n localStorage guards', () => {
     mockOnLanguageChanged.handler = undefined;
 
     Object.defineProperty(globalThis, 'navigator', {
-      value: { language: 'en-US' },
+      value: { language: 'en-US', languages: ['en-US'] },
       configurable: true,
     });
     Object.defineProperty(globalThis, 'localStorage', {
@@ -96,6 +96,35 @@ describe('renderer i18n localStorage guards', () => {
       })
     );
     expect(mockI18n.changeLanguage).toHaveBeenCalledWith('ja-JP');
+  });
+
+  it('uses the browser system language when no saved language exists', async () => {
+    mockConfigStorageGet.mockResolvedValue(undefined);
+    const localStorageMock = {
+      getItem: vi.fn(() => 'en-US'),
+      setItem: vi.fn(),
+    };
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { language: 'en-US', languages: ['zh-Hans-CN', 'en-US'] },
+      configurable: true,
+    });
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: localStorageMock,
+      configurable: true,
+      writable: true,
+    });
+
+    await import('@/renderer/services/i18n');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockI18n.init).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lng: 'zh-CN',
+      })
+    );
+    expect(mockI18n.changeLanguage).toHaveBeenCalledWith('zh-CN');
+    expect(localStorageMock.setItem).toHaveBeenCalledWith('i18nextLng', 'zh-CN');
   });
 
   it('updates language from the main-process broadcast without touching localStorage', async () => {

@@ -66,7 +66,7 @@ files:
   - '!**/node_modules/**/*.{test,spec}.{js,ts,mjs,cjs}'
   - '!**/node_modules/**/*.d.ts'
   - '!**/node_modules/**/.bin/**'
-  - '!**/node_modules/**/{docs,documentation,doc}/**/*'
+  - '!**/node_modules/**/{docs,documentation}/**/*'
   # Exclude system files
   - '!**/{.DS_Store,.git,.gitignore,.gitattributes}'
   - '!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}'
@@ -125,6 +125,7 @@ files:
   - 'node_modules/better-sqlite3/vendor/**'
   - 'node_modules/bcrypt/vendor/**'
   - 'node_modules/node-pty/vendor/**'
+  - 'node_modules/qrcode-terminal/vendor/**'
   # Exclude vite source maps
   - '!**/*.map'
   # Exclude syntax highlighter languages (keep common ones)

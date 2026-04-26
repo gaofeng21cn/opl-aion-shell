@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SUPPORTED_LANGUAGES, normalizeLanguageCode } from '@/common/config/i18n';
+import {
+  SUPPORTED_LANGUAGES,
+  normalizeLanguageCode,
+  resolveInitialLanguage,
+  tryNormalizeLanguageCode,
+} from '@/common/config/i18n';
 
 describe('common i18n config module', () => {
   it('should have uk-UA as a supported language', () => {
@@ -17,6 +22,26 @@ describe('common i18n config module', () => {
     expect(normalizeLanguageCode('uk')).toBe('uk-UA');
     expect(normalizeLanguageCode('uk-UA')).toBe('uk-UA');
     expect(normalizeLanguageCode('UK-UA')).toBe('uk-UA');
+  });
+
+  it('should normalize macOS Simplified Chinese system language to zh-CN', () => {
+    expect(normalizeLanguageCode('zh-Hans-CN')).toBe('zh-CN');
+    expect(tryNormalizeLanguageCode('fr-FR')).toBeUndefined();
+  });
+
+  it('should prefer saved language, then system language, then fallback language', () => {
+    expect(
+      resolveInitialLanguage({
+        savedLanguage: 'ja-JP',
+        systemLanguages: ['zh-Hans-CN'],
+      })
+    ).toBe('ja-JP');
+    expect(
+      resolveInitialLanguage({
+        systemLanguages: ['fr-FR', 'zh-Hans-CN', 'en-CN'],
+      })
+    ).toBe('zh-CN');
+    expect(resolveInitialLanguage({ fallbackLanguage: 'tr' })).toBe('tr-TR');
   });
 
   it('should have enough supported languages', () => {
