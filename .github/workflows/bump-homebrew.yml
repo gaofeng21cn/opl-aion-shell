@@ -3,6 +3,9 @@ name: Verify Homebrew Cask
 # The aionui cask is on Homebrew's autobump list — BrewTestBot automatically
 # creates version-bump PRs every ~3 hours. This workflow only *verifies* that
 # the cask has been updated, it no longer submits bump PRs itself.
+# The cask points at upstream AionUi release assets, so scheduled verification
+# must resolve the expected version from iOfficeAI/AionUi even when this
+# workflow runs from an OPL-branded fork.
 
 on:
   # Daily check at 08:00 UTC
@@ -14,9 +17,17 @@ on:
         description: 'Version to verify (e.g., 1.8.20). Leave empty to use latest release.'
         required: false
         type: string
+      release_repository:
+        description: 'Repository that publishes AionUi cask release assets.'
+        required: false
+        default: 'iOfficeAI/AionUi'
+        type: string
 
 permissions:
   contents: read
+
+env:
+  AIONUI_RELEASE_REPOSITORY: iOfficeAI/AionUi
 
 jobs:
   verify-cask:
@@ -34,9 +45,10 @@ jobs:
             VERSION="${VERSION#v}"
           else
             # Fetch latest non-prerelease release tag
-            TAG=$(gh release view --repo "${{ github.repository }}" --json tagName --jq '.tagName' 2>/dev/null || echo "")
+            RELEASE_REPOSITORY="${{ inputs.release_repository || env.AIONUI_RELEASE_REPOSITORY }}"
+            TAG=$(gh release view --repo "$RELEASE_REPOSITORY" --json tagName --jq '.tagName' 2>/dev/null || echo "")
             if [ -z "$TAG" ]; then
-              echo "::error::Could not determine latest release tag"
+              echo "::error::Could not determine latest release tag from $RELEASE_REPOSITORY"
               exit 1
             fi
             VERSION="${TAG#v}"
