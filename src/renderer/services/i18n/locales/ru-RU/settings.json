@@ -238,6 +238,7 @@
   "darkMode": "Тёмная",
   "agent": "Агент",
   "tools": "Инструменты",
+  "personalization": "Personalization",
   "webui": "Удалённый доступ",
   "installed": "Установлено",
   "builtin": "Встроено",
@@ -912,6 +913,33 @@
     "tools": "Инструменты"
   },
   "capabilities": "Возможности",
+  "personalizationPage": {
+    "title": "Personalization",
+    "description": "Set the app name, appearance, interaction layer, and user instructions.",
+    "brandTitle": "App name",
+    "brandDescription": "Name shown beside the top-left icon.",
+    "appearanceTitle": "Appearance",
+    "appearanceDescription": "Choose the interface style.",
+    "interactionTitle": "Interaction layer",
+    "interactionDescription": "Default engine for new OPL sessions.",
+    "interactionCodex": "Codex CLI",
+    "interactionHermes": "Hermes-Agent",
+    "instructionsTitle": "User instructions",
+    "instructionsDescription": "Rules loaded by the active interaction layer.",
+    "instructionsPathLoading": "Loading path...",
+    "actions": {
+      "saveInstructions": "Save",
+      "reloadInstructions": "Reload"
+    },
+    "messages": {
+      "brandNameSaved": "App name saved",
+      "brandNameSaveFailed": "Failed to save app name",
+      "interactionLayerSaved": "Interaction layer saved",
+      "instructionsSaved": "Instructions saved",
+      "instructionsSaveFailed": "Failed to save instructions",
+      "instructionsLoadFailed": "Failed to load instructions"
+    }
+  },
   "oplEnvironment": "OPL Environment",
   "oplEnvironmentPage": {
     "title": "Environment Management",

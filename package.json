@@ -37,6 +37,7 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "validate:packaged-runtime": "node scripts/validate-packaged-runtime.js",
+    "validate:opl-package": "node scripts/validate-packaged-runtime.js --scan-all",
     "i18n:types": "node scripts/generate-i18n-types.js",
     "test": "vitest run",
     "test:watch": "vitest",

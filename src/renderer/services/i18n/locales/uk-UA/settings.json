@@ -240,6 +240,7 @@
   "agent": "Агент",
   "tools": "Інструменти",
   "capabilities": "Можливості",
+  "personalization": "Personalization",
   "capabilitiesTab": {
     "skills": "Навички",
     "tools": "MCP та Голос"
@@ -827,6 +828,33 @@
     "version": "Версія",
     "path": "Шлях",
     "providerNote": "Налаштування провайдера та API-ключів керуються на сторінці моделей. Aion CLI підтримує: Anthropic, OpenAI, AWS Bedrock."
+  },
+  "personalizationPage": {
+    "title": "Personalization",
+    "description": "Set the app name, appearance, interaction layer, and user instructions.",
+    "brandTitle": "App name",
+    "brandDescription": "Name shown beside the top-left icon.",
+    "appearanceTitle": "Appearance",
+    "appearanceDescription": "Choose the interface style.",
+    "interactionTitle": "Interaction layer",
+    "interactionDescription": "Default engine for new OPL sessions.",
+    "interactionCodex": "Codex CLI",
+    "interactionHermes": "Hermes-Agent",
+    "instructionsTitle": "User instructions",
+    "instructionsDescription": "Rules loaded by the active interaction layer.",
+    "instructionsPathLoading": "Loading path...",
+    "actions": {
+      "saveInstructions": "Save",
+      "reloadInstructions": "Reload"
+    },
+    "messages": {
+      "brandNameSaved": "App name saved",
+      "brandNameSaveFailed": "Failed to save app name",
+      "interactionLayerSaved": "Interaction layer saved",
+      "instructionsSaved": "Instructions saved",
+      "instructionsSaveFailed": "Failed to save instructions",
+      "instructionsLoadFailed": "Failed to load instructions"
+    }
   },
   "oplEnvironment": "OPL Environment",
   "oplEnvironmentPage": {

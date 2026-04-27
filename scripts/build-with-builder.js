@@ -225,7 +225,7 @@ function validatePackagedRuntime(outDir, buildStartedAt) {
 
   const validatorPath = path.join(__dirname, 'validate-packaged-runtime.js');
   for (const asarPath of asars) {
-    execSync(`node "${validatorPath}" --asar "${asarPath}"`, {
+    execSync(`node "${validatorPath}" --asar "${asarPath}" --scan-all`, {
       stdio: 'inherit',
       shell: process.platform === 'win32',
     });
@@ -263,11 +263,15 @@ function createDmgWithPrepackaged(appDir, targetArch) {
   const appName = fs.readdirSync(appDir).find((f) => f.endsWith('.app'));
   if (!appName) throw new Error(`No .app found in ${appDir}`);
   const appPath = path.join(appDir, appName);
+  const versionConfigArgs = buildElectronBuilderVersionConfigArgs(readPackageJson().version);
 
-  execSync(`bunx electron-builder --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never`, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  execSync(
+    `bunx electron-builder --mac dmg --${targetArch} --prepackaged "${appPath}" ${versionConfigArgs} --publish=never`,
+    {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    }
+  );
 }
 
 function buildWithDmgRetry(cmd, targetArch) {
@@ -426,12 +430,33 @@ if (forceBuild) console.log('⚡ --force: Force full rebuild');
 
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
+function readPackageJson() {
+  return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+}
+
+function assertElectronBuilderVersion(value, label) {
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value)) {
+    throw new Error(`${label} must be a semver-compatible version, got: ${value}`);
+  }
+}
+
+function buildElectronBuilderVersionConfigArgs(guiVersion) {
+  const oplReleaseVersion = process.env.OPL_RELEASE_VERSION;
+  assertElectronBuilderVersion(oplReleaseVersion, 'OPL_RELEASE_VERSION');
+  assertElectronBuilderVersion(guiVersion, 'package.json version');
+  return [
+    `--config.extraMetadata.version=${oplReleaseVersion}`,
+    `--config.extraMetadata.oplGuiVersion=${guiVersion}`,
+  ].join(' ');
+}
+
 function ensureOplReleaseVersionEnv() {
   if (!process.env.OPL_RELEASE_VERSION || !process.env.OPL_RELEASE_VERSION.trim()) {
     const now = new Date();
     const yy = String(now.getFullYear()).slice(-2);
     process.env.OPL_RELEASE_VERSION = `${yy}.${now.getMonth() + 1}.${now.getDate()}`;
   }
+  assertElectronBuilderVersion(process.env.OPL_RELEASE_VERSION, 'OPL_RELEASE_VERSION');
   console.log(`🏷️  OPL release version: ${process.env.OPL_RELEASE_VERSION}`);
 }
 
@@ -439,7 +464,7 @@ try {
   ensureOplReleaseVersionEnv();
 
   // 1. Ensure package.json main entry is correct for electron-vite
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const packageJson = readPackageJson();
   if (packageJson.main !== './out/main/index.js') {
     packageJson.main = './out/main/index.js';
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
@@ -584,7 +609,8 @@ try {
     cleanupWindowsPackOutput();
   }
 
-  const builderCommand = `bunx electron-builder ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg}`;
+  const versionConfigArgs = buildElectronBuilderVersionConfigArgs(packageJson.version);
+  const builderCommand = `bunx electron-builder ${builderArgs} ${archFlag} ${nsisInclude} ${versionConfigArgs} ${publishArg}`;
   const packagingStartedAt = Date.now();
   try {
     buildWithDmgRetry(builderCommand, targetArch);

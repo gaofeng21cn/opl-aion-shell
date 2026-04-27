@@ -242,6 +242,7 @@
   "agent": "对话Agent",
   "tools": "工具",
   "capabilities": "能力扩展",
+  "personalization": "个性化",
   "capabilitiesTab": {
     "skills": "技能",
     "tools": "MCP 与语音"
@@ -910,6 +911,33 @@
     "version": "版本",
     "path": "路径",
     "providerNote": "服务商和 API 密钥设置在模型页面管理。Aion CLI 支持：Anthropic、OpenAI、AWS Bedrock。"
+  },
+  "personalizationPage": {
+    "title": "个性化",
+    "description": "设置应用名称、界面风格、交互层和用户级指令。",
+    "brandTitle": "应用名称",
+    "brandDescription": "左上角图标旁显示的名称。",
+    "appearanceTitle": "界面风格",
+    "appearanceDescription": "选择 One Person Lab 的界面样式。",
+    "interactionTitle": "交互层",
+    "interactionDescription": "新建 OPL 会话默认使用的交互引擎。",
+    "interactionCodex": "Codex CLI",
+    "interactionHermes": "Hermes-Agent",
+    "instructionsTitle": "用户级指令",
+    "instructionsDescription": "当前交互层启动时加载的规则文件。",
+    "instructionsPathLoading": "正在读取路径...",
+    "actions": {
+      "saveInstructions": "保存",
+      "reloadInstructions": "重新读取"
+    },
+    "messages": {
+      "brandNameSaved": "应用名称已保存",
+      "brandNameSaveFailed": "应用名称保存失败",
+      "interactionLayerSaved": "交互层已保存",
+      "instructionsSaved": "用户级指令已保存",
+      "instructionsSaveFailed": "保存用户级指令失败",
+      "instructionsLoadFailed": "读取用户级指令失败"
+    }
   },
   "oplEnvironment": "环境管理",
   "oplEnvironmentPage": {

@@ -56,6 +56,7 @@ interface AutoUpdateCheckParams {
 
 const DEFAULT_REPO = 'gaofeng21cn/one-person-lab';
 const DEFAULT_USER_AGENT = 'One Person Lab';
+const DEFAULT_OPL_VERSION = '26.4.27';
 const ALLOWED_ASSET_EXTS = new Set(['.exe', '.msi', '.dmg', '.zip', '.deb', '.rpm']);
 const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'github.com',
@@ -453,7 +454,7 @@ export function initUpdateBridge(): void {
       try {
         const repo = resolveRepo(params?.repo);
         const includePrerelease = Boolean(params?.includePrerelease);
-        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || '26.4.27';
+        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || (app.isPackaged ? app.getVersion() : DEFAULT_OPL_VERSION);
 
         // EN: Versioning note
         // Update comparisons use the OPL release version when provided, falling back to `app.getVersion()`.

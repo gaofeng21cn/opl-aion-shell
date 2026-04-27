@@ -68,7 +68,7 @@ vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }))
 
 import SystemSettings, { resolveEngineAction } from '@/renderer/pages/settings/SystemSettings';
 
-describe('SystemSettings OPL appearance section', () => {
+describe('SystemSettings OPL environment section', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(window, 'matchMedia', {
@@ -93,12 +93,12 @@ describe('SystemSettings OPL appearance section', () => {
     });
   });
 
-  it('mounts the CSS theme selector on the OPL environment page', async () => {
+  it('keeps personalization controls out of the environment page', async () => {
     render(<SystemSettings />);
 
-    expect(await screen.findByText('settings.oplEnvironmentPage.appearanceTitle')).toBeInTheDocument();
-    expect(screen.getByText('settings.oplEnvironmentPage.appearanceDescription')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-appearance-theme-settings')).toBeInTheDocument();
+    expect(await screen.findByText('settings.oplEnvironmentPage.title')).toBeInTheDocument();
+    expect(screen.getByText('settings.oplEnvironmentPage.maintenanceTitle')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-appearance-theme-settings')).not.toBeInTheDocument();
   });
 });
 

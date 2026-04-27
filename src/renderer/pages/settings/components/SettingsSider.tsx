@@ -2,7 +2,7 @@ import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import { Communication, Earth, Info, Lightning, Puzzle, System, Toolkit } from '@icon-park/react';
+import { Communication, Earth, Info, Lightning, Puzzle, SwitchThemes, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 
 /** Builtin settings tab IDs in display order (must match router paths). */
-export const BUILTIN_TAB_IDS = ['capabilities', 'webui', 'opl', 'system', 'about'] as const;
+export const BUILTIN_TAB_IDS = ['capabilities', 'personalization', 'webui', 'opl', 'system', 'about'] as const;
 
 /**
  * Legacy anchor IDs that have been merged into other tabs.
@@ -30,7 +30,7 @@ export const LEGACY_ANCHOR_REMAP: Record<string, string> = {
  */
 const GROUP_HEADER_BEFORE: Record<string, string> = {
   capabilities: 'settings.groupAiCore',
-  system: 'settings.groupApp',
+  personalization: 'settings.groupApp',
   about: 'settings.groupAbout',
 };
 
@@ -124,6 +124,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         label: t('settings.webui'),
         icon: isDesktop ? <Earth /> : <Communication />,
         path: 'webui',
+      },
+      personalization: {
+        id: 'personalization',
+        label: t('settings.personalization'),
+        icon: <SwitchThemes />,
+        path: 'personalization',
       },
       opl: {
         id: 'opl',

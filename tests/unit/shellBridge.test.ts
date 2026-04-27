@@ -251,6 +251,22 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows the packages manifest command for environment management', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"packages_manifest":{}}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({ args: ['packages', 'manifest'] });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("'opl' 'packages' 'manifest'")],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+    });
+
     it('bootstraps the CLI through the OPL installer when opl is missing', async () => {
       const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
       execFileMock

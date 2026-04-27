@@ -6,6 +6,7 @@ import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 const Conversation = React.lazy(() => import('@renderer/pages/conversation'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
+const PersonalizationSettings = React.lazy(() => import('@renderer/pages/settings/PersonalizationSettings'));
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
 const WebuiSettings = React.lazy(() => import('@renderer/pages/settings/WebuiSettings'));
 const ExtensionSettingsPage = React.lazy(() => import('@renderer/pages/settings/ExtensionSettingsPage'));
@@ -58,6 +59,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/assistants' element={<Navigate to='/settings/capabilities' replace />} />
           <Route path='/settings/agent' element={<Navigate to='/settings/opl' replace />} />
           <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
+          <Route path='/settings/personalization' element={withRouteFallback(PersonalizationSettings)} />
           {/* Legacy routes — redirect to the merged /settings/capabilities page */}
           <Route path='/settings/skills-hub' element={<Navigate to='/settings/capabilities?tab=skills' replace />} />
           <Route path='/settings/tools' element={<Navigate to='/settings/capabilities?tab=tools' replace />} />

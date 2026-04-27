@@ -4,7 +4,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
-import { Communication, Earth, Info, Lightning, Puzzle, System, Toolkit } from '@icon-park/react';
+import { Communication, Earth, Info, Lightning, Puzzle, SwitchThemes, System, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
@@ -34,6 +34,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       label: t('settings.webui'),
       icon: isDesktop ? <Earth theme='outline' size='16' /> : <Communication theme='outline' size='16' />,
       path: 'webui',
+    },
+    personalization: {
+      id: 'personalization',
+      label: t('settings.personalization'),
+      icon: <SwitchThemes theme='outline' size='16' />,
+      path: 'personalization',
     },
     opl: {
       id: 'opl',

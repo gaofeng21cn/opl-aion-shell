@@ -20,6 +20,26 @@ vi.mock('@/common', () => ({
   },
 }));
 
+vi.mock('electron', () => ({
+  app: {
+    getAppPath: vi.fn(() => '/mock/app'),
+    getVersion: vi.fn(() => '26.4.27'),
+  },
+}));
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>();
+  return {
+    ...actual,
+    readFileSync: vi.fn((filePath: string, encoding?: BufferEncoding) => {
+      if (filePath === '/mock/app/package.json') {
+        return JSON.stringify({ version: '26.4.27', oplGuiVersion: '1.9.21' });
+      }
+      return actual.readFileSync(filePath, encoding);
+    }),
+  };
+});
+
 vi.mock('@process/utils/initStorage', () => ({
   getSystemDir: () => ({
     cacheDir: '/mock/cache',
@@ -33,6 +53,9 @@ vi.mock('@process/utils/initStorage', () => ({
 
 vi.mock('@process/utils', () => ({
   copyDirectoryRecursively: vi.fn().mockResolvedValue(undefined),
+  getConfigPath: vi.fn(() => '/mock/cache'),
+  getDataPath: vi.fn(() => '/mock/work'),
+  resolveCliSafePath: vi.fn((value: string) => value),
 }));
 
 describe('initApplicationBridgeCore', () => {
@@ -51,5 +74,17 @@ describe('initApplicationBridgeCore', () => {
     initApplicationBridgeCore();
     expect(ipcBridge.application.systemInfo.provider).toHaveBeenCalledOnce();
     expect(ipcBridge.application.updateSystemInfo.provider).toHaveBeenCalledOnce();
+  });
+
+  it('reports OPL release version separately from GUI baseline version', async () => {
+    const { ipcBridge } = await import('@/common');
+    const { initApplicationBridgeCore } = await import('@process/bridge/applicationBridgeCore');
+    initApplicationBridgeCore();
+
+    const provider = vi.mocked(ipcBridge.application.appVersions.provider).mock.calls[0][0];
+    await expect(provider()).resolves.toMatchObject({
+      oplVersion: '26.4.27',
+      guiVersion: '1.9.21',
+    });
   });
 });

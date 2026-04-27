@@ -69,6 +69,28 @@ type UseGuidAgentSelectionOptions = {
   locationKey?: string;
 };
 
+export type OplInteractionLayer = 'codex' | 'hermes';
+
+export function normalizeOplInteractionLayer(value: unknown): OplInteractionLayer {
+  return value === 'hermes' ? 'hermes' : 'codex';
+}
+
+export function resolvePreferredOplAgentKey(
+  availableAgents: AvailableAgent[] | undefined,
+  preferredLayer: OplInteractionLayer
+): string {
+  if (!availableAgents || availableAgents.length === 0) return 'codex';
+
+  const preferredAgent = availableAgents.find((agent) => !agent.isPreset && getAgentKeyUtil(agent) === preferredLayer);
+  if (preferredAgent) return getAgentKeyUtil(preferredAgent);
+
+  const codexAgent = availableAgents.find((agent) => !agent.isPreset && getAgentKeyUtil(agent) === 'codex');
+  if (codexAgent) return getAgentKeyUtil(codexAgent);
+
+  const firstNonPresetAgent = availableAgents.find((agent) => !agent.isPreset);
+  return firstNonPresetAgent ? getAgentKeyUtil(firstNonPresetAgent) : getAgentKeyUtil(availableAgents[0]);
+}
+
 /**
  * Hook that manages agent selection, availability, and preset assistant logic.
  */
@@ -81,6 +103,7 @@ export const useGuidAgentSelection = ({
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('codex');
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
+  const [preferredInteractionLayer, setPreferredInteractionLayer] = useState<OplInteractionLayer>('codex');
   const [selectedMode, _setSelectedMode] = useState<string>('default');
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
@@ -145,6 +168,24 @@ export const useGuidAgentSelection = ({
       cancelled = true;
     };
   }, [readSystemCodexConfig]);
+
+  useEffect(() => {
+    let cancelled = false;
+    ConfigStorage.get('opl.interactionLayer')
+      .then((value) => {
+        if (!cancelled) {
+          setPreferredInteractionLayer(normalizeOplInteractionLayer(value));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreferredInteractionLayer('codex');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Wrap setSelectedAgentKey to also save to storage
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -291,15 +332,13 @@ export const useGuidAgentSelection = ({
 
     if (resetAssistant && !resetHandledRef.current) {
       resetHandledRef.current = true;
-      const preferredAgent =
-        availableAgents.find((a) => getAgentKey(a) === 'codex') || availableAgents.find((a) => !a.isPreset);
-      const fallbackKey = preferredAgent ? getAgentKey(preferredAgent) : 'codex';
+      const fallbackKey = resolvePreferredOplAgentKey(availableAgents, preferredInteractionLayer);
       _setSelectedAgentKey(fallbackKey);
       ConfigStorage.set('guid.lastSelectedAgent', fallbackKey).catch((error) => {
         console.error('Failed to save reset agent key:', error);
       });
     }
-  }, [availableAgents, resetAssistant, locationKey]);
+  }, [availableAgents, preferredInteractionLayer, resetAssistant, locationKey]);
 
   // Load last selected agent when no explicit reset was requested.
   useEffect(() => {
@@ -327,11 +366,8 @@ export const useGuidAgentSelection = ({
           }
         }
 
-        // No saved preference or stale key — prefer Codex for OPL, then first detected engine.
-        const preferredAgent = availableAgents.find((agent) => getAgentKey(agent) === 'codex') || availableAgents[0];
-        if (preferredAgent) {
-          _setSelectedAgentKey(getAgentKey(preferredAgent));
-        }
+        // No saved preference or stale key — prefer the configured OPL interaction layer.
+        _setSelectedAgentKey(resolvePreferredOplAgentKey(availableAgents, preferredInteractionLayer));
       } catch (error) {
         console.error('Failed to load last selected agent:', error);
       }
@@ -342,7 +378,7 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [availableAgents, resetAssistant, locationKey]);
+  }, [availableAgents, preferredInteractionLayer, resetAssistant, locationKey]);
 
   // Load cached ACP model lists
   useEffect(() => {

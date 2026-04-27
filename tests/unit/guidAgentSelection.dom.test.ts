@@ -96,7 +96,10 @@ vi.mock('../../src/renderer/utils/model/agentModes', () => ({
   supportsModeSwitch: () => true,
 }));
 
-import { useGuidAgentSelection } from '../../src/renderer/pages/guid/hooks/useGuidAgentSelection';
+import {
+  resolvePreferredOplAgentKey,
+  useGuidAgentSelection,
+} from '../../src/renderer/pages/guid/hooks/useGuidAgentSelection';
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -150,6 +153,7 @@ function setupMocks(overrides?: {
   cachedModels?: Record<string, AcpModelInfo>;
   acpConfig?: Record<string, unknown>;
   geminiConfig?: Record<string, unknown>;
+  interactionLayer?: string | null;
 }) {
   const cachedModels = overrides?.cachedModels ?? { claude: CLAUDE_CACHED_MODEL };
   const acpConfig = overrides?.acpConfig ?? { claude: { preferredMode: 'bypassPermissions' } };
@@ -166,6 +170,8 @@ function setupMocks(overrides?: {
         return CUSTOM_AGENTS;
       case 'guid.lastSelectedAgent':
         return null;
+      case 'opl.interactionLayer':
+        return overrides?.interactionLayer ?? null;
       case 'acp.config':
         return acpConfig;
       case 'gemini.config':
@@ -357,6 +363,8 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
           return CUSTOM_AGENTS;
         case 'guid.lastSelectedAgent':
           return `custom:${PRESET_AGENT_ID}`;
+        case 'opl.interactionLayer':
+          return null;
         case 'acp.config':
         case 'gemini.config':
         case 'gemini.defaultModel':
@@ -407,5 +415,38 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
       { id: 'gpt-5', label: 'GPT-5' },
       { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
     ]);
+  });
+
+  it('prefers the configured OPL interaction layer when no saved agent exists', async () => {
+    setupMocks({ acpConfig: {}, interactionLayer: 'hermes' });
+    ipcMock.getAvailableAgents.mockResolvedValue({
+      success: true,
+      data: [
+        { backend: 'codex', name: 'Codex' },
+        { backend: 'hermes', name: 'Hermes Agent' },
+      ],
+    });
+
+    const { result } = renderHook(() => useGuidAgentSelection(hookOptions));
+
+    await waitFor(() => {
+      expect(result.current.selectedAgentKey).toBe('hermes');
+    });
+  });
+});
+
+describe('resolvePreferredOplAgentKey', () => {
+  it('uses Hermes only when the Hermes engine is detected', () => {
+    expect(
+      resolvePreferredOplAgentKey(
+        [
+          { backend: 'codex', name: 'Codex' },
+          { backend: 'hermes', name: 'Hermes Agent' },
+        ],
+        'hermes'
+      )
+    ).toBe('hermes');
+
+    expect(resolvePreferredOplAgentKey([{ backend: 'codex', name: 'Codex' }], 'hermes')).toBe('codex');
   });
 });

@@ -80,6 +80,8 @@ export interface IConfigStorageRefer {
   theme: string;
   /** Sidebar and titlebar display name for the One Person Lab app. */
   'opl.brandName'?: string;
+  /** Preferred OPL interaction layer for new sessions. */
+  'opl.interactionLayer'?: 'codex' | 'hermes';
   /** First successful OPL install preparation triggered by the desktop app. */
   'opl.firstLaunchInstallPreparedAt'?: number;
   colorScheme: string;

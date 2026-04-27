@@ -129,6 +129,11 @@ function shouldScanFile(filePath) {
   );
 }
 
+function shouldScanInitialFile(filePath) {
+  if (!/\.(?:cjs|js|mjs)$/.test(filePath)) return false;
+  return filePath.startsWith('out/main/') || filePath.startsWith('out/preload/');
+}
+
 function stripJsComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
@@ -436,11 +441,12 @@ function validateAsar(asarPath, options = {}) {
   const archive = makeArchiveAccess(asarPath, entries);
   const entryFiles = entries.filter((entry) => path.posix.extname(entry));
   const entryCandidates = options.entries?.length ? options.entries : ['out/main/index.js'];
-  const jsFiles = options.scanAll ? entries.filter(shouldScanFile) : [];
+  const jsFiles = options.scanAll ? entries.filter(shouldScanInitialFile) : [];
   const queue = options.scanAll ? [...jsFiles] : entryCandidates.map(stripLeadingSlash);
   const scanned = new Set();
   const missing = [];
   const unresolvedBare = [];
+  const parseFailures = [];
   const forbidden = entries.filter((entry) => FORBIDDEN_ASAR_PATTERNS.some((pattern) => pattern.test(entry)));
 
   while (queue.length > 0) {
@@ -461,7 +467,18 @@ function validateAsar(asarPath, options = {}) {
       continue;
     }
 
-    for (const specifier of collectImportSpecifiers(source, filePath)) {
+    let specifiers;
+    try {
+      specifiers = collectImportSpecifiers(source, filePath);
+    } catch (error) {
+      parseFailures.push({
+        file: filePath,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+
+    for (const specifier of specifiers) {
       const resolved = resolveImport(archive, filePath, specifier);
       if (resolved) {
         if (
@@ -497,6 +514,7 @@ function validateAsar(asarPath, options = {}) {
     scanned: scanned.size,
     missing,
     unresolvedBare,
+    parseFailures,
     forbidden,
   };
 }
@@ -527,6 +545,19 @@ function main() {
       }
       if (result.forbidden.length > 80) {
         console.error(`      ... ${result.forbidden.length - 80} more omitted`);
+      }
+    }
+
+    if (result.parseFailures.length > 0) {
+      hasFailure = true;
+      console.error(
+        `   ❌ ${result.parseFailures.length} JS runtime file${result.parseFailures.length === 1 ? '' : 's'} could not be parsed:`
+      );
+      for (const issue of result.parseFailures.slice(0, 80)) {
+        console.error(`      ${issue.file}: ${issue.reason}`);
+      }
+      if (result.parseFailures.length > 80) {
+        console.error(`      ... ${result.parseFailures.length - 80} more omitted`);
       }
     }
 

@@ -8,6 +8,7 @@ const t = (key: string, options?: { defaultValue?: string }) => {
     'settings.assistants': 'Assistants',
     'settings.agents': 'Agents',
     'settings.capabilities': 'Capabilities',
+    'settings.personalization': 'Personalization',
     'settings.display': 'Display',
     'settings.webui': 'WebUI',
     'settings.oplEnvironment': 'Environment Management',
@@ -25,6 +26,7 @@ describe('getBuiltinSettingsNavItems', () => {
 
     expect(items.map((item) => item.id)).toEqual([
       'capabilities',
+      'personalization',
       'webui',
       'opl',
       'system',
@@ -33,6 +35,7 @@ describe('getBuiltinSettingsNavItems', () => {
 
     expect(items.map((item) => item.label)).toEqual([
       'Capabilities',
+      'Personalization',
       'WebUI',
       'Environment Management',
       'System',

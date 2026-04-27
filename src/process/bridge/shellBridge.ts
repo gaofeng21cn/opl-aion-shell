@@ -14,7 +14,7 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system', 'workspace']);
+const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system', 'workspace', 'packages']);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 
 function assertAllowedOplArgs(args: string[]): void {
@@ -35,6 +35,9 @@ function assertAllowedOplArgs(args: string[]): void {
   }
   if (args[0] === 'system' && args[1] && args[1] !== 'initialize') {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
+  }
+  if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
+    throw new Error(`Unsupported OPL packages action: ${args.slice(1).join(' ')}`);
   }
   if (args[0] === 'workspace') {
     const isRead = args.length === 2 && args[1] === 'root';

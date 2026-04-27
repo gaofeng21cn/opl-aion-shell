@@ -11,10 +11,41 @@
  */
 import os from 'os';
 import path from 'path';
+import * as fs from 'fs';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePath } from '@process/utils';
+
+const DEFAULT_OPL_VERSION = '26.4.27';
+
+type AppPackageMetadata = {
+  version?: string;
+  oplGuiVersion?: string;
+};
+
+function readAppPackageMetadata(): AppPackageMetadata | null {
+  try {
+    const raw = fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? parsed as AppPackageMetadata : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveAppVersions() {
+  const metadata = readAppPackageMetadata();
+  const envOplVersion = process.env.OPL_RELEASE_VERSION?.trim();
+  const envGuiVersion = process.env.OPL_GUI_VERSION?.trim();
+  const packagedOplVersion = metadata?.oplGuiVersion ? metadata.version?.trim() : null;
+  const guiVersion = envGuiVersion || metadata?.oplGuiVersion?.trim() || metadata?.version?.trim() || app.getVersion();
+
+  return {
+    oplVersion: envOplVersion || packagedOplVersion || DEFAULT_OPL_VERSION,
+    guiVersion,
+  };
+}
 
 export function initApplicationBridgeCore(): void {
   ipcBridge.application.systemInfo.provider(() => {
@@ -22,9 +53,10 @@ export function initApplicationBridgeCore(): void {
   });
 
   ipcBridge.application.appVersions.provider(() => {
+    const versions = resolveAppVersions();
     return Promise.resolve({
-      oplVersion: process.env.OPL_RELEASE_VERSION?.trim() || '26.4.27',
-      guiVersion: app.getVersion(),
+      oplVersion: versions.oplVersion,
+      guiVersion: versions.guiVersion,
       releaseRepo: process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
       releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',
     });

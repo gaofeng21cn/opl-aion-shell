@@ -460,7 +460,7 @@ export const ACP_BACKENDS_ALL: Record<AcpBackendAll, AcpBackendConfig> = {
     description: 'AI agent by Nous Research with 90+ tools, persistent memory, and multi-platform support',
     cliCommand: 'hermes',
     authRequired: true,
-    enabled: false,
+    enabled: true,
     supportsStreaming: false,
     acpArgs: ['acp'], // hermes 使用 acp 子命令
   },

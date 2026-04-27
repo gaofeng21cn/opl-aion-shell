@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ACP_BACKENDS_ALL, hasNativeSkillSupport, getSkillsDirsForBackend } from '@/common/types/acpTypes';
+import {
+  ACP_BACKENDS_ALL,
+  getSkillsDirsForBackend,
+  hasNativeSkillSupport,
+  POTENTIAL_ACP_CLIS,
+} from '@/common/types/acpTypes';
 
 describe('acpTypes — skillsDirs integration', () => {
   describe('ACP_BACKENDS_ALL skillsDirs consistency', () => {
@@ -114,6 +119,22 @@ describe('acpTypes — skillsDirs integration', () => {
     it('should return undefined for unknown backend names', () => {
       expect(getSkillsDirsForBackend('nonexistent')).toBeUndefined();
       expect(getSkillsDirsForBackend('custom')).toBeUndefined();
+    });
+  });
+
+  describe('OPL interaction engines', () => {
+    it('detects Hermes as an enabled built-in ACP CLI without bundling a native skill dir', () => {
+      const hermesCli = [...POTENTIAL_ACP_CLIS].find((cli) => cli.backendId === 'hermes');
+
+      expect(ACP_BACKENDS_ALL.hermes.enabled).toBe(true);
+      expect(hermesCli).toEqual(
+        expect.objectContaining({
+          cmd: 'hermes',
+          args: ['acp'],
+          backendId: 'hermes',
+        })
+      );
+      expect(hasNativeSkillSupport('hermes')).toBe(false);
     });
   });
 });
