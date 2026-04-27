@@ -39,15 +39,15 @@ function joinHomePath(home: string, relativePath: string): string {
 const SettingRow: React.FC<SettingRowProps> = ({ title, description, children, alignTop = false }) => {
   return (
     <div
-      className={`flex flex-col gap-12px px-16px py-14px md:flex-row md:justify-between md:gap-24px ${alignTop ? 'md:items-start' : 'md:items-center'}`}
+      className={`flex flex-col gap-12px px-16px py-14px md:grid md:grid-cols-[220px_minmax(280px,400px)] lg:grid-cols-[240px_minmax(300px,420px)] md:justify-start md:gap-28px ${alignTop ? 'md:items-start' : 'md:items-center'}`}
     >
-      <div className='min-w-0 md:max-w-360px'>
+      <div className='min-w-0'>
         <Typography.Text className='block text-14px font-500 text-t-primary'>{title}</Typography.Text>
         {description && (
           <Typography.Text className='block text-12px text-t-secondary mt-3px'>{description}</Typography.Text>
         )}
       </div>
-      <div className='min-w-0 md:min-w-320px md:max-w-520px'>{children}</div>
+      <div className='min-w-0'>{children}</div>
     </div>
   );
 };
@@ -140,7 +140,7 @@ const PersonalizationSettings: React.FC = () => {
   }, [instructionContent, instructionPath, message, t]);
 
   return (
-    <SettingsPageWrapper contentClassName='max-w-760px'>
+    <SettingsPageWrapper contentClassName='md:max-w-840px'>
       {contextHolder}
       <div className='flex flex-col gap-16px'>
         <div>
