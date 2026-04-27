@@ -230,6 +230,49 @@ describe('shellBridge', () => {
     });
   });
 
+  describe('runOplCommand', () => {
+    beforeEach(() => {
+      initShellBridge();
+    });
+
+    it('runs supported OPL commands through the CLI', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"ok":true}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize'] });
+
+      expect(result).toEqual({ exitCode: 0, stdout: '{"ok":true}', stderr: '' });
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'initialize'")],
+        expect.objectContaining({ timeout: 120_000, maxBuffer: 20 * 1024 * 1024 }),
+        expect.any(Function)
+      );
+    });
+
+    it('bootstraps the CLI through the OPL installer when opl is missing', async () => {
+      const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(missingOpl);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '{"ready":true}', stderr: '' });
+        });
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize'] });
+      const bootstrapCommand = execFileMock.mock.calls[1][1][1];
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('bootstrapped one-person-lab through the OPL installer');
+      expect(result.stdout).toContain('{"ready":true}');
+      expect(bootstrapCommand).toContain('raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh');
+      expect(bootstrapCommand).toContain('--bootstrap-only');
+      expect(bootstrapCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize'");
+    });
+  });
+
   describe('openFolderWith', () => {
     beforeEach(() => {
       initShellBridge();

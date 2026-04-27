@@ -15,6 +15,7 @@ const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
 const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system', 'workspace']);
+const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -79,16 +80,12 @@ function buildOplBootstrapCommand(args: string[]): string {
   const commandArgs = `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`;
   return [
     'set -euo pipefail',
-    'command -v git >/dev/null',
-    'command -v npm >/dev/null',
-    'OPL_ROOT="${OPL_INSTALL_ROOT:-$HOME/workspace/one-person-lab}"',
-    'OPL_REPO_URL="${OPL_REPO_URL:-https://github.com/gaofeng21cn/one-person-lab.git}"',
-    'mkdir -p "$(dirname "$OPL_ROOT")"',
-    'if [ ! -d "$OPL_ROOT/.git" ]; then git clone "$OPL_REPO_URL" "$OPL_ROOT"; fi',
-    'cd "$OPL_ROOT"',
-    'git fetch --all --prune',
-    'npm install',
-    'npm link',
+    'command -v curl >/dev/null',
+    `OPL_INSTALL_SCRIPT_URL="\${OPL_INSTALL_SCRIPT_URL:-${OPL_INSTALL_SCRIPT_URL}}"`,
+    'OPL_BOOTSTRAP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/opl-install.XXXXXX")"',
+    'trap \'rm -f "$OPL_BOOTSTRAP_SCRIPT"\' EXIT',
+    'curl -fsSL "$OPL_INSTALL_SCRIPT_URL" -o "$OPL_BOOTSTRAP_SCRIPT"',
+    'bash "$OPL_BOOTSTRAP_SCRIPT" --bootstrap-only',
     commandArgs,
   ].join(' && ');
 }
@@ -105,7 +102,7 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
   return {
     ...bootstrapResult,
     stdout: [
-      '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab into ~/workspace/one-person-lab.',
+      '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.',
       bootstrapResult.stdout,
     ]
       .filter(Boolean)
