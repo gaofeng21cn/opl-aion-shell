@@ -5,7 +5,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const mockConfigGet = vi.fn();
 const mockConfigSet = vi.fn();
 const mockReadFile = vi.fn();
-const mockWriteFile = vi.fn();
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -20,7 +19,6 @@ vi.mock('@/common', () => ({
     },
     fs: {
       readFile: { invoke: (...args: unknown[]) => mockReadFile(...args) },
-      writeFile: { invoke: (...args: unknown[]) => mockWriteFile(...args) },
     },
   },
 }));
@@ -59,13 +57,14 @@ describe('PersonalizationSettings', () => {
     });
     mockConfigSet.mockResolvedValue(undefined);
     mockReadFile.mockResolvedValue('existing instructions');
-    mockWriteFile.mockResolvedValue(true);
   });
 
   it('shows the active interaction-layer instruction file', async () => {
     render(<PersonalizationSettings />);
 
     expect(await screen.findByText('/Users/test/.codex/AGENTS.md')).toBeInTheDocument();
+    expect(screen.getByText('existing instructions')).toBeInTheDocument();
+    expect(screen.getByText('settings.personalizationPage.actions.reloadInstructions')).toBeInTheDocument();
     expect(screen.getByTestId('opl-appearance-theme-settings')).toBeInTheDocument();
   });
 

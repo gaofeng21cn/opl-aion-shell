@@ -927,16 +927,15 @@
     "instructionsTitle": "使用者層級指令",
     "instructionsDescription": "目前互動層啟動時載入的規則檔案。",
     "instructionsPathLoading": "正在讀取路徑...",
+    "instructionsLoading": "正在讀取使用者層級指令...",
+    "instructionsEmpty": "找不到使用者層級指令內容。",
     "actions": {
-      "saveInstructions": "儲存",
       "reloadInstructions": "重新讀取"
     },
     "messages": {
       "brandNameSaved": "應用程式名稱已儲存",
       "brandNameSaveFailed": "應用程式名稱儲存失敗",
       "interactionLayerSaved": "互動層已儲存",
-      "instructionsSaved": "使用者層級指令已儲存",
-      "instructionsSaveFailed": "儲存使用者層級指令失敗",
       "instructionsLoadFailed": "讀取使用者層級指令失敗"
     }
   },

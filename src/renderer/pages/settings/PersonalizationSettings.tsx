@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Message, Radio, Space, Typography } from '@arco-design/web-react';
-import { Disk, UpdateRotation } from '@icon-park/react';
+import { UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
 import {
@@ -20,8 +20,6 @@ type SettingRowProps = {
   children: React.ReactNode;
   alignTop?: boolean;
 };
-
-const TextArea = Input.TextArea;
 
 const INSTRUCTION_FILE_BY_LAYER: Record<OplInteractionLayer, string> = {
   codex: '.codex/AGENTS.md',
@@ -60,7 +58,6 @@ const PersonalizationSettings: React.FC = () => {
   const [homePath, setHomePath] = useState<string>('');
   const [instructionContent, setInstructionContent] = useState('');
   const [instructionsLoading, setInstructionsLoading] = useState(false);
-  const [instructionsSaving, setInstructionsSaving] = useState(false);
 
   const instructionPath = useMemo(() => {
     if (!homePath) return '';
@@ -126,19 +123,6 @@ const PersonalizationSettings: React.FC = () => {
     [message, t]
   );
 
-  const saveInstructionFile = useCallback(async () => {
-    if (!instructionPath) return;
-    setInstructionsSaving(true);
-    try {
-      await ipcBridge.fs.writeFile.invoke({ path: instructionPath, data: instructionContent });
-      message.success(t('settings.personalizationPage.messages.instructionsSaved'));
-    } catch {
-      message.error(t('settings.personalizationPage.messages.instructionsSaveFailed'));
-    } finally {
-      setInstructionsSaving(false);
-    }
-  }, [instructionContent, instructionPath, message, t]);
-
   return (
     <SettingsPageWrapper contentClassName='md:max-w-840px'>
       {contextHolder}
@@ -199,22 +183,12 @@ const PersonalizationSettings: React.FC = () => {
               <Typography.Text className='block text-12px text-t-tertiary break-all'>
                 {instructionPath || t('settings.personalizationPage.instructionsPathLoading')}
               </Typography.Text>
-              <TextArea
-                value={instructionContent}
-                disabled={instructionsLoading}
-                autoSize={{ minRows: 8, maxRows: 18 }}
-                onChange={setInstructionContent}
-              />
+              <div className='max-h-360px min-h-180px overflow-auto rounded-8px border border-solid border-border-1 bg-fill-1 px-12px py-10px text-12px leading-18px text-t-secondary whitespace-pre-wrap break-words select-text'>
+                {instructionsLoading
+                  ? t('settings.personalizationPage.instructionsLoading')
+                  : instructionContent || t('settings.personalizationPage.instructionsEmpty')}
+              </div>
               <Space wrap>
-                <Button
-                  size='small'
-                  icon={<Disk theme='outline' />}
-                  loading={instructionsSaving}
-                  disabled={!instructionPath}
-                  onClick={() => void saveInstructionFile()}
-                >
-                  {t('settings.personalizationPage.actions.saveInstructions')}
-                </Button>
                 <Button
                   size='small'
                   icon={<UpdateRotation theme='outline' />}

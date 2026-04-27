@@ -926,16 +926,15 @@
     "instructionsTitle": "用户级指令",
     "instructionsDescription": "当前交互层启动时加载的规则文件。",
     "instructionsPathLoading": "正在读取路径...",
+    "instructionsLoading": "正在读取用户级指令...",
+    "instructionsEmpty": "未找到用户级指令内容。",
     "actions": {
-      "saveInstructions": "保存",
       "reloadInstructions": "重新读取"
     },
     "messages": {
       "brandNameSaved": "应用名称已保存",
       "brandNameSaveFailed": "应用名称保存失败",
       "interactionLayerSaved": "交互层已保存",
-      "instructionsSaved": "用户级指令已保存",
-      "instructionsSaveFailed": "保存用户级指令失败",
       "instructionsLoadFailed": "读取用户级指令失败"
     }
   },

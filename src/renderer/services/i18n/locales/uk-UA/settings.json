@@ -843,16 +843,15 @@
     "instructionsTitle": "User instructions",
     "instructionsDescription": "Rules loaded by the active interaction layer.",
     "instructionsPathLoading": "Loading path...",
+    "instructionsLoading": "Loading user instructions...",
+    "instructionsEmpty": "No user instructions found.",
     "actions": {
-      "saveInstructions": "Save",
       "reloadInstructions": "Reload"
     },
     "messages": {
       "brandNameSaved": "App name saved",
       "brandNameSaveFailed": "Failed to save app name",
       "interactionLayerSaved": "Interaction layer saved",
-      "instructionsSaved": "Instructions saved",
-      "instructionsSaveFailed": "Failed to save instructions",
       "instructionsLoadFailed": "Failed to load instructions"
     }
   },
