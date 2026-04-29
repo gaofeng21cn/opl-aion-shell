@@ -510,6 +510,23 @@ describe('tray module', () => {
                   command: 'opl start --project medautoscience',
                   workspace_path: '/tmp/mas',
                   source_refs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+                  study_id: '001-risk',
+                  workspace_label: 'mas-workspace',
+                  detail_summary: 'The runtime is healthy.',
+                  next_action_summary: 'Continue supervision.',
+                  active_run_id: 'run-001',
+                  browser_url: 'https://example.com/runtime',
+                  quest_session_api_url: 'https://example.com/session',
+                  health_status: 'live',
+                  blockers: ['publication gate'],
+                  recommended_commands: [
+                    {
+                      step_id: 'inspect_study_progress',
+                      title: 'Inspect study progress',
+                      surface_kind: 'study_progress',
+                      command: 'medautosci study-progress --study-id 001-risk',
+                    },
+                  ],
                 },
               ],
               attention_items: [],
@@ -536,6 +553,23 @@ describe('tray module', () => {
         command: 'opl start --project medautoscience',
         workspacePath: '/tmp/mas',
         sourceRefs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+        studyId: '001-risk',
+        workspaceLabel: 'mas-workspace',
+        detailSummary: 'The runtime is healthy.',
+        nextActionSummary: 'Continue supervision.',
+        activeRunId: 'run-001',
+        browserUrl: 'https://example.com/runtime',
+        questSessionApiUrl: 'https://example.com/session',
+        healthStatus: 'live',
+        blockers: ['publication gate'],
+        recommendedCommands: [
+          {
+            step_id: 'inspect_study_progress',
+            title: 'Inspect study progress',
+            surface_kind: 'study_progress',
+            command: 'medautosci study-progress --study-id 001-risk',
+          },
+        ],
       });
     });
 

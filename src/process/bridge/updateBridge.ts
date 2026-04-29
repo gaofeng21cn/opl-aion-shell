@@ -48,6 +48,11 @@ type GitHubReleaseApi = {
   assets?: GitHubReleaseApiAsset[];
 };
 
+type AppPackageMetadata = {
+  version?: string;
+  oplGuiVersion?: string;
+};
+
 /** Parameters for auto-update check via electron-updater */
 interface AutoUpdateCheckParams {
   /** Whether to include prerelease/dev builds in update check */
@@ -65,6 +70,31 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'release-assets.githubusercontent.com',
 ]);
 const MAX_REDIRECTS = 8;
+
+function readAppPackageMetadata(): AppPackageMetadata | null {
+  try {
+    const raw = fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as AppPackageMetadata) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveCurrentOplReleaseVersion(): string {
+  const envVersion = process.env.OPL_RELEASE_VERSION?.trim();
+  if (envVersion) {
+    return envVersion;
+  }
+
+  const metadata = readAppPackageMetadata();
+  const packagedReleaseVersion = metadata?.oplGuiVersion ? metadata.version?.trim() : null;
+  if (packagedReleaseVersion) {
+    return packagedReleaseVersion;
+  }
+
+  return app.isPackaged ? app.getVersion() : DEFAULT_OPL_VERSION;
+}
 
 const isAllowedAssetName = (name: string) => {
   const ext = path.extname(name);
@@ -181,7 +211,10 @@ export const pickRecommendedAsset = (
 };
 
 const resolveRepo = (requestRepo?: string): string => {
-  const envRepo = process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || process.env.AIONUI_GITHUB_REPO?.trim();
+  const envRepo =
+    process.env.OPL_RELEASE_REPO?.trim() ||
+    process.env.OPL_GITHUB_REPO?.trim() ||
+    process.env.AIONUI_GITHUB_REPO?.trim();
   const repo = (requestRepo || envRepo || DEFAULT_REPO).trim();
   return repo || DEFAULT_REPO;
 };
@@ -454,16 +487,16 @@ export function initUpdateBridge(): void {
       try {
         const repo = resolveRepo(params?.repo);
         const includePrerelease = Boolean(params?.includePrerelease);
-        const currentVersion = process.env.OPL_RELEASE_VERSION?.trim() || (app.isPackaged ? app.getVersion() : DEFAULT_OPL_VERSION);
+        const currentVersion = resolveCurrentOplReleaseVersion();
 
         // EN: Versioning note
-        // Update comparisons use the OPL release version when provided, falling back to `app.getVersion()`.
+        // Update comparisons use the OPL release version from packaged metadata, falling back to `app.getVersion()`.
         // If you want dev/prerelease updates to work reliably, CI must inject a prerelease semver into
         // `package.json#version` for dev builds (e.g. `1.7.2-dev.1234+sha.abcdef0`) so semver ordering holds.
         // We intentionally avoid heuristics based on tag strings when the app version is a stable semver.
         //
         // 中文：版本号说明
-        // 更新比较严格使用 semver：`app.getVersion()`（应用自身版本号）对比 Release 的 `tag_name`。
+        // 更新比较严格使用 semver：已安装 OPL release 版本对比 Release 的 `tag_name`。
         // 若要 dev/预发布版本更新可靠生效，需要 CI 在 dev 构建时把 `package.json#version`
         // 注入为带 prerelease 的 semver（如 `1.7.2-dev.1234+sha.abcdef0`），以保证比较顺序正确。
         // 这里刻意不对“当前是稳定版版本号但用户勾选了 prerelease”做字符串猜测。

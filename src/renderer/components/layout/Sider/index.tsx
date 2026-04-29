@@ -7,7 +7,7 @@ import { useAuth } from '@renderer/hooks/context/AuthContext';
 import { useLayoutContext } from '@renderer/hooks/context/LayoutContext';
 import { blurActiveElement } from '@renderer/utils/ui/focus';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
-import { SiderToolbar, SiderSearchEntry } from './SiderNav';
+import { SiderRuntimeEntry, SiderSearchEntry, SiderToolbar } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import siderStyles from './Sider.module.css';
 
@@ -31,6 +31,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { theme, setTheme } = useThemeContext();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const isSettings = pathname.startsWith('/settings');
+  const isRuntime = pathname.startsWith('/runtime');
   const lastNonSettingsPathRef = useRef('/guid');
   const showLogout =
     typeof window !== 'undefined' && !(window as { electronAPI?: unknown }).electronAPI && status === 'authenticated';
@@ -67,6 +68,19 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         console.error('Navigation failed:', error);
       });
     }
+    if (onSessionClick) {
+      onSessionClick();
+    }
+  };
+
+  const handleRuntimeClick = () => {
+    cleanupSiderTooltips();
+    blurActiveElement();
+    closePreview();
+    setIsBatchMode(false);
+    Promise.resolve(navigate('/runtime')).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
     if (onSessionClick) {
       onSessionClick();
     }
@@ -150,6 +164,13 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               siderTooltipProps={siderTooltipProps}
               onConversationSelect={handleConversationSelect}
               onSessionClick={onSessionClick}
+            />
+            <SiderRuntimeEntry
+              isMobile={isMobile}
+              isActive={isRuntime}
+              collapsed={collapsed}
+              siderTooltipProps={siderTooltipProps}
+              onClick={handleRuntimeClick}
             />
             {/* Divider between fixed top nav and scrollable content area */}
             <div

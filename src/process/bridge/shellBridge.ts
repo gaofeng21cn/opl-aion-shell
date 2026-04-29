@@ -14,7 +14,17 @@ import * as path from 'path';
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
 
-const ALLOWED_OPL_COMMANDS = new Set(['modules', 'doctor', 'install', 'module', 'engine', 'system', 'workspace', 'packages']);
+const ALLOWED_OPL_COMMANDS = new Set([
+  'modules',
+  'doctor',
+  'install',
+  'module',
+  'engine',
+  'system',
+  'workspace',
+  'packages',
+  'runtime',
+]);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 
 function assertAllowedOplArgs(args: string[]): void {
@@ -38,6 +48,12 @@ function assertAllowedOplArgs(args: string[]): void {
   }
   if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
     throw new Error(`Unsupported OPL packages action: ${args.slice(1).join(' ')}`);
+  }
+  if (args[0] === 'runtime') {
+    const isSnapshot = args.length >= 2 && args[1] === 'snapshot' && args.slice(2).every((arg) => arg === '--json');
+    if (!isSnapshot) {
+      throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
+    }
   }
   if (args[0] === 'workspace') {
     const isRead = args.length === 2 && args[1] === 'root';
@@ -72,14 +88,14 @@ async function runLoginShell(
 }
 
 function buildOplCommand(args: string[]): string {
-  const envPrefix = args[0] === 'modules' || args[0] === 'system' || args[0] === 'workspace' ? 'OPL_OUTPUT=json ' : '';
+  const envPrefix = ['modules', 'runtime', 'system', 'workspace'].includes(args[0]) ? 'OPL_OUTPUT=json ' : '';
   return ['command -v opl >/dev/null || exit 127', `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`].join(
     ' && '
   );
 }
 
 function buildOplBootstrapCommand(args: string[]): string {
-  const envPrefix = args[0] === 'modules' || args[0] === 'system' || args[0] === 'workspace' ? 'OPL_OUTPUT=json ' : '';
+  const envPrefix = ['modules', 'runtime', 'system', 'workspace'].includes(args[0]) ? 'OPL_OUTPUT=json ' : '';
   const commandArgs = `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`;
   return [
     'set -euo pipefail',

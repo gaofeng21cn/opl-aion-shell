@@ -30,10 +30,19 @@ vi.mock('@office-ai/platform', () => ({
 vi.mock('electron', () => ({
   app: {
     getVersion: vi.fn(() => '1.0.0'),
+    getAppPath: vi.fn(() => '/app'),
     getPath: vi.fn(() => '/test/path'),
     isPackaged: true,
   },
 }));
+
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs');
+  return {
+    ...actual,
+    readFileSync: vi.fn(actual.readFileSync),
+  };
+});
 
 vi.mock('electron-updater', () => ({
   autoUpdater: {
@@ -60,7 +69,9 @@ vi.mock('electron-log', () => ({
   },
 }));
 
-import { pickRecommendedAsset } from '@process/bridge/updateBridge';
+import { app } from 'electron';
+import * as fs from 'fs';
+import { pickRecommendedAsset, resolveCurrentOplReleaseVersion } from '@process/bridge/updateBridge';
 
 const asset = (name: string) => ({
   name,
@@ -91,5 +102,27 @@ describe('pickRecommendedAsset', () => {
     const result = pickRecommendedAsset(assets, { platform: 'win32', arch: 'ia32' });
 
     expect(result?.name).toBe('AionUi-1.0.0-win.exe');
+  });
+});
+
+describe('resolveCurrentOplReleaseVersion', () => {
+  it('uses the packaged OPL release version instead of the GUI version', () => {
+    const originalEnvVersion = process.env.OPL_RELEASE_VERSION;
+    delete process.env.OPL_RELEASE_VERSION;
+    vi.mocked(app.getVersion).mockClear();
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ version: '26.4.29', oplGuiVersion: '1.9.21' }));
+
+    try {
+      const version = resolveCurrentOplReleaseVersion();
+
+      expect(version).toBe('26.4.29');
+      expect(app.getVersion).not.toHaveBeenCalled();
+    } finally {
+      if (originalEnvVersion === undefined) {
+        delete process.env.OPL_RELEASE_VERSION;
+      } else {
+        process.env.OPL_RELEASE_VERSION = originalEnvVersion;
+      }
+    }
   });
 });

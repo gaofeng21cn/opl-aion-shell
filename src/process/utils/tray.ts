@@ -33,6 +33,21 @@ type RuntimeTrayItem = {
   command: string | null;
   workspace_path: string | null;
   source_refs: Array<Record<string, unknown>>;
+  study_id?: string | null;
+  workspace_label?: string | null;
+  detail_summary?: string | null;
+  next_action_summary?: string | null;
+  active_run_id?: string | null;
+  browser_url?: string | null;
+  quest_session_api_url?: string | null;
+  health_status?: string | null;
+  blockers?: string[];
+  recommended_commands?: Array<{
+    step_id: string;
+    title: string;
+    surface_kind: string;
+    command: string;
+  }>;
 };
 
 type RuntimeTraySnapshot = {
@@ -269,6 +284,16 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
       command: item.command,
       workspacePath: item.workspace_path,
       sourceRefs: item.source_refs,
+      studyId: item.study_id,
+      workspaceLabel: item.workspace_label,
+      detailSummary: item.detail_summary,
+      nextActionSummary: item.next_action_summary,
+      activeRunId: item.active_run_id,
+      browserUrl: item.browser_url,
+      questSessionApiUrl: item.quest_session_api_url,
+      healthStatus: item.health_status,
+      blockers: item.blockers,
+      recommendedCommands: item.recommended_commands,
     });
   };
 
