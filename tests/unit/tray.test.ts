@@ -210,7 +210,7 @@ describe('tray module', () => {
 
       createOrUpdateTray();
 
-      expect(mockTrayInstance.setToolTip).toHaveBeenCalledWith('AionUi');
+      expect(mockTrayInstance.setToolTip).toHaveBeenCalledWith('One Person Lab');
     });
 
     it('should be idempotent - second call does not create another tray', async () => {

@@ -508,7 +508,7 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
-    // 初始化关闭到托盘设置 / Initialize close-to-tray setting
+    // 初始化状态栏入口与关闭到托盘设置 / Initialize tray entry and close-to-tray setting
     if (isE2ETestMode) {
       setCloseToTrayEnabled(false);
       destroyTray();
@@ -516,20 +516,14 @@ const handleAppReady = async (): Promise<void> => {
       try {
         const savedCloseToTray = await ProcessConfig.get('system.closeToTray');
         setCloseToTrayEnabled(savedCloseToTray ?? false);
-        if (getCloseToTrayEnabled()) {
-          createOrUpdateTray();
-        }
       } catch {
         // Ignore storage read errors, default to false
       }
+      createOrUpdateTray();
 
       onCloseToTrayChanged((enabled) => {
         setCloseToTrayEnabled(enabled);
-        if (enabled) {
-          createOrUpdateTray();
-        } else {
-          destroyTray();
-        }
+        void refreshTrayMenu();
       });
     }
 
