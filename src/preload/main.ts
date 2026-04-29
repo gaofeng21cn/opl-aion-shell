@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 const trayEvents = [
   'tray:navigate-to-guid',
   'tray:navigate-to-conversation',
+  'tray:open-opl-runtime-item',
   'tray:open-about',
   'tray:pause-all-tasks',
   'tray:check-update',

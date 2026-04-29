@@ -397,6 +397,10 @@ const Layout: React.FC<{
       void navigate(`/conversation/${event.detail.conversationId}`);
     };
 
+    const handleOpenOplRuntimeItem = () => {
+      void navigate('/settings/opl');
+    };
+
     // Open about dialog when requested from tray / 托盘请求打开关于对话框
     const handleOpenAbout = () => {
       // Navigate to settings/about page / 导航到设置/关于页面
@@ -426,6 +430,7 @@ const Layout: React.FC<{
     // Listen for tray events / 监听托盘事件
     window.addEventListener('tray:navigate-to-guid', handleNavigateToGuid as EventListener);
     window.addEventListener('tray:navigate-to-conversation', handleNavigateToConversation as EventListener);
+    window.addEventListener('tray:open-opl-runtime-item', handleOpenOplRuntimeItem as EventListener);
     window.addEventListener('tray:open-about', handleOpenAbout as EventListener);
     window.addEventListener('tray:pause-all-tasks', handlePauseAllTasks as EventListener);
     window.addEventListener('tray:check-update', handleCheckUpdate as EventListener);
@@ -433,6 +438,7 @@ const Layout: React.FC<{
     return () => {
       window.removeEventListener('tray:navigate-to-guid', handleNavigateToGuid as EventListener);
       window.removeEventListener('tray:navigate-to-conversation', handleNavigateToConversation as EventListener);
+      window.removeEventListener('tray:open-opl-runtime-item', handleOpenOplRuntimeItem as EventListener);
       window.removeEventListener('tray:open-about', handleOpenAbout as EventListener);
       window.removeEventListener('tray:pause-all-tasks', handlePauseAllTasks as EventListener);
       window.removeEventListener('tray:check-update', handleCheckUpdate as EventListener);

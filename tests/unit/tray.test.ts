@@ -19,6 +19,16 @@ const hoisted = vi.hoisted(() => {
 
   const mockMenuInstance = { items: [] };
   const mockBuildFromTemplate = vi.fn(() => mockMenuInstance);
+  const mockExecFile = vi.fn(
+    (
+      _file: string,
+      _args: string[],
+      _options: Record<string, unknown>,
+      callback: (error: Error | null, stdout: string, stderr: string) => void
+    ) => {
+      callback(null, '', '');
+    }
+  );
   const mockListTasks = vi.fn(() => []);
   const mockGetUserConversations = vi.fn(() => ({ data: [] }));
   const mockGetDatabase = vi.fn(() => ({
@@ -27,6 +37,7 @@ const hoisted = vi.hoisted(() => {
 
   const mockNativeImage = {
     resize: vi.fn().mockReturnThis(),
+    setTemplateImage: vi.fn(),
     isEmpty: vi.fn(() => false),
   };
   const mockDock = {
@@ -59,6 +70,7 @@ const hoisted = vi.hoisted(() => {
     mockTrayInstance,
     mockMenuInstance,
     mockBuildFromTemplate,
+    mockExecFile,
     mockListTasks,
     mockGetUserConversations,
     mockGetDatabase,
@@ -89,6 +101,7 @@ const {
   mockTrayInstance,
   mockMenuInstance,
   mockBuildFromTemplate,
+  mockExecFile,
   mockListTasks,
   mockGetUserConversations,
   mockGetDatabase,
@@ -113,6 +126,10 @@ vi.mock('@/common/electronSafe', () => ({
   electronNotification: null,
   electronUtilityProcess: null,
   electronPowerSaveBlocker: null,
+}));
+
+vi.mock('child_process', () => ({
+  execFile: mockExecFile,
 }));
 
 vi.mock('@/common', () => ({
@@ -289,6 +306,9 @@ describe('tray module', () => {
       vi.resetModules();
       vi.clearAllMocks();
       mockListTasks.mockReturnValue([]);
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        callback(null, '', '');
+      });
       mockGetUserConversations.mockReturnValue({ data: [] });
       mockGetDatabase.mockImplementation(() => ({
         getUserConversations: mockGetUserConversations,
@@ -347,6 +367,96 @@ describe('tray module', () => {
       const taskItem = templateArg.find((item: any) => item.label?.includes('3'));
       expect(taskItem).toBeDefined();
       expect(taskItem.enabled).toBe(false);
+    });
+
+    it('should include OPL runtime snapshot lanes when available', async () => {
+      setupWithOverrides();
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        callback(
+          null,
+          JSON.stringify({
+            version: 'g2',
+            runtime_tray_snapshot: {
+              schema_version: 'runtime_tray_snapshot.v1',
+              runtime_health: {
+                status: 'needs_attention',
+                label: 'Needs attention',
+                summary: 'One project needs review.',
+              },
+              last_updated: '2026-04-29T00:00:00.000Z',
+              running_items: [
+                {
+                  item_id: 'medautoscience:study-runtime',
+                  project_id: 'medautoscience',
+                  project_label: 'MAS',
+                  title: 'Active study',
+                  status_label: 'Running',
+                  summary: 'Study runtime is active.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautoscience',
+                  workspace_path: '/tmp/mas',
+                  source_refs: [],
+                },
+              ],
+              attention_items: [
+                {
+                  item_id: 'redcube:operator-review',
+                  project_id: 'redcube',
+                  project_label: 'RCA',
+                  title: 'Operator review',
+                  status_label: 'Needs attention',
+                  summary: 'Review the generated deck before continuing.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project redcube',
+                  workspace_path: '/tmp/redcube',
+                  source_refs: [],
+                },
+              ],
+              recent_items: [
+                {
+                  item_id: 'medautogrant:completed',
+                  project_id: 'medautogrant',
+                  project_label: 'MAG',
+                  title: 'Grant route',
+                  status_label: 'Completed',
+                  summary: 'Route completed.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautogrant',
+                  workspace_path: '/tmp/mag',
+                  source_refs: [],
+                },
+              ],
+              source_refs: [],
+            },
+          }),
+          ''
+        );
+      });
+
+      const templateArg = await getTemplateFromRefresh();
+      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+
+      expect(labels).toContain('common.tray.runtimeAttention');
+      expect(labels).toContain('RCA: Operator review (Needs attention)');
+      expect(labels).toContain('common.tray.runtimeRunning');
+      expect(labels).toContain('MAS: Active study (Running)');
+      expect(labels).toContain('common.tray.runtimeRecent');
+      expect(labels).toContain('MAG: Grant route (Completed)');
+    });
+
+    it('should show the OPL runtime as offline when the snapshot cannot be read', async () => {
+      setupWithOverrides();
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        callback(new Error('opl unavailable'), '', '');
+      });
+
+      const templateArg = await getTemplateFromRefresh();
+      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+
+      expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
+      expect(labels).not.toContain('common.tray.runtimeAttention');
+      expect(labels).not.toContain('common.tray.runtimeRunning');
+      expect(labels).not.toContain('common.tray.runtimeRecent');
     });
 
     it('should gracefully handle database errors for recent conversations', async () => {

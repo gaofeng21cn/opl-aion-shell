@@ -5,6 +5,7 @@
  */
 
 import type { BrowserWindow, Tray as TrayInstance } from 'electron';
+import { execFile } from 'child_process';
 import {
   electronApp as app,
   electronMenu as Menu,
@@ -19,6 +20,50 @@ let tray: TrayInstance | null = null;
 let closeToTrayEnabled = false;
 let isQuitting = false;
 let mainWindowRef: BrowserWindow | null = null;
+
+type RuntimeTrayItem = {
+  item_id: string;
+  project_id: string;
+  project_label: string;
+  title: string;
+  status_label: string;
+  summary: string | null;
+  updated_at: string | null;
+  command: string | null;
+  workspace_path: string | null;
+  source_refs: Array<Record<string, unknown>>;
+};
+
+type RuntimeTraySnapshot = {
+  schema_version: 'runtime_tray_snapshot.v1';
+  runtime_health: {
+    status: 'offline' | 'needs_attention' | 'running' | 'idle';
+    label: string;
+    summary: string;
+  };
+  last_updated: string;
+  running_items: RuntimeTrayItem[];
+  attention_items: RuntimeTrayItem[];
+  recent_items: RuntimeTrayItem[];
+  source_refs: Array<Record<string, unknown>>;
+};
+
+const RUNTIME_SNAPSHOT_COMMAND = 'command -v opl >/dev/null && OPL_OUTPUT=json opl runtime snapshot --json';
+const RUNTIME_SNAPSHOT_TIMEOUT_MS = 20_000;
+
+const unavailableRuntimeTraySnapshot = (): RuntimeTraySnapshot => ({
+  schema_version: 'runtime_tray_snapshot.v1',
+  runtime_health: {
+    status: 'offline',
+    label: 'Offline',
+    summary: 'OPL runtime snapshot projection is unavailable.',
+  },
+  last_updated: new Date().toISOString(),
+  running_items: [],
+  attention_items: [],
+  recent_items: [],
+  source_refs: [],
+});
 
 export const setTrayMainWindow = (win: BrowserWindow): void => {
   mainWindowRef = win;
@@ -44,9 +89,101 @@ const getTrayIcon = (): Electron.NativeImage => {
   const resourcesPath = app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources');
   const icon = nativeImage.createFromPath(path.join(resourcesPath, 'app.png'));
   if (process.platform === 'darwin') {
-    return icon.resize({ width: 16, height: 16 });
+    const resized = icon.resize({ width: 16, height: 16 });
+    resized.setTemplateImage(true);
+    return resized;
   }
   return icon.resize({ width: 32, height: 32 });
+};
+
+const isRuntimeTraySnapshot = (value: unknown): value is RuntimeTraySnapshot => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const snapshot = value as Partial<RuntimeTraySnapshot>;
+  return (
+    snapshot.schema_version === 'runtime_tray_snapshot.v1' &&
+    Array.isArray(snapshot.running_items) &&
+    Array.isArray(snapshot.attention_items) &&
+    Array.isArray(snapshot.recent_items) &&
+    Boolean(snapshot.runtime_health && typeof snapshot.runtime_health.status === 'string')
+  );
+};
+
+const readRuntimeTraySnapshot = async (): Promise<RuntimeTraySnapshot | null> =>
+  new Promise((resolve) => {
+    execFile(
+      '/bin/zsh',
+      ['-lc', RUNTIME_SNAPSHOT_COMMAND],
+      {
+        timeout: RUNTIME_SNAPSHOT_TIMEOUT_MS,
+        maxBuffer: 10 * 1024 * 1024,
+      },
+      (error, stdout) => {
+        if (error || !stdout.trim()) {
+          resolve(null);
+          return;
+        }
+
+        try {
+          const payload = JSON.parse(stdout) as { runtime_tray_snapshot?: unknown };
+          resolve(isRuntimeTraySnapshot(payload.runtime_tray_snapshot) ? payload.runtime_tray_snapshot : null);
+        } catch {
+          resolve(null);
+        }
+      }
+    );
+  });
+
+const truncateMenuLabel = (value: string, maxLength: number): string => {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
+};
+
+const runtimeHealthI18nKey = (status: RuntimeTraySnapshot['runtime_health']['status']): string => {
+  switch (status) {
+    case 'offline':
+      return 'common.tray.runtimeStatusOffline';
+    case 'needs_attention':
+      return 'common.tray.runtimeStatusNeedsAttention';
+    case 'running':
+      return 'common.tray.runtimeStatusRunning';
+    case 'idle':
+      return 'common.tray.runtimeStatusIdle';
+  }
+};
+
+const formatRuntimeItemLabel = (item: RuntimeTrayItem): string => {
+  const title = truncateMenuLabel(item.title, 32);
+  const status = item.status_label?.trim();
+  const statusSuffix =
+    status && !item.title.toLowerCase().includes(status.toLowerCase()) ? ` (${truncateMenuLabel(status, 18)})` : '';
+  return `${item.project_label}: ${title}${statusSuffix}`;
+};
+
+const appendRuntimeItems = (
+  template: Electron.MenuItemConstructorOptions[],
+  sectionLabelKey: string,
+  items: RuntimeTrayItem[],
+  onOpenItem: (item: RuntimeTrayItem) => void
+): void => {
+  if (items.length === 0) {
+    return;
+  }
+
+  template.push({
+    label: i18n.t(sectionLabelKey),
+    enabled: false,
+  });
+  for (const item of items.slice(0, 5)) {
+    template.push({
+      label: formatRuntimeItemLabel(item),
+      click: () => onOpenItem(item),
+    });
+  }
 };
 
 /**
@@ -77,6 +214,7 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
 
   const recentConversations = await getRecentConversations();
   const runningTasksCount = getRunningTasksCount();
+  const runtimeSnapshot = (await readRuntimeTraySnapshot()) ?? unavailableRuntimeTraySnapshot();
 
   const showAndFocus = () => {
     if (mainWindowRef && !mainWindowRef.isDestroyed()) {
@@ -100,6 +238,17 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
     }
   };
 
+  const openRuntimeItem = (item: RuntimeTrayItem) => {
+    showAndFocus();
+    mainWindowRef?.webContents.send('tray:open-opl-runtime-item', {
+      projectId: item.project_id,
+      itemId: item.item_id,
+      command: item.command,
+      workspacePath: item.workspace_path,
+      sourceRefs: item.source_refs,
+    });
+  };
+
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: i18n.t('common.tray.showWindow'),
@@ -118,6 +267,15 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
       },
     },
   ];
+
+  template.push({ type: 'separator' });
+  template.push({
+    label: `${i18n.t('common.tray.runtimeStatus')}: ${i18n.t(runtimeHealthI18nKey(runtimeSnapshot.runtime_health.status))}`,
+    enabled: false,
+  });
+  appendRuntimeItems(template, 'common.tray.runtimeAttention', runtimeSnapshot.attention_items, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeRunning', runtimeSnapshot.running_items, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeRecent', runtimeSnapshot.recent_items, openRuntimeItem);
 
   if (recentConversations.length > 0) {
     template.push({ type: 'separator' });
