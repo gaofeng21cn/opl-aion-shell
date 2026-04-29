@@ -40,10 +40,12 @@ const hoisted = vi.hoisted(() => {
     setTemplateImage: vi.fn(),
     isEmpty: vi.fn(() => false),
   };
+  const mockCreateFromPath = vi.fn(() => mockNativeImage);
   const mockDock = {
     show: vi.fn(),
     hide: vi.fn(),
   };
+  const mockProcessConfigGet = vi.fn(async () => false);
 
   const mockApp = {
     isPackaged: false,
@@ -75,8 +77,10 @@ const hoisted = vi.hoisted(() => {
     mockGetUserConversations,
     mockGetDatabase,
     mockNativeImage,
+    mockCreateFromPath,
     mockDock,
     mockApp,
+    mockProcessConfigGet,
     MockTray,
     setThrowOnConstruct(v: boolean) {
       shouldThrowOnConstruct = v;
@@ -106,8 +110,10 @@ const {
   mockGetUserConversations,
   mockGetDatabase,
   mockNativeImage,
+  mockCreateFromPath,
   mockDock,
   mockApp,
+  mockProcessConfigGet,
   MockTray,
 } = hoisted;
 
@@ -120,7 +126,7 @@ vi.mock('@/common/electronSafe', () => ({
     buildFromTemplate: mockBuildFromTemplate,
   },
   electronNativeImage: {
-    createFromPath: vi.fn(() => mockNativeImage),
+    createFromPath: mockCreateFromPath,
   },
   electronBrowserWindow: null,
   electronNotification: null,
@@ -154,6 +160,7 @@ vi.mock('@process/services/database', () => ({
 
 vi.mock('@process/utils/initStorage', () => ({
   ProcessChat: { get: vi.fn(async () => []) },
+  ProcessConfig: { get: mockProcessConfigGet },
   getSkillsDir: vi.fn(() => '/mock/skills'),
   getBuiltinSkillsCopyDir: vi.fn(() => '/mock/builtin-skills'),
   getSystemDir: vi.fn(() => ({ cacheDir: '/mock/cache' })),
@@ -211,6 +218,20 @@ describe('tray module', () => {
       createOrUpdateTray();
 
       expect(mockTrayInstance.setToolTip).toHaveBeenCalledWith('One Person Lab');
+    });
+
+    it('should use the macOS template tray icon instead of the opaque app icon', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+      });
+      const { createOrUpdateTray } = await import('@process/utils/tray');
+
+      createOrUpdateTray();
+
+      expect(mockCreateFromPath).toHaveBeenCalledWith(expect.stringContaining('trayTemplate.png'));
+      expect(mockCreateFromPath).not.toHaveBeenCalledWith(expect.stringContaining('app.png'));
+      expect(mockNativeImage.setTemplateImage).toHaveBeenCalledWith(true);
     });
 
     it('should be idempotent - second call does not create another tray', async () => {
@@ -306,6 +327,7 @@ describe('tray module', () => {
       vi.resetModules();
       vi.clearAllMocks();
       mockListTasks.mockReturnValue([]);
+      mockProcessConfigGet.mockResolvedValue(false);
       mockExecFile.mockImplementation((_file, _args, _options, callback) => {
         callback(null, '', '');
       });
@@ -457,6 +479,84 @@ describe('tray module', () => {
       expect(labels).not.toContain('common.tray.runtimeAttention');
       expect(labels).not.toContain('common.tray.runtimeRunning');
       expect(labels).not.toContain('common.tray.runtimeRecent');
+    });
+
+    it('should include runtime item detail in the open event payload', async () => {
+      setupWithOverrides();
+      const { setTrayMainWindow } = await import('@process/utils/tray');
+      const mockWindow = createMockWindow();
+      setTrayMainWindow(mockWindow);
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        callback(
+          null,
+          JSON.stringify({
+            runtime_tray_snapshot: {
+              schema_version: 'runtime_tray_snapshot.v1',
+              runtime_health: {
+                status: 'running',
+                label: 'Running',
+                summary: 'One project is running.',
+              },
+              last_updated: '2026-04-29T00:00:00.000Z',
+              running_items: [
+                {
+                  item_id: 'medautoscience:study-runtime',
+                  project_id: 'medautoscience',
+                  project_label: 'MAS',
+                  title: 'Active study',
+                  status_label: 'Running',
+                  summary: 'Study runtime is active.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautoscience',
+                  workspace_path: '/tmp/mas',
+                  source_refs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+                },
+              ],
+              attention_items: [],
+              recent_items: [],
+              source_refs: [],
+            },
+          }),
+          ''
+        );
+      });
+
+      const templateArg = await getTemplateFromRefresh();
+      const runtimeItem = templateArg.find((item: any) => item.label === 'MAS: Active study (Running)');
+      runtimeItem.click();
+
+      expect(mockWindow.webContents.send).toHaveBeenCalledWith('tray:open-opl-runtime-item', {
+        projectId: 'medautoscience',
+        projectLabel: 'MAS',
+        itemId: 'medautoscience:study-runtime',
+        title: 'Active study',
+        statusLabel: 'Running',
+        summary: 'Study runtime is active.',
+        updatedAt: '2026-04-29T00:00:00.000Z',
+        command: 'opl start --project medautoscience',
+        workspacePath: '/tmp/mas',
+        sourceRefs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+      });
+    });
+
+    it('should hide the desktop pet menu when the pet is disabled', async () => {
+      setupWithOverrides();
+      mockProcessConfigGet.mockResolvedValue(false);
+
+      const templateArg = await getTemplateFromRefresh();
+      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+
+      expect(labels).not.toContain('🐾 pet.desktopPet');
+    });
+
+    it('should show the desktop pet menu when the pet is enabled', async () => {
+      setupWithOverrides();
+      mockProcessConfigGet.mockResolvedValue(true);
+
+      const templateArg = await getTemplateFromRefresh();
+      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+
+      expect(labels).toContain('🐾 pet.desktopPet');
     });
 
     it('should gracefully handle database errors for recent conversations', async () => {

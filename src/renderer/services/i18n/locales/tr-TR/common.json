@@ -91,5 +91,15 @@
   "import": "İçe Aktar",
   "processing": "İşleniyor...",
   "optional": "(isteğe bağlı)",
-  "clear": "Temizle"
+  "clear": "Temizle",
+  "runtimeTray": {
+    "project": "Proje",
+    "updatedAt": "Güncellendi",
+    "openWorkspace": "Çalışma Alanını Aç",
+    "sourceRefs": "Kaynak Referansları",
+    "sourceRef": "Kaynak {{index}}",
+    "noSourceRefs": "Kaynak referansı yok",
+    "noItem": "Runtime öğesi seçilmedi",
+    "noItemDescription": "Mevcut projeksiyonu incelemek için OPL tepsisinden bir öğe açın."
+  }
 }

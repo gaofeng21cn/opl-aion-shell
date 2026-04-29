@@ -95,5 +95,15 @@
   "unit": {
     "minute_short": "m",
     "second_short": "s"
+  },
+  "runtimeTray": {
+    "project": "Project",
+    "updatedAt": "Updated",
+    "openWorkspace": "Open Workspace",
+    "sourceRefs": "Source References",
+    "sourceRef": "Source {{index}}",
+    "noSourceRefs": "No source references",
+    "noItem": "No runtime item selected",
+    "noItemDescription": "Open an item from the OPL tray to inspect its current projection."
   }
 }

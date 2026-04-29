@@ -91,5 +91,15 @@
   "import": "インポート",
   "processing": "処理中...",
   "optional": "（任意）",
-  "clear": "クリア"
+  "clear": "クリア",
+  "runtimeTray": {
+    "project": "プロジェクト",
+    "updatedAt": "更新日時",
+    "openWorkspace": "ワークスペースを開く",
+    "sourceRefs": "ソース参照",
+    "sourceRef": "ソース {{index}}",
+    "noSourceRefs": "ソース参照はありません",
+    "noItem": "ランタイム項目が選択されていません",
+    "noItemDescription": "OPL トレイから項目を開くと、現在の投影を確認できます。"
+  }
 }

@@ -91,5 +91,15 @@
   "optional": "(необязательно)",
   "clear": "Очистить",
   "historyBack": "Назад",
-  "agentMode": "Режим агента"
+  "agentMode": "Режим агента",
+  "runtimeTray": {
+    "project": "Проект",
+    "updatedAt": "Обновлено",
+    "openWorkspace": "Открыть рабочую папку",
+    "sourceRefs": "Ссылки на источники",
+    "sourceRef": "Источник {{index}}",
+    "noSourceRefs": "Нет ссылок на источники",
+    "noItem": "Элемент среды не выбран",
+    "noItemDescription": "Откройте элемент из трея OPL, чтобы увидеть его текущую проекцию."
+  }
 }

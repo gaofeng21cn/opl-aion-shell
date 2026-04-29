@@ -96,5 +96,15 @@
   "unit": {
     "minute_short": "хв",
     "second_short": "с"
+  },
+  "runtimeTray": {
+    "project": "Проєкт",
+    "updatedAt": "Оновлено",
+    "openWorkspace": "Відкрити робочу папку",
+    "sourceRefs": "Посилання на джерела",
+    "sourceRef": "Джерело {{index}}",
+    "noSourceRefs": "Немає посилань на джерела",
+    "noItem": "Елемент середовища не вибрано",
+    "noItemDescription": "Відкрийте елемент із трея OPL, щоб переглянути його поточну проєкцію."
   }
 }

@@ -147,6 +147,10 @@ extraResources:
     to: .
   - from: resources/app.png
     to: app.png
+  - from: resources/trayTemplate.png
+    to: trayTemplate.png
+  - from: resources/trayTemplate@2x.png
+    to: trayTemplate@2x.png
 win:
   target:
     - nsis

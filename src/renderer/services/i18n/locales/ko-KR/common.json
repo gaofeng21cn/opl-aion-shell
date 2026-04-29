@@ -91,5 +91,15 @@
   "import": "가져오기",
   "processing": "처리 중...",
   "optional": "(선택 사항)",
-  "clear": "지우기"
+  "clear": "지우기",
+  "runtimeTray": {
+    "project": "프로젝트",
+    "updatedAt": "업데이트됨",
+    "openWorkspace": "작업공간 열기",
+    "sourceRefs": "소스 참조",
+    "sourceRef": "소스 {{index}}",
+    "noSourceRefs": "소스 참조 없음",
+    "noItem": "런타임 항목이 선택되지 않음",
+    "noItemDescription": "OPL 트레이에서 항목을 열면 현재 투영을 확인할 수 있습니다."
+  }
 }

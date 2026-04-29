@@ -91,5 +91,15 @@
   "import": "匯入",
   "processing": "處理中...",
   "optional": "（選填）",
-  "clear": "清除"
+  "clear": "清除",
+  "runtimeTray": {
+    "project": "專案",
+    "updatedAt": "更新時間",
+    "openWorkspace": "打開工作區",
+    "sourceRefs": "來源引用",
+    "sourceRef": "來源 {{index}}",
+    "noSourceRefs": "暫無來源引用",
+    "noItem": "未選擇運行專案",
+    "noItemDescription": "從 OPL 狀態列打開一個專案後，可查看它的目前投影。"
+  }
 }

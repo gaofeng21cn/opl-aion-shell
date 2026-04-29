@@ -29,6 +29,7 @@ import { useOplBrandName } from '@renderer/hooks/system/useOplBrandName';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
+import { RUNTIME_TRAY_ITEM_STORAGE_KEY, type RuntimeTrayOpenPayload } from '@renderer/pages/runtime/types';
 import {
   claimOplFirstLaunchPreparationMessage,
   releaseOplFirstLaunchPreparationMessage,
@@ -397,8 +398,13 @@ const Layout: React.FC<{
       void navigate(`/conversation/${event.detail.conversationId}`);
     };
 
-    const handleOpenOplRuntimeItem = () => {
-      void navigate('/settings/opl');
+    const handleOpenOplRuntimeItem = (event: CustomEvent<RuntimeTrayOpenPayload>) => {
+      try {
+        window.sessionStorage.setItem(RUNTIME_TRAY_ITEM_STORAGE_KEY, JSON.stringify(event.detail));
+      } catch {
+        // Session storage is only a reload bridge; route state remains the primary handoff.
+      }
+      void navigate('/runtime/item', { state: { runtimeItem: event.detail } });
     };
 
     // Open about dialog when requested from tray / 托盘请求打开关于对话框

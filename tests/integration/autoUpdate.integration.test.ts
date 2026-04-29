@@ -80,6 +80,10 @@ describe('Auto-Update IPC Bridge Integration', () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
+    const { app } = await import('electron');
+    const { autoUpdater } = await import('electron-updater');
+    vi.mocked(app.getVersion).mockReturnValue('1.0.0');
+    autoUpdater.allowDowngrade = false;
   });
 
   afterEach(() => {
@@ -202,6 +206,51 @@ describe('Auto-Update IPC Bridge Integration', () => {
   });
 
   describe('Service Integration', () => {
+    it('should ignore electron-updater metadata that is not newer than the packaged OPL version', async () => {
+      const { app } = await import('electron');
+      const { autoUpdater } = await import('electron-updater');
+      vi.mocked(app.getVersion).mockReturnValue('26.4.29');
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+        isUpdateAvailable: true,
+        updateInfo: {
+          version: '1.9.21',
+          releaseDate: '2026-04-27T00:00:00.000Z',
+        },
+      } as Awaited<ReturnType<typeof autoUpdater.checkForUpdates>>);
+      autoUpdater.allowDowngrade = true;
+
+      const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
+      autoUpdaterService.resetForTest();
+      autoUpdaterService.initialize();
+
+      const result = await autoUpdaterService.checkForUpdates();
+
+      expect(result).toEqual({ success: true });
+      expect(autoUpdater.allowDowngrade).toBe(false);
+    });
+
+    it('should not broadcast stale electron-updater update-available events as available updates', async () => {
+      const { app } = await import('electron');
+      vi.mocked(app.getVersion).mockReturnValue('26.4.29');
+      const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
+      const mockBroadcast = vi.fn();
+
+      autoUpdaterService.resetForTest();
+      autoUpdaterService.initialize(mockBroadcast);
+
+      autoUpdaterService.triggerEventForTest('update-available', {
+        version: '1.9.21',
+        releaseDate: '2026-04-27T00:00:00.000Z',
+      });
+
+      expect(mockBroadcast).toHaveBeenCalledWith({ status: 'not-available' });
+      expect(mockBroadcast).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'available',
+        })
+      );
+    });
+
     it('should work end-to-end with status broadcast', async () => {
       const { autoUpdaterService } = await import('@/process/services/autoUpdaterService');
 

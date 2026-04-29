@@ -9,6 +9,7 @@ import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import { app } from 'electron';
 import log from 'electron-log';
 import { EventEmitter } from 'events';
+import semver from 'semver';
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
@@ -61,6 +62,24 @@ export type StatusBroadcastCallback = (status: AutoUpdateStatus) => void;
 export interface AutoUpdaterEvents {
   'update-status': (status: AutoUpdateStatus) => void;
 }
+
+const normalizeSemver = (version: string): string | undefined =>
+  semver.valid(version) || semver.coerce(version)?.version;
+
+const isUpdateInfoNewerThanCurrentApp = (info: UpdateInfo): boolean => {
+  const currentVersion = normalizeSemver(app.getVersion());
+  const candidateVersion = normalizeSemver(info.version);
+  if (!currentVersion || !candidateVersion) {
+    return true;
+  }
+  return semver.gt(candidateVersion, currentVersion);
+};
+
+const logIgnoredNonNewerUpdate = (info: UpdateInfo): void => {
+  log.info(
+    `Ignoring non-newer electron-updater metadata version ${info.version}; current app version is ${app.getVersion()}`
+  );
+};
 
 class AutoUpdaterService extends EventEmitter {
   private _isInitialized = false;
@@ -198,6 +217,11 @@ class AutoUpdaterService extends EventEmitter {
     });
 
     register('update-available', (info: UpdateInfo) => {
+      if (!isUpdateInfoNewerThanCurrentApp(info)) {
+        logIgnoredNonNewerUpdate(info);
+        this.broadcastStatus({ status: 'not-available' });
+        return;
+      }
       log.info(`Update available: ${info.version}`);
       this.broadcastStatus({
         status: 'available',
@@ -261,6 +285,7 @@ class AutoUpdaterService extends EventEmitter {
         throw new Error('AutoUpdaterService not initialized');
       }
 
+      autoUpdater.allowDowngrade = false;
       const result = await autoUpdater.checkForUpdates();
       if (!result) {
         const { default: i18n } = await import('./i18n');
@@ -272,6 +297,12 @@ class AutoUpdaterService extends EventEmitter {
       if (!result.isUpdateAvailable) {
         return { success: true };
       }
+
+      if (!isUpdateInfoNewerThanCurrentApp(result.updateInfo)) {
+        logIgnoredNonNewerUpdate(result.updateInfo);
+        return { success: true };
+      }
+
       return {
         success: true,
         updateInfo: result.updateInfo,
