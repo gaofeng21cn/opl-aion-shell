@@ -13,8 +13,14 @@ type OplFirstLaunchPreparationState = {
 };
 
 const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
+const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize'];
+const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
+
+type OplFirstLaunchPreparationOptions = {
+  appVersion?: string;
+};
 
 type OplSystemInitializePayload = {
   system_initialize?: {
@@ -50,6 +56,30 @@ const parseInitializePayload = (stdout: string): OplSystemInitializePayload['sys
 const needsRecommendedSkillInstall = (initialize: OplSystemInitializePayload['system_initialize'] | null): boolean =>
   (initialize?.recommended_skills?.summary?.missing ?? 0) > 0;
 
+const readPreparedState = async (appVersion?: string): Promise<boolean> => {
+  const preparedAt = await ConfigStorage.get(PREPARED_AT_CONFIG_KEY);
+  if (!preparedAt) return false;
+  if (!appVersion) return true;
+
+  const reconciledVersion = await ConfigStorage.get(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY);
+  return reconciledVersion === appVersion;
+};
+
+const reconcileModulesForAppVersion = async (appVersion?: string): Promise<OplFirstLaunchPreparationResult | null> => {
+  if (!appVersion) return null;
+
+  const reconciledVersion = await ConfigStorage.get(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY);
+  if (reconciledVersion === appVersion) return null;
+
+  const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...RECONCILE_MODULES_ARGS] });
+  if (result.exitCode !== 0) {
+    return { status: 'failed', message: getFailureMessage(result) };
+  }
+
+  await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, appVersion);
+  return null;
+};
+
 const readInitializeState = async (
   readyStatus: Extract<OplFirstLaunchPreparationResult['status'], 'already-prepared' | 'prepared'> = 'prepared',
   options: { installRecommendedSkills?: boolean } = {}
@@ -77,19 +107,39 @@ const readInitializeState = async (
   };
 };
 
-const runOplFirstLaunchEnvironmentPreparation = async (): Promise<OplFirstLaunchPreparationResult> => {
+const runOplFirstLaunchEnvironmentPreparation = async (
+  options: OplFirstLaunchPreparationOptions = {}
+): Promise<OplFirstLaunchPreparationResult> => {
   try {
+    if (await readPreparedState(options.appVersion)) {
+      return { status: 'already-prepared' };
+    }
+
     const initialState = await readInitializeState('already-prepared', { installRecommendedSkills: true });
-    if (initialState.status !== 'setup-needed') {
+    if (initialState.status === 'failed') {
       return initialState;
     }
 
-    const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
-    if (result.exitCode === 0) {
-      return readInitializeState('prepared');
+    let readyState = initialState;
+    if (initialState.status === 'setup-needed') {
+      const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
+      if (result.exitCode !== 0) {
+        return { status: 'failed', message: getFailureMessage(result) };
+      }
+
+      const preparedState = await readInitializeState('prepared');
+      if (preparedState.status === 'failed' || preparedState.status === 'setup-needed') {
+        return preparedState;
+      }
+      readyState = preparedState;
     }
 
-    return { status: 'failed', message: getFailureMessage(result) };
+    const reconcileResult = await reconcileModulesForAppVersion(options.appVersion);
+    if (reconcileResult) {
+      return reconcileResult;
+    }
+
+    return options.appVersion ? { status: 'prepared' } : readyState;
   } catch (error) {
     return {
       status: 'failed',
@@ -98,12 +148,14 @@ const runOplFirstLaunchEnvironmentPreparation = async (): Promise<OplFirstLaunch
   }
 };
 
-export const startOplFirstLaunchEnvironmentPreparation = (): Promise<OplFirstLaunchPreparationResult> => {
+export const startOplFirstLaunchEnvironmentPreparation = (
+  options: OplFirstLaunchPreparationOptions = {}
+): Promise<OplFirstLaunchPreparationResult> => {
   if (preparationState) {
     return preparationState.promise;
   }
 
-  const promise = runOplFirstLaunchEnvironmentPreparation().finally(() => {
+  const promise = runOplFirstLaunchEnvironmentPreparation(options).finally(() => {
     preparationState = null;
   });
   preparationState = { promise, messageOwner: null };

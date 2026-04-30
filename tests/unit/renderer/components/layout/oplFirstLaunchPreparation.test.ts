@@ -114,9 +114,8 @@ describe('oplFirstLaunchPreparation', () => {
 
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'already-prepared' });
 
-    expect(mockRunOplCommand).toHaveBeenCalledOnce();
-    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize'] });
-    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockRunOplCommand).not.toHaveBeenCalled();
+    expect(mockConfigSet).not.toHaveBeenCalled();
   });
 
   it('skips OPL install when command-line setup already made the environment launchable', async () => {
@@ -128,6 +127,43 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockRunOplCommand).toHaveBeenCalledOnce();
     expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
+  it('runs module reconcile once when the App version changes after first launch preparation', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      if (key === 'opl.lastModuleReconcileAppVersion') return '26.4.29';
+      return undefined;
+    });
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toEqual({
+      status: 'prepared',
+    });
+
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['system', 'reconcile-modules'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.4.30');
+  });
+
+  it('does not rerun module reconcile for the same App version', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      if (key === 'opl.lastModuleReconcileAppVersion') return '26.4.30';
+      return undefined;
+    });
+    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toEqual({
+      status: 'already-prepared',
+    });
+
+    expect(mockRunOplCommand).not.toHaveBeenCalled();
+    expect(mockConfigSet).not.toHaveBeenCalled();
   });
 
   it('runs OPL install to sync missing recommended skills without blocking launch', async () => {

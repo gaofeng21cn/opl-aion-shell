@@ -84,6 +84,7 @@ export interface IConfigStorageRefer {
   'opl.interactionLayer'?: 'codex' | 'hermes';
   /** First successful OPL install preparation triggered by the desktop app. */
   'opl.firstLaunchInstallPreparedAt'?: number;
+  'opl.lastModuleReconcileAppVersion'?: string;
   colorScheme: string;
   /** Persisted app-wide UI zoom factor for Display settings */
   'ui.zoomFactor'?: number;

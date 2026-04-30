@@ -145,11 +145,14 @@ const Layout: React.FC<{
     };
 
     const prepareEnvironment = async () => {
-      const preparedAt = await ConfigStorage.get('opl.firstLaunchInstallPreparedAt');
-      if (preparedAt || cancelled) return;
+      if (cancelled) return;
 
       const messageOwner = Symbol('opl-first-launch-preparation-message');
-      const preparationPromise = startOplFirstLaunchEnvironmentPreparation();
+      const appVersions = await ipcBridge.application.appVersions.invoke().catch(() => null);
+      if (cancelled) return;
+      const preparationPromise = startOplFirstLaunchEnvironmentPreparation({
+        appVersion: appVersions?.oplVersion?.trim() || undefined,
+      });
       const ownsMessage = claimOplFirstLaunchPreparationMessage(messageOwner);
       if (ownsMessage) {
         releaseMessageOwner = () => releaseOplFirstLaunchPreparationMessage(messageOwner);
