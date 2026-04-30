@@ -124,7 +124,7 @@ export const useGuidAgentSelection = ({
       const configPath = `${home}/.codex/config.toml`;
       const content = await ipcBridge.fs.readFile.invoke({ path: configPath });
       const readString = (key: string) => {
-        const match = content.match(new RegExp(`^\\s*${key}\\s*=\\s*\"([^\"]+)\"`, 'm'));
+        const match = content.match(new RegExp(`^\\s*${key}\\s*=\\s*"([^"]+)"`, 'm'));
         return match?.[1]?.trim();
       };
       const sandboxMode = readString('sandbox_mode');

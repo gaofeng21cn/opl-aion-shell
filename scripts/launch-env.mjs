@@ -60,7 +60,9 @@ export function buildLaunchEnv(projectRoot, flags, options = {}) {
   if (hasFlag(flags, '--opl')) {
     const oplWorkspaceRoot = resolveOplWorkspaceRoot(projectRoot);
     if (!oplWorkspaceRoot) {
-      throw new Error('Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).');
+      throw new Error(
+        'Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).'
+      );
     }
 
     env.OPL_ACP_BRIDGE_CMD = env.OPL_ACP_BRIDGE_CMD || process.execPath;

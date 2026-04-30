@@ -130,7 +130,6 @@ it('prioritizes OPL family and companion skills in the compact popover', () => {
   expect(screen.getByText('4')).toBeInTheDocument();
 });
 
-
 it('deduplicates repeated loaded skills by display name', () => {
   const skills = [
     { name: 'mas', description: 'mas' },

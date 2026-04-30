@@ -148,7 +148,7 @@ const Layout: React.FC<{
       if (cancelled) return;
 
       const messageOwner = Symbol('opl-first-launch-preparation-message');
-      const appVersions = await ipcBridge.application.appVersions.invoke().catch(() => null);
+      const appVersions = await ipcBridge.application.appVersions.invoke().catch((): null => null);
       if (cancelled) return;
       const preparationPromise = startOplFirstLaunchEnvironmentPreparation({
         appVersion: appVersions?.oplVersion?.trim() || undefined,

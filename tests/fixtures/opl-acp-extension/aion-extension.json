@@ -13,13 +13,7 @@
         "connectionType": "cli",
         "cliCommand": "${env:OPL_ACP_BRIDGE_CMD}",
         "defaultCliPath": "${env:OPL_ACP_BRIDGE_CMD}",
-        "acpArgs": [
-          "--experimental-strip-types",
-          "${env:OPL_ACP_BRIDGE_ENTRY}",
-          "session",
-          "runtime",
-          "--acp"
-        ],
+        "acpArgs": ["--experimental-strip-types", "${env:OPL_ACP_BRIDGE_ENTRY}", "session", "runtime", "--acp"],
         "authRequired": false,
         "supportsStreaming": true
       }

@@ -38,22 +38,24 @@ bun start
 
 ### Build & Distribution
 
-| Command                   | Description                                             |
-| ------------------------- | ------------------------------------------------------- |
-| `bun run package`         | Build all processes (main, preload, renderer) to `out/` |
-| `bun run make`            | Alias for `bun run package`                             |
-| `bun run dist`            | Build and package distributable for current platform    |
-| `bun run dist:mac`        | Build distributable for macOS                           |
-| `bun run dist:win`        | Build distributable for Windows                         |
-| `bun run dist:linux`      | Build distributable for Linux                           |
-| `bun run build-mac`       | Build macOS distributable for both arm64 and x64        |
-| `bun run build-mac:arm64` | Build macOS distributable for Apple Silicon only        |
-| `bun run build-mac:x64`   | Build macOS distributable for Intel only                |
-| `bun run build-win`       | Build Windows distributable                             |
-| `bun run build-win:arm64` | Build Windows distributable for ARM64                   |
-| `bun run build-win:x64`   | Build Windows distributable for x64                     |
-| `bun run build-deb`       | Build Linux (.deb) distributable                        |
-| `bun run build`           | Alias for `bun run build-mac`                           |
+| Command                       | Description                                             |
+| ----------------------------- | ------------------------------------------------------- |
+| `bun run package`             | Build all processes (main, preload, renderer) to `out/` |
+| `bun run make`                | Alias for `bun run package`                             |
+| `bun run dist`                | Build and package distributable for current platform    |
+| `bun run dist:mac`            | Build distributable for macOS                           |
+| `bun run dist:win`            | Build distributable for Windows                         |
+| `bun run dist:linux`          | Build distributable for Linux                           |
+| `bun run build-mac`           | Build macOS universal distributable                     |
+| `bun run build-mac:universal` | Build macOS universal distributable                     |
+| `bun run build-mac:dual`      | Build separate macOS arm64 and x64 distributables       |
+| `bun run build-mac:arm64`     | Build macOS distributable for Apple Silicon only        |
+| `bun run build-mac:x64`       | Build macOS distributable for Intel only                |
+| `bun run build-win`           | Build Windows distributable                             |
+| `bun run build-win:arm64`     | Build Windows distributable for ARM64                   |
+| `bun run build-win:x64`       | Build Windows distributable for x64                     |
+| `bun run build-deb`           | Build Linux (.deb) distributable                        |
+| `bun run build`               | Alias for `bun run build-mac`                           |
 
 ### Standalone Server (non-Electron)
 

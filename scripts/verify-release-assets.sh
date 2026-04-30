@@ -52,7 +52,7 @@ assert_metadata_points_to_existing_file() {
 }
 
 assert_metadata_points_to_existing_file "latest.yml" "(win-x64|win32-x64|x64)"
-assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-x64|darwin-x64|x64)"
+assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-(x64|universal)|darwin-(x64|universal)|x64|universal)"
 assert_metadata_points_to_existing_file "latest-linux.yml" "(linux|AppImage|deb)"
 assert_metadata_points_to_existing_file "latest-linux-arm64.yml" "(arm64|aarch64)"
 
@@ -65,14 +65,33 @@ for f in latest-win-arm64.yml latest-arm64-mac.yml; do
   fi
 done
 
-for f in AionUi-1.0.0-win-x64.exe AionUi-1.0.0-win-arm64.exe AionUi-1.0.0-mac-x64.dmg AionUi-1.0.0-mac-arm64.dmg AionUi-1.0.0.deb AionUi-1.0.0-arm64.deb; do
-  if [ ! -f "$OUTPUT_DIR/$f" ]; then
-    echo "FAIL: missing distributable: $f"
+assert_metadata_points_to_existing_file "latest-arm64-mac.yml" "(mac-(arm64|universal)|darwin-(arm64|universal)|arm64|universal)"
+
+MAC_DMG_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f \( -name "*-mac-universal.dmg" -o -name "*-mac-x64.dmg" -o -name "*-mac-arm64.dmg" \) | wc -l | tr -d ' ')
+if [ "$MAC_DMG_COUNT" -eq 0 ]; then
+  echo "FAIL: missing macOS dmg distributable"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "PASS: macOS dmg distributable present"
+fi
+
+assert_any_distributable() {
+  local label="$1"
+  local pattern="$2"
+  local count
+  count=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name "$pattern" | wc -l | tr -d ' ')
+  if [ "$count" -eq 0 ]; then
+    echo "FAIL: missing distributable: $label ($pattern)"
     ERRORS=$((ERRORS + 1))
   else
-    echo "PASS: $f exists"
+    echo "PASS: $label distributable present"
   fi
-done
+}
+
+assert_any_distributable "Windows x64" "*win-x64.exe"
+assert_any_distributable "Windows arm64" "*win-arm64.exe"
+assert_any_distributable "Linux x64" "*linux-x64.deb"
+assert_any_distributable "Linux arm64" "*linux-arm64.deb"
 
 echo ""
 if [ "$ERRORS" -gt 0 ]; then

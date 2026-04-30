@@ -93,8 +93,6 @@ describe('scripts/launch-env', () => {
         },
         () => buildLaunchEnv(projectRoot, flags)
       )
-    ).toThrow(
-      'Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).'
-    );
+    ).toThrow('Failed to resolve one-person-lab workspace root for the OPL GUI shell bridge (Codex-default runtime).');
   });
 });

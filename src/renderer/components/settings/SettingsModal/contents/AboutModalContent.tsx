@@ -29,9 +29,12 @@ const AboutModalContent: React.FC = () => {
     const saved = localStorage.getItem('update.includePrerelease');
     setIncludePrerelease(saved === 'true');
     if (isElectron) {
-      void ipcBridge.application.appVersions.invoke().then(setVersions).catch((error) => {
-        console.warn('Failed to load app versions:', error);
-      });
+      void ipcBridge.application.appVersions
+        .invoke()
+        .then(setVersions)
+        .catch((error) => {
+          console.warn('Failed to load app versions:', error);
+        });
     }
   }, [isElectron]);
 

@@ -39,14 +39,14 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
     'morph-ppt',
   ];
   const priorityByName = new Map(prioritySkills.map((name, index) => [name, index]));
-  const visibleSkills = Array.from(
-    new Map((loadedSkills ?? []).map((skill) => [skill.name, skill])).values()
-  ).sort((a, b) => {
-    const aPriority = priorityByName.get(a.name) ?? Number.MAX_SAFE_INTEGER;
-    const bPriority = priorityByName.get(b.name) ?? Number.MAX_SAFE_INTEGER;
-    if (aPriority !== bPriority) return aPriority - bPriority;
-    return a.name.localeCompare(b.name);
-  });
+  const visibleSkills = Array.from(new Map((loadedSkills ?? []).map((skill) => [skill.name, skill])).values()).sort(
+    (a, b) => {
+      const aPriority = priorityByName.get(a.name) ?? Number.MAX_SAFE_INTEGER;
+      const bPriority = priorityByName.get(b.name) ?? Number.MAX_SAFE_INTEGER;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      return a.name.localeCompare(b.name);
+    }
+  );
 
   if (!loadedSkills || visibleSkills.length === 0) return null;
 

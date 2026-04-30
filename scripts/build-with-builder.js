@@ -152,8 +152,9 @@ function cleanupDiskImages() {
 }
 
 // Find the .app directory from electron-builder output
-function findAppDir(outDir) {
-  const candidates = ['mac', 'mac-arm64', 'mac-x64', 'mac-universal'];
+function findAppDir(outDir, preferredArch) {
+  const preferred = preferredArch ? [`mac-${preferredArch}`] : [];
+  const candidates = [...preferred, 'mac', 'mac-arm64', 'mac-x64', 'mac-universal'];
   for (const dir of candidates) {
     const fullPath = path.join(outDir, dir);
     if (fs.existsSync(fullPath)) {
@@ -283,7 +284,7 @@ function buildWithDmgRetry(cmd, targetArch) {
     return;
   } catch (error) {
     // On non-macOS or if .app doesn't exist, just throw
-    const appDir = isMac ? findAppDir(outDir) : null;
+    const appDir = isMac ? findAppDir(outDir, targetArch) : null;
     if (!appDir || dmgExists(outDir)) throw error;
 
     // .app exists but no .dmg → DMG creation failed
@@ -342,7 +343,7 @@ function cleanupWindowsPackOutput() {
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-const archList = ['x64', 'arm64', 'ia32', 'armv7l'];
+const archList = ['x64', 'arm64', 'ia32', 'armv7l', 'universal'];
 
 // Check for special flags
 const skipVite = args.includes('--skip-vite');
@@ -402,6 +403,10 @@ const rawArchArgs = args
 // Remove duplicates to avoid treating "x64 --x64" as multiple architectures
 const archArgs = [...new Set(rawArchArgs)];
 
+if (archArgs.includes('universal') && archArgs.length > 1) {
+  throw new Error('Use --universal by itself for macOS universal builds; do not combine it with --x64 or --arm64.');
+}
+
 if (archArgs.length > 1) {
   // Multiple unique architectures specified - let electron-builder handle it
   multiArch = true;
@@ -419,6 +424,10 @@ if (archArgs.length > 1) {
 } else {
   // Explicit architecture or default to build machine
   targetArch = archArgs[0] || buildMachineArch;
+}
+
+if (targetArch === 'universal' && !builderArgs.includes('--mac')) {
+  throw new Error('The universal architecture is only supported for macOS builds.');
 }
 
 console.log(`🔨 Building for architecture: ${targetArch}`);
@@ -475,13 +484,14 @@ try {
 
   if (!skipViteBuild) {
     // Run electron-vite to build all bundles (main + preload + renderer)
+    const viteBuildArch = targetArch === 'universal' ? buildMachineArch : targetArch;
     console.log(`📦 Building ${targetArch}...`);
     execSync(`bunx electron-vite build`, {
       stdio: 'inherit',
       shell: process.platform === 'win32',
       env: {
         ...process.env,
-        ELECTRON_BUILDER_ARCH: targetArch,
+        ELECTRON_BUILDER_ARCH: viteBuildArch,
       },
     });
 

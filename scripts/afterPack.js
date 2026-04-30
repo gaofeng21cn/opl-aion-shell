@@ -22,6 +22,11 @@ module.exports = async function afterPack(context) {
   console.log(`\n🔧 afterPack hook started`);
   console.log(`   Platform: ${electronPlatformName}, Build arch: ${buildArch}, Target arch: ${targetArch}`);
 
+  if (targetArch === 'universal') {
+    console.log('   ✓ Universal merge output detected; native module rebuild already ran for per-arch app outputs.\n');
+    return;
+  }
+
   const isCrossCompile = buildArch !== targetArch;
   const forceRebuild = process.env.FORCE_NATIVE_REBUILD === 'true';
   const needsSameArchRebuild = electronPlatformName === 'win32'; // 只有 Windows 需要同架构重建以匹配 Electron ABI | Only Windows needs same-arch rebuild to match Electron ABI

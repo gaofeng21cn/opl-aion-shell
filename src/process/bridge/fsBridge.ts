@@ -13,12 +13,7 @@ import https from 'node:https';
 import http from 'node:http';
 import JSZip from 'jszip';
 import { ipcBridge } from '@/common';
-import {
-  getSystemDir,
-  getAssistantsDir,
-  getSkillsDir,
-  ProcessConfig,
-} from '@process/utils/initStorage';
+import { getSystemDir, getAssistantsDir, getSkillsDir, ProcessConfig } from '@process/utils/initStorage';
 import { readDirectoryRecursive } from '@process/utils';
 import { getDatabase } from '@process/services/database';
 import { ExtensionRegistry } from '@process/extensions/ExtensionRegistry';
@@ -1135,7 +1130,6 @@ export function initFsBridge(): void {
   // OPL keeps Codex skills as the single visible skills source.
   ipcBridge.fs.listBuiltinAutoSkills.provider(async () => []);
 
-
   // 导入 skill 目录 / Import skill directory
   ipcBridge.fs.importSkill.provider(async ({ skillPath }) => {
     try {
@@ -1180,8 +1174,6 @@ export function initFsBridge(): void {
       } catch {
         // User skill doesn't exist
       }
-
-
 
       // 复制整个目录 / Copy entire directory
       await copyDirectory(skillPath, targetDir);

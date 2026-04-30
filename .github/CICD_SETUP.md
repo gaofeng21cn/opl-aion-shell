@@ -11,7 +11,7 @@
 - **触发时机**: 仅推送到 `main` 分支
 - **功能**:
   - 代码质量检查 (ESLint, Prettier, TypeScript)
-  - 多平台构建 (macOS Intel/Apple Silicon, Windows, Linux)
+  - 多平台构建 (macOS universal, Windows, Linux)
   - 自动创建版本标签
   - 创建 Draft Release (需要手动审批和发布)
 - **流程**:
@@ -123,8 +123,8 @@ GH_TOKEN=相同的Personal Access Token
 
 ### macOS
 
-- `.dmg` 文件 (Intel 和 Apple Silicon 版本)
-- 应用程序包
+- `.dmg` 文件 (universal，Intel 和 Apple Silicon 共用)
+- 应用程序包 (universal)
 
 ### Windows
 

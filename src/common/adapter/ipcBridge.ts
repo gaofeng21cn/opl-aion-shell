@@ -31,10 +31,9 @@ export const shell = {
   openFolderWith: bridge.buildProvider<void, { folderPath: string; tool: 'vscode' | 'terminal' | 'explorer' }>(
     'shell.open-folder-with'
   ), // 使用指定工具打开文件夹
-  runOplCommand: bridge.buildProvider<
-    { exitCode: number; stdout: string; stderr: string },
-    { args: string[] }
-  >('shell.run-opl-command'), // Run a whitelisted OPL CLI command
+  runOplCommand: bridge.buildProvider<{ exitCode: number; stdout: string; stderr: string }, { args: string[] }>(
+    'shell.run-opl-command'
+  ), // Run a whitelisted OPL CLI command
 };
 
 //通用会话能力

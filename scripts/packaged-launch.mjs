@@ -27,6 +27,15 @@ function isWindows() {
   return process.platform === 'win32';
 }
 
+const executableNames = ['One Person Lab', 'AionUi', 'aionui'];
+
+function findExecutable(candidates) {
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 function killProcessByName(name) {
   return new Promise((resolve) => {
     const args = isWindows() ? ['/F', '/IM', name] : ['-f', name];
@@ -43,8 +52,8 @@ function resolvePackagedApp(projectRoot) {
 
   if (process.platform === 'win32') {
     for (const dir of ['win-unpacked', 'win-x64-unpacked', 'win-arm64-unpacked']) {
-      const exe = path.join(outDir, dir, 'AionUi.exe');
-      if (fs.existsSync(exe)) return { executablePath: exe, cwd: path.join(outDir, dir) };
+      const exe = findExecutable(executableNames.map((name) => path.join(outDir, dir, `${name}.exe`)));
+      if (exe) return { executablePath: exe, cwd: path.join(outDir, dir) };
     }
   } else if (process.platform === 'darwin') {
     for (const dir of ['mac-arm64', 'mac-x64', 'mac', 'mac-universal']) {
@@ -52,17 +61,17 @@ function resolvePackagedApp(projectRoot) {
       if (!fs.existsSync(macDir)) continue;
       const appBundle = fs.readdirSync(macDir).find((f) => f.endsWith('.app'));
       if (!appBundle) continue;
-      const exe = path.join(macDir, appBundle, 'Contents', 'MacOS', 'AionUi');
-      if (fs.existsSync(exe)) return { executablePath: exe, cwd: macDir };
+      const exe = findExecutable(
+        executableNames.map((name) => path.join(macDir, appBundle, 'Contents', 'MacOS', name))
+      );
+      if (exe) return { executablePath: exe, cwd: macDir };
     }
   } else {
     for (const dir of ['linux-unpacked', 'linux-x64-unpacked', 'linux-arm64-unpacked']) {
       const dirPath = path.join(outDir, dir);
       if (!fs.existsSync(dirPath)) continue;
-      for (const name of ['aionui', 'AionUi']) {
-        const exe = path.join(dirPath, name);
-        if (fs.existsSync(exe)) return { executablePath: exe, cwd: dirPath };
-      }
+      const exe = findExecutable(executableNames.map((name) => path.join(dirPath, name)));
+      if (exe) return { executablePath: exe, cwd: dirPath };
     }
   }
 
@@ -109,8 +118,10 @@ async function main() {
   }
 
   if (shouldClean) {
-    await killProcessByName('AionUi.exe');
-    await killProcessByName('AionUi');
+    for (const name of executableNames) {
+      await killProcessByName(`${name}.exe`);
+      await killProcessByName(name);
+    }
     await killProcessByName('electron.exe');
     await killProcessByName('electron');
   }

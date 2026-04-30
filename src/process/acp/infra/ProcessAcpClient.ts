@@ -342,7 +342,10 @@ export class ProcessAcpClient implements AcpClient {
   private setupStderrCapture(child: ChildProcess): void {
     child.stderr?.on('data', (data: Buffer) => {
       const chunk = data.toString();
-      const logChunk = chunk.length > STARTUP_STDERR_MAX ? `${chunk.slice(0, STARTUP_STDERR_MAX)}…[truncated ${chunk.length - STARTUP_STDERR_MAX} chars]` : chunk;
+      const logChunk =
+        chunk.length > STARTUP_STDERR_MAX
+          ? `${chunk.slice(0, STARTUP_STDERR_MAX)}…[truncated ${chunk.length - STARTUP_STDERR_MAX} chars]`
+          : chunk;
       console.error(`[ACP ${this.options.backend} STDERR]:`, logChunk);
       this.stderrBuffer += chunk;
       if (this.stderrBuffer.length > STARTUP_STDERR_MAX) {

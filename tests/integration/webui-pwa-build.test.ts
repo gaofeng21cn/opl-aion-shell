@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execFileSync } from 'child_process';
 import { expect, it } from 'vitest';
+import { getAsarEntries } from './helpers/asarEntries';
 
 function toPosixPath(value: string): string {
   return value.replace(/\\/g, '/');
@@ -72,39 +72,6 @@ function resolveDefaultAppAsarPath(): string | null {
   }
 
   return appAsarPath;
-}
-
-function getAsarEntries(asarPath: string): Set<string> {
-  const candidates = process.platform === 'win32' ? ['npx.cmd', 'npx'] : ['npx'];
-  let output = '';
-
-  for (const cmd of candidates) {
-    try {
-      const args = ['--yes', 'asar', 'list', asarPath];
-      output = execFileSync(cmd, args, {
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-        maxBuffer: 20 * 1024 * 1024,
-      });
-
-      if (output.trim()) break;
-    } catch {
-      // Try next command candidate
-    }
-  }
-
-  if (!output.trim()) {
-    throw new Error('Failed to list app.asar entries via bunx/npx asar');
-  }
-
-  return new Set(
-    output
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => toPosixPath(line).replace(/^\//, ''))
-  );
 }
 
 const rendererIndexPath = path.resolve(__dirname, '../../out/renderer/index.html');

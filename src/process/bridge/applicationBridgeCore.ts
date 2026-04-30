@@ -28,7 +28,7 @@ function readAppPackageMetadata(): AppPackageMetadata | null {
   try {
     const raw = fs.readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8');
     const parsed = JSON.parse(raw) as unknown;
-    return typeof parsed === 'object' && parsed !== null ? parsed as AppPackageMetadata : null;
+    return typeof parsed === 'object' && parsed !== null ? (parsed as AppPackageMetadata) : null;
   } catch {
     return null;
   }
@@ -57,7 +57,8 @@ export function initApplicationBridgeCore(): void {
     return Promise.resolve({
       oplVersion: versions.oplVersion,
       guiVersion: versions.guiVersion,
-      releaseRepo: process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
+      releaseRepo:
+        process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
       releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',
     });
   });

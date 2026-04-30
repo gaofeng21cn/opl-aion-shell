@@ -17,6 +17,7 @@ on:
         required: true
         type: choice
         options:
+          - macos-universal
           - macos-arm64
           - macos-x64
           - windows-x64
@@ -24,7 +25,7 @@ on:
           - linux-x64
           - linux-arm64
           - all
-        default: 'macos-arm64'
+        default: 'macos-universal'
       skip_code_quality:
         description: 'Skip code quality checks (faster builds for debugging)'
         required: false
@@ -48,6 +49,7 @@ jobs:
         run: |
           PLATFORM="${{ inputs.platform }}"
 
+          MACOS_UNIVERSAL='{"platform":"macos-universal","os":"macos-14","command":"node scripts/build-with-builder.js universal --mac --universal","artifact-name":"macos-build-universal","arch":"universal","native_arch":"arm64"}'
           MACOS_ARM64='{"platform":"macos-arm64","os":"macos-14","command":"node scripts/build-with-builder.js arm64 --mac --arm64","artifact-name":"macos-build-arm64","arch":"arm64"}'
           MACOS_X64='{"platform":"macos-x64","os":"macos-14","command":"node scripts/build-with-builder.js x64 --mac --x64","artifact-name":"macos-build-x64","arch":"x64"}'
           WINDOWS_X64='{"platform":"windows-x64","os":"windows-2022","command":"node scripts/build-with-builder.js x64 --win --x64","artifact-name":"windows-build-x64","arch":"x64"}'
@@ -56,7 +58,9 @@ jobs:
           LINUX_ARM64='{"platform":"linux-arm64","os":"ubuntu-latest","command":"node scripts/build-with-builder.js arm64 --linux --arm64","artifact-name":"linux-build-arm64","arch":"arm64"}'
 
           if [ "$PLATFORM" = "all" ]; then
-            MATRIX="{\"include\":[$MACOS_ARM64,$MACOS_X64,$WINDOWS_X64,$WINDOWS_ARM64,$LINUX_X64,$LINUX_ARM64]}"
+            MATRIX="{\"include\":[$MACOS_UNIVERSAL,$WINDOWS_X64,$WINDOWS_ARM64,$LINUX_X64,$LINUX_ARM64]}"
+          elif [ "$PLATFORM" = "macos-universal" ]; then
+            MATRIX="{\"include\":[$MACOS_UNIVERSAL]}"
           elif [ "$PLATFORM" = "macos-arm64" ]; then
             MATRIX="{\"include\":[$MACOS_ARM64]}"
           elif [ "$PLATFORM" = "macos-x64" ]; then

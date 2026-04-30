@@ -23,11 +23,15 @@ Use this sequence for every AionUI upstream sync:
 2. Run `bun install --frozen-lockfile` if dependency metadata changed.
 3. Run `bunx tsc --noEmit`.
 4. Run targeted tests for changed areas, then `bun run test` before release.
-5. Build the app with `bun run build-mac:arm64` or the matching platform command.
+5. Build the app with `bun run build-mac` for the macOS universal release, or with the matching single-arch command when debugging an architecture-specific issue.
 6. Run packaged runtime validation with `bun run validate:opl-package`.
 7. Install the packaged app and run a real startup smoke.
 
 The build script also runs packaged runtime validation with `--scan-all` after `electron-builder` produces a fresh `app.asar`. That makes missing relative runtime imports and forbidden packaged dependencies fail during packaging instead of after a user launches the app.
+
+## macOS Release Architecture
+
+OPL macOS releases use a universal DMG/ZIP by default. The earlier arm64/x64 split came from the inherited AionUI multi-architecture build matrix plus OPL's previous `build-mac` script, not from an Electron requirement. Keep `build-mac:arm64`, `build-mac:x64`, and `build-mac:dual` as release-engineering fallback paths, but the normal user-facing macOS release should be `mac-universal` so the GitHub Release page does not expose two equivalent downloads to ordinary users.
 
 ## Packaging Trim Policy
 

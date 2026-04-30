@@ -128,7 +128,6 @@ files:
   - '!**/*.map'
   - '!**/node_modules/node-pty/prebuilds/win32-*/**'
   - '!**/node_modules/node-pty/prebuilds/linux-*/**'
-  - '!**/node_modules/node-pty/prebuilds/darwin-x64/**'
   # Exclude syntax highlighter languages (keep common ones)
   - '!**/out/**/react-syntax-highlighter_languages_highlight_*'
   - 'out/**/react-syntax-highlighter_languages_highlight_{javascript,typescript,python,java,cpp,c,html,css,json,xml,yaml,shell,bash,dockerfile,sql,markdown,go,rust,php}'
@@ -157,7 +156,7 @@ win:
     #    - msi
     - zip
   icon: resources/app.ico # Use the checked-in Windows icon resource for executable metadata/icon patching
-  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -166,7 +165,7 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   differentialPackage: false
 
 mac:
@@ -174,7 +173,7 @@ mac:
     - dmg
     - zip
   icon: resources/app.icns
-  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -207,7 +206,7 @@ linux:
   target:
     - deb
   icon: resources/app.png
-  artifactName: ${productName}-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: Utility
   maintainer: one-person-lab
   vendor: one-person-lab
