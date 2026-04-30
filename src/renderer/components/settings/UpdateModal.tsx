@@ -24,6 +24,10 @@ type AppVersions = {
   releaseChannel: string;
 };
 
+type OpenUpdateModalDetail = {
+  status?: 'downloaded';
+};
+
 const UpdateModal: React.FC = () => {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
@@ -191,19 +195,33 @@ const UpdateModal: React.FC = () => {
     return `${(bytes / 1024).toFixed(1)} KB`;
   };
 
-  const handleOpenUpdateModal = () => {
+  const openUpdateModal = (detail?: OpenUpdateModalDetail) => {
     setVisible(true);
     resetState();
+    if (detail?.status === 'downloaded') {
+      setAutoUpdateAvailable(true);
+      setStatus('downloaded');
+      return;
+    }
     void checkForUpdates();
+  };
+
+  const handleOpenUpdateModal = () => {
+    openUpdateModal();
+  };
+
+  const handleOpenUpdateModalEvent = (event: Event) => {
+    const detail = event instanceof CustomEvent ? (event.detail as OpenUpdateModalDetail | undefined) : undefined;
+    openUpdateModal(detail);
   };
 
   useEffect(() => {
     const removeOpenListener = ipcBridge.update.open.on(handleOpenUpdateModal);
-    window.addEventListener('aionui-open-update-modal', handleOpenUpdateModal);
+    window.addEventListener('aionui-open-update-modal', handleOpenUpdateModalEvent);
 
     return () => {
       removeOpenListener();
-      window.removeEventListener('aionui-open-update-modal', handleOpenUpdateModal);
+      window.removeEventListener('aionui-open-update-modal', handleOpenUpdateModalEvent);
     };
   }, []);
 

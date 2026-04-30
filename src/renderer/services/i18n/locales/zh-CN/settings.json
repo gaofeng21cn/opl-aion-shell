@@ -947,6 +947,19 @@
     "managedTag": "OPL 管理",
     "currentVersion": "当前：{{version}}",
     "latestVersion": "最新：{{version}}",
+    "selectedBinary": "已选择二进制：{{path}}",
+    "updateSummary": "更新摘要：{{summary}}",
+    "diagnostics": {
+      "label": "诊断：{{detail}}",
+      "codexCandidate": "其他 Codex 候选：{{path}}（{{version}}，{{status}}）",
+      "issues": {
+        "codexCliMissing": "未检测到 Codex CLI",
+        "codexCliVersionOutdated": "当前选择的 Codex CLI 低于最低版本",
+        "codexCliVersionUnknown": "无法解析当前选择的 Codex CLI 版本",
+        "codexCliPathVersionConflict": "PATH 中存在其他 Codex CLI 版本",
+        "unknown": "Codex 诊断：{{issue}}"
+      }
+    },
     "actions": {
       "doctor": "检查环境",
       "refresh": "刷新版本",
@@ -954,7 +967,8 @@
       "openRemote": "打开远程连接",
       "chooseWorkspaceRoot": "选择工作目录",
       "install": "安装",
-      "update": "更新"
+      "update": "更新",
+      "oneClickUpdate": "一键更新"
     },
     "messages": {
       "loadModulesFailed": "读取模块状态失败",
@@ -962,6 +976,9 @@
       "doctorComplete": "环境检查完成",
       "repairComplete": "安装修复完成",
       "updateComplete": "{{name}} 更新完成",
+      "systemUpdateComplete": "OPL 系统更新完成，App 已是最新版本",
+      "appUpdateDownloaded": "App 更新已下载，请在更新确认窗口中确认安装",
+      "appUpdateDownloadFailed": "App 更新下载失败",
       "brandNameSaved": "应用名称已保存",
       "brandNameSaveFailed": "应用名称保存失败",
       "workspaceRootSaved": "工作目录已保存"
@@ -969,7 +986,15 @@
     "status": {
       "notDetected": "未检测",
       "notInstalled": "未安装",
-      "managedByApp": "随 App / CLI 管理"
+      "managedByApp": "随 App / CLI 管理",
+      "unknown": "未知",
+      "ready": "就绪",
+      "attention_needed": "需要处理",
+      "missing": "缺失",
+      "compatible": "兼容",
+      "outdated": "过期",
+      "invalid_checkout": "无效 checkout",
+      "dirty": "有未提交改动"
     },
     "items": {
       "codex": {

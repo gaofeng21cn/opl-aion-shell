@@ -946,6 +946,19 @@
     "managedTag": "OPL managed",
     "currentVersion": "Current: {{version}}",
     "latestVersion": "Latest: {{version}}",
+    "selectedBinary": "Selected binary: {{path}}",
+    "updateSummary": "Update summary: {{summary}}",
+    "diagnostics": {
+      "label": "Diagnostic: {{detail}}",
+      "codexCandidate": "Additional Codex candidate: {{path}} ({{version}}, {{status}})",
+      "issues": {
+        "codexCliMissing": "Codex CLI is missing",
+        "codexCliVersionOutdated": "Selected Codex CLI is below the minimum version",
+        "codexCliVersionUnknown": "Selected Codex CLI version could not be parsed",
+        "codexCliPathVersionConflict": "PATH contains another Codex CLI version",
+        "unknown": "Codex diagnostic: {{issue}}"
+      }
+    },
     "actions": {
       "doctor": "Check environment",
       "refresh": "Refresh versions",
@@ -953,7 +966,8 @@
       "openRemote": "Open Remote Connection",
       "chooseWorkspaceRoot": "Choose workspace",
       "install": "Install",
-      "update": "Update"
+      "update": "Update",
+      "oneClickUpdate": "Update all"
     },
     "messages": {
       "loadModulesFailed": "Failed to read module status",
@@ -961,6 +975,9 @@
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
       "updateComplete": "{{name}} update complete",
+      "systemUpdateComplete": "OPL system update complete; the app is already up to date",
+      "appUpdateDownloaded": "App update downloaded; confirm installation in the update dialog",
+      "appUpdateDownloadFailed": "Failed to download app update",
       "brandNameSaved": "App name saved",
       "brandNameSaveFailed": "Failed to save app name",
       "workspaceRootSaved": "Workspace folder saved"
@@ -968,7 +985,15 @@
     "status": {
       "notDetected": "Not detected",
       "notInstalled": "Not installed",
-      "managedByApp": "Managed by App / CLI"
+      "managedByApp": "Managed by App / CLI",
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "attention_needed": "Needs attention",
+      "missing": "Missing",
+      "compatible": "Compatible",
+      "outdated": "Outdated",
+      "invalid_checkout": "Invalid checkout",
+      "dirty": "Dirty checkout"
     },
     "items": {
       "codex": {

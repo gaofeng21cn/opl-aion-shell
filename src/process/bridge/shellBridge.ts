@@ -43,7 +43,7 @@ function assertAllowedOplArgs(args: string[]): void {
   if (args[0] === 'engine' && args[1] && !['install', 'update', 'reinstall'].includes(args[1])) {
     throw new Error(`Unsupported OPL engine action: ${args[1]}`);
   }
-  if (args[0] === 'system' && args[1] && args[1] !== 'initialize') {
+  if (args[0] === 'system' && args[1] && !['initialize', 'update'].includes(args[1])) {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
   }
   if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
@@ -111,7 +111,10 @@ function buildOplBootstrapCommand(args: string[]): string {
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assertAllowedOplArgs(args);
-  const timeout = args[0] === 'install' || args[0] === 'engine' ? 30 * 60_000 : 120_000;
+  const timeout =
+    args[0] === 'install' || args[0] === 'engine' || (args[0] === 'system' && args[1] === 'update')
+      ? 30 * 60_000
+      : 120_000;
   const directResult = await runLoginShell(buildOplCommand(args), timeout);
   if (directResult.exitCode !== 127) {
     return directResult;

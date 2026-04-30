@@ -948,13 +948,28 @@
     "managedTag": "OPL 管理",
     "currentVersion": "目前：{{version}}",
     "latestVersion": "最新：{{version}}",
+    "selectedBinary": "已選擇二進位：{{path}}",
+    "updateSummary": "更新摘要：{{summary}}",
+    "diagnostics": {
+      "label": "診斷：{{detail}}",
+      "codexCandidate": "其他 Codex 候選：{{path}}（{{version}}，{{status}}）",
+      "issues": {
+        "codexCliMissing": "未偵測到 Codex CLI",
+        "codexCliVersionOutdated": "目前選擇的 Codex CLI 低於最低版本",
+        "codexCliVersionUnknown": "無法解析目前選擇的 Codex CLI 版本",
+        "codexCliPathVersionConflict": "PATH 中存在其他 Codex CLI 版本",
+        "unknown": "Codex 診斷：{{issue}}"
+      }
+    },
     "actions": {
       "doctor": "檢查環境",
       "refresh": "重新整理版本",
       "repair": "修復安裝",
       "openRemote": "開啟遠端連線",
+      "chooseWorkspaceRoot": "選擇工作目錄",
       "install": "安裝",
-      "update": "更新"
+      "update": "更新",
+      "oneClickUpdate": "一鍵更新"
     },
     "messages": {
       "loadModulesFailed": "讀取模組狀態失敗",
@@ -962,13 +977,25 @@
       "doctorComplete": "環境檢查完成",
       "repairComplete": "安裝修復完成",
       "updateComplete": "{{name}} 更新完成",
+      "systemUpdateComplete": "OPL 系統更新完成，App 已是最新版本",
+      "appUpdateDownloaded": "App 更新已下載，請在更新確認視窗中確認安裝",
+      "appUpdateDownloadFailed": "App 更新下載失敗",
       "brandNameSaved": "應用名稱已儲存",
-      "brandNameSaveFailed": "應用名稱儲存失敗"
+      "brandNameSaveFailed": "應用名稱儲存失敗",
+      "workspaceRootSaved": "工作目錄已儲存"
     },
     "status": {
       "notDetected": "未偵測",
       "notInstalled": "未安裝",
-      "managedByApp": "由 App / CLI 管理"
+      "managedByApp": "由 App / CLI 管理",
+      "unknown": "未知",
+      "ready": "就緒",
+      "attention_needed": "需要處理",
+      "missing": "缺失",
+      "compatible": "相容",
+      "outdated": "過期",
+      "invalid_checkout": "無效 checkout",
+      "dirty": "有未提交變更"
     },
     "items": {
       "codex": {
@@ -1001,6 +1028,8 @@
     },
     "brandTitle": "應用名稱",
     "brandDescription": "設定左上角圖示旁顯示的名稱。預設使用 One Person Lab。",
+    "workspaceRootTitle": "工作目錄",
+    "workspaceRootMissing": "尚未選擇工作目錄",
     "appearanceTitle": "外觀主題",
     "appearanceDescription": "選擇應用風格。"
   },

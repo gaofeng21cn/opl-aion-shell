@@ -948,13 +948,28 @@
     "managedTag": "OPL managed",
     "currentVersion": "Current: {{version}}",
     "latestVersion": "Latest: {{version}}",
+    "selectedBinary": "Selected binary: {{path}}",
+    "updateSummary": "Update summary: {{summary}}",
+    "diagnostics": {
+      "label": "Diagnostic: {{detail}}",
+      "codexCandidate": "Additional Codex candidate: {{path}} ({{version}}, {{status}})",
+      "issues": {
+        "codexCliMissing": "Codex CLI is missing",
+        "codexCliVersionOutdated": "Selected Codex CLI is below the minimum version",
+        "codexCliVersionUnknown": "Selected Codex CLI version could not be parsed",
+        "codexCliPathVersionConflict": "PATH contains another Codex CLI version",
+        "unknown": "Codex diagnostic: {{issue}}"
+      }
+    },
     "actions": {
       "doctor": "Check environment",
       "refresh": "Refresh versions",
       "repair": "Repair install",
       "openRemote": "Open Remote Connection",
+      "chooseWorkspaceRoot": "Choose workspace",
       "install": "Install",
-      "update": "Update"
+      "update": "Update",
+      "oneClickUpdate": "Update all"
     },
     "messages": {
       "loadModulesFailed": "Failed to read module status",
@@ -962,13 +977,25 @@
       "doctorComplete": "Environment check complete",
       "repairComplete": "Install repair complete",
       "updateComplete": "{{name}} update complete",
+      "systemUpdateComplete": "OPL system update complete; the app is already up to date",
+      "appUpdateDownloaded": "App update downloaded; confirm installation in the update dialog",
+      "appUpdateDownloadFailed": "Failed to download app update",
       "brandNameSaved": "앱 이름을 저장했습니��",
-      "brandNameSaveFailed": "앱 이름 저장에 실패했습니다"
+      "brandNameSaveFailed": "앱 이름 저장에 실패했습니다",
+      "workspaceRootSaved": "Workspace folder saved"
     },
     "status": {
       "notDetected": "Not detected",
       "notInstalled": "Not installed",
-      "managedByApp": "Managed by App / CLI"
+      "managedByApp": "Managed by App / CLI",
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "attention_needed": "Needs attention",
+      "missing": "Missing",
+      "compatible": "Compatible",
+      "outdated": "Outdated",
+      "invalid_checkout": "Invalid checkout",
+      "dirty": "Dirty checkout"
     },
     "items": {
       "codex": {
@@ -1001,6 +1028,8 @@
     },
     "brandTitle": "앱 이름",
     "brandDescription": "왼쪽 위 아이콘 옆에 표시할 이름을 설정합니다. 기본값은 One Person Lab입니다.",
+    "workspaceRootTitle": "Workspace folder",
+    "workspaceRootMissing": "No workspace folder selected",
     "appearanceTitle": "외관 테마",
     "appearanceDescription": "One Person Lab에서 사용할 앱 스타일을 선택합니다."
   },
