@@ -7,6 +7,22 @@ export type RuntimeTrayCommand = {
   command: string;
 };
 
+export type RuntimeTrayActionOwner = 'user' | 'opl' | 'infrastructure' | 'none';
+export type RuntimeTrayActionKind =
+  | 'human_gate'
+  | 'handoff_review'
+  | 'quality_gate'
+  | 'publication_gate'
+  | 'infrastructure_timeout'
+  | 'infrastructure_recovery'
+  | 'running';
+
+export type RuntimeTrayActionCounts = {
+  user: number;
+  opl: number;
+  infrastructure: number;
+};
+
 export type RuntimeTrayOpenPayload = {
   projectId: string;
   projectLabel: string;
@@ -18,6 +34,10 @@ export type RuntimeTrayOpenPayload = {
   command: string | null;
   workspacePath: string | null;
   sourceRefs: Array<Record<string, unknown>>;
+  actionOwner?: RuntimeTrayActionOwner;
+  requiresUserAction?: boolean;
+  actionKind?: RuntimeTrayActionKind | null;
+  actionSummary?: string;
   studyId?: string | null;
   workspaceLabel?: string | null;
   detailSummary?: string | null;
@@ -41,6 +61,10 @@ export type RuntimeTrayItem = {
   command: string | null;
   workspace_path: string | null;
   source_refs: Array<Record<string, unknown>>;
+  action_owner?: RuntimeTrayActionOwner;
+  requires_user_action?: boolean;
+  action_kind?: RuntimeTrayActionKind | null;
+  action_summary?: string;
   study_id?: string | null;
   workspace_label?: string | null;
   detail_summary?: string | null;
@@ -64,5 +88,6 @@ export type RuntimeTraySnapshot = {
   running_items: RuntimeTrayItem[];
   attention_items: RuntimeTrayItem[];
   recent_items: RuntimeTrayItem[];
+  action_counts?: RuntimeTrayActionCounts;
   source_refs: Array<Record<string, unknown>>;
 };

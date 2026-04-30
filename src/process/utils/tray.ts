@@ -22,6 +22,16 @@ let closeToTrayEnabled = false;
 let isQuitting = false;
 let mainWindowRef: BrowserWindow | null = null;
 
+type RuntimeTrayActionOwner = 'user' | 'opl' | 'infrastructure' | 'none';
+type RuntimeTrayActionKind =
+  | 'human_gate'
+  | 'handoff_review'
+  | 'quality_gate'
+  | 'publication_gate'
+  | 'infrastructure_timeout'
+  | 'infrastructure_recovery'
+  | 'running';
+
 type RuntimeTrayItem = {
   item_id: string;
   project_id: string;
@@ -33,6 +43,10 @@ type RuntimeTrayItem = {
   command: string | null;
   workspace_path: string | null;
   source_refs: Array<Record<string, unknown>>;
+  action_owner?: RuntimeTrayActionOwner;
+  requires_user_action?: boolean;
+  action_kind?: RuntimeTrayActionKind | null;
+  action_summary?: string;
   study_id?: string | null;
   workspace_label?: string | null;
   detail_summary?: string | null;
@@ -61,6 +75,11 @@ type RuntimeTraySnapshot = {
   running_items: RuntimeTrayItem[];
   attention_items: RuntimeTrayItem[];
   recent_items: RuntimeTrayItem[];
+  action_counts?: {
+    user: number;
+    opl: number;
+    infrastructure: number;
+  };
   source_refs: Array<Record<string, unknown>>;
 };
 
@@ -217,6 +236,67 @@ const formatRuntimeItemLabel = (item: RuntimeTrayItem): string => {
   return `${item.project_label}: ${title}${statusSuffix}`;
 };
 
+const runtimeItemActionOwner = (item: RuntimeTrayItem): RuntimeTrayActionOwner => {
+  if (item.requires_user_action || item.action_owner === 'user') {
+    return 'user';
+  }
+  if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
+    return item.action_owner;
+  }
+  return 'none';
+};
+
+const allRuntimeItems = (snapshot: RuntimeTraySnapshot): RuntimeTrayItem[] => [
+  ...snapshot.attention_items,
+  ...snapshot.running_items,
+  ...snapshot.recent_items,
+];
+
+const deriveRuntimeActionCounts = (snapshot: RuntimeTraySnapshot) => {
+  if (snapshot.action_counts) {
+    return snapshot.action_counts;
+  }
+
+  const counts = allRuntimeItems(snapshot).reduce(
+    (counts, item) => {
+      const owner = runtimeItemActionOwner(item);
+      if (owner === 'user' || owner === 'opl' || owner === 'infrastructure') {
+        counts[owner] += 1;
+      }
+      return counts;
+    },
+    { user: 0, opl: 0, infrastructure: 0 }
+  );
+  counts.opl += snapshot.attention_items.filter((item) => runtimeItemActionOwner(item) === 'none').length;
+  return counts;
+};
+
+const formatRuntimeMenuSummary = (snapshot: RuntimeTraySnapshot): string => {
+  const counts = deriveRuntimeActionCounts(snapshot);
+  return i18n.t('common.tray.runtimeStatusSummary', {
+    running: snapshot.running_items.length,
+    opl: counts.opl,
+    infrastructure: counts.infrastructure,
+    user: counts.user,
+  });
+};
+
+const partitionRuntimeItems = (snapshot: RuntimeTraySnapshot) => {
+  const items = allRuntimeItems(snapshot);
+  const isUser = (item: RuntimeTrayItem) => runtimeItemActionOwner(item) === 'user';
+  const isOpl = (item: RuntimeTrayItem) => runtimeItemActionOwner(item) === 'opl';
+  const isInfrastructure = (item: RuntimeTrayItem) => runtimeItemActionOwner(item) === 'infrastructure';
+
+  const legacyAttention = snapshot.attention_items.filter((item) => runtimeItemActionOwner(item) === 'none');
+  return {
+    user: items.filter(isUser),
+    opl: [...items.filter(isOpl), ...legacyAttention],
+    running: snapshot.running_items.filter((item) => runtimeItemActionOwner(item) === 'none'),
+    infrastructure: items.filter(isInfrastructure),
+    recent: snapshot.recent_items.filter((item) => runtimeItemActionOwner(item) === 'none'),
+  };
+};
+
 const appendRuntimeItems = (
   template: Electron.MenuItemConstructorOptions[],
   sectionLabelKey: string,
@@ -316,6 +396,10 @@ const buildTrayContextMenuFromState = ({
       command: item.command,
       workspacePath: item.workspace_path,
       sourceRefs: item.source_refs,
+      actionOwner: item.action_owner,
+      requiresUserAction: item.requires_user_action,
+      actionKind: item.action_kind,
+      actionSummary: item.action_summary,
       studyId: item.study_id,
       workspaceLabel: item.workspace_label,
       detailSummary: item.detail_summary,
@@ -353,9 +437,16 @@ const buildTrayContextMenuFromState = ({
     label: `${i18n.t('common.tray.runtimeStatus')}: ${i18n.t(runtimeHealthI18nKey(runtimeSnapshot.runtime_health.status))}`,
     enabled: false,
   });
-  appendRuntimeItems(template, 'common.tray.runtimeAttention', runtimeSnapshot.attention_items, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeRunning', runtimeSnapshot.running_items, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeRecent', runtimeSnapshot.recent_items, openRuntimeItem);
+  template.push({
+    label: formatRuntimeMenuSummary(runtimeSnapshot),
+    enabled: false,
+  });
+  const runtimeGroups = partitionRuntimeItems(runtimeSnapshot);
+  appendRuntimeItems(template, 'common.tray.runtimeUserAction', runtimeGroups.user, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeOplAction', runtimeGroups.opl, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeRunning', runtimeGroups.running, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeInfrastructure', runtimeGroups.infrastructure, openRuntimeItem);
+  appendRuntimeItems(template, 'common.tray.runtimeRecent', runtimeGroups.recent, openRuntimeItem);
 
   if (recentConversations.length > 0) {
     template.push({ type: 'separator' });

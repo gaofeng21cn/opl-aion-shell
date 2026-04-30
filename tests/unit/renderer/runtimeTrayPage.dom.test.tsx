@@ -70,6 +70,8 @@ const translations: Record<string, string> = {
     'This task still has {{count}} quality or delivery check(s) open. OPL should continue along the current paper line.',
   'common.runtimeTray.attentionReasonDefault':
     'This task needs OPL to re-check the current runtime state and decide whether to continue, recover, or wait for your confirmation.',
+  'common.runtimeTray.actionSummaryDefault':
+    'OPL is reading the runtime projection and will continue through the current project state.',
   'common.runtimeTray.attentionReasonInfra':
     'This is a background supervision job. You usually do not need to handle it directly; if it keeps failing, ask OPL to check and restore supervision.',
   'common.runtimeTray.attentionReasonRecovering':
@@ -79,11 +81,14 @@ const translations: Record<string, string> = {
   'common.runtimeTray.currentSituation': 'Current situation',
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',
+  'common.runtimeTray.infrastructureProblem': 'What happened to background supervision',
+  'common.runtimeTray.infrastructureRecovery': 'What the system needs to recover',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
   'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
   'common.runtimeTray.openWorkspace': 'Open Workspace',
   'common.runtimeTray.operatorView': 'Operator View',
+  'common.runtimeTray.oplHandling': 'What OPL is handling',
   'common.runtimeTray.physicianView': 'Status for doctors/PIs',
   'common.runtimeTray.primaryCommand': 'Primary Command',
   'common.runtimeTray.project': 'Project',
@@ -91,6 +96,8 @@ const translations: Record<string, string> = {
   'common.runtimeTray.sourceRef': 'Source {{index}}',
   'common.runtimeTray.sourceRefs': 'Source References',
   'common.runtimeTray.study': 'Study',
+  'common.runtimeTray.summaryByOwner':
+    '{{running}} running, {{opl}} OPL handling, {{infrastructure}} background recovery, {{user}} needs you',
   'common.runtimeTray.tellOpl': 'Tell OPL',
   'common.runtimeTray.tellOplCheck':
     'Check the current state of {{title}} and tell me whether I need to review, confirm, or provide new materials.',
@@ -102,10 +109,19 @@ const translations: Record<string, string> = {
   'common.runtimeTray.tellOplReview':
     'I have reviewed the submission or human-review package for {{title}}. Continue along the same paper line; I will send revision notes if needed.',
   'common.runtimeTray.updatedAt': 'Updated',
+  'common.runtimeTray.userActionRequired': 'What you need to do',
+  'common.runtimeTray.whyNotDone': 'Why it is not finished',
   'common.status': 'Status',
   'common.tray.runtimeAttention': 'Needs attention',
+  'common.tray.runtimeInfrastructure': 'Background Recovery',
+  'common.tray.runtimeOplAction': 'OPL Is Handling',
   'common.tray.runtimeRecent': 'Recent items',
   'common.tray.runtimeRunning': 'Running items',
+  'common.tray.runtimeStatusIdle': 'Idle',
+  'common.tray.runtimeStatusNeedsAttention': 'Needs Attention',
+  'common.tray.runtimeStatusOffline': 'Offline',
+  'common.tray.runtimeStatusRunning': 'Running',
+  'common.tray.runtimeUserAction': 'Needs You',
   'common.tray.untitled': 'Untitled',
   'common.workspace': 'Workspace',
 };
@@ -133,6 +149,10 @@ const runtimeItem: RuntimeTrayOpenPayload = {
   command: 'uv run python -m med_autoscience.cli study-progress --study-id 002',
   workspacePath: '/workspace/dm-cvd',
   sourceRefs: [{ label: 'runtime_status_summary.json', path: '/workspace/status.json' }],
+  actionOwner: 'opl',
+  requiresUserAction: false,
+  actionKind: 'publication_gate',
+  actionSummary: 'OPL/MAS is closing publication and quality gates while the active run continues.',
   studyId: '002-dm-china-us-mortality-attribution',
   detailSummary: '托管运行时在线，研究仍在自动推进。',
   nextActionSummary: '补充分析与稳健性验证',
@@ -160,12 +180,12 @@ describe('RuntimeTrayItemPage', () => {
     );
 
     expect(screen.getByText('Status for doctors/PIs')).toBeInTheDocument();
-    expect(screen.getByText('Current situation')).toBeInTheDocument();
-    expect(screen.getByText('Why this needs attention')).toBeInTheDocument();
-    expect(screen.getByText('Tell OPL')).toBeInTheDocument();
+    expect(screen.getByText('What OPL is handling')).toBeInTheDocument();
     expect(
-      screen.getByText('Continue 002-dm-china-us-mortality-attribution, prioritizing: 补充分析与稳健性验证')
+      screen.getByText('OPL/MAS is closing publication and quality gates while the active run continues.')
     ).toBeInTheDocument();
+    expect(screen.getByText('Why it is not finished')).toBeInTheDocument();
+    expect(screen.queryByText('Tell OPL')).not.toBeInTheDocument();
     expect(screen.getByText('Developer Details')).toBeInTheDocument();
     expect(screen.queryByText('Recommended Commands')).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
@@ -181,7 +201,7 @@ describe('RuntimeTrayItemPage', () => {
           runtime_health: {
             status: 'needs_attention',
             label: 'Needs attention',
-            summary: '1 running, 2 attention.',
+            summary: '1 running, 1 OPL handling.',
           },
           last_updated: '2026-04-30T10:51:34.483Z',
           running_items: [],
@@ -198,6 +218,10 @@ describe('RuntimeTrayItemPage', () => {
               command: 'medautosci study-progress --study-id 002',
               workspace_path: '/workspace/dm-cvd',
               source_refs: [],
+              action_owner: 'opl',
+              requires_user_action: false,
+              action_kind: 'publication_gate',
+              action_summary: 'OPL/MAS is closing publication and quality gates while the active run continues.',
               study_id: '002-dm-china-us-mortality-attribution',
               detail_summary: '系统已检测到运行掉线，正在自动尝试恢复。',
               next_action_summary: '补充分析与稳健性验证',
@@ -214,6 +238,7 @@ describe('RuntimeTrayItemPage', () => {
             },
           ],
           recent_items: [],
+          action_counts: { user: 0, opl: 1, infrastructure: 0 },
           source_refs: [],
         },
       }),
@@ -225,20 +250,19 @@ describe('RuntimeTrayItemPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('Current situation')).toBeInTheDocument();
-    expect(screen.getByText('系统已检测到运行掉线，正在自动尝试恢复。')).toBeInTheDocument();
-    expect(screen.getByText('Why this needs attention')).toBeInTheDocument();
+    expect(await screen.findByText('OPL Is Handling')).toBeInTheDocument();
+    expect(screen.getByText('What OPL is handling')).toBeInTheDocument();
+    expect(
+      screen.getByText('OPL/MAS is closing publication and quality gates while the active run continues.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Why it is not finished')).toBeInTheDocument();
     expect(
       screen.getByText(
         'The system detected a dropped run and is recovering it automatically. Watch whether it continues on the same paper line after recovery.'
       )
     ).toBeInTheDocument();
-    expect(screen.getByText('Tell OPL')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Check whether 002-dm-china-us-mortality-attribution has recovered; after recovery, continue the current paper-line revision package.'
-      )
-    ).toBeInTheDocument();
+    expect(screen.queryByText('Tell OPL')).not.toBeInTheDocument();
+    expect(screen.getByText('0 running, 1 OPL handling, 0 background recovery, 0 needs you')).toBeInTheDocument();
     expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();

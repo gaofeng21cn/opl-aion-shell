@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RUNTIME_TRAY_ITEM_STORAGE_KEY,
+  type RuntimeTrayActionOwner,
   type RuntimeTrayItem,
   type RuntimeTrayOpenPayload,
   type RuntimeTraySnapshot,
@@ -74,6 +75,10 @@ const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => 
   command: item.command,
   workspacePath: item.workspace_path,
   sourceRefs: item.source_refs,
+  actionOwner: item.action_owner,
+  requiresUserAction: item.requires_user_action,
+  actionKind: item.action_kind,
+  actionSummary: item.action_summary,
   studyId: item.study_id,
   workspaceLabel: item.workspace_label,
   detailSummary: item.detail_summary,
@@ -99,10 +104,109 @@ const runtimeHealthTagColor = (status?: string): string => {
   }
 };
 
+const runtimeHealthLabel = (status: RuntimeTraySnapshot['runtime_health']['status'], t: RuntimeTranslator): string => {
+  switch (status) {
+    case 'needs_attention':
+      return t('common.tray.runtimeStatusNeedsAttention');
+    case 'running':
+      return t('common.tray.runtimeStatusRunning');
+    case 'offline':
+      return t('common.tray.runtimeStatusOffline');
+    case 'idle':
+      return t('common.tray.runtimeStatusIdle');
+  }
+};
+
 type RuntimeTranslator = ReturnType<typeof useTranslation>['t'];
 
-const isInfrastructureRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
-  item.projectLabel.toLowerCase().includes('infra') || item.itemId.includes(':hermes-cron:');
+const getRuntimeActionOwner = (item: RuntimeTrayOpenPayload): RuntimeTrayActionOwner => {
+  if (item.requiresUserAction || item.actionOwner === 'user') {
+    return 'user';
+  }
+  if (item.actionOwner === 'opl' || item.actionOwner === 'infrastructure') {
+    return item.actionOwner;
+  }
+  return 'none';
+};
+
+const allSnapshotItems = (snapshot: RuntimeTraySnapshot): RuntimeTrayItem[] => [
+  ...snapshot.attention_items,
+  ...snapshot.running_items,
+  ...snapshot.recent_items,
+];
+
+const getSnapshotGroups = (snapshot: RuntimeTraySnapshot) => {
+  const items = allSnapshotItems(snapshot);
+  const ownerForItem = (item: RuntimeTrayItem): RuntimeTrayActionOwner => {
+    if (item.requires_user_action || item.action_owner === 'user') {
+      return 'user';
+    }
+    if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
+      return item.action_owner;
+    }
+    return 'none';
+  };
+
+  const legacyAttention = snapshot.attention_items.filter((item) => ownerForItem(item) === 'none');
+  return {
+    user: items.filter((item) => ownerForItem(item) === 'user'),
+    opl: [...items.filter((item) => ownerForItem(item) === 'opl'), ...legacyAttention],
+    running: snapshot.running_items.filter((item) => ownerForItem(item) === 'none'),
+    infrastructure: items.filter((item) => ownerForItem(item) === 'infrastructure'),
+    recent: snapshot.recent_items.filter((item) => ownerForItem(item) === 'none'),
+  };
+};
+
+const getSnapshotActionCounts = (snapshot: RuntimeTraySnapshot) => {
+  if (snapshot.action_counts) {
+    return snapshot.action_counts;
+  }
+
+  const counts = allSnapshotItems(snapshot).reduce(
+    (counts, item) => {
+      if (item.requires_user_action || item.action_owner === 'user') {
+        counts.user += 1;
+      } else if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
+        counts[item.action_owner] += 1;
+      }
+      return counts;
+    },
+    { user: 0, opl: 0, infrastructure: 0 }
+  );
+  counts.opl += snapshot.attention_items.filter(
+    (item) => !item.requires_user_action && !item.action_owner
+  ).length;
+  return counts;
+};
+
+const getSnapshotSummary = (snapshot: RuntimeTraySnapshot, t: RuntimeTranslator): string => {
+  if (snapshot.runtime_health.status === 'offline') {
+    return snapshot.runtime_health.summary;
+  }
+  const counts = getSnapshotActionCounts(snapshot);
+  return t('common.runtimeTray.summaryByOwner', {
+    running: snapshot.running_items.length,
+    opl: counts.opl,
+    infrastructure: counts.infrastructure,
+    user: counts.user,
+  });
+};
+
+const getRuntimeActionSummary = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
+  const actionSummary = item.actionSummary?.trim();
+  if (actionSummary) {
+    return actionSummary;
+  }
+  const nextAction = item.nextActionSummary?.trim();
+  if (nextAction) {
+    return nextAction;
+  }
+  const detailSummary = item.detailSummary?.trim();
+  if (detailSummary) {
+    return detailSummary;
+  }
+  return t('common.runtimeTray.actionSummaryDefault');
+};
 
 const isWaitingReviewRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
   item.statusLabel.toLowerCase().includes('waiting review') || item.healthStatus === 'escalated';
@@ -112,9 +216,6 @@ const isRecoveringRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
 
 const getRuntimeAttentionReason = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
   const blockerCount = item.blockers?.filter((blocker) => blocker.trim()).length ?? 0;
-  if (isInfrastructureRuntimeItem(item)) {
-    return t('common.runtimeTray.attentionReasonInfra');
-  }
   if (isWaitingReviewRuntimeItem(item)) {
     return t('common.runtimeTray.attentionReasonReview');
   }
@@ -132,9 +233,6 @@ const getRuntimeCurrentSituation = (item: RuntimeTrayOpenPayload, t: RuntimeTran
   if (detailSummary) {
     return detailSummary;
   }
-  if (isInfrastructureRuntimeItem(item)) {
-    return t('common.runtimeTray.attentionReasonInfra');
-  }
   if (isWaitingReviewRuntimeItem(item)) {
     return t('common.runtimeTray.attentionReasonReview');
   }
@@ -145,9 +243,6 @@ const getRuntimeCurrentSituation = (item: RuntimeTrayOpenPayload, t: RuntimeTran
 };
 
 const getRuntimeNaturalLanguagePrompt = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
-  if (isInfrastructureRuntimeItem(item)) {
-    return t('common.runtimeTray.tellOplInfra', { title: item.title });
-  }
   if (isWaitingReviewRuntimeItem(item)) {
     return t('common.runtimeTray.tellOplReview', { title: item.title });
   }
@@ -232,20 +327,51 @@ const RuntimeTrayItemPage: React.FC = () => {
   };
 
   const renderRuntimeGuidance = (item: RuntimeTrayOpenPayload, compact = false) => {
-    const guidanceItems = [
-      {
-        label: t('common.runtimeTray.currentSituation'),
-        value: getRuntimeCurrentSituation(item, t),
-      },
-      {
-        label: t('common.runtimeTray.attentionReason'),
-        value: getRuntimeAttentionReason(item, t),
-      },
-      {
-        label: t('common.runtimeTray.tellOpl'),
-        value: getRuntimeNaturalLanguagePrompt(item, t),
-      },
-    ];
+    const owner = getRuntimeActionOwner(item);
+    const guidanceItems =
+      owner === 'user'
+        ? [
+            {
+              label: t('common.runtimeTray.userActionRequired'),
+              value: getRuntimeActionSummary(item, t),
+            },
+            {
+              label: t('common.runtimeTray.tellOpl'),
+              value: getRuntimeNaturalLanguagePrompt(item, t),
+            },
+          ]
+        : owner === 'opl'
+          ? [
+              {
+                label: t('common.runtimeTray.oplHandling'),
+                value: getRuntimeActionSummary(item, t),
+              },
+              {
+                label: t('common.runtimeTray.whyNotDone'),
+                value: getRuntimeAttentionReason(item, t),
+              },
+            ]
+          : owner === 'infrastructure'
+            ? [
+                {
+                  label: t('common.runtimeTray.infrastructureProblem'),
+                  value: getRuntimeActionSummary(item, t),
+                },
+                {
+                  label: t('common.runtimeTray.infrastructureRecovery'),
+                  value: item.nextActionSummary?.trim() || getRuntimeCurrentSituation(item, t),
+                },
+              ]
+            : [
+                {
+                  label: t('common.runtimeTray.currentSituation'),
+                  value: getRuntimeCurrentSituation(item, t),
+                },
+                {
+                  label: t('common.runtimeTray.oplHandling'),
+                  value: getRuntimeActionSummary(item, t),
+                },
+              ];
 
     return (
       <div className={compact ? 'mt-10px grid grid-cols-1 gap-8px' : 'flex flex-col gap-12px'}>
@@ -303,6 +429,15 @@ const RuntimeTrayItemPage: React.FC = () => {
     );
   };
 
+  const snapshotGroups = snapshot ? getSnapshotGroups(snapshot) : null;
+  const snapshotVisibleItemCount = snapshotGroups
+    ? snapshotGroups.user.length
+      + snapshotGroups.opl.length
+      + snapshotGroups.running.length
+      + snapshotGroups.infrastructure.length
+      + snapshotGroups.recent.length
+    : 0;
+
   if (!runtimeItem) {
     return (
       <div className='w-full min-h-full box-border overflow-y-auto px-14px pt-28px pb-24px md:px-40px md:pt-52px md:pb-42px'>
@@ -312,13 +447,15 @@ const RuntimeTrayItemPage: React.FC = () => {
               <h1 className='m-0 text-30px font-bold leading-38px text-t-primary md:text-34px md:leading-42px'>
                 {t('common.runtimeTray.runtimeStatusTitle')}
               </h1>
-              {snapshot?.runtime_health.summary && (
-                <p className='m-0 text-15px leading-24px text-t-secondary'>{snapshot.runtime_health.summary}</p>
+              {snapshot && (
+                <p className='m-0 text-15px leading-24px text-t-secondary'>{getSnapshotSummary(snapshot, t)}</p>
               )}
             </div>
             <div className='flex shrink-0 items-center gap-8px'>
               {snapshot?.runtime_health.status && (
-                <Tag color={runtimeHealthTagColor(snapshot.runtime_health.status)}>{snapshot.runtime_health.label}</Tag>
+                <Tag color={runtimeHealthTagColor(snapshot.runtime_health.status)}>
+                  {runtimeHealthLabel(snapshot.runtime_health.status, t)}
+                </Tag>
               )}
               <Button
                 size='small'
@@ -348,10 +485,16 @@ const RuntimeTrayItemPage: React.FC = () => {
             </div>
           ) : snapshot ? (
             <>
-              {renderSnapshotSection(t('common.tray.runtimeAttention'), snapshot.attention_items)}
-              {renderSnapshotSection(t('common.tray.runtimeRunning'), snapshot.running_items)}
-              {renderSnapshotSection(t('common.tray.runtimeRecent'), snapshot.recent_items)}
-              {snapshot.attention_items.length + snapshot.running_items.length + snapshot.recent_items.length === 0 && (
+              {snapshotGroups && (
+                <>
+                  {renderSnapshotSection(t('common.tray.runtimeUserAction'), snapshotGroups.user)}
+                  {renderSnapshotSection(t('common.tray.runtimeOplAction'), snapshotGroups.opl)}
+                  {renderSnapshotSection(t('common.tray.runtimeRunning'), snapshotGroups.running)}
+                  {renderSnapshotSection(t('common.tray.runtimeInfrastructure'), snapshotGroups.infrastructure)}
+                  {renderSnapshotSection(t('common.tray.runtimeRecent'), snapshotGroups.recent)}
+                </>
+              )}
+              {snapshotVisibleItemCount === 0 && (
                 <div className='flex min-h-260px items-center justify-center'>
                   <Empty description={t('common.runtimeTray.noRuntimeItems')} />
                 </div>

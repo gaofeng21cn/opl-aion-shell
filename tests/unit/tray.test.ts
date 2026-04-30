@@ -466,6 +466,10 @@ describe('tray module', () => {
                   command: 'opl start --project medautoscience',
                   workspace_path: '/tmp/mas',
                   source_refs: [],
+                  action_owner: 'none',
+                  requires_user_action: false,
+                  action_kind: 'running',
+                  action_summary: 'The runtime is running.',
                 },
               ],
               attention_items: [
@@ -480,6 +484,26 @@ describe('tray module', () => {
                   command: 'opl start --project redcube',
                   workspace_path: '/tmp/redcube',
                   source_refs: [],
+                  action_owner: 'user',
+                  requires_user_action: true,
+                  action_kind: 'human_gate',
+                  action_summary: 'Review the generated deck before continuing.',
+                },
+                {
+                  item_id: 'medautoscience:study:002',
+                  project_id: 'medautoscience',
+                  project_label: 'MAS',
+                  title: 'Publication gate',
+                  status_label: 'Live: Analysis campaign',
+                  summary: 'Publication checks are still open.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautoscience',
+                  workspace_path: '/tmp/mas',
+                  source_refs: [],
+                  action_owner: 'opl',
+                  requires_user_action: false,
+                  action_kind: 'publication_gate',
+                  action_summary: 'OPL is closing publication checks.',
                 },
               ],
               recent_items: [
@@ -494,8 +518,13 @@ describe('tray module', () => {
                   command: 'opl start --project medautogrant',
                   workspace_path: '/tmp/mag',
                   source_refs: [],
+                  action_owner: 'none',
+                  requires_user_action: false,
+                  action_kind: null,
+                  action_summary: 'Route completed.',
                 },
               ],
+              action_counts: { user: 1, opl: 1, infrastructure: 0 },
               source_refs: [],
             },
           }),
@@ -508,13 +537,17 @@ describe('tray module', () => {
         const labels = getLatestTemplate()
           .map((item: any) => item.label)
           .filter(Boolean);
-        expect(labels).toContain('common.tray.runtimeAttention');
+        expect(labels).toContain('common.tray.runtimeUserAction');
       });
       const labels = getLatestTemplate()
         .map((item: any) => item.label)
         .filter(Boolean);
 
+      expect(labels).toContain('common.tray.runtimeStatusSummary');
+      expect(labels).toContain('common.tray.runtimeUserAction');
       expect(labels).toContain('RCA: Operator review (Needs attention)');
+      expect(labels).toContain('common.tray.runtimeOplAction');
+      expect(labels).toContain('MAS: Publication gate (Live: Analysis cam...)');
       expect(labels).toContain('common.tray.runtimeRunning');
       expect(labels).toContain('MAS: Active study (Running)');
       expect(labels).toContain('common.tray.runtimeRecent');
@@ -630,6 +663,10 @@ describe('tray module', () => {
                   command: 'opl start --project medautoscience',
                   workspace_path: '/tmp/mas',
                   source_refs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+                  action_owner: 'none',
+                  requires_user_action: false,
+                  action_kind: 'running',
+                  action_summary: 'The runtime is healthy.',
                   study_id: '001-risk',
                   workspace_label: 'mas-workspace',
                   detail_summary: 'The runtime is healthy.',
@@ -678,6 +715,10 @@ describe('tray module', () => {
         command: 'opl start --project medautoscience',
         workspacePath: '/tmp/mas',
         sourceRefs: [{ surface: 'study_runtime_status', path: '/tmp/mas/status.json' }],
+        actionOwner: 'none',
+        requiresUserAction: false,
+        actionKind: 'running',
+        actionSummary: 'The runtime is healthy.',
         studyId: '001-risk',
         workspaceLabel: 'mas-workspace',
         detailSummary: 'The runtime is healthy.',
