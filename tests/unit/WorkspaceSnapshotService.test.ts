@@ -7,19 +7,42 @@ import { promisify } from 'node:util';
 import { WorkspaceSnapshotService } from '../../src/process/services/WorkspaceSnapshotService';
 
 const exec = promisify(execFile);
+const SNAPSHOT_LIMIT_ENV_KEYS = [
+  'AIONUI_SNAPSHOT_MAX_BYTES',
+  'AIONUI_SNAPSHOT_MAX_FILES',
+  'AIONUI_SNAPSHOT_MIN_TMP_FREE_BYTES',
+] as const;
+
+function listAionSnapshotDirs(): Promise<string[]> {
+  return fs.readdir(os.tmpdir()).then((entries) => entries.filter((entry) => entry.startsWith('aionui-snapshot-')));
+}
 
 describe('WorkspaceSnapshotService', () => {
   let service: WorkspaceSnapshotService;
   let tmpDir: string;
+  let snapshotLimitEnv: Partial<Record<(typeof SNAPSHOT_LIMIT_ENV_KEYS)[number], string | undefined>>;
 
   beforeEach(async () => {
     service = new WorkspaceSnapshotService();
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'snapshot-test-'));
+    snapshotLimitEnv = {};
+    for (const key of SNAPSHOT_LIMIT_ENV_KEYS) {
+      snapshotLimitEnv[key] = process.env[key];
+      delete process.env[key];
+    }
   });
 
   afterEach(async () => {
     await service.disposeAll().catch(() => {});
     await fs.rm(tmpDir, { recursive: true, force: true });
+    for (const key of SNAPSHOT_LIMIT_ENV_KEYS) {
+      const value = snapshotLimitEnv[key];
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
   });
 
   describe('snapshot mode (no .git)', () => {
@@ -158,6 +181,45 @@ describe('WorkspaceSnapshotService', () => {
       const { staged, unstaged } = await service.compare(tmpDir);
       expect(staged).toEqual([]);
       expect(unstaged).toEqual([]);
+    });
+
+    it('does not create a temp git snapshot when candidate bytes exceed the hard limit', async () => {
+      process.env.AIONUI_SNAPSHOT_MAX_BYTES = '64';
+      await fs.writeFile(path.join(tmpDir, 'huge.bin'), Buffer.alloc(128, 1));
+
+      const before = new Set(await listAionSnapshotDirs());
+      const info = await service.init(tmpDir);
+      const after = await listAionSnapshotDirs();
+
+      expect(info).toEqual({ mode: 'snapshot', branch: null });
+      expect(await service.getBaselineContent(tmpDir, 'huge.bin')).toBeNull();
+      expect(after.filter((entry) => !before.has(entry))).toEqual([]);
+    });
+
+    it('excludes common generated research directories from snapshot preflight and baseline', async () => {
+      process.env.AIONUI_SNAPSHOT_MAX_BYTES = '64';
+      await fs.mkdir(path.join(tmpDir, 'derived'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'derived', 'large-output.bin'), Buffer.alloc(128, 1));
+      await fs.writeFile(path.join(tmpDir, 'source.txt'), 'source');
+
+      const info = await service.init(tmpDir);
+      await fs.writeFile(path.join(tmpDir, 'derived', 'large-output.bin'), Buffer.alloc(128, 2));
+      const { unstaged } = await service.compare(tmpDir);
+
+      expect(info.mode).toBe('snapshot');
+      expect(await service.getBaselineContent(tmpDir, 'source.txt')).toBe('source');
+      expect(unstaged.find((change) => change.relativePath.startsWith('derived/'))).toBeUndefined();
+    });
+
+    it('does not leak temp gitdirs when the same workspace is initialized concurrently', async () => {
+      await fs.writeFile(path.join(tmpDir, 'source.txt'), 'source');
+
+      const before = new Set(await listAionSnapshotDirs());
+      await Promise.all([service.init(tmpDir), service.init(tmpDir), service.init(tmpDir)]);
+      await service.disposeAll();
+      const after = await listAionSnapshotDirs();
+
+      expect(after.filter((entry) => !before.has(entry))).toEqual([]);
     });
   });
 
