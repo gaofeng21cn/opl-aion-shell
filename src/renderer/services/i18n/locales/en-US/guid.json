@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini is not configured, auto-switching to {{agent}}",
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "Try example prompts:",
+  "oplQuickEntries": {
+    "researchLabel": "Research",
+    "researchPrompt": "@MAS Help me advance a medical research task: ",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA Help me prepare a presentation task: ",
+    "grantLabel": "Grant",
+    "grantPrompt": "@MAG Help me advance a grant task: "
+  },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "Switched to {{agent}}",
   "scanning": {

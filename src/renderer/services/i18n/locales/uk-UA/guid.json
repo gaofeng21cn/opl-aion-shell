@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini не налаштовано, автоматичне переключення на {{agent}}",
   "autoSwitchedAgent": "{{from}} недоступний, переключено на {{to}}",
   "promptExamplesHint": "Спробуйте приклади промптів:",
+  "oplQuickEntries": {
+    "researchLabel": "Дослідження",
+    "researchPrompt": "@MAS Допоможи просунути завдання медичного дослідження: ",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA Допоможи підготувати презентацію або слайди: ",
+    "grantLabel": "Грант",
+    "grantPrompt": "@MAG Допоможи просунути завдання грантової заявки: "
+  },
   "agentSwitcherLabel": "Агент",
   "switchedToAgent": "Переключено на {{agent}}",
   "scanning": {

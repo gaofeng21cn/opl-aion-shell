@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { OPL_DEFAULT_CODEX_SKILLS, mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
+import {
+  OPL_APP_ACTIVATION_POLICY,
+  OPL_CODEX_CONTEXT_SNIPPET,
+  OPL_DEFAULT_CODEX_SKILLS,
+  mergeOplDefaultCodexContext,
+  mergeOplDefaultCodexSkills,
+} from '@/common/config/oplSkills';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 describe('OPL default Codex skills', () => {
@@ -12,6 +18,17 @@ describe('OPL default Codex skills', () => {
     });
 
     expect(params.extra?.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
+    expect(params.extra?.presetContext).toBe(OPL_CODEX_CONTEXT_SNIPPET);
+    expect(params.extra?.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
+    expect(params.extra?.presetContext).toContain('不要求用户输入 @MAS');
+  });
+
+  it('keeps the OPL activation policy scoped to conversation context instead of AGENTS files', () => {
+    const context = mergeOplDefaultCodexContext('PRESET RULES');
+
+    expect(context).toBe(`${OPL_CODEX_CONTEXT_SNIPPET}\n\nPRESET RULES`);
+    expect(context).toContain(OPL_APP_ACTIVATION_POLICY);
+    expect(context).not.toContain('AGENTS.md');
   });
 
   it('preserves user-enabled skills after the OPL default family and companion skills', () => {

@@ -20,6 +20,9 @@ describe('WorkspaceSnapshotService', () => {
   afterEach(async () => {
     await service.disposeAll().catch(() => {});
     await fs.rm(tmpDir, { recursive: true, force: true });
+    delete process.env.AIONUI_SNAPSHOT_MAX_FILES;
+    delete process.env.AIONUI_SNAPSHOT_MAX_BYTES;
+    delete process.env.AIONUI_SNAPSHOT_MIN_FREE_BYTES;
   });
 
   describe('snapshot mode (no .git)', () => {
@@ -331,6 +334,58 @@ describe('WorkspaceSnapshotService', () => {
       const { unstaged } = await service.compare(tmpDir);
       const distChange = unstaged.find((c) => c.relativePath.startsWith('dist/'));
       expect(distChange).toBeUndefined();
+    });
+  });
+
+  describe('snapshot preflight guard (#1)', () => {
+    const listSnapshotDirs = async (): Promise<Set<string>> => {
+      const entries = await fs.readdir(os.tmpdir()).catch(() => []);
+      return new Set(entries.filter((name) => name.startsWith('aionui-snapshot-')));
+    };
+
+    it('rejects an oversized non-git workspace before creating a temp gitdir', async () => {
+      process.env.AIONUI_SNAPSHOT_MAX_FILES = '1';
+      process.env.AIONUI_SNAPSHOT_MAX_BYTES = String(1024 * 1024);
+
+      await fs.writeFile(path.join(tmpDir, 'one.txt'), 'one');
+      await fs.writeFile(path.join(tmpDir, 'two.txt'), 'two');
+
+      const before = await listSnapshotDirs();
+      const info = await service.init(tmpDir);
+      const after = await listSnapshotDirs();
+
+      expect(info).toEqual({ mode: 'snapshot', branch: null });
+      expect([...after].filter((name) => !before.has(name))).toEqual([]);
+      await fs.writeFile(path.join(tmpDir, 'three.txt'), 'three');
+      expect(await service.compare(tmpDir)).toEqual({ staged: [], unstaged: [] });
+    });
+
+    it('serializes concurrent snapshot creation for the same workspace', async () => {
+      await fs.writeFile(path.join(tmpDir, 'hello.txt'), 'hello');
+
+      const before = await listSnapshotDirs();
+      const [left, right] = await Promise.all([service.init(tmpDir), service.init(tmpDir)]);
+      const after = await listSnapshotDirs();
+
+      expect(left.mode).toBe('snapshot');
+      expect(right.mode).toBe('snapshot');
+      expect([...after].filter((name) => !before.has(name))).toHaveLength(1);
+    });
+
+    it('does not count ignored heavy directories against the snapshot limits', async () => {
+      process.env.AIONUI_SNAPSHOT_MAX_FILES = '2';
+      process.env.AIONUI_SNAPSHOT_MAX_BYTES = String(1024 * 1024);
+
+      await fs.writeFile(path.join(tmpDir, 'source.txt'), 'source');
+      await fs.mkdir(path.join(tmpDir, 'node_modules', 'pkg'), { recursive: true });
+      await fs.writeFile(path.join(tmpDir, 'node_modules', 'pkg', 'large.js'), 'ignored');
+
+      const info = await service.init(tmpDir);
+
+      expect(info.mode).toBe('snapshot');
+      await fs.writeFile(path.join(tmpDir, 'source.txt'), 'changed');
+      const { unstaged } = await service.compare(tmpDir);
+      expect(unstaged.find((item) => item.relativePath === 'source.txt')).toBeDefined();
     });
   });
 

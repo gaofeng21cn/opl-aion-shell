@@ -32,7 +32,6 @@ type AssistantSelectionAreaProps = {
   customAgents: AcpBackendConfig[];
   localeKey: string;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
-  onSelectAssistant: (assistantId: string) => void;
   onSetInput: (text: string) => void;
   onFocusInput: () => void;
   onRegisterOpenDetails?: (openDetails: (() => void) | null) => void;
@@ -50,7 +49,6 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   customAgents,
   localeKey,
   currentEffectiveAgentInfo,
-  onSelectAssistant,
   onSetInput,
   onFocusInput,
   onRegisterOpenDetails,
@@ -93,32 +91,23 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
       {
         id: 'mas',
         logo: masLogo,
-        label: localeKey === 'zh-CN' ? 'MAS 医学研究' : 'MAS Research',
-        prompt:
-          localeKey === 'zh-CN'
-            ? '@MAS 帮我推进一个医学研究任务：'
-            : '@MAS Help me advance a medical research task: ',
-      },
-      {
-        id: 'mag',
-        logo: magLogo,
-        label: localeKey === 'zh-CN' ? 'MAG 基金申请' : 'MAG Grants',
-        prompt:
-          localeKey === 'zh-CN'
-            ? '@MAG 帮我推进一个基金申请任务：'
-            : '@MAG Help me advance a grant task: ',
+        label: t('guid.oplQuickEntries.researchLabel'),
+        prompt: t('guid.oplQuickEntries.researchPrompt'),
       },
       {
         id: 'rca',
         logo: rcaLogo,
-        label: localeKey === 'zh-CN' ? 'RCA 汇报材料' : 'RCA Presentations',
-        prompt:
-          localeKey === 'zh-CN'
-            ? '@RCA 帮我推进一个汇报或幻灯片任务：'
-            : '@RCA Help me prepare a presentation task: ',
+        label: t('guid.oplQuickEntries.pptLabel'),
+        prompt: t('guid.oplQuickEntries.pptPrompt'),
+      },
+      {
+        id: 'mag',
+        logo: magLogo,
+        label: t('guid.oplQuickEntries.grantLabel'),
+        prompt: t('guid.oplQuickEntries.grantPrompt'),
       },
     ],
-    [localeKey]
+    [t]
   );
 
   const modalTree = (
@@ -248,9 +237,6 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
     if (!onRegisterOpenDetails) return;
     onRegisterOpenDetails(openAssistantDetails);
   }, [onRegisterOpenDetails, openAssistantDetails]);
-
-  // Only render if there are preset agents
-  if (!customAgents || !customAgents.some((a) => a.isPreset)) return null;
 
   if (isPresetAgent && selectedAgentInfo) {
     // Selected Assistant View

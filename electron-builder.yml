@@ -253,8 +253,6 @@ asarUnpack:
 # The build script sets ELECTRON_BUILDER_COMPRESSION_LEVEL env var which takes precedence
 compression: normal
 removePackageScripts: true
-electronDownload:
-  cache: ${env.ELECTRON_CACHE}
 
 publish:
   provider: github

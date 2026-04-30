@@ -1,15 +1,19 @@
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 import React from 'react';
 
+type MentionMenuItem = FileOrFolderItem & {
+  mentionKind?: 'assistant' | 'file';
+};
+
 type AtFileMenuProps = {
   activeIndex: number;
   emptyText: string;
-  items: FileOrFolderItem[];
+  items: MentionMenuItem[];
   label: string;
   loading: boolean;
   loadingText: string;
   onHoverItem: (index: number) => void;
-  onSelectItem: (item: FileOrFolderItem) => void;
+  onSelectItem: (item: MentionMenuItem) => void;
 };
 
 const AtFileMenu: React.FC<AtFileMenuProps> = ({

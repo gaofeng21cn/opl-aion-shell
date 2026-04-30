@@ -366,7 +366,7 @@ describe('SendBox @ file menu', () => {
     }
   });
 
-  it('shows a search hint instead of dumping all files for bare @', async () => {
+  it('shows OPL assistant shortcuts for bare @ without dumping all files', async () => {
     render(<SendBoxHarness />);
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
@@ -375,9 +375,28 @@ describe('SendBox @ file menu', () => {
     textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
     fireEvent.keyUp(textarea, { key: '@' });
 
-    expect(await screen.findByText('Type to search for files')).toBeInTheDocument();
+    expect(await screen.findByText('One Person Lab')).toBeInTheDocument();
+    expect(screen.getByText('@mas')).toBeInTheDocument();
     expect(screen.queryByText('date.ts')).not.toBeInTheDocument();
     expect(screen.queryByText('My File.md')).not.toBeInTheDocument();
+  });
+
+  it('inserts an OPL assistant shortcut without adding it as a workspace file', async () => {
+    render(<SendBoxHarness />);
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement;
+
+    fireEvent.change(textarea, { target: { value: '@mas' } });
+    textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+    fireEvent.keyUp(textarea, { key: 's' });
+
+    expect(await screen.findByText('Med Auto Science')).toBeInTheDocument();
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+
+    await waitFor(() => {
+      expect(textarea).toHaveValue('@mas');
+      expect(screen.getByTestId('selected-workspace-count')).toHaveTextContent('0');
+    });
   });
 
   it('fetches workspace mentions only once during a single open @ session', async () => {

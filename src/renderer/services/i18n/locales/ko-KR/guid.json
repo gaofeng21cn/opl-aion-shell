@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini is not configured, auto-switching to {{agent}}",
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "Try example prompts:",
+  "oplQuickEntries": {
+    "researchLabel": "연구",
+    "researchPrompt": "@MAS 의학 연구 작업을 진행해 주세요: ",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA 발표 또는 슬라이드 작업을 진행해 주세요: ",
+    "grantLabel": "연구비",
+    "grantPrompt": "@MAG 연구비 신청 작업을 진행해 주세요: "
+  },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "{{agent}}으로 전환되었습니다",
   "scanning": {

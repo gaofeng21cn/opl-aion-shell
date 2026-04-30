@@ -226,40 +226,6 @@ const GuidPage: React.FC = () => {
     [mention, guidInput.input, send.sendMessageHandler]
   );
 
-  const handleSelectAgentFromPillBar = useCallback(
-    (key: string) => {
-      agentSelection.setSelectedAgentKey(key);
-      mention.setMentionOpen(false);
-      mention.setMentionQuery(null);
-      mention.setMentionSelectorOpen(false);
-      mention.setMentionActiveIndex(0);
-    },
-    [
-      agentSelection.setSelectedAgentKey,
-      mention.setMentionOpen,
-      mention.setMentionQuery,
-      mention.setMentionSelectorOpen,
-      mention.setMentionActiveIndex,
-    ]
-  );
-
-  const handleSelectAssistant = useCallback(
-    (assistantId: string) => {
-      agentSelection.setSelectedAgentKey(assistantId);
-      mention.setMentionOpen(false);
-      mention.setMentionQuery(null);
-      mention.setMentionSelectorOpen(false);
-      mention.setMentionActiveIndex(0);
-    },
-    [
-      agentSelection.setSelectedAgentKey,
-      mention.setMentionOpen,
-      mention.setMentionQuery,
-      mention.setMentionSelectorOpen,
-      mention.setMentionActiveIndex,
-    ]
-  );
-
   // Typewriter placeholder
   const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
   const selectedAssistantRecord = useMemo(() => {
@@ -704,7 +670,6 @@ const GuidPage: React.FC = () => {
             customAgents={agentSelection.customAgents}
             localeKey={localeKey}
             currentEffectiveAgentInfo={agentSelection.currentEffectiveAgentInfo}
-            onSelectAssistant={handleSelectAssistant}
             onSetInput={guidInput.setInput}
             onFocusInput={guidInput.handleTextareaFocus}
             onRegisterOpenDetails={(openDetails) => {

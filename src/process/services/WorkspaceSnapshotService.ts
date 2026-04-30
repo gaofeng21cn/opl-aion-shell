@@ -33,6 +33,12 @@ target/
 .output/
 .cache/
 .parcel-cache/
+.turbo/
+coverage/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pnpm-store/
 .tsbuildinfo
 __pycache__/
 .venv/
@@ -40,8 +46,59 @@ venv/
 *.pyc
 `;
 
+const DEFAULT_SNAPSHOT_MAX_FILES = 50_000;
+const DEFAULT_SNAPSHOT_MAX_BYTES = 1024 * 1024 * 1024;
+const DEFAULT_SNAPSHOT_MIN_FREE_BYTES = 512 * 1024 * 1024;
+
+const SNAPSHOT_EXCLUDED_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'out',
+  'target',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.cache',
+  '.parcel-cache',
+  '.turbo',
+  'coverage',
+  '.pytest_cache',
+  '.mypy_cache',
+  '.ruff_cache',
+  '.pnpm-store',
+  '__pycache__',
+  '.venv',
+  'venv',
+]);
+
+const parsePositiveIntegerEnv = (name: string, fallback: number): number => {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  const value = Number(raw);
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+};
+
+const getSnapshotLimits = () => ({
+  maxFiles: parsePositiveIntegerEnv('AIONUI_SNAPSHOT_MAX_FILES', DEFAULT_SNAPSHOT_MAX_FILES),
+  maxBytes: parsePositiveIntegerEnv('AIONUI_SNAPSHOT_MAX_BYTES', DEFAULT_SNAPSHOT_MAX_BYTES),
+  minFreeBytes: parsePositiveIntegerEnv('AIONUI_SNAPSHOT_MIN_FREE_BYTES', DEFAULT_SNAPSHOT_MIN_FREE_BYTES),
+});
+
+const shouldSkipSnapshotFile = (name: string): boolean =>
+  name.endsWith('.lock') || name.endsWith('.pyc') || name.endsWith('.tsbuildinfo');
+
+type SnapshotPreflightStats = {
+  files: number;
+  bytes: number;
+};
+
 export class WorkspaceSnapshotService {
   private snapshots = new Map<string, SnapshotState>();
+  private snapshotInitLocks = new Map<string, Promise<string>>();
 
   async init(workspacePath: string): Promise<SnapshotInfo> {
     if (this.snapshots.has(workspacePath)) {
@@ -389,40 +446,114 @@ export class WorkspaceSnapshotService {
   }
 
   private async createWorkingTreeSnapshot(workspacePath: string): Promise<string> {
+    const existingLock = this.snapshotInitLocks.get(workspacePath);
+    if (existingLock) {
+      return existingLock;
+    }
+
+    const initPromise = this.createWorkingTreeSnapshotUnlocked(workspacePath);
+    this.snapshotInitLocks.set(workspacePath, initPromise);
+    void initPromise
+      .finally(() => {
+        if (this.snapshotInitLocks.get(workspacePath) === initPromise) {
+          this.snapshotInitLocks.delete(workspacePath);
+        }
+      })
+      .catch(() => {});
+    return initPromise;
+  }
+
+  private async preflightSnapshotWorkspace(workspacePath: string): Promise<SnapshotPreflightStats> {
+    const limits = getSnapshotLimits();
+    const stats: SnapshotPreflightStats = { files: 0, bytes: 0 };
+
+    const walk = async (dirPath: string): Promise<void> => {
+      const dir = await fs.opendir(dirPath);
+      for await (const entry of dir) {
+        if (entry.isDirectory() && SNAPSHOT_EXCLUDED_DIRS.has(entry.name)) {
+          continue;
+        }
+        if (shouldSkipSnapshotFile(entry.name)) {
+          continue;
+        }
+
+        const fullPath = path.join(dirPath, entry.name);
+        const entryStat = await fs.lstat(fullPath);
+        if (entryStat.isSymbolicLink()) {
+          stats.files += 1;
+        } else if (entryStat.isDirectory()) {
+          await walk(fullPath);
+          continue;
+        } else if (entryStat.isFile()) {
+          stats.files += 1;
+          stats.bytes += entryStat.size;
+        }
+
+        if (stats.files > limits.maxFiles) {
+          throw new Error(`Snapshot preflight rejected workspace with more than ${limits.maxFiles} files.`);
+        }
+        if (stats.bytes > limits.maxBytes) {
+          throw new Error(`Snapshot preflight rejected workspace larger than ${limits.maxBytes} bytes.`);
+        }
+      }
+    };
+
+    await walk(workspacePath);
+
+    const tmpStats = await fs.statfs(os.tmpdir());
+    const availableBytes = Number(tmpStats.bavail) * Number(tmpStats.bsize);
+    const requiredFreeBytes = Math.max(limits.minFreeBytes, stats.bytes * 2);
+    if (availableBytes < requiredFreeBytes) {
+      throw new Error(
+        `Snapshot preflight rejected workspace because ${os.tmpdir()} has ${availableBytes} bytes free; ${requiredFreeBytes} bytes required.`
+      );
+    }
+
+    return stats;
+  }
+
+  private async createWorkingTreeSnapshotUnlocked(workspacePath: string): Promise<string> {
+    await this.preflightSnapshotWorkspace(workspacePath);
+
     const gitdir = path.join(os.tmpdir(), `aionui-snapshot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     const gitArgs = [`--git-dir=${gitdir}`, `--work-tree=${workspacePath}`];
 
-    await execFileAsync('git', ['init', '--bare', gitdir]);
-    await fs.writeFile(path.join(gitdir, 'info', 'exclude'), DEFAULT_GITIGNORE, 'utf-8');
-    // Use --ignore-errors so locked/permission-denied files don't abort the entire snapshot.
-    // The command still exits non-zero when some files fail, so catch and verify the commit succeeds.
     try {
-      await execFileAsync('git', [...gitArgs, 'add', '--ignore-errors', '.'], {
-        cwd: workspacePath,
-        maxBuffer: 10 * 1024 * 1024,
-      });
-    } catch (error) {
-      const stderr = (error as { stderr?: string }).stderr ?? '';
-      // Re-throw if the error is NOT a partial indexing failure (e.g. git not found)
-      if (!stderr.includes('Permission denied') && !stderr.includes('unable to index file')) {
-        throw error;
+      await execFileAsync('git', ['init', '--bare', gitdir]);
+      await fs.writeFile(path.join(gitdir, 'info', 'exclude'), DEFAULT_GITIGNORE, 'utf-8');
+      // Use --ignore-errors so locked/permission-denied files don't abort the entire snapshot.
+      // The command still exits non-zero when some files fail, so catch and verify the commit succeeds.
+      try {
+        await execFileAsync('git', [...gitArgs, 'add', '--ignore-errors', '.'], {
+          cwd: workspacePath,
+          maxBuffer: 10 * 1024 * 1024,
+        });
+      } catch (error) {
+        const stderr = (error as { stderr?: string }).stderr ?? '';
+        // Re-throw if the error is NOT a partial indexing failure (e.g. git not found)
+        if (!stderr.includes('Permission denied') && !stderr.includes('unable to index file')) {
+          throw error;
+        }
       }
+      await execFileAsync(
+        'git',
+        [
+          ...gitArgs,
+          '-c',
+          'user.name=AionUI',
+          '-c',
+          'user.email=snapshot@aionui.local',
+          'commit',
+          '--allow-empty',
+          '-m',
+          'baseline',
+        ],
+        { cwd: workspacePath, maxBuffer: 10 * 1024 * 1024 }
+      );
+    } catch (error) {
+      await fs.rm(gitdir, { recursive: true, force: true }).catch(() => {});
+      throw error;
     }
-    await execFileAsync(
-      'git',
-      [
-        ...gitArgs,
-        '-c',
-        'user.name=AionUI',
-        '-c',
-        'user.email=snapshot@aionui.local',
-        'commit',
-        '--allow-empty',
-        '-m',
-        'baseline',
-      ],
-      { cwd: workspacePath, maxBuffer: 10 * 1024 * 1024 }
-    );
 
     return gitdir;
   }

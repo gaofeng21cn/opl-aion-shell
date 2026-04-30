@@ -568,6 +568,10 @@ const getBuiltinAssistants = (): AcpBackendConfig[] => {
     const defaultEnabledSkills = preset.defaultEnabledSkills;
     const enabledByDefault =
       preset.id === 'word-creator' ||
+      preset.id === 'one-person-lab' ||
+      preset.id === 'med-auto-science' ||
+      preset.id === 'med-auto-grant' ||
+      preset.id === 'redcube-ai' ||
       preset.id === 'ppt-creator' ||
       preset.id === 'excel-creator' ||
       preset.id === 'academic-paper' ||

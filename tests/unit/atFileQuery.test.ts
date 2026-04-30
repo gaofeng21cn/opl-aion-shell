@@ -1,6 +1,7 @@
 import {
   buildAtFileInsertion,
   escapeAtFilePath,
+  filterAssistantMentionItems,
   getActiveAtFileQuery,
   getAllAtFileQueries,
 } from '@/renderer/utils/chat/atFileQuery';
@@ -54,5 +55,14 @@ describe('atFileQuery', () => {
         token: '@docs/My\\ File.md',
       },
     ]);
+  });
+
+  it('returns OPL shortcuts for an empty @ query', () => {
+    expect(filterAssistantMentionItems('').map((item) => item.insertText)).toEqual(['@opl', '@mas', '@mag', '@rca']);
+  });
+
+  it('matches domain aliases', () => {
+    expect(filterAssistantMentionItems('mas').map((item) => item.name)).toEqual(['Med Auto Science']);
+    expect(filterAssistantMentionItems('slides').map((item) => item.name)).toEqual(['RedCube AI']);
   });
 });
