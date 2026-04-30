@@ -691,6 +691,9 @@ app.on('activate', () => {
   // Skip if handleAppReady hasn't finished — it will create the window itself.
   if (!appReadyDone) return;
   if (!isWebUIMode && app.isReady()) {
+    if (!isE2ETestMode) {
+      createOrUpdateTray();
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       // 从托盘恢复隐藏的窗口 / Restore hidden window from tray
       showAndFocusMainWindow(mainWindow);

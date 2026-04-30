@@ -5,7 +5,11 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { OPL_DEFAULT_CODEX_SKILLS } from '../../src/common/config/oplSkills';
+import {
+  OPL_APP_ACTIVATION_POLICY,
+  OPL_CODEX_CONTEXT_SNIPPET,
+  OPL_DEFAULT_CODEX_SKILLS,
+} from '../../src/common/config/oplSkills';
 import { resolveLocaleKey } from '../../src/common/utils';
 
 const loadPresetAssistantResources = vi.fn();
@@ -83,7 +87,8 @@ describe('createConversationParams', () => {
     });
     expect(params.type).toBe('acp');
     expect(params.extra.backend).toBe('codex');
-    expect(params.extra.presetContext).toBe('preset rules');
+    expect(params.extra.presetContext).toBe(`${OPL_CODEX_CONTEXT_SNIPPET}\n\npreset rules`);
+    expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
     expect(params.extra.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS, 'moltbook']);
     expect(params.model).toEqual({});
   });
@@ -135,7 +140,8 @@ describe('createConversationParams', () => {
     expect(params.type).toBe('acp');
     expect(params.model).toEqual({});
     expect(params.extra.backend).toBe('codex');
-    expect(params.extra.presetContext).toBe('gemini preset rules');
+    expect(params.extra.presetContext).toBe(`${OPL_CODEX_CONTEXT_SNIPPET}\n\ngemini preset rules`);
+    expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
     expect(params.extra.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
   });
 

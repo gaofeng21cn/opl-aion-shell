@@ -12,6 +12,7 @@ const originalPlatform = process.platform;
 const hoisted = vi.hoisted(() => {
   const mockTrayInstance = {
     setToolTip: vi.fn(),
+    setTitle: vi.fn(),
     setContextMenu: vi.fn(),
     on: vi.fn(),
     destroy: vi.fn(),
@@ -234,6 +235,35 @@ describe('tray module', () => {
       expect(mockNativeImage.setTemplateImage).toHaveBeenCalledWith(true);
     });
 
+    it('should keep the macOS tray item icon-only without a visible title', async () => {
+      Object.defineProperty(process, 'platform', {
+        value: 'darwin',
+        configurable: true,
+      });
+      const { createOrUpdateTray } = await import('@process/utils/tray');
+
+      createOrUpdateTray();
+
+      expect(mockTrayInstance.setTitle).not.toHaveBeenCalled();
+    });
+
+    it('should attach a usable context menu immediately while OPL runtime status is still loading', async () => {
+      mockExecFile.mockImplementation(() => {
+        // Keep the runtime snapshot command pending to model a slow local OPL runtime.
+      });
+      const { createOrUpdateTray } = await import('@process/utils/tray');
+
+      createOrUpdateTray();
+
+      expect(mockBuildFromTemplate).toHaveBeenCalled();
+      expect(mockTrayInstance.setContextMenu).toHaveBeenCalledWith(mockMenuInstance);
+      const templateArg = mockBuildFromTemplate.mock.calls[0][0] as any[];
+      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      expect(labels).toContain('common.tray.showWindow');
+      expect(labels).toContain('common.tray.newChat');
+      expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
+    });
+
     it('should be idempotent - second call does not create another tray', async () => {
       const { createOrUpdateTray } = await import('@process/utils/tray');
 
@@ -346,8 +376,10 @@ describe('tray module', () => {
       const previousCalls = mockBuildFromTemplate.mock.calls.length;
       await refreshTrayMenu();
       expect(mockBuildFromTemplate.mock.calls.length).toBeGreaterThan(previousCalls);
-      return mockBuildFromTemplate.mock.calls[previousCalls][0] as any[];
+      return mockBuildFromTemplate.mock.calls.at(-1)?.[0] as any[];
     };
+
+    const getLatestTemplate = () => mockBuildFromTemplate.mock.calls.at(-1)?.[0] as any[];
 
     it('should include recent conversations when available', async () => {
       setupWithOverrides();
@@ -358,8 +390,16 @@ describe('tray module', () => {
         ],
       });
 
-      const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        const labels = getLatestTemplate()
+          .map((item: any) => item.label)
+          .filter(Boolean);
+        expect(labels).toContain('Test Chat');
+      });
+      const labels = getLatestTemplate()
+        .map((item: any) => item.label)
+        .filter(Boolean);
       expect(labels).toContain('Test Chat');
       expect(labels).toContain('Another Chat');
     });
@@ -376,8 +416,16 @@ describe('tray module', () => {
       });
 
       const expectedTitle = 'A very long conversation title that exceeds twenty characters'.slice(0, 20) + '...';
-      const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        const labels = getLatestTemplate()
+          .map((item: any) => item.label)
+          .filter(Boolean);
+        expect(labels).toContain(expectedTitle);
+      });
+      const labels = getLatestTemplate()
+        .map((item: any) => item.label)
+        .filter(Boolean);
       expect(labels).toContain(expectedTitle);
     });
 
@@ -455,10 +503,17 @@ describe('tray module', () => {
         );
       });
 
-      const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        const labels = getLatestTemplate()
+          .map((item: any) => item.label)
+          .filter(Boolean);
+        expect(labels).toContain('common.tray.runtimeAttention');
+      });
+      const labels = getLatestTemplate()
+        .map((item: any) => item.label)
+        .filter(Boolean);
 
-      expect(labels).toContain('common.tray.runtimeAttention');
       expect(labels).toContain('RCA: Operator review (Needs attention)');
       expect(labels).toContain('common.tray.runtimeRunning');
       expect(labels).toContain('MAS: Active study (Running)');
@@ -479,6 +534,71 @@ describe('tray module', () => {
       expect(labels).not.toContain('common.tray.runtimeAttention');
       expect(labels).not.toContain('common.tray.runtimeRunning');
       expect(labels).not.toContain('common.tray.runtimeRecent');
+    });
+
+    it('should refresh cached runtime lanes back to offline when snapshot reading starts failing', async () => {
+      setupWithOverrides();
+      let runtimeAvailable = true;
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        if (!runtimeAvailable) {
+          callback(new Error('opl unavailable'), '', '');
+          return;
+        }
+        callback(
+          null,
+          JSON.stringify({
+            runtime_tray_snapshot: {
+              schema_version: 'runtime_tray_snapshot.v1',
+              runtime_health: {
+                status: 'running',
+                label: 'Running',
+                summary: 'One project is running.',
+              },
+              last_updated: '2026-04-29T00:00:00.000Z',
+              running_items: [
+                {
+                  item_id: 'medautoscience:study-runtime',
+                  project_id: 'medautoscience',
+                  project_label: 'MAS',
+                  title: 'Active study',
+                  status_label: 'Running',
+                  summary: 'Study runtime is active.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautoscience',
+                  workspace_path: '/tmp/mas',
+                  source_refs: [],
+                },
+              ],
+              attention_items: [],
+              recent_items: [],
+              source_refs: [],
+            },
+          }),
+          ''
+        );
+      });
+
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        const labels = getLatestTemplate()
+          .map((item: any) => item.label)
+          .filter(Boolean);
+        expect(labels).toContain('MAS: Active study (Running)');
+      });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      runtimeAvailable = false;
+      const clickHandler = mockTrayInstance.on.mock.calls.find((call) => call[0] === 'click')?.[1];
+      expect(clickHandler).toBeDefined();
+      clickHandler?.({ event: { button: 2 } });
+
+      await vi.waitFor(() => {
+        const labels = getLatestTemplate()
+          .map((item: any) => item.label)
+          .filter(Boolean);
+        expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
+        expect(labels).not.toContain('MAS: Active study (Running)');
+      });
     });
 
     it('should include runtime item detail in the open event payload', async () => {
@@ -538,7 +658,12 @@ describe('tray module', () => {
         );
       });
 
-      const templateArg = await getTemplateFromRefresh();
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        const runtimeItem = getLatestTemplate().find((item: any) => item.label === 'MAS: Active study (Running)');
+        expect(runtimeItem).toBeDefined();
+      });
+      const templateArg = getLatestTemplate();
       const runtimeItem = templateArg.find((item: any) => item.label === 'MAS: Active study (Running)');
       runtimeItem.click();
 

@@ -22,6 +22,130 @@ export type AssistantPreset = {
 
 export const ASSISTANT_PRESETS: AssistantPreset[] = [
   {
+    id: 'one-person-lab',
+    avatar: '◉',
+    presetAgentType: 'codex',
+    resourceDir: 'src/process/resources/assistant/opl-family/one-person-lab',
+    ruleFiles: {
+      'en-US': 'one-person-lab.md',
+      'zh-CN': 'one-person-lab.zh-CN.md',
+    },
+    defaultEnabledSkills: ['mas', 'mag', 'rca', 'superpowers'],
+    nameI18n: {
+      'en-US': 'One Person Lab',
+      'zh-CN': 'One Person Lab',
+    },
+    descriptionI18n: {
+      'en-US': 'Default OPL route for Codex-first research, grants, presentations, and domain module activation.',
+      'zh-CN': '默认 OPL 入口，用于 Codex 优先的研究、基金、汇报与领域模块激活。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Inspect this workspace and choose the right OPL domain route for the task.',
+        'Continue the active OPL task from current runtime status.',
+        'Set up the right domain module and start from the canonical product entry.',
+      ],
+      'zh-CN': [
+        '检查当前工作区，并为这个任务选择合适的 OPL 领域入口。',
+        '从当前运行状态继续推进活跃的 OPL 任务。',
+        '配置合适的领域模块，并从 canonical product entry 开始。',
+      ],
+    },
+  },
+  {
+    id: 'med-auto-science',
+    avatar: 'MAS',
+    presetAgentType: 'codex',
+    resourceDir: 'src/process/resources/assistant/opl-family/med-auto-science',
+    ruleFiles: {
+      'en-US': 'med-auto-science.md',
+      'zh-CN': 'med-auto-science.zh-CN.md',
+    },
+    defaultEnabledSkills: ['mas'],
+    nameI18n: {
+      'en-US': 'Med Auto Science',
+      'zh-CN': 'Med Auto Science',
+    },
+    descriptionI18n: {
+      'en-US': 'MAS entry for medical study runtime, paper progress, reviewer revision, and publication supervision.',
+      'zh-CN': 'MAS 入口，用于医学研究运行态、论文进度、返修与投稿监督。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Read the current study progress and tell me the next supervised action.',
+        'Resume this MAS paper line from durable status without hand-patching outputs.',
+        'Audit whether the submission package has reached its milestone gate.',
+      ],
+      'zh-CN': [
+        '读取当前 study progress，并告诉我下一步监督动作。',
+        '从 durable status 继续这条 MAS 论文线，不手工 patch 输出物。',
+        '审计当前投稿包是否已经达到里程碑门槛。',
+      ],
+    },
+  },
+  {
+    id: 'med-auto-grant',
+    avatar: 'MAG',
+    presetAgentType: 'codex',
+    resourceDir: 'src/process/resources/assistant/opl-family/med-auto-grant',
+    ruleFiles: {
+      'en-US': 'med-auto-grant.md',
+      'zh-CN': 'med-auto-grant.zh-CN.md',
+    },
+    defaultEnabledSkills: ['mag'],
+    nameI18n: {
+      'en-US': 'Med Auto Grant',
+      'zh-CN': 'Med Auto Grant',
+    },
+    descriptionI18n: {
+      'en-US': 'MAG entry for grant planning, authoring, critique, revision, and package readiness.',
+      'zh-CN': 'MAG 入口，用于基金规划、写作、评审、修改与包就绪检查。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Open the current MAG program status and continue the next authoring step.',
+        'Turn the reviewer notes into a grant revision action plan.',
+        'Check whether this grant package is submission-ready.',
+      ],
+      'zh-CN': [
+        '打开当前 MAG program status，并继续下一步写作。',
+        '把评审意见转成基金修改行动计划。',
+        '检查这个基金包是否已经 submission-ready。',
+      ],
+    },
+  },
+  {
+    id: 'redcube-ai',
+    avatar: 'RCA',
+    presetAgentType: 'codex',
+    resourceDir: 'src/process/resources/assistant/opl-family/redcube-ai',
+    ruleFiles: {
+      'en-US': 'redcube-ai.md',
+      'zh-CN': 'redcube-ai.zh-CN.md',
+    },
+    defaultEnabledSkills: ['rca'],
+    nameI18n: {
+      'en-US': 'RedCube AI',
+      'zh-CN': 'RedCube AI',
+    },
+    descriptionI18n: {
+      'en-US': 'RCA entry for slide decks and visual deliverables through the RedCube product runtime.',
+      'zh-CN': 'RCA 入口，用于通过 RedCube product runtime 生成幻灯片和视觉交付物。',
+    },
+    promptsI18n: {
+      'en-US': [
+        'Create a RedCube deliverable plan from this brief and start the recoverable runtime.',
+        'Inspect the current deck task and continue from the latest artifact status.',
+        'Run a quality pass on this presentation deliverable.',
+      ],
+      'zh-CN': [
+        '根据这个 brief 创建 RedCube 交付计划，并启动可恢复 runtime。',
+        '检查当前 deck 任务，并从最新 artifact 状态继续。',
+        '对这个演示交付物做质量检查。',
+      ],
+    },
+  },
+  {
     id: 'word-creator',
     avatar: '📝',
     presetAgentType: 'gemini',

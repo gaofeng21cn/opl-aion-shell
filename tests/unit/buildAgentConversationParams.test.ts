@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TProviderWithModel } from '../../src/common/config/storage';
+import { OPL_APP_ACTIVATION_POLICY, OPL_CODEX_CONTEXT_SNIPPET } from '../../src/common/config/oplSkills';
 import { buildAgentConversationParams } from '../../src/common/utils/buildAgentConversationParams';
 
 const mockModel = {} as unknown as TProviderWithModel;
@@ -41,6 +42,32 @@ describe('buildAgentConversationParams', () => {
         teamId: 'team-1',
       }),
     });
+    expect(params.extra.presetContext).toBeUndefined();
+  });
+
+  it('injects the OPL activation policy for plain Codex ACP conversations', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'One Person Lab',
+      agentName: 'Codex',
+      workspace: '/workspace',
+      model: mockModel,
+    });
+
+    expect(params).toEqual({
+      type: 'acp',
+      name: 'One Person Lab',
+      model: {},
+      extra: expect.objectContaining({
+        workspace: '/workspace',
+        customWorkspace: true,
+        backend: 'codex',
+        agentName: 'Codex',
+        presetContext: OPL_CODEX_CONTEXT_SNIPPET,
+      }),
+    });
+    expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
+    expect(params.extra.presetContext).toContain('优先按 MAS 路线处理');
   });
 
   it('normalizes retired Gemini preset params to Codex ACP', () => {
@@ -67,7 +94,7 @@ describe('buildAgentConversationParams', () => {
         workspace: '/workspace',
         customWorkspace: true,
         presetAssistantId: 'assistant-1',
-        presetContext: 'PRESET RULES',
+        presetContext: `${OPL_CODEX_CONTEXT_SNIPPET}\n\nPRESET RULES`,
         enabledSkills: expect.arrayContaining(['mas', 'mag', 'rca', 'skill-a']),
         backend: 'codex',
       }),

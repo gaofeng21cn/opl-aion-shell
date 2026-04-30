@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TChatConversation } from '../../../src/common/config/storage';
-import { OPL_DEFAULT_CODEX_SKILLS } from '../../../src/common/config/oplSkills';
+import { OPL_CODEX_CONTEXT_SNIPPET, OPL_DEFAULT_CODEX_SKILLS } from '../../../src/common/config/oplSkills';
 import type { IConversationService } from '../../../src/process/services/IConversationService';
 import type { ITeamRepository } from '../../../src/process/team/repository/ITeamRepository';
 import type { TTeam, TeamAgent } from '../../../src/common/types/teamTypes';
@@ -323,7 +323,7 @@ describe('TeamSessionService', () => {
         extra: expect.objectContaining({
           backend: 'codex',
           presetAssistantId: 'assistant-1',
-          presetContext: 'PRESET RULES',
+          presetContext: `${OPL_CODEX_CONTEXT_SNIPPET}\n\nPRESET RULES`,
           enabledSkills: [...OPL_DEFAULT_CODEX_SKILLS, 'skill-a'],
         }),
       })

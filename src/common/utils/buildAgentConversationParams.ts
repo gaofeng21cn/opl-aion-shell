@@ -7,7 +7,7 @@
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { TProviderWithModel } from '@/common/config/storage';
 import type { AcpBackend, AcpBackendAll } from '@/common/types/acpTypes';
-import { mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
+import { mergeOplDefaultCodexContext, mergeOplDefaultCodexSkills } from '@/common/config/oplSkills';
 
 export type BuildAgentConversationPresetResources = {
   rules?: string;
@@ -91,13 +91,15 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     if (type === 'gemini') {
       extra.presetRules = presetResources?.rules;
     } else {
-      extra.presetContext = presetResources?.rules;
+      extra.presetContext =
+        effectivePresetType === 'codex' ? mergeOplDefaultCodexContext(presetResources?.rules) : presetResources?.rules;
       if (type === 'acp') {
         extra.backend = effectivePresetType as AcpBackend;
       }
     }
   } else if (normalizedBackend === 'codex') {
     extra.enabledSkills = mergeOplDefaultCodexSkills(extra.enabledSkills);
+    extra.presetContext = mergeOplDefaultCodexContext(extra.presetContext);
     extra.backend = 'codex' as AcpBackendAll;
     extra.agentName = agentName || name;
     if (cliPath) extra.cliPath = cliPath;

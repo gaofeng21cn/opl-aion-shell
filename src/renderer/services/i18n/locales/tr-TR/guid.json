@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini is not configured, auto-switching to {{agent}}",
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "Try example prompts:",
+  "oplQuickEntries": {
+    "researchLabel": "Araştırma",
+    "researchPrompt": "@MAS Bir tıbbi araştırma görevini ilerletmeme yardım et: ",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA Bir sunum veya slayt görevini hazırlamama yardım et: ",
+    "grantLabel": "Hibe",
+    "grantPrompt": "@MAG Bir hibe başvurusu görevini ilerletmeme yardım et: "
+  },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "{{agent}} olarak değiştirildi",
   "scanning": {

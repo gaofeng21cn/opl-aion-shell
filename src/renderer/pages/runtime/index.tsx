@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Button, Empty, Message, Spin, Tag } from '@arco-design/web-react';
-import { Copy, FolderOpen, Left, Refresh } from '@icon-park/react';
+import { Button, Collapse, Empty, Message, Spin, Tag } from '@arco-design/web-react';
+import { FolderOpen, Left, Refresh } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { copyText } from '@renderer/utils/ui/clipboard';
 import {
   RUNTIME_TRAY_ITEM_STORAGE_KEY,
-  type RuntimeTrayCommand,
   type RuntimeTrayItem,
   type RuntimeTrayOpenPayload,
   type RuntimeTraySnapshot,
@@ -101,6 +99,53 @@ const runtimeHealthTagColor = (status?: string): string => {
   }
 };
 
+type RuntimeTranslator = ReturnType<typeof useTranslation>['t'];
+
+const isInfrastructureRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
+  item.projectLabel.toLowerCase().includes('infra') || item.itemId.includes(':hermes-cron:');
+
+const isWaitingReviewRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
+  item.statusLabel.toLowerCase().includes('waiting review') || item.healthStatus === 'escalated';
+
+const isRecoveringRuntimeItem = (item: RuntimeTrayOpenPayload): boolean =>
+  item.statusLabel.toLowerCase().includes('recover') || item.healthStatus === 'recovering';
+
+const getRuntimeAttentionReason = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
+  const blockerCount = item.blockers?.filter((blocker) => blocker.trim()).length ?? 0;
+  if (isInfrastructureRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonInfra');
+  }
+  if (isWaitingReviewRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonReview');
+  }
+  if (isRecoveringRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonRecovering');
+  }
+  if (blockerCount > 0) {
+    return t('common.runtimeTray.attentionReasonChecks', { count: blockerCount });
+  }
+  return t('common.runtimeTray.attentionReasonDefault');
+};
+
+const getRuntimeNaturalLanguagePrompt = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
+  if (isInfrastructureRuntimeItem(item)) {
+    return t('common.runtimeTray.tellOplInfra', { title: item.title });
+  }
+  if (isWaitingReviewRuntimeItem(item)) {
+    return t('common.runtimeTray.tellOplReview', { title: item.title });
+  }
+  if (isRecoveringRuntimeItem(item)) {
+    return t('common.runtimeTray.tellOplRecovering', { title: item.title });
+  }
+  if (item.nextActionSummary?.trim()) {
+    return t('common.runtimeTray.tellOplNextAction', {
+      title: item.title,
+      nextAction: item.nextActionSummary.trim(),
+    });
+  }
+  return t('common.runtimeTray.tellOplCheck', { title: item.title });
+};
+
 const RuntimeTrayItemPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -113,16 +158,6 @@ const RuntimeTrayItemPage: React.FC = () => {
     const state = location.state as { runtimeItem?: RuntimeTrayOpenPayload } | null;
     return isItemRoute ? (state?.runtimeItem ?? readStoredRuntimeItem()) : null;
   }, [isItemRoute, location.state]);
-
-  const handleCopy = useCallback(
-    (value: string | null | undefined) => {
-      if (!value) return;
-      void copyText(value)
-        .then(() => Message.success(t('common.copySuccess')))
-        .catch(() => Message.error(t('common.copyFailed')));
-    },
-    [t]
-  );
 
   const handleOpenWorkspace = useCallback(() => {
     if (!runtimeItem?.workspacePath) return;
@@ -276,18 +311,9 @@ const RuntimeTrayItemPage: React.FC = () => {
   }
 
   const sourceRefs = runtimeItem.sourceRefs || [];
-  const commands: RuntimeTrayCommand[] = runtimeItem.recommendedCommands?.length
-    ? runtimeItem.recommendedCommands
-    : runtimeItem.command
-      ? [
-          {
-            step_id: 'primary',
-            title: t('common.runtimeTray.primaryCommand'),
-            surface_kind: 'command',
-            command: runtimeItem.command,
-          },
-        ]
-      : [];
+  const currentSituation = runtimeItem.detailSummary || runtimeItem.summary || runtimeItem.statusLabel;
+  const attentionReason = getRuntimeAttentionReason(runtimeItem, t);
+  const naturalLanguagePrompt = getRuntimeNaturalLanguagePrompt(runtimeItem, t);
 
   return (
     <div className='w-full min-h-full box-border overflow-y-auto px-14px pt-28px pb-24px md:px-40px md:pt-52px md:pb-42px'>
@@ -316,156 +342,115 @@ const RuntimeTrayItemPage: React.FC = () => {
           {runtimeItem.summary && <p className='m-0 text-15px leading-24px text-t-secondary'>{runtimeItem.summary}</p>}
         </div>
 
-        {(runtimeItem.detailSummary || runtimeItem.nextActionSummary || runtimeItem.blockers?.length) && (
-          <section className='flex flex-col gap-12px'>
-            <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.operatorView')}</h2>
-            <div className='h-1px w-full bg-[var(--color-border-2)]' />
-            {runtimeItem.detailSummary && (
-              <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
-                {runtimeItem.detailSummary}
-              </div>
-            )}
-            {runtimeItem.nextActionSummary && (
-              <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
-                <div className='mb-4px text-12px font-medium text-t-secondary'>
-                  {t('common.runtimeTray.nextAction')}
-                </div>
-                {runtimeItem.nextActionSummary}
-              </div>
-            )}
-            {runtimeItem.blockers && runtimeItem.blockers.length > 0 && (
-              <div className='flex flex-col gap-8px'>
-                <div className='text-12px font-medium text-t-secondary'>{t('common.runtimeTray.blockers')}</div>
-                <ul className='m-0 flex flex-col gap-6px pl-18px text-13px leading-20px text-t-primary'>
-                  {runtimeItem.blockers.map((blocker) => (
-                    <li key={blocker}>{blocker}</li>
+        <section className='flex flex-col gap-12px'>
+          <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.physicianView')}</h2>
+          <div className='h-1px w-full bg-[var(--color-border-2)]' />
+          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
+            <div className='mb-4px text-12px font-medium text-t-secondary'>
+              {t('common.runtimeTray.currentSituation')}
+            </div>
+            {currentSituation}
+          </div>
+          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
+            <div className='mb-4px text-12px font-medium text-t-secondary'>
+              {t('common.runtimeTray.attentionReason')}
+            </div>
+            {attentionReason}
+          </div>
+          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
+            <div className='mb-4px text-12px font-medium text-t-secondary'>{t('common.runtimeTray.tellOpl')}</div>
+            {naturalLanguagePrompt}
+          </div>
+        </section>
+
+        <Collapse bordered={false}>
+          <Collapse.Item header={t('common.runtimeTray.developerDetails')} name='developer-details'>
+            <section className='flex flex-col gap-12px'>
+              <dl className='m-0 grid grid-cols-1 gap-14px md:grid-cols-[160px_minmax(0,1fr)]'>
+                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.project')}</dt>
+                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.projectLabel}</dd>
+                <dt className='text-13px text-t-secondary'>{t('common.status')}</dt>
+                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.statusLabel}</dd>
+                {runtimeItem.studyId && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.study')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.studyId}</dd>
+                  </>
+                )}
+                {runtimeItem.activeRunId && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.activeRun')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.activeRunId}</dd>
+                  </>
+                )}
+                {runtimeItem.healthStatus && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.health')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.healthStatus}</dd>
+                  </>
+                )}
+                {runtimeItem.updatedAt && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.updatedAt')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>
+                      {new Date(runtimeItem.updatedAt).toLocaleString()}
+                    </dd>
+                  </>
+                )}
+                {runtimeItem.workspacePath && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.workspace')}</dt>
+                    <dd className='m-0 flex min-w-0 flex-wrap items-center gap-8px text-14px text-t-primary'>
+                      <code className='min-w-0 break-all rounded bg-fill-2 px-6px py-2px text-12px'>
+                        {runtimeItem.workspacePath}
+                      </code>
+                      <Button
+                        size='mini'
+                        type='text'
+                        icon={<FolderOpen theme='outline' size={14} />}
+                        onClick={handleOpenWorkspace}
+                      >
+                        {t('common.runtimeTray.openWorkspace')}
+                      </Button>
+                    </dd>
+                  </>
+                )}
+                {runtimeItem.browserUrl && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.monitoringUrl')}</dt>
+                    <dd className='m-0 flex min-w-0 flex-wrap items-center gap-8px text-14px text-t-primary'>
+                      <code className='min-w-0 break-all rounded bg-fill-2 px-6px py-2px text-12px'>
+                        {runtimeItem.browserUrl}
+                      </code>
+                      <Button size='mini' type='text' onClick={() => handleOpenExternal(runtimeItem.browserUrl)}>
+                        {t('common.open')}
+                      </Button>
+                    </dd>
+                  </>
+                )}
+              </dl>
+
+              <div className='h-1px w-full bg-[var(--color-border-2)]' />
+              <h3 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.sourceRefs')}</h3>
+              {sourceRefs.length > 0 ? (
+                <div className='flex flex-col gap-12px'>
+                  {sourceRefs.map((ref, index) => (
+                    <div key={`${runtimeItem.itemId}-${index}`} className='flex flex-col gap-5px'>
+                      <div className='text-13px font-medium text-t-primary'>
+                        {getSourceRefLabel(ref, t('common.runtimeTray.sourceRef', { index: index + 1 }))}
+                      </div>
+                      <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-secondary'>
+                        {getSourceRefDetail(ref)}
+                      </code>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            )}
-          </section>
-        )}
-
-        <section className='flex flex-col gap-12px'>
-          <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.technical_details')}</h2>
-          <div className='h-1px w-full bg-[var(--color-border-2)]' />
-          <dl className='m-0 grid grid-cols-1 gap-14px md:grid-cols-[160px_minmax(0,1fr)]'>
-            <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.project')}</dt>
-            <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.projectLabel}</dd>
-            <dt className='text-13px text-t-secondary'>{t('common.status')}</dt>
-            <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.statusLabel}</dd>
-            {runtimeItem.studyId && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.study')}</dt>
-                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.studyId}</dd>
-              </>
-            )}
-            {runtimeItem.activeRunId && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.activeRun')}</dt>
-                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.activeRunId}</dd>
-              </>
-            )}
-            {runtimeItem.healthStatus && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.health')}</dt>
-                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.healthStatus}</dd>
-              </>
-            )}
-            {runtimeItem.updatedAt && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.updatedAt')}</dt>
-                <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>
-                  {new Date(runtimeItem.updatedAt).toLocaleString()}
-                </dd>
-              </>
-            )}
-            {runtimeItem.workspacePath && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.workspace')}</dt>
-                <dd className='m-0 flex min-w-0 flex-wrap items-center gap-8px text-14px text-t-primary'>
-                  <code className='min-w-0 break-all rounded bg-fill-2 px-6px py-2px text-12px'>
-                    {runtimeItem.workspacePath}
-                  </code>
-                  <Button
-                    size='mini'
-                    type='text'
-                    icon={<FolderOpen theme='outline' size={14} />}
-                    onClick={handleOpenWorkspace}
-                  >
-                    {t('common.runtimeTray.openWorkspace')}
-                  </Button>
-                </dd>
-              </>
-            )}
-            {runtimeItem.browserUrl && (
-              <>
-                <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.monitoringUrl')}</dt>
-                <dd className='m-0 flex min-w-0 flex-wrap items-center gap-8px text-14px text-t-primary'>
-                  <code className='min-w-0 break-all rounded bg-fill-2 px-6px py-2px text-12px'>
-                    {runtimeItem.browserUrl}
-                  </code>
-                  <Button size='mini' type='text' onClick={() => handleOpenExternal(runtimeItem.browserUrl)}>
-                    {t('common.open')}
-                  </Button>
-                </dd>
-              </>
-            )}
-          </dl>
-        </section>
-
-        {commands.length > 0 && (
-          <section className='flex flex-col gap-12px'>
-            <h2 className='m-0 text-13px font-medium text-t-secondary'>
-              {t('common.runtimeTray.recommendedCommands')}
-            </h2>
-            <div className='h-1px w-full bg-[var(--color-border-2)]' />
-            <div className='flex flex-col gap-10px'>
-              {commands.map((command) => (
-                <div key={`${command.step_id}-${command.command}`} className='flex flex-col gap-6px'>
-                  <div className='flex flex-wrap items-center justify-between gap-8px'>
-                    <div className='text-13px font-medium text-t-primary'>{command.title}</div>
-                    <Tag color='gray'>{command.surface_kind}</Tag>
-                  </div>
-                  <div className='flex min-w-0 flex-wrap items-center gap-8px'>
-                    <code className='min-w-0 flex-1 break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-secondary'>
-                      {command.command}
-                    </code>
-                    <Button
-                      size='mini'
-                      type='text'
-                      icon={<Copy theme='outline' size={14} />}
-                      onClick={() => handleCopy(command.command)}
-                    >
-                      {t('common.copy')}
-                    </Button>
-                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className='flex flex-col gap-12px'>
-          <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.sourceRefs')}</h2>
-          <div className='h-1px w-full bg-[var(--color-border-2)]' />
-          {sourceRefs.length > 0 ? (
-            <div className='flex flex-col gap-12px'>
-              {sourceRefs.map((ref, index) => (
-                <div key={`${runtimeItem.itemId}-${index}`} className='flex flex-col gap-5px'>
-                  <div className='text-13px font-medium text-t-primary'>
-                    {getSourceRefLabel(ref, t('common.runtimeTray.sourceRef', { index: index + 1 }))}
-                  </div>
-                  <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-secondary'>
-                    {getSourceRefDetail(ref)}
-                  </code>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty description={t('common.runtimeTray.noSourceRefs')} />
-          )}
-        </section>
+              ) : (
+                <Empty description={t('common.runtimeTray.noSourceRefs')} />
+              )}
+            </section>
+          </Collapse.Item>
+        </Collapse>
       </div>
     </div>
   );

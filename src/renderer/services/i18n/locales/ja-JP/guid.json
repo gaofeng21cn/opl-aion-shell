@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini is not configured, auto-switching to {{agent}}",
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "Try example prompts:",
+  "oplQuickEntries": {
+    "researchLabel": "研究",
+    "researchPrompt": "@MAS 医学研究タスクを進めてください: ",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA 発表またはスライド作成タスクを進めてください: ",
+    "grantLabel": "助成金",
+    "grantPrompt": "@MAG 助成金申請タスクを進めてください: "
+  },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "{{agent}} に切り替えました",
   "scanning": {

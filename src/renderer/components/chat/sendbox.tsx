@@ -14,7 +14,14 @@ import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommand
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
-import { buildAtFileInsertion, getActiveAtFileQuery, getAllAtFileQueries } from '@/renderer/utils/chat/atFileQuery';
+import {
+  buildAtFileInsertion,
+  filterAssistantMentionItems,
+  getActiveAtFileQuery,
+  getAllAtFileQueries,
+  isAssistantMentionItem,
+  type MentionMenuItem,
+} from '@/renderer/utils/chat/atFileQuery';
 import { getLastAssistantText } from '@/renderer/utils/chat/getLastAssistantText';
 import { emitter, type ReplyQuote, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems, type FileSelectionItem } from '@/renderer/utils/file/fileSelection';
@@ -366,11 +373,8 @@ const SendBox: React.FC<{
   const btwCommand = useBtwCommand(conversationContext?.conversationId, enableBtw);
   const btwQuestion = useMemo(() => extractBtwQuestion(input), [input]);
   const activeAtFileQuery = useMemo(() => {
-    if (!conversationContext?.workspace) {
-      return null;
-    }
     return getActiveAtFileQuery(input, caretPosition);
-  }, [caretPosition, conversationContext?.workspace, input]);
+  }, [caretPosition, input]);
   const activeAtFileTokenKey = useMemo(() => {
     if (!activeAtFileQuery) {
       return null;
@@ -494,12 +498,12 @@ const SendBox: React.FC<{
 
   const isCommandMenuOpen = conversationExport.isOpen || slashController.isOpen;
   const isAtFileMenuOpen =
-    Boolean(conversationContext?.workspace) &&
-    Boolean(activeAtFileQuery) &&
-    activeAtFileTokenKey !== dismissedAtFileToken &&
-    !isCommandMenuOpen;
+    Boolean(activeAtFileQuery) && activeAtFileTokenKey !== dismissedAtFileToken && !isCommandMenuOpen;
   const visibleAtFileMenuItems = useMemo(
-    () => filterWorkspaceMentionItems(workspaceMentionItems, deferredAtFileQuery),
+    () => [
+      ...filterAssistantMentionItems(deferredAtFileQuery),
+      ...filterWorkspaceMentionItems(workspaceMentionItems, deferredAtFileQuery),
+    ],
     [deferredAtFileQuery, workspaceMentionItems]
   );
   const isOverlayOpen = isCommandMenuOpen || btwCommand.isOpen || isAtFileMenuOpen;
@@ -888,12 +892,12 @@ const SendBox: React.FC<{
   );
 
   const insertSelectedAtFile = useCallback(
-    (item: FileOrFolderItem) => {
+    (item: MentionMenuItem) => {
       if (!activeAtFileQuery) {
         return;
       }
 
-      const nextInsertion = buildAtFileInsertion(item);
+      const nextInsertion = isAssistantMentionItem(item) ? item.insertText : buildAtFileInsertion(item);
       const nextValue = input.slice(0, activeAtFileQuery.start) + nextInsertion + input.slice(activeAtFileQuery.end);
       const nextCaret = activeAtFileQuery.start + nextInsertion.length;
       const insertedTokenKey = `${activeAtFileQuery.start}:${nextInsertion.slice(1)}`;
@@ -901,6 +905,19 @@ const SendBox: React.FC<{
 
       setDismissedAtFileToken(insertedTokenKey);
       setInput(nextValue);
+      if (isAssistantMentionItem(item)) {
+        requestAnimationFrame(() => {
+          const textarea = getTextareaElement();
+          if (!textarea) {
+            return;
+          }
+          textarea.focus();
+          textarea.setSelectionRange(nextCaret, nextCaret);
+          setCaretPosition(nextCaret);
+        });
+        return;
+      }
+
       if (path) {
         rememberSelectedItem(selectedItemByPathRef.current, item);
         mentionOwnedPathsRef.current.add(path);

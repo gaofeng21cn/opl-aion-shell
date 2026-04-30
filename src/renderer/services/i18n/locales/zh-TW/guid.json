@@ -6,6 +6,14 @@
   "autoSwitchToAgent": "Gemini is not configured, auto-switching to {{agent}}",
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "試試這些可點擊的案例提示詞：",
+  "oplQuickEntries": {
+    "researchLabel": "科研",
+    "researchPrompt": "@MAS 幫我推進一個醫學研究任務：",
+    "pptLabel": "PPT",
+    "pptPrompt": "@RCA 幫我推進一個簡報或投影片任務：",
+    "grantLabel": "基金",
+    "grantPrompt": "@MAG 幫我推進一個基金申請任務："
+  },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "已切換到 {{agent}}",
   "scanning": {

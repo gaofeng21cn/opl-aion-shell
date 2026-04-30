@@ -64,6 +64,23 @@ type RuntimeTraySnapshot = {
   source_refs: Array<Record<string, unknown>>;
 };
 
+type RecentConversation = {
+  id: string;
+  title: string;
+};
+
+type TrayContextMenuState = {
+  recentConversations: RecentConversation[];
+  runtimeSnapshot: RuntimeTraySnapshot;
+  desktopPetEnabled: boolean;
+};
+
+type TrayClickEvent = Electron.KeyboardEvent & {
+  event?: {
+    button?: number;
+  };
+};
+
 const RUNTIME_SNAPSHOT_COMMAND = 'command -v opl >/dev/null && OPL_OUTPUT=json opl runtime snapshot --json';
 const RUNTIME_SNAPSHOT_TIMEOUT_MS = 20_000;
 
@@ -80,6 +97,18 @@ const unavailableRuntimeTraySnapshot = (): RuntimeTraySnapshot => ({
   recent_items: [],
   source_refs: [],
 });
+
+let lastRuntimeTraySnapshot: RuntimeTraySnapshot | null = null;
+let lastRecentConversations: RecentConversation[] = [];
+let lastDesktopPetEnabled = false;
+let runtimeTraySnapshotRefreshInFlight: Promise<void> | null = null;
+
+const getCachedRuntimeTraySnapshot = (): RuntimeTraySnapshot => {
+  if (!lastRuntimeTraySnapshot) {
+    lastRuntimeTraySnapshot = unavailableRuntimeTraySnapshot();
+  }
+  return lastRuntimeTraySnapshot;
+};
 
 export const setTrayMainWindow = (win: BrowserWindow): void => {
   mainWindowRef = win;
@@ -218,37 +247,40 @@ const isDesktopPetEnabled = async (): Promise<boolean> => {
   }
 };
 
+const getRecentConversations = async (): Promise<RecentConversation[]> => {
+  try {
+    const { getDatabase } = await import('@process/services/database');
+    const db = await getDatabase();
+    const result = db.getUserConversations(undefined, 0, 5);
+    return (result.data || []).slice(0, 5).map((conv) => ({
+      id: conv.id,
+      title: conv.name || i18n.t('common.tray.untitled'),
+    }));
+  } catch {
+    return [];
+  }
+};
+
+const getRunningTasksCount = (): number => {
+  try {
+    return workerTaskManager.listTasks().length;
+  } catch {
+    return 0;
+  }
+};
+
 /**
- * Build tray context menu (async to support dynamic content).
+ * Build tray context menu from already available state.
+ *
+ * This stays synchronous so the app can attach a usable tray menu before
+ * slower runtime probes, database reads, or settings reads finish.
  */
-const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
-  const getRecentConversations = async (): Promise<Array<{ id: string; title: string }>> => {
-    try {
-      const { getDatabase } = await import('@process/services/database');
-      const db = await getDatabase();
-      const result = db.getUserConversations(undefined, 0, 5);
-      return (result.data || []).slice(0, 5).map((conv) => ({
-        id: conv.id,
-        title: conv.name || i18n.t('common.tray.untitled'),
-      }));
-    } catch {
-      return [];
-    }
-  };
-
-  const getRunningTasksCount = (): number => {
-    try {
-      return workerTaskManager.listTasks().length;
-    } catch {
-      return 0;
-    }
-  };
-
-  const recentConversations = await getRecentConversations();
+const buildTrayContextMenuFromState = ({
+  recentConversations,
+  runtimeSnapshot,
+  desktopPetEnabled,
+}: TrayContextMenuState): Electron.Menu => {
   const runningTasksCount = getRunningTasksCount();
-  const runtimeSnapshot = (await readRuntimeTraySnapshot()) ?? unavailableRuntimeTraySnapshot();
-  const desktopPetEnabled = await isDesktopPetEnabled();
-
   const showAndFocus = () => {
     if (mainWindowRef && !mainWindowRef.isDestroyed()) {
       if (process.platform === 'darwin' && app.dock) {
@@ -448,6 +480,61 @@ const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
   return Menu.buildFromTemplate(template);
 };
 
+const buildTrayContextMenu = async (): Promise<Electron.Menu> => {
+  const [recentConversations, desktopPetEnabled] = await Promise.all([getRecentConversations(), isDesktopPetEnabled()]);
+  lastRecentConversations = recentConversations;
+  lastDesktopPetEnabled = desktopPetEnabled;
+  return buildTrayContextMenuFromState({
+    recentConversations,
+    runtimeSnapshot: getCachedRuntimeTraySnapshot(),
+    desktopPetEnabled,
+  });
+};
+
+const setImmediateTrayContextMenu = (): void => {
+  tray?.setContextMenu(
+    buildTrayContextMenuFromState({
+      recentConversations: lastRecentConversations,
+      runtimeSnapshot: getCachedRuntimeTraySnapshot(),
+      desktopPetEnabled: lastDesktopPetEnabled,
+    })
+  );
+};
+
+const refreshTrayMenuFromCachedState = async (): Promise<void> => {
+  if (!tray) {
+    return;
+  }
+  const menu = await buildTrayContextMenu();
+  tray?.setContextMenu(menu);
+};
+
+const scheduleRuntimeTraySnapshotRefresh = (): void => {
+  if (runtimeTraySnapshotRefreshInFlight) {
+    return;
+  }
+
+  runtimeTraySnapshotRefreshInFlight = (async () => {
+    const runtimeSnapshot = await readRuntimeTraySnapshot();
+    if (!runtimeSnapshot) {
+      lastRuntimeTraySnapshot = unavailableRuntimeTraySnapshot();
+      setImmediateTrayContextMenu();
+      await refreshTrayMenuFromCachedState();
+      return;
+    }
+
+    lastRuntimeTraySnapshot = runtimeSnapshot;
+    setImmediateTrayContextMenu();
+    await refreshTrayMenuFromCachedState();
+  })()
+    .catch((error) => {
+      console.warn('[Tray] Failed to refresh OPL runtime snapshot:', error);
+    })
+    .finally(() => {
+      runtimeTraySnapshotRefreshInFlight = null;
+    });
+};
+
 /**
  * Create system tray (idempotent — no-op if already exists).
  */
@@ -460,7 +547,8 @@ export const createOrUpdateTray = (): void => {
     tray = new Tray(icon);
     tray.setToolTip('One Person Lab');
     console.info('[Tray] Created One Person Lab tray entry');
-    void buildTrayContextMenu().then((menu) => tray?.setContextMenu(menu));
+    setImmediateTrayContextMenu();
+    scheduleRuntimeTraySnapshotRefresh();
 
     tray.on('double-click', () => {
       if (mainWindowRef && !mainWindowRef.isDestroyed()) {
@@ -475,9 +563,10 @@ export const createOrUpdateTray = (): void => {
       }
     });
 
-    tray.on('click', (event: any) => {
+    tray.on('click', (event: TrayClickEvent) => {
       if (event.event?.button === 2) {
-        void buildTrayContextMenu().then((menu) => tray?.setContextMenu(menu));
+        void refreshTrayMenu();
+        scheduleRuntimeTraySnapshotRefresh();
       }
     });
   } catch (err) {
@@ -490,8 +579,7 @@ export const createOrUpdateTray = (): void => {
  */
 export const refreshTrayMenu = async (): Promise<void> => {
   if (tray) {
-    const menu = await buildTrayContextMenu();
-    tray.setContextMenu(menu);
+    await refreshTrayMenuFromCachedState();
   }
 };
 
