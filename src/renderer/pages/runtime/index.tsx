@@ -173,9 +173,7 @@ const getSnapshotActionCounts = (snapshot: RuntimeTraySnapshot) => {
     },
     { user: 0, opl: 0, infrastructure: 0 }
   );
-  counts.opl += snapshot.attention_items.filter(
-    (item) => !item.requires_user_action && !item.action_owner
-  ).length;
+  counts.opl += snapshot.attention_items.filter((item) => !item.requires_user_action && !item.action_owner).length;
   return counts;
 };
 
@@ -431,11 +429,11 @@ const RuntimeTrayItemPage: React.FC = () => {
 
   const snapshotGroups = snapshot ? getSnapshotGroups(snapshot) : null;
   const snapshotVisibleItemCount = snapshotGroups
-    ? snapshotGroups.user.length
-      + snapshotGroups.opl.length
-      + snapshotGroups.running.length
-      + snapshotGroups.infrastructure.length
-      + snapshotGroups.recent.length
+    ? snapshotGroups.user.length +
+      snapshotGroups.opl.length +
+      snapshotGroups.running.length +
+      snapshotGroups.infrastructure.length +
+      snapshotGroups.recent.length
     : 0;
 
   if (!runtimeItem) {

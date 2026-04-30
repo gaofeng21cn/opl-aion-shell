@@ -12,6 +12,11 @@ type OplFirstLaunchPreparationState = {
   messageOwner: symbol | null;
 };
 
+type OplModuleReconcileState = {
+  appVersion: string;
+  promise: Promise<void>;
+};
+
 const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
 const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
@@ -40,6 +45,7 @@ type OplSystemInitializePayload = {
 };
 
 let preparationState: OplFirstLaunchPreparationState | null = null;
+let moduleReconcileState: OplModuleReconcileState | null = null;
 
 const getFailureMessage = (result: { stdout: string; stderr: string }): string | undefined =>
   result.stderr || result.stdout || undefined;
@@ -56,13 +62,9 @@ const parseInitializePayload = (stdout: string): OplSystemInitializePayload['sys
 const needsRecommendedSkillInstall = (initialize: OplSystemInitializePayload['system_initialize'] | null): boolean =>
   (initialize?.recommended_skills?.summary?.missing ?? 0) > 0;
 
-const readPreparedState = async (appVersion?: string): Promise<boolean> => {
+const readPreparedState = async (): Promise<boolean> => {
   const preparedAt = await ConfigStorage.get(PREPARED_AT_CONFIG_KEY);
-  if (!preparedAt) return false;
-  if (!appVersion) return true;
-
-  const reconciledVersion = await ConfigStorage.get(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY);
-  return reconciledVersion === appVersion;
+  return Boolean(preparedAt);
 };
 
 const reconcileModulesForAppVersion = async (appVersion?: string): Promise<OplFirstLaunchPreparationResult | null> => {
@@ -78,6 +80,28 @@ const reconcileModulesForAppVersion = async (appVersion?: string): Promise<OplFi
 
   await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, appVersion);
   return null;
+};
+
+const startModuleReconcileForAppVersion = (appVersion?: string): void => {
+  const normalizedVersion = appVersion?.trim();
+  if (!normalizedVersion) return;
+  if (moduleReconcileState?.appVersion === normalizedVersion) return;
+
+  const promise = reconcileModulesForAppVersion(normalizedVersion)
+    .then((result) => {
+      if (result?.status === 'failed') {
+        console.warn('[OPL] Module reconcile failed after App version change:', result.message);
+      }
+    })
+    .catch((error) => {
+      console.warn('[OPL] Module reconcile failed after App version change:', error);
+    })
+    .finally(() => {
+      if (moduleReconcileState?.appVersion === normalizedVersion) {
+        moduleReconcileState = null;
+      }
+    });
+  moduleReconcileState = { appVersion: normalizedVersion, promise };
 };
 
 const readInitializeState = async (
@@ -111,7 +135,8 @@ const runOplFirstLaunchEnvironmentPreparation = async (
   options: OplFirstLaunchPreparationOptions = {}
 ): Promise<OplFirstLaunchPreparationResult> => {
   try {
-    if (await readPreparedState(options.appVersion)) {
+    if (await readPreparedState()) {
+      startModuleReconcileForAppVersion(options.appVersion);
       return { status: 'already-prepared' };
     }
 
@@ -134,10 +159,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
       readyState = preparedState;
     }
 
-    const reconcileResult = await reconcileModulesForAppVersion(options.appVersion);
-    if (reconcileResult) {
-      return reconcileResult;
-    }
+    startModuleReconcileForAppVersion(options.appVersion);
 
     return options.appVersion ? { status: 'prepared' } : readyState;
   } catch (error) {
@@ -179,4 +201,5 @@ export const releaseOplFirstLaunchPreparationMessage = (owner: symbol): void => 
 
 export const resetOplFirstLaunchPreparationStateForTests = (): void => {
   preparationState = null;
+  moduleReconcileState = null;
 };

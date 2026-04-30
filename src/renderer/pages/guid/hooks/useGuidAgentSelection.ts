@@ -6,7 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import { CODEX_MODE_FULL_AUTO_NO_SANDBOX } from '@/common/types/codex/codexModes';
-import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
 import type { IProvider } from '@/common/config/storage';
 import { ConfigStorage } from '@/common/config/storage';
 import type { AcpBackendAll, AcpSessionConfigOption } from '@/common/types/acpTypes';
@@ -35,6 +34,7 @@ export type GuidAgentSelectionResult = {
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
   currentAcpCachedModelInfo: AcpModelInfo | null;
+  systemCodexConfigLabel: string | null;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   cachedConfigOptions: AcpSessionConfigOption[];
   pendingConfigOptions: Record<string, string>;
@@ -70,6 +70,12 @@ type UseGuidAgentSelectionOptions = {
 };
 
 export type OplInteractionLayer = 'codex' | 'hermes';
+
+type SystemCodexConfig = {
+  model?: string;
+  reasoningEffort?: string;
+  sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
+};
 
 export function normalizeOplInteractionLayer(value: unknown): OplInteractionLayer {
   return value === 'hermes' ? 'hermes' : 'codex';
@@ -111,14 +117,11 @@ export const useGuidAgentSelection = ({
   const initialRestoreDoneRef = useRef(false);
   const [acpCachedModels, setAcpCachedModels] = useState<Record<string, AcpModelInfo>>({});
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
+  const [systemCodexConfig, setSystemCodexConfig] = useState<SystemCodexConfig>({});
   const [cachedConfigOptions, setCachedConfigOptions] = useState<AcpSessionConfigOption[]>([]);
   const [pendingConfigOptions, setPendingConfigOptions] = useState<Record<string, string>>({});
 
-  const readSystemCodexConfig = useCallback(async (): Promise<{
-    model?: string;
-    reasoningEffort?: string;
-    sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
-  }> => {
+  const readSystemCodexConfig = useCallback(async (): Promise<SystemCodexConfig> => {
     try {
       const home = await ipcBridge.application.getPath.invoke({ name: 'home' });
       const configPath = `${home}/.codex/config.toml`;
@@ -146,13 +149,14 @@ export const useGuidAgentSelection = ({
     const syncSystemCodexDefaults = async () => {
       const systemConfig = await readSystemCodexConfig();
       if (cancelled) return;
+      setSystemCodexConfig(systemConfig);
 
       const acpConfig = (await ConfigStorage.get('acp.config')) || {};
-      const codexConfig = acpConfig.codex || {};
+      const codexConfig = (acpConfig.codex || {}) as Record<string, unknown>;
+      const { preferredModelId: _preferredModelId, ...codexConfigWithoutModel } = codexConfig;
       const nextCodexConfig = {
-        ...codexConfig,
+        ...codexConfigWithoutModel,
         preferredMode: CODEX_MODE_FULL_AUTO_NO_SANDBOX,
-        preferredModelId: systemConfig.model || codexConfig.preferredModelId,
       };
       await ConfigStorage.set('acp.config', { ...acpConfig, codex: nextCodexConfig });
 
@@ -218,7 +222,7 @@ export const useGuidAgentSelection = ({
     _setSelectedAcpModel((prev) => {
       const newModelId = typeof modelId === 'function' ? modelId(prev) : modelId;
       const agentKey = selectedAgentRef.current;
-      if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
+      if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom' && agentKey !== 'codex' && newModelId) {
         void savePreferredModelId(agentKey, newModelId);
       }
       return newModelId;
@@ -459,10 +463,7 @@ export const useGuidAgentSelection = ({
           | string
           | undefined;
         if (backend === 'codex') {
-          const systemConfig = await readSystemCodexConfig();
-          if (!cancelled) {
-            _setSelectedAcpModel(systemConfig.model || preferred || acpCachedModels[backend]?.currentModelId || null);
-          }
+          _setSelectedAcpModel(null);
         } else if (preferred) {
           _setSelectedAcpModel(preferred);
         } else {
@@ -481,7 +482,7 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType, readSystemCodexConfig]);
+  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType]);
 
   // Read preferred mode or fallback to legacy yoloMode config
   useEffect(() => {
@@ -551,23 +552,20 @@ export const useGuidAgentSelection = ({
         ? 'custom'
         : selectedAgentKey;
     const cached = acpCachedModels[backend];
+    if (backend === 'codex') {
+      return null;
+    }
     if (cached) return cached;
 
-    // Fallback: when no cached models exist for codex (e.g., first launch or stale cache),
-    // use the hardcoded default list so the Guid page shows a model selector immediately.
-    if (backend === 'codex' && DEFAULT_CODEX_MODELS.length > 0) {
-      const selectedModel = selectedAcpModel || DEFAULT_CODEX_MODELS[0].id;
-      return {
-        source: 'models' as const,
-        currentModelId: selectedModel,
-        currentModelLabel: selectedModel,
-        availableModels: DEFAULT_CODEX_MODELS.map((m) => ({ id: m.id, label: m.label })),
-        canSwitch: true,
-      } satisfies AcpModelInfo;
-    }
-
     return null;
-  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType, readSystemCodexConfig]);
+  }, [selectedAgentKey, acpCachedModels, isPresetAgent, currentEffectiveAgentInfo.agentType]);
+
+  const systemCodexConfigLabel = useMemo(() => {
+    const parts = [systemCodexConfig.model, systemCodexConfig.reasoningEffort].filter(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
+    );
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }, [systemCodexConfig.model, systemCodexConfig.reasoningEffort]);
 
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
@@ -590,6 +588,7 @@ export const useGuidAgentSelection = ({
     selectedAcpModel,
     setSelectedAcpModel,
     currentAcpCachedModelInfo,
+    systemCodexConfigLabel,
     currentEffectiveAgentInfo,
     cachedConfigOptions,
     pendingConfigOptions,

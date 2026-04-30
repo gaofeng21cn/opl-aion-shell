@@ -8,7 +8,6 @@ import { ConfigStorage } from '@/common/config/storage';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { TProviderWithModel } from '@/common/config/storage';
 import type { AcpBackend } from '@/common/types/acpTypes';
-import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/common/utils/presetAssistantResources';
 import {
@@ -60,6 +59,10 @@ async function resolvePreferredMode(backend: string): Promise<string | undefined
 }
 
 async function resolvePreferredAcpModelId(backend: string): Promise<string | undefined> {
+  if (backend === 'codex') {
+    return undefined;
+  }
+
   const acpConfig = await ConfigStorage.get('acp.config');
   const backendConfig = acpConfig?.[backend as AcpBackend] as { preferredModelId?: string } | undefined;
   const preferredModelId = backendConfig?.preferredModelId;
@@ -71,10 +74,6 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   const cachedModelId = cachedModels?.[backend]?.currentModelId;
   if (typeof cachedModelId === 'string' && cachedModelId.trim().length > 0) {
     return cachedModelId;
-  }
-
-  if (backend === 'codex' && DEFAULT_CODEX_MODELS.length > 0) {
-    return DEFAULT_CODEX_MODELS[0]?.id;
   }
 
   return undefined;

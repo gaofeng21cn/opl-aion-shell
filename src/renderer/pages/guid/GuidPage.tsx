@@ -431,6 +431,8 @@ const GuidPage: React.FC = () => {
   // Build the model selector node
   const modelSelectorNode = (
     <GuidModelSelector
+      isCodexMode={agentSelection.currentEffectiveAgentInfo.agentType === 'codex'}
+      codexDefaultConfigLabel={agentSelection.systemCodexConfigLabel}
       isGeminiMode={isGeminiMode}
       modelList={modelSelection.modelList}
       currentModel={modelSelection.currentModel}

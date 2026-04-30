@@ -299,6 +299,22 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows the system reconcile-modules command for App-version module coordination', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"system_action":{"status":"completed"}}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'reconcile-modules'] });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'reconcile-modules'")],
+        expect.objectContaining({ timeout: 30 * 60_000 }),
+        expect.any(Function)
+      );
+    });
+
     it('bootstraps the CLI through the OPL installer when opl is missing', async () => {
       const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
       execFileMock

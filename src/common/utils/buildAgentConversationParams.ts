@@ -118,7 +118,9 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   }
 
   if (sessionMode) extra.sessionMode = sessionMode;
-  if (currentModelId) extra.currentModelId = currentModelId;
+  if (currentModelId && normalizedBackend !== 'codex' && effectivePresetType !== 'codex') {
+    extra.currentModelId = currentModelId;
+  }
 
   return {
     type,

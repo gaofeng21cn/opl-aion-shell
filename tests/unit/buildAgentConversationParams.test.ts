@@ -52,6 +52,7 @@ describe('buildAgentConversationParams', () => {
       agentName: 'Codex',
       workspace: '/workspace',
       model: mockModel,
+      currentModelId: 'gpt-5.3-codex',
     });
 
     expect(params).toEqual({
@@ -68,6 +69,7 @@ describe('buildAgentConversationParams', () => {
     });
     expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
     expect(params.extra.presetContext).toContain('优先按 MAS 路线处理');
+    expect(params.extra.currentModelId).toBeUndefined();
   });
 
   it('normalizes retired Gemini preset params to Codex ACP', () => {

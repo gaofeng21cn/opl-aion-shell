@@ -19,6 +19,9 @@ import { useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 
 type GuidModelSelectorProps = {
+  isCodexMode?: boolean;
+  codexDefaultConfigLabel?: string | null;
+
   // Gemini model state
   isGeminiMode: boolean;
   modelList: IProvider[];
@@ -33,6 +36,8 @@ type GuidModelSelectorProps = {
 };
 
 const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
+  isCodexMode = false,
+  codexDefaultConfigLabel,
   isGeminiMode,
   modelList,
   currentModel,
@@ -45,6 +50,9 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const defaultModelLabel = t('common.defaultModel');
+  const codexDefaultLabel = codexDefaultConfigLabel
+    ? `${t('conversation.welcome.codexDefaultConfigPrefix')}${codexDefaultConfigLabel}`
+    : t('conversation.welcome.codexDefaultConfigFallback');
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useSWR<IProvider[]>('model.config', () => ipcBridge.mode.getModelConfig.invoke());
@@ -103,6 +111,24 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     () => formatAcpModelDisplayLabel(acpButtonLabel, acpSourceLabel),
     [acpButtonLabel, acpSourceLabel]
   );
+
+  if (isCodexMode) {
+    return (
+      <Tooltip content={t('conversation.welcome.codexDefaultConfigTooltip')} position='top'>
+        <Button
+          className={'sendbox-model-btn guid-config-btn'}
+          shape='round'
+          size='small'
+          style={{ cursor: 'default' }}
+        >
+          <span className='flex items-center gap-6px min-w-0'>
+            <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+            <span>{codexDefaultLabel}</span>
+          </span>
+        </Button>
+      </Tooltip>
+    );
+  }
 
   if (isGeminiMode) {
     return (

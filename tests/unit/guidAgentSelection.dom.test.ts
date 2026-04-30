@@ -18,14 +18,14 @@ const configStorageMock = vi.hoisted(() => ({
   set: vi.fn().mockResolvedValue(undefined),
 }));
 
-const defaultCodexModels = vi.hoisted(() => [] as Array<{ id: string; label: string }>);
-
 const ipcMock = vi.hoisted(() => ({
   getAvailableAgents: vi.fn(),
   refreshCustomAgents: vi.fn().mockResolvedValue(undefined),
   getCustomAgents: vi.fn(),
   getAssistants: vi.fn(),
   remoteAgentList: vi.fn().mockResolvedValue([]),
+  getPath: vi.fn().mockResolvedValue('/Users/test'),
+  readFile: vi.fn().mockResolvedValue('model = "gpt-5.5"\nmodel_reasoning_effort = "xhigh"\n'),
 }));
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,12 @@ vi.mock('../../src/common', () => ({
     remoteAgent: {
       list: { invoke: ipcMock.remoteAgentList },
     },
+    application: {
+      getPath: { invoke: ipcMock.getPath },
+    },
+    fs: {
+      readFile: { invoke: ipcMock.readFile },
+    },
   },
 }));
 
@@ -53,10 +59,6 @@ vi.mock('../../src/common/config/storage', () => ({
 
 vi.mock('../../src/common/config/presets/assistantPresets', () => ({
   ASSISTANT_PRESETS: [],
-}));
-
-vi.mock('../../src/common/types/codex/codexModels', () => ({
-  DEFAULT_CODEX_MODELS: defaultCodexModels,
 }));
 
 let swrData: Record<string, unknown> = {};
@@ -196,7 +198,6 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetSwrCache();
-    defaultCodexModels.length = 0;
     setupMocks();
   });
 
@@ -393,8 +394,7 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
     expect(configStorageMock.set).toHaveBeenCalledWith('guid.lastSelectedAgent', 'gemini');
   });
 
-  it('uses default codex models when codex has no cached list', async () => {
-    defaultCodexModels.push({ id: 'gpt-5', label: 'GPT-5' }, { id: 'gpt-5-mini', label: 'GPT-5 Mini' });
+  it('uses system Codex config as read-only display state instead of synthetic model choices', async () => {
     setupMocks({ cachedModels: {}, acpConfig: {} });
 
     const { result } = renderHook(() => useGuidAgentSelection(hookOptions));
@@ -408,13 +408,14 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.currentAcpCachedModelInfo?.currentModelId).toBe('gpt-5');
+      expect(result.current.selectedAcpModel).toBeNull();
+      expect(result.current.systemCodexConfigLabel).toBe('gpt-5.5 · xhigh');
     });
 
-    expect(result.current.currentAcpCachedModelInfo?.availableModels).toEqual([
-      { id: 'gpt-5', label: 'GPT-5' },
-      { id: 'gpt-5-mini', label: 'GPT-5 Mini' },
-    ]);
+    expect(result.current.currentAcpCachedModelInfo).toBeNull();
+    expect(configStorageMock.set).toHaveBeenCalledWith('acp.config', {
+      codex: { preferredMode: 'yoloNoSandbox' },
+    });
   });
 
   it('prefers the configured OPL interaction layer when no saved agent exists', async () => {

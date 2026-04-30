@@ -22,7 +22,14 @@ vi.mock('../../src/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback || key,
+    t: (key: string, fallback?: string) => {
+      if (key === 'conversation.welcome.codexDefaultConfigPrefix') return 'Codex Default: ';
+      if (key === 'conversation.welcome.codexDefaultConfigFallback') return 'Codex Default';
+      if (key === 'conversation.welcome.codexDefaultConfigTooltip') {
+        return 'OPL uses the system Codex configuration for this conversation.';
+      }
+      return fallback || key;
+    },
   }),
 }));
 
@@ -64,6 +71,35 @@ describe('GuidModelSelector', () => {
     );
 
     expect(screen.getAllByText('Claude Opus 4.6 · cc-switch').length).toBeGreaterThan(0);
+  });
+
+  it('shows Codex system defaults as read-only instead of model choices', () => {
+    render(
+      <GuidModelSelector
+        isCodexMode
+        codexDefaultConfigLabel='gpt-5.5 · xhigh'
+        isGeminiMode={false}
+        modelList={[]}
+        currentModel={undefined}
+        setCurrentModel={vi.fn(async () => {})}
+        geminiModeLookup={new Map()}
+        currentAcpCachedModelInfo={{
+          currentModelId: 'gpt-5.3-codex',
+          currentModelLabel: 'gpt-5.3-codex',
+          availableModels: [
+            { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
+            { id: 'gpt-5.2-codex', label: 'gpt-5.2-codex' },
+          ],
+          canSwitch: true,
+          source: 'models',
+        }}
+        selectedAcpModel={'gpt-5.3-codex'}
+        setSelectedAcpModel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('Codex Default: gpt-5.5 · xhigh')).toBeInTheDocument();
+    expect(screen.queryByText('gpt-5.3-codex')).not.toBeInTheDocument();
   });
 
   it('shows the selected model and source when ACP switching is enabled', () => {
