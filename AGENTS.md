@@ -2,6 +2,16 @@
 
 All contributors (human and AI) must follow [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. ([Chinese version](CONTRIBUTING.zh.md))
 
+## OPL Fork Remote Boundary
+
+This checkout is the One Person Lab GUI shell fork, not the upstream AionUI mainline.
+
+- `gaofeng/main` is the OPL shell product mainline.
+- `origin/main` points to upstream `iOfficeAI/AionUi` and is only an upstream sync source.
+- Start OPL product work, bug fixes, release work, and worktrees from `gaofeng/main`.
+- Do not create OPL feature branches or worktrees from `origin/main`; that starts from the upstream AionUI baseline and drops OPL shell changes.
+- When syncing upstream AionUI, first create an explicit upstream-sync branch and then merge or replay the vetted delta back into the OPL mainline.
+
 ## Code Conventions
 
 ### File & Directory Structure

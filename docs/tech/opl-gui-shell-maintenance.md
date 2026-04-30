@@ -6,6 +6,10 @@ This repository is the current One Person Lab GUI shell. It keeps the AionUI sou
 
 ## Fork Boundary
 
+- Treat `gaofeng/main` as the product mainline for OPL shell work. In this local checkout, `origin` is upstream `iOfficeAI/AionUi`; `origin/main` is not the OPL product branch.
+- Before creating a feature worktree, confirm `git remote -v` and branch tracking. OPL bug fixes, release changes, environment management changes, and product UI changes must branch from `gaofeng/main`.
+- Use `origin/main` only as an upstream sync input. Upstream sync work should live on an explicit upstream-sync branch, then be reviewed and absorbed into the OPL mainline.
+- If a worktree was accidentally created from `origin/main`, discard that worktree and recreate it from `gaofeng/main` before editing. Do not try to patch OPL changes onto an upstream-baseline worktree in place.
 - Do not delete upstream source modules to reduce package size. Hide or bypass unused features in the OPL adapter layer and exclude unused runtime files at packaging time.
 - Do not copy `opl install`, module management, skill synchronization, or runtime truth into renderer-only code. The GUI calls OPL CLI-backed machine-readable surfaces.
 - Do not remove dependencies from `package.json` only because the OPL package excludes their runtime files. Source compatibility with upstream should remain cheap to rebase.
