@@ -1527,6 +1527,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.currentVersion'
   | 'settings.oplEnvironmentPage.description'
   | 'settings.oplEnvironmentPage.diagnostics.codexCandidate'
+  | 'settings.oplEnvironmentPage.diagnostics.issues.codexCliCompatiblePathDuplicate'
   | 'settings.oplEnvironmentPage.diagnostics.issues.codexCliMissing'
   | 'settings.oplEnvironmentPage.diagnostics.issues.codexCliPathVersionConflict'
   | 'settings.oplEnvironmentPage.diagnostics.issues.codexCliVersionOutdated'

@@ -170,7 +170,8 @@ const CODEX_ISSUE_KEYS: Record<string, string> = {
   codex_cli_version_outdated: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliVersionOutdated',
   codex_cli_version_unknown: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliVersionUnknown',
   codex_cli_path_version_conflict: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliPathVersionConflict',
-  codex_cli_path_version_conflict_nonblocking: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliPathVersionConflict',
+  codex_cli_path_version_conflict_nonblocking:
+    'settings.oplEnvironmentPage.diagnostics.issues.codexCliCompatiblePathDuplicate',
 };
 
 function parseModules(stdout: string): OplModuleStatus[] {

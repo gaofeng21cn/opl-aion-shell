@@ -138,10 +138,16 @@ describe('SystemSettings OPL environment section', () => {
                   version_status: 'compatible',
                 },
                 {
-                  path: '/Applications/One Person Lab.app/Contents/Resources/codex',
+                  path: '/usr/local/bin/codex',
                   selected: false,
-                  parsed_version: '0.121.0',
-                  version_status: 'outdated',
+                  parsed_version: '0.125.0',
+                  version_status: 'compatible',
+                },
+                {
+                  path: '/Users/gaofeng/.nvm/versions/node/v22.16.0/bin/codex',
+                  selected: false,
+                  parsed_version: '0.125.0',
+                  version_status: 'compatible',
                 },
               ],
               health_status: 'ready',
@@ -168,9 +174,13 @@ describe('SystemSettings OPL environment section', () => {
       await screen.findByText(/settings\.oplEnvironmentPage\.selectedBinary:\/opt\/homebrew\/bin\/codex/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliPathVersionConflict/)
+      screen.getByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliCompatiblePathDuplicate/)
     ).toBeInTheDocument();
-    expect(screen.getByText(/\/Applications\/One Person Lab\.app\/Contents\/Resources\/codex/)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliPathVersionConflict/)
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/\/usr\/local\/bin\/codex/)).toBeInTheDocument();
+    expect(screen.getByText(/\/Users\/gaofeng\/\.nvm\/versions\/node\/v22\.16\.0\/bin\/codex/)).toBeInTheDocument();
     expect(
       screen.getByText('settings.oplEnvironmentPage.updateSummary:Hermes 0.10.0 is available')
     ).toBeInTheDocument();
@@ -178,6 +188,55 @@ describe('SystemSettings OPL environment section', () => {
       screen.getByText('settings.oplEnvironmentPage.latestVersion:settings.oplEnvironmentPage.items.hermes.latest:')
     ).toBeInTheDocument();
     expect(screen.queryByText('attention_needed')).not.toBeInTheDocument();
+  });
+
+  it('keeps blocking Codex path conflicts visible as version conflicts', async () => {
+    mockRunOplCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        system_initialize: {
+          core_engines: {
+            codex: {
+              installed: true,
+              version: 'codex-cli 0.125.0',
+              parsed_version: '0.125.0',
+              minimum_version: '0.125.0',
+              version_status: 'compatible',
+              binary_path: '/opt/homebrew/bin/codex',
+              binary_source: 'path',
+              candidates: [
+                {
+                  path: '/opt/homebrew/bin/codex',
+                  selected: true,
+                  parsed_version: '0.125.0',
+                  version_status: 'compatible',
+                },
+                {
+                  path: '/Applications/One Person Lab.app/Contents/Resources/codex',
+                  selected: false,
+                  parsed_version: '0.121.0',
+                  version_status: 'outdated',
+                },
+              ],
+              health_status: 'ready',
+              issues: [],
+              diagnostics: ['codex_cli_path_version_conflict'],
+            },
+          },
+          domain_modules: { modules: [] },
+        },
+      }),
+      stderr: '',
+    });
+
+    render(<SystemSettings />);
+
+    expect(
+      await screen.findByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliPathVersionConflict/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliCompatiblePathDuplicate/)
+    ).not.toBeInTheDocument();
   });
 
   it('runs OPL system update before downloading an app update without installing it', async () => {

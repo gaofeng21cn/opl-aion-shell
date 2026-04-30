@@ -957,6 +957,7 @@
         "codexCliVersionOutdated": "当前选择的 Codex CLI 低于最低版本",
         "codexCliVersionUnknown": "无法解析当前选择的 Codex CLI 版本",
         "codexCliPathVersionConflict": "PATH 中存在其他 Codex CLI 版本",
+        "codexCliCompatiblePathDuplicate": "PATH 中存在多个兼容的 Codex CLI 入口",
         "unknown": "Codex 诊断：{{issue}}"
       }
     },

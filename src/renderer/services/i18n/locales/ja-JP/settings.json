@@ -958,6 +958,7 @@
         "codexCliVersionOutdated": "Selected Codex CLI is below the minimum version",
         "codexCliVersionUnknown": "Selected Codex CLI version could not be parsed",
         "codexCliPathVersionConflict": "PATH contains another Codex CLI version",
+        "codexCliCompatiblePathDuplicate": "PATH contains multiple compatible Codex CLI entries",
         "unknown": "Codex diagnostic: {{issue}}"
       }
     },
