@@ -51,11 +51,21 @@ type CoreEngineStatus = {
   version_status?: string | null;
   update_available?: boolean;
   update_summary?: string | null;
+  binary_path?: string | null;
+  binary_source?: string | null;
+  candidates?: Array<{
+    path?: string | null;
+    selected?: boolean;
+    version?: string | null;
+    parsed_version?: string | null;
+    version_status?: string | null;
+  }>;
   default_model?: string | null;
   default_reasoning_effort?: string | null;
   provider_base_url?: string | null;
   health_status?: string | null;
   issues?: string[];
+  diagnostics?: string[];
 };
 
 type CoreEngines = {
@@ -155,6 +165,14 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   },
 ];
 
+const CODEX_ISSUE_KEYS: Record<string, string> = {
+  codex_cli_missing: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliMissing',
+  codex_cli_version_outdated: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliVersionOutdated',
+  codex_cli_version_unknown: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliVersionUnknown',
+  codex_cli_path_version_conflict: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliPathVersionConflict',
+  codex_cli_path_version_conflict_nonblocking: 'settings.oplEnvironmentPage.diagnostics.issues.codexCliPathVersionConflict',
+};
+
 function parseModules(stdout: string): OplModuleStatus[] {
   try {
     const payload = JSON.parse(stdout) as OplModulesPayload;
@@ -201,6 +219,42 @@ function formatEngineProfile(engine: CoreEngineStatus | undefined): string | nul
   return [engine.default_model, engine.default_reasoning_effort, engine.provider_base_url].filter(Boolean).join(' · ');
 }
 
+function formatSelectedBinary(engine: CoreEngineStatus | undefined): string | null {
+  const selected = engine?.binary_path ?? engine?.candidates?.find((candidate) => candidate.selected)?.path;
+  if (!selected) return null;
+  return engine?.binary_source ? `${selected} (${engine.binary_source})` : selected;
+}
+
+function formatCodexDiagnostics(
+  engine: CoreEngineStatus | undefined,
+  t: (key: string, options?: Record<string, string>) => string
+): string[] {
+  if (!engine) return [];
+  const diagnostics = [
+    ...(engine.issues ?? []).map((issue) =>
+      t(CODEX_ISSUE_KEYS[issue] ?? 'settings.oplEnvironmentPage.diagnostics.issues.unknown', { issue })
+    ),
+    ...(engine.diagnostics ?? []).map((diagnostic) =>
+      t(CODEX_ISSUE_KEYS[diagnostic] ?? 'settings.oplEnvironmentPage.diagnostics.issues.unknown', {
+        issue: diagnostic,
+      })
+    ),
+    ...(engine.candidates ?? [])
+      .filter((candidate) => !candidate.selected && candidate.path)
+      .map((candidate) =>
+        t('settings.oplEnvironmentPage.diagnostics.codexCandidate', {
+          path: candidate.path ?? '',
+          version:
+            candidate.parsed_version ?? firstLine(candidate.version) ?? t('settings.oplEnvironmentPage.status.unknown'),
+          status:
+            formatHealthStatus(candidate.version_status ?? undefined, t) ||
+            t('settings.oplEnvironmentPage.status.unknown'),
+        })
+      ),
+  ];
+  return diagnostics.filter((entry) => entry.trim().length > 0);
+}
+
 function formatAppVersion(versions: AppVersions | null, t: (key: string) => string): string {
   if (!versions) return t('settings.oplEnvironmentPage.status.managedByApp');
   return `OPL ${versions.oplVersion} · GUI ${versions.guiVersion}`;
@@ -234,10 +288,12 @@ function formatTargetVersion(
   engine: CoreEngineStatus | undefined,
   t: (key: string, options?: Record<string, string>) => string
 ) {
-  if (item.engineId === 'hermes' && engine?.update_available && engine.update_summary) {
-    return firstLine(engine.update_summary) ?? engine.update_summary;
-  }
   return t(item.latestVersionKey, { minimumVersion: engine?.minimum_version ?? '' });
+}
+
+function formatHealthStatus(status: string | undefined, t: (key: string, options?: Record<string, string>) => string) {
+  if (!status) return '';
+  return t(`settings.oplEnvironmentPage.status.${status}`, { status });
 }
 
 const OplEnvironmentContent: React.FC = () => {
@@ -316,6 +372,37 @@ const OplEnvironmentContent: React.FC = () => {
     [loadEnvironment, message, t]
   );
 
+  const handleOneClickUpdate = useCallback(async () => {
+    setRunningAction('one-click-update');
+    try {
+      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'update'] });
+      if (result.exitCode !== 0) {
+        message.error(result.stderr || result.stdout || t('settings.oplEnvironmentPage.messages.commandFailed'));
+        return;
+      }
+
+      await loadEnvironment();
+      const updateResult = await ipcBridge.autoUpdate.check.invoke({ includePrerelease: false });
+      if (!updateResult?.success || !updateResult.data?.updateInfo) {
+        message.success(t('settings.oplEnvironmentPage.messages.systemUpdateComplete'));
+        return;
+      }
+
+      const downloadResult = await ipcBridge.autoUpdate.download.invoke();
+      if (!downloadResult?.success) {
+        message.error(downloadResult?.msg || t('settings.oplEnvironmentPage.messages.appUpdateDownloadFailed'));
+        return;
+      }
+
+      window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { status: 'downloaded' } }));
+      message.success(t('settings.oplEnvironmentPage.messages.appUpdateDownloaded'));
+    } catch (error: unknown) {
+      message.error(error instanceof Error ? error.message : t('settings.oplEnvironmentPage.messages.commandFailed'));
+    } finally {
+      setRunningAction(null);
+    }
+  }, [loadEnvironment, message, t]);
+
   const handleChooseWorkspaceRoot = useCallback(async () => {
     const result = await ipcBridge.dialog.showOpen.invoke({
       properties: ['openDirectory', 'createDirectory'],
@@ -350,7 +437,7 @@ const OplEnvironmentContent: React.FC = () => {
             </Typography.Text>
             {workspaceRoot?.health_status && (
               <Tag size='small' color={workspaceRoot.health_status === 'ready' ? 'green' : 'orange'}>
-                {workspaceRoot.health_status}
+                {formatHealthStatus(workspaceRoot.health_status, t)}
               </Tag>
             )}
           </div>
@@ -395,6 +482,13 @@ const OplEnvironmentContent: React.FC = () => {
             >
               {t('settings.oplEnvironmentPage.actions.repair')}
             </Button>
+            <Button
+              icon={<UpdateRotation theme='outline' />}
+              loading={runningAction === 'one-click-update'}
+              onClick={() => void handleOneClickUpdate()}
+            >
+              {t('settings.oplEnvironmentPage.actions.oneClickUpdate')}
+            </Button>
             <Button onClick={() => navigate('/settings/webui')}>
               {t('settings.oplEnvironmentPage.actions.openRemote')}
             </Button>
@@ -414,6 +508,10 @@ const OplEnvironmentContent: React.FC = () => {
                 : formatAppVersion(appVersions, t);
             const targetVersion = formatTargetVersion(item, engine, t);
             const detail = item.engineId === 'codex' ? formatEngineProfile(engine) : null;
+            const selectedBinary = item.engineId === 'codex' ? formatSelectedBinary(engine) : null;
+            const codexDiagnostics = item.engineId === 'codex' ? formatCodexDiagnostics(engine, t) : [];
+            const hermesUpdateSummary =
+              item.engineId === 'hermes' && engine?.update_summary ? firstLine(engine.update_summary) : null;
             const moduleAction = item.moduleId ? resolveModuleAction(status) : null;
             const engineAction = item.engineId ? resolveEngineAction(engine, item.engineId) : null;
             const actionArgs =
@@ -445,6 +543,21 @@ const OplEnvironmentContent: React.FC = () => {
                     {detail && (
                       <Typography.Text className='block text-12px text-t-tertiary truncate'>{detail}</Typography.Text>
                     )}
+                    {selectedBinary && (
+                      <Typography.Text className='block text-12px text-t-tertiary truncate'>
+                        {t('settings.oplEnvironmentPage.selectedBinary', { path: selectedBinary })}
+                      </Typography.Text>
+                    )}
+                    {codexDiagnostics.map((diagnostic) => (
+                      <Typography.Text key={diagnostic} className='block text-12px text-t-tertiary truncate'>
+                        {t('settings.oplEnvironmentPage.diagnostics.label', { detail: diagnostic })}
+                      </Typography.Text>
+                    ))}
+                    {hermesUpdateSummary && (
+                      <Typography.Text className='block text-12px text-t-tertiary truncate'>
+                        {t('settings.oplEnvironmentPage.updateSummary', { summary: hermesUpdateSummary })}
+                      </Typography.Text>
+                    )}
                   </div>
                 </div>
                 <div className='flex items-center gap-12px shrink-0'>
@@ -460,7 +573,7 @@ const OplEnvironmentContent: React.FC = () => {
                         size='small'
                         color={(status?.health_status ?? engine?.health_status) === 'ready' ? 'green' : 'orange'}
                       >
-                        {status?.health_status ?? engine?.health_status}
+                        {formatHealthStatus(status?.health_status ?? engine?.health_status, t)}
                       </Tag>
                     )}
                   </div>
