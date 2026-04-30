@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
+import { ipcBridge } from '@/common';
 import type { RuntimeTrayOpenPayload } from '@/renderer/pages/runtime/types';
 import RuntimeTrayItemPage from '@/renderer/pages/runtime';
 
@@ -60,27 +61,51 @@ vi.mock('@arco-design/web-react', () => {
 });
 
 const translations: Record<string, string> = {
+  'common.refresh': 'Refresh',
   'common.historyBack': 'Back',
   'common.open': 'Open',
   'common.runtimeTray.activeRun': 'Active Run',
   'common.runtimeTray.attentionReason': 'Why this needs attention',
   'common.runtimeTray.attentionReasonChecks':
     'This task still has {{count}} quality or delivery check(s) open. OPL should continue along the current paper line.',
+  'common.runtimeTray.attentionReasonDefault':
+    'This task needs OPL to re-check the current runtime state and decide whether to continue, recover, or wait for your confirmation.',
+  'common.runtimeTray.attentionReasonInfra':
+    'This is a background supervision job. You usually do not need to handle it directly; if it keeps failing, ask OPL to check and restore supervision.',
+  'common.runtimeTray.attentionReasonRecovering':
+    'The system detected a dropped run and is recovering it automatically. Watch whether it continues on the same paper line after recovery.',
+  'common.runtimeTray.attentionReasonReview':
+    'This paper line is at a human review or delivery handoff point. It needs your review, a submission decision, or new revision notes.',
   'common.runtimeTray.currentSituation': 'Current situation',
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
+  'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
   'common.runtimeTray.openWorkspace': 'Open Workspace',
+  'common.runtimeTray.operatorView': 'Operator View',
   'common.runtimeTray.physicianView': 'Status for doctors/PIs',
+  'common.runtimeTray.primaryCommand': 'Primary Command',
   'common.runtimeTray.project': 'Project',
+  'common.runtimeTray.runtimeStatusTitle': 'OPL Runtime Status',
   'common.runtimeTray.sourceRef': 'Source {{index}}',
   'common.runtimeTray.sourceRefs': 'Source References',
   'common.runtimeTray.study': 'Study',
   'common.runtimeTray.tellOpl': 'Tell OPL',
+  'common.runtimeTray.tellOplCheck':
+    'Check the current state of {{title}} and tell me whether I need to review, confirm, or provide new materials.',
+  'common.runtimeTray.tellOplInfra':
+    'Check whether the background supervision job for {{title}} is healthy; if not, restore supervision.',
   'common.runtimeTray.tellOplNextAction': 'Continue {{title}}, prioritizing: {{nextAction}}',
+  'common.runtimeTray.tellOplRecovering':
+    'Check whether {{title}} has recovered; after recovery, continue the current paper-line revision package.',
+  'common.runtimeTray.tellOplReview':
+    'I have reviewed the submission or human-review package for {{title}}. Continue along the same paper line; I will send revision notes if needed.',
   'common.runtimeTray.updatedAt': 'Updated',
   'common.status': 'Status',
+  'common.tray.runtimeAttention': 'Needs attention',
+  'common.tray.runtimeRecent': 'Recent items',
+  'common.tray.runtimeRunning': 'Running items',
   'common.tray.untitled': 'Untitled',
   'common.workspace': 'Workspace',
 };
@@ -124,6 +149,8 @@ const runtimeItem: RuntimeTrayOpenPayload = {
   ],
 };
 
+const runOplCommandMock = vi.mocked(ipcBridge.shell.runOplCommand.invoke);
+
 describe('RuntimeTrayItemPage', () => {
   it('shows physician-facing guidance instead of command suggestions', () => {
     render(
@@ -141,6 +168,79 @@ describe('RuntimeTrayItemPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Developer Details')).toBeInTheDocument();
     expect(screen.queryByText('Recommended Commands')).not.toBeInTheDocument();
+    expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
+  });
+
+  it('shows natural-language guidance on the runtime overview cards', async () => {
+    runOplCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_tray_snapshot: {
+          schema_version: 'runtime_tray_snapshot.v1',
+          runtime_health: {
+            status: 'needs_attention',
+            label: 'Needs attention',
+            summary: '1 running, 2 attention.',
+          },
+          last_updated: '2026-04-30T10:51:34.483Z',
+          running_items: [],
+          attention_items: [
+            {
+              item_id: 'medautoscience:study:002-dm-china-us-mortality-attribution',
+              project_id: 'medautoscience',
+              project_label: 'MAS',
+              title: '002-dm-china-us-mortality-attribution',
+              status_label: 'Live: Analysis campaign',
+              summary:
+                'bundle suggestions are downstream-only until the publication gate allows write. Recommended route-back: `return_to_analysis_campaign`.',
+              updated_at: '2026-04-30T10:44:04+00:00',
+              command: 'medautosci study-progress --study-id 002',
+              workspace_path: '/workspace/dm-cvd',
+              source_refs: [],
+              study_id: '002-dm-china-us-mortality-attribution',
+              detail_summary: '系统已检测到运行掉线，正在自动尝试恢复。',
+              next_action_summary: '补充分析与稳健性验证',
+              health_status: 'recovering',
+              blockers: ['claim_evidence_consistency_failed'],
+              recommended_commands: [
+                {
+                  step_id: 'inspect_study_progress',
+                  title: 'Inspect study progress',
+                  surface_kind: 'study_progress',
+                  command: 'medautosci study-progress --study-id 002',
+                },
+              ],
+            },
+          ],
+          recent_items: [],
+          source_refs: [],
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/runtime']}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Current situation')).toBeInTheDocument();
+    expect(screen.getByText('系统已检测到运行掉线，正在自动尝试恢复。')).toBeInTheDocument();
+    expect(screen.getByText('Why this needs attention')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The system detected a dropped run and is recovering it automatically. Watch whether it continues on the same paper line after recovery.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('Tell OPL')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Check whether 002-dm-china-us-mortality-attribution has recovered; after recovery, continue the current paper-line revision package.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
   });
 });

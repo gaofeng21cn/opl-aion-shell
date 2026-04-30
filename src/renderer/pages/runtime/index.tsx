@@ -127,6 +127,23 @@ const getRuntimeAttentionReason = (item: RuntimeTrayOpenPayload, t: RuntimeTrans
   return t('common.runtimeTray.attentionReasonDefault');
 };
 
+const getRuntimeCurrentSituation = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
+  const detailSummary = item.detailSummary?.trim();
+  if (detailSummary) {
+    return detailSummary;
+  }
+  if (isInfrastructureRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonInfra');
+  }
+  if (isWaitingReviewRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonReview');
+  }
+  if (isRecoveringRuntimeItem(item)) {
+    return t('common.runtimeTray.attentionReasonRecovering');
+  }
+  return t('common.runtimeTray.attentionReasonDefault');
+};
+
 const getRuntimeNaturalLanguagePrompt = (item: RuntimeTrayOpenPayload, t: RuntimeTranslator): string => {
   if (isInfrastructureRuntimeItem(item)) {
     return t('common.runtimeTray.tellOplInfra', { title: item.title });
@@ -214,6 +231,41 @@ const RuntimeTrayItemPage: React.FC = () => {
     void navigate('/runtime/item', { state: { runtimeItem: payload } });
   };
 
+  const renderRuntimeGuidance = (item: RuntimeTrayOpenPayload, compact = false) => {
+    const guidanceItems = [
+      {
+        label: t('common.runtimeTray.currentSituation'),
+        value: getRuntimeCurrentSituation(item, t),
+      },
+      {
+        label: t('common.runtimeTray.attentionReason'),
+        value: getRuntimeAttentionReason(item, t),
+      },
+      {
+        label: t('common.runtimeTray.tellOpl'),
+        value: getRuntimeNaturalLanguagePrompt(item, t),
+      },
+    ];
+
+    return (
+      <div className={compact ? 'mt-10px grid grid-cols-1 gap-8px' : 'flex flex-col gap-12px'}>
+        {guidanceItems.map((guidanceItem) => (
+          <div
+            key={guidanceItem.label}
+            className={
+              compact
+                ? 'rounded-6px bg-fill-2 px-10px py-8px text-13px leading-20px text-t-primary'
+                : 'rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'
+            }
+          >
+            <div className='mb-4px text-12px font-medium text-t-secondary'>{guidanceItem.label}</div>
+            {guidanceItem.value}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const renderSnapshotSection = (title: string, items: RuntimeTrayItem[]) => {
     if (items.length === 0) {
       return null;
@@ -224,27 +276,28 @@ const RuntimeTrayItemPage: React.FC = () => {
         <h2 className='m-0 text-13px font-medium text-t-secondary'>{title}</h2>
         <div className='h-1px w-full bg-[var(--color-border-2)]' />
         <div className='grid grid-cols-1 gap-10px'>
-          {items.map((item) => (
-            <div
-              key={item.item_id}
-              className='min-w-0 cursor-pointer rounded-6px border border-solid border-[var(--color-border-2)] bg-transparent px-12px py-10px text-left transition-colors hover:bg-fill-2'
-              onClick={() => openRuntimeItem(item)}
-            >
-              <div className='flex flex-wrap items-center justify-between gap-8px'>
-                <div className='min-w-0 flex-1 text-14px font-medium text-t-primary'>{item.title}</div>
-                <Tag color='blue' className='shrink-0'>
-                  {item.status_label}
-                </Tag>
+          {items.map((item) => {
+            const runtimePayload = toRuntimeOpenPayload(item);
+            return (
+              <div
+                key={item.item_id}
+                className='min-w-0 cursor-pointer rounded-6px border border-solid border-[var(--color-border-2)] bg-transparent px-12px py-10px text-left transition-colors hover:bg-fill-2'
+                onClick={() => openRuntimeItem(item)}
+              >
+                <div className='flex flex-wrap items-center justify-between gap-8px'>
+                  <div className='min-w-0 flex-1 text-14px font-medium text-t-primary'>{item.title}</div>
+                  <Tag color='blue' className='shrink-0'>
+                    {item.status_label}
+                  </Tag>
+                </div>
+                <div className='mt-5px text-12px leading-18px text-t-secondary'>
+                  {item.project_label}
+                  {item.active_run_id ? ` · ${item.active_run_id}` : ''}
+                </div>
+                {renderRuntimeGuidance(runtimePayload, true)}
               </div>
-              <div className='mt-5px text-12px leading-18px text-t-secondary'>
-                {item.project_label}
-                {item.active_run_id ? ` · ${item.active_run_id}` : ''}
-              </div>
-              {item.summary && (
-                <div className='mt-6px line-clamp-2 text-13px leading-20px text-t-secondary'>{item.summary}</div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
     );
@@ -311,9 +364,6 @@ const RuntimeTrayItemPage: React.FC = () => {
   }
 
   const sourceRefs = runtimeItem.sourceRefs || [];
-  const currentSituation = runtimeItem.detailSummary || runtimeItem.summary || runtimeItem.statusLabel;
-  const attentionReason = getRuntimeAttentionReason(runtimeItem, t);
-  const naturalLanguagePrompt = getRuntimeNaturalLanguagePrompt(runtimeItem, t);
 
   return (
     <div className='w-full min-h-full box-border overflow-y-auto px-14px pt-28px pb-24px md:px-40px md:pt-52px md:pb-42px'>
@@ -339,28 +389,12 @@ const RuntimeTrayItemPage: React.FC = () => {
               </Tag>
             )}
           </div>
-          {runtimeItem.summary && <p className='m-0 text-15px leading-24px text-t-secondary'>{runtimeItem.summary}</p>}
         </div>
 
         <section className='flex flex-col gap-12px'>
           <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.physicianView')}</h2>
           <div className='h-1px w-full bg-[var(--color-border-2)]' />
-          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
-            <div className='mb-4px text-12px font-medium text-t-secondary'>
-              {t('common.runtimeTray.currentSituation')}
-            </div>
-            {currentSituation}
-          </div>
-          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
-            <div className='mb-4px text-12px font-medium text-t-secondary'>
-              {t('common.runtimeTray.attentionReason')}
-            </div>
-            {attentionReason}
-          </div>
-          <div className='rounded-6px bg-fill-2 px-12px py-10px text-14px leading-22px text-t-primary'>
-            <div className='mb-4px text-12px font-medium text-t-secondary'>{t('common.runtimeTray.tellOpl')}</div>
-            {naturalLanguagePrompt}
-          </div>
+          {renderRuntimeGuidance(runtimeItem)}
         </section>
 
         <Collapse bordered={false}>
@@ -371,6 +405,22 @@ const RuntimeTrayItemPage: React.FC = () => {
                 <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.projectLabel}</dd>
                 <dt className='text-13px text-t-secondary'>{t('common.status')}</dt>
                 <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.statusLabel}</dd>
+                {runtimeItem.summary && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.operatorView')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.summary}</dd>
+                  </>
+                )}
+                {runtimeItem.command && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.primaryCommand')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>
+                      <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-6px py-2px text-12px'>
+                        {runtimeItem.command}
+                      </code>
+                    </dd>
+                  </>
+                )}
                 {runtimeItem.studyId && (
                   <>
                     <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.study')}</dt>
