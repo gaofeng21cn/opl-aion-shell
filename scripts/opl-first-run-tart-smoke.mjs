@@ -226,8 +226,7 @@ function assertTartAvailable() {
 
 function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir) {
   const nodeCommand = shellQuote(options.guestNodeCommand);
-  return [
-    'set -euo pipefail',
+  const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
@@ -235,6 +234,7 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
   ].join(' ');
+  return ['set -euo pipefail', smokeArgs].join('\n');
 }
 
 function resolveGuestNodeCommand(options, ip) {

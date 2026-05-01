@@ -348,18 +348,58 @@ describe('shellBridge', () => {
           callback(missingOpl);
         })
         .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: 'bootstrap ok', stderr: '' });
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
           callback(null, { stdout: '{"ready":true}', stderr: '' });
         });
 
       const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
       const bootstrapCommand = execFileMock.mock.calls[1][1][1];
+      const bootstrappedOplCommand = execFileMock.mock.calls[2][1][1];
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain('bootstrapped one-person-lab through the OPL installer');
       expect(result.stdout).toContain('{"ready":true}');
       expect(bootstrapCommand).toContain('raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh');
       expect(bootstrapCommand).toContain('--bootstrap-only');
-      expect(bootstrapCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+      expect(bootstrapCommand).not.toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+      expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+    });
+
+    it('shares one bootstrap across concurrent missing-opl commands', async () => {
+      const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
+      let directCommandCalls = 0;
+      let bootstrapCalls = 0;
+
+      execFileMock.mockImplementation((_file: string, args: string[], _options: unknown, callback: Function) => {
+        const command = args[1];
+        if (command.includes('OPL_BOOTSTRAP_SCRIPT=')) {
+          bootstrapCalls += 1;
+          callback(null, { stdout: 'bootstrap ok', stderr: '' });
+          return;
+        }
+        if (command.includes('command -v opl >/dev/null')) {
+          directCommandCalls += 1;
+          if (directCommandCalls <= 2) {
+            callback(missingOpl);
+            return;
+          }
+          callback(null, { stdout: '{"ready":true}', stderr: '' });
+          return;
+        }
+        callback(null, { stdout: '', stderr: '' });
+      });
+
+      const [first, second] = await Promise.all([
+        runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] }),
+        runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] }),
+      ]);
+
+      expect(first.exitCode).toBe(0);
+      expect(second.exitCode).toBe(0);
+      expect(bootstrapCalls).toBe(1);
+      expect(directCommandCalls).toBe(4);
     });
 
     it('reads the structured first-run jsonl log for visible startup status', async () => {

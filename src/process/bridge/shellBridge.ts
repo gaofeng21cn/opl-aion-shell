@@ -31,6 +31,7 @@ const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Pe
 const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
+let oplBootstrapPromise: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null;
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -99,9 +100,7 @@ function buildOplCommand(args: string[]): string {
   );
 }
 
-function buildOplBootstrapCommand(args: string[]): string {
-  const envPrefix = ['modules', 'runtime', 'system', 'workspace'].includes(args[0]) ? 'OPL_OUTPUT=json ' : '';
-  const commandArgs = `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`;
+function buildOplBootstrapCommand(): string {
   return [
     'set -euo pipefail',
     'command -v curl >/dev/null',
@@ -110,8 +109,16 @@ function buildOplBootstrapCommand(args: string[]): string {
     'trap \'rm -f "$OPL_BOOTSTRAP_SCRIPT"\' EXIT',
     'curl -fsSL "$OPL_INSTALL_SCRIPT_URL" -o "$OPL_BOOTSTRAP_SCRIPT"',
     'bash "$OPL_BOOTSTRAP_SCRIPT" --bootstrap-only',
-    commandArgs,
   ].join(' && ');
+}
+
+async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  if (!oplBootstrapPromise) {
+    oplBootstrapPromise = runLoginShell(buildOplBootstrapCommand(), 30 * 60_000).finally(() => {
+      oplBootstrapPromise = null;
+    });
+  }
+  return oplBootstrapPromise;
 }
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
@@ -127,15 +134,26 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
     return directResult;
   }
 
-  const bootstrapResult = await runLoginShell(buildOplBootstrapCommand(args), 30 * 60_000);
+  const bootstrapResult = await bootstrapOplCli();
+  const prefix = '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.';
+  if (bootstrapResult.exitCode !== 0) {
+    return {
+      ...bootstrapResult,
+      stdout: [prefix, bootstrapResult.stdout].filter(Boolean).join('\n'),
+    };
+  }
+
+  const bootstrappedCommandResult = await runLoginShell(buildOplCommand(args), timeout);
   return {
-    ...bootstrapResult,
+    ...bootstrappedCommandResult,
     stdout: [
-      '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.',
+      prefix,
       bootstrapResult.stdout,
+      bootstrappedCommandResult.stdout,
     ]
       .filter(Boolean)
       .join('\n'),
+    stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
   };
 }
 

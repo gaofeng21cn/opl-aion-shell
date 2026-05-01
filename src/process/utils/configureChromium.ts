@@ -30,6 +30,12 @@ if (!app.isPackaged) {
 
 const isWebUI = process.argv.some((arg) => arg === '--webui');
 const isResetPassword = process.argv.includes('--resetpass');
+const shouldForceRendererAccessibility =
+  process.argv.includes('--force-renderer-accessibility') || process.env.OPL_FIRST_RUN_GUI_SMOKE === '1';
+
+if (shouldForceRendererAccessibility) {
+  app.commandLine.appendSwitch('force-renderer-accessibility');
+}
 
 // Only configure flags for WebUI and --resetpass modes
 // 仅为 WebUI 和重置密码模式配置参数

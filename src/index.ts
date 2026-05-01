@@ -389,6 +389,10 @@ const handleAppReady = async (): Promise<void> => {
   const mark = (label: string) => console.log(`[AionUi:ready] ${label} +${Math.round(performance.now() - t0)}ms`);
   mark('start');
 
+  if (hasSwitch('force-renderer-accessibility') || process.env.OPL_FIRST_RUN_GUI_SMOKE === '1') {
+    app.setAccessibilitySupportEnabled(true);
+  }
+
   if (!app.isPackaged) {
     try {
       const { default: installExtension, REACT_DEVELOPER_TOOLS } = await import('electron-devtools-installer');

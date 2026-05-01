@@ -150,7 +150,7 @@ function installDmgApp(dmgPath, installDir) {
 }
 
 function launchApp(appPath) {
-  run('open', ['-n', appPath]);
+  run('open', ['-n', appPath, '--args', '--force-renderer-accessibility']);
 }
 
 function sleep(ms) {
