@@ -97,6 +97,10 @@
   "historyBack": "Назад",
   "agentMode": "Режим агента",
   "open": "Открыть",
+  "unit": {
+    "minute_short": "мин",
+    "second_short": "с"
+  },
   "runtimeTray": {
     "runtimeStatusTitle": "Состояние среды OPL",
     "snapshotLoadFailed": "Не удалось загрузить состояние среды OPL",

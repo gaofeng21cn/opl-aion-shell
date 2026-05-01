@@ -97,6 +97,10 @@
   "processing": "處理中...",
   "optional": "（選填）",
   "clear": "清除",
+  "unit": {
+    "minute_short": "分",
+    "second_short": "秒"
+  },
   "runtimeTray": {
     "runtimeStatusTitle": "OPL 運行狀態",
     "snapshotLoadFailed": "無法讀取 OPL 運行狀態",

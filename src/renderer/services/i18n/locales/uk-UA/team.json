@@ -45,6 +45,10 @@
     "chooseDifferentFolder": "Виберіть іншу папку",
     "error": "Не вдалося створити команду"
   },
+  "removeAgent": {
+    "confirmTitle": "Видалити учасника команди",
+    "confirmContent": "Цей учасник зараз активний. Видалити примусово?"
+  },
   "emptyState": {
     "subtitle": "Опишіть вашу ціль, і я залучу команду до її виконання",
     "suggestions": {

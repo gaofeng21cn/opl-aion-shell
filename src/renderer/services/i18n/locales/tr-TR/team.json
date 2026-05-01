@@ -52,6 +52,9 @@
   "emptyState": {
     "subtitle": "Hedefini söyle, ekibi koordine ederek tamamlayayım",
     "suggestions": {
+      "debate": "Ajanların farklı tarafları savunduğu bir tartışma düzenle",
+      "interview": "Ajanlar arasında derinlemesine bir röportaj planla",
+      "expert_review": "Aynı problemi birden çok uzmanın analiz etmesini sağla",
       "help_build": "Sıfırdan yeni bir özellik oluşturmama yardım et",
       "analyze_code": "Bu kod tabanını analiz et ve iyileştirmeler öner",
       "write_report": "Bir konuyu araştır ve ayrıntılı rapor yaz",

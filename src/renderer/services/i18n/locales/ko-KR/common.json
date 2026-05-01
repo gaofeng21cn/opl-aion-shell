@@ -97,6 +97,10 @@
   "processing": "처리 중...",
   "optional": "(선택 사항)",
   "clear": "지우기",
+  "unit": {
+    "minute_short": "분",
+    "second_short": "초"
+  },
   "runtimeTray": {
     "runtimeStatusTitle": "OPL 런타임 상태",
     "snapshotLoadFailed": "OPL 런타임 상태를 불러올 수 없음",

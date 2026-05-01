@@ -97,6 +97,10 @@
   "processing": "İşleniyor...",
   "optional": "(isteğe bağlı)",
   "clear": "Temizle",
+  "unit": {
+    "minute_short": "dk",
+    "second_short": "sn"
+  },
   "runtimeTray": {
     "runtimeStatusTitle": "OPL Runtime Durumu",
     "snapshotLoadFailed": "OPL runtime durumu yüklenemedi",

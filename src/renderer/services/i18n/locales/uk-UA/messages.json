@@ -8,6 +8,7 @@
   "imageGenerationModelDetected": "Виявлено модель зображень, інструмент зображень було автоматично ввімкнено. Модель за замовчуванням: {{platform}}:{{model}}",
   "auto_handling_permissions": "Автоматична обробка запиту на дозвіл: {{request}}",
   "copy": "Копіювати",
+  "copyLastOutput.empty": "Поки немає відповіді для копіювання",
   "copySuccess": "Скопійовано успішно",
   "copyFailed": "Не вдалося скопіювати",
   "copiedToClipboard": "Скопійовано в буфер обміну",
