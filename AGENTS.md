@@ -12,13 +12,25 @@ This checkout is the One Person Lab GUI shell fork, not the upstream AionUI main
 - Do not create OPL feature branches or worktrees from `origin/main`; that starts from the upstream AionUI baseline and drops OPL shell changes.
 - When syncing upstream AionUI, first create an explicit upstream-sync branch and then merge or replay the vetted delta back into the OPL mainline.
 
+## AionUI Upstream Intake Trigger
+
+When the user asks to "follow", "absorb", "sync", or "update to" the latest AionUI version, treat it as a standard upstream-intake request. Do the intake lifecycle directly from the repo state instead of asking for a longer prompt.
+
+- First audit `git status`, remotes, `gaofeng/main`, `origin/main`, latest upstream tags, and any dirty working-tree files. Preserve unrelated or in-progress local changes; do not overwrite them during upstream intake.
+- Start the intake from a clean OPL product baseline on `gaofeng/main`, using a short-lived branch/worktree named like `codex/aionui-upstream-intake-YYYYMMDD`.
+- Fetch upstream, identify the current latest AionUI tag/HEAD, and compare three deltas before resolving code: upstream delta since the current AionUI baseline, OPL overlay delta since that baseline, and any dirty local delta.
+- Maintain a patch matrix for OPL overlay changes with these outcomes: `keep`, `drop-upstream-covered`, `adapt-to-upstream`, and `watch`.
+- If upstream AionUI now provides the same behavior or fixes the same root cause as an OPL patch, prefer retiring the local deep patch or reducing it to a thin OPL adapter. Do not keep redundant fork-specific code only because it already exists.
+- Keep OPL-specific changes concentrated in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
+- After validation, absorb the vetted result back into `gaofeng/main`, push when requested or when release work requires it, and clean up temporary worktrees/branches.
+
 ## Code Conventions
 
 ### File & Directory Structure
 
 - **Directory size limit**: A single directory must not exceed **10** direct children (files + subdirectories). Split by responsibility when approaching this limit.
 
-See [docs/conventions/file-structure.md](docs/conventions/file-structure.md) for complete rules on directory naming, page module layout, and shared vs private code placement. Agents working in this repository must also read and follow the `architecture` skill (`.claude/skills/architecture/SKILL.md`) when creating files, modules, or making structure decisions.
+See [docs/contributing/file-structure.md](docs/contributing/file-structure.md) for complete rules on directory naming, page module layout, and shared vs private code placement. Agents working in this repository must also read and follow the `architecture` skill (`.claude/skills/architecture/SKILL.md`) when creating files, modules, or making structure decisions.
 
 ### Naming
 
@@ -42,7 +54,7 @@ See [docs/conventions/file-structure.md](docs/conventions/file-structure.md) for
 - Arco overrides go in the component's CSS Module via `:global()` — no global override files
 - Global styles only in `src/renderer/styles/`
 
-See [docs/conventions/file-structure.md](docs/conventions/file-structure.md) for full CSS and UI library rules.
+See [docs/contributing/file-structure.md](docs/contributing/file-structure.md) for full CSS and UI library rules.
 
 ### TypeScript
 
@@ -60,7 +72,7 @@ Three process types — never mix their APIs:
 - `src/process/worker/` — fork workers, no Electron APIs
 
 Cross-process communication must go through the IPC bridge (`src/preload.ts`).
-See [docs/tech/architecture.md](docs/tech/architecture.md) for details.
+See [docs/architecture/overview.md](docs/architecture/overview.md) for details.
 
 ## Testing
 
@@ -137,7 +149,7 @@ Detailed rules and guidelines are organized into Skills for better modularity:
 
 - **运行方式**：`scripts/pr-automation.sh` 作为 daemon 持续运行，每轮间隔 30 秒；日志默认写入 `~/Library/Logs/AionUi/`，可通过 `LOG_DIR=...` 覆盖
 - **状态追踪**：通过 `bot:*` label（`bot:reviewing`、`bot:fixing`、`bot:ready-to-fix`、`bot:ci-waiting`、`bot:needs-human-review`、`bot:ready-to-merge`、`bot:done`）
-- **详细说明**：[docs/conventions/pr-automation.md](docs/conventions/pr-automation.md)
+- **详细说明**：[docs/contributing/pr-automation.md](docs/contributing/pr-automation.md)
 
 ## Internationalization
 

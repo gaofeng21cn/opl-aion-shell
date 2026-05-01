@@ -67,6 +67,16 @@ vi.mock('@/common', () => ({
           registeredProviders['runOplCommand'] = fn;
         }),
       },
+      readOplFirstRunLog: {
+        provider: vi.fn((fn: Function) => {
+          registeredProviders['readOplFirstRunLog'] = fn;
+        }),
+      },
+      appendOplFirstRunLog: {
+        provider: vi.fn((fn: Function) => {
+          registeredProviders['appendOplFirstRunLog'] = fn;
+        }),
+      },
     },
   },
 }));
