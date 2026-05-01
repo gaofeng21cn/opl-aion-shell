@@ -15,6 +15,7 @@ const {
   checkToolInstalledProvider,
   openFolderWithProvider,
   runOplCommandProvider,
+  configureOplCodexProvider,
   readOplFirstRunLogProvider,
   appendOplFirstRunLogProvider,
   shellMock,
@@ -29,6 +30,7 @@ const {
   checkToolInstalledProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   openFolderWithProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   runOplCommandProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  configureOplCodexProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   readOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   appendOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   shellMock: {
@@ -83,6 +85,11 @@ vi.mock('@/common', () => ({
           runOplCommandProvider.fn = fn;
         }),
       },
+      configureOplCodex: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          configureOplCodexProvider.fn = fn;
+        }),
+      },
       readOplFirstRunLog: {
         provider: vi.fn((fn: (...args: any[]) => any) => {
           readOplFirstRunLogProvider.fn = fn;
@@ -129,6 +136,7 @@ beforeEach(async () => {
   checkToolInstalledProvider.fn = undefined;
   openFolderWithProvider.fn = undefined;
   runOplCommandProvider.fn = undefined;
+  configureOplCodexProvider.fn = undefined;
   readOplFirstRunLogProvider.fn = undefined;
   appendOplFirstRunLogProvider.fn = undefined;
 
@@ -149,6 +157,7 @@ describe('shellBridge', () => {
       expect(checkToolInstalledProvider.fn).toBeDefined();
       expect(openFolderWithProvider.fn).toBeDefined();
       expect(runOplCommandProvider.fn).toBeDefined();
+      expect(configureOplCodexProvider.fn).toBeDefined();
       expect(readOplFirstRunLogProvider.fn).toBeDefined();
       expect(appendOplFirstRunLogProvider.fn).toBeDefined();
     });
@@ -339,6 +348,49 @@ describe('shellBridge', () => {
         expect.objectContaining({ timeout: 30 * 60_000 }),
         expect.any(Function)
       );
+    });
+
+    it('configures Codex through stdin without putting the API key in the shell command', async () => {
+      let stdoutData: ((chunk: string) => void) | undefined;
+      let exitHandler: ((code: number) => void) | undefined;
+      const stdin = {
+        write: vi.fn(),
+        end: vi.fn(),
+      };
+      const child = {
+        stdout: {
+          on: vi.fn((event: string, handler: (chunk: string) => void) => {
+            if (event === 'data') stdoutData = handler;
+            return child.stdout;
+          }),
+        },
+        stderr: {
+          on: vi.fn(() => child.stderr),
+        },
+        stdin,
+        on: vi.fn((event: string, handler: (code: number) => void) => {
+          if (event === 'exit') exitHandler = handler;
+          return child;
+        }),
+        kill: vi.fn(),
+      };
+      spawnMock.mockReturnValueOnce(child);
+
+      const promise = configureOplCodexProvider.fn!({ apiKey: 'secret-api-key' });
+      stdoutData?.('{"codex_config":{"status":"completed"}}');
+      exitHandler?.(0);
+      const result = await promise;
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain('completed');
+      expect(stdin.write).toHaveBeenCalledWith('secret-api-key\n');
+      expect(stdin.end).toHaveBeenCalled();
+      expect(spawnMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("'opl' 'system' 'configure-codex' '--api-key-stdin'")],
+        expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+      );
+      expect(JSON.stringify(spawnMock.mock.calls)).not.toContain('secret-api-key');
     });
 
     it('bootstraps the CLI through the OPL installer when opl is missing', async () => {

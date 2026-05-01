@@ -49,8 +49,19 @@ function assertAllowedOplArgs(args: string[]): void {
   if (args[0] === 'engine' && args[1] && !['install', 'update', 'reinstall'].includes(args[1])) {
     throw new Error(`Unsupported OPL engine action: ${args[1]}`);
   }
-  if (args[0] === 'system' && args[1] && !['initialize', 'update', 'reconcile-modules'].includes(args[1])) {
+  if (
+    args[0] === 'system' &&
+    args[1] &&
+    !['initialize', 'update', 'reconcile-modules', 'configure-codex'].includes(args[1])
+  ) {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
+  }
+  if (
+    args[0] === 'system' &&
+    args[1] === 'configure-codex' &&
+    !(args.length === 3 && args[2] === '--api-key-stdin')
+  ) {
+    throw new Error(`Unsupported OPL system configure-codex arguments: ${args.slice(2).join(' ')}`);
   }
   if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
     throw new Error(`Unsupported OPL packages action: ${args.slice(1).join(' ')}`);
@@ -91,6 +102,51 @@ async function runLoginShell(
       stderr: err.stderr ?? err.message,
     };
   }
+}
+
+async function runLoginShellWithInput(
+  command: string,
+  timeout: number,
+  input: string
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return await new Promise((resolve) => {
+    const child = spawn('/bin/zsh', ['-lc', command], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (exitCode: number, extraStderr = '') => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({
+        exitCode,
+        stdout,
+        stderr: [stderr, extraStderr].filter(Boolean).join('\n'),
+      });
+    };
+    timer = setTimeout(() => {
+      child.kill();
+      finish(124, 'OPL command timed out.');
+    }, timeout);
+
+    child.stdout.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer | string) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', (error) => {
+      finish(1, error.message);
+    });
+    child.on('exit', (code) => {
+      finish(typeof code === 'number' ? code : 1);
+    });
+    child.stdin.write(input);
+    child.stdin.end();
+  });
 }
 
 function buildOplCommand(args: string[]): string {
@@ -155,6 +211,48 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
       .join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
   };
+}
+
+async function runOplCliWithInput(
+  args: string[],
+  input: string
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  assertAllowedOplArgs(args);
+  const timeout = 120_000;
+  const directResult = await runLoginShellWithInput(buildOplCommand(args), timeout, input);
+  if (directResult.exitCode !== 127) {
+    return directResult;
+  }
+
+  const bootstrapResult = await bootstrapOplCli();
+  const prefix = '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.';
+  if (bootstrapResult.exitCode !== 0) {
+    return {
+      ...bootstrapResult,
+      stdout: [prefix, bootstrapResult.stdout].filter(Boolean).join('\n'),
+    };
+  }
+
+  const bootstrappedCommandResult = await runLoginShellWithInput(buildOplCommand(args), timeout, input);
+  return {
+    ...bootstrappedCommandResult,
+    stdout: [
+      prefix,
+      bootstrapResult.stdout,
+      bootstrappedCommandResult.stdout,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
+  };
+}
+
+async function configureOplCodex(apiKey: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    return { exitCode: 2, stdout: '', stderr: 'Missing Codex API key.' };
+  }
+  return await runOplCliWithInput(['system', 'configure-codex', '--api-key-stdin'], `${trimmed}\n`);
 }
 
 function parseFirstRunLogLine(line: string): Record<string, unknown> | null {
@@ -449,6 +547,7 @@ export function initShellBridge(): void {
   });
 
   ipcBridge.shell.runOplCommand.provider(async ({ args }) => runOplCli(args));
+  ipcBridge.shell.configureOplCodex.provider(async ({ apiKey }) => configureOplCodex(apiKey));
   ipcBridge.shell.readOplFirstRunLog.provider(async () => readOplFirstRunLog());
   ipcBridge.shell.appendOplFirstRunLog.provider(async ({ eventType, payload }) =>
     appendOplFirstRunLog(eventType, payload)

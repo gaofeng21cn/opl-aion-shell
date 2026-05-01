@@ -32,10 +32,12 @@ import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils
 import { RUNTIME_TRAY_ITEM_STORAGE_KEY, type RuntimeTrayOpenPayload } from '@renderer/pages/runtime/types';
 import {
   claimOplFirstLaunchPreparationMessage,
+  configureOplCodexForFirstLaunch,
   releaseOplFirstLaunchPreparationMessage,
   startOplFirstLaunchEnvironmentPreparation,
   type OplFirstLaunchPreparationResult,
 } from './oplFirstLaunchPreparation';
+import { OplFirstRunWizard, type OplFirstRunWizardState } from './OplFirstRunWizard';
 import '@renderer/styles/layout.css';
 
 const useDebug = () => {
@@ -91,6 +93,7 @@ export type OplFirstRunPanelState = {
   status: OplFirstLaunchPreparationResult['status'] | 'preparing';
   message?: string;
   blockers?: string[];
+  codexDefaultProfile?: OplFirstRunWizardState['codexDefaultProfile'];
   logPath?: string;
 };
 
@@ -215,6 +218,7 @@ const Layout: React.FC<{
   const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const [firstRunPanelState, setFirstRunPanelState] = useState<OplFirstRunPanelState | null>(null);
+  const firstRunAppVersionRef = useRef<string | undefined>(undefined);
   useDeepLink();
   useNotificationClick();
   const navigate = useNavigate();
@@ -249,8 +253,9 @@ const Layout: React.FC<{
       const messageOwner = Symbol('opl-first-launch-preparation-message');
       const appVersions = await ipcBridge.application.appVersions.invoke().catch((): null => null);
       if (cancelled) return;
+      firstRunAppVersionRef.current = appVersions?.oplVersion?.trim() || undefined;
       const preparationPromise = startOplFirstLaunchEnvironmentPreparation({
-        appVersion: appVersions?.oplVersion?.trim() || undefined,
+        appVersion: firstRunAppVersionRef.current,
       });
       const ownsMessage = claimOplFirstLaunchPreparationMessage(messageOwner);
       if (ownsMessage) {
@@ -271,6 +276,7 @@ const Layout: React.FC<{
           status: result.status,
           message: result.message,
           blockers: result.blockers,
+          codexDefaultProfile: result.codexDefaultProfile,
           logPath: result.firstRunLog?.path,
         });
         if (!ownsMessage) return;
@@ -280,6 +286,10 @@ const Layout: React.FC<{
         }
 
         if (result.status === 'prepared') return;
+
+        if (result.status === 'codex-config-needed') {
+          return;
+        }
 
         if (result.status === 'setup-needed') {
           Message.warning(result.message || t('settings.oplFirstLaunch.setupNeeded'));
@@ -570,6 +580,11 @@ const Layout: React.FC<{
         Math.min(MOBILE_SIDER_MAX_WIDTH, Math.round(viewportWidth * MOBILE_SIDER_WIDTH_RATIO))
       )
     : DEFAULT_SIDER_WIDTH;
+  const showFirstRunWizard = Boolean(
+    firstRunPanelState &&
+      firstRunPanelState.status !== 'prepared' &&
+      firstRunPanelState.status !== 'already-prepared'
+  );
   useEffect(() => {
     collapsedRef.current = collapsed;
   }, [collapsed]);
@@ -727,17 +742,39 @@ const Layout: React.FC<{
                   : undefined
               }
             >
-              {firstRunPanelState && (
-                <OplFirstRunStatusPanel
+              {showFirstRunWizard && firstRunPanelState ? (
+                <OplFirstRunWizard
                   state={firstRunPanelState}
                   t={t}
-                  onInstall={() => {
+                  onRetry={() => {
                     setFirstRunPanelState({ status: 'preparing', blockers: firstRunPanelState.blockers });
-                    void startOplFirstLaunchEnvironmentPreparation().then((result) => {
+                    void startOplFirstLaunchEnvironmentPreparation({
+                      appVersion: firstRunAppVersionRef.current,
+                    }).then((result) => {
                       setFirstRunPanelState({
                         status: result.status,
                         message: result.message,
                         blockers: result.blockers,
+                        codexDefaultProfile: result.codexDefaultProfile,
+                        logPath: result.firstRunLog?.path,
+                      });
+                    }).catch((error: unknown) => {
+                      setFirstRunPanelState({
+                        status: 'failed',
+                        message: error instanceof Error ? error.message : undefined,
+                      });
+                    });
+                  }}
+                  onConfigureCodex={(apiKey) => {
+                    setFirstRunPanelState({ status: 'preparing', blockers: firstRunPanelState.blockers });
+                    return configureOplCodexForFirstLaunch(apiKey, {
+                      appVersion: firstRunAppVersionRef.current,
+                    }).then((result) => {
+                      setFirstRunPanelState({
+                        status: result.status,
+                        message: result.message,
+                        blockers: result.blockers,
+                        codexDefaultProfile: result.codexDefaultProfile,
                         logPath: result.firstRunLog?.path,
                       });
                     }).catch((error: unknown) => {
@@ -750,12 +787,10 @@ const Layout: React.FC<{
                   onOpenEnvironment={() => {
                     void navigate('/settings/opl');
                   }}
-                  onOpenModules={() => {
-                    void navigate('/settings/opl#modules');
-                  }}
                 />
+              ) : (
+                <Outlet />
               )}
-              <Outlet />
               {directorySelectionContextHolder}
               <PwaPullToRefresh />
               <Suspense fallback={null}>

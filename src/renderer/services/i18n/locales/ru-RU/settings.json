@@ -1053,14 +1053,24 @@
     "applyFailed": "Не удалось применить тему оформления"
   },
   "oplFirstLaunch": {
+    "wizardTitle": "Настроить One Person Lab",
     "preparing": "One Person Lab подготавливает локальную среду и Codex…",
     "complete": "Локальная среда и Codex готовы",
     "setupNeeded": "Первичная настройка требует внимания. Продолжите в управлении средой.",
     "failed": "Не удалось подготовить среду. Откройте Настройки > Управление средой, чтобы восстановить установку.",
     "readyEntry": "Готово к входу в One Person Lab",
     "logPath": "Журнал первого запуска: {{path}}",
+    "codex": {
+      "prompt": "Введите API-ключ Codex. OPL использует provider endpoint по умолчанию и текущий начальный профиль модели.",
+      "providerEndpoint": "Provider endpoint по умолчанию",
+      "initialModelProfile": "Текущий начальный профиль модели",
+      "apiKeyPlaceholder": "API-ключ Codex",
+      "apiKeyRequired": "Введите API-ключ Codex.",
+      "configure": "Настроить Codex"
+    },
     "actions": {
       "install": "Установить",
+      "retry": "Повторить",
       "openEnvironment": "Среда",
       "openModules": "Модули"
     }

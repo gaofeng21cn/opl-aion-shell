@@ -1051,14 +1051,24 @@
     "applyFailed": "Görünüm teması uygulanamadı"
   },
   "oplFirstLaunch": {
+    "wizardTitle": "One Person Lab'i kur",
     "preparing": "One Person Lab yerel ortamı ve Codex'i hazırlıyor…",
     "complete": "Yerel ortam ve Codex hazır",
     "setupNeeded": "İlk kurulum hâlâ dikkat gerektiriyor. Ortam Yönetimi'nde devam edin.",
     "failed": "Ortam hazırlığı başarısız oldu. Kurulumu onarmak için Ayarlar > Ortam Yönetimi'ni açın.",
     "readyEntry": "One Person Lab'e girmeye hazır",
     "logPath": "İlk çalıştırma günlüğü: {{path}}",
+    "codex": {
+      "prompt": "Codex API anahtarınızı girin. OPL varsayılan provider endpoint'i ve geçerli ilk model profile'ını kullanır.",
+      "providerEndpoint": "Varsayılan provider endpoint",
+      "initialModelProfile": "Geçerli ilk model profile",
+      "apiKeyPlaceholder": "Codex API anahtarı",
+      "apiKeyRequired": "Codex API anahtarını girin.",
+      "configure": "Codex'i yapılandır"
+    },
     "actions": {
       "install": "Yükle",
+      "retry": "Tekrar dene",
       "openEnvironment": "Ortam",
       "openModules": "Modüller"
     }

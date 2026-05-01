@@ -1051,14 +1051,24 @@
     "applyFailed": "Failed to apply appearance theme"
   },
   "oplFirstLaunch": {
+    "wizardTitle": "Set up One Person Lab",
     "preparing": "One Person Lab is preparing the local environment and Codex…",
     "complete": "Local environment and Codex are ready",
     "setupNeeded": "Initial setup still needs attention. Continue in Environment Management.",
     "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install.",
     "readyEntry": "Ready to enter One Person Lab",
     "logPath": "First-run log: {{path}}",
+    "codex": {
+      "prompt": "Enter your Codex API key. OPL will use the default provider endpoint and the current initial model profile.",
+      "providerEndpoint": "Default provider endpoint",
+      "initialModelProfile": "Current initial model profile",
+      "apiKeyPlaceholder": "Codex API key",
+      "apiKeyRequired": "Enter a Codex API key.",
+      "configure": "Configure Codex"
+    },
     "actions": {
       "install": "Install",
+      "retry": "Retry",
       "openEnvironment": "Environment",
       "openModules": "Modules"
     }

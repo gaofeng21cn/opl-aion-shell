@@ -34,6 +34,10 @@ export const shell = {
   runOplCommand: bridge.buildProvider<{ exitCode: number; stdout: string; stderr: string }, { args: string[] }>(
     'shell.run-opl-command'
   ), // Run a whitelisted OPL CLI command
+  configureOplCodex: bridge.buildProvider<
+    { exitCode: number; stdout: string; stderr: string },
+    { apiKey: string }
+  >('shell.configure-opl-codex'), // Configure Codex using stdin-only secret input
   readOplFirstRunLog: bridge.buildProvider<
     { path: string; entries: Array<Record<string, unknown>>; latest: Record<string, unknown> | null },
     void

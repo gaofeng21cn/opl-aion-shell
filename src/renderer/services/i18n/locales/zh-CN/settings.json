@@ -1052,14 +1052,24 @@
     "applyFailed": "应用外观主题失败"
   },
   "oplFirstLaunch": {
+    "wizardTitle": "配置 One Person Lab",
     "preparing": "One Person Lab 正在准备本机环境与 Codex，请稍候…",
     "complete": "本机环境和 Codex 已准备完成",
     "setupNeeded": "还需要完成一次初始化配置，请在环境管理中继续",
     "failed": "环境准备失败，请到设置-环境管理中修复安装",
     "readyEntry": "可以进入 One Person Lab",
     "logPath": "首启日志：{{path}}",
+    "codex": {
+      "prompt": "输入你的 Codex API Key，OPL 会使用默认 provider endpoint 和当前初始模型 profile 写入本机 Codex 配置。",
+      "providerEndpoint": "默认 provider endpoint",
+      "initialModelProfile": "当前初始模型 profile",
+      "apiKeyPlaceholder": "Codex API Key",
+      "apiKeyRequired": "请输入 Codex API Key。",
+      "configure": "配置 Codex"
+    },
     "actions": {
       "install": "安装",
+      "retry": "重试",
       "openEnvironment": "环境",
       "openModules": "模块"
     }

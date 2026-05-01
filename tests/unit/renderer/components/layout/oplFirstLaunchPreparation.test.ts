@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockRunOplCommand = vi.hoisted(() => vi.fn());
+const mockConfigureOplCodex = vi.hoisted(() => vi.fn());
 const mockReadOplFirstRunLog = vi.hoisted(() => vi.fn());
 const mockAppendOplFirstRunLog = vi.hoisted(() => vi.fn());
 const mockConfigGet = vi.hoisted(() => vi.fn());
@@ -11,6 +12,9 @@ vi.mock('@/common', () => ({
     shell: {
       runOplCommand: {
         invoke: mockRunOplCommand,
+      },
+      configureOplCodex: {
+        invoke: mockConfigureOplCodex,
       },
       readOplFirstRunLog: {
         invoke: mockReadOplFirstRunLog,
@@ -33,6 +37,7 @@ import {
   claimOplFirstLaunchPreparationMessage,
   releaseOplFirstLaunchPreparationMessage,
   resetOplFirstLaunchPreparationStateForTests,
+  configureOplCodexForFirstLaunch,
   startOplFirstLaunchEnvironmentPreparation,
 } from '@/renderer/components/layout/oplFirstLaunchPreparation';
 
@@ -81,6 +86,27 @@ const setupNeededInitializeResult: OplCommandResult = {
   }),
   stderr: '',
 };
+const codexConfigNeededInitializeResult: OplCommandResult = {
+  exitCode: 0,
+  stdout: JSON.stringify({
+    system_initialize: {
+      setup_flow: {
+        ready_to_launch: false,
+        blocking_items: ['codex_config', 'domain_modules'],
+      },
+      codex_default_profile: {
+        model_provider: 'gflab',
+        model: 'gpt-5.5',
+        model_reasoning_effort: 'xhigh',
+        base_url: 'https://gflabtoken.cn/v1',
+      },
+      recommended_next_action: {
+        label: 'Configure Codex API key',
+      },
+    },
+  }),
+  stderr: '',
+};
 
 const createDeferredOplCommandResult = (): {
   promise: Promise<OplCommandResult>;
@@ -112,6 +138,7 @@ describe('oplFirstLaunchPreparation', () => {
   beforeEach(() => {
     resetOplFirstLaunchPreparationStateForTests();
     mockRunOplCommand.mockReset();
+    mockConfigureOplCodex.mockReset();
     mockReadOplFirstRunLog.mockReset();
     mockAppendOplFirstRunLog.mockReset();
     mockConfigGet.mockReset();
@@ -122,6 +149,11 @@ describe('oplFirstLaunchPreparation', () => {
       latest: null,
     });
     mockAppendOplFirstRunLog.mockResolvedValue(undefined);
+    mockConfigureOplCodex.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({ codex_config: { status: 'completed' } }),
+      stderr: '',
+    });
   });
 
   it('does not run OPL install when the environment was already prepared', async () => {
@@ -214,6 +246,45 @@ describe('oplFirstLaunchPreparation', () => {
       eventType: 'gui_preparation_completed',
       payload: expect.objectContaining({ status: 'prepared' }),
     });
+  });
+
+  it('returns Codex configuration state without running install when API key is missing', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand.mockResolvedValue(codexConfigNeededInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'codex-config-needed',
+      readyToLaunch: false,
+      blockers: ['codex_config', 'domain_modules'],
+      codexDefaultProfile: {
+        model_provider: 'gflab',
+        model: 'gpt-5.5',
+        model_reasoning_effort: 'xhigh',
+        base_url: 'https://gflabtoken.cn/v1',
+      },
+    });
+
+    expect(mockRunOplCommand).toHaveBeenCalledOnce();
+    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
+    expect(mockConfigureOplCodex).not.toHaveBeenCalled();
+    expect(mockConfigSet).not.toHaveBeenCalled();
+  });
+
+  it('configures Codex through the secure IPC path before continuing first-run install', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(setupNeededInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(readyInitializeResult);
+
+    await expect(configureOplCodexForFirstLaunch('secret-api-key')).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+    });
+
+    expect(mockConfigureOplCodex).toHaveBeenCalledWith({ apiKey: 'secret-api-key' });
+    expect(JSON.stringify(mockRunOplCommand.mock.calls)).not.toContain('secret-api-key');
+    expect(JSON.stringify(mockAppendOplFirstRunLog.mock.calls)).not.toContain('secret-api-key');
   });
 
   it('reuses one in-flight OPL install across concurrent callers', async () => {

@@ -4,6 +4,7 @@ import { ConfigStorage } from '@/common/config/storage';
 export type OplFirstLaunchPreparationResult =
   | ({ status: 'already-prepared' } & OplFirstLaunchResultDetails)
   | ({ status: 'prepared' } & OplFirstLaunchResultDetails)
+  | ({ status: 'codex-config-needed' } & OplFirstLaunchResultDetails)
   | ({ status: 'setup-needed' } & OplFirstLaunchResultDetails)
   | ({ status: 'failed' } & OplFirstLaunchResultDetails);
 
@@ -17,6 +18,7 @@ type OplFirstLaunchResultDetails = {
   message?: string;
   readyToLaunch?: boolean;
   blockers?: string[];
+  codexDefaultProfile?: OplCodexDefaultProfile;
   firstRunLog?: OplFirstRunLogSnapshot;
 };
 
@@ -46,6 +48,7 @@ type OplSystemInitializePayload = {
       ready_to_launch?: boolean;
       blocking_items?: string[];
     };
+    codex_default_profile?: OplCodexDefaultProfile;
     recommended_skills?: {
       summary?: {
         missing?: number;
@@ -55,6 +58,16 @@ type OplSystemInitializePayload = {
       label?: string;
     };
   };
+};
+
+export type OplCodexDefaultProfile = {
+  model_provider?: string;
+  provider_name?: string;
+  model?: string;
+  model_reasoning_effort?: string | null;
+  base_url?: string;
+  base_url_role?: string;
+  model_profile_role?: string;
 };
 
 let preparationState: OplFirstLaunchPreparationState | null = null;
@@ -154,12 +167,43 @@ const readInitializeState = async (
   }
 
   const actionLabel = initialize?.recommended_next_action?.label;
+  if (blockingItems.includes('codex_config')) {
+    return {
+      status: 'codex-config-needed',
+      message: actionLabel || 'Configure Codex API key',
+      readyToLaunch: false,
+      blockers: blockingItems,
+      codexDefaultProfile: initialize?.codex_default_profile,
+    };
+  }
+
   return {
     status: 'setup-needed',
     message: actionLabel || (blockingItems.length ? blockingItems.join(', ') : undefined),
     readyToLaunch: false,
     blockers: blockingItems,
   };
+};
+
+export const configureOplCodexForFirstLaunch = async (
+  apiKey: string,
+  options: OplFirstLaunchPreparationOptions = {}
+): Promise<OplFirstLaunchPreparationResult> => {
+  await appendFirstRunLogEvent('gui_codex_configure_started', { api_key_present: Boolean(apiKey.trim()) });
+  const result = await ipcBridge.shell.configureOplCodex.invoke({ apiKey });
+  if (result.exitCode !== 0) {
+    const message = getFailureMessage(result);
+    await appendFirstRunLogEvent('gui_codex_configure_failed', { status: 'failed', message });
+    return {
+      status: 'failed',
+      message,
+      readyToLaunch: false,
+      firstRunLog: await readFirstRunLogSnapshot(),
+    };
+  }
+
+  await appendFirstRunLogEvent('gui_codex_configure_completed', { status: 'completed', api_key_present: true });
+  return await runOplFirstLaunchEnvironmentPreparation(options);
 };
 
 const runOplFirstLaunchEnvironmentPreparation = async (
