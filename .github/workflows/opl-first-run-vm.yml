@@ -128,6 +128,8 @@ jobs:
             --dmg "${{ steps.dmg.outputs.dmg_path }}"
             --guest-user "$GUEST_USER"
             --artifacts artifacts/opl-first-run-vm
+            --timeout-ms 900000
+            --smoke-timeout-ms 900000
           )
           if [ -n "$SSH_KEY" ]; then
             CMD+=(--ssh-key "$SSH_KEY")
