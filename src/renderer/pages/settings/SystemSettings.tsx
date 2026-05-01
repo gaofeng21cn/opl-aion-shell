@@ -418,7 +418,7 @@ const OplEnvironmentContent: React.FC = () => {
   }, [runOplCommand, t]);
 
   return (
-    <div className='flex flex-col gap-16px'>
+    <div className='flex flex-col gap-16px' data-testid='opl-settings-environment' aria-label='opl-settings-environment'>
       {contextHolder}
       <div>
         <Typography.Title heading={4} className='mb-6px'>
@@ -497,7 +497,7 @@ const OplEnvironmentContent: React.FC = () => {
         </div>
       </Card>
 
-      <Card bordered className='rounded-xl overflow-hidden'>
+      <Card bordered className='rounded-xl overflow-hidden' id='modules'>
         <div className='flex flex-col divide-y divide-border-1'>
           {OPL_ENVIRONMENT_ITEMS.map((item) => {
             const status = item.moduleId ? statusByModuleId.get(item.moduleId) : undefined;

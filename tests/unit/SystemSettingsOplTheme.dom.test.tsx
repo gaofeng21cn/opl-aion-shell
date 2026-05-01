@@ -112,6 +112,7 @@ describe('SystemSettings OPL environment section', () => {
     render(<SystemSettings />);
 
     expect(await screen.findByText('settings.oplEnvironmentPage.title')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
     expect(screen.getByText('settings.oplEnvironmentPage.maintenanceTitle')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-appearance-theme-settings')).not.toBeInTheDocument();
   });

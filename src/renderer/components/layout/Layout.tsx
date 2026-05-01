@@ -11,7 +11,7 @@ import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
 import onePersonLabLogo from '@/renderer/assets/logos/brand/one-person-lab.svg';
 import onePersonLabLogoDark from '@/renderer/assets/logos/brand/one-person-lab-dark.svg';
-import { Layout as ArcoLayout, Message } from '@arco-design/web-react';
+import { Button, Layout as ArcoLayout, Message } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -34,6 +34,7 @@ import {
   claimOplFirstLaunchPreparationMessage,
   releaseOplFirstLaunchPreparationMessage,
   startOplFirstLaunchEnvironmentPreparation,
+  type OplFirstLaunchPreparationResult,
 } from './oplFirstLaunchPreparation';
 import '@renderer/styles/layout.css';
 
@@ -86,6 +87,102 @@ type LayoutSiderInjectedProps = {
   collapsed: boolean;
 };
 
+export type OplFirstRunPanelState = {
+  status: OplFirstLaunchPreparationResult['status'] | 'preparing';
+  message?: string;
+  blockers?: string[];
+  logPath?: string;
+};
+
+export const OplFirstRunStatusPanel: React.FC<{
+  state: OplFirstRunPanelState;
+  onInstall: () => void;
+  onOpenEnvironment: () => void;
+  onOpenModules: () => void;
+  t: (key: string, options?: Record<string, string>) => string;
+}> = ({ state, onInstall, onOpenEnvironment, onOpenModules, t }) => {
+  const blockers = state.blockers ?? [];
+  const isReady = state.status === 'prepared' || state.status === 'already-prepared';
+  const isPreparing = state.status === 'preparing';
+
+  return (
+    <section
+      data-testid='opl-first-run-window'
+      aria-label='opl-first-run-window'
+      className='border-b border-border-1 bg-bg-2 px-16px py-10px'
+    >
+      <div className='flex flex-wrap items-center justify-between gap-12px'>
+        <div className='min-w-0'>
+          <div
+            data-testid='opl-first-run-progress'
+            aria-label='opl-first-run-progress'
+            className='text-13px text-t-primary font-600'
+          >
+            {isPreparing
+              ? t('settings.oplFirstLaunch.preparing')
+              : isReady
+                ? t('settings.oplFirstLaunch.complete')
+                : state.message || t('settings.oplFirstLaunch.setupNeeded')}
+          </div>
+          {state.logPath && (
+            <div className='text-11px text-t-tertiary truncate'>
+              {t('settings.oplFirstLaunch.logPath', { path: state.logPath })}
+            </div>
+          )}
+          {isReady && (
+            <div
+              data-testid='opl-first-run-ready-entry'
+              aria-label='opl-first-run-ready-entry'
+              className='text-12px text-success-6'
+            >
+              {t('settings.oplFirstLaunch.readyEntry')}
+            </div>
+          )}
+          {blockers.length > 0 && (
+            <ul
+              data-testid='opl-first-run-blockers-list'
+              aria-label='opl-first-run-blockers-list'
+              className='m-0 mt-4px pl-16px text-12px text-warning-6'
+            >
+              {blockers.map((blocker) => (
+                <li key={blocker}>{blocker}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className='flex flex-wrap items-center gap-8px'>
+          <Button
+            size='mini'
+            type='primary'
+            loading={isPreparing}
+            data-testid='opl-first-run-install-button'
+            aria-label='opl-first-run-install-button'
+            onClick={onInstall}
+          >
+            {t('settings.oplFirstLaunch.actions.install')}
+          </Button>
+          <Button
+            size='mini'
+            data-testid='opl-first-run-open-environment-button'
+            aria-label='opl-first-run-open-environment-button'
+            onClick={onOpenEnvironment}
+          >
+            {t('settings.oplFirstLaunch.actions.openEnvironment')}
+          </Button>
+          <Button
+            size='mini'
+            data-testid='opl-first-run-open-modules-button'
+            aria-label='opl-first-run-open-modules-button'
+            onClick={onOpenModules}
+          >
+            {t('settings.oplFirstLaunch.actions.openModules')}
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const detectMobileViewportOrTouch = (): boolean => {
   if (typeof window === 'undefined') return false;
   if (isElectronDesktop()) {
@@ -117,6 +214,7 @@ const Layout: React.FC<{
   const { t } = useTranslation();
   const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
+  const [firstRunPanelState, setFirstRunPanelState] = useState<OplFirstRunPanelState | null>(null);
   useDeepLink();
   useNotificationClick();
   const navigate = useNavigate();
@@ -146,6 +244,7 @@ const Layout: React.FC<{
 
     const prepareEnvironment = async () => {
       if (cancelled) return;
+      setFirstRunPanelState({ status: 'preparing', blockers: [] });
 
       const messageOwner = Symbol('opl-first-launch-preparation-message');
       const appVersions = await ipcBridge.application.appVersions.invoke().catch((): null => null);
@@ -167,7 +266,14 @@ const Layout: React.FC<{
 
       try {
         const result = await preparationPromise;
-        if (cancelled || !ownsMessage) return;
+        if (cancelled) return;
+        setFirstRunPanelState({
+          status: result.status,
+          message: result.message,
+          blockers: result.blockers,
+          logPath: result.firstRunLog?.path,
+        });
+        if (!ownsMessage) return;
 
         if (result.status === 'already-prepared') {
           return;
@@ -186,6 +292,10 @@ const Layout: React.FC<{
       } catch (error) {
         if (!cancelled) {
           Message.error(error instanceof Error ? error.message : t('settings.oplFirstLaunch.failed'));
+          setFirstRunPanelState({
+            status: 'failed',
+            message: error instanceof Error ? error.message : undefined,
+          });
           void navigate('/settings/opl');
         }
       } finally {
@@ -617,6 +727,34 @@ const Layout: React.FC<{
                   : undefined
               }
             >
+              {firstRunPanelState && (
+                <OplFirstRunStatusPanel
+                  state={firstRunPanelState}
+                  t={t}
+                  onInstall={() => {
+                    setFirstRunPanelState({ status: 'preparing', blockers: firstRunPanelState.blockers });
+                    void startOplFirstLaunchEnvironmentPreparation().then((result) => {
+                      setFirstRunPanelState({
+                        status: result.status,
+                        message: result.message,
+                        blockers: result.blockers,
+                        logPath: result.firstRunLog?.path,
+                      });
+                    }).catch((error: unknown) => {
+                      setFirstRunPanelState({
+                        status: 'failed',
+                        message: error instanceof Error ? error.message : undefined,
+                      });
+                    });
+                  }}
+                  onOpenEnvironment={() => {
+                    void navigate('/settings/opl');
+                  }}
+                  onOpenModules={() => {
+                    void navigate('/settings/opl#modules');
+                  }}
+                />
+              )}
               <Outlet />
               {directorySelectionContextHolder}
               <PwaPullToRefresh />

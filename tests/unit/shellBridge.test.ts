@@ -15,6 +15,8 @@ const {
   checkToolInstalledProvider,
   openFolderWithProvider,
   runOplCommandProvider,
+  readOplFirstRunLogProvider,
+  appendOplFirstRunLogProvider,
   shellMock,
   execMock,
   execFileMock,
@@ -27,6 +29,8 @@ const {
   checkToolInstalledProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   openFolderWithProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   runOplCommandProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  readOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  appendOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   shellMock: {
     openPath: vi.fn().mockResolvedValue(''),
     showItemInFolder: vi.fn(),
@@ -40,6 +44,9 @@ const {
   }),
   fsMock: {
     existsSync: vi.fn(),
+    readFile: vi.fn(),
+    mkdir: vi.fn(),
+    appendFile: vi.fn(),
   },
 }));
 
@@ -76,6 +83,16 @@ vi.mock('@/common', () => ({
           runOplCommandProvider.fn = fn;
         }),
       },
+      readOplFirstRunLog: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          readOplFirstRunLogProvider.fn = fn;
+        }),
+      },
+      appendOplFirstRunLog: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          appendOplFirstRunLogProvider.fn = fn;
+        }),
+      },
     },
   },
 }));
@@ -92,6 +109,11 @@ vi.mock('child_process', () => ({
 
 vi.mock('fs', () => ({
   existsSync: fsMock.existsSync,
+  promises: {
+    readFile: fsMock.readFile,
+    mkdir: fsMock.mkdir,
+    appendFile: fsMock.appendFile,
+  },
 }));
 
 // --- Tests ---
@@ -107,6 +129,8 @@ beforeEach(async () => {
   checkToolInstalledProvider.fn = undefined;
   openFolderWithProvider.fn = undefined;
   runOplCommandProvider.fn = undefined;
+  readOplFirstRunLogProvider.fn = undefined;
+  appendOplFirstRunLogProvider.fn = undefined;
 
   // Default mocks
   Object.defineProperty(process, 'platform', { value: 'win32' });
@@ -125,6 +149,8 @@ describe('shellBridge', () => {
       expect(checkToolInstalledProvider.fn).toBeDefined();
       expect(openFolderWithProvider.fn).toBeDefined();
       expect(runOplCommandProvider.fn).toBeDefined();
+      expect(readOplFirstRunLogProvider.fn).toBeDefined();
+      expect(appendOplFirstRunLogProvider.fn).toBeDefined();
     });
   });
 
@@ -240,12 +266,12 @@ describe('shellBridge', () => {
         callback(null, { stdout: '{"ok":true}', stderr: '' });
       });
 
-      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize'] });
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
 
       expect(result).toEqual({ exitCode: 0, stdout: '{"ok":true}', stderr: '' });
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'initialize'")],
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'")],
         expect.objectContaining({ timeout: 120_000, maxBuffer: 20 * 1024 * 1024 }),
         expect.any(Function)
       );
@@ -325,7 +351,7 @@ describe('shellBridge', () => {
           callback(null, { stdout: '{"ready":true}', stderr: '' });
         });
 
-      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize'] });
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
       const bootstrapCommand = execFileMock.mock.calls[1][1][1];
 
       expect(result.exitCode).toBe(0);
@@ -333,7 +359,71 @@ describe('shellBridge', () => {
       expect(result.stdout).toContain('{"ready":true}');
       expect(bootstrapCommand).toContain('raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh');
       expect(bootstrapCommand).toContain('--bootstrap-only');
-      expect(bootstrapCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize'");
+      expect(bootstrapCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+    });
+
+    it('reads the structured first-run jsonl log for visible startup status', async () => {
+      fsMock.existsSync.mockReturnValue(true);
+      fsMock.readFile.mockResolvedValue(
+        [
+          JSON.stringify({
+            event_type: 'gui_preparation_started',
+            schema_version: 'opl_first_run_event.v1',
+            surface_id: 'opl_first_run_log',
+            payload: {},
+          }),
+          'not-json',
+          JSON.stringify({
+            event_type: 'gui_preparation_completed',
+            schema_version: 'opl_first_run_event.v1',
+            surface_id: 'opl_first_run_log',
+            payload: { status: 'prepared' },
+          }),
+        ].join('\n')
+      );
+
+      const result = await readOplFirstRunLogProvider.fn!();
+
+      expect(result.path).toContain('Library/Logs/One Person Lab/first-run.jsonl');
+      expect(result.entries).toEqual([
+        {
+          event_type: 'gui_preparation_started',
+          schema_version: 'opl_first_run_event.v1',
+          surface_id: 'opl_first_run_log',
+          payload: {},
+        },
+        {
+          event_type: 'gui_preparation_completed',
+          schema_version: 'opl_first_run_event.v1',
+          surface_id: 'opl_first_run_log',
+          payload: { status: 'prepared' },
+        },
+      ]);
+      expect(result.latest).toEqual({
+        event_type: 'gui_preparation_completed',
+        schema_version: 'opl_first_run_event.v1',
+        surface_id: 'opl_first_run_log',
+        payload: { status: 'prepared' },
+      });
+    });
+
+    it('appends structured first-run log events', async () => {
+      fsMock.mkdir.mockResolvedValue(undefined);
+      fsMock.appendFile.mockResolvedValue(undefined);
+
+      await appendOplFirstRunLogProvider.fn!({
+        eventType: 'gui_install_started',
+        payload: { status: 'started' },
+      });
+
+      expect(fsMock.mkdir).toHaveBeenCalledWith(expect.stringContaining('Library/Logs/One Person Lab'), {
+        recursive: true,
+      });
+      expect(fsMock.appendFile).toHaveBeenCalledWith(
+        expect.stringContaining('first-run.jsonl'),
+        expect.stringContaining('"event_type":"gui_install_started"'),
+        'utf8'
+      );
     });
   });
 

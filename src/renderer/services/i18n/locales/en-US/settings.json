@@ -1046,6 +1046,13 @@
     "preparing": "One Person Lab is preparing the local environment and Codex…",
     "complete": "Local environment and Codex are ready",
     "setupNeeded": "Initial setup still needs attention. Continue in Environment Management.",
-    "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install."
+    "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install.",
+    "readyEntry": "Ready to enter One Person Lab",
+    "logPath": "First-run log: {{path}}",
+    "actions": {
+      "install": "Install",
+      "openEnvironment": "Environment",
+      "openModules": "Modules"
+    }
   }
 }

@@ -1047,6 +1047,13 @@
     "preparing": "One Person Lab 正在准备本机环境与 Codex，请稍候…",
     "complete": "本机环境和 Codex 已准备完成",
     "setupNeeded": "还需要完成一次初始化配置，请在环境管理中继续",
-    "failed": "环境准备失败，请到设置-环境管理中修复安装"
+    "failed": "环境准备失败，请到设置-环境管理中修复安装",
+    "readyEntry": "可以进入 One Person Lab",
+    "logPath": "首启日志：{{path}}",
+    "actions": {
+      "install": "安装",
+      "openEnvironment": "环境",
+      "openModules": "模块"
+    }
   }
 }

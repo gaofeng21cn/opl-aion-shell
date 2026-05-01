@@ -10,6 +10,7 @@ import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -26,6 +27,10 @@ const ALLOWED_OPL_COMMANDS = new Set([
   'runtime',
 ]);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
+const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab');
+const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
+const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
+const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -132,6 +137,50 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
       .filter(Boolean)
       .join('\n'),
   };
+}
+
+function parseFirstRunLogLine(line: string): Record<string, unknown> | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readOplFirstRunLog(): Promise<{
+  path: string;
+  entries: Array<Record<string, unknown>>;
+  latest: Record<string, unknown> | null;
+}> {
+  if (!fs.existsSync(OPL_FIRST_RUN_LOG_PATH)) {
+    return { path: OPL_FIRST_RUN_LOG_PATH, entries: [], latest: null };
+  }
+
+  const content = await fs.promises.readFile(OPL_FIRST_RUN_LOG_PATH, 'utf8');
+  const entries = content
+    .split(/\r?\n/)
+    .map(parseFirstRunLogLine)
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+    .slice(-OPL_FIRST_RUN_LOG_READ_LIMIT);
+  return { path: OPL_FIRST_RUN_LOG_PATH, entries, latest: entries.at(-1) ?? null };
+}
+
+async function appendOplFirstRunLog(eventType: string, payload: Record<string, unknown>): Promise<void> {
+  await fs.promises.mkdir(OPL_FIRST_RUN_LOG_DIR, { recursive: true });
+  const entry = {
+    timestamp: new Date().toISOString(),
+    event_type: eventType,
+    schema_version: OPL_FIRST_RUN_EVENT_SCHEMA_VERSION,
+    surface_id: 'opl_first_run_log',
+    payload: {
+      source: 'opl-aion-shell',
+      ...payload,
+    },
+  };
+  await fs.promises.appendFile(OPL_FIRST_RUN_LOG_PATH, `${JSON.stringify(entry)}\n`, 'utf8');
 }
 
 /**
@@ -382,6 +431,10 @@ export function initShellBridge(): void {
   });
 
   ipcBridge.shell.runOplCommand.provider(async ({ args }) => runOplCli(args));
+  ipcBridge.shell.readOplFirstRunLog.provider(async () => readOplFirstRunLog());
+  ipcBridge.shell.appendOplFirstRunLog.provider(async ({ eventType, payload }) =>
+    appendOplFirstRunLog(eventType, payload)
+  );
 
   // Open folder with specified tool
   ipcBridge.shell.openFolderWith.provider(async ({ folderPath, tool }) => {

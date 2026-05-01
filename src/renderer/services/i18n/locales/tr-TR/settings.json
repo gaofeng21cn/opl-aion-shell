@@ -1041,5 +1041,18 @@
     "apply": "Uygula",
     "applied": "Görünüm teması uygulandı",
     "applyFailed": "Görünüm teması uygulanamadı"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab yerel ortamı ve Codex'i hazırlıyor…",
+    "complete": "Yerel ortam ve Codex hazır",
+    "setupNeeded": "İlk kurulum hâlâ dikkat gerektiriyor. Ortam Yönetimi'nde devam edin.",
+    "failed": "Ortam hazırlığı başarısız oldu. Kurulumu onarmak için Ayarlar > Ortam Yönetimi'ni açın.",
+    "readyEntry": "One Person Lab'e girmeye hazır",
+    "logPath": "İlk çalıştırma günlüğü: {{path}}",
+    "actions": {
+      "install": "Yükle",
+      "openEnvironment": "Ortam",
+      "openModules": "Modüller"
+    }
   }
 }

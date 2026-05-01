@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockRunOplCommand = vi.hoisted(() => vi.fn());
+const mockReadOplFirstRunLog = vi.hoisted(() => vi.fn());
+const mockAppendOplFirstRunLog = vi.hoisted(() => vi.fn());
 const mockConfigGet = vi.hoisted(() => vi.fn());
 const mockConfigSet = vi.hoisted(() => vi.fn());
 
@@ -9,6 +11,12 @@ vi.mock('@/common', () => ({
     shell: {
       runOplCommand: {
         invoke: mockRunOplCommand,
+      },
+      readOplFirstRunLog: {
+        invoke: mockReadOplFirstRunLog,
+      },
+      appendOplFirstRunLog: {
+        invoke: mockAppendOplFirstRunLog,
       },
     },
   },
@@ -104,28 +112,44 @@ describe('oplFirstLaunchPreparation', () => {
   beforeEach(() => {
     resetOplFirstLaunchPreparationStateForTests();
     mockRunOplCommand.mockReset();
+    mockReadOplFirstRunLog.mockReset();
+    mockAppendOplFirstRunLog.mockReset();
     mockConfigGet.mockReset();
     mockConfigSet.mockReset();
+    mockReadOplFirstRunLog.mockResolvedValue({
+      path: '/Users/test/Library/Logs/One Person Lab/first-run.jsonl',
+      entries: [],
+      latest: null,
+    });
+    mockAppendOplFirstRunLog.mockResolvedValue(undefined);
   });
 
   it('does not run OPL install when the environment was already prepared', async () => {
     mockConfigGet.mockResolvedValue(123);
     mockRunOplCommand.mockResolvedValue(readyInitializeResult);
 
-    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'already-prepared' });
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+      firstRunLog: { path: '/Users/test/Library/Logs/One Person Lab/first-run.jsonl' },
+    });
 
     expect(mockRunOplCommand).not.toHaveBeenCalled();
     expect(mockConfigSet).not.toHaveBeenCalled();
+    expect(mockReadOplFirstRunLog).toHaveBeenCalledOnce();
   });
 
   it('skips OPL install when command-line setup already made the environment launchable', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand.mockResolvedValue(readyInitializeResult);
 
-    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'already-prepared' });
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+    });
 
     expect(mockRunOplCommand).toHaveBeenCalledOnce();
-    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
@@ -138,8 +162,9 @@ describe('oplFirstLaunchPreparation', () => {
     });
     mockRunOplCommand.mockReturnValueOnce(deferredReconcile.promise);
 
-    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toEqual({
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toMatchObject({
       status: 'already-prepared',
+      readyToLaunch: true,
     });
 
     await waitForOplCommandCalls(1);
@@ -159,8 +184,9 @@ describe('oplFirstLaunchPreparation', () => {
     });
     mockRunOplCommand.mockResolvedValue(readyInitializeResult);
 
-    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toEqual({
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toMatchObject({
       status: 'already-prepared',
+      readyToLaunch: true,
     });
 
     expect(mockRunOplCommand).not.toHaveBeenCalled();
@@ -173,13 +199,21 @@ describe('oplFirstLaunchPreparation', () => {
       .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
       .mockResolvedValueOnce(readyInitializeResult);
 
-    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({ status: 'prepared' });
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: [],
+    });
 
     expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_preparation_completed',
+      payload: expect.objectContaining({ status: 'prepared' }),
+    });
   });
 
   it('reuses one in-flight OPL install across concurrent callers', async () => {
@@ -195,14 +229,14 @@ describe('oplFirstLaunchPreparation', () => {
 
     expect(firstPreparation).toBe(secondPreparation);
     await waitForOplCommandCalls(2);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
 
     deferredRun.resolve({ exitCode: 0, stdout: '', stderr: '' });
 
-    await expect(firstPreparation).resolves.toEqual({ status: 'prepared' });
-    await expect(secondPreparation).resolves.toEqual({ status: 'prepared' });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize'] });
+    await expect(firstPreparation).resolves.toMatchObject({ status: 'prepared' });
+    await expect(secondPreparation).resolves.toMatchObject({ status: 'prepared' });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
     expect(mockConfigSet).toHaveBeenCalledTimes(1);
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
@@ -226,18 +260,32 @@ describe('oplFirstLaunchPreparation', () => {
     expect(claimOplFirstLaunchPreparationMessage(secondOwner)).toBe(true);
 
     deferredRun.resolve({ exitCode: 0, stdout: '', stderr: '' });
-    await expect(preparation).resolves.toEqual({ status: 'prepared' });
+    await expect(preparation).resolves.toMatchObject({ status: 'prepared' });
   });
 
   it('returns command failure details without marking the environment prepared', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand.mockResolvedValue({ exitCode: 1, stdout: 'stdout details', stderr: 'stderr details' });
 
-    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toEqual({
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'failed',
       message: 'stderr details',
     });
 
     expect(mockConfigSet).not.toHaveBeenCalled();
+  });
+
+  it('keeps structured first-run log failures from blocking preparation', async () => {
+    mockReadOplFirstRunLog.mockRejectedValue(new Error('log unavailable'));
+    mockAppendOplFirstRunLog.mockRejectedValue(new Error('log unavailable'));
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+    });
+
+    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
   });
 });

@@ -1043,5 +1043,18 @@
     "apply": "적용",
     "applied": "외관 테마를 적용했습니다",
     "applyFailed": "외관 테마 적용 실패"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab이 로컬 환경과 Codex를 준비하고 있습니다…",
+    "complete": "로컬 환경과 Codex가 준비되었습니다",
+    "setupNeeded": "초기 설정에 확인이 필요합니다. 환경 관리에서 계속하세요.",
+    "failed": "환경 준비에 실패했습니다. 설정 > 환경 관리에서 설치를 복구하세요.",
+    "readyEntry": "One Person Lab에 들어갈 준비가 되었습니다",
+    "logPath": "첫 실행 로그: {{path}}",
+    "actions": {
+      "install": "설치",
+      "openEnvironment": "환경",
+      "openModules": "모듈"
+    }
   }
 }

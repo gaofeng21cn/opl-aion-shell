@@ -2,10 +2,23 @@ import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
 
 export type OplFirstLaunchPreparationResult =
-  | { status: 'already-prepared' }
-  | { status: 'prepared' }
-  | { status: 'setup-needed'; message?: string }
-  | { status: 'failed'; message?: string };
+  | ({ status: 'already-prepared' } & OplFirstLaunchResultDetails)
+  | ({ status: 'prepared' } & OplFirstLaunchResultDetails)
+  | ({ status: 'setup-needed' } & OplFirstLaunchResultDetails)
+  | ({ status: 'failed' } & OplFirstLaunchResultDetails);
+
+export type OplFirstRunLogSnapshot = {
+  path: string;
+  entries: Array<Record<string, unknown>>;
+  latest: Record<string, unknown> | null;
+};
+
+type OplFirstLaunchResultDetails = {
+  message?: string;
+  readyToLaunch?: boolean;
+  blockers?: string[];
+  firstRunLog?: OplFirstRunLogSnapshot;
+};
 
 type OplFirstLaunchPreparationState = {
   promise: Promise<OplFirstLaunchPreparationResult>;
@@ -20,7 +33,7 @@ type OplModuleReconcileState = {
 const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
 const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
-const INITIALIZE_ARGS = ['system', 'initialize'];
+const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
 const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
 
 type OplFirstLaunchPreparationOptions = {
@@ -56,6 +69,22 @@ const parseInitializePayload = (stdout: string): OplSystemInitializePayload['sys
     return payload.system_initialize ?? null;
   } catch {
     return null;
+  }
+};
+
+const readFirstRunLogSnapshot = async (): Promise<OplFirstRunLogSnapshot | undefined> => {
+  try {
+    return await ipcBridge.shell.readOplFirstRunLog.invoke();
+  } catch {
+    return undefined;
+  }
+};
+
+const appendFirstRunLogEvent = async (eventType: string, payload: Record<string, unknown> = {}): Promise<void> => {
+  try {
+    await ipcBridge.shell.appendOplFirstRunLog.invoke({ eventType, payload });
+  } catch {
+    // First-run log visibility must not block environment preparation.
   }
 };
 
@@ -114,58 +143,77 @@ const readInitializeState = async (
   }
 
   const initialize = parseInitializePayload(initializeResult.stdout);
+  const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   if (initialize?.setup_flow?.ready_to_launch) {
     if (options.installRecommendedSkills && needsRecommendedSkillInstall(initialize)) {
-      return { status: 'setup-needed' };
+      return { status: 'setup-needed', readyToLaunch: true, blockers: ['recommended_skills'] };
     }
 
     await ConfigStorage.set(PREPARED_AT_CONFIG_KEY, Date.now());
-    return { status: readyStatus };
+    return { status: readyStatus, readyToLaunch: true, blockers: [] };
   }
 
-  const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   const actionLabel = initialize?.recommended_next_action?.label;
   return {
     status: 'setup-needed',
     message: actionLabel || (blockingItems.length ? blockingItems.join(', ') : undefined),
+    readyToLaunch: false,
+    blockers: blockingItems,
   };
 };
 
 const runOplFirstLaunchEnvironmentPreparation = async (
   options: OplFirstLaunchPreparationOptions = {}
 ): Promise<OplFirstLaunchPreparationResult> => {
+  const firstRunLog = await readFirstRunLogSnapshot();
+  await appendFirstRunLogEvent('gui_preparation_started');
   try {
     if (await readPreparedState()) {
       startModuleReconcileForAppVersion(options.appVersion);
-      return { status: 'already-prepared' };
+      await appendFirstRunLogEvent('gui_preparation_skipped', { status: 'already-prepared' });
+      return { status: 'already-prepared', readyToLaunch: true, firstRunLog };
     }
 
     const initialState = await readInitializeState('already-prepared', { installRecommendedSkills: true });
     if (initialState.status === 'failed') {
-      return initialState;
+      await appendFirstRunLogEvent('gui_initialize_failed', { status: 'failed', message: initialState.message });
+      return { ...initialState, firstRunLog };
     }
 
     let readyState = initialState;
     if (initialState.status === 'setup-needed') {
       const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
       if (result.exitCode !== 0) {
-        return { status: 'failed', message: getFailureMessage(result) };
+        const message = getFailureMessage(result);
+        await appendFirstRunLogEvent('gui_install_failed', { status: 'failed', message });
+        return { status: 'failed', message, readyToLaunch: false, blockers: initialState.blockers, firstRunLog };
       }
 
       const preparedState = await readInitializeState('prepared');
       if (preparedState.status === 'failed' || preparedState.status === 'setup-needed') {
-        return preparedState;
+        await appendFirstRunLogEvent('gui_post_install_initialize', {
+          status: preparedState.status,
+          blockers: preparedState.blockers ?? [],
+          message: preparedState.message,
+        });
+        return { ...preparedState, firstRunLog };
       }
       readyState = preparedState;
     }
 
     startModuleReconcileForAppVersion(options.appVersion);
 
-    return options.appVersion ? { status: 'prepared' } : readyState;
+    const result = options.appVersion ? { status: 'prepared' as const, readyToLaunch: true, blockers: [] } : readyState;
+    await appendFirstRunLogEvent('gui_preparation_completed', { status: result.status });
+    return { ...result, firstRunLog };
   } catch (error) {
+    const message = error instanceof Error ? error.message : undefined;
+    await appendFirstRunLogEvent('gui_preparation_error', { status: 'failed', message });
     return {
       status: 'failed',
-      message: error instanceof Error ? error.message : undefined,
+      message,
+      readyToLaunch: false,
+      firstRunLog,
     };
   }
 };

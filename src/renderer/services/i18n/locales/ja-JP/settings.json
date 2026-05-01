@@ -1043,5 +1043,18 @@
     "apply": "適用",
     "applied": "外観テーマを適用しました",
     "applyFailed": "外観テーマの適用に失敗しました"
+  },
+  "oplFirstLaunch": {
+    "preparing": "One Person Lab がローカル環境と Codex を準備しています…",
+    "complete": "ローカル環境と Codex の準備ができました",
+    "setupNeeded": "初期設定に対応が必要です。環境管理で続行してください。",
+    "failed": "環境準備に失敗しました。設定 > 環境管理でインストールを修復してください。",
+    "readyEntry": "One Person Lab に入る準備ができました",
+    "logPath": "初回起動ログ: {{path}}",
+    "actions": {
+      "install": "インストール",
+      "openEnvironment": "環境",
+      "openModules": "モジュール"
+    }
   }
 }
