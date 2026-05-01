@@ -97,6 +97,10 @@ function run(command, args, options = {}) {
   return result.stdout ?? '';
 }
 
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
 function assertMacOS() {
   if (process.platform !== 'darwin') {
     throw new Error('OPL GUI first-run smoke must run on macOS.');
@@ -158,7 +162,8 @@ function sleep(ms) {
 }
 
 function runOplJson(args) {
-  const result = spawnSync('opl', args, {
+  const command = ['opl', ...args].map(shellQuote).join(' ');
+  const result = spawnSync('/bin/zsh', ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json' },
   });
