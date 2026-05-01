@@ -25,6 +25,7 @@ import { AION_ASSET_PROTOCOL } from '@process/extensions';
 import { initializeProcess } from './process';
 import { ProcessConfig } from './process/utils/initStorage';
 import { loadShellEnvironmentAsync, logEnvironmentDiagnostics, mergePaths } from './process/utils/shellEnv';
+import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/oplFullRuntime';
 import { initializeAcpDetector, registerWindowMaximizeListeners, disposeAllTeamSessions } from '@process/bridge';
 import './process/bridge/feedbackBridge';
 import { wasLaunchedAtLogin } from '@process/bridge/applicationBridge';
@@ -127,6 +128,16 @@ if (process.platform === 'darwin' || process.platform === 'linux') {
       // Ignore errors when reading nvm directory
     }
   }
+}
+
+try {
+  const fullRuntime = ensurePackagedOplFullRuntime({ isPackaged: app.isPackaged });
+  if (fullRuntime) {
+    applyOplFullRuntimeEnv(fullRuntime.env);
+    console.log(`[OPL Full Runtime] Installed runtime ${fullRuntime.version} at ${fullRuntime.runtimeHome}`);
+  }
+} catch (error) {
+  console.error('[OPL Full Runtime] Failed to install packaged runtime:', error);
 }
 
 // Log environment diagnostics once at startup (persisted via electron-log).

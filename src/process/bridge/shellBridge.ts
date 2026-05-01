@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { buildOplFullRuntimeShellPrefix } from '../oplFullRuntime';
 
 const execAsync = promisify(exec);
 const execFileAsync = promisify(execFile);
@@ -151,9 +152,11 @@ async function runLoginShellWithInput(
 
 function buildOplCommand(args: string[]): string {
   const envPrefix = ['modules', 'runtime', 'system', 'workspace'].includes(args[0]) ? 'OPL_OUTPUT=json ' : '';
-  return ['command -v opl >/dev/null || exit 127', `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`].join(
-    ' && '
-  );
+  return [
+    buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME),
+    'command -v opl >/dev/null || exit 127',
+    `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`,
+  ].filter(Boolean).join(' && ');
 }
 
 function buildOplBootstrapCommand(): string {

@@ -150,6 +150,8 @@ extraResources:
     to: trayTemplate.png
   - from: resources/trayTemplate@2x.png
     to: trayTemplate@2x.png
+  - from: packaged-runtimes/opl-full-runtime
+    to: opl-full-runtime
 win:
   target:
     - nsis
