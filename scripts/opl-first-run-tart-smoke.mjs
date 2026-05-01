@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
+const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
 
 function usage() {
   process.stdout.write(`Usage:
@@ -224,15 +225,42 @@ function assertTartAvailable() {
 }
 
 function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir) {
+  const nodeCommand = shellQuote(options.guestNodeCommand);
   return [
     'set -euo pipefail',
-    `node ${shellQuote(guestScriptPath)}`,
+    `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
   ].join(' ');
+}
+
+function resolveGuestNodeCommand(options, ip) {
+  const installScript = `
+set -euo pipefail
+if command -v node >/dev/null 2>&1; then
+  command -v node
+  exit 0
+fi
+ARCH="$(uname -m)"
+case "$ARCH" in
+  arm64) NODE_ARCH="arm64" ;;
+  x86_64) NODE_ARCH="x64" ;;
+  *) echo "Unsupported guest architecture for Node.js: $ARCH" >&2; exit 1 ;;
+esac
+NODE_VERSION="${DEFAULT_GUEST_NODE_VERSION}"
+NODE_DIR="${options.guestWorkdir}/node-v$NODE_VERSION-darwin-$NODE_ARCH"
+if [ ! -x "$NODE_DIR/bin/node" ]; then
+  mkdir -p ${shellQuote(options.guestWorkdir)}
+  curl -fL "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-$NODE_ARCH.tar.gz" -o "${options.guestWorkdir}/node.tar.gz"
+  tar -xzf "${options.guestWorkdir}/node.tar.gz" -C ${shellQuote(options.guestWorkdir)}
+fi
+"$NODE_DIR/bin/node" --version >/dev/null
+printf '%s\\n' "$NODE_DIR/bin/node"
+`;
+  return ssh(options, ip, installScript).trim().split(/\r?\n/).at(-1);
 }
 
 function writeSummary(options, ip, guestArtifactDir) {
@@ -268,6 +296,7 @@ async function main() {
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
     ssh(options, ip, `rm -rf ${shellQuote(options.guestWorkdir)} && mkdir -p ${shellQuote(options.guestWorkdir)}`);
     scpToGuest(options, ip, [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs')], options.guestWorkdir);
+    options.guestNodeCommand = resolveGuestNodeCommand(options, ip);
     ssh(options, ip, guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir));
     scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
     writeSummary(options, ip, guestArtifactDir);
