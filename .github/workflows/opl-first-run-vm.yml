@@ -80,12 +80,12 @@ jobs:
             curl -fL "${{ inputs.release_dmg_url }}" -o artifacts/release/One-Person-Lab.dmg
           elif [ -n "${{ inputs.release_tag }}" ]; then
             gh release download "${{ inputs.release_tag }}" \
-              --repo gaofeng21cn/opl-aion-shell \
+              --repo gaofeng21cn/one-person-lab \
               --pattern "*.dmg" \
               --dir artifacts/release
           else
             gh release download \
-              --repo gaofeng21cn/opl-aion-shell \
+              --repo gaofeng21cn/one-person-lab \
               --pattern "*.dmg" \
               --dir artifacts/release
           fi
