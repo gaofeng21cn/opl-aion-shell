@@ -121,6 +121,7 @@ let lastRuntimeTraySnapshot: RuntimeTraySnapshot | null = null;
 let lastRecentConversations: RecentConversation[] = [];
 let lastDesktopPetEnabled = false;
 let runtimeTraySnapshotRefreshInFlight: Promise<void> | null = null;
+let runtimeTraySnapshotRefreshQueued = false;
 
 const getCachedRuntimeTraySnapshot = (): RuntimeTraySnapshot => {
   if (!lastRuntimeTraySnapshot) {
@@ -602,6 +603,7 @@ const refreshTrayMenuFromCachedState = async (): Promise<void> => {
 
 const scheduleRuntimeTraySnapshotRefresh = (): void => {
   if (runtimeTraySnapshotRefreshInFlight) {
+    runtimeTraySnapshotRefreshQueued = true;
     return;
   }
 
@@ -623,6 +625,10 @@ const scheduleRuntimeTraySnapshotRefresh = (): void => {
     })
     .finally(() => {
       runtimeTraySnapshotRefreshInFlight = null;
+      if (runtimeTraySnapshotRefreshQueued) {
+        runtimeTraySnapshotRefreshQueued = false;
+        scheduleRuntimeTraySnapshotRefresh();
+      }
     });
 };
 
