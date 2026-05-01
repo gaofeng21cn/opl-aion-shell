@@ -202,3 +202,12 @@ When modifying build scripts:
 - `/forge.config.ts` - Electron Forge configuration
 - `/.github/workflows/build-and-release.yml` - CI/CD pipeline
 - `/package.json` - Build scripts and dependencies
+
+## OPL first-run VM smoke
+
+The packaged OPL first-run test has two layers:
+
+- `scripts/opl-first-run-vm-smoke.mjs` runs inside a clean macOS GUI session. It installs a real `.dmg` or opens a packaged `.app`, checks stable accessibility labels, and collects `first-run.jsonl`, `opl system initialize --json`, `opl modules`, a screenshot, and unified logs.
+- `scripts/opl-first-run-tart-smoke.mjs` runs on a self-hosted Mac with Tart. It clones a clean VM snapshot, copies the release DMG and guest smoke script into the VM over SSH, runs the guest smoke, copies artifacts back, then stops and deletes the temporary VM.
+
+Nightly execution is wired through `.github/workflows/opl-first-run-vm.yml`. Configure the self-hosted runner with labels from `OPL_FIRST_RUN_RUNNER_LABELS` or the default `["self-hosted","macOS","opl-gui-vm"]`, set `OPL_FIRST_RUN_TART_SOURCE` to a clean macOS Tart base VM, and ensure the guest user has SSH, Node.js, a logged-in desktop session, and Accessibility permission for `osascript`/System Events.

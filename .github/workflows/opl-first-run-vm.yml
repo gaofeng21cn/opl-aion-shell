@@ -1,0 +1,167 @@
+name: OPL GUI First-Run VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "GitHub release tag to test. Empty means latest release."
+        required: false
+        type: string
+      release_dmg_url:
+        description: "Direct DMG URL. Overrides release_tag when set."
+        required: false
+        type: string
+      tart_source_vm:
+        description: "Tart clean snapshot/base VM. Empty means repository variable OPL_FIRST_RUN_TART_SOURCE."
+        required: false
+        type: string
+      guest_user:
+        description: "SSH user inside the VM. Empty means repository variable OPL_FIRST_RUN_GUEST_USER or runner."
+        required: false
+        type: string
+      guest_ssh_key_path:
+        description: "SSH private key path on the self-hosted runner."
+        required: false
+        type: string
+      no_graphics:
+        description: "Pass --no-graphics to tart run. Use only for VM images with a logged-in GUI session."
+        required: false
+        type: boolean
+        default: false
+      keep_vm:
+        description: "Leave temporary Tart VM for debugging."
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: "0 18 * * *"
+
+concurrency:
+  group: opl-gui-first-run-vm
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  clean-vm-first-run:
+    name: Clean VM first launch
+    runs-on: ${{ fromJson(vars.OPL_FIRST_RUN_RUNNER_LABELS || '["self-hosted","macOS","opl-gui-vm"]') }}
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OPL_FIRST_RUN_TART_SOURCE: ${{ vars.OPL_FIRST_RUN_TART_SOURCE }}
+      OPL_FIRST_RUN_GUEST_USER: ${{ vars.OPL_FIRST_RUN_GUEST_USER }}
+      OPL_FIRST_RUN_GUEST_SSH_KEY: ${{ vars.OPL_FIRST_RUN_GUEST_SSH_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate smoke scripts
+        shell: bash
+        run: |
+          node --check scripts/opl-first-run-vm-smoke.mjs
+          node --check scripts/opl-first-run-tart-smoke.mjs
+
+      - name: Resolve release DMG
+        id: dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release
+
+          if [ -n "${{ inputs.release_dmg_url }}" ]; then
+            curl -fL "${{ inputs.release_dmg_url }}" -o artifacts/release/One-Person-Lab.dmg
+          elif [ -n "${{ inputs.release_tag }}" ]; then
+            gh release download "${{ inputs.release_tag }}" \
+              --repo gaofeng21cn/opl-aion-shell \
+              --pattern "*.dmg" \
+              --dir artifacts/release
+          else
+            gh release download \
+              --repo gaofeng21cn/opl-aion-shell \
+              --pattern "*.dmg" \
+              --dir artifacts/release
+          fi
+
+          DMG_PATH="$(find artifacts/release -maxdepth 1 -type f -name '*.dmg' | sort | head -n 1)"
+          if [ -z "$DMG_PATH" ]; then
+            echo "::error::No DMG artifact found for first-run VM smoke."
+            exit 1
+          fi
+          echo "dmg_path=$DMG_PATH" >> "$GITHUB_OUTPUT"
+          echo "Using DMG: $DMG_PATH"
+
+      - name: Run clean VM first launch smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_VM="${{ inputs.tart_source_vm }}"
+          if [ -z "$SOURCE_VM" ]; then
+            SOURCE_VM="${OPL_FIRST_RUN_TART_SOURCE:-}"
+          fi
+          if [ -z "$SOURCE_VM" ]; then
+            echo "::error::Set workflow input tart_source_vm or repository variable OPL_FIRST_RUN_TART_SOURCE."
+            exit 1
+          fi
+
+          GUEST_USER="${{ inputs.guest_user }}"
+          if [ -z "$GUEST_USER" ]; then
+            GUEST_USER="${OPL_FIRST_RUN_GUEST_USER:-runner}"
+          fi
+
+          SSH_KEY="${{ inputs.guest_ssh_key_path }}"
+          if [ -z "$SSH_KEY" ]; then
+            SSH_KEY="${OPL_FIRST_RUN_GUEST_SSH_KEY:-}"
+          fi
+
+          CMD=(
+            node scripts/opl-first-run-tart-smoke.mjs
+            --source-vm "$SOURCE_VM"
+            --dmg "${{ steps.dmg.outputs.dmg_path }}"
+            --guest-user "$GUEST_USER"
+            --artifacts artifacts/opl-first-run-vm
+          )
+          if [ -n "$SSH_KEY" ]; then
+            CMD+=(--ssh-key "$SSH_KEY")
+          fi
+          if [ "${{ inputs.no_graphics }}" = "true" ]; then
+            CMD+=(--no-graphics)
+          fi
+          if [ "${{ inputs.keep_vm }}" = "true" ]; then
+            CMD+=(--keep-vm)
+          fi
+
+          "${CMD[@]}"
+
+      - name: Upload first-run VM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: opl-first-run-vm-${{ github.run_id }}
+          path: artifacts/opl-first-run-vm
+          if-no-files-found: warn
+
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## OPL GUI first-run VM"
+            echo
+            echo "- DMG: ${{ steps.dmg.outputs.dmg_path }}"
+            echo "- Artifacts: artifacts/opl-first-run-vm"
+            if [ -f artifacts/opl-first-run-vm/tart-smoke-summary.json ]; then
+              echo
+              echo '```json'
+              cat artifacts/opl-first-run-vm/tart-smoke-summary.json
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
