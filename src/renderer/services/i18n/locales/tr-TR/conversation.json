@@ -89,6 +89,15 @@
     "closeRight": "Sağ tarafı kapat",
     "closeOthers": "Diğerlerini Kapat"
   },
+  "header": {
+    "assistantFallback": "OPL Asistanı",
+    "assistantStatusLabel": "{{assistant}}, {{model}}, {{status}}",
+    "status": {
+      "ready": "Hazır",
+      "running": "Çalışıyor",
+      "pending": "Beklemede"
+    }
+  },
   "workspace": {
     "title": "Çalışma Alanı",
     "pasteConfirm_title": "Dosyaları yapıştır",

@@ -89,6 +89,15 @@
     "closeRight": "关闭右侧",
     "closeOthers": "关闭其他"
   },
+  "header": {
+    "assistantFallback": "OPL 助手",
+    "assistantStatusLabel": "{{assistant}}，{{model}}，{{status}}",
+    "status": {
+      "ready": "就绪",
+      "running": "运行中",
+      "pending": "等待中"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"

@@ -96,6 +96,15 @@
     "closeRight": "오른쪽 닫기",
     "closeOthers": "다른 탭 닫기"
   },
+  "header": {
+    "assistantFallback": "OPL 어시스턴트",
+    "assistantStatusLabel": "{{assistant}}, {{model}}, {{status}}",
+    "status": {
+      "ready": "준비됨",
+      "running": "실행 중",
+      "pending": "대기 중"
+    }
+  },
   "workspace": {
     "title": "워크스페이스",
     "pasteConfirm_title": "파일 붙여넣기",

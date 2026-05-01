@@ -96,6 +96,15 @@
     "closeRight": "右側を閉じる",
     "closeOthers": "他を閉じる"
   },
+  "header": {
+    "assistantFallback": "OPLアシスタント",
+    "assistantStatusLabel": "{{assistant}}、{{model}}、{{status}}",
+    "status": {
+      "ready": "準備完了",
+      "running": "実行中",
+      "pending": "待機中"
+    }
+  },
   "workspace": {
     "title": "ワークスペース",
     "pasteConfirm_title": "ファイルを貼り付け",

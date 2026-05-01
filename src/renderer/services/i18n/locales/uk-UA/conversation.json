@@ -89,6 +89,15 @@
     "closeRight": "Закрити справа",
     "closeOthers": "Закрити інші"
   },
+  "header": {
+    "assistantFallback": "Асистент OPL",
+    "assistantStatusLabel": "{{assistant}}, {{model}}, {{status}}",
+    "status": {
+      "ready": "Готовий",
+      "running": "Виконується",
+      "pending": "Очікує"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Агенти",
     "presetAssistants": "Встановлені асистенти"

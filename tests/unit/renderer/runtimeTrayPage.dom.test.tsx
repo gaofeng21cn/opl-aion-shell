@@ -65,31 +65,30 @@ const translations: Record<string, string> = {
   'common.historyBack': 'Back',
   'common.open': 'Open',
   'common.runtimeTray.activeRun': 'Active Run',
-  'common.runtimeTray.attentionReason': 'Why this needs attention',
+  'common.runtimeTray.attentionReason': 'Status Note',
   'common.runtimeTray.attentionReasonChecks':
-    'This task still has {{count}} quality or delivery check(s) open. OPL should continue along the current paper line.',
+    'This task has {{count}} open quality or delivery check(s).',
   'common.runtimeTray.attentionReasonDefault':
-    'This task needs OPL to re-check the current runtime state and decide whether to continue, recover, or wait for your confirmation.',
-  'common.runtimeTray.actionSummaryDefault':
-    'OPL is reading the runtime projection and will continue through the current project state.',
+    'Runtime state requires review against the current project projection.',
+  'common.runtimeTray.actionSummaryDefault': 'Runtime projection loaded; awaiting the next status update.',
   'common.runtimeTray.attentionReasonInfra':
-    'This is a background supervision job. You usually do not need to handle it directly; if it keeps failing, ask OPL to check and restore supervision.',
+    'Background supervision item; no user action is required unless the condition persists.',
   'common.runtimeTray.attentionReasonRecovering':
-    'The system detected a dropped run and is recovering it automatically. Watch whether it continues on the same paper line after recovery.',
+    'Runtime recovery is in progress; continuity on the same paper line must be confirmed after recovery.',
   'common.runtimeTray.attentionReasonReview':
-    'This paper line is at a human review or delivery handoff point. It needs your review, a submission decision, or new revision notes.',
-  'common.runtimeTray.currentSituation': 'Current situation',
+    'Review or delivery handoff is pending; user confirmation is required.',
+  'common.runtimeTray.currentSituation': 'Current Status',
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',
-  'common.runtimeTray.infrastructureProblem': 'What happened to background supervision',
-  'common.runtimeTray.infrastructureRecovery': 'What the system needs to recover',
+  'common.runtimeTray.infrastructureProblem': 'Background Supervision Status',
+  'common.runtimeTray.infrastructureRecovery': 'Recovery Action',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
   'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
   'common.runtimeTray.openWorkspace': 'Open Workspace',
   'common.runtimeTray.operatorView': 'Operator View',
-  'common.runtimeTray.oplHandling': 'What OPL is handling',
-  'common.runtimeTray.physicianView': 'Status for doctors/PIs',
+  'common.runtimeTray.oplHandling': 'Current Processing',
+  'common.runtimeTray.physicianView': 'Status Summary',
   'common.runtimeTray.primaryCommand': 'Primary Command',
   'common.runtimeTray.project': 'Project',
   'common.runtimeTray.runtimeStatusTitle': 'OPL Runtime Status',
@@ -97,31 +96,31 @@ const translations: Record<string, string> = {
   'common.runtimeTray.sourceRefs': 'Source References',
   'common.runtimeTray.study': 'Study',
   'common.runtimeTray.summaryByOwner':
-    '{{running}} running, {{opl}} OPL handling, {{infrastructure}} background recovery, {{user}} needs you',
-  'common.runtimeTray.tellOpl': 'Tell OPL',
+    '{{running}} running, {{opl}} in process, {{infrastructure}} background recovery, {{user}} user action',
+  'common.runtimeTray.tellOpl': 'Suggested Instruction',
   'common.runtimeTray.tellOplCheck':
-    'Check the current state of {{title}} and tell me whether I need to review, confirm, or provide new materials.',
+    'Check the current state of {{title}} and confirm whether user review, confirmation, or additional material is required.',
   'common.runtimeTray.tellOplInfra':
-    'Check whether the background supervision job for {{title}} is healthy; if not, restore supervision.',
-  'common.runtimeTray.tellOplNextAction': 'Continue {{title}}, prioritizing: {{nextAction}}',
+    'Check background supervision for {{title}}; restore the supervision task if the condition persists.',
+  'common.runtimeTray.tellOplNextAction': 'Continue {{title}}; priority item: {{nextAction}}',
   'common.runtimeTray.tellOplRecovering':
-    'Check whether {{title}} has recovered; after recovery, continue the current paper-line revision package.',
+    'Check whether {{title}} has recovered; continue the current paper-line revision package after recovery.',
   'common.runtimeTray.tellOplReview':
-    'I have reviewed the submission or human-review package for {{title}}. Continue along the same paper line; I will send revision notes if needed.',
+    'Submission or review package for {{title}} has been reviewed; continue on the same paper line.',
   'common.runtimeTray.updatedAt': 'Updated',
-  'common.runtimeTray.userActionRequired': 'What you need to do',
-  'common.runtimeTray.whyNotDone': 'Why it is not finished',
+  'common.runtimeTray.userActionRequired': 'User Action',
+  'common.runtimeTray.whyNotDone': 'Open Items',
   'common.status': 'Status',
-  'common.tray.runtimeAttention': 'Needs attention',
+  'common.tray.runtimeAttention': 'User Action Required',
   'common.tray.runtimeInfrastructure': 'Background Recovery',
-  'common.tray.runtimeOplAction': 'OPL Is Handling',
-  'common.tray.runtimeRecent': 'Recent items',
-  'common.tray.runtimeRunning': 'Running items',
+  'common.tray.runtimeOplAction': 'In Process',
+  'common.tray.runtimeRecent': 'Recent Items',
+  'common.tray.runtimeRunning': 'Running Items',
   'common.tray.runtimeStatusIdle': 'Idle',
-  'common.tray.runtimeStatusNeedsAttention': 'Needs Attention',
+  'common.tray.runtimeStatusNeedsAttention': 'User Action Required',
   'common.tray.runtimeStatusOffline': 'Offline',
   'common.tray.runtimeStatusRunning': 'Running',
-  'common.tray.runtimeUserAction': 'Needs You',
+  'common.tray.runtimeUserAction': 'User Action',
   'common.tray.untitled': 'Untitled',
   'common.workspace': 'Workspace',
 };
@@ -152,7 +151,7 @@ const runtimeItem: RuntimeTrayOpenPayload = {
   actionOwner: 'opl',
   requiresUserAction: false,
   actionKind: 'publication_gate',
-  actionSummary: 'OPL/MAS is closing publication and quality gates while the active run continues.',
+  actionSummary: 'Publication quality or delivery checks remain open; current stage: Analysis campaign.',
   studyId: '002-dm-china-us-mortality-attribution',
   detailSummary: '托管运行时在线，研究仍在自动推进。',
   nextActionSummary: '补充分析与稳健性验证',
@@ -172,20 +171,20 @@ const runtimeItem: RuntimeTrayOpenPayload = {
 const runOplCommandMock = vi.mocked(ipcBridge.shell.runOplCommand.invoke);
 
 describe('RuntimeTrayItemPage', () => {
-  it('shows physician-facing guidance instead of command suggestions', () => {
+  it('shows professional status guidance instead of command suggestions', () => {
     render(
       <MemoryRouter initialEntries={[{ pathname: '/runtime/item', state: { runtimeItem } }]}>
         <RuntimeTrayItemPage />
       </MemoryRouter>
     );
 
-    expect(screen.getByText('Status for doctors/PIs')).toBeInTheDocument();
-    expect(screen.getByText('What OPL is handling')).toBeInTheDocument();
+    expect(screen.getByText('Status Summary')).toBeInTheDocument();
+    expect(screen.getByText('Current Processing')).toBeInTheDocument();
     expect(
-      screen.getByText('OPL/MAS is closing publication and quality gates while the active run continues.')
+      screen.getByText('Publication quality or delivery checks remain open; current stage: Analysis campaign.')
     ).toBeInTheDocument();
-    expect(screen.getByText('Why it is not finished')).toBeInTheDocument();
-    expect(screen.queryByText('Tell OPL')).not.toBeInTheDocument();
+    expect(screen.getByText('Open Items')).toBeInTheDocument();
+    expect(screen.queryByText('Suggested Instruction')).not.toBeInTheDocument();
     expect(screen.getByText('Developer Details')).toBeInTheDocument();
     expect(screen.queryByText('Recommended Commands')).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
@@ -199,9 +198,9 @@ describe('RuntimeTrayItemPage', () => {
         runtime_tray_snapshot: {
           schema_version: 'runtime_tray_snapshot.v1',
           runtime_health: {
-            status: 'needs_attention',
-            label: 'Needs attention',
-            summary: '1 running, 1 OPL handling.',
+            status: 'running',
+            label: 'Running',
+            summary: '0 running, 1 in process, 0 background recovery, 0 user action',
           },
           last_updated: '2026-04-30T10:51:34.483Z',
           running_items: [],
@@ -221,7 +220,7 @@ describe('RuntimeTrayItemPage', () => {
               action_owner: 'opl',
               requires_user_action: false,
               action_kind: 'publication_gate',
-              action_summary: 'OPL/MAS is closing publication and quality gates while the active run continues.',
+              action_summary: 'Publication quality or delivery checks remain open; current stage: Analysis campaign.',
               study_id: '002-dm-china-us-mortality-attribution',
               detail_summary: '系统已检测到运行掉线，正在自动尝试恢复。',
               next_action_summary: '补充分析与稳健性验证',
@@ -250,19 +249,19 @@ describe('RuntimeTrayItemPage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText('OPL Is Handling')).toBeInTheDocument();
-    expect(screen.getByText('What OPL is handling')).toBeInTheDocument();
+    expect(await screen.findByText('In Process')).toBeInTheDocument();
+    expect(screen.getByText('Current Processing')).toBeInTheDocument();
     expect(
-      screen.getByText('OPL/MAS is closing publication and quality gates while the active run continues.')
+      screen.getByText('Publication quality or delivery checks remain open; current stage: Analysis campaign.')
     ).toBeInTheDocument();
-    expect(screen.getByText('Why it is not finished')).toBeInTheDocument();
+    expect(screen.getByText('Open Items')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'The system detected a dropped run and is recovering it automatically. Watch whether it continues on the same paper line after recovery.'
+        'Runtime recovery is in progress; continuity on the same paper line must be confirmed after recovery.'
       )
     ).toBeInTheDocument();
-    expect(screen.queryByText('Tell OPL')).not.toBeInTheDocument();
-    expect(screen.getByText('0 running, 1 OPL handling, 0 background recovery, 0 needs you')).toBeInTheDocument();
+    expect(screen.queryByText('Suggested Instruction')).not.toBeInTheDocument();
+    expect(screen.getByText('0 running, 1 in process, 0 background recovery, 0 user action')).toBeInTheDocument();
     expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();

@@ -503,7 +503,7 @@ describe('tray module', () => {
                   action_owner: 'opl',
                   requires_user_action: false,
                   action_kind: 'publication_gate',
-                  action_summary: 'OPL is closing publication checks.',
+                  action_summary: 'Publication quality or delivery checks remain open.',
                 },
               ],
               recent_items: [

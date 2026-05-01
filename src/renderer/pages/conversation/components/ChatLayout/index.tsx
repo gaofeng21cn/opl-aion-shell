@@ -56,6 +56,7 @@ const ChatLayout: React.FC<{
 }> = (props) => {
   const { conversationId, workspacePath } = props;
   const { backend, presetAssistant, agentName, workspaceEnabled = true } = props;
+  const hasHeaderLeft = Boolean(props.headerLeft);
   const layout = useLayoutContext();
   const isMacRuntime = isMacEnvironment();
   const isWindowsRuntime = isWindowsEnvironment();
@@ -203,7 +204,7 @@ const ChatLayout: React.FC<{
         </FlexFullContainer>
         <div className='flex items-center gap-12px shrink-0'>
           {props.headerExtra}
-          {(backend || presetAssistant) && (
+          {(backend || presetAssistant) && !hasHeaderLeft && (
             <AgentBadge
               backend={backend}
               agentName={displayName}

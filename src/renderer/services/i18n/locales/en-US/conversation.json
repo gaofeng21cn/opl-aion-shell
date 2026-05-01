@@ -89,6 +89,15 @@
     "closeRight": "Close to the Right",
     "closeOthers": "Close Others"
   },
+  "header": {
+    "assistantFallback": "OPL Assistant",
+    "assistantStatusLabel": "{{assistant}}, {{model}}, {{status}}",
+    "status": {
+      "ready": "Ready",
+      "running": "Running",
+      "pending": "Pending"
+    }
+  },
   "dropdown": {
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"
