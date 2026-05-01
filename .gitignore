@@ -172,6 +172,7 @@ wiki/
 desdoc/
 
 # E2E test artifacts (Playwright)
+artifacts/
 tests/e2e/screenshots/
 tests/e2e/results/
 tests/e2e/report/

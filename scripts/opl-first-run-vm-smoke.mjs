@@ -174,9 +174,21 @@ function runOplJson(args) {
 }
 
 function queryAccessibility(processName) {
+  const expectedLabels = [
+    DEFAULT_LABELS.window,
+    DEFAULT_LABELS.progress,
+    DEFAULT_LABELS.installButton,
+    DEFAULT_LABELS.environmentButton,
+    DEFAULT_LABELS.modulesButton,
+    DEFAULT_LABELS.readyEntry,
+  ];
   const script = `
 const procName = ${JSON.stringify(processName)};
 const systemEvents = Application('System Events');
+const maxDepth = 16;
+const maxNodes = 1500;
+const expectedLabels = new Set(${JSON.stringify(expectedLabels)});
+const foundLabels = new Set();
 function tryRead(fn) {
   try {
     const value = fn();
@@ -186,36 +198,121 @@ function tryRead(fn) {
     return null;
   }
 }
+function recordLabels(node) {
+  for (const value of [node.name, node.description, node.title, node.value, node.help]) {
+    if (expectedLabels.has(value)) foundLabels.add(value);
+  }
+}
+function hasExpectedLabels() {
+  for (const label of expectedLabels) {
+    if (!foundLabels.has(label)) return false;
+  }
+  return true;
+}
 function walk(element, depth, output) {
-  if (depth > 8 || output.length > 3000) return;
-  output.push({
-    role: tryRead(() => element.role()),
+  if (depth > maxDepth || output.length > maxNodes) return false;
+  const role = tryRead(() => element.role());
+  const node = {
+    role,
     name: tryRead(() => element.name()),
     description: tryRead(() => element.description()),
     title: tryRead(() => element.title()),
     value: tryRead(() => element.value()),
     help: tryRead(() => element.help()),
-  });
+  };
+  output.push(node);
+  recordLabels(node);
+  if (hasExpectedLabels()) return true;
+  if (role === 'AXMenuBar' || role === 'AXMenu' || role === 'AXMenuBarItem') return false;
   let children = [];
   try {
     children = element.uiElements();
   } catch (_) {
     children = [];
   }
-  for (const child of children) walk(child, depth + 1, output);
+  for (const child of children) {
+    if (walk(child, depth + 1, output)) return true;
+  }
+  return false;
 }
 const proc = systemEvents.processes.byName(procName);
 const output = [];
-walk(proc, 0, output);
+const appNode = {
+  role: tryRead(() => proc.role()),
+  name: tryRead(() => proc.name()),
+  description: tryRead(() => proc.description()),
+  title: tryRead(() => proc.title()),
+  value: null,
+  help: null,
+};
+output.push(appNode);
+recordLabels(appNode);
+let windows = [];
+try {
+  windows = proc.windows();
+} catch (_) {
+  windows = [];
+}
+for (const window of windows) {
+  if (walk(window, 1, output)) break;
+}
 JSON.stringify(output);
 `;
-  const raw = execFileSync('osascript', ['-l', 'JavaScript', '-e', script], { encoding: 'utf8' });
+  const raw = execFileSync('osascript', ['-l', 'JavaScript', '-e', script], { encoding: 'utf8', timeout: 30_000 });
   return JSON.parse(raw);
 }
 
 function treeContainsLabel(tree, label) {
   return tree.some((node) =>
     [node.name, node.description, node.title, node.value, node.help].some((value) => value === label)
+  );
+}
+
+function readFirstRunEvents(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs
+    .readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (_) {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function describeFirstRunFailure(events) {
+  const failure = events.findLast?.((event) => event.event_type === 'gui_initialize_failed');
+  if (!failure) return null;
+  const message = failure.payload?.message || failure.payload?.status || 'unknown first-run failure';
+  return String(message);
+}
+
+async function waitForFirstRunCompletion(filePath, timeoutMs) {
+  const started = Date.now();
+  let lastEvents = [];
+  while (Date.now() - started < timeoutMs) {
+    lastEvents = readFirstRunEvents(filePath);
+    const completed = lastEvents.findLast?.(
+      (event) =>
+        event.event_type === 'gui_preparation_completed' &&
+        (event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared')
+    );
+    if (completed) return lastEvents;
+    await sleep(1_000);
+  }
+
+  const failure = describeFirstRunFailure(lastEvents);
+  throw new Error(
+    [
+      `Timed out waiting for successful OPL first-run completion in ${filePath}.`,
+      failure ? `Last first-run failure: ${failure}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
   );
 }
 
@@ -234,9 +331,7 @@ async function waitForLabels(processName, timeoutMs) {
     try {
       lastTree = queryAccessibility(processName);
       const missing = required.filter((label) => !treeContainsLabel(lastTree, label));
-      const hasTerminalState =
-        treeContainsLabel(lastTree, DEFAULT_LABELS.readyEntry) ||
-        treeContainsLabel(lastTree, DEFAULT_LABELS.blockersList);
+      const hasTerminalState = treeContainsLabel(lastTree, DEFAULT_LABELS.readyEntry);
       if (missing.length === 0 && hasTerminalState) {
         return { tree: lastTree, labels: required };
       }
@@ -253,15 +348,6 @@ async function waitForLabels(processName, timeoutMs) {
       detail,
     ].join('\n')
   );
-}
-
-async function waitForFile(filePath, timeoutMs) {
-  const started = Date.now();
-  while (Date.now() - started < timeoutMs) {
-    if (fs.existsSync(filePath)) return;
-    await sleep(1_000);
-  }
-  throw new Error(`Timed out waiting for ${filePath}`);
 }
 
 function copyIfExists(source, target) {
@@ -288,6 +374,9 @@ async function main() {
   if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
   launchApp(appPath);
+  const firstRunLog = defaultFirstRunLogPath();
+  await waitForFirstRunCompletion(firstRunLog, options.timeoutMs);
+
   const accessibility = await waitForLabels(options.processName, options.timeoutMs);
   fs.writeFileSync(
     path.join(options.artifacts, 'accessibility-tree.json'),
@@ -295,8 +384,6 @@ async function main() {
     'utf8'
   );
 
-  const firstRunLog = defaultFirstRunLogPath();
-  await waitForFile(firstRunLog, options.timeoutMs);
   copyIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'));
 
   fs.writeFileSync(path.join(options.artifacts, 'system-initialize.json'), runOplJson(['system', 'initialize', '--json']));
