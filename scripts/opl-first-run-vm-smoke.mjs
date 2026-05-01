@@ -10,9 +10,13 @@ const DEFAULT_LABELS = {
   progress: 'opl-first-run-progress',
   blockersList: 'opl-first-run-blockers-list',
   installButton: 'opl-first-run-install-button',
+  codexApiKeyInput: 'opl-first-run-codex-api-key-input',
+  codexConfigureButton: 'opl-first-run-configure-codex-button',
+  retryButton: 'opl-first-run-retry-button',
   environmentButton: 'opl-first-run-open-environment-button',
   modulesButton: 'opl-first-run-open-modules-button',
   readyEntry: 'opl-first-run-ready-entry',
+  guidEntry: 'opl-guid-entry',
   settingsEnvironment: 'opl-settings-environment',
 };
 
@@ -28,7 +32,12 @@ Options:
   --artifacts <path>     Artifact output directory. Default: ./artifacts/opl-first-run-<timestamp>.
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
-  --assert-clean         Fail if OPL state/log already exists before launch.
+  --codex-api-key-file <path>
+                         File containing a test Codex API key. The key is read from disk,
+                         entered through the GUI wizard, and never passed as a CLI argument.
+  --require-codex-config-wizard
+                         Fail unless the Codex configuration wizard is seen and submitted.
+  --assert-clean         Fail if OPL state/log or app-local GUI state already exists before launch.
   --help                 Show this message.
 `);
 }
@@ -41,6 +50,8 @@ function parseArgs(argv) {
     artifacts: null,
     processName: DEFAULT_PROCESS_NAME,
     timeoutMs: 180_000,
+    codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
+    requireCodexConfigWizard: false,
     assertClean: false,
   };
 
@@ -54,6 +65,10 @@ function parseArgs(argv) {
       options.assertClean = true;
       continue;
     }
+    if (arg === '--require-codex-config-wizard') {
+      options.requireCodexConfigWizard = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${arg}`);
     index += 1;
@@ -63,6 +78,7 @@ function parseArgs(argv) {
     else if (arg === '--artifacts') options.artifacts = path.resolve(value);
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
+    else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
 
@@ -74,6 +90,13 @@ function parseArgs(argv) {
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
   }
   return options;
+}
+
+function readCodexApiKey(options) {
+  if (!options.codexApiKeyFile) return null;
+  const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
+  if (!key) throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
+  return key;
 }
 
 function run(command, args, options = {}) {
@@ -115,10 +138,16 @@ function defaultOplStatePath() {
   return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'state');
 }
 
-function assertCleanFirstRunState() {
-  const existing = [defaultFirstRunLogPath(), defaultOplStatePath()].filter((entry) => fs.existsSync(entry));
+function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
+  return path.join(os.homedir(), 'Library', 'Application Support', processName);
+}
+
+function assertCleanFirstRunState(processName = DEFAULT_PROCESS_NAME) {
+  const existing = [defaultFirstRunLogPath(), defaultOplStatePath(), defaultAppSupportPath(processName)].filter((entry) =>
+    fs.existsSync(entry)
+  );
   if (existing.length > 0) {
-    throw new Error(`Fresh VM assertion failed; existing OPL state/log found:\n${existing.join('\n')}`);
+    throw new Error(`Fresh VM assertion failed; existing OPL state/log/app-local state found:\n${existing.join('\n')}`);
   }
 }
 
@@ -177,10 +206,15 @@ function queryAccessibility(processName) {
   const expectedLabels = [
     DEFAULT_LABELS.window,
     DEFAULT_LABELS.progress,
+    DEFAULT_LABELS.blockersList,
     DEFAULT_LABELS.installButton,
+    DEFAULT_LABELS.codexApiKeyInput,
+    DEFAULT_LABELS.codexConfigureButton,
+    DEFAULT_LABELS.retryButton,
     DEFAULT_LABELS.environmentButton,
     DEFAULT_LABELS.modulesButton,
     DEFAULT_LABELS.readyEntry,
+    DEFAULT_LABELS.guidEntry,
   ];
   const script = `
 const procName = ${JSON.stringify(processName)};
@@ -219,6 +253,8 @@ function walk(element, depth, output) {
     title: tryRead(() => element.title()),
     value: tryRead(() => element.value()),
     help: tryRead(() => element.help()),
+    position: tryRead(() => element.position()),
+    size: tryRead(() => element.size()),
   };
   output.push(node);
   recordLabels(node);
@@ -268,6 +304,116 @@ function treeContainsLabel(tree, label) {
   );
 }
 
+function assertDoesNotContainSecret(label, content, secret) {
+  if (secret && content.includes(secret)) {
+    throw new Error(`${label} unexpectedly contains the Codex API key.`);
+  }
+}
+
+function writeTextArtifact(target, content, secret) {
+  assertDoesNotContainSecret(path.basename(target), content, secret);
+  fs.writeFileSync(target, content, 'utf8');
+}
+
+function writeJsonArtifact(target, value, secret) {
+  writeTextArtifact(target, `${JSON.stringify(value, null, 2)}\n`, secret);
+}
+
+function submitCodexWizard(processName, apiKey) {
+  const script = `
+ObjC.import('stdlib');
+const procName = ${JSON.stringify(processName)};
+const inputLabel = ${JSON.stringify(DEFAULT_LABELS.codexApiKeyInput)};
+const buttonLabel = ${JSON.stringify(DEFAULT_LABELS.codexConfigureButton)};
+const apiKey = $.getenv('OPL_FIRST_RUN_CODEX_API_KEY');
+if (!apiKey) throw new Error('Missing OPL_FIRST_RUN_CODEX_API_KEY');
+const systemEvents = Application('System Events');
+const proc = systemEvents.processes.byName(procName);
+function tryRead(fn) {
+  try {
+    const value = fn();
+    if (value === undefined || value === null) return null;
+    return String(value);
+  } catch (_) {
+    return null;
+  }
+}
+function values(element) {
+  return [
+    tryRead(() => element.name()),
+    tryRead(() => element.description()),
+    tryRead(() => element.title()),
+    tryRead(() => element.value()),
+    tryRead(() => element.help()),
+  ];
+}
+function hasLabel(element, label) {
+  return values(element).some((value) => value === label);
+}
+function children(element) {
+  try {
+    return element.uiElements();
+  } catch (_) {
+    return [];
+  }
+}
+function find(element, predicate, depth = 0) {
+  if (depth > 16) return null;
+  if (predicate(element)) return element;
+  for (const child of children(element)) {
+    const found = find(child, predicate, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+function roleOf(element) {
+  return tryRead(() => element.role());
+}
+function isTextInput(element) {
+  const role = roleOf(element);
+  return role === 'AXTextField' || role === 'AXTextArea' || role === 'AXComboBox';
+}
+function findInWindows(predicate) {
+  const windows = proc.windows();
+  for (const window of windows) {
+    const found = find(window, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+const labelledInput = findInWindows((element) => hasLabel(element, inputLabel));
+let input = labelledInput ? find(labelledInput, isTextInput) : null;
+if (!input) input = findInWindows(isTextInput);
+if (!input) throw new Error('Codex API key input was not found');
+try {
+  input.actions.byName('AXPress').perform();
+} catch (_) {}
+try {
+  input.focused = true;
+} catch (_) {}
+try {
+  input.value = apiKey;
+} catch (_) {}
+systemEvents.keystroke('a', { using: 'command down' });
+systemEvents.keyCode(51);
+systemEvents.keystroke(apiKey);
+delay(0.2);
+const button = findInWindows((element) => hasLabel(element, buttonLabel));
+if (!button) throw new Error('Codex configure button was not found');
+try {
+  button.actions.byName('AXPress').perform();
+} catch (_) {
+  button.click();
+}
+JSON.stringify({ status: 'submitted' });
+`;
+  execFileSync('osascript', ['-l', 'JavaScript', '-e', script], {
+    encoding: 'utf8',
+    timeout: 30_000,
+    env: { ...process.env, OPL_FIRST_RUN_CODEX_API_KEY: apiKey },
+  });
+}
+
 function readFirstRunEvents(filePath) {
   if (!fs.existsSync(filePath)) return [];
   return fs
@@ -291,9 +437,14 @@ function describeFirstRunFailure(events) {
   return String(message);
 }
 
-async function waitForFirstRunCompletion(filePath, timeoutMs) {
+async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir) {
   const started = Date.now();
   let lastEvents = [];
+  let lastTree = [];
+  let sawCodexWizard = false;
+  let submittedCodexWizard = false;
+  let capturedCodexWizard = false;
+  let lastCodexSubmitAt = 0;
   while (Date.now() - started < timeoutMs) {
     lastEvents = readFirstRunEvents(filePath);
     const completed = lastEvents.findLast?.(
@@ -301,7 +452,34 @@ async function waitForFirstRunCompletion(filePath, timeoutMs) {
         event.event_type === 'gui_preparation_completed' &&
         (event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared')
     );
-    if (completed) return lastEvents;
+    if (completed) return { events: lastEvents, sawCodexWizard, submittedCodexWizard };
+    try {
+      lastTree = queryAccessibility(processName);
+      const hasCodexWizard =
+        treeContainsLabel(lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+        treeContainsLabel(lastTree, DEFAULT_LABELS.codexConfigureButton);
+      if (hasCodexWizard) {
+        sawCodexWizard = true;
+        if (!capturedCodexWizard) {
+          const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
+          writeJsonArtifact(wizardTreePath, lastTree, codexApiKey);
+          spawnSync('screencapture', ['-x', path.join(artifactsDir, 'codex-config-wizard.png')], { stdio: 'ignore' });
+          capturedCodexWizard = true;
+        }
+        if (!submittedCodexWizard || Date.now() - lastCodexSubmitAt > 10_000) {
+          if (!codexApiKey) {
+            throw new Error(
+              'Codex configuration wizard is visible; provide --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.'
+            );
+          }
+          submitCodexWizard(processName, codexApiKey);
+          submittedCodexWizard = true;
+          lastCodexSubmitAt = Date.now();
+        }
+      }
+    } catch (error) {
+      if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
+    }
     await sleep(1_000);
   }
 
@@ -310,30 +488,22 @@ async function waitForFirstRunCompletion(filePath, timeoutMs) {
     [
       `Timed out waiting for successful OPL first-run completion in ${filePath}.`,
       failure ? `Last first-run failure: ${failure}` : '',
+      lastTree.length ? `Last accessibility sample: ${JSON.stringify(lastTree.slice(0, 12))}` : '',
     ]
       .filter(Boolean)
       .join('\n')
   );
 }
 
-async function waitForLabels(processName, timeoutMs) {
+async function waitForGuidEntry(processName, timeoutMs) {
   const started = Date.now();
-  const required = [
-    DEFAULT_LABELS.window,
-    DEFAULT_LABELS.progress,
-    DEFAULT_LABELS.installButton,
-    DEFAULT_LABELS.environmentButton,
-    DEFAULT_LABELS.modulesButton,
-  ];
   let lastTree = [];
   let lastError = null;
   while (Date.now() - started < timeoutMs) {
     try {
       lastTree = queryAccessibility(processName);
-      const missing = required.filter((label) => !treeContainsLabel(lastTree, label));
-      const hasTerminalState = treeContainsLabel(lastTree, DEFAULT_LABELS.readyEntry);
-      if (missing.length === 0 && hasTerminalState) {
-        return { tree: lastTree, labels: required };
+      if (treeContainsLabel(lastTree, DEFAULT_LABELS.guidEntry)) {
+        return { tree: lastTree, labels: [DEFAULT_LABELS.guidEntry] };
       }
     } catch (error) {
       lastError = error;
@@ -343,17 +513,11 @@ async function waitForLabels(processName, timeoutMs) {
   const detail = lastError instanceof Error ? lastError.message : JSON.stringify(lastTree.slice(0, 20));
   throw new Error(
     [
-      `Timed out waiting for OPL first-run accessibility labels in ${processName}.`,
+      `Timed out waiting for OPL usable entry accessibility label in ${processName}.`,
       'Grant Accessibility permission to the runner shell if System Events cannot read the app.',
       detail,
     ].join('\n')
   );
-}
-
-function copyIfExists(source, target) {
-  if (fs.existsSync(source)) {
-    fs.copyFileSync(source, target);
-  }
 }
 
 function captureUnifiedLog(processName, target) {
@@ -364,46 +528,151 @@ function captureUnifiedLog(processName, target) {
   fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
 }
 
+function writeOptionalTextArtifact(target, content, secret) {
+  try {
+    writeTextArtifact(target, content, secret);
+  } catch (error) {
+    const fallback = `${target}.write-error.txt`;
+    fs.writeFileSync(fallback, error instanceof Error ? error.message : String(error), 'utf8');
+  }
+}
+
+function copyTextFileIfExists(source, target, secret) {
+  if (!fs.existsSync(source)) return;
+  writeOptionalTextArtifact(target, fs.readFileSync(source, 'utf8'), secret);
+}
+
+function collectAppLogArtifacts(options, secret) {
+  const logDir = path.dirname(defaultFirstRunLogPath());
+  if (!fs.existsSync(logDir)) return;
+  const targetDir = path.join(options.artifacts, 'app-logs');
+  fs.mkdirSync(targetDir, { recursive: true });
+  for (const entry of fs.readdirSync(logDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const source = path.join(logDir, entry.name);
+    const target = path.join(targetDir, entry.name);
+    copyTextFileIfExists(source, target, secret);
+  }
+}
+
+function collectFileListing(root, target) {
+  if (!fs.existsSync(root)) {
+    fs.writeFileSync(target, `MISSING ${root}\n`, 'utf8');
+    return;
+  }
+  const result = spawnSync('/usr/bin/find', [root, '-maxdepth', '4', '-print'], {
+    encoding: 'utf8',
+  });
+  fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
+}
+
+function collectFailureArtifacts(options, codexApiKey) {
+  fs.mkdirSync(options.artifacts, { recursive: true });
+  try {
+    writeJsonArtifact(
+      path.join(options.artifacts, 'failure-accessibility-tree.json'),
+      queryAccessibility(options.processName),
+      codexApiKey
+    );
+  } catch (error) {
+    fs.writeFileSync(
+      path.join(options.artifacts, 'failure-accessibility-error.txt'),
+      error instanceof Error ? error.message : String(error),
+      'utf8'
+    );
+  }
+
+  const firstRunLog = defaultFirstRunLogPath();
+  copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey);
+  collectAppLogArtifacts(options, codexApiKey);
+  collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
+  collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));
+
+  for (const [name, args] of [
+    ['system-initialize.json', ['system', 'initialize', '--json']],
+    ['modules.json', ['modules']],
+  ]) {
+    try {
+      writeTextArtifact(path.join(options.artifacts, name), runOplJson(args), codexApiKey);
+    } catch (error) {
+      fs.writeFileSync(
+        path.join(options.artifacts, `${name}.error.txt`),
+        error instanceof Error ? error.message : String(error),
+        'utf8'
+      );
+    }
+  }
+
+  spawnSync('screencapture', ['-x', path.join(options.artifacts, 'failure-first-launch.png')], { stdio: 'ignore' });
+  const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
+  captureUnifiedLog(options.processName, unifiedLogPath);
+  if (fs.existsSync(unifiedLogPath)) {
+    assertDoesNotContainSecret('unified-log.txt', fs.readFileSync(unifiedLogPath, 'utf8'), codexApiKey);
+  }
+}
+
 async function main() {
   assertMacOS();
   const options = parseArgs(process.argv.slice(2));
-  fs.mkdirSync(options.artifacts, { recursive: true });
-  if (options.assertClean) assertCleanFirstRunState();
+  const codexApiKey = readCodexApiKey(options);
+  try {
+    fs.mkdirSync(options.artifacts, { recursive: true });
+    if (options.assertClean) assertCleanFirstRunState(options.processName);
 
-  const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
-  if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
+    const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
+    if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
-  launchApp(appPath);
-  const firstRunLog = defaultFirstRunLogPath();
-  await waitForFirstRunCompletion(firstRunLog, options.timeoutMs);
+    launchApp(appPath);
+    const firstRunLog = defaultFirstRunLogPath();
+    const firstRun = await waitForFirstRunCompletion(
+      firstRunLog,
+      options.processName,
+      options.timeoutMs,
+      codexApiKey,
+      options.artifacts
+    );
+    if (options.requireCodexConfigWizard && !firstRun.submittedCodexWizard) {
+      throw new Error('Expected Codex configuration wizard to appear and be submitted, but it was not observed.');
+    }
 
-  const accessibility = await waitForLabels(options.processName, options.timeoutMs);
-  fs.writeFileSync(
-    path.join(options.artifacts, 'accessibility-tree.json'),
-    JSON.stringify(accessibility.tree, null, 2),
-    'utf8'
-  );
+    const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
+    writeJsonArtifact(
+      path.join(options.artifacts, 'accessibility-tree.json'),
+      accessibility.tree,
+      codexApiKey
+    );
 
-  copyIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'));
+    if (fs.existsSync(firstRunLog)) {
+      writeTextArtifact(path.join(options.artifacts, 'first-run.jsonl'), fs.readFileSync(firstRunLog, 'utf8'), codexApiKey);
+    }
 
-  fs.writeFileSync(path.join(options.artifacts, 'system-initialize.json'), runOplJson(['system', 'initialize', '--json']));
-  fs.writeFileSync(path.join(options.artifacts, 'modules.json'), runOplJson(['modules']));
-  spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
-  captureUnifiedLog(options.processName, path.join(options.artifacts, 'unified-log.txt'));
+    writeTextArtifact(
+      path.join(options.artifacts, 'system-initialize.json'),
+      runOplJson(['system', 'initialize', '--json']),
+      codexApiKey
+    );
+    writeTextArtifact(path.join(options.artifacts, 'modules.json'), runOplJson(['modules']), codexApiKey);
+    spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
+    const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
+    captureUnifiedLog(options.processName, unifiedLogPath);
+    assertDoesNotContainSecret('unified-log.txt', fs.existsSync(unifiedLogPath) ? fs.readFileSync(unifiedLogPath, 'utf8') : '', codexApiKey);
 
-  process.stdout.write(
-    `${JSON.stringify(
-      {
-        surface_id: 'opl_packaged_gui_first_run_smoke',
-        status: 'passed',
-        app_path: appPath,
-        artifacts: options.artifacts,
-        labels: accessibility.labels,
-      },
-      null,
-      2
-    )}\n`
-  );
+    const summary = {
+      surface_id: 'opl_packaged_gui_first_run_smoke',
+      status: 'passed',
+      app_path: appPath,
+      artifacts: options.artifacts,
+      codex_config_wizard_seen: firstRun.sawCodexWizard,
+      codex_config_wizard_submitted: firstRun.submittedCodexWizard,
+      codex_api_key_present: Boolean(codexApiKey),
+      labels: accessibility.labels,
+    };
+    writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
+    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  } catch (error) {
+    collectFailureArtifacts(options, codexApiKey);
+    throw error;
+  }
 }
 
 main().catch((error) => {

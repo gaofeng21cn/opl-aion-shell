@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,6 +23,9 @@ Options:
   --process-name <name>    macOS process name. Default: One Person Lab.
   --timeout-ms <n>         VM boot and SSH timeout. Default: 600000.
   --smoke-timeout-ms <n>   Guest GUI smoke timeout. Default: 180000.
+  --codex-api-key-file <path>
+                           Optional host file containing the test Codex API key.
+                           If omitted, an ephemeral non-secret smoke key is generated.
   --no-graphics            Start Tart with --no-graphics. Use only for images with a logged-in GUI session.
   --keep-vm                Leave the temporary VM running for debugging.
   --help                   Show this message.
@@ -41,6 +45,7 @@ function parseArgs(argv) {
     processName: 'One Person Lab',
     timeoutMs: 600_000,
     smokeTimeoutMs: 180_000,
+    codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     noGraphics: false,
     keepVm: false,
   };
@@ -72,6 +77,7 @@ function parseArgs(argv) {
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
     else if (arg === '--smoke-timeout-ms') options.smokeTimeoutMs = Number(value);
+    else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
 
@@ -84,6 +90,25 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function prepareHostCodexApiKeyFile(options) {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-codex-key-'));
+  const keyPath = path.join(tempDir, 'codex-api-key.txt');
+  if (options.codexApiKeyFile) {
+    if (!fs.existsSync(options.codexApiKeyFile)) {
+      throw new Error(`Codex API key file does not exist: ${options.codexApiKeyFile}`);
+    }
+    const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
+    if (!key) {
+      throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
+    }
+    fs.writeFileSync(keyPath, `${key}\n`, 'utf8');
+    return { path: keyPath, temporary: true, tempDir };
+  }
+
+  fs.writeFileSync(keyPath, `opl-first-run-smoke-${randomUUID()}\n`, 'utf8');
+  return { path: keyPath, temporary: true, tempDir };
 }
 
 function run(command, args, options = {}) {
@@ -120,7 +145,7 @@ function sshBaseArgs(options, ip) {
     '-o',
     'ConnectTimeout=10',
   ];
-  if (options.sshKey) args.push('-i', options.sshKey);
+  if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}`);
   return args;
 }
@@ -136,7 +161,7 @@ function scpToGuest(options, ip, sources, targetDir) {
     '-o',
     'UserKnownHostsFile=/dev/null',
   ];
-  if (options.sshKey) args.push('-i', options.sshKey);
+  if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(...sources, `${options.guestUser}@${ip}:${targetDir}/`);
   run('scp', args);
 }
@@ -150,7 +175,7 @@ function scpFromGuest(options, ip, sourceDir, targetDir) {
     '-o',
     'UserKnownHostsFile=/dev/null',
   ];
-  if (options.sshKey) args.push('-i', options.sshKey);
+  if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}:${sourceDir}/`, targetDir);
   run('scp', args);
 }
@@ -224,12 +249,14 @@ function assertTartAvailable() {
   run('tart', ['--version']);
 }
 
-function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir) {
+function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath) {
   const nodeCommand = shellQuote(options.guestNodeCommand);
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
+    `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`,
+    '--require-codex-config-wizard',
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
@@ -263,7 +290,14 @@ printf '%s\\n' "$NODE_DIR/bin/node"
   return ssh(options, ip, installScript).trim().split(/\r?\n/).at(-1);
 }
 
+function readGuestSmokeSummary(hostArtifactsDir) {
+  const summaryPath = path.join(hostArtifactsDir, 'artifacts', 'smoke-summary.json');
+  if (!fs.existsSync(summaryPath)) return null;
+  return JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+}
+
 function writeSummary(options, ip, guestArtifactDir) {
+  const guestSummary = readGuestSmokeSummary(options.artifacts);
   const summary = {
     surface_id: 'opl_tart_gui_first_run_smoke',
     status: 'passed',
@@ -272,6 +306,11 @@ function writeSummary(options, ip, guestArtifactDir) {
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
+    codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
+    codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
+    codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
+    labels: guestSummary?.labels ?? [],
+    guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
@@ -285,22 +324,48 @@ async function main() {
 
   const vmLogPath = path.join(options.artifacts, 'tart-run.log');
   let tartProcess = null;
+  const codexApiKeyFile = prepareHostCodexApiKeyFile(options);
+  let ip = '';
+  let guestArtifactDir = '';
+  let copiedArtifacts = false;
   try {
     run('tart', ['clone', options.sourceVm, options.vmName]);
     tartProcess = startVm(options, vmLogPath);
-    const ip = waitForTartIp(options.vmName, options.timeoutMs);
+    ip = waitForTartIp(options.vmName, options.timeoutMs);
     waitForSsh(options, ip, options.timeoutMs);
 
-    const guestArtifactDir = `${options.guestWorkdir}/artifacts`;
+    guestArtifactDir = `${options.guestWorkdir}/artifacts`;
     const guestDmgPath = `${options.guestWorkdir}/${path.basename(options.dmg)}`;
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
+    const guestCodexApiKeyPath = `${options.guestWorkdir}/codex-api-key.txt`;
     ssh(options, ip, `rm -rf ${shellQuote(options.guestWorkdir)} && mkdir -p ${shellQuote(options.guestWorkdir)}`);
-    scpToGuest(options, ip, [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs')], options.guestWorkdir);
+    scpToGuest(
+      options,
+      ip,
+      [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs'), codexApiKeyFile.path],
+      options.guestWorkdir
+    );
     options.guestNodeCommand = resolveGuestNodeCommand(options, ip);
-    ssh(options, ip, guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir));
+    ssh(options, ip, guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath));
     scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
+    copiedArtifacts = true;
     writeSummary(options, ip, guestArtifactDir);
   } finally {
+    if (ip && guestArtifactDir && !copiedArtifacts) {
+      try {
+        scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
+        copiedArtifacts = true;
+      } catch (error) {
+        fs.appendFileSync(
+          vmLogPath,
+          `\n[artifact copy after failure failed: ${error instanceof Error ? error.message : String(error)}]\n`,
+          'utf8'
+        );
+      }
+    }
+    if (codexApiKeyFile.temporary && codexApiKeyFile.tempDir) {
+      fs.rmSync(codexApiKeyFile.tempDir, { recursive: true, force: true });
+    }
     if (tartProcess && !tartProcess.killed) {
       tartProcess.kill('SIGTERM');
     }

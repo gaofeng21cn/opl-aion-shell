@@ -484,7 +484,13 @@ const GuidPage: React.FC = () => {
 
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
-      <div ref={guidContainerRef} className={styles.guidContainer}>
+      <div
+        ref={guidContainerRef}
+        className={styles.guidContainer}
+        data-testid='opl-guid-entry'
+        aria-label='opl-guid-entry'
+        role='main'
+      >
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
             {agentSelection.isPresetAgent ? (

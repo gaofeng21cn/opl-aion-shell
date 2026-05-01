@@ -74,6 +74,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
     <section
       data-testid='opl-first-run-window'
       aria-label='opl-first-run-window'
+      role='region'
       className='min-h-full bg-bg-1 px-24px py-28px flex items-center justify-center'
     >
       <div className='w-full max-w-720px border border-border-1 bg-bg-2 p-24px rd-8px shadow-sm'>
@@ -83,6 +84,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
             <div
               data-testid='opl-first-run-progress'
               aria-label='opl-first-run-progress'
+              role='status'
               className='mt-8px text-14px text-t-secondary'
             >
               {isPreparing
@@ -124,6 +126,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
                 aria-label='opl-first-run-codex-api-key-input'
               >
                 <Input.Password
+                  aria-label='opl-first-run-codex-api-key-input'
                   value={apiKey}
                   onChange={setApiKey}
                   placeholder={t('settings.oplFirstLaunch.codex.apiKeyPlaceholder')}
@@ -184,6 +187,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
             <div
               data-testid='opl-first-run-ready-entry'
               aria-label='opl-first-run-ready-entry'
+              role='status'
               className='text-13px text-success-6'
             >
               {t('settings.oplFirstLaunch.readyEntry')}

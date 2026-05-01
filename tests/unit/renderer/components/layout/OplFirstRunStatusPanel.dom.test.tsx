@@ -101,6 +101,7 @@ describe('OplFirstRunWizard', () => {
 
     const input = screen.getByTestId('opl-first-run-codex-api-key-input').querySelector('input');
     expect(input).not.toBeNull();
+    expect(input).toHaveAttribute('aria-label', 'opl-first-run-codex-api-key-input');
     await userEvent.type(input!, 'secret-api-key');
     await userEvent.click(screen.getByTestId('opl-first-run-configure-codex-button'));
 

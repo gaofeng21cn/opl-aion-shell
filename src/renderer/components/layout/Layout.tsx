@@ -112,6 +112,7 @@ export const OplFirstRunStatusPanel: React.FC<{
     <section
       data-testid='opl-first-run-window'
       aria-label='opl-first-run-window'
+      role='region'
       className='border-b border-border-1 bg-bg-2 px-16px py-10px'
     >
       <div className='flex flex-wrap items-center justify-between gap-12px'>
@@ -119,6 +120,7 @@ export const OplFirstRunStatusPanel: React.FC<{
           <div
             data-testid='opl-first-run-progress'
             aria-label='opl-first-run-progress'
+            role='status'
             className='text-13px text-t-primary font-600'
           >
             {isPreparing
@@ -136,6 +138,7 @@ export const OplFirstRunStatusPanel: React.FC<{
             <div
               data-testid='opl-first-run-ready-entry'
               aria-label='opl-first-run-ready-entry'
+              role='status'
               className='text-12px text-success-6'
             >
               {t('settings.oplFirstLaunch.readyEntry')}

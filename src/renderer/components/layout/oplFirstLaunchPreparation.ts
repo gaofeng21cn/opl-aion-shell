@@ -234,7 +234,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
       }
 
       const preparedState = await readInitializeState('prepared');
-      if (preparedState.status === 'failed' || preparedState.status === 'setup-needed') {
+      if (preparedState.status !== 'prepared' && preparedState.status !== 'already-prepared') {
         await appendFirstRunLogEvent('gui_post_install_initialize', {
           status: preparedState.status,
           blockers: preparedState.blockers ?? [],
@@ -247,7 +247,9 @@ const runOplFirstLaunchEnvironmentPreparation = async (
 
     startModuleReconcileForAppVersion(options.appVersion);
 
-    const result = options.appVersion ? { status: 'prepared' as const, readyToLaunch: true, blockers: [] } : readyState;
+    const result = options.appVersion && (readyState.status === 'prepared' || readyState.status === 'already-prepared')
+      ? { status: 'prepared' as const, readyToLaunch: true, blockers: [] }
+      : readyState;
     await appendFirstRunLogEvent('gui_preparation_completed', { status: result.status });
     return { ...result, firstRunLog };
   } catch (error) {

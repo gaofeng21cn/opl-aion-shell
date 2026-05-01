@@ -287,6 +287,26 @@ describe('oplFirstLaunchPreparation', () => {
     expect(JSON.stringify(mockAppendOplFirstRunLog.mock.calls)).not.toContain('secret-api-key');
   });
 
+  it('keeps Codex configuration blocking after install even when reconciling for an App version', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(setupNeededInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(codexConfigNeededInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.1' })).resolves.toMatchObject({
+      status: 'codex-config-needed',
+      readyToLaunch: false,
+      blockers: ['codex_config', 'domain_modules'],
+    });
+
+    expect(mockConfigSet).not.toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockAppendOplFirstRunLog).not.toHaveBeenCalledWith({
+      eventType: 'gui_preparation_completed',
+      payload: expect.anything(),
+    });
+  });
+
   it('reuses one in-flight OPL install across concurrent callers', async () => {
     const deferredRun = createDeferredOplCommandResult();
     mockConfigGet.mockResolvedValue(undefined);

@@ -207,7 +207,9 @@ When modifying build scripts:
 
 The packaged OPL first-run test has two layers:
 
-- `scripts/opl-first-run-vm-smoke.mjs` runs inside a clean macOS GUI session. It installs a real `.dmg` or opens a packaged `.app`, checks stable accessibility labels, and collects `first-run.jsonl`, `opl system initialize --json`, `opl modules`, a screenshot, and unified logs.
-- `scripts/opl-first-run-tart-smoke.mjs` runs on a self-hosted Mac with Tart. It clones a clean VM snapshot, copies the release DMG and guest smoke script into the VM over SSH, runs the guest smoke, copies artifacts back, then stops and deletes the temporary VM.
+- `scripts/opl-first-run-vm-smoke.mjs` runs inside a clean macOS GUI session. It installs a real `.dmg` or opens a packaged `.app`, checks stable accessibility labels, enters a test Codex API key through the standalone first-run wizard when Codex config is missing, and collects `first-run.jsonl`, `opl system initialize --json`, `opl modules`, wizard/final screenshots, and unified logs.
+- `scripts/opl-first-run-tart-smoke.mjs` runs on a self-hosted Mac with Tart. It clones a clean VM snapshot, copies the release DMG, guest smoke script, and an ephemeral test Codex API key file into the VM over SSH, runs the guest smoke, copies artifacts back, then stops and deletes the temporary VM.
 
 Nightly execution is wired through `.github/workflows/opl-first-run-vm.yml`. Configure the self-hosted runner with labels from `OPL_FIRST_RUN_RUNNER_LABELS` or the default `["self-hosted","macOS","opl-gui-vm"]`, set `OPL_FIRST_RUN_TART_SOURCE` to a clean macOS Tart base VM, and ensure the guest user has SSH, Node.js, a logged-in desktop session, and Accessibility permission for `osascript`/System Events.
+
+Use `--codex-api-key-file <path>` or `OPL_FIRST_RUN_CODEX_API_KEY_FILE` when a specific test key is required. Do not pass API keys as command-line values; the scripts only pass a file path, record `codex_api_key_present`, and fail if collected text artifacts contain the key.
