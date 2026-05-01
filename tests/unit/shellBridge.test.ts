@@ -362,6 +362,7 @@ describe('shellBridge', () => {
       expect(result.stdout).toContain('bootstrapped one-person-lab through the OPL installer');
       expect(result.stdout).toContain('{"ready":true}');
       expect(bootstrapCommand).toContain('raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh');
+      expect(bootstrapCommand).toContain('curl --http1.1 --connect-timeout 20 --max-time 120 --retry 3');
       expect(bootstrapCommand).toContain('--bootstrap-only');
       expect(bootstrapCommand).not.toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
       expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");

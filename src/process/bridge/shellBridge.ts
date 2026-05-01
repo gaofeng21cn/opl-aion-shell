@@ -107,7 +107,7 @@ function buildOplBootstrapCommand(): string {
     `OPL_INSTALL_SCRIPT_URL="\${OPL_INSTALL_SCRIPT_URL:-${OPL_INSTALL_SCRIPT_URL}}"`,
     'OPL_BOOTSTRAP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/opl-install.XXXXXX")"',
     'trap \'rm -f "$OPL_BOOTSTRAP_SCRIPT"\' EXIT',
-    'curl -fsSL "$OPL_INSTALL_SCRIPT_URL" -o "$OPL_BOOTSTRAP_SCRIPT"',
+    'curl --http1.1 --connect-timeout 20 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors -fsSL "$OPL_INSTALL_SCRIPT_URL" -o "$OPL_BOOTSTRAP_SCRIPT"',
     'bash "$OPL_BOOTSTRAP_SCRIPT" --bootstrap-only',
   ].join(' && ');
 }
