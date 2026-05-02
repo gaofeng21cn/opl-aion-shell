@@ -3,18 +3,13 @@ import { getBuiltinSettingsNavItems } from '@/renderer/pages/settings/components
 
 const t = (key: string, options?: { defaultValue?: string }) => {
   const labels: Record<string, string> = {
-    'settings.gemini': 'Gemini',
-    'settings.model': 'Models',
-    'settings.assistants': 'Assistants',
-    'settings.agents': 'Agents',
+    'settings.overview': 'Overview',
+    'settings.runtime': 'Runtime',
     'settings.capabilities': 'Capabilities',
-    'settings.personalization': 'Personalization',
-    'settings.display': 'Display',
-    'settings.webui': 'WebUI',
-    'settings.oplEnvironment': 'Environment Management',
+    'settings.access': 'Access',
+    'settings.appearance': 'Appearance',
     'settings.system': 'System',
     'settings.about': 'About',
-    'pet.desktopPet': 'Desktop Pet',
   };
 
   return labels[key] ?? options?.defaultValue ?? key;
@@ -25,26 +20,28 @@ describe('getBuiltinSettingsNavItems', () => {
     const items = getBuiltinSettingsNavItems(false, t);
 
     expect(items.map((item) => item.id)).toEqual([
+      'overview',
+      'runtime',
       'capabilities',
-      'personalization',
-      'webui',
-      'opl',
+      'access',
+      'appearance',
       'system',
       'about',
     ]);
 
     expect(items.map((item) => item.label)).toEqual([
+      'Overview',
+      'Runtime',
       'Capabilities',
-      'Personalization',
-      'WebUI',
-      'Environment Management',
+      'Access',
+      'Appearance',
       'System',
       'About',
     ]);
   });
 
-  it('keeps the webui route stable for mobile and desktop nav variants', () => {
-    expect(getBuiltinSettingsNavItems(false, t).find((item) => item.id === 'webui')?.path).toBe('webui');
-    expect(getBuiltinSettingsNavItems(true, t).find((item) => item.id === 'webui')?.path).toBe('webui');
+  it('keeps the access route stable for mobile and desktop nav variants', () => {
+    expect(getBuiltinSettingsNavItems(false, t).find((item) => item.id === 'access')?.path).toBe('access');
+    expect(getBuiltinSettingsNavItems(true, t).find((item) => item.id === 'access')?.path).toBe('access');
   });
 });

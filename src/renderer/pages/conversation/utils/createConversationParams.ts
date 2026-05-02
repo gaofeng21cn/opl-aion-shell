@@ -29,6 +29,23 @@ const LEGACY_YOLO_MODE_MAP: Partial<Record<string, string>> = {
   qwen: 'yolo',
 };
 
+const OPL_CODEX_BACKENDS = new Set(['codex', 'gemini', 'aionrs']);
+
+async function resolveOplCodexSessionAddendum(
+  backend: string,
+  explicitAddendum?: string
+): Promise<string | undefined> {
+  if (explicitAddendum !== undefined) {
+    return explicitAddendum;
+  }
+  if (!OPL_CODEX_BACKENDS.has(backend)) {
+    return undefined;
+  }
+
+  const value = await ConfigStorage.get('opl.codexSessionAddendum');
+  return typeof value === 'string' ? value.trim() : undefined;
+}
+
 async function resolvePreferredMode(backend: string): Promise<string | undefined> {
   const modeOptions = getAgentModes(backend);
   if (modeOptions.length === 0) {
@@ -178,11 +195,16 @@ async function resolveGeminiModel(): Promise<TProviderWithModel> {
  */
 export async function buildCliAgentParams(
   agent: AvailableAgent,
-  workspace: string
+  workspace: string,
+  options: { oplCodexSessionAddendum?: string } = {}
 ): Promise<ICreateConversationParams> {
   const type = getConversationTypeForBackend(agent.backend);
   const preferredMode = await resolvePreferredMode(agent.backend);
   const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(agent.backend) : undefined;
+  const oplCodexSessionAddendum = await resolveOplCodexSessionAddendum(
+    agent.backend,
+    options.oplCodexSessionAddendum
+  );
 
   let model: TProviderWithModel;
   if (type === 'gemini') {
@@ -202,6 +224,7 @@ export async function buildCliAgentParams(
     cliPath: agent.cliPath,
     customAgentId: agent.customAgentId,
     model,
+    oplCodexSessionAddendum,
     sessionMode: preferredMode,
     currentModelId: preferredAcpModelId,
   });
@@ -216,7 +239,8 @@ export async function buildCliAgentParams(
 export async function buildPresetAssistantParams(
   agent: AvailableAgent,
   workspace: string,
-  language: string
+  language: string,
+  options: { oplCodexSessionAddendum?: string } = {}
 ): Promise<ICreateConversationParams> {
   const { customAgentId, presetAgentType = 'gemini' } = agent;
 
@@ -236,6 +260,10 @@ export async function buildPresetAssistantParams(
   const preferredMode = await resolvePreferredMode(presetAgentType);
   const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(presetAgentType) : undefined;
   const model = type === 'gemini' ? await resolveGeminiModel() : ({} as TProviderWithModel);
+  const oplCodexSessionAddendum = await resolveOplCodexSessionAddendum(
+    presetAgentType,
+    options.oplCodexSessionAddendum
+  );
 
   return buildAgentConversationParams({
     backend: agent.backend,
@@ -251,6 +279,7 @@ export async function buildPresetAssistantParams(
       excludeBuiltinSkills: disabledBuiltinSkills,
     },
     model,
+    oplCodexSessionAddendum,
     sessionMode: preferredMode,
     currentModelId: preferredAcpModelId,
   });

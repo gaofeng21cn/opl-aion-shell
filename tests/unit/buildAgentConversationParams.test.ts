@@ -72,6 +72,22 @@ describe('buildAgentConversationParams', () => {
     expect(params.extra.currentModelId).toBeUndefined();
   });
 
+  it('injects the OPL App Codex session addendum into Codex presetContext', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'One Person Lab',
+      agentName: 'Codex',
+      workspace: '/workspace',
+      model: mockModel,
+      oplCodexSessionAddendum: 'Use the local OPL workspace map.',
+    });
+
+    expect(params.extra.presetContext).toContain(OPL_CODEX_CONTEXT_SNIPPET);
+    expect(params.extra.presetContext).toContain('## OPL App Session Addendum');
+    expect(params.extra.presetContext).toContain('Use the local OPL workspace map.');
+    expect(params.extra.presetContext).not.toContain('AGENTS.md');
+  });
+
   it('normalizes retired Gemini preset params to Codex ACP', () => {
     const params = buildAgentConversationParams({
       backend: 'gemini',
@@ -101,6 +117,27 @@ describe('buildAgentConversationParams', () => {
         backend: 'codex',
       }),
     });
+  });
+
+  it('adds the OPL App Codex session addendum before preset assistant rules', () => {
+    const params = buildAgentConversationParams({
+      backend: 'gemini',
+      name: 'Preset Gemini',
+      workspace: '/workspace',
+      model: mockModel,
+      customAgentId: 'assistant-1',
+      isPreset: true,
+      presetAgentType: 'gemini',
+      presetResources: {
+        rules: 'PRESET RULES',
+        enabledSkills: [],
+      },
+      oplCodexSessionAddendum: 'Session-only OPL rule',
+    });
+
+    expect(params.extra.presetContext).toBe(
+      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App Session Addendum\n\nSession-only OPL rule\n\nPRESET RULES`
+    );
   });
 
   it('builds remote params with remote agent id', () => {

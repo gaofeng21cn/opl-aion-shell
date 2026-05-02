@@ -156,7 +156,7 @@ describe('oplFirstLaunchPreparation', () => {
     });
   });
 
-  it('does not run OPL install when the environment was already prepared', async () => {
+  it('does not run blocking initialize or install when the environment was already prepared', async () => {
     mockConfigGet.mockResolvedValue(123);
     mockRunOplCommand.mockResolvedValue(readyInitializeResult);
 

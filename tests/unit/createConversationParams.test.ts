@@ -87,6 +87,59 @@ describe('createConversationParams', () => {
     expect(params.model).toEqual({});
   });
 
+  it('passes the OPL App Codex session addendum into preset assistant context', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: 'preset rules',
+      skills: '',
+      enabledSkills: [],
+    });
+    configGet.mockResolvedValue([]);
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'gemini',
+        name: 'Preset Assistant',
+        customAgentId: 'builtin-cowork',
+        isPreset: true,
+        presetAgentType: 'gemini',
+      },
+      '/tmp/workspace',
+      'en',
+      { oplCodexSessionAddendum: 'Session-only rule' }
+    );
+
+    expect(params.extra.presetContext).toBe(
+      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App Session Addendum\n\nSession-only rule\n\npreset rules`
+    );
+  });
+
+  it('loads the OPL App Codex session addendum for preset assistants when callers use the legacy signature', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: 'preset rules',
+      skills: '',
+      enabledSkills: [],
+    });
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionAddendum') return 'Saved session addendum';
+      return undefined;
+    });
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'gemini',
+        name: 'Preset Assistant',
+        customAgentId: 'builtin-cowork',
+        isPreset: true,
+        presetAgentType: 'gemini',
+      },
+      '/tmp/workspace',
+      'en'
+    );
+
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
+    expect(params.extra.presetContext).toContain('Saved session addendum');
+  });
+
   it('maps acp preset assistants to presetContext and backend', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'acp preset rules',
@@ -234,6 +287,42 @@ describe('createConversationParams', () => {
 
     expect(params.extra.sessionMode).toBe('yolo');
     expect(params.extra.currentModelId).toBeUndefined();
+  });
+
+  it('loads the OPL App Codex session addendum for Codex CLI agents when callers use the legacy signature', async () => {
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionAddendum') return 'Saved CLI addendum';
+      return undefined;
+    });
+
+    const params = await buildCliAgentParams(
+      {
+        backend: 'codex',
+        name: 'Codex Agent',
+      },
+      '/tmp/workspace'
+    );
+
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
+    expect(params.extra.presetContext).toContain('Saved CLI addendum');
+  });
+
+  it('does not load the OPL App Codex session addendum for non-Codex ACP agents', async () => {
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionAddendum') return 'Should not load';
+      return undefined;
+    });
+
+    const params = await buildCliAgentParams(
+      {
+        backend: 'claude',
+        name: 'Claude Agent',
+      },
+      '/tmp/workspace'
+    );
+
+    expect(configGet).not.toHaveBeenCalledWith('opl.codexSessionAddendum');
+    expect(JSON.stringify(params.extra)).not.toContain('Should not load');
   });
 
   it('falls back to legacy yolo mode when preferred ACP mode is missing', async () => {

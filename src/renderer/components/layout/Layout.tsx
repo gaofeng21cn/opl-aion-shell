@@ -251,8 +251,6 @@ const Layout: React.FC<{
 
     const prepareEnvironment = async () => {
       if (cancelled) return;
-      setFirstRunPanelState({ status: 'preparing', blockers: [] });
-
       const messageOwner = Symbol('opl-first-launch-preparation-message');
       const appVersions = await ipcBridge.application.appVersions.invoke().catch((): null => null);
       if (cancelled) return;
@@ -265,6 +263,7 @@ const Layout: React.FC<{
         releaseMessageOwner = () => releaseOplFirstLaunchPreparationMessage(messageOwner);
         showLoadingTimer = setTimeout(() => {
           if (cancelled) return;
+          setFirstRunPanelState((current) => current ?? { status: 'preparing', blockers: [] });
           hideLoadingMessage = Message.loading({
             content: t('settings.oplFirstLaunch.preparing'),
             duration: 0,
@@ -296,12 +295,12 @@ const Layout: React.FC<{
 
         if (result.status === 'setup-needed') {
           Message.warning(result.message || t('settings.oplFirstLaunch.setupNeeded'));
-          void navigate('/settings/opl');
+          void navigate('/settings/runtime');
           return;
         }
 
         Message.error(result.message || t('settings.oplFirstLaunch.failed'));
-        void navigate('/settings/opl');
+        void navigate('/settings/runtime');
       } catch (error) {
         if (!cancelled) {
           Message.error(error instanceof Error ? error.message : t('settings.oplFirstLaunch.failed'));
@@ -309,7 +308,7 @@ const Layout: React.FC<{
             status: 'failed',
             message: error instanceof Error ? error.message : undefined,
           });
-          void navigate('/settings/opl');
+          void navigate('/settings/runtime');
         }
       } finally {
         releaseOwnedMessage();
@@ -788,7 +787,7 @@ const Layout: React.FC<{
                     });
                   }}
                   onOpenEnvironment={() => {
-                    void navigate('/settings/opl');
+                    void navigate('/settings/runtime');
                   }}
                 />
               ) : (

@@ -28,6 +28,7 @@ export type BuildAgentConversationInput = {
   isPreset?: boolean;
   presetAgentType?: string;
   presetResources?: BuildAgentConversationPresetResources;
+  oplCodexSessionAddendum?: string;
   sessionMode?: string;
   currentModelId?: string;
   extra?: Partial<ICreateConversationParams['extra']>;
@@ -66,6 +67,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     isPreset = false,
     presetAgentType,
     presetResources,
+    oplCodexSessionAddendum,
     sessionMode,
     currentModelId,
     extra: extraOverrides,
@@ -92,14 +94,20 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       extra.presetRules = presetResources?.rules;
     } else {
       extra.presetContext =
-        effectivePresetType === 'codex' ? mergeOplDefaultCodexContext(presetResources?.rules) : presetResources?.rules;
+        effectivePresetType === 'codex'
+          ? mergeOplDefaultCodexContext(presetResources?.rules, {
+              codexSessionAddendum: oplCodexSessionAddendum,
+            })
+          : presetResources?.rules;
       if (type === 'acp') {
         extra.backend = effectivePresetType as AcpBackend;
       }
     }
   } else if (normalizedBackend === 'codex') {
     extra.enabledSkills = mergeOplDefaultCodexSkills(extra.enabledSkills);
-    extra.presetContext = mergeOplDefaultCodexContext(extra.presetContext);
+    extra.presetContext = mergeOplDefaultCodexContext(extra.presetContext, {
+      codexSessionAddendum: oplCodexSessionAddendum,
+    });
     extra.backend = 'codex' as AcpBackendAll;
     extra.agentName = agentName || name;
     if (cliPath) extra.cliPath = cliPath;

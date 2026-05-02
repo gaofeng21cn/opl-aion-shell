@@ -64,7 +64,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         console.error('Navigation failed:', error);
       });
     } else {
-      Promise.resolve(navigate('/settings/gemini')).catch((error) => {
+      Promise.resolve(navigate('/settings/overview')).catch((error) => {
         console.error('Navigation failed:', error);
       });
     }

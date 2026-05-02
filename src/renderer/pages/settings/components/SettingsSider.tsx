@@ -1,47 +1,19 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import { extensions as extensionsIpc, type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import { Communication, Earth, Info, Lightning, Puzzle, SwitchThemes, System, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tooltip } from '@arco-design/web-react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
-
-/** Builtin settings tab IDs in display order (must match router paths). */
-export const BUILTIN_TAB_IDS = ['capabilities', 'personalization', 'webui', 'opl', 'system', 'about'] as const;
-
-/**
- * Legacy anchor IDs that have been merged into other tabs.
- * When an extension anchors to one of these, it is redirected to the new host.
- * This keeps older extensions working without requiring them to update.
- */
-export const LEGACY_ANCHOR_REMAP: Record<string, string> = {
-  'skills-hub': 'capabilities',
-  tools: 'capabilities',
-};
-
-/**
- * Group headers displayed above specific builtin tabs.
- * The header is rendered once, immediately before the first item whose id matches.
- * Extension tabs anchored between these builtins inherit the enclosing group visually.
- */
-const GROUP_HEADER_BEFORE: Record<string, string> = {
-  capabilities: 'settings.groupAiCore',
-  personalization: 'settings.groupApp',
-  about: 'settings.groupAbout',
-};
-
-type SiderItem = {
-  id: string;
-  label: string;
-  icon: React.ReactElement;
-  isImageIcon?: boolean;
-  /** Route path segment — for builtins: `/settings/{path}`, for extensions: `/settings/ext/{id}` */
-  path: string;
-};
+import {
+  buildSettingsNavItems,
+  getBuiltinSettingsNavItems,
+  GROUP_HEADER_BEFORE,
+  type SettingsNavItem,
+} from '../sections/settingsNav';
 
 const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }> = ({
   collapsed = false,
@@ -111,91 +83,20 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   }, [loadExtensionTabs]);
 
   const { menus, groupHeaderAt } = useMemo(() => {
-    // Build builtin items
-    const builtinMap: Record<string, SiderItem> = {
-      capabilities: {
-        id: 'capabilities',
-        label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
-        icon: <Lightning />,
-        path: 'capabilities',
-      },
-      webui: {
-        id: 'webui',
-        label: t('settings.webui'),
-        icon: isDesktop ? <Earth /> : <Communication />,
-        path: 'webui',
-      },
-      personalization: {
-        id: 'personalization',
-        label: t('settings.personalization'),
-        icon: <SwitchThemes />,
-        path: 'personalization',
-      },
-      opl: {
-        id: 'opl',
-        label: t('settings.oplEnvironment', { defaultValue: 'Environment Management' }),
-        icon: <Toolkit />,
-        path: 'opl',
-      },
-      system: { id: 'system', label: t('settings.system'), icon: <System />, path: 'system' },
-      about: { id: 'about', label: t('settings.about'), icon: <Info />, path: 'about' },
-    };
-
-    // Start with ordered builtin IDs, hiding desktop-only tabs in browser mode
-    const result: SiderItem[] = BUILTIN_TAB_IDS.map((id) => builtinMap[id]);
-
-    // Extension tabs with position anchoring
-    const beforeMap = new Map<string, IExtensionSettingsTab[]>();
-    const afterMap = new Map<string, IExtensionSettingsTab[]>();
-    const unanchored: IExtensionSettingsTab[] = [];
-
+    const beforeCountByBuiltin = new Map<string, number>();
     for (const tab of extensionTabs) {
-      if (!tab.position) {
-        unanchored.push(tab);
-        continue;
-      }
-      const { anchor: rawAnchor, placement } = tab.position;
-      const anchor = LEGACY_ANCHOR_REMAP[rawAnchor] ?? rawAnchor;
-      const map = placement === 'before' ? beforeMap : afterMap;
-      let list = map.get(anchor);
-      if (!list) {
-        list = [];
-        map.set(anchor, list);
-      }
-      list.push(tab);
-    }
-
-    // Helper to create SiderItem from extension tab
-    const toSiderItem = (tab: IExtensionSettingsTab): SiderItem => {
-      const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
-      return {
-        id: tab.id,
-        label: resolveExtTabName(tab),
-        icon: resolvedIcon ? <img src={resolvedIcon} alt='' className='w-full h-full object-contain' /> : <Puzzle />,
-        isImageIcon: Boolean(resolvedIcon),
-        path: `ext/${tab.id}`,
-      };
-    };
-
-    // Insert anchored tabs (reverse iteration to preserve indices)
-    for (let i = result.length - 1; i >= 0; i--) {
-      const builtinId = result[i].id;
-      const afters = afterMap.get(builtinId);
-      if (afters) {
-        result.splice(i + 1, 0, ...afters.map(toSiderItem));
-      }
-      const befores = beforeMap.get(builtinId);
-      if (befores) {
-        result.splice(i, 0, ...befores.map(toSiderItem));
+      const anchor = tab.position?.anchor;
+      if (anchor && tab.position?.placement === 'before') {
+        beforeCountByBuiltin.set(anchor, (beforeCountByBuiltin.get(anchor) ?? 0) + 1);
       }
     }
 
-    // Append unanchored before "system"
-    if (unanchored.length > 0) {
-      const systemIdx = result.findIndex((item) => item.id === 'system');
-      const insertIdx = systemIdx >= 0 ? systemIdx : result.length;
-      result.splice(insertIdx, 0, ...unanchored.map(toSiderItem));
-    }
+    const result = buildSettingsNavItems({
+      builtinItems: getBuiltinSettingsNavItems(isDesktop, t),
+      extensionTabs,
+      resolveExtTabName,
+      extensionIconClassName: 'w-full h-full object-contain',
+    });
 
     // Compute group header render positions.
     //
@@ -205,9 +106,10 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     // above the header and visually belong to the previous group.
     const headerAt = new Map<number, string>();
     for (const [builtinId, headerKey] of Object.entries(GROUP_HEADER_BEFORE)) {
+      if (!headerKey) continue;
       const builtinIdx = result.findIndex((item) => item.id === builtinId);
       if (builtinIdx < 0) continue;
-      const beforeCount = beforeMap.get(builtinId)?.length ?? 0;
+      const beforeCount = beforeCountByBuiltin.get(builtinId) ?? 0;
       headerAt.set(builtinIdx - beforeCount, headerKey);
     }
 
@@ -222,7 +124,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       })}
     >
       {menus.map((item, index) => {
-        const isSelected = pathname.includes(item.path);
+        const isSelected = pathname === `/settings/${item.path}` || pathname.startsWith(`/settings/${item.path}/`);
         const groupHeaderKey = groupHeaderAt.get(index);
         const groupHeader =
           groupHeaderKey && !collapsed ? (

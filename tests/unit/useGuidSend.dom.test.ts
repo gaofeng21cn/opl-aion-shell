@@ -14,6 +14,7 @@ import type { GuidSendDeps } from '../../src/renderer/pages/guid/hooks/useGuidSe
 
 const mockCreate = vi.fn().mockResolvedValue({ id: 'new-conv', extra: { workspace: '' } });
 const mockWarmup = vi.fn().mockResolvedValue(undefined);
+const mockConfigGet = vi.fn();
 
 vi.mock('../../src/common', () => ({
   ipcBridge: {
@@ -23,6 +24,18 @@ vi.mock('../../src/common', () => ({
     },
   },
 }));
+
+vi.mock('../../src/common/config/storage', async () => {
+  const actual = await vi.importActual<typeof import('../../src/common/config/storage')>(
+    '../../src/common/config/storage'
+  );
+  return {
+    ...actual,
+    ConfigStorage: {
+      get: (...args: unknown[]) => mockConfigGet(...args),
+    },
+  };
+});
 
 vi.mock('../../src/renderer/utils/emitter', () => ({
   emitter: { emit: vi.fn() },
@@ -102,6 +115,7 @@ describe('useGuidSend', () => {
     vi.clearAllMocks();
     sessionStorage.clear();
     mockCreate.mockResolvedValue({ id: 'new-conv', extra: { workspace: '' } });
+    mockConfigGet.mockResolvedValue(undefined);
   });
 
   describe('remote agent path', () => {
@@ -209,6 +223,50 @@ describe('useGuidSend', () => {
 
       expect(deps.closeAllTabs).toHaveBeenCalled();
       expect(deps.openTab).toHaveBeenCalledWith({ id: 'new-conv', extra: { workspace: '' } });
+    });
+  });
+
+  describe('Codex OPL session addendum', () => {
+    it('injects the saved OPL App Codex session addendum into new Codex conversations', async () => {
+      mockConfigGet.mockImplementation(async (key: string) => {
+        if (key === 'opl.codexSessionAddendum') return 'Use the current OPL workspace registry.';
+        return undefined;
+      });
+      const deps = makeDeps({
+        selectedAgent: 'codex',
+        selectedAgentKey: 'codex',
+        selectedAgentInfo: { backend: 'codex', name: 'Codex' } as GuidSendDeps['selectedAgentInfo'],
+        currentEffectiveAgentInfo: { agentType: 'codex', isAvailable: true },
+        getEffectiveAgentType: vi.fn(() => ({ agentType: 'codex', isAvailable: true })),
+      });
+      const { result } = renderHook(() => useGuidSend(deps));
+
+      await act(async () => {
+        await result.current.handleSend();
+      });
+
+      expect(mockConfigGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'acp',
+          extra: expect.objectContaining({
+            backend: 'codex',
+            presetContext: expect.stringContaining('Use the current OPL workspace registry.'),
+          }),
+        })
+      );
+    });
+
+    it('does not read the OPL App Codex session addendum for non-Codex conversations', async () => {
+      const deps = makeDeps();
+      const { result } = renderHook(() => useGuidSend(deps));
+
+      await act(async () => {
+        await result.current.handleSend();
+      });
+
+      expect(mockConfigGet).not.toHaveBeenCalledWith('opl.codexSessionAddendum');
+      expect(JSON.stringify(mockCreate.mock.calls[0])).not.toContain('OPL App Session Addendum');
     });
   });
 

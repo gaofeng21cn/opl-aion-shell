@@ -82,6 +82,8 @@ export interface IConfigStorageRefer {
   'opl.brandName'?: string;
   /** Preferred OPL interaction layer for new sessions. */
   'opl.interactionLayer'?: 'codex' | 'hermes';
+  /** Additional OPL App instructions injected into new Codex sessions only. */
+  'opl.codexSessionAddendum'?: string;
   /** First successful OPL install preparation triggered by the desktop app. */
   'opl.firstLaunchInstallPreparedAt'?: number;
   'opl.lastModuleReconcileAppVersion'?: string;

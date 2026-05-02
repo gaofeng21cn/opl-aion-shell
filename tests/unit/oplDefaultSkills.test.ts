@@ -31,6 +31,17 @@ describe('OPL default Codex skills', () => {
     expect(context).not.toContain('AGENTS.md');
   });
 
+  it('appends the OPL App Codex session addendum before preset rules', () => {
+    const context = mergeOplDefaultCodexContext('PRESET RULES', {
+      codexSessionAddendum: 'Prefer the DPCC workspace.',
+    });
+
+    expect(context).toBe(
+      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App Session Addendum\n\nPrefer the DPCC workspace.\n\nPRESET RULES`
+    );
+    expect(context).not.toContain('AGENTS.md');
+  });
+
   it('preserves user-enabled skills after the OPL default family and companion skills', () => {
     expect(mergeOplDefaultCodexSkills(['officecli', 'mas', 'custom-skill'])).toEqual([
       'mas',

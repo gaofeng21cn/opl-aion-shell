@@ -4,21 +4,33 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const mockConfigGet = vi.fn();
 const mockConfigSet = vi.fn();
-const mockReadFile = vi.fn();
+const mockRunOplCommand = vi.fn();
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, string>) =>
+      options ? `${key}:${Object.values(options).join('|')}` : key,
   }),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
-    application: {
-      getPath: { invoke: vi.fn().mockResolvedValue('/Users/test') },
+    shell: {
+      runOplCommand: { invoke: (...args: unknown[]) => mockRunOplCommand(...args) },
     },
-    fs: {
-      readFile: { invoke: (...args: unknown[]) => mockReadFile(...args) },
+    application: {
+      appVersions: { invoke: vi.fn().mockResolvedValue({ oplVersion: '26.4.25', guiVersion: '1.9.21' }) },
+    },
+    autoUpdate: {
+      check: { invoke: vi.fn().mockResolvedValue({ success: true }) },
+      download: { invoke: vi.fn().mockResolvedValue({ success: true }) },
+    },
+    dialog: {
+      showOpen: { invoke: vi.fn() },
     },
   },
 }));
@@ -41,42 +53,94 @@ vi.mock('@/renderer/pages/settings/OplAppearanceThemeSettings', () => ({
   default: () => <div data-testid='opl-appearance-theme-settings' />,
 }));
 
+vi.mock('@/renderer/components/settings/SettingsModal/contents/DisplayModalContent', () => ({
+  default: () => <div data-testid='display-settings-content' />,
+}));
+
+vi.mock('@/renderer/pages/settings/PetSettings', () => ({
+  PetSettingsContent: () => <div data-testid='pet-settings-content' />,
+}));
+
 vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid='settings-wrapper'>{children}</div>,
 }));
 
-import PersonalizationSettings from '@/renderer/pages/settings/PersonalizationSettings';
+vi.mock('@/renderer/assets/logos/opl-modules/mas.svg', () => ({ default: 'mas.svg' }));
+vi.mock('@/renderer/assets/logos/opl-modules/mds.svg', () => ({ default: 'mds.svg' }));
+vi.mock('@/renderer/assets/logos/opl-modules/mag.svg', () => ({ default: 'mag.svg' }));
+vi.mock('@/renderer/assets/logos/opl-modules/rca.svg', () => ({ default: 'rca.svg' }));
+vi.mock('@/renderer/assets/logos/tools/coding/codex.svg', () => ({ default: 'codex.svg' }));
+vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.svg' }));
+vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));
 
-describe('PersonalizationSettings', () => {
+import AppearanceSettings from '@/renderer/pages/settings/sections/AppearanceSettings';
+import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+
+describe('AppearanceSettings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfigGet.mockResolvedValue('One Person Lab');
+    mockConfigSet.mockResolvedValue(undefined);
+  });
+
+  it('keeps brand, display, and desktop pet controls on the appearance page', async () => {
+    render(<AppearanceSettings />);
+
+    expect(await screen.findByDisplayValue('One Person Lab')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-appearance-theme-settings')).toBeInTheDocument();
+    expect(screen.getByTestId('display-settings-content')).toBeInTheDocument();
+    expect(screen.getByTestId('pet-settings-content')).toBeInTheDocument();
+  });
+});
+
+describe('RuntimeSettings Codex session addendum', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfigGet.mockImplementation(async (key: string) => {
-      if (key === 'opl.brandName') return 'One Person Lab';
       if (key === 'opl.interactionLayer') return 'codex';
+      if (key === 'opl.codexSessionAddendum') return 'existing session addendum';
       return null;
     });
     mockConfigSet.mockResolvedValue(undefined);
-    mockReadFile.mockResolvedValue('existing instructions');
+    mockRunOplCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({ system_initialize: { core_engines: {}, domain_modules: { modules: [] } } }),
+      stderr: '',
+    });
   });
 
-  it('shows the active interaction-layer instruction file', async () => {
-    render(<PersonalizationSettings />);
+  it('loads the OPL App Codex session addendum from app config and previews the effective context', async () => {
+    render(<RuntimeSettings />);
 
-    expect(await screen.findByText('/Users/test/.codex/AGENTS.md')).toBeInTheDocument();
-    expect(screen.getByText('existing instructions')).toBeInTheDocument();
-    expect(screen.getByText('settings.personalizationPage.actions.reloadInstructions')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-appearance-theme-settings')).toBeInTheDocument();
+    const textarea = (await screen.findByTestId('opl-codex-session-addendum-input')) as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(textarea.value).toBe('existing session addendum');
+    });
+    expect(screen.getByTestId('effective-codex-context-preview')).toHaveTextContent('OPL App Session Addendum');
+    expect(screen.getByTestId('effective-codex-context-preview')).toHaveTextContent('existing session addendum');
   });
 
-  it('saves Hermes as the preferred OPL interaction layer', async () => {
-    render(<PersonalizationSettings />);
+  it('saves the OPL App Codex session addendum without touching AGENTS files', async () => {
+    render(<RuntimeSettings />);
 
-    fireEvent.click(await screen.findByText('settings.personalizationPage.interactionHermes'));
+    const textarea = (await screen.findByTestId('opl-codex-session-addendum-input')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '  new session addendum  ' } });
+    fireEvent.click(screen.getByText('settings.runtimePage.actions.saveSessionAddendum'));
+
+    await waitFor(() => {
+      expect(mockConfigSet).toHaveBeenCalledWith('opl.codexSessionAddendum', 'new session addendum');
+    });
+    expect(JSON.stringify(mockConfigSet.mock.calls)).not.toContain('AGENTS.md');
+  });
+
+  it('saves Hermes as the preferred OPL interaction layer from the runtime page', async () => {
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.interactionHermes'));
 
     await waitFor(() => {
       expect(mockConfigSet).toHaveBeenCalledWith('opl.interactionLayer', 'hermes');
       expect(mockConfigSet).toHaveBeenCalledWith('guid.lastSelectedAgent', 'hermes');
     });
-    expect(await screen.findByText('/Users/test/.hermes/SOUL.md')).toBeInTheDocument();
   });
 });

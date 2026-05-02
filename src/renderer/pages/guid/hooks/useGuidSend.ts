@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { TProviderWithModel } from '@/common/config/storage';
+import { ConfigStorage, type TProviderWithModel } from '@/common/config/storage';
 import type { TChatConversation } from '@/common/config/storage';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { emitter } from '@/renderer/utils/emitter';
@@ -144,6 +144,10 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const finalEffectiveAgentType = normalizeOplAgent(effectiveAgentType);
     const selectedAgentForRoute = normalizeOplAgent(selectedAgent);
+    const oplCodexSessionAddendum =
+      finalEffectiveAgentType === 'codex' || selectedAgentForRoute === 'codex'
+        ? ((await ConfigStorage.get('opl.codexSessionAddendum')) || '').trim()
+        : undefined;
     const selectedAgentKeyForRoute =
       selectedAgentForRoute === selectedAgent && selectedAgentKey !== 'gemini' && selectedAgentKey !== 'aionrs'
         ? selectedAgentKey
@@ -297,6 +301,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
               excludeBuiltinSkills,
             }
           : undefined,
+        oplCodexSessionAddendum,
         sessionMode: selectedMode,
         currentModelId: selectedAcpModel || undefined,
         extra: {

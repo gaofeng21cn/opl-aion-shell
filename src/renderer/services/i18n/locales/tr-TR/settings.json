@@ -1072,5 +1072,73 @@
       "openEnvironment": "Ortam",
       "openModules": "Modüller"
     }
-  }
+  },
+  "overview": "Overview",
+  "runtime": "Runtime",
+  "access": "Access",
+  "appearance": "Appearance",
+  "groupOverview": "Status",
+  "groupRuntime": "Runtime",
+  "overviewPage": {
+    "title": "Overview",
+    "description": "Check core runtime, workspace, module, and remote access status from one place.",
+    "codexTitle": "Codex status",
+    "workspaceTitle": "Workspace folder",
+    "modulesTitle": "Module health",
+    "webuiTitle": "Remote access",
+    "modulesUnknown": "Module status unknown",
+    "modulesReady": "{{total}} modules ready",
+    "modulesNeedAttention": "{{count}} of {{total}} modules need attention",
+    "maintenanceTitle": "Maintenance shortcuts",
+    "maintenanceDescription": "Open the pages that handle runtime repair, remote access, and system behavior.",
+    "actions": {
+      "refresh": "Refresh status",
+      "openRuntime": "Open Runtime",
+      "openCapabilities": "Open Capabilities",
+      "openAccess": "Open Access",
+      "openSystem": "Open System"
+    },
+    "messages": {
+      "statusLoadFailed": "Failed to load overview status"
+    }
+  },
+  "appearancePage": {
+    "title": "Appearance",
+    "description": "Set the app name, theme, display scale, custom CSS, and desktop pet.",
+    "brandTitle": "App name",
+    "brandDescription": "Name shown beside the top-left icon.",
+    "themeTitle": "Theme",
+    "themeDescription": "Choose the OPL app style.",
+    "messages": {
+      "brandNameSaved": "App name saved",
+      "brandNameSaveFailed": "Failed to save app name"
+    }
+  },
+  "runtimePage": {
+    "title": "Runtime",
+    "description": "Manage Codex, Hermes-Agent, workspace root, domain modules, repair, update, and Codex session injection text.",
+    "interactionTitle": "Interaction layer",
+    "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
+    "interactionCodex": "Codex CLI",
+    "interactionHermes": "Hermes-Agent",
+    "actions": {
+      "reloadSessionAddendum": "Reload",
+      "saveSessionAddendum": "Save session addendum"
+    },
+    "messages": {
+      "interactionLayerSaved": "Interaction layer saved",
+      "sessionAddendumLoadFailed": "Failed to load session addendum",
+      "sessionAddendumSaved": "Session addendum saved",
+      "sessionAddendumSaveFailed": "Failed to save session addendum"
+    },
+    "sessionAddendumTitle": "Codex session injection text",
+    "sessionAddendumDescription": "This text is injected only into the first message of new OPL App Codex sessions. It does not modify ~/.codex/AGENTS.md.",
+    "defaultCodexContextTitle": "OPL default Codex context",
+    "sessionAddendumLoading": "Loading session injection text...",
+    "sessionAddendumInputTitle": "OPL session addendum",
+    "sessionAddendumPlaceholder": "Add OPL App Codex-session instructions here...",
+    "effectiveCodexContextTitle": "Next-session injection preview",
+    "effectiveCodexContextEmpty": "No Codex context preview."
+  },
+  "webui.stopped": "Durduruldu"
 }

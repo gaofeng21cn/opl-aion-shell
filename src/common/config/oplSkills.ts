@@ -41,7 +41,18 @@ export function mergeOplDefaultCodexSkills(enabledSkills?: string[]): string[] {
   return [...new Set([...OPL_DEFAULT_CODEX_SKILLS, ...(enabledSkills ?? [])])];
 }
 
-export function mergeOplDefaultCodexContext(context?: string): string {
+export function mergeOplDefaultCodexContext(
+  context?: string,
+  options: { codexSessionAddendum?: string } = {}
+): string {
   const trimmed = context?.trim();
-  return trimmed ? `${OPL_CODEX_CONTEXT_SNIPPET}\n\n${trimmed}` : OPL_CODEX_CONTEXT_SNIPPET;
+  const sessionAddendum = options.codexSessionAddendum?.trim();
+  const parts = [OPL_CODEX_CONTEXT_SNIPPET];
+  if (sessionAddendum) {
+    parts.push(['## OPL App Session Addendum', '', sessionAddendum].join('\n'));
+  }
+  if (trimmed) {
+    parts.push(trimmed);
+  }
+  return parts.join('\n\n');
 }

@@ -17,7 +17,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useLocation: () => ({ pathname: '/settings/opl' }),
+  useLocation: () => ({ pathname: '/settings/runtime' }),
   useNavigate: () => vi.fn(),
 }));
 
@@ -78,9 +78,9 @@ vi.mock('@/renderer/assets/logos/tools/coding/codex.svg', () => ({ default: 'cod
 vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.svg' }));
 vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));
 
-import SystemSettings, { resolveEngineAction } from '@/renderer/pages/settings/SystemSettings';
+import RuntimeSettings, { resolveEngineAction } from '@/renderer/pages/settings/sections/RuntimeSettings';
 
-describe('SystemSettings OPL environment section', () => {
+describe('RuntimeSettings OPL environment section', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.defineProperty(window, 'matchMedia', {
@@ -109,7 +109,7 @@ describe('SystemSettings OPL environment section', () => {
   });
 
   it('keeps personalization controls out of the environment page', async () => {
-    render(<SystemSettings />);
+    render(<RuntimeSettings />);
 
     expect(await screen.findByText('settings.oplEnvironmentPage.title')).toBeInTheDocument();
     expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
@@ -169,7 +169,7 @@ describe('SystemSettings OPL environment section', () => {
       stderr: '',
     });
 
-    render(<SystemSettings />);
+    render(<RuntimeSettings />);
 
     expect(
       await screen.findByText(/settings\.oplEnvironmentPage\.selectedBinary:\/opt\/homebrew\/bin\/codex/)
@@ -230,7 +230,7 @@ describe('SystemSettings OPL environment section', () => {
       stderr: '',
     });
 
-    render(<SystemSettings />);
+    render(<RuntimeSettings />);
 
     expect(
       await screen.findByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliPathVersionConflict/)
@@ -248,7 +248,7 @@ describe('SystemSettings OPL environment section', () => {
     });
     mockAutoUpdateDownload.mockResolvedValue({ success: true });
 
-    render(<SystemSettings />);
+    render(<RuntimeSettings />);
 
     const updateButton = await screen.findByText('settings.oplEnvironmentPage.actions.oneClickUpdate');
     fireEvent.click(updateButton);
@@ -271,7 +271,7 @@ describe('SystemSettings OPL environment section', () => {
   });
 });
 
-describe('SystemSettings OPL engine action policy', () => {
+describe('RuntimeSettings OPL engine action policy', () => {
   it('does not offer Codex updates when the installed version is compatible', () => {
     expect(resolveEngineAction({ installed: true, version_status: 'compatible' }, 'codex')).toBeNull();
   });

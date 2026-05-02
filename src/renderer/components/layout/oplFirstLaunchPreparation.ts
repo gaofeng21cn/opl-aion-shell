@@ -212,15 +212,23 @@ const runOplFirstLaunchEnvironmentPreparation = async (
   const firstRunLog = await readFirstRunLogSnapshot();
   await appendFirstRunLogEvent('gui_preparation_started');
   try {
-    if (await readPreparedState()) {
+    const wasPrepared = await readPreparedState();
+    if (wasPrepared) {
       startModuleReconcileForAppVersion(options.appVersion);
       await appendFirstRunLogEvent('gui_preparation_skipped', { status: 'already-prepared' });
       return { status: 'already-prepared', readyToLaunch: true, firstRunLog };
     }
 
-    const initialState = await readInitializeState('already-prepared', { installRecommendedSkills: true });
+    const initialState = await readInitializeState('already-prepared', {
+      installRecommendedSkills: true,
+    });
+
     if (initialState.status === 'failed') {
       await appendFirstRunLogEvent('gui_initialize_failed', { status: 'failed', message: initialState.message });
+      return { ...initialState, firstRunLog };
+    }
+
+    if (initialState.status === 'codex-config-needed') {
       return { ...initialState, firstRunLog };
     }
 

@@ -1074,5 +1074,73 @@
       "openEnvironment": "環境",
       "openModules": "模組"
     }
-  }
+  },
+  "overview": "概覽",
+  "runtime": "執行時",
+  "access": "存取",
+  "appearance": "外觀",
+  "groupOverview": "狀態",
+  "groupRuntime": "執行時",
+  "overviewPage": {
+    "title": "概覽",
+    "description": "集中查看 Codex、工作區、模組健康和遠端存取狀態。",
+    "codexTitle": "Codex 狀態",
+    "workspaceTitle": "工作區目錄",
+    "modulesTitle": "模組健康",
+    "webuiTitle": "遠端存取",
+    "modulesUnknown": "模組狀態未知",
+    "modulesReady": "{{total}} 個模組就緒",
+    "modulesNeedAttention": "{{count}} / {{total}} 個模組需要處理",
+    "maintenanceTitle": "維護入口",
+    "maintenanceDescription": "快速進入執行時修復、遠端存取和系統行為設定。",
+    "actions": {
+      "refresh": "重新整理狀態",
+      "openRuntime": "開啟執行時",
+      "openCapabilities": "開啟能力",
+      "openAccess": "開啟存取",
+      "openSystem": "開啟系統"
+    },
+    "messages": {
+      "statusLoadFailed": "讀取概覽狀態失敗"
+    }
+  },
+  "appearancePage": {
+    "title": "外觀",
+    "description": "設定應用名稱、主題、顯示縮放、自訂 CSS 和桌面寵物。",
+    "brandTitle": "應用名稱",
+    "brandDescription": "顯示在左上角圖示旁的名稱。",
+    "themeTitle": "主題",
+    "themeDescription": "選擇 OPL 應用樣式。",
+    "messages": {
+      "brandNameSaved": "應用名稱已儲存",
+      "brandNameSaveFailed": "儲存應用名稱失敗"
+    }
+  },
+  "runtimePage": {
+    "title": "執行時",
+    "description": "管理 Codex、Hermes-Agent、工作区目录、领域模块、修复、更新和 Codex 会话注入文本。",
+    "interactionTitle": "互動層",
+    "interactionDescription": "新 OPL 會話預設使用的引擎。Codex 保持預設執行時。",
+    "interactionCodex": "Codex CLI",
+    "interactionHermes": "Hermes-Agent",
+    "actions": {
+      "reloadSessionAddendum": "重新加载",
+      "saveSessionAddendum": "保存会话追加文本"
+    },
+    "messages": {
+      "interactionLayerSaved": "互動層已儲存",
+      "sessionAddendumLoadFailed": "读取会话追加文本失败",
+      "sessionAddendumSaved": "会话追加文本已保存",
+      "sessionAddendumSaveFailed": "保存会话追加文本失败"
+    },
+    "sessionAddendumTitle": "Codex 会话注入文本",
+    "sessionAddendumDescription": "这段文本只会注入到 OPL App 新建 Codex 会话的首条消息，不会修改 ~/.codex/AGENTS.md。",
+    "defaultCodexContextTitle": "OPL 默认 Codex 上下文",
+    "sessionAddendumLoading": "正在加载会话注入文本...",
+    "sessionAddendumInputTitle": "OPL 会话追加文本",
+    "sessionAddendumPlaceholder": "在这里填写 OPL App 的 Codex 会话指令...",
+    "effectiveCodexContextTitle": "下一次会话注入预览",
+    "effectiveCodexContextEmpty": "暂无 Codex 上下文预览。"
+  },
+  "webui.stopped": "已停止"
 }
