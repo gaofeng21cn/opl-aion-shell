@@ -105,14 +105,18 @@ function resolvePayload(resourcesPath: string): {
     return null;
   }
 
-  const runtimePayload = path.join(payloadRoot, 'runtime', version);
-  if (!fs.existsSync(runtimePayload) || !fs.statSync(runtimePayload).isDirectory()) {
+  const runtimePayload = path.join(payloadRoot, 'runtime', ACTIVE_RUNTIME_DIR);
+  const legacyRuntimePayload = path.join(payloadRoot, 'runtime', version);
+  const resolvedRuntimePayload = fs.existsSync(runtimePayload) && fs.statSync(runtimePayload).isDirectory()
+    ? runtimePayload
+    : legacyRuntimePayload;
+  if (!fs.existsSync(resolvedRuntimePayload) || !fs.statSync(resolvedRuntimePayload).isDirectory()) {
     return null;
   }
 
   return {
     version,
-    payloadRoot: runtimePayload,
+    payloadRoot: resolvedRuntimePayload,
     manifestPath,
     manifestSha256: sha256File(manifestPath),
   };

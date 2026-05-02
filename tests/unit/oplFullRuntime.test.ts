@@ -28,7 +28,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     const resourcesPath = makeTempRoot('opl-full-resources');
     const homeDir = makeTempRoot('opl-full-home');
     const payloadRoot = path.join(resourcesPath, 'opl-full-runtime');
-    const runtimePayload = path.join(payloadRoot, 'runtime', '26.5.1');
+    const runtimePayload = path.join(payloadRoot, 'runtime', 'current');
     fs.mkdirSync(path.join(runtimePayload, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(runtimePayload, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(runtimePayload, 'uv', 'bin'), { recursive: true });
@@ -76,6 +76,32 @@ describe('ensurePackagedOplFullRuntime', () => {
     });
     expect(second?.runtimeHome).toBe(expectedHome);
     expect(fs.statSync(path.join(expectedHome, '.opl-full-runtime-installed.json')).mtimeMs).toBe(markerMtime);
+  });
+
+  it('keeps compatibility with older packaged payloads stored under the version slot', () => {
+    const resourcesPath = makeTempRoot('opl-legacy-full-resources');
+    const homeDir = makeTempRoot('opl-legacy-full-home');
+    const payloadRoot = path.join(resourcesPath, 'opl-full-runtime');
+    const runtimePayload = path.join(payloadRoot, 'runtime', '26.5.1');
+    fs.mkdirSync(path.join(runtimePayload, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimePayload, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
+    fs.writeFileSync(
+      path.join(payloadRoot, 'manifest', 'full-package-manifest.json'),
+      JSON.stringify({ version: '26.5.1' }),
+      'utf8'
+    );
+
+    const installed = ensurePackagedOplFullRuntime({
+      isPackaged: true,
+      resourcesPath,
+      homeDir,
+    });
+
+    const expectedHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    expect(installed?.runtimeHome).toBe(expectedHome);
+    expect(fs.existsSync(path.join(expectedHome, 'bin', 'opl'))).toBe(true);
+    expect(fs.existsSync(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', '26.5.1'))).toBe(false);
   });
 
   it('does nothing when the packaged app has no full runtime payload', () => {
