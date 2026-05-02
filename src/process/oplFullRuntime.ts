@@ -84,9 +84,10 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
     OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
     OPL_HERMES_BIN: path.join(runtimeHome, 'bin', 'hermes'),
-    OPL_MODULES_ROOT: path.join(runtimeHome, 'modules'),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
     OPL_MODULE_PATH_MEDDEEPSCIENTIST: path.join(runtimeHome, 'modules', 'mds'),
+    OPL_MODULE_PATH_MEDAUTOGRANT: path.join(runtimeHome, 'modules', 'mag'),
+    OPL_MODULE_PATH_REDCUBE: path.join(runtimeHome, 'modules', 'rca'),
     PATH: mergePathEntries(pathEntries),
   };
 }
@@ -276,9 +277,10 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
 
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(normalized)}`,
-    `export OPL_MODULES_ROOT=${shellQuote(path.join(normalized, 'modules'))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDDEEPSCIENTIST=${shellQuote(path.join(normalized, 'modules', 'mds'))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(normalized, 'bin', 'codex'))}`,
     `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`,
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,

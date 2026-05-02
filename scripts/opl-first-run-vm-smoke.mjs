@@ -260,13 +260,47 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
   ].join(path.delimiter);
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
-    `export OPL_MODULES_ROOT=${shellQuote(path.join(runtimeHome, 'modules'))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDDEEPSCIENTIST=${shellQuote(path.join(runtimeHome, 'modules', 'mds'))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
     `export OPL_HERMES_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'hermes'))}`,
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
   ].join(' && ');
+}
+
+function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
+  const systemInitialize = JSON.parse(systemInitializeRaw);
+  const modulesPayload = JSON.parse(modulesRaw);
+  const initialize = systemInitialize.system_initialize;
+  const modulesSurface = modulesPayload.modules;
+  if (!initialize?.setup_flow?.ready_to_launch) {
+    throw new Error('OPL first-run initialize did not report ready_to_launch=true.');
+  }
+
+  const requiredModules = new Map([
+    ['medautoscience', 'med-autoscience'],
+    ['meddeepscientist', 'med-deepscientist'],
+    ['medautogrant', 'med-autogrant'],
+    ['redcube', 'redcube-ai'],
+  ]);
+  const byId = new Map((modulesSurface?.items ?? modulesSurface?.modules ?? []).map((entry) => [entry.module_id, entry]));
+  const modulesRoot = modulesSurface?.modules_root;
+  if (!modulesRoot || !modulesRoot.endsWith(path.join('OPL', 'state', 'modules'))) {
+    throw new Error(`OPL modules_root is not the standard state modules directory: ${modulesRoot || '(missing)'}`);
+  }
+
+  for (const [moduleId, repoName] of requiredModules) {
+    const module = byId.get(moduleId);
+    if (!module?.installed || module.install_origin !== 'managed_root' || module.health_status !== 'ready') {
+      throw new Error(`OPL module ${moduleId} is not ready in managed_root: ${JSON.stringify(module ?? null)}`);
+    }
+    const expectedPath = path.join(modulesRoot, repoName);
+    if (module.checkout_path !== expectedPath || !fs.existsSync(expectedPath)) {
+      throw new Error(`OPL module ${moduleId} is not installed at ${expectedPath}: ${module.checkout_path || '(missing)'}`);
+    }
+  }
 }
 
 function runOplJson(args) {
@@ -732,12 +766,15 @@ async function main() {
       writeTextArtifact(path.join(options.artifacts, 'first-run.jsonl'), fs.readFileSync(firstRunLog, 'utf8'), codexApiKey);
     }
 
+    const systemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+    const modulesRaw = runOplJson(['modules']);
+    assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw);
     writeTextArtifact(
       path.join(options.artifacts, 'system-initialize.json'),
-      runOplJson(['system', 'initialize', '--json']),
+      systemInitializeRaw,
       codexApiKey
     );
-    writeTextArtifact(path.join(options.artifacts, 'modules.json'), runOplJson(['modules']), codexApiKey);
+    writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
     spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
@@ -764,6 +801,7 @@ async function main() {
 export const __test = process.env.NODE_ENV === 'test'
   ? {
       buildFullRuntimeCommandPrefix,
+      assertFullFirstRunEquivalence,
       findLatestFullRuntimeHome,
       isMainModule,
       runOplJson,

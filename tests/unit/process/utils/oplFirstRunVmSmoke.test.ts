@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 type SmokeTestApi = {
+  assertFullFirstRunEquivalence(systemInitializeRaw: string, modulesRaw: string): void;
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
   findLatestFullRuntimeHome(runtimeRoot?: string): string | null;
   isMainModule(moduleUrl: string, argvPath?: string): boolean;
@@ -100,10 +101,48 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     const prefix = api.buildFullRuntimeCommandPrefix(runtimeHome);
 
     expect(prefix).toContain(`export OPL_FULL_RUNTIME_HOME='${runtimeHome}'`);
-    expect(prefix).toContain(`export OPL_MODULES_ROOT='${path.join(runtimeHome, 'modules')}'`);
+    expect(prefix).not.toContain('OPL_MODULES_ROOT');
+    expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOSCIENCE='${path.join(runtimeHome, 'modules', 'mas')}'`);
+    expect(prefix).toContain(`export OPL_MODULE_PATH_MEDDEEPSCIENTIST='${path.join(runtimeHome, 'modules', 'mds')}'`);
+    expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOGRANT='${path.join(runtimeHome, 'modules', 'mag')}'`);
+    expect(prefix).toContain(`export OPL_MODULE_PATH_REDCUBE='${path.join(runtimeHome, 'modules', 'rca')}'`);
     expect(prefix).toContain(`export OPL_CODEX_BIN='${path.join(runtimeHome, 'bin', 'codex')}'`);
     expect(prefix).toContain(`export OPL_HERMES_BIN='${path.join(runtimeHome, 'bin', 'hermes')}'`);
     expect(prefix).toContain(path.join(runtimeHome, 'python', 'cpython-3.12.13-macos-aarch64-none', 'bin'));
     expect(prefix).toContain('PATH=');
+  });
+
+  it('asserts Full first-run modules are materialized into standard state modules root', async () => {
+    const api = await loadSmokeTestApi();
+    const homeRoot = makeTempRoot();
+    const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
+    for (const repoName of ['med-autoscience', 'med-deepscientist', 'med-autogrant', 'redcube-ai']) {
+      fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
+    }
+
+    const systemInitializeRaw = JSON.stringify({
+      system_initialize: {
+        setup_flow: { ready_to_launch: true, blocking_items: [] },
+      },
+    });
+    const modulesRaw = JSON.stringify({
+      modules: {
+        modules_root: modulesRoot,
+        items: [
+          ['medautoscience', 'med-autoscience'],
+          ['meddeepscientist', 'med-deepscientist'],
+          ['medautogrant', 'med-autogrant'],
+          ['redcube', 'redcube-ai'],
+        ].map(([moduleId, repoName]) => ({
+          module_id: moduleId,
+          installed: true,
+          install_origin: 'managed_root',
+          health_status: 'ready',
+          checkout_path: path.join(modulesRoot, repoName),
+        })),
+      },
+    });
+
+    expect(() => api.assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw)).not.toThrow();
   });
 });
