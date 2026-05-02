@@ -10,10 +10,13 @@ type OverviewStatus = {
   codexStatus?: string;
   workspaceRoot?: string | null;
   workspaceStatus?: string;
+  moduleKnown: boolean;
   moduleTotal: number;
   moduleAttention: number;
   webuiRunning?: boolean;
 };
+
+const MODULE_ACTIONS_REQUIRING_ATTENTION = new Set(['install', 'update', 'reinstall', 'remove']);
 
 type SystemInitializePayload = {
   system_initialize?: {
@@ -25,9 +28,16 @@ type SystemInitializePayload = {
       };
     };
     domain_modules?: {
+      summary?: {
+        total?: number;
+        healthy?: number;
+        installed?: number;
+      };
       modules?: Array<{
         installed?: boolean;
         health_status?: string;
+        available_actions?: string[];
+        recommended_action?: string | null;
       }>;
     };
     workspace_root?: {
@@ -37,13 +47,27 @@ type SystemInitializePayload = {
   };
 };
 
+type DomainModuleStatus = NonNullable<
+  NonNullable<NonNullable<SystemInitializePayload['system_initialize']>['domain_modules']>['modules']
+>[number];
+
+function hasExecutableModuleAction(module: DomainModuleStatus) {
+  const actions = [module.recommended_action, ...(module.available_actions ?? [])].filter(Boolean);
+  return actions.some((action) => MODULE_ACTIONS_REQUIRING_ATTENTION.has(String(action)));
+}
+
 function parseOverviewStatus(
   stdout: string
-): Pick<OverviewStatus, 'codexStatus' | 'workspaceRoot' | 'workspaceStatus' | 'moduleTotal' | 'moduleAttention'> {
+): Pick<
+  OverviewStatus,
+  'codexStatus' | 'workspaceRoot' | 'workspaceStatus' | 'moduleKnown' | 'moduleTotal' | 'moduleAttention'
+> {
   try {
     const payload = JSON.parse(stdout) as SystemInitializePayload;
     const initialize = payload.system_initialize;
+    const moduleSummary = initialize?.domain_modules?.summary;
     const modules = initialize?.domain_modules?.modules ?? [];
+    const moduleTotal = moduleSummary?.total ?? modules.length;
     return {
       codexStatus:
         initialize?.core_engines?.codex?.health_status ??
@@ -51,11 +75,13 @@ function parseOverviewStatus(
         (initialize?.core_engines?.codex?.installed ? 'ready' : 'missing'),
       workspaceRoot: initialize?.workspace_root?.selected_path,
       workspaceStatus: initialize?.workspace_root?.health_status,
-      moduleTotal: modules.length,
-      moduleAttention: modules.filter((module) => !module.installed || module.health_status !== 'ready').length,
+      moduleKnown: Boolean(initialize?.domain_modules),
+      moduleTotal,
+      moduleAttention: modules.filter(hasExecutableModuleAction).length,
     };
   } catch {
     return {
+      moduleKnown: false,
       moduleTotal: 0,
       moduleAttention: 0,
     };
@@ -67,7 +93,7 @@ const OverviewSettings: React.FC = () => {
   const navigate = useNavigate();
   const [message, contextHolder] = Message.useMessage();
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<OverviewStatus>({ moduleTotal: 0, moduleAttention: 0 });
+  const [status, setStatus] = useState<OverviewStatus>({ moduleKnown: false, moduleTotal: 0, moduleAttention: 0 });
 
   const loadOverview = useCallback(
     async (showError = false) => {
@@ -79,6 +105,7 @@ const OverviewSettings: React.FC = () => {
         ]);
         const parsed = systemResult.exitCode === 0 ? parseOverviewStatus(systemResult.stdout) : {};
         setStatus({
+          moduleKnown: false,
           moduleTotal: 0,
           moduleAttention: 0,
           ...parsed,
@@ -88,6 +115,7 @@ const OverviewSettings: React.FC = () => {
           message.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } catch {
+        setStatus({ moduleKnown: false, moduleTotal: 0, moduleAttention: 0 });
         if (showError) {
           message.warning(t('settings.overviewPage.messages.statusLoadFailed'));
         }
@@ -103,7 +131,7 @@ const OverviewSettings: React.FC = () => {
   }, [loadOverview]);
 
   const moduleStatusLabel = useMemo(() => {
-    if (status.moduleTotal === 0) return t('settings.overviewPage.modulesUnknown');
+    if (!status.moduleKnown || status.moduleTotal === 0) return t('settings.overviewPage.modulesUnknown');
     if (status.moduleAttention > 0) {
       return t('settings.overviewPage.modulesNeedAttention', {
         count: status.moduleAttention,
@@ -111,7 +139,7 @@ const OverviewSettings: React.FC = () => {
       });
     }
     return t('settings.overviewPage.modulesReady', { total: status.moduleTotal });
-  }, [status.moduleAttention, status.moduleTotal, t]);
+  }, [status.moduleAttention, status.moduleKnown, status.moduleTotal, t]);
 
   const cards = [
     {
@@ -145,13 +173,15 @@ const OverviewSettings: React.FC = () => {
       title: t('settings.overviewPage.modulesTitle'),
       value: moduleStatusLabel,
       icon: <Lightning theme='outline' />,
-      action: t('settings.overviewPage.actions.openCapabilities'),
-      route: '/settings/capabilities',
-      tone: status.moduleAttention === 0 && status.moduleTotal > 0 ? 'green' : 'orange',
+      action: t('settings.overviewPage.actions.openRuntime'),
+      route: '/settings/runtime?tab=environment#modules',
+      tone: status.moduleKnown && status.moduleAttention === 0 && status.moduleTotal > 0 ? 'green' : 'orange',
       tag:
-        status.moduleAttention === 0 && status.moduleTotal > 0
+        status.moduleKnown && status.moduleAttention === 0 && status.moduleTotal > 0
           ? t('settings.oplEnvironmentPage.status.ready')
-          : t('settings.oplEnvironmentPage.status.attention_needed'),
+          : status.moduleKnown
+            ? t('settings.oplEnvironmentPage.status.attention_needed')
+            : t('settings.oplEnvironmentPage.status.unknown'),
     },
     {
       key: 'webui',
