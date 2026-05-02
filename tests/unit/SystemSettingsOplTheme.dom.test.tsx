@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+const mockUnstableMessageApi = vi.hoisted(() => ({ enabled: false }));
 const mockRunOplCommand = vi.fn();
 const mockAutoUpdateCheck = vi.fn();
 const mockAutoUpdateDownload = vi.fn();
@@ -114,7 +115,12 @@ vi.mock('@arco-design/web-react', async () => {
     { TabPane: (_props: { title?: React.ReactNode }) => null }
   );
   const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
-  const Message = { useMessage: () => [messageApi, null] };
+  const Message = {
+    useMessage: () => [
+      mockUnstableMessageApi.enabled ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() } : messageApi,
+      null,
+    ],
+  };
   return { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography };
 });
 
@@ -184,6 +190,7 @@ import RuntimeSettings, { resolveEngineAction } from '@/renderer/pages/settings/
 describe('RuntimeSettings OPL environment section', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUnstableMessageApi.enabled = false;
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -220,6 +227,19 @@ describe('RuntimeSettings OPL environment section', () => {
     expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
     expect(screen.getByText('settings.oplEnvironmentPage.maintenanceTitle')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-appearance-theme-settings')).not.toBeInTheDocument();
+  });
+
+  it('does not repeat environment status loads when the message API identity changes', async () => {
+    mockUnstableMessageApi.enabled = true;
+
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
+    expect(await screen.findByText('settings.oplEnvironmentPage.title')).toBeInTheDocument();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
   });
 
   it('separates Codex diagnostics and Hermes update summary from version rows', async () => {

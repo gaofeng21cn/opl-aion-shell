@@ -142,6 +142,14 @@ type AppVersions = {
   guiVersion: string;
 };
 
+type EnvironmentStatusSnapshot = {
+  coreEngines?: CoreEngines;
+  moduleStatuses?: OplModuleStatus[];
+  workspaceRoot?: WorkspaceRootStatus;
+  appVersions?: AppVersions | null;
+  warning?: string | null;
+};
+
 type EnvironmentItem = {
   id: string;
   moduleId?: string;
@@ -342,6 +350,68 @@ function formatHealthStatus(status: string | undefined, t: (key: string, options
   return t(`settings.oplEnvironmentPage.status.${status}`, { status });
 }
 
+async function readCodexSessionContext(): Promise<string> {
+  const context = await ConfigStorage.get('opl.codexSessionContext');
+  const sessionContext = normalizeOplCodexSessionContext(context);
+  if (sessionContext) return sessionContext;
+
+  const addendum = await ConfigStorage.get('opl.codexSessionAddendum');
+  return typeof addendum === 'string' && addendum.trim().length > 0
+    ? mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: addendum })
+    : mergeOplDefaultCodexContext();
+}
+
+async function readDefaultInstructionFile(homePath: string, file: (typeof DEFAULT_INSTRUCTION_FILES)[DefaultInstructionFileKey]) {
+  const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
+  return content || '';
+}
+
+async function readEnvironmentStatus(
+  fallbackWarning: string
+): Promise<EnvironmentStatusSnapshot> {
+  const [systemResult, versions] = await Promise.all([
+    ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
+    ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),
+  ]);
+  if (systemResult.exitCode === 0) {
+    const initialize = parseSystemInitialize(systemResult.stdout);
+    return {
+      appVersions: versions,
+      coreEngines: initialize?.core_engines ?? {},
+      moduleStatuses: initialize?.domain_modules?.modules ?? [],
+      workspaceRoot: initialize?.workspace_root,
+    };
+  }
+
+  const modulesResult = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
+  if (modulesResult.exitCode === 0) {
+    return {
+      appVersions: versions,
+      moduleStatuses: parseModules(modulesResult.stdout),
+    };
+  }
+
+  return {
+    appVersions: versions,
+    warning: systemResult.stderr || modulesResult.stderr || fallbackWarning,
+  };
+}
+
+function applyEnvironmentSnapshot(
+  snapshot: EnvironmentStatusSnapshot,
+  setters: {
+    setAppVersions: React.Dispatch<React.SetStateAction<AppVersions | null>>;
+    setCoreEngines: React.Dispatch<React.SetStateAction<CoreEngines>>;
+    setModuleStatuses: React.Dispatch<React.SetStateAction<OplModuleStatus[]>>;
+    setWorkspaceRoot: React.Dispatch<React.SetStateAction<WorkspaceRootStatus | undefined>>;
+  }
+) {
+  if (snapshot.appVersions) setters.setAppVersions(snapshot.appVersions);
+  if (snapshot.coreEngines) setters.setCoreEngines(snapshot.coreEngines);
+  if (snapshot.moduleStatuses) setters.setModuleStatuses(snapshot.moduleStatuses);
+  if ('workspaceRoot' in snapshot) setters.setWorkspaceRoot(snapshot.workspaceRoot);
+}
+
 const RuntimeInstructionSettings: React.FC = () => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
@@ -368,19 +438,7 @@ const RuntimeInstructionSettings: React.FC = () => {
     async (showError = false) => {
       setLoadingContext(true);
       try {
-        const context = await ConfigStorage.get('opl.codexSessionContext');
-        const sessionContext = normalizeOplCodexSessionContext(context);
-        if (sessionContext) {
-          setCodexSessionContext(sessionContext);
-          return;
-        }
-
-        const addendum = await ConfigStorage.get('opl.codexSessionAddendum');
-        setCodexSessionContext(
-          typeof addendum === 'string' && addendum.trim().length > 0
-            ? mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: addendum })
-            : mergeOplDefaultCodexContext()
-        );
+        setCodexSessionContext(await readCodexSessionContext());
       } catch {
         setCodexSessionContext(mergeOplDefaultCodexContext());
         if (showError) {
@@ -394,8 +452,22 @@ const RuntimeInstructionSettings: React.FC = () => {
   );
 
   useEffect(() => {
-    void loadCodexSessionContext(false);
-  }, [loadCodexSessionContext]);
+    let cancelled = false;
+    setLoadingContext(true);
+    readCodexSessionContext()
+      .then((context) => {
+        if (!cancelled) setCodexSessionContext(context);
+      })
+      .catch(() => {
+        if (!cancelled) setCodexSessionContext(mergeOplDefaultCodexContext());
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingContext(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const loadDefaultInstructionFile = useCallback(
     async (showError = false) => {
@@ -407,7 +479,7 @@ const RuntimeInstructionSettings: React.FC = () => {
       }));
 
       try {
-        const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
+        const content = await readDefaultInstructionFile(homePath, file);
         setInstructionFiles((prev) => ({
           ...prev,
           [file.key]: { loading: false, content: content || '', error: false },
@@ -426,8 +498,34 @@ const RuntimeInstructionSettings: React.FC = () => {
   );
 
   useEffect(() => {
-    void loadDefaultInstructionFile(false);
-  }, [loadDefaultInstructionFile]);
+    if (!homePath) return;
+    let cancelled = false;
+    const file = DEFAULT_INSTRUCTION_FILES[interactionLayer];
+    setInstructionFiles((prev) => ({
+      ...prev,
+      [file.key]: { ...prev[file.key], loading: true, error: false },
+    }));
+    readDefaultInstructionFile(homePath, file)
+      .then((content) => {
+        if (!cancelled) {
+          setInstructionFiles((prev) => ({
+            ...prev,
+            [file.key]: { loading: false, content, error: false },
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInstructionFiles((prev) => ({
+            ...prev,
+            [file.key]: { loading: false, content: '', error: true },
+          }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [homePath, interactionLayer]);
 
   const saveInteractionLayer = useCallback(
     async (nextLayer: OplInteractionLayer) => {
@@ -568,28 +666,10 @@ const OplEnvironmentContent: React.FC = () => {
     async (showLoading = false) => {
       if (showLoading) setRunningAction('refresh');
       try {
-        const [systemResult, versions] = await Promise.all([
-          ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
-          ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),
-        ]);
-        if (versions) {
-          setAppVersions(versions);
-        }
-        if (systemResult.exitCode === 0) {
-          const initialize = parseSystemInitialize(systemResult.stdout);
-          setCoreEngines(initialize?.core_engines ?? {});
-          setModuleStatuses(initialize?.domain_modules?.modules ?? []);
-          setWorkspaceRoot(initialize?.workspace_root);
-          return;
-        }
-
-        const modulesResult = await ipcBridge.shell.runOplCommand.invoke({ args: ['modules'] });
-        if (modulesResult.exitCode === 0) {
-          setModuleStatuses(parseModules(modulesResult.stdout));
-        } else {
-          message.warning(
-            systemResult.stderr || modulesResult.stderr || t('settings.oplEnvironmentPage.messages.loadModulesFailed')
-          );
+        const snapshot = await readEnvironmentStatus(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+        applyEnvironmentSnapshot(snapshot, { setAppVersions, setCoreEngines, setModuleStatuses, setWorkspaceRoot });
+        if (snapshot.warning) {
+          message.warning(snapshot.warning);
         }
       } catch {
         message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
@@ -601,8 +681,18 @@ const OplEnvironmentContent: React.FC = () => {
   );
 
   useEffect(() => {
-    void loadEnvironment(false);
-  }, [loadEnvironment]);
+    let cancelled = false;
+    readEnvironmentStatus(t('settings.oplEnvironmentPage.messages.loadModulesFailed'))
+      .then((snapshot) => {
+        if (!cancelled) {
+          applyEnvironmentSnapshot(snapshot, { setAppVersions, setCoreEngines, setModuleStatuses, setWorkspaceRoot });
+        }
+      })
+      .catch((): void => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   const statusByModuleId = useMemo(() => {
     const map = new Map<string, OplModuleStatus>();

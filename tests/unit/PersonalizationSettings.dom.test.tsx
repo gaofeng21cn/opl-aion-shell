@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+const mockUnstableMessageApi = vi.hoisted(() => ({ enabled: false }));
 const mockConfigGet = vi.fn();
 const mockConfigSet = vi.fn();
 const mockRunOplCommand = vi.fn();
@@ -112,7 +113,12 @@ vi.mock('@arco-design/web-react', async () => {
     { TabPane: (_props: { title?: React.ReactNode }) => null }
   );
   const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
-  const Message = { useMessage: () => [messageApi, null] };
+  const Message = {
+    useMessage: () => [
+      mockUnstableMessageApi.enabled ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() } : messageApi,
+      null,
+    ],
+  };
   return { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography };
 });
 
@@ -200,6 +206,7 @@ describe('AppearanceSettings', () => {
 describe('RuntimeSettings Codex session context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUnstableMessageApi.enabled = false;
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.interactionLayer') return 'codex';
       if (key === 'opl.codexSessionContext') return 'existing complete session context';
@@ -323,6 +330,24 @@ describe('RuntimeSettings Codex session context', () => {
     expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.codex/AGENTS.md' });
     expect(mockReadFile).not.toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
     expect(screen.queryByTestId('hermes-default-instruction-file')).not.toBeInTheDocument();
+  });
+
+  it('does not repeat automatic instruction file reads when the message API identity changes', async () => {
+    mockUnstableMessageApi.enabled = true;
+
+    render(<RuntimeSettings />);
+    fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent('Codex global agents');
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockReadFile).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('codex-default-instruction-file')).not.toHaveTextContent(
+      'settings.runtimePage.defaultInstructionFilesLoading'
+    );
   });
 
   it('switches the default instruction file when Hermes is selected', async () => {
