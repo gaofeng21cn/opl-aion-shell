@@ -50,18 +50,35 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(api.isMainModule(new URL(`file://${scriptPath}`).href, linkPath)).toBe(true);
   });
 
-  it('finds the latest installed Full runtime that contains the OPL CLI', async () => {
+  it('prefers the stable current Full runtime that contains the OPL CLI', async () => {
     const api = await loadSmokeTestApi();
     const runtimeRoot = makeTempRoot();
     const oldRuntime = path.join(runtimeRoot, '26.5.1');
     const newRuntime = path.join(runtimeRoot, '26.5.2');
+    const currentRuntime = path.join(runtimeRoot, 'current');
     const incompleteRuntime = path.join(runtimeRoot, '26.5.9');
 
     writeExecutable(path.join(oldRuntime, 'bin', 'opl'));
     writeExecutable(path.join(newRuntime, 'bin', 'opl'));
+    writeExecutable(path.join(currentRuntime, 'bin', 'opl'));
     fs.mkdirSync(path.join(incompleteRuntime, 'bin'), { recursive: true });
 
-    expect(api.findLatestFullRuntimeHome(runtimeRoot)).toBe(newRuntime);
+    expect(api.findLatestFullRuntimeHome(runtimeRoot)).toBe(currentRuntime);
+  });
+
+  it('falls back to the runtime_home recorded in current.json', async () => {
+    const api = await loadSmokeTestApi();
+    const runtimeRoot = makeTempRoot();
+    const runtimeHome = path.join(runtimeRoot, '26.5.1');
+
+    writeExecutable(path.join(runtimeHome, 'bin', 'opl'));
+    fs.writeFileSync(
+      path.join(runtimeRoot, 'current.json'),
+      `${JSON.stringify({ runtime_version: '26.5.1', runtime_home: runtimeHome })}\n`,
+      'utf8'
+    );
+
+    expect(api.findLatestFullRuntimeHome(runtimeRoot)).toBe(runtimeHome);
   });
 
   it('does not report a Full runtime when the OPL CLI is missing', async () => {
@@ -75,7 +92,7 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
 
   it('builds the same OPL env prefix the packaged app uses for Full runtime commands', async () => {
     const api = await loadSmokeTestApi();
-    const runtimeHome = path.join(makeTempRoot(), 'OPL Full Runtime', '26.5.1');
+    const runtimeHome = path.join(makeTempRoot(), 'OPL Full Runtime', 'current');
     fs.mkdirSync(path.join(runtimeHome, 'python', 'cpython-3.12.13-macos-aarch64-none', 'bin'), {
       recursive: true,
     });

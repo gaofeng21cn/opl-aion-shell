@@ -134,10 +134,10 @@ try {
   const fullRuntime = ensurePackagedOplFullRuntime({ isPackaged: app.isPackaged });
   if (fullRuntime) {
     applyOplFullRuntimeEnv(fullRuntime.env);
-    console.log(`[OPL Full Runtime] Installed runtime ${fullRuntime.version} at ${fullRuntime.runtimeHome}`);
+    console.log(`[OPL Full Runtime] Activated runtime ${fullRuntime.version} at ${fullRuntime.runtimeHome}`);
   }
 } catch (error) {
-  console.error('[OPL Full Runtime] Failed to install packaged runtime:', error);
+  console.error('[OPL Full Runtime] Failed to activate runtime:', error);
 }
 
 // Log environment diagnostics once at startup (persisted via electron-log).

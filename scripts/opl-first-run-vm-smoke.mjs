@@ -210,6 +210,22 @@ function isMainModule(moduleUrl, argvPath = process.argv[1]) {
 
 function findLatestFullRuntimeHome(runtimeRoot = defaultOplRuntimeRoot()) {
   if (!fs.existsSync(runtimeRoot)) return null;
+  const currentRuntime = path.join(runtimeRoot, 'current');
+  if (fs.existsSync(path.join(currentRuntime, 'bin', 'opl'))) {
+    return currentRuntime;
+  }
+
+  const pointerPath = path.join(runtimeRoot, 'current.json');
+  try {
+    const pointer = JSON.parse(fs.readFileSync(pointerPath, 'utf8'));
+    const pointerRuntime = typeof pointer?.runtime_home === 'string' ? pointer.runtime_home.trim() : '';
+    if (pointerRuntime && fs.existsSync(path.join(pointerRuntime, 'bin', 'opl'))) {
+      return pointerRuntime;
+    }
+  } catch (_) {
+    // Continue to legacy versioned runtime discovery below.
+  }
+
   const candidates = fs
     .readdirSync(runtimeRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
