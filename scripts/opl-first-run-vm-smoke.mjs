@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_PROCESS_NAME = 'One Person Lab';
 const DEFAULT_LABELS = {
@@ -138,6 +139,10 @@ function defaultOplStatePath() {
   return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'state');
 }
 
+function defaultOplRuntimeRoot() {
+  return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'runtime');
+}
+
 function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
   return path.join(os.homedir(), 'Library', 'Application Support', processName);
 }
@@ -190,8 +195,73 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function realpathOrResolve(filePath) {
+  try {
+    return fs.realpathSync(filePath);
+  } catch (_) {
+    return path.resolve(filePath);
+  }
+}
+
+function isMainModule(moduleUrl, argvPath = process.argv[1]) {
+  if (!argvPath) return false;
+  return realpathOrResolve(fileURLToPath(moduleUrl)) === realpathOrResolve(argvPath);
+}
+
+function findLatestFullRuntimeHome(runtimeRoot = defaultOplRuntimeRoot()) {
+  if (!fs.existsSync(runtimeRoot)) return null;
+  const candidates = fs
+    .readdirSync(runtimeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(runtimeRoot, entry.name))
+    .filter((runtimeHome) => fs.existsSync(path.join(runtimeHome, 'bin', 'opl')))
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  return candidates[0] ?? null;
+}
+
+function resolvePythonBin(runtimeHome) {
+  const pythonRoot = path.join(runtimeHome, 'python');
+  if (!fs.existsSync(pythonRoot)) return null;
+  return (
+    fs
+      .readdirSync(pythonRoot)
+      .filter((entry) => entry.startsWith('cpython-'))
+      .map((entry) => path.join(pythonRoot, entry, 'bin'))
+      .filter((entry) => fs.existsSync(entry))
+      .sort()
+      .reverse()[0] ?? null
+  );
+}
+
+function buildFullRuntimeCommandPrefix(runtimeHome) {
+  if (!runtimeHome) return '';
+  const pythonBin = resolvePythonBin(runtimeHome);
+  const pathEntries = [
+    path.join(runtimeHome, 'bin'),
+    path.join(runtimeHome, 'node', 'bin'),
+    path.join(runtimeHome, 'uv', 'bin'),
+    ...(pythonBin ? [pythonBin] : []),
+  ].join(path.delimiter);
+  return [
+    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
+    `export OPL_MODULES_ROOT=${shellQuote(path.join(runtimeHome, 'modules'))}`,
+    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
+    `export OPL_MODULE_PATH_MEDDEEPSCIENTIST=${shellQuote(path.join(runtimeHome, 'modules', 'mds'))}`,
+    `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
+    `export OPL_HERMES_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'hermes'))}`,
+    `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
+  ].join(' && ');
+}
+
 function runOplJson(args) {
-  const command = ['opl', ...args].map(shellQuote).join(' ');
+  const runtimeHome = findLatestFullRuntimeHome();
+  const command = [
+    buildFullRuntimeCommandPrefix(runtimeHome),
+    'command -v opl >/dev/null',
+    ['opl', ...args].map(shellQuote).join(' '),
+  ]
+    .filter(Boolean)
+    .join(' && ');
   const result = spawnSync('/bin/zsh', ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json' },
@@ -675,7 +745,18 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+export const __test = process.env.NODE_ENV === 'test'
+  ? {
+      buildFullRuntimeCommandPrefix,
+      findLatestFullRuntimeHome,
+      isMainModule,
+      runOplJson,
+    }
+  : undefined;
+
+if (isMainModule(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}
