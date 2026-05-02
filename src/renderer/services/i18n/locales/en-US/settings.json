@@ -1139,7 +1139,7 @@
       "defaultInstructionFilesLoadFailed": "Failed to load local default instruction files"
     },
     "sessionContextTitle": "Codex session injection text",
-    "sessionContextDescription": "The editor content is the full text injected into the first message of new OPL App Codex sessions.",
+    "sessionContextDescription": "When a new Codex session starts, OPL sends this text to Codex as the initial context. Use it for durable preferences, project boundaries, and default routing rules.",
     "defaultCodexContextTitle": "OPL default Codex context",
     "sessionContextInputTitle": "OPL Codex session injection text",
     "sessionContextPlaceholder": "Edit the full OPL Codex session injection text here...",

@@ -1141,7 +1141,7 @@
       "defaultInstructionFilesLoadFailed": "讀取本機預設指令檔案失敗"
     },
     "sessionContextTitle": "Codex 會話注入文字",
-    "sessionContextDescription": "編輯器裡的完整內容就是 OPL App 新建 Codex 會話首則訊息實際注入的文字。",
+    "sessionContextDescription": "新建 Codex 會話時，OPL 會把這裡的內容作為初始上下文傳送給 Codex。適合放置長期偏好、專案邊界和預設路由規則。",
     "defaultCodexContextTitle": "OPL 預設 Codex 上下文",
     "sessionContextInputTitle": "OPL Codex 會話注入文字",
     "sessionContextPlaceholder": "在這裡編輯完整的 OPL Codex 會話注入文字...",

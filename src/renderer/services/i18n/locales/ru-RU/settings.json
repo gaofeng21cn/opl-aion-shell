@@ -1141,7 +1141,7 @@
       "defaultInstructionFilesLoadFailed": "Не удалось загрузить локальные файлы инструкций по умолчанию"
     },
     "sessionContextTitle": "Codex session injection text",
-    "sessionContextDescription": "Всё содержимое редактора фактически инъектируется в первое сообщение новых сессий OPL App Codex.",
+    "sessionContextDescription": "При запуске новой сессии Codex OPL отправляет этот текст в Codex как начальный контекст. Используйте его для долгосрочных предпочтений, границ проекта и правил маршрутизации по умолчанию.",
     "defaultCodexContextTitle": "OPL default Codex context",
     "sessionContextInputTitle": "OPL Codex session injection text",
     "sessionContextPlaceholder": "Отредактируйте полный текст инъекции сессии OPL Codex здесь...",

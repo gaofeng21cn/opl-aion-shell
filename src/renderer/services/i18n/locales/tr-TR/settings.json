@@ -1139,7 +1139,7 @@
       "defaultInstructionFilesLoadFailed": "Yerel varsayılan talimat dosyaları yüklenemedi"
     },
     "sessionContextTitle": "Codex session injection text",
-    "sessionContextDescription": "Düzenleyicideki tüm içerik yeni OPL App Codex oturumlarının ilk mesajına gerçekten enjekte edilir.",
+    "sessionContextDescription": "Yeni bir Codex oturumu başladığında OPL bu metni ilk bağlam olarak Codex'e gönderir. Kalıcı tercihler, proje sınırları ve varsayılan yönlendirme kuralları için kullanabilirsiniz.",
     "defaultCodexContextTitle": "OPL default Codex context",
     "sessionContextInputTitle": "OPL Codex session injection text",
     "sessionContextPlaceholder": "Tam OPL Codex oturum enjekte metnini burada düzenleyin...",

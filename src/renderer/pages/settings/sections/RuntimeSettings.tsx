@@ -33,18 +33,26 @@ type DefaultInstructionFileState = {
   error: boolean;
 };
 
-const DEFAULT_INSTRUCTION_FILES: Array<{ key: DefaultInstructionFileKey; titleKey: string; relativePath: string }> = [
-  {
+const DEFAULT_INSTRUCTION_FILES: Record<
+  DefaultInstructionFileKey,
+  { key: DefaultInstructionFileKey; titleKey: string; relativePath: string }
+> = {
+  codex: {
     key: 'codex',
     titleKey: 'settings.runtimePage.defaultInstructionFiles.codex',
     relativePath: '.codex/AGENTS.md',
   },
-  {
+  hermes: {
     key: 'hermes',
     titleKey: 'settings.runtimePage.defaultInstructionFiles.hermes',
     relativePath: '.hermes/SOUL.md',
   },
-];
+};
+
+const INITIAL_DEFAULT_INSTRUCTION_FILE_STATE: Record<DefaultInstructionFileKey, DefaultInstructionFileState> = {
+  codex: { loading: false, content: '', error: false },
+  hermes: { loading: false, content: '', error: false },
+};
 
 function normalizeInteractionLayer(value: unknown): OplInteractionLayer {
   return value === 'hermes' ? 'hermes' : 'codex';
@@ -344,10 +352,7 @@ const RuntimeInstructionSettings: React.FC = () => {
   const [homePath, setHomePath] = useState('');
   const [instructionFiles, setInstructionFiles] = useState<
     Record<DefaultInstructionFileKey, DefaultInstructionFileState>
-  >({
-    codex: { loading: false, content: '', error: false },
-    hermes: { loading: false, content: '', error: false },
-  });
+  >(INITIAL_DEFAULT_INSTRUCTION_FILE_STATE);
 
   useEffect(() => {
     ConfigStorage.get('opl.interactionLayer')
@@ -392,36 +397,37 @@ const RuntimeInstructionSettings: React.FC = () => {
     void loadCodexSessionContext(false);
   }, [loadCodexSessionContext]);
 
-  const loadDefaultInstructionFiles = useCallback(
+  const loadDefaultInstructionFile = useCallback(
     async (showError = false) => {
       if (!homePath) return;
+      const file = DEFAULT_INSTRUCTION_FILES[interactionLayer];
       setInstructionFiles((prev) => ({
-        codex: { ...prev.codex, loading: true, error: false },
-        hermes: { ...prev.hermes, loading: true, error: false },
+        ...prev,
+        [file.key]: { ...prev[file.key], loading: true, error: false },
       }));
 
-      const nextEntries = await Promise.all(
-        DEFAULT_INSTRUCTION_FILES.map(async (file) => {
-          try {
-            const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
-            return [file.key, { loading: false, content: content || '', error: false }] as const;
-          } catch {
-            return [file.key, { loading: false, content: '', error: true }] as const;
-          }
-        })
-      );
-
-      setInstructionFiles((prev) => ({ ...prev, ...Object.fromEntries(nextEntries) }));
-      if (showError && nextEntries.some(([, state]) => state.error)) {
-        message.warning(t('settings.runtimePage.messages.defaultInstructionFilesLoadFailed'));
+      try {
+        const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
+        setInstructionFiles((prev) => ({
+          ...prev,
+          [file.key]: { loading: false, content: content || '', error: false },
+        }));
+      } catch {
+        setInstructionFiles((prev) => ({
+          ...prev,
+          [file.key]: { loading: false, content: '', error: true },
+        }));
+        if (showError) {
+          message.warning(t('settings.runtimePage.messages.defaultInstructionFilesLoadFailed'));
+        }
       }
     },
-    [homePath, message, t]
+    [homePath, interactionLayer, message, t]
   );
 
   useEffect(() => {
-    void loadDefaultInstructionFiles(false);
-  }, [loadDefaultInstructionFiles]);
+    void loadDefaultInstructionFile(false);
+  }, [loadDefaultInstructionFile]);
 
   const saveInteractionLayer = useCallback(
     async (nextLayer: OplInteractionLayer) => {
@@ -480,17 +486,6 @@ const RuntimeInstructionSettings: React.FC = () => {
         <div className='flex flex-col gap-12px' data-testid='runtime-session-context-settings'>
           <div>
             <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
-              {t('settings.runtimePage.defaultCodexContextTitle')}
-            </Typography.Text>
-            <div
-              data-testid='opl-codex-default-context-reference'
-              className='max-h-220px min-h-120px overflow-auto rounded-8px border border-solid border-border-1 bg-fill-1 px-12px py-10px text-12px leading-18px text-t-secondary whitespace-pre-wrap break-words select-text'
-            >
-              {mergeOplDefaultCodexContext()}
-            </div>
-          </div>
-          <div>
-            <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
               {t('settings.runtimePage.sessionContextInputTitle')}
             </Typography.Text>
             <Input.TextArea
@@ -524,12 +519,13 @@ const RuntimeInstructionSettings: React.FC = () => {
                   <Button
                     size='mini'
                     icon={<UpdateRotation theme='outline' />}
-                    onClick={() => void loadDefaultInstructionFiles(true)}
+                    onClick={() => void loadDefaultInstructionFile(true)}
                   >
                     {t('settings.runtimePage.actions.reloadDefaultInstructionFiles')}
                   </Button>
                 </div>
-                {DEFAULT_INSTRUCTION_FILES.map((file) => {
+                {(() => {
+                  const file = DEFAULT_INSTRUCTION_FILES[interactionLayer];
                   const state = instructionFiles[file.key];
                   return (
                     <div key={file.key}>
@@ -548,7 +544,7 @@ const RuntimeInstructionSettings: React.FC = () => {
                       </div>
                     </div>
                   );
-                })}
+                })()}
               </div>
             </Collapse.Item>
           </Collapse>
