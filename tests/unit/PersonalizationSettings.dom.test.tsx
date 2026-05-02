@@ -5,17 +5,114 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const mockConfigGet = vi.fn();
 const mockConfigSet = vi.fn();
 const mockRunOplCommand = vi.fn();
+const mockGetPath = vi.fn();
+const mockReadFile = vi.fn();
+const mockSetSearchParams = vi.fn();
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, string>) =>
-      options ? `${key}:${Object.values(options).join('|')}` : key,
-  }),
-}));
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: Record<string, string>) =>
+    options ? `${key}:${Object.values(options).join('|')}` : key;
+  return {
+    useTranslation: () => ({ t }),
+  };
+});
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [new URLSearchParams(), mockSetSearchParams],
 }));
+
+vi.mock('@arco-design/web-react', async () => {
+  const React = await import('react');
+  const Text = ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>;
+  const Title = ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { heading?: number }) => (
+    <h4 {...props}>{children}</h4>
+  );
+  const Typography = { Text, Title };
+  const Button = ({
+    children,
+    loading: _loading,
+    icon: _icon,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean; icon?: React.ReactNode }) => (
+    <button {...props}>{children}</button>
+  );
+  const Card = ({
+    children,
+    bordered: _bordered,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { bordered?: boolean }) => <div {...props}>{children}</div>;
+  const Space = ({ children, wrap: _wrap, ...props }: React.HTMLAttributes<HTMLDivElement> & { wrap?: boolean }) => (
+    <div {...props}>{children}</div>
+  );
+  const Tag = ({
+    children,
+    color: _color,
+    size: _size,
+    ...props
+  }: React.HTMLAttributes<HTMLSpanElement> & { color?: string; size?: string }) => <span {...props}>{children}</span>;
+  const Input = Object.assign(
+    ({ value, onChange, onPressEnter, ...props }: any) => (
+      <input
+        {...props}
+        value={value}
+        onChange={(event) => onChange?.(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onPressEnter?.();
+        }}
+      />
+    ),
+    {
+      TextArea: ({ value, onChange, ...props }: any) => (
+        <textarea {...props} value={value} onChange={(event) => onChange?.(event.currentTarget.value)} />
+      ),
+    }
+  );
+  const Radio = {
+    Group: ({
+      options = [],
+      onChange,
+    }: {
+      options?: Array<{ label: string; value: string }>;
+      onChange?: (value: string) => void;
+    }) => (
+      <div>
+        {options.map((option) => (
+          <button key={option.value} type='button' onClick={() => onChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
+  };
+  const Collapse = Object.assign(({ children }: { children: React.ReactNode }) => <div>{children}</div>, {
+    Item: ({ header, children }: { header: React.ReactNode; children: React.ReactNode }) => (
+      <div>
+        <button type='button'>{header}</button>
+        <div>{children}</div>
+      </div>
+    ),
+  });
+  const Tabs = Object.assign(
+    ({ children, onChange }: { children: React.ReactNode; onChange?: (key: string) => void }) => (
+      <div>
+        {React.Children.toArray(children).map((child) => {
+          if (!React.isValidElement<{ title?: React.ReactNode }>(child)) return null;
+          const key = String(child.key).replace(/^\.\$/, '');
+          return (
+            <button key={key} type='button' onClick={() => onChange?.(key)}>
+              {child.props.title}
+            </button>
+          );
+        })}
+      </div>
+    ),
+    { TabPane: (_props: { title?: React.ReactNode }) => null }
+  );
+  const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
+  const Message = { useMessage: () => [messageApi, null] };
+  return { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -24,6 +121,7 @@ vi.mock('@/common', () => ({
     },
     application: {
       appVersions: { invoke: vi.fn().mockResolvedValue({ oplVersion: '26.4.25', guiVersion: '1.9.21' }) },
+      getPath: { invoke: (...args: unknown[]) => mockGetPath(...args) },
     },
     autoUpdate: {
       check: { invoke: vi.fn().mockResolvedValue({ success: true }) },
@@ -31,6 +129,9 @@ vi.mock('@/common', () => ({
     },
     dialog: {
       showOpen: { invoke: vi.fn() },
+    },
+    fs: {
+      readFile: { invoke: (...args: unknown[]) => mockReadFile(...args) },
     },
   },
 }));
@@ -93,15 +194,21 @@ describe('AppearanceSettings', () => {
   });
 });
 
-describe('RuntimeSettings Codex session addendum', () => {
+describe('RuntimeSettings Codex session context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.interactionLayer') return 'codex';
-      if (key === 'opl.codexSessionAddendum') return 'existing session addendum';
+      if (key === 'opl.codexSessionContext') return 'existing complete session context';
       return null;
     });
     mockConfigSet.mockResolvedValue(undefined);
+    mockGetPath.mockResolvedValue('/Users/tester');
+    mockReadFile.mockImplementation(async ({ path }: { path: string }) => {
+      if (path.endsWith('/.codex/AGENTS.md')) return 'Codex global agents';
+      if (path.endsWith('/.hermes/SOUL.md')) return 'Hermes global soul';
+      return null;
+    });
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
       stdout: JSON.stringify({ system_initialize: { core_engines: {}, domain_modules: { modules: [] } } }),
@@ -109,28 +216,84 @@ describe('RuntimeSettings Codex session addendum', () => {
     });
   });
 
-  it('loads the OPL App Codex session addendum from app config and previews the effective context', async () => {
+  it('opens on personalization without loading the environment tab', async () => {
     render(<RuntimeSettings />);
 
-    const textarea = (await screen.findByTestId('opl-codex-session-addendum-input')) as HTMLTextAreaElement;
-    await waitFor(() => {
-      expect(textarea.value).toBe('existing session addendum');
-    });
-    expect(screen.getByTestId('effective-codex-context-preview')).toHaveTextContent('OPL App Session Addendum');
-    expect(screen.getByTestId('effective-codex-context-preview')).toHaveTextContent('existing session addendum');
+    expect(await screen.findByText('settings.runtimePage.tabs.personalization')).toBeInTheDocument();
+    expect(screen.getByText('settings.runtimePage.tabs.environment')).toBeInTheDocument();
+    expect(mockRunOplCommand).not.toHaveBeenCalled();
   });
 
-  it('saves the OPL App Codex session addendum without touching AGENTS files', async () => {
+  it('loads the complete OPL App Codex session context from app config without blocking the default context', async () => {
     render(<RuntimeSettings />);
 
-    const textarea = (await screen.findByTestId('opl-codex-session-addendum-input')) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: '  new session addendum  ' } });
-    fireEvent.click(screen.getByText('settings.runtimePage.actions.saveSessionAddendum'));
+    const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(textarea.value).toBe('existing complete session context');
+    });
+    expect(screen.getByTestId('opl-codex-default-context-reference')).toHaveTextContent(
+      'One Person Lab is the default Codex runtime surface for this app.'
+    );
+    expect(screen.queryByText('settings.runtimePage.sessionAddendumLoading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('effective-codex-context-preview')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-codex-session-addendum-input')).not.toBeInTheDocument();
+  });
+
+  it('migrates the legacy addendum into the complete context editor when no complete context is saved', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.interactionLayer') return 'codex';
+      if (key === 'opl.codexSessionContext') return undefined;
+      if (key === 'opl.codexSessionAddendum') return 'legacy session addendum';
+      return null;
+    });
+
+    render(<RuntimeSettings />);
+
+    const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(textarea.value).toContain('OPL App Session Addendum');
+      expect(textarea.value).toContain('legacy session addendum');
+    });
+  });
+
+  it('saves the complete OPL App Codex session context without touching AGENTS files', async () => {
+    render(<RuntimeSettings />);
+
+    const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: '  new complete session context  ' } });
+    fireEvent.click(screen.getByText('settings.runtimePage.actions.saveSessionContext'));
 
     await waitFor(() => {
-      expect(mockConfigSet).toHaveBeenCalledWith('opl.codexSessionAddendum', 'new session addendum');
+      expect(mockConfigSet).toHaveBeenCalledWith('opl.codexSessionContext', 'new complete session context');
     });
+    expect(mockConfigSet).not.toHaveBeenCalledWith('opl.codexSessionAddendum', expect.anything());
     expect(JSON.stringify(mockConfigSet.mock.calls)).not.toContain('AGENTS.md');
+  });
+
+  it('restores the context editor to the built-in OPL default context', async () => {
+    render(<RuntimeSettings />);
+
+    const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: 'custom context' } });
+    fireEvent.click(screen.getByText('settings.runtimePage.actions.restoreDefaultSessionContext'));
+
+    await waitFor(() => {
+      expect(textarea.value).toContain('One Person Lab is the default Codex runtime surface for this app.');
+      expect(textarea.value).not.toContain('custom context');
+    });
+  });
+
+  it('shows local Codex and Hermes default instruction files as read-only references', async () => {
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent('Codex global agents');
+      expect(screen.getByTestId('hermes-default-instruction-file')).toHaveTextContent('Hermes global soul');
+    });
+    expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.codex/AGENTS.md' });
+    expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
   });
 
   it('saves Hermes as the preferred OPL interaction layer from the runtime page', async () => {

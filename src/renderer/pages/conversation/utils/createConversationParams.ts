@@ -14,6 +14,7 @@ import {
   buildAgentConversationParams,
   getConversationTypeForBackend,
 } from '@/common/utils/buildAgentConversationParams';
+import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
 import type { AvailableAgent } from '@/renderer/utils/model/agentTypes';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 
@@ -31,19 +32,25 @@ const LEGACY_YOLO_MODE_MAP: Partial<Record<string, string>> = {
 
 const OPL_CODEX_BACKENDS = new Set(['codex', 'gemini', 'aionrs']);
 
-async function resolveOplCodexSessionAddendum(
-  backend: string,
-  explicitAddendum?: string
-): Promise<string | undefined> {
-  if (explicitAddendum !== undefined) {
-    return explicitAddendum;
+async function resolveOplCodexSessionContext(backend: string, explicitContext?: string): Promise<string | undefined> {
+  if (explicitContext !== undefined) {
+    return explicitContext;
   }
   if (!OPL_CODEX_BACKENDS.has(backend)) {
     return undefined;
   }
 
-  const value = await ConfigStorage.get('opl.codexSessionAddendum');
-  return typeof value === 'string' ? value.trim() : undefined;
+  const context = await ConfigStorage.get('opl.codexSessionContext');
+  if (typeof context === 'string' && context.trim().length > 0) {
+    return context.trim();
+  }
+
+  const addendum = await ConfigStorage.get('opl.codexSessionAddendum');
+  if (typeof addendum === 'string' && addendum.trim().length > 0) {
+    return mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: addendum });
+  }
+
+  return undefined;
 }
 
 async function resolvePreferredMode(backend: string): Promise<string | undefined> {
@@ -196,14 +203,17 @@ async function resolveGeminiModel(): Promise<TProviderWithModel> {
 export async function buildCliAgentParams(
   agent: AvailableAgent,
   workspace: string,
-  options: { oplCodexSessionAddendum?: string } = {}
+  options: { oplCodexSessionContext?: string; oplCodexSessionAddendum?: string } = {}
 ): Promise<ICreateConversationParams> {
   const type = getConversationTypeForBackend(agent.backend);
   const preferredMode = await resolvePreferredMode(agent.backend);
   const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(agent.backend) : undefined;
-  const oplCodexSessionAddendum = await resolveOplCodexSessionAddendum(
+  const oplCodexSessionContext = await resolveOplCodexSessionContext(
     agent.backend,
-    options.oplCodexSessionAddendum
+    options.oplCodexSessionContext ??
+      (options.oplCodexSessionAddendum !== undefined
+        ? mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: options.oplCodexSessionAddendum })
+        : undefined)
   );
 
   let model: TProviderWithModel;
@@ -224,7 +234,7 @@ export async function buildCliAgentParams(
     cliPath: agent.cliPath,
     customAgentId: agent.customAgentId,
     model,
-    oplCodexSessionAddendum,
+    oplCodexSessionContext,
     sessionMode: preferredMode,
     currentModelId: preferredAcpModelId,
   });
@@ -240,7 +250,7 @@ export async function buildPresetAssistantParams(
   agent: AvailableAgent,
   workspace: string,
   language: string,
-  options: { oplCodexSessionAddendum?: string } = {}
+  options: { oplCodexSessionContext?: string; oplCodexSessionAddendum?: string } = {}
 ): Promise<ICreateConversationParams> {
   const { customAgentId, presetAgentType = 'gemini' } = agent;
 
@@ -260,9 +270,12 @@ export async function buildPresetAssistantParams(
   const preferredMode = await resolvePreferredMode(presetAgentType);
   const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(presetAgentType) : undefined;
   const model = type === 'gemini' ? await resolveGeminiModel() : ({} as TProviderWithModel);
-  const oplCodexSessionAddendum = await resolveOplCodexSessionAddendum(
+  const oplCodexSessionContext = await resolveOplCodexSessionContext(
     presetAgentType,
-    options.oplCodexSessionAddendum
+    options.oplCodexSessionContext ??
+      (options.oplCodexSessionAddendum !== undefined
+        ? mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: options.oplCodexSessionAddendum })
+        : undefined)
   );
 
   return buildAgentConversationParams({
@@ -279,7 +292,7 @@ export async function buildPresetAssistantParams(
       excludeBuiltinSkills: disabledBuiltinSkills,
     },
     model,
-    oplCodexSessionAddendum,
+    oplCodexSessionContext,
     sessionMode: preferredMode,
     currentModelId: preferredAcpModelId,
   });

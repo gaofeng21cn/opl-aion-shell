@@ -31,7 +31,18 @@ describe('OPL default Codex skills', () => {
     expect(context).not.toContain('AGENTS.md');
   });
 
-  it('appends the OPL App Codex session addendum before preset rules', () => {
+  it('uses the complete OPL App Codex session context before preset rules', () => {
+    const context = mergeOplDefaultCodexContext('PRESET RULES', {
+      codexSessionContext: 'Complete OPL session context.',
+      codexSessionAddendum: 'Legacy addendum should not win.',
+    });
+
+    expect(context).toBe('Complete OPL session context.\n\nPRESET RULES');
+    expect(context).not.toContain('Legacy addendum should not win.');
+    expect(context).not.toContain('AGENTS.md');
+  });
+
+  it('keeps legacy addendum migration before preset rules when no complete context exists', () => {
     const context = mergeOplDefaultCodexContext('PRESET RULES', {
       codexSessionAddendum: 'Prefer the DPCC workspace.',
     });

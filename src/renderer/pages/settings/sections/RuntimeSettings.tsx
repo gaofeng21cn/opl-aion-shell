@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Input, Message, Radio, Space, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import codexLogo from '@/renderer/assets/logos/tools/coding/codex.svg';
 import hermesLogo from '@/renderer/assets/logos/brand/hermes.svg';
@@ -15,7 +15,7 @@ import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
 import mdsLogo from '@/renderer/assets/logos/opl-modules/mds.svg';
 import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
 import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
 import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
@@ -23,9 +23,39 @@ import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import SettingRow from './SettingRow';
 
 type OplInteractionLayer = 'codex' | 'hermes';
+type RuntimeSettingsTab = 'personalization' | 'environment';
+
+type DefaultInstructionFileKey = 'codex' | 'hermes';
+
+type DefaultInstructionFileState = {
+  loading: boolean;
+  content: string;
+  error: boolean;
+};
+
+const DEFAULT_INSTRUCTION_FILES: Array<{ key: DefaultInstructionFileKey; titleKey: string; relativePath: string }> = [
+  {
+    key: 'codex',
+    titleKey: 'settings.runtimePage.defaultInstructionFiles.codex',
+    relativePath: '.codex/AGENTS.md',
+  },
+  {
+    key: 'hermes',
+    titleKey: 'settings.runtimePage.defaultInstructionFiles.hermes',
+    relativePath: '.hermes/SOUL.md',
+  },
+];
 
 function normalizeInteractionLayer(value: unknown): OplInteractionLayer {
   return value === 'hermes' ? 'hermes' : 'codex';
+}
+
+function isRuntimeSettingsTab(value: string | null): value is RuntimeSettingsTab {
+  return value === 'personalization' || value === 'environment';
+}
+
+function joinHomePath(home: string, relativePath: string): string {
+  return `${home.replace(/\/$/, '')}/${relativePath}`;
 }
 
 type OplModuleStatus = {
@@ -308,41 +338,89 @@ const RuntimeInstructionSettings: React.FC = () => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const [interactionLayer, setInteractionLayer] = useState<OplInteractionLayer>('codex');
-  const [codexSessionAddendum, setCodexSessionAddendum] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [codexSessionContext, setCodexSessionContext] = useState(mergeOplDefaultCodexContext());
+  const [loadingContext, setLoadingContext] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const effectivePreview = useMemo(
-    () => mergeOplDefaultCodexContext(undefined, { codexSessionAddendum }),
-    [codexSessionAddendum]
-  );
+  const [homePath, setHomePath] = useState('');
+  const [instructionFiles, setInstructionFiles] = useState<
+    Record<DefaultInstructionFileKey, DefaultInstructionFileState>
+  >({
+    codex: { loading: false, content: '', error: false },
+    hermes: { loading: false, content: '', error: false },
+  });
 
   useEffect(() => {
     ConfigStorage.get('opl.interactionLayer')
       .then((value) => setInteractionLayer(normalizeInteractionLayer(value)))
       .catch(() => setInteractionLayer('codex'));
+    ipcBridge.application.getPath
+      .invoke({ name: 'home' })
+      .then(setHomePath)
+      .catch(() => setHomePath(''));
   }, []);
 
-  const loadCodexSessionAddendum = useCallback(
+  const loadCodexSessionContext = useCallback(
     async (showError = false) => {
-      setLoading(true);
+      setLoadingContext(true);
       try {
-        const value = await ConfigStorage.get('opl.codexSessionAddendum');
-        setCodexSessionAddendum(typeof value === 'string' ? value : '');
+        const context = await ConfigStorage.get('opl.codexSessionContext');
+        if (typeof context === 'string' && context.trim().length > 0) {
+          setCodexSessionContext(context.trim());
+          return;
+        }
+
+        const addendum = await ConfigStorage.get('opl.codexSessionAddendum');
+        setCodexSessionContext(
+          typeof addendum === 'string' && addendum.trim().length > 0
+            ? mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: addendum })
+            : mergeOplDefaultCodexContext()
+        );
       } catch {
+        setCodexSessionContext(mergeOplDefaultCodexContext());
         if (showError) {
-          message.warning(t('settings.runtimePage.messages.sessionAddendumLoadFailed'));
+          message.warning(t('settings.runtimePage.messages.sessionContextLoadFailed'));
         }
       } finally {
-        setLoading(false);
+        setLoadingContext(false);
       }
     },
     [message, t]
   );
 
   useEffect(() => {
-    void loadCodexSessionAddendum(false);
-  }, [loadCodexSessionAddendum]);
+    void loadCodexSessionContext(false);
+  }, [loadCodexSessionContext]);
+
+  const loadDefaultInstructionFiles = useCallback(
+    async (showError = false) => {
+      if (!homePath) return;
+      setInstructionFiles((prev) => ({
+        codex: { ...prev.codex, loading: true, error: false },
+        hermes: { ...prev.hermes, loading: true, error: false },
+      }));
+
+      const nextEntries = await Promise.all(
+        DEFAULT_INSTRUCTION_FILES.map(async (file) => {
+          try {
+            const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
+            return [file.key, { loading: false, content: content || '', error: false }] as const;
+          } catch {
+            return [file.key, { loading: false, content: '', error: true }] as const;
+          }
+        })
+      );
+
+      setInstructionFiles((prev) => ({ ...prev, ...Object.fromEntries(nextEntries) }));
+      if (showError && nextEntries.some(([, state]) => state.error)) {
+        message.warning(t('settings.runtimePage.messages.defaultInstructionFilesLoadFailed'));
+      }
+    },
+    [homePath, message, t]
+  );
+
+  useEffect(() => {
+    void loadDefaultInstructionFiles(false);
+  }, [loadDefaultInstructionFiles]);
 
   const saveInteractionLayer = useCallback(
     async (nextLayer: OplInteractionLayer) => {
@@ -356,18 +434,22 @@ const RuntimeInstructionSettings: React.FC = () => {
     [message, t]
   );
 
-  const saveCodexSessionAddendum = useCallback(async () => {
+  const saveCodexSessionContext = useCallback(async () => {
     setSaving(true);
     try {
-      await ConfigStorage.set('opl.codexSessionAddendum', codexSessionAddendum.trim());
-      message.success(t('settings.runtimePage.messages.sessionAddendumSaved'));
-      await loadCodexSessionAddendum(false);
+      await ConfigStorage.set('opl.codexSessionContext', codexSessionContext.trim());
+      message.success(t('settings.runtimePage.messages.sessionContextSaved'));
+      await loadCodexSessionContext(false);
     } catch {
-      message.error(t('settings.runtimePage.messages.sessionAddendumSaveFailed'));
+      message.error(t('settings.runtimePage.messages.sessionContextSaveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [codexSessionAddendum, loadCodexSessionAddendum, message, t]);
+  }, [codexSessionContext, loadCodexSessionContext, message, t]);
+
+  const restoreDefaultCodexSessionContext = useCallback(() => {
+    setCodexSessionContext(mergeOplDefaultCodexContext());
+  }, []);
 
   return (
     <div className='rounded-10px border border-solid border-border-1 bg-bg-1 divide-y divide-border-1 overflow-hidden'>
@@ -391,64 +473,84 @@ const RuntimeInstructionSettings: React.FC = () => {
 
       <SettingRow
         alignTop
-        title={t('settings.runtimePage.sessionAddendumTitle')}
-        description={t('settings.runtimePage.sessionAddendumDescription')}
+        title={t('settings.runtimePage.sessionContextTitle')}
+        description={t('settings.runtimePage.sessionContextDescription')}
       >
-        <div className='flex flex-col gap-12px' data-testid='runtime-session-addendum-settings'>
+        <div className='flex flex-col gap-12px' data-testid='runtime-session-context-settings'>
           <div>
             <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
               {t('settings.runtimePage.defaultCodexContextTitle')}
             </Typography.Text>
             <div
-              data-testid='default-codex-context-preview'
+              data-testid='opl-codex-default-context-reference'
               className='max-h-220px min-h-120px overflow-auto rounded-8px border border-solid border-border-1 bg-fill-1 px-12px py-10px text-12px leading-18px text-t-secondary whitespace-pre-wrap break-words select-text'
             >
-              {loading
-                ? t('settings.runtimePage.sessionAddendumLoading')
-                : mergeOplDefaultCodexContext()}
+              {mergeOplDefaultCodexContext()}
             </div>
           </div>
           <div>
             <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
-              {t('settings.runtimePage.sessionAddendumInputTitle')}
+              {t('settings.runtimePage.sessionContextInputTitle')}
             </Typography.Text>
             <Input.TextArea
-              data-testid='opl-codex-session-addendum-input'
-              value={codexSessionAddendum}
-              autoSize={{ minRows: 5, maxRows: 12 }}
-              placeholder={t('settings.runtimePage.sessionAddendumPlaceholder')}
-              onChange={setCodexSessionAddendum}
+              data-testid='opl-codex-session-context-input'
+              value={codexSessionContext}
+              rows={14}
+              placeholder={t('settings.runtimePage.sessionContextPlaceholder')}
+              onChange={setCodexSessionContext}
             />
-          </div>
-          <div>
-            <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
-              {t('settings.runtimePage.effectiveCodexContextTitle')}
-            </Typography.Text>
-            <div
-              data-testid='effective-codex-context-preview'
-              className='max-h-260px min-h-140px overflow-auto rounded-8px border border-solid border-border-1 bg-fill-1 px-12px py-10px text-12px leading-18px text-t-secondary whitespace-pre-wrap break-words select-text'
-            >
-              {effectivePreview || t('settings.runtimePage.effectiveCodexContextEmpty')}
-            </div>
           </div>
           <Space wrap>
             <Button
               size='small'
               icon={<UpdateRotation theme='outline' />}
-              loading={loading}
-              onClick={() => void loadCodexSessionAddendum(true)}
+              loading={loadingContext}
+              onClick={() => void loadCodexSessionContext(true)}
             >
-              {t('settings.runtimePage.actions.reloadSessionAddendum')}
+              {t('settings.runtimePage.actions.reloadSessionContext')}
             </Button>
-            <Button
-              size='small'
-              type='primary'
-              loading={saving}
-              onClick={() => void saveCodexSessionAddendum()}
-            >
-              {t('settings.runtimePage.actions.saveSessionAddendum')}
+            <Button size='small' type='primary' loading={saving} onClick={() => void saveCodexSessionContext()}>
+              {t('settings.runtimePage.actions.saveSessionContext')}
+            </Button>
+            <Button size='small' onClick={restoreDefaultCodexSessionContext}>
+              {t('settings.runtimePage.actions.restoreDefaultSessionContext')}
             </Button>
           </Space>
+          <Collapse bordered={false} className='bg-transparent'>
+            <Collapse.Item header={t('settings.runtimePage.defaultInstructionFilesTitle')} name='default-files'>
+              <div className='flex flex-col gap-12px' data-testid='default-instruction-files-reference'>
+                <div className='flex justify-end'>
+                  <Button
+                    size='mini'
+                    icon={<UpdateRotation theme='outline' />}
+                    onClick={() => void loadDefaultInstructionFiles(true)}
+                  >
+                    {t('settings.runtimePage.actions.reloadDefaultInstructionFiles')}
+                  </Button>
+                </div>
+                {DEFAULT_INSTRUCTION_FILES.map((file) => {
+                  const state = instructionFiles[file.key];
+                  return (
+                    <div key={file.key}>
+                      <Typography.Text className='block text-12px font-500 text-t-secondary mb-6px'>
+                        {t(file.titleKey)}
+                      </Typography.Text>
+                      <div
+                        data-testid={`${file.key}-default-instruction-file`}
+                        className='max-h-180px min-h-80px overflow-auto rounded-8px border border-solid border-border-1 bg-fill-1 px-12px py-10px text-12px leading-18px text-t-secondary whitespace-pre-wrap break-words select-text'
+                      >
+                        {state.loading
+                          ? t('settings.runtimePage.defaultInstructionFilesLoading')
+                          : state.error
+                            ? t('settings.runtimePage.defaultInstructionFilesLoadFailed')
+                            : state.content || t('settings.runtimePage.defaultInstructionFilesEmpty')}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Collapse.Item>
+          </Collapse>
         </div>
       </SettingRow>
     </div>
@@ -773,6 +875,32 @@ const OplEnvironmentContent: React.FC = () => {
 
 const RuntimeSettings: React.FC = () => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<RuntimeSettingsTab>(() => {
+    return isRuntimeSettingsTab(tabParam) ? tabParam : 'personalization';
+  });
+
+  useEffect(() => {
+    if (isRuntimeSettingsTab(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [activeTab, tabParam]);
+
+  const handleTabChange = useCallback(
+    (key: string) => {
+      if (!isRuntimeSettingsTab(key)) return;
+      setActiveTab(key);
+      const next = new URLSearchParams(searchParams);
+      if (key === 'personalization') {
+        next.delete('tab');
+      } else {
+        next.set('tab', key);
+      }
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
 
   return (
     <SettingsPageWrapper contentClassName='max-w-920px'>
@@ -783,8 +911,11 @@ const RuntimeSettings: React.FC = () => {
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.runtimePage.description')}</Typography.Text>
         </div>
-        <RuntimeInstructionSettings />
-        <OplEnvironmentContent />
+        <Tabs activeTab={activeTab} onChange={handleTabChange} type='line' className='settings-runtime-tabs'>
+          <Tabs.TabPane key='personalization' title={t('settings.runtimePage.tabs.personalization')} />
+          <Tabs.TabPane key='environment' title={t('settings.runtimePage.tabs.environment')} />
+        </Tabs>
+        {activeTab === 'personalization' ? <RuntimeInstructionSettings /> : <OplEnvironmentContent />}
       </div>
     </SettingsPageWrapper>
   );

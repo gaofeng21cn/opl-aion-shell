@@ -24,5 +24,19 @@
   "errorTitle": "更新失败",
   "oplVersion": "OPL 版本：{{version}}",
   "guiVersion": "GUI 版本：{{version}}",
-  "releaseSource": "更新来源：{{repo}} · {{channel}}"
+  "releaseSource": "更新来源：{{repo}} · {{channel}}",
+  "errors": {
+    "invalidUrl": "下载链接无效",
+    "httpsOnly": "只允许 HTTPS 链接",
+    "hostNotAllowed": "不允许从此主机下载：{{host}}",
+    "redirectNoLocation": "重定向响应缺少 Location 头",
+    "tooManyRedirects": "下载时重定向次数过多",
+    "githubApiFailed": "GitHub API 请求失败（{{status}}）",
+    "githubApiNotArray": "GitHub API 响应不是数组",
+    "githubApiTimeout": "GitHub API 请求超时（30 秒）",
+    "downloadFailed": "下载失败（{{status}}）",
+    "downloadNoBody": "下载响应没有内容",
+    "missingUrl": "缺少下载链接",
+    "checkReturnedNull": "检查更新没有返回结果（开发模式）"
+  }
 }

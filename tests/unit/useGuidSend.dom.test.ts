@@ -226,10 +226,10 @@ describe('useGuidSend', () => {
     });
   });
 
-  describe('Codex OPL session addendum', () => {
-    it('injects the saved OPL App Codex session addendum into new Codex conversations', async () => {
+  describe('Codex OPL session context', () => {
+    it('injects the saved complete OPL App Codex session context into new Codex conversations', async () => {
       mockConfigGet.mockImplementation(async (key: string) => {
-        if (key === 'opl.codexSessionAddendum') return 'Use the current OPL workspace registry.';
+        if (key === 'opl.codexSessionContext') return 'Use the current OPL workspace registry.';
         return undefined;
       });
       const deps = makeDeps({
@@ -245,19 +245,19 @@ describe('useGuidSend', () => {
         await result.current.handleSend();
       });
 
-      expect(mockConfigGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
+      expect(mockConfigGet).toHaveBeenCalledWith('opl.codexSessionContext');
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'acp',
           extra: expect.objectContaining({
             backend: 'codex',
-            presetContext: expect.stringContaining('Use the current OPL workspace registry.'),
+            presetContext: 'Use the current OPL workspace registry.',
           }),
         })
       );
     });
 
-    it('does not read the OPL App Codex session addendum for non-Codex conversations', async () => {
+    it('does not read the OPL App Codex session context for non-Codex conversations', async () => {
       const deps = makeDeps();
       const { result } = renderHook(() => useGuidSend(deps));
 
@@ -265,7 +265,7 @@ describe('useGuidSend', () => {
         await result.current.handleSend();
       });
 
-      expect(mockConfigGet).not.toHaveBeenCalledWith('opl.codexSessionAddendum');
+      expect(mockConfigGet).not.toHaveBeenCalledWith('opl.codexSessionContext');
       expect(JSON.stringify(mockCreate.mock.calls[0])).not.toContain('OPL App Session Addendum');
     });
   });

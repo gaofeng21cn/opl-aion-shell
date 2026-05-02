@@ -8,18 +8,115 @@ const mockAutoUpdateDownload = vi.fn();
 const mockAutoUpdateQuitAndInstall = vi.fn();
 const mockConfigGet = vi.fn();
 const mockConfigSet = vi.fn();
+const mockGetPath = vi.fn();
+const mockReadFile = vi.fn();
+const mockSetSearchParams = vi.fn();
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, options?: Record<string, string>) =>
-      options ? `${key}:${Object.values(options).join('|')}` : key,
-  }),
-}));
+vi.mock('react-i18next', () => {
+  const t = (key: string, options?: Record<string, string>) =>
+    options ? `${key}:${Object.values(options).join('|')}` : key;
+  return {
+    useTranslation: () => ({ t }),
+  };
+});
 
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({ pathname: '/settings/runtime' }),
   useNavigate: () => vi.fn(),
+  useSearchParams: () => [new URLSearchParams(), mockSetSearchParams],
 }));
+
+vi.mock('@arco-design/web-react', async () => {
+  const React = await import('react');
+  const Text = ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>;
+  const Title = ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { heading?: number }) => (
+    <h4 {...props}>{children}</h4>
+  );
+  const Typography = { Text, Title };
+  const Button = ({
+    children,
+    loading: _loading,
+    icon: _icon,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean; icon?: React.ReactNode }) => (
+    <button {...props}>{children}</button>
+  );
+  const Card = ({
+    children,
+    bordered: _bordered,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { bordered?: boolean }) => <div {...props}>{children}</div>;
+  const Space = ({ children, wrap: _wrap, ...props }: React.HTMLAttributes<HTMLDivElement> & { wrap?: boolean }) => (
+    <div {...props}>{children}</div>
+  );
+  const Tag = ({
+    children,
+    color: _color,
+    size: _size,
+    ...props
+  }: React.HTMLAttributes<HTMLSpanElement> & { color?: string; size?: string }) => <span {...props}>{children}</span>;
+  const Input = Object.assign(
+    ({ value, onChange, onPressEnter, ...props }: any) => (
+      <input
+        {...props}
+        value={value}
+        onChange={(event) => onChange?.(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') onPressEnter?.();
+        }}
+      />
+    ),
+    {
+      TextArea: ({ value, onChange, ...props }: any) => (
+        <textarea {...props} value={value} onChange={(event) => onChange?.(event.currentTarget.value)} />
+      ),
+    }
+  );
+  const Radio = {
+    Group: ({
+      options = [],
+      onChange,
+    }: {
+      options?: Array<{ label: string; value: string }>;
+      onChange?: (value: string) => void;
+    }) => (
+      <div>
+        {options.map((option) => (
+          <button key={option.value} type='button' onClick={() => onChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
+  };
+  const Collapse = Object.assign(({ children }: { children: React.ReactNode }) => <div>{children}</div>, {
+    Item: ({ header, children }: { header: React.ReactNode; children: React.ReactNode }) => (
+      <div>
+        <button type='button'>{header}</button>
+        <div>{children}</div>
+      </div>
+    ),
+  });
+  const Tabs = Object.assign(
+    ({ children, onChange }: { children: React.ReactNode; onChange?: (key: string) => void }) => (
+      <div>
+        {React.Children.toArray(children).map((child) => {
+          if (!React.isValidElement<{ title?: React.ReactNode }>(child)) return null;
+          const key = String(child.key).replace(/^\.\$/, '');
+          return (
+            <button key={key} type='button' onClick={() => onChange?.(key)}>
+              {child.props.title}
+            </button>
+          );
+        })}
+      </div>
+    ),
+    { TabPane: (_props: { title?: React.ReactNode }) => null }
+  );
+  const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
+  const Message = { useMessage: () => [messageApi, null] };
+  return { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography };
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -28,6 +125,7 @@ vi.mock('@/common', () => ({
     },
     application: {
       appVersions: { invoke: vi.fn().mockResolvedValue({ oplVersion: '26.4.25', guiVersion: '1.9.21' }) },
+      getPath: { invoke: (...args: unknown[]) => mockGetPath(...args) },
     },
     autoUpdate: {
       check: { invoke: (...args: unknown[]) => mockAutoUpdateCheck(...args) },
@@ -36,6 +134,9 @@ vi.mock('@/common', () => ({
     },
     dialog: {
       showOpen: { invoke: vi.fn() },
+    },
+    fs: {
+      readFile: { invoke: (...args: unknown[]) => mockReadFile(...args) },
     },
   },
 }));
@@ -98,6 +199,8 @@ describe('RuntimeSettings OPL environment section', () => {
     });
     mockConfigGet.mockResolvedValue('One Person Lab');
     mockConfigSet.mockResolvedValue(undefined);
+    mockGetPath.mockResolvedValue('/Users/tester');
+    mockReadFile.mockResolvedValue('');
     mockAutoUpdateCheck.mockResolvedValue({ success: true });
     mockAutoUpdateDownload.mockResolvedValue({ success: true });
     mockAutoUpdateQuitAndInstall.mockResolvedValue(undefined);
@@ -110,6 +213,8 @@ describe('RuntimeSettings OPL environment section', () => {
 
   it('keeps personalization controls out of the environment page', async () => {
     render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
 
     expect(await screen.findByText('settings.oplEnvironmentPage.title')).toBeInTheDocument();
     expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
@@ -170,6 +275,8 @@ describe('RuntimeSettings OPL environment section', () => {
     });
 
     render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
 
     expect(
       await screen.findByText(/settings\.oplEnvironmentPage\.selectedBinary:\/opt\/homebrew\/bin\/codex/)
@@ -232,6 +339,8 @@ describe('RuntimeSettings OPL environment section', () => {
 
     render(<RuntimeSettings />);
 
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
+
     expect(
       await screen.findByText(/settings\.oplEnvironmentPage\.diagnostics\.issues\.codexCliPathVersionConflict/)
     ).toBeInTheDocument();
@@ -249,6 +358,8 @@ describe('RuntimeSettings OPL environment section', () => {
     mockAutoUpdateDownload.mockResolvedValue({ success: true });
 
     render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
 
     const updateButton = await screen.findByText('settings.oplEnvironmentPage.actions.oneClickUpdate');
     fireEvent.click(updateButton);

@@ -87,7 +87,7 @@ describe('createConversationParams', () => {
     expect(params.model).toEqual({});
   });
 
-  it('passes the OPL App Codex session addendum into preset assistant context', async () => {
+  it('passes the complete OPL App Codex session context into preset assistant context', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'preset rules',
       skills: '',
@@ -105,21 +105,47 @@ describe('createConversationParams', () => {
       },
       '/tmp/workspace',
       'en',
-      { oplCodexSessionAddendum: 'Session-only rule' }
+      { oplCodexSessionContext: 'Session-only rule' }
     );
 
-    expect(params.extra.presetContext).toBe(
-      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App Session Addendum\n\nSession-only rule\n\npreset rules`
-    );
+    expect(params.extra.presetContext).toBe('Session-only rule\n\npreset rules');
   });
 
-  it('loads the OPL App Codex session addendum for preset assistants when callers use the legacy signature', async () => {
+  it('loads the complete OPL App Codex session context for preset assistants', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'preset rules',
       skills: '',
       enabledSkills: [],
     });
     configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionContext') return 'Saved complete session context';
+      return undefined;
+    });
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'gemini',
+        name: 'Preset Assistant',
+        customAgentId: 'builtin-cowork',
+        isPreset: true,
+        presetAgentType: 'gemini',
+      },
+      '/tmp/workspace',
+      'en'
+    );
+
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
+    expect(params.extra.presetContext).toBe('Saved complete session context\n\npreset rules');
+  });
+
+  it('migrates the legacy OPL App Codex session addendum when complete context is missing', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: 'preset rules',
+      skills: '',
+      enabledSkills: [],
+    });
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionContext') return undefined;
       if (key === 'opl.codexSessionAddendum') return 'Saved session addendum';
       return undefined;
     });
@@ -136,6 +162,7 @@ describe('createConversationParams', () => {
       'en'
     );
 
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
     expect(configGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
     expect(params.extra.presetContext).toContain('Saved session addendum');
   });
@@ -289,9 +316,9 @@ describe('createConversationParams', () => {
     expect(params.extra.currentModelId).toBeUndefined();
   });
 
-  it('loads the OPL App Codex session addendum for Codex CLI agents when callers use the legacy signature', async () => {
+  it('loads the complete OPL App Codex session context for Codex CLI agents', async () => {
     configGet.mockImplementation(async (key: string) => {
-      if (key === 'opl.codexSessionAddendum') return 'Saved CLI addendum';
+      if (key === 'opl.codexSessionContext') return 'Saved CLI context';
       return undefined;
     });
 
@@ -303,13 +330,13 @@ describe('createConversationParams', () => {
       '/tmp/workspace'
     );
 
-    expect(configGet).toHaveBeenCalledWith('opl.codexSessionAddendum');
-    expect(params.extra.presetContext).toContain('Saved CLI addendum');
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
+    expect(params.extra.presetContext).toBe('Saved CLI context');
   });
 
-  it('does not load the OPL App Codex session addendum for non-Codex ACP agents', async () => {
+  it('does not load the OPL App Codex session context for non-Codex ACP agents', async () => {
     configGet.mockImplementation(async (key: string) => {
-      if (key === 'opl.codexSessionAddendum') return 'Should not load';
+      if (key === 'opl.codexSessionContext') return 'Should not load';
       return undefined;
     });
 
@@ -321,7 +348,7 @@ describe('createConversationParams', () => {
       '/tmp/workspace'
     );
 
-    expect(configGet).not.toHaveBeenCalledWith('opl.codexSessionAddendum');
+    expect(configGet).not.toHaveBeenCalledWith('opl.codexSessionContext');
     expect(JSON.stringify(params.extra)).not.toContain('Should not load');
   });
 

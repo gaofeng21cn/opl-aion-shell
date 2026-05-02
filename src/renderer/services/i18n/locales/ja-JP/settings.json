@@ -1118,29 +1118,41 @@
   },
   "runtimePage": {
     "title": "Runtime",
-    "description": "Manage Codex, Hermes-Agent, workspace root, domain modules, repair, update, and Codex session injection text.",
+    "description": "個人設定と OPL 実行環境を別々のタブで管理します。",
+    "tabs": {
+      "personalization": "個人設定",
+      "environment": "環境設定"
+    },
     "interactionTitle": "Interaction layer",
     "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "Reload",
-      "saveSessionAddendum": "Save session addendum"
+      "reloadSessionContext": "再読み込み",
+      "saveSessionContext": "注入テキストを保存",
+      "restoreDefaultSessionContext": "デフォルトに戻す",
+      "reloadDefaultInstructionFiles": "更新"
     },
     "messages": {
       "interactionLayerSaved": "Interaction layer saved",
-      "sessionAddendumLoadFailed": "Failed to load session addendum",
-      "sessionAddendumSaved": "Session addendum saved",
-      "sessionAddendumSaveFailed": "Failed to save session addendum"
+      "sessionContextLoadFailed": "セッション注入テキストを読み込めませんでした",
+      "sessionContextSaved": "セッション注入テキストを保存しました",
+      "sessionContextSaveFailed": "セッション注入テキストを保存できませんでした",
+      "defaultInstructionFilesLoadFailed": "ローカルのデフォルト指示ファイルを読み込めませんでした"
     },
-    "sessionAddendumTitle": "Codex session injection text",
-    "sessionAddendumDescription": "This text is injected only into the first message of new OPL App Codex sessions. It does not modify ~/.codex/AGENTS.md.",
+    "sessionContextTitle": "Codex セッション注入テキスト",
+    "sessionContextDescription": "エディターの内容全体が、新しい OPL App Codex セッションの最初のメッセージに実際に注入されます。",
     "defaultCodexContextTitle": "OPL default Codex context",
-    "sessionAddendumLoading": "Loading session injection text...",
-    "sessionAddendumInputTitle": "OPL session addendum",
-    "sessionAddendumPlaceholder": "Add OPL App Codex-session instructions here...",
-    "effectiveCodexContextTitle": "Next-session injection preview",
-    "effectiveCodexContextEmpty": "No Codex context preview."
+    "sessionContextInputTitle": "OPL Codex セッション注入テキスト",
+    "sessionContextPlaceholder": "完全な OPL Codex セッション注入テキストをここで編集...",
+    "defaultInstructionFilesTitle": "ローカルのデフォルト指示ファイル",
+    "defaultInstructionFilesLoading": "読み込み中...",
+    "defaultInstructionFilesLoadFailed": "このファイルを読み込めませんでした。",
+    "defaultInstructionFilesEmpty": "内容が見つかりません。",
+    "defaultInstructionFiles": {
+      "codex": "Codex: ~/.codex/AGENTS.md",
+      "hermes": "Hermes: ~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "停止中"
 }

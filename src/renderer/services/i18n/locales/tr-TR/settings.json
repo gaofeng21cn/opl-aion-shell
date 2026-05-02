@@ -1116,29 +1116,41 @@
   },
   "runtimePage": {
     "title": "Runtime",
-    "description": "Manage Codex, Hermes-Agent, workspace root, domain modules, repair, update, and Codex session injection text.",
+    "description": "Kişiselleştirme ve OPL çalışma ortamını ayrı sekmelerde yönetin.",
+    "tabs": {
+      "personalization": "Kişiselleştirme",
+      "environment": "Ortam yapılandırması"
+    },
     "interactionTitle": "Interaction layer",
     "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "Reload",
-      "saveSessionAddendum": "Save session addendum"
+      "reloadSessionContext": "Yeniden yükle",
+      "saveSessionContext": "Enjekte metnini kaydet",
+      "restoreDefaultSessionContext": "Varsayılana dön",
+      "reloadDefaultInstructionFiles": "Yenile"
     },
     "messages": {
       "interactionLayerSaved": "Interaction layer saved",
-      "sessionAddendumLoadFailed": "Failed to load session addendum",
-      "sessionAddendumSaved": "Session addendum saved",
-      "sessionAddendumSaveFailed": "Failed to save session addendum"
+      "sessionContextLoadFailed": "Oturum enjekte metni yüklenemedi",
+      "sessionContextSaved": "Oturum enjekte metni kaydedildi",
+      "sessionContextSaveFailed": "Oturum enjekte metni kaydedilemedi",
+      "defaultInstructionFilesLoadFailed": "Yerel varsayılan talimat dosyaları yüklenemedi"
     },
-    "sessionAddendumTitle": "Codex session injection text",
-    "sessionAddendumDescription": "This text is injected only into the first message of new OPL App Codex sessions. It does not modify ~/.codex/AGENTS.md.",
+    "sessionContextTitle": "Codex session injection text",
+    "sessionContextDescription": "Düzenleyicideki tüm içerik yeni OPL App Codex oturumlarının ilk mesajına gerçekten enjekte edilir.",
     "defaultCodexContextTitle": "OPL default Codex context",
-    "sessionAddendumLoading": "Loading session injection text...",
-    "sessionAddendumInputTitle": "OPL session addendum",
-    "sessionAddendumPlaceholder": "Add OPL App Codex-session instructions here...",
-    "effectiveCodexContextTitle": "Next-session injection preview",
-    "effectiveCodexContextEmpty": "No Codex context preview."
+    "sessionContextInputTitle": "OPL Codex session injection text",
+    "sessionContextPlaceholder": "Tam OPL Codex oturum enjekte metnini burada düzenleyin...",
+    "defaultInstructionFilesTitle": "Yerel varsayılan talimat dosyaları",
+    "defaultInstructionFilesLoading": "Yükleniyor...",
+    "defaultInstructionFilesLoadFailed": "Bu dosya yüklenemedi.",
+    "defaultInstructionFilesEmpty": "İçerik bulunamadı.",
+    "defaultInstructionFiles": {
+      "codex": "Codex: ~/.codex/AGENTS.md",
+      "hermes": "Hermes: ~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "Durduruldu"
 }

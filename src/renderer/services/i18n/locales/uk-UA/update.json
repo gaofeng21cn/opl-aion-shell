@@ -24,5 +24,19 @@
   "errorTitle": "Помилка оновлення",
   "oplVersion": "Версія OPL: {{version}}",
   "guiVersion": "Версія GUI: {{version}}",
-  "releaseSource": "Джерело релізу: {{repo}} · {{channel}}"
+  "releaseSource": "Джерело релізу: {{repo}} · {{channel}}",
+  "errors": {
+    "invalidUrl": "Невірний URL завантаження",
+    "httpsOnly": "Дозволені лише HTTPS URL",
+    "hostNotAllowed": "Хост завантаження не дозволений: {{host}}",
+    "redirectNoLocation": "Перенаправлення без заголовка Location",
+    "tooManyRedirects": "Забагато перенаправлень під час завантаження",
+    "githubApiFailed": "Запит до GitHub API не вдався ({{status}})",
+    "githubApiNotArray": "Відповідь GitHub API не є масивом",
+    "githubApiTimeout": "Час очікування GitHub API минув (30с)",
+    "downloadFailed": "Завантаження не вдалося ({{status}})",
+    "downloadNoBody": "Відповідь завантаження не містить даних",
+    "missingUrl": "Відсутній URL",
+    "checkReturnedNull": "Перевірка оновлень не повернула результат (режим розробки)"
+  }
 }

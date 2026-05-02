@@ -24,5 +24,19 @@
   "errorTitle": "Update failed",
   "oplVersion": "OPL version: {{version}}",
   "guiVersion": "GUI version: {{version}}",
-  "releaseSource": "Release source: {{repo}} · {{channel}}"
+  "releaseSource": "Release source: {{repo}} · {{channel}}",
+  "errors": {
+    "invalidUrl": "Invalid download URL",
+    "httpsOnly": "Only HTTPS URLs are allowed",
+    "hostNotAllowed": "Download host is not allowed: {{host}}",
+    "redirectNoLocation": "Redirect response is missing a Location header",
+    "tooManyRedirects": "Too many redirects while downloading",
+    "githubApiFailed": "GitHub API request failed ({{status}})",
+    "githubApiNotArray": "GitHub API response is not an array",
+    "githubApiTimeout": "GitHub API request timed out (30s)",
+    "downloadFailed": "Download failed ({{status}})",
+    "downloadNoBody": "Download response has no body",
+    "missingUrl": "Missing download URL",
+    "checkReturnedNull": "Update check returned no result (development mode)"
+  }
 }

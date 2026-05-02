@@ -28,6 +28,7 @@ export type BuildAgentConversationInput = {
   isPreset?: boolean;
   presetAgentType?: string;
   presetResources?: BuildAgentConversationPresetResources;
+  oplCodexSessionContext?: string;
   oplCodexSessionAddendum?: string;
   sessionMode?: string;
   currentModelId?: string;
@@ -67,6 +68,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     isPreset = false,
     presetAgentType,
     presetResources,
+    oplCodexSessionContext,
     oplCodexSessionAddendum,
     sessionMode,
     currentModelId,
@@ -96,6 +98,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       extra.presetContext =
         effectivePresetType === 'codex'
           ? mergeOplDefaultCodexContext(presetResources?.rules, {
+              codexSessionContext: oplCodexSessionContext,
               codexSessionAddendum: oplCodexSessionAddendum,
             })
           : presetResources?.rules;
@@ -106,6 +109,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   } else if (normalizedBackend === 'codex') {
     extra.enabledSkills = mergeOplDefaultCodexSkills(extra.enabledSkills);
     extra.presetContext = mergeOplDefaultCodexContext(extra.presetContext, {
+      codexSessionContext: oplCodexSessionContext,
       codexSessionAddendum: oplCodexSessionAddendum,
     });
     extra.backend = 'codex' as AcpBackendAll;

@@ -1118,29 +1118,41 @@
   },
   "runtimePage": {
     "title": "執行時",
-    "description": "管理 Codex、Hermes-Agent、工作区目录、领域模块、修复、更新和 Codex 会话注入文本。",
+    "description": "分開管理個人化注入和 OPL 執行環境設定。",
+    "tabs": {
+      "personalization": "個人化",
+      "environment": "環境設定"
+    },
     "interactionTitle": "互動層",
     "interactionDescription": "新 OPL 會話預設使用的引擎。Codex 保持預設執行時。",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "重新加载",
-      "saveSessionAddendum": "保存会话追加文本"
+      "reloadSessionContext": "重新載入",
+      "saveSessionContext": "儲存注入文字",
+      "restoreDefaultSessionContext": "恢復預設",
+      "reloadDefaultInstructionFiles": "重新整理"
     },
     "messages": {
       "interactionLayerSaved": "互動層已儲存",
-      "sessionAddendumLoadFailed": "读取会话追加文本失败",
-      "sessionAddendumSaved": "会话追加文本已保存",
-      "sessionAddendumSaveFailed": "保存会话追加文本失败"
+      "sessionContextLoadFailed": "讀取會話注入文字失敗",
+      "sessionContextSaved": "會話注入文字已儲存",
+      "sessionContextSaveFailed": "儲存會話注入文字失敗",
+      "defaultInstructionFilesLoadFailed": "讀取本機預設指令檔案失敗"
     },
-    "sessionAddendumTitle": "Codex 会话注入文本",
-    "sessionAddendumDescription": "这段文本只会注入到 OPL App 新建 Codex 会话的首条消息，不会修改 ~/.codex/AGENTS.md。",
-    "defaultCodexContextTitle": "OPL 默认 Codex 上下文",
-    "sessionAddendumLoading": "正在加载会话注入文本...",
-    "sessionAddendumInputTitle": "OPL 会话追加文本",
-    "sessionAddendumPlaceholder": "在这里填写 OPL App 的 Codex 会话指令...",
-    "effectiveCodexContextTitle": "下一次会话注入预览",
-    "effectiveCodexContextEmpty": "暂无 Codex 上下文预览。"
+    "sessionContextTitle": "Codex 會話注入文字",
+    "sessionContextDescription": "編輯器裡的完整內容就是 OPL App 新建 Codex 會話首則訊息實際注入的文字。",
+    "defaultCodexContextTitle": "OPL 預設 Codex 上下文",
+    "sessionContextInputTitle": "OPL Codex 會話注入文字",
+    "sessionContextPlaceholder": "在這裡編輯完整的 OPL Codex 會話注入文字...",
+    "defaultInstructionFilesTitle": "本機預設指令檔案",
+    "defaultInstructionFilesLoading": "正在載入...",
+    "defaultInstructionFilesLoadFailed": "讀取此檔案失敗。",
+    "defaultInstructionFilesEmpty": "沒有找到內容。",
+    "defaultInstructionFiles": {
+      "codex": "Codex：~/.codex/AGENTS.md",
+      "hermes": "Hermes：~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "已停止"
 }

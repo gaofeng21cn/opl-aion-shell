@@ -24,5 +24,19 @@
   "errorTitle": "更新に失敗しました",
   "oplVersion": "OPL バージョン：{{version}}",
   "guiVersion": "GUI バージョン：{{version}}",
-  "releaseSource": "リリース元：{{repo}} · {{channel}}"
+  "releaseSource": "リリース元：{{repo}} · {{channel}}",
+  "errors": {
+    "invalidUrl": "ダウンロード URL が無効です",
+    "httpsOnly": "HTTPS URL のみ許可されています",
+    "hostNotAllowed": "このダウンロードホストは許可されていません：{{host}}",
+    "redirectNoLocation": "リダイレクト応答に Location ヘッダーがありません",
+    "tooManyRedirects": "ダウンロード中のリダイレクトが多すぎます",
+    "githubApiFailed": "GitHub API リクエストに失敗しました（{{status}}）",
+    "githubApiNotArray": "GitHub API 応答が配列ではありません",
+    "githubApiTimeout": "GitHub API リクエストがタイムアウトしました（30 秒）",
+    "downloadFailed": "ダウンロードに失敗しました（{{status}}）",
+    "downloadNoBody": "ダウンロード応答に本文がありません",
+    "missingUrl": "ダウンロード URL がありません",
+    "checkReturnedNull": "更新確認が結果を返しませんでした（開発モード）"
+  }
 }

@@ -1118,29 +1118,41 @@
   },
   "runtimePage": {
     "title": "Runtime",
-    "description": "Manage Codex, Hermes-Agent, workspace root, domain modules, repair, update, and Codex session injection text.",
+    "description": "개인화와 OPL 실행 환경을 별도 탭에서 관리합니다.",
+    "tabs": {
+      "personalization": "개인화",
+      "environment": "환경 구성"
+    },
     "interactionTitle": "Interaction layer",
     "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "Reload",
-      "saveSessionAddendum": "Save session addendum"
+      "reloadSessionContext": "다시 로드",
+      "saveSessionContext": "주입 텍스트 저장",
+      "restoreDefaultSessionContext": "기본값 복원",
+      "reloadDefaultInstructionFiles": "새로 고침"
     },
     "messages": {
       "interactionLayerSaved": "Interaction layer saved",
-      "sessionAddendumLoadFailed": "Failed to load session addendum",
-      "sessionAddendumSaved": "Session addendum saved",
-      "sessionAddendumSaveFailed": "Failed to save session addendum"
+      "sessionContextLoadFailed": "세션 주입 텍스트를 불러오지 못했습니다",
+      "sessionContextSaved": "세션 주입 텍스트가 저장되었습니다",
+      "sessionContextSaveFailed": "세션 주입 텍스트 저장에 실패했습니다",
+      "defaultInstructionFilesLoadFailed": "로컬 기본 지시 파일을 불러오지 못했습니다"
     },
-    "sessionAddendumTitle": "Codex session injection text",
-    "sessionAddendumDescription": "This text is injected only into the first message of new OPL App Codex sessions. It does not modify ~/.codex/AGENTS.md.",
+    "sessionContextTitle": "Codex session injection text",
+    "sessionContextDescription": "편집기의 전체 내용이 새 OPL App Codex 세션의 첫 메시지에 실제로 주입됩니다.",
     "defaultCodexContextTitle": "OPL default Codex context",
-    "sessionAddendumLoading": "Loading session injection text...",
-    "sessionAddendumInputTitle": "OPL session addendum",
-    "sessionAddendumPlaceholder": "Add OPL App Codex-session instructions here...",
-    "effectiveCodexContextTitle": "Next-session injection preview",
-    "effectiveCodexContextEmpty": "No Codex context preview."
+    "sessionContextInputTitle": "OPL Codex session injection text",
+    "sessionContextPlaceholder": "전체 OPL Codex 세션 주입 텍스트를 여기에서 편집...",
+    "defaultInstructionFilesTitle": "로컬 기본 지시 파일",
+    "defaultInstructionFilesLoading": "불러오는 중...",
+    "defaultInstructionFilesLoadFailed": "이 파일을 불러오지 못했습니다.",
+    "defaultInstructionFilesEmpty": "내용이 없습니다.",
+    "defaultInstructionFiles": {
+      "codex": "Codex: ~/.codex/AGENTS.md",
+      "hermes": "Hermes: ~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "중지됨"
 }

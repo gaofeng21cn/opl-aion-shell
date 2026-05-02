@@ -43,11 +43,12 @@ export function mergeOplDefaultCodexSkills(enabledSkills?: string[]): string[] {
 
 export function mergeOplDefaultCodexContext(
   context?: string,
-  options: { codexSessionAddendum?: string } = {}
+  options: { codexSessionAddendum?: string; codexSessionContext?: string } = {}
 ): string {
   const trimmed = context?.trim();
-  const sessionAddendum = options.codexSessionAddendum?.trim();
-  const parts = [OPL_CODEX_CONTEXT_SNIPPET];
+  const sessionContext = options.codexSessionContext?.trim();
+  const sessionAddendum = sessionContext ? undefined : options.codexSessionAddendum?.trim();
+  const parts = [sessionContext || OPL_CODEX_CONTEXT_SNIPPET];
   if (sessionAddendum) {
     parts.push(['## OPL App Session Addendum', '', sessionAddendum].join('\n'));
   }

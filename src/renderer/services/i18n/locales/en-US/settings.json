@@ -1116,29 +1116,41 @@
   },
   "runtimePage": {
     "title": "Runtime",
-    "description": "Manage Codex, Hermes-Agent, workspace root, domain modules, repair, update, and Codex session injection text.",
+    "description": "Manage personalization and OPL runtime environment from separate tabs.",
+    "tabs": {
+      "personalization": "Personalization",
+      "environment": "Environment"
+    },
     "interactionTitle": "Interaction layer",
     "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "Reload",
-      "saveSessionAddendum": "Save session addendum"
+      "reloadSessionContext": "Reload",
+      "saveSessionContext": "Save injection text",
+      "restoreDefaultSessionContext": "Restore default",
+      "reloadDefaultInstructionFiles": "Refresh"
     },
     "messages": {
       "interactionLayerSaved": "Interaction layer saved",
-      "sessionAddendumLoadFailed": "Failed to load session addendum",
-      "sessionAddendumSaved": "Session addendum saved",
-      "sessionAddendumSaveFailed": "Failed to save session addendum"
+      "sessionContextLoadFailed": "Failed to load session injection text",
+      "sessionContextSaved": "Session injection text saved",
+      "sessionContextSaveFailed": "Failed to save session injection text",
+      "defaultInstructionFilesLoadFailed": "Failed to load local default instruction files"
     },
-    "sessionAddendumTitle": "Codex session injection text",
-    "sessionAddendumDescription": "This text is injected only into the first message of new OPL App Codex sessions. It does not modify ~/.codex/AGENTS.md.",
+    "sessionContextTitle": "Codex session injection text",
+    "sessionContextDescription": "The editor content is the full text injected into the first message of new OPL App Codex sessions.",
     "defaultCodexContextTitle": "OPL default Codex context",
-    "sessionAddendumLoading": "Loading session injection text...",
-    "sessionAddendumInputTitle": "OPL session addendum",
-    "sessionAddendumPlaceholder": "Add OPL App Codex-session instructions here...",
-    "effectiveCodexContextTitle": "Next-session injection preview",
-    "effectiveCodexContextEmpty": "No Codex context preview."
+    "sessionContextInputTitle": "OPL Codex session injection text",
+    "sessionContextPlaceholder": "Edit the full OPL Codex session injection text here...",
+    "defaultInstructionFilesTitle": "Local default instruction files",
+    "defaultInstructionFilesLoading": "Loading...",
+    "defaultInstructionFilesLoadFailed": "Failed to load this file.",
+    "defaultInstructionFilesEmpty": "No content found.",
+    "defaultInstructionFiles": {
+      "codex": "Codex: ~/.codex/AGENTS.md",
+      "hermes": "Hermes: ~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "Stopped"
 }

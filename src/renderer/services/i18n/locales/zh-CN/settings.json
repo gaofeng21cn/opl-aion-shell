@@ -1117,29 +1117,41 @@
   },
   "runtimePage": {
     "title": "运行时",
-    "description": "管理 Codex、Hermes-Agent、工作区目录、领域模块、修复、更新和 Codex 会话注入文本。",
+    "description": "分开管理个性化注入和 OPL 运行环境配置。",
+    "tabs": {
+      "personalization": "个性化",
+      "environment": "环境配置"
+    },
     "interactionTitle": "交互层",
     "interactionDescription": "新 OPL 会话默认使用的引擎。Codex 保持默认运行时。",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {
-      "reloadSessionAddendum": "重新加载",
-      "saveSessionAddendum": "保存会话追加文本"
+      "reloadSessionContext": "重新加载",
+      "saveSessionContext": "保存注入文本",
+      "restoreDefaultSessionContext": "恢复默认",
+      "reloadDefaultInstructionFiles": "刷新"
     },
     "messages": {
       "interactionLayerSaved": "交互层已保存",
-      "sessionAddendumLoadFailed": "读取会话追加文本失败",
-      "sessionAddendumSaved": "会话追加文本已保存",
-      "sessionAddendumSaveFailed": "保存会话追加文本失败"
+      "sessionContextLoadFailed": "读取会话注入文本失败",
+      "sessionContextSaved": "会话注入文本已保存",
+      "sessionContextSaveFailed": "保存会话注入文本失败",
+      "defaultInstructionFilesLoadFailed": "读取本机默认指令文件失败"
     },
-    "sessionAddendumTitle": "Codex 会话注入文本",
-    "sessionAddendumDescription": "这段文本只会注入到 OPL App 新建 Codex 会话的首条消息，不会修改 ~/.codex/AGENTS.md。",
+    "sessionContextTitle": "Codex 会话注入文本",
+    "sessionContextDescription": "编辑框里的完整内容就是 OPL App 新建 Codex 会话首条消息实际注入的文本。",
     "defaultCodexContextTitle": "OPL 默认 Codex 上下文",
-    "sessionAddendumLoading": "正在加载会话注入文本...",
-    "sessionAddendumInputTitle": "OPL 会话追加文本",
-    "sessionAddendumPlaceholder": "在这里填写 OPL App 的 Codex 会话指令...",
-    "effectiveCodexContextTitle": "下一次会话注入预览",
-    "effectiveCodexContextEmpty": "暂无 Codex 上下文预览。"
+    "sessionContextInputTitle": "OPL Codex 会话注入文本",
+    "sessionContextPlaceholder": "在这里编辑完整的 OPL Codex 会话注入文本...",
+    "defaultInstructionFilesTitle": "本机默认指令文件",
+    "defaultInstructionFilesLoading": "正在加载...",
+    "defaultInstructionFilesLoadFailed": "读取此文件失败。",
+    "defaultInstructionFilesEmpty": "没有找到内容。",
+    "defaultInstructionFiles": {
+      "codex": "Codex：~/.codex/AGENTS.md",
+      "hermes": "Hermes：~/.hermes/SOUL.md"
+    }
   },
   "webui.stopped": "已停止"
 }

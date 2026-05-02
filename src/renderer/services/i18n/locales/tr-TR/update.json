@@ -24,5 +24,19 @@
   "errorTitle": "Güncelleme başarısız",
   "oplVersion": "OPL sürümü: {{version}}",
   "guiVersion": "GUI sürümü: {{version}}",
-  "releaseSource": "Sürüm kaynağı: {{repo}} · {{channel}}"
+  "releaseSource": "Sürüm kaynağı: {{repo}} · {{channel}}",
+  "errors": {
+    "invalidUrl": "Geçersiz indirme URLʼsi",
+    "httpsOnly": "Yalnızca HTTPS URLʼleri izinlidir",
+    "hostNotAllowed": "İndirme ana makinesine izin verilmiyor: {{host}}",
+    "redirectNoLocation": "Yönlendirme yanıtında Location başlığı yok",
+    "tooManyRedirects": "İndirme sırasında çok fazla yönlendirme",
+    "githubApiFailed": "GitHub API isteği başarısız oldu ({{status}})",
+    "githubApiNotArray": "GitHub API yanıtı dizi değil",
+    "githubApiTimeout": "GitHub API isteği zaman aşımına uğradı (30 sn)",
+    "downloadFailed": "İndirme başarısız oldu ({{status}})",
+    "downloadNoBody": "İndirme yanıtında gövde yok",
+    "missingUrl": "İndirme URLʼsi eksik",
+    "checkReturnedNull": "Güncelleme kontrolü sonuç döndürmedi (geliştirme modu)"
+  }
 }

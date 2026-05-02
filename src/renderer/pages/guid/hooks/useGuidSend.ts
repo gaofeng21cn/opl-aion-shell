@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage, type TProviderWithModel } from '@/common/config/storage';
 import type { TChatConversation } from '@/common/config/storage';
+import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { emitter } from '@/renderer/utils/emitter';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
@@ -88,6 +89,20 @@ function normalizeOplAgent(agent: string | undefined): string {
   return agent;
 }
 
+async function resolveOplCodexSessionContext(): Promise<string | undefined> {
+  const context = await ConfigStorage.get('opl.codexSessionContext');
+  if (typeof context === 'string' && context.trim().length > 0) {
+    return context.trim();
+  }
+
+  const addendum = await ConfigStorage.get('opl.codexSessionAddendum');
+  if (typeof addendum === 'string' && addendum.trim().length > 0) {
+    return mergeOplDefaultCodexContext(undefined, { codexSessionAddendum: addendum });
+  }
+
+  return undefined;
+}
+
 /**
  * Hook that manages the send logic for OPL-supported conversation types.
  */
@@ -144,9 +159,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const finalEffectiveAgentType = normalizeOplAgent(effectiveAgentType);
     const selectedAgentForRoute = normalizeOplAgent(selectedAgent);
-    const oplCodexSessionAddendum =
+    const oplCodexSessionContext =
       finalEffectiveAgentType === 'codex' || selectedAgentForRoute === 'codex'
-        ? ((await ConfigStorage.get('opl.codexSessionAddendum')) || '').trim()
+        ? await resolveOplCodexSessionContext()
         : undefined;
     const selectedAgentKeyForRoute =
       selectedAgentForRoute === selectedAgent && selectedAgentKey !== 'gemini' && selectedAgentKey !== 'aionrs'
@@ -301,7 +316,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
               excludeBuiltinSkills,
             }
           : undefined,
-        oplCodexSessionAddendum,
+        oplCodexSessionContext,
         sessionMode: selectedMode,
         currentModelId: selectedAcpModel || undefined,
         extra: {
