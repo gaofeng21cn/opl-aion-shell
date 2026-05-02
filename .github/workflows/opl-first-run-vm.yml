@@ -69,7 +69,7 @@ jobs:
           node --check scripts/opl-first-run-vm-smoke.mjs
           node --check scripts/opl-first-run-tart-smoke.mjs
 
-      - name: Resolve release DMG
+      - name: Resolve Full release DMG
         id: dmg
         shell: bash
         run: |
@@ -81,18 +81,18 @@ jobs:
           elif [ -n "${{ inputs.release_tag }}" ]; then
             gh release download "${{ inputs.release_tag }}" \
               --repo gaofeng21cn/one-person-lab \
-              --pattern "*.dmg" \
+              --pattern "One-Person-Lab-Full-*-mac-arm64.dmg" \
               --dir artifacts/release
           else
             gh release download \
               --repo gaofeng21cn/one-person-lab \
-              --pattern "*.dmg" \
+              --pattern "One-Person-Lab-Full-*-mac-arm64.dmg" \
               --dir artifacts/release
           fi
 
           DMG_PATH="$(find artifacts/release -maxdepth 1 -type f -name '*.dmg' | sort | head -n 1)"
           if [ -z "$DMG_PATH" ]; then
-            echo "::error::No DMG artifact found for first-run VM smoke."
+            echo "::error::No Full DMG artifact found for first-run VM smoke."
             exit 1
           fi
           echo "dmg_path=$DMG_PATH" >> "$GITHUB_OUTPUT"
