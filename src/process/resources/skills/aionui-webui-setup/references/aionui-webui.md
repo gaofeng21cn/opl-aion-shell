@@ -48,7 +48,7 @@ AionUi 支持 WebUI 模式，允许通过浏览器访问应用。这对于远程
 
 **方式 3：通过路由（WebUI 模式）**
 
-- 如果已在 WebUI 模式下，访问：`http://<服务器地址>:25808/#/settings/webui`
+- 如果已在 WebUI 模式下，访问：`http://<服务器地址>:25808/#/settings/access`
 
 ### 配置步骤
 

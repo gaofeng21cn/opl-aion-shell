@@ -79,7 +79,7 @@ describe('QuickActionButtons', () => {
     expect(onOpenBugReport).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/settings\.webui/).closest('div') as HTMLElement);
-    expect(navigateMock).toHaveBeenCalledWith('/settings/webui');
+    expect(navigateMock).toHaveBeenCalledWith('/settings/access');
     expect(onOpenBugReport).not.toHaveBeenCalled();
   });
 });

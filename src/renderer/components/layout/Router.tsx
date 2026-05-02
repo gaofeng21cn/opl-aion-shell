@@ -9,6 +9,9 @@ const Guid = React.lazy(() => import('@renderer/pages/guid'));
 const OverviewSettings = React.lazy(() => import('@renderer/pages/settings/sections/OverviewSettings'));
 const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/sections/RuntimeSettings'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
+const ModeSettings = React.lazy(() => import('@renderer/pages/settings/ModeSettings'));
+const AgentSettings = React.lazy(() => import('@renderer/pages/settings/AgentSettings'));
+const AssistantSettings = React.lazy(() => import('@renderer/pages/settings/AssistantSettings'));
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
 const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
@@ -59,9 +62,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
             element={TEAM_MODE_ENABLED ? withRouteFallback(TeamIndex) : <Navigate to='/guid' replace />}
           />
           <Route path='/settings/gemini' element={<Navigate to={SETTINGS_ROUTE_PATHS.capabilities} replace />} />
-          <Route path='/settings/model' element={<Navigate to={SETTINGS_ROUTE_PATHS.runtime} replace />} />
-          <Route path='/settings/assistants' element={<Navigate to={SETTINGS_ROUTE_PATHS.capabilities} replace />} />
-          <Route path='/settings/agent' element={<Navigate to={SETTINGS_ROUTE_PATHS.runtime} replace />} />
+          <Route path='/settings/model' element={withRouteFallback(ModeSettings)} />
+          <Route path='/settings/assistants' element={withRouteFallback(AssistantSettings)} />
+          <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />
           <Route path='/settings/personalization' element={<Navigate to={SETTINGS_ROUTE_PATHS.appearance} replace />} />
           {/* Legacy routes — redirect to the merged /settings/capabilities page */}
           <Route path='/settings/skills-hub' element={<Navigate to='/settings/capabilities?tab=skills' replace />} />

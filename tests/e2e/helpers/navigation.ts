@@ -18,7 +18,7 @@ export const ROUTES = {
     assistants: '#/settings/assistants',
     capabilities: '#/settings/capabilities',
     display: '#/settings/display',
-    webui: '#/settings/webui',
+    webui: '#/settings/access',
     system: '#/settings/system',
     about: '#/settings/about',
   },
@@ -105,8 +105,15 @@ export async function navigateTo(page: Page, hash: string): Promise<void> {
     const settingsPath = hash.replace(/^#\/settings\//, '');
     if (!isAlreadyAt(page, hash)) {
       const navItem = page.locator(`[data-settings-path="${settingsPath}"]`);
-      await navItem.waitFor({ state: 'visible', timeout: 10_000 });
-      await navItem.click();
+      const navItemVisible = await navItem
+        .waitFor({ state: 'visible', timeout: 1500 })
+        .then(() => true)
+        .catch(() => false);
+      if (navItemVisible) {
+        await navItem.click();
+      } else {
+        await page.evaluate((h) => window.location.assign(h), hash);
+      }
       await page
         .waitForFunction((h) => window.location.hash.includes(h), `/settings/${settingsPath}`, { timeout: 10_000 })
         .catch(() => {});
@@ -185,7 +192,7 @@ export async function goToChannelsTab(page: Page): Promise<void> {
 
   // Ensure route transition is actually complete before locating inner tabs
   await page
-    .waitForFunction(() => window.location.hash.startsWith('#/settings/webui'), { timeout: 12_000 })
+    .waitForFunction(() => window.location.hash.startsWith('#/settings/access'), { timeout: 12_000 })
     .catch(() => undefined);
 
   const stableTab = page.locator(webuiTabByKey('channels')).first();

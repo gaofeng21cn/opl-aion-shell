@@ -89,7 +89,7 @@ const QuickActionButtons: React.FC<QuickActionButtonsProps> = ({
   );
 
   const handleOpenWebUI = useCallback(() => {
-    void navigate('/settings/webui');
+    void navigate('/settings/access');
   }, [navigate]);
 
   const webuiStatusLabel =

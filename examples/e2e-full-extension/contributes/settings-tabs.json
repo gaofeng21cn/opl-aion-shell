@@ -3,7 +3,7 @@
     "id": "e2e-settings",
     "name": "E2E Settings",
     "entryPoint": "settings/e2e-settings.html",
-    "position": { "anchor": "tools", "placement": "after" },
+    "position": { "anchor": "capabilities", "placement": "after" },
     "order": 10
   },
   {

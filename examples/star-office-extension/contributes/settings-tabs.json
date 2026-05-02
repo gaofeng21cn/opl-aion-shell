@@ -4,7 +4,7 @@
     "name": "Star Office",
     "entryPoint": "settings/star-office.html",
     "icon": "assets/star-office-icon.svg",
-    "position": { "anchor": "display", "placement": "after" },
+    "position": { "anchor": "appearance", "placement": "after" },
     "order": 70
   },
   {
@@ -12,7 +12,7 @@
     "name": "AionUI Home",
     "entryPoint": "https://aionui.com/",
     "icon": "assets/star-office-icon.svg",
-    "position": { "anchor": "display", "placement": "after" },
+    "position": { "anchor": "appearance", "placement": "after" },
     "order": 80
   },
   {
@@ -20,7 +20,7 @@
     "name": "AionUI Issues",
     "entryPoint": "https://github.com/AionUi/AionUi/issues",
     "icon": "assets/star-office-icon.svg",
-    "position": { "anchor": "display", "placement": "after" },
+    "position": { "anchor": "appearance", "placement": "after" },
     "order": 81
   }
 ]

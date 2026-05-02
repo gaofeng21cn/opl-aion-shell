@@ -4,7 +4,7 @@
     "name": "Hello Config",
     "entryPoint": "settings/hello-settings.html",
     "icon": "assets/sunset-glow-cover.svg",
-    "position": { "anchor": "display", "placement": "after" },
+    "position": { "anchor": "appearance", "placement": "after" },
     "order": 80
   }
 ]
