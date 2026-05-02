@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   OPL_APP_ACTIVATION_POLICY,
   OPL_CODEX_CONTEXT_SNIPPET,
+  OPL_LEGACY_CODEX_CONTEXT_SNIPPETS,
   OPL_DEFAULT_CODEX_SKILLS,
 } from '../../src/common/config/oplSkills';
 import { resolveLocaleKey } from '../../src/common/utils';
@@ -136,6 +137,33 @@ describe('createConversationParams', () => {
 
     expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
     expect(params.extra.presetContext).toBe('Saved complete session context\n\npreset rules');
+  });
+
+  it('normalizes a saved previous built-in OPL context before creating preset assistant context', async () => {
+    loadPresetAssistantResources.mockResolvedValue({
+      rules: 'preset rules',
+      skills: '',
+      enabledSkills: [],
+    });
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionContext') return OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0];
+      return undefined;
+    });
+
+    const params = await buildPresetAssistantParams(
+      {
+        backend: 'gemini',
+        name: 'Preset Assistant',
+        customAgentId: 'builtin-cowork',
+        isPreset: true,
+        presetAgentType: 'gemini',
+      },
+      '/tmp/workspace',
+      'en'
+    );
+
+    expect(params.extra.presetContext).toBe(`${OPL_CODEX_CONTEXT_SNIPPET}\n\npreset rules`);
+    expect(params.extra.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
   });
 
   it('migrates the legacy OPL App Codex session addendum when complete context is missing', async () => {
@@ -332,6 +360,25 @@ describe('createConversationParams', () => {
 
     expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
     expect(params.extra.presetContext).toBe('Saved CLI context');
+  });
+
+  it('normalizes a saved previous built-in OPL context before creating Codex CLI context', async () => {
+    configGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.codexSessionContext') return OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0];
+      return undefined;
+    });
+
+    const params = await buildCliAgentParams(
+      {
+        backend: 'codex',
+        name: 'Codex Agent',
+      },
+      '/tmp/workspace'
+    );
+
+    expect(configGet).toHaveBeenCalledWith('opl.codexSessionContext');
+    expect(params.extra.presetContext).toBe(OPL_CODEX_CONTEXT_SNIPPET);
+    expect(params.extra.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
   });
 
   it('does not load the OPL App Codex session context for non-Codex ACP agents', async () => {

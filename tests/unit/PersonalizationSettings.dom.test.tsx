@@ -176,6 +176,7 @@ vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }))
 
 import AppearanceSettings from '@/renderer/pages/settings/sections/AppearanceSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import { OPL_CODEX_CONTEXT_SNIPPET, OPL_LEGACY_CODEX_CONTEXT_SNIPPETS } from '@/common/config/oplSkills';
 
 describe('AppearanceSettings', () => {
   beforeEach(() => {
@@ -231,12 +232,29 @@ describe('RuntimeSettings Codex session context', () => {
     await waitFor(() => {
       expect(textarea.value).toBe('existing complete session context');
     });
-    expect(screen.getByTestId('opl-codex-default-context-reference')).toHaveTextContent(
-      'One Person Lab is the default Codex runtime surface for this app.'
+    expect(screen.getByTestId('opl-codex-default-context-reference')).toHaveTextContent('OPL App 默认会话规则');
+    expect(screen.getByTestId('opl-codex-default-context-reference')).not.toHaveTextContent(
+      'One Person Lab is the default Codex runtime surface'
     );
     expect(screen.queryByText('settings.runtimePage.sessionAddendumLoading')).not.toBeInTheDocument();
     expect(screen.queryByTestId('effective-codex-context-preview')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-codex-session-addendum-input')).not.toBeInTheDocument();
+  });
+
+  it('updates a saved legacy built-in context to the concise current default in the editor', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.interactionLayer') return 'codex';
+      if (key === 'opl.codexSessionContext') return OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0];
+      return null;
+    });
+
+    render(<RuntimeSettings />);
+
+    const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
+    await waitFor(() => {
+      expect(textarea.value).toBe(OPL_CODEX_CONTEXT_SNIPPET);
+      expect(textarea.value).not.toContain('One Person Lab is the default Codex runtime surface');
+    });
   });
 
   it('migrates the legacy addendum into the complete context editor when no complete context is saved', async () => {
@@ -251,7 +269,7 @@ describe('RuntimeSettings Codex session context', () => {
 
     const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
     await waitFor(() => {
-      expect(textarea.value).toContain('OPL App Session Addendum');
+      expect(textarea.value).toContain('OPL App 会话补充');
       expect(textarea.value).toContain('legacy session addendum');
     });
   });
@@ -278,7 +296,8 @@ describe('RuntimeSettings Codex session context', () => {
     fireEvent.click(screen.getByText('settings.runtimePage.actions.restoreDefaultSessionContext'));
 
     await waitFor(() => {
-      expect(textarea.value).toContain('One Person Lab is the default Codex runtime surface for this app.');
+      expect(textarea.value).toContain('OPL App 默认会话规则');
+      expect(textarea.value).not.toContain('One Person Lab is the default Codex runtime surface');
       expect(textarea.value).not.toContain('custom context');
     });
   });

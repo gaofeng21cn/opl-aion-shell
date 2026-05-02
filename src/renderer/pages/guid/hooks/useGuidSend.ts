@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage, type TProviderWithModel } from '@/common/config/storage';
 import type { TChatConversation } from '@/common/config/storage';
-import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
+import { mergeOplDefaultCodexContext, normalizeOplCodexSessionContext } from '@/common/config/oplSkills';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { emitter } from '@/renderer/utils/emitter';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
@@ -91,8 +91,9 @@ function normalizeOplAgent(agent: string | undefined): string {
 
 async function resolveOplCodexSessionContext(): Promise<string | undefined> {
   const context = await ConfigStorage.get('opl.codexSessionContext');
-  if (typeof context === 'string' && context.trim().length > 0) {
-    return context.trim();
+  const sessionContext = normalizeOplCodexSessionContext(context);
+  if (sessionContext) {
+    return sessionContext;
   }
 
   const addendum = await ConfigStorage.get('opl.codexSessionAddendum');

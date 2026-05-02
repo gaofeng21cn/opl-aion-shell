@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { GuidSendDeps } from '../../src/renderer/pages/guid/hooks/useGuidSend';
+import { OPL_CODEX_CONTEXT_SNIPPET, OPL_LEGACY_CODEX_CONTEXT_SNIPPETS } from '../../src/common/config/oplSkills';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -254,6 +255,39 @@ describe('useGuidSend', () => {
             presetContext: 'Use the current OPL workspace registry.',
           }),
         })
+      );
+    });
+
+    it('normalizes a saved previous built-in OPL context before creating new Codex conversations', async () => {
+      mockConfigGet.mockImplementation(async (key: string) => {
+        if (key === 'opl.codexSessionContext') return OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0];
+        return undefined;
+      });
+      const deps = makeDeps({
+        selectedAgent: 'codex',
+        selectedAgentKey: 'codex',
+        selectedAgentInfo: { backend: 'codex', name: 'Codex' } as GuidSendDeps['selectedAgentInfo'],
+        currentEffectiveAgentInfo: { agentType: 'codex', isAvailable: true },
+        getEffectiveAgentType: vi.fn(() => ({ agentType: 'codex', isAvailable: true })),
+      });
+      const { result } = renderHook(() => useGuidSend(deps));
+
+      await act(async () => {
+        await result.current.handleSend();
+      });
+
+      expect(mockConfigGet).toHaveBeenCalledWith('opl.codexSessionContext');
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'acp',
+          extra: expect.objectContaining({
+            backend: 'codex',
+            presetContext: OPL_CODEX_CONTEXT_SNIPPET,
+          }),
+        })
+      );
+      expect(JSON.stringify(mockCreate.mock.calls[0])).not.toContain(
+        'One Person Lab is the default Codex runtime surface'
       );
     });
 

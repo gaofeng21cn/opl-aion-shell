@@ -18,7 +18,7 @@ import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
-import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
+import { mergeOplDefaultCodexContext, normalizeOplCodexSessionContext } from '@/common/config/oplSkills';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import SettingRow from './SettingRow';
 
@@ -364,8 +364,9 @@ const RuntimeInstructionSettings: React.FC = () => {
       setLoadingContext(true);
       try {
         const context = await ConfigStorage.get('opl.codexSessionContext');
-        if (typeof context === 'string' && context.trim().length > 0) {
-          setCodexSessionContext(context.trim());
+        const sessionContext = normalizeOplCodexSessionContext(context);
+        if (sessionContext) {
+          setCodexSessionContext(sessionContext);
           return;
         }
 

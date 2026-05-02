@@ -3,8 +3,10 @@ import {
   OPL_APP_ACTIVATION_POLICY,
   OPL_CODEX_CONTEXT_SNIPPET,
   OPL_DEFAULT_CODEX_SKILLS,
+  OPL_LEGACY_CODEX_CONTEXT_SNIPPETS,
   mergeOplDefaultCodexContext,
   mergeOplDefaultCodexSkills,
+  normalizeOplCodexSessionContext,
 } from '@/common/config/oplSkills';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
@@ -20,7 +22,9 @@ describe('OPL default Codex skills', () => {
     expect(params.extra?.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
     expect(params.extra?.presetContext).toBe(OPL_CODEX_CONTEXT_SNIPPET);
     expect(params.extra?.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
-    expect(params.extra?.presetContext).toContain('不要求用户输入 @MAS');
+    expect(params.extra?.presetContext).toContain('默认路由');
+    expect(params.extra?.presetContext).toContain('不要要求用户输入 @MAS');
+    expect(params.extra?.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
   });
 
   it('keeps the OPL activation policy scoped to conversation context instead of AGENTS files', () => {
@@ -48,9 +52,14 @@ describe('OPL default Codex skills', () => {
     });
 
     expect(context).toBe(
-      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App Session Addendum\n\nPrefer the DPCC workspace.\n\nPRESET RULES`
+      `${OPL_CODEX_CONTEXT_SNIPPET}\n\n## OPL App 会话补充\n\nPrefer the DPCC workspace.\n\nPRESET RULES`
     );
     expect(context).not.toContain('AGENTS.md');
+  });
+
+  it('normalizes previously saved built-in context to the current concise default', () => {
+    expect(normalizeOplCodexSessionContext(OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0])).toBe(OPL_CODEX_CONTEXT_SNIPPET);
+    expect(normalizeOplCodexSessionContext('Custom user context')).toBe('Custom user context');
   });
 
   it('preserves user-enabled skills after the OPL default family and companion skills', () => {

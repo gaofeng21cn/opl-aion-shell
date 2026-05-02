@@ -14,7 +14,7 @@ import {
   buildAgentConversationParams,
   getConversationTypeForBackend,
 } from '@/common/utils/buildAgentConversationParams';
-import { mergeOplDefaultCodexContext } from '@/common/config/oplSkills';
+import { mergeOplDefaultCodexContext, normalizeOplCodexSessionContext } from '@/common/config/oplSkills';
 import type { AvailableAgent } from '@/renderer/utils/model/agentTypes';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 
@@ -41,8 +41,9 @@ async function resolveOplCodexSessionContext(backend: string, explicitContext?: 
   }
 
   const context = await ConfigStorage.get('opl.codexSessionContext');
-  if (typeof context === 'string' && context.trim().length > 0) {
-    return context.trim();
+  const sessionContext = normalizeOplCodexSessionContext(context);
+  if (sessionContext) {
+    return sessionContext;
   }
 
   const addendum = await ConfigStorage.get('opl.codexSessionAddendum');

@@ -6,7 +6,11 @@
 
 import { describe, expect, it } from 'vitest';
 import type { TProviderWithModel } from '../../src/common/config/storage';
-import { OPL_APP_ACTIVATION_POLICY, OPL_CODEX_CONTEXT_SNIPPET } from '../../src/common/config/oplSkills';
+import {
+  OPL_APP_ACTIVATION_POLICY,
+  OPL_CODEX_CONTEXT_SNIPPET,
+  OPL_LEGACY_CODEX_CONTEXT_SNIPPETS,
+} from '../../src/common/config/oplSkills';
 import { buildAgentConversationParams } from '../../src/common/utils/buildAgentConversationParams';
 
 const mockModel = {} as unknown as TProviderWithModel;
@@ -68,7 +72,9 @@ describe('buildAgentConversationParams', () => {
       }),
     });
     expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
-    expect(params.extra.presetContext).toContain('优先按 MAS 路线处理');
+    expect(params.extra.presetContext).toContain('科研、研究、论文');
+    expect(params.extra.presetContext).toContain('使用 MAS');
+    expect(params.extra.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
     expect(params.extra.currentModelId).toBeUndefined();
   });
 
@@ -85,6 +91,20 @@ describe('buildAgentConversationParams', () => {
     expect(params.extra.presetContext).toBe('Use the local OPL workspace map.');
     expect(params.extra.presetContext).not.toContain('OPL App Session Addendum');
     expect(params.extra.presetContext).not.toContain('AGENTS.md');
+  });
+
+  it('replaces the previous built-in OPL context when it was saved as the complete session context', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'One Person Lab',
+      agentName: 'Codex',
+      workspace: '/workspace',
+      model: mockModel,
+      oplCodexSessionContext: OPL_LEGACY_CODEX_CONTEXT_SNIPPETS[0],
+    });
+
+    expect(params.extra.presetContext).toBe(OPL_CODEX_CONTEXT_SNIPPET);
+    expect(params.extra.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
   });
 
   it('normalizes retired Gemini preset params to Codex ACP', () => {
