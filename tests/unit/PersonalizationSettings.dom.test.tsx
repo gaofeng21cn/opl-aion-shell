@@ -31,11 +31,13 @@ vi.mock('@arco-design/web-react', async () => {
   const Typography = { Text, Title };
   const Button = ({
     children,
-    loading: _loading,
+    loading,
     icon: _icon,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean; icon?: React.ReactNode }) => (
-    <button {...props}>{children}</button>
+    <button {...props} aria-busy={loading ? 'true' : undefined}>
+      {children}
+    </button>
   );
   const Card = ({
     children,
@@ -225,20 +227,28 @@ describe('RuntimeSettings Codex session context', () => {
     expect(mockRunOplCommand).not.toHaveBeenCalled();
   });
 
-  it('loads the complete OPL App Codex session context from app config without blocking the default context', async () => {
+  it('loads the complete OPL App Codex session context into a single editor', async () => {
     render(<RuntimeSettings />);
 
     const textarea = (await screen.findByTestId('opl-codex-session-context-input')) as HTMLTextAreaElement;
     await waitFor(() => {
       expect(textarea.value).toBe('existing complete session context');
     });
-    expect(screen.getByTestId('opl-codex-default-context-reference')).toHaveTextContent('OPL App 默认会话规则');
-    expect(screen.getByTestId('opl-codex-default-context-reference')).not.toHaveTextContent(
-      'One Person Lab is the default Codex runtime surface'
-    );
+    expect(screen.queryByTestId('opl-codex-default-context-reference')).not.toBeInTheDocument();
     expect(screen.queryByText('settings.runtimePage.sessionAddendumLoading')).not.toBeInTheDocument();
     expect(screen.queryByTestId('effective-codex-context-preview')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-codex-session-addendum-input')).not.toBeInTheDocument();
+  });
+
+  it('stops showing reload as busy after refreshing the session context', async () => {
+    render(<RuntimeSettings />);
+
+    const reloadButton = await screen.findByText('settings.runtimePage.actions.reloadSessionContext');
+    fireEvent.click(reloadButton);
+
+    await waitFor(() => {
+      expect(reloadButton).not.toHaveAttribute('aria-busy');
+    });
   });
 
   it('updates a saved legacy built-in context to the concise current default in the editor', async () => {
@@ -302,17 +312,62 @@ describe('RuntimeSettings Codex session context', () => {
     });
   });
 
-  it('shows local Codex and Hermes default instruction files as read-only references', async () => {
+  it('shows only the default instruction file for the selected interaction layer', async () => {
     render(<RuntimeSettings />);
 
     fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
 
     await waitFor(() => {
       expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent('Codex global agents');
-      expect(screen.getByTestId('hermes-default-instruction-file')).toHaveTextContent('Hermes global soul');
     });
     expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.codex/AGENTS.md' });
+    expect(mockReadFile).not.toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
+    expect(screen.queryByTestId('hermes-default-instruction-file')).not.toBeInTheDocument();
+  });
+
+  it('switches the default instruction file when Hermes is selected', async () => {
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.interactionHermes'));
+    fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('hermes-default-instruction-file')).toHaveTextContent('Hermes global soul');
+    });
     expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
+    expect(screen.queryByTestId('codex-default-instruction-file')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty state when the selected instruction file is missing', async () => {
+    mockReadFile.mockResolvedValue(null);
+
+    render(<RuntimeSettings />);
+    fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent(
+        'settings.runtimePage.defaultInstructionFilesEmpty'
+      );
+    });
+    expect(screen.getByTestId('codex-default-instruction-file')).not.toHaveTextContent(
+      'settings.runtimePage.defaultInstructionFilesLoading'
+    );
+  });
+
+  it('shows a load failure when the selected instruction file cannot be read', async () => {
+    mockReadFile.mockRejectedValue(new Error('EPERM'));
+
+    render(<RuntimeSettings />);
+    fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent(
+        'settings.runtimePage.defaultInstructionFilesLoadFailed'
+      );
+    });
+    expect(screen.getByTestId('codex-default-instruction-file')).not.toHaveTextContent(
+      'settings.runtimePage.defaultInstructionFilesLoading'
+    );
   });
 
   it('saves Hermes as the preferred OPL interaction layer from the runtime page', async () => {

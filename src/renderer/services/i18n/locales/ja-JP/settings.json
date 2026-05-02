@@ -1141,7 +1141,7 @@
       "defaultInstructionFilesLoadFailed": "ローカルのデフォルト指示ファイルを読み込めませんでした"
     },
     "sessionContextTitle": "Codex セッション注入テキスト",
-    "sessionContextDescription": "エディターの内容全体が、新しい OPL App Codex セッションの最初のメッセージに実際に注入されます。",
+    "sessionContextDescription": "新しい Codex セッションを開始するとき、OPL はここにある内容を初期コンテキストとして Codex に送信します。長期的な好み、プロジェクト境界、既定のルーティング規則に使用できます。",
     "defaultCodexContextTitle": "OPL default Codex context",
     "sessionContextInputTitle": "OPL Codex セッション注入テキスト",
     "sessionContextPlaceholder": "完全な OPL Codex セッション注入テキストをここで編集...",
