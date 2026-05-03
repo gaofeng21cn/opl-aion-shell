@@ -11,6 +11,16 @@ type SmokeTestApi = {
 };
 
 const tempRoots: string[] = [];
+const requiredSkills = [
+  'mas',
+  'mag',
+  'rca',
+  'officecli',
+  'officecli-docx',
+  'officecli-pptx',
+  'officecli-xlsx',
+  'ui-ux-pro-max',
+];
 
 function makeTempRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-smoke-'));
@@ -115,14 +125,26 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
   it('asserts Full first-run modules are materialized into standard state modules root', async () => {
     const api = await loadSmokeTestApi();
     const homeRoot = makeTempRoot();
+    const codexHome = path.join(homeRoot, '.codex');
+    vi.stubEnv('CODEX_HOME', codexHome);
     const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
     for (const repoName of ['med-autoscience', 'med-deepscientist', 'med-autogrant', 'redcube-ai']) {
       fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
+    }
+    for (const skillId of requiredSkills.filter((skillId) => !['mas', 'mag', 'rca'].includes(skillId))) {
+      fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
+      fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
     }
 
     const systemInitializeRaw = JSON.stringify({
       system_initialize: {
         setup_flow: { ready_to_launch: true, blocking_items: [] },
+        recommended_skills: {
+          skills: requiredSkills.map((skillId) => ({
+            skill_id: skillId,
+            status: 'ready',
+          })),
+        },
       },
     });
     const modulesRaw = JSON.stringify({

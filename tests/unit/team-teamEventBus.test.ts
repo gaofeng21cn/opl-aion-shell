@@ -9,8 +9,8 @@ describe('teamEventBus', () => {
     expect(typeof teamEventBus.removeListener).toBe('function');
   });
 
-  it('allows up to 50 listeners without warning (maxListeners=50)', () => {
-    expect(teamEventBus.getMaxListeners()).toBe(50);
+  it('allows high-concurrency teammate managers without listener warnings', () => {
+    expect(teamEventBus.getMaxListeners()).toBe(200);
   });
 
   it('emits responseStream events to registered listeners', () => {

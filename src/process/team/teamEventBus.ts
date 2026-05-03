@@ -12,6 +12,6 @@ import type { IResponseMessage } from '@/common/adapter/ipcBridge';
  * TeammateManager listens here instead of ipcBridge for responseStream events.
  */
 export const teamEventBus = new EventEmitter();
-teamEventBus.setMaxListeners(50);
+teamEventBus.setMaxListeners(200);
 
 export type TeamResponseStreamEvent = IResponseMessage;

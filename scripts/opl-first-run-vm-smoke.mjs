@@ -297,17 +297,30 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     }
   }
   const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-  for (const skillId of requiredSkills.filter((skillId) => skillId !== 'mas' && skillId !== 'mag' && skillId !== 'rca')) {
+  for (const skillId of requiredSkills.filter(
+    (skillId) => skillId !== 'mas' && skillId !== 'mag' && skillId !== 'rca'
+  )) {
     const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
     if (!fs.existsSync(skillPath)) {
-      throw new Error(`OPL Full first-run skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`);
+      throw new Error(
+        `OPL Full first-run skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+      );
     }
   }
-  const officeCliTool = spawnSync('/bin/zsh', ['-lc', [buildFullRuntimeCommandPrefix(findLatestFullRuntimeHome()), 'officecli --version'].filter(Boolean).join(' && ')], {
-    encoding: 'utf8',
-  });
+  const officeCliTool = spawnSync(
+    '/bin/zsh',
+    [
+      '-lc',
+      [buildFullRuntimeCommandPrefix(findLatestFullRuntimeHome()), 'officecli --version'].filter(Boolean).join(' && '),
+    ],
+    {
+      encoding: 'utf8',
+    }
+  );
   if (officeCliTool.status !== 0 || !officeCliTool.stdout.trim()) {
-    throw new Error(`officecli is not callable from the Full runtime PATH: ${officeCliTool.stderr || officeCliTool.stdout}`);
+    throw new Error(
+      `officecli is not callable from the Full runtime PATH: ${officeCliTool.stderr || officeCliTool.stdout}`
+    );
   }
 
   const requiredModules = new Map([

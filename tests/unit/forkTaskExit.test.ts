@@ -59,4 +59,16 @@ describe('ForkTask unexpected exit handling', () => {
     expect(mockChild.kill).toHaveBeenCalledTimes(1);
     expect(onExit).not.toHaveBeenCalled();
   });
+
+  it('uses one shared process exit listener for many fork tasks', () => {
+    const tasks = Array.from({ length: 12 }, () => new ForkTask('/fake-worker.js', { foo: 'bar' }));
+
+    expect(process.rawListeners('exit').filter((listener) => listener.name === 'cleanupActiveForkTasks')).toHaveLength(
+      1
+    );
+
+    for (const task of tasks) {
+      task.kill();
+    }
+  });
 });

@@ -67,21 +67,22 @@ global.cancelAnimationFrame = (id: number) => {
 Element.prototype.scrollTo = () => {};
 Element.prototype.scrollIntoView = () => {};
 
-// Mock localStorage (not always available in jsdom)
-if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {
-  const store = new Map<string, string>();
-  const localStorageMock = {
-    getItem: (key: string) => store.get(key) ?? null,
-    setItem: (key: string, value: string) => store.set(key, String(value)),
-    removeItem: (key: string) => store.delete(key),
-    clear: () => store.clear(),
-    get length() {
-      return store.size;
-    },
-    key: (index: number) => [...store.keys()][index] ?? null,
-  };
-  Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
-  if (typeof window !== 'undefined') {
-    Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
-  }
+// Mock localStorage. Node 25 exposes a warning-emitting global WebStorage getter
+// unless --localstorage-file is configured, so install the test mock without
+// reading globalThis.localStorage first.
+const store = new Map<string, string>();
+const localStorageMock = {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => store.set(key, String(value)),
+  removeItem: (key: string) => store.delete(key),
+  clear: () => store.clear(),
+  get length() {
+    return store.size;
+  },
+  key: (index: number) => [...store.keys()][index] ?? null,
+};
+
+Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
 }

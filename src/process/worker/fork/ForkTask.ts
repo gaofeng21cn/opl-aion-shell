@@ -17,11 +17,35 @@ import { getEnhancedEnv } from '@process/utils/shellEnv';
 import type { MainToWorkerMessage } from '../WorkerProtocol';
 import { Pipe } from './pipe';
 
+const activeForkTasks = new Set<ForkTask<unknown>>();
+let exitCleanupRegistered = false;
+
+function cleanupActiveForkTasks() {
+  for (const task of Array.from(activeForkTasks)) {
+    task.kill();
+  }
+}
+
+function registerForkTask(task: ForkTask<unknown>) {
+  activeForkTasks.add(task);
+  if (!exitCleanupRegistered) {
+    process.on('exit', cleanupActiveForkTasks);
+    exitCleanupRegistered = true;
+  }
+}
+
+function unregisterForkTask(task: ForkTask<unknown>) {
+  activeForkTasks.delete(task);
+  if (activeForkTasks.size === 0 && exitCleanupRegistered) {
+    process.off('exit', cleanupActiveForkTasks);
+    exitCleanupRegistered = false;
+  }
+}
+
 export class ForkTask<Data> extends Pipe {
   protected path = '';
   protected data: Data;
   protected fcp: IWorkerProcess | undefined;
-  private killFn: () => void;
   private enableFork: boolean;
   private childExitExpected = false;
   constructor(path: string, data: Data, enableFork = true) {
@@ -29,10 +53,7 @@ export class ForkTask<Data> extends Pipe {
     this.path = path;
     this.data = data;
     this.enableFork = enableFork;
-    this.killFn = () => {
-      this.kill();
-    };
-    process.on('exit', this.killFn);
+    registerForkTask(this as ForkTask<unknown>);
     if (this.enableFork) this.init();
   }
   kill() {
@@ -40,7 +61,7 @@ export class ForkTask<Data> extends Pipe {
       this.childExitExpected = true;
       this.fcp.kill();
     }
-    process.off('exit', this.killFn);
+    unregisterForkTask(this as ForkTask<unknown>);
   }
   protected init() {
     const platform = getPlatformServices();
@@ -89,6 +110,7 @@ export class ForkTask<Data> extends Pipe {
       this.childExitExpected = false;
       if (this.fcp === fcp) {
         this.fcp = undefined;
+        unregisterForkTask(this as ForkTask<unknown>);
       }
 
       if (!expected) {
