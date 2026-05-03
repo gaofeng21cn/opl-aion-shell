@@ -167,7 +167,7 @@
   "closeToTray": "Close to Tray",
   "notification": "Notifications",
   "cronNotificationEnabled": "Scheduled Task Completion",
-  "promptTimeout": "LLM Prompt Timeout (s)",
+  "promptTimeout": "GUI-Managed LLM Request Timeout (s)",
   "groupAiCore": "Capabilities",
   "groupApp": "Runtime",
   "groupAbout": "About",

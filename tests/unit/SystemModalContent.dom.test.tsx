@@ -194,6 +194,7 @@ vi.mock('swr', () => {
   return { default: useSWR, mutate };
 });
 
+import { ConfigStorage } from '@/common/config/storage';
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 
 describe('SystemModalContent', () => {
@@ -247,6 +248,35 @@ describe('SystemModalContent', () => {
     mockSetCronNotificationEnabled.mockResolvedValue(undefined);
     mockSetSaveUploadToWorkspace.mockResolvedValue(undefined);
     mockSetAutoPreviewOfficeFiles.mockResolvedValue(undefined);
+  });
+
+  it('should default GUI-managed LLM prompt timeout to the backend long-run value', async () => {
+    render(<SystemModalContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.promptTimeout')).toBeInTheDocument();
+    });
+
+    expect(screen.getByDisplayValue('43200')).toBeInTheDocument();
+  });
+
+  it('should clamp GUI-managed LLM prompt timeout to the backend long-run maximum', async () => {
+    render(<SystemModalContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.promptTimeout')).toBeInTheDocument();
+    });
+
+    const input = screen.getByDisplayValue('43200');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '99999' } });
+      fireEvent.blur(input);
+    });
+
+    await waitFor(() => {
+      expect(ConfigStorage.set).toHaveBeenCalledWith('acp.promptTimeout', 43200);
+    });
+    expect(screen.getByDisplayValue('43200')).toBeInTheDocument();
   });
 
   it('should render system settings with language switcher and preferences', async () => {

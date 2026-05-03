@@ -167,7 +167,7 @@
   "closeToTray": "关闭到托盘",
   "notification": "通知",
   "cronNotificationEnabled": "定时任务完成通知",
-  "promptTimeout": "LLM 请求超时时间（秒）",
+  "promptTimeout": "GUI 托管 LLM 请求超时（秒）",
   "groupAiCore": "能力",
   "groupApp": "运行",
   "groupAbout": "关于",

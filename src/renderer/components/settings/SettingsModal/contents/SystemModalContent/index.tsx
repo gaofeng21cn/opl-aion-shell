@@ -22,6 +22,12 @@ import DevSettings from './DevSettings';
 import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
 
+const PROMPT_TIMEOUT_MIN_SEC = 30;
+const PROMPT_TIMEOUT_DEFAULT_SEC = 43_200;
+const PROMPT_TIMEOUT_MAX_SEC = 43_200;
+const AGENT_IDLE_TIMEOUT_DEFAULT_MIN = 5;
+const AGENT_IDLE_TIMEOUT_MAX_MIN = 60;
+
 /**
  * System settings content component
  *
@@ -47,8 +53,8 @@ const SystemModalContent: React.FC = () => {
   const [closeToTray, setCloseToTray] = useState(false);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [cronNotificationEnabled, setCronNotificationEnabled] = useState(false);
-  const [promptTimeout, setPromptTimeout] = useState<number>(300);
-  const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
+  const [promptTimeout, setPromptTimeout] = useState<number>(PROMPT_TIMEOUT_DEFAULT_SEC);
+  const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(AGENT_IDLE_TIMEOUT_DEFAULT_MIN);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
 
@@ -168,7 +174,10 @@ const SystemModalContent: React.FC = () => {
   }, []);
 
   const handlePromptTimeoutBlur = useCallback(() => {
-    const clamped = Math.max(30, Math.min(3600, promptTimeout || 300));
+    const clamped = Math.max(
+      PROMPT_TIMEOUT_MIN_SEC,
+      Math.min(PROMPT_TIMEOUT_MAX_SEC, promptTimeout || PROMPT_TIMEOUT_DEFAULT_SEC)
+    );
     setPromptTimeout(clamped);
     ConfigStorage.set('acp.promptTimeout', clamped).catch(() => {});
   }, [promptTimeout]);
@@ -178,7 +187,10 @@ const SystemModalContent: React.FC = () => {
   }, []);
 
   const handleAgentIdleTimeoutBlur = useCallback(() => {
-    const clamped = Math.max(1, Math.min(60, agentIdleTimeout || 5));
+    const clamped = Math.max(
+      1,
+      Math.min(AGENT_IDLE_TIMEOUT_MAX_MIN, agentIdleTimeout || AGENT_IDLE_TIMEOUT_DEFAULT_MIN)
+    );
     setAgentIdleTimeout(clamped);
     ConfigStorage.set('acp.agentIdleTimeout', clamped).catch(() => {});
   }, [agentIdleTimeout]);
@@ -240,8 +252,8 @@ const SystemModalContent: React.FC = () => {
           value={promptTimeout}
           onChange={handlePromptTimeoutChange}
           onBlur={handlePromptTimeoutBlur}
-          max={3600}
-          step={30}
+          max={PROMPT_TIMEOUT_MAX_SEC}
+          step={300}
           style={{ width: 120 }}
           suffix='s'
         />
@@ -256,7 +268,7 @@ const SystemModalContent: React.FC = () => {
           value={agentIdleTimeout}
           onChange={handleAgentIdleTimeoutChange}
           onBlur={handleAgentIdleTimeoutBlur}
-          max={60}
+          max={AGENT_IDLE_TIMEOUT_MAX_MIN}
           step={5}
           style={{ width: 120 }}
           suffix='min'

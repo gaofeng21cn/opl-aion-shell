@@ -167,7 +167,7 @@
   "closeToTray": "Згортати в трей",
   "notification": "Сповіщення",
   "cronNotificationEnabled": "Завершення запланованих завдань",
-  "promptTimeout": "Таймаут промпту ШІ (с)",
+  "promptTimeout": "Таймаут LLM-запиту під керуванням GUI (с)",
   "groupAiCore": "Ядро ШІ",
   "groupApp": "Програма",
   "groupAbout": "Інше",

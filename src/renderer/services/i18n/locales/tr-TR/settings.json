@@ -167,7 +167,7 @@
   "closeToTray": "Tepsiye Kapat",
   "notification": "Bildirimler",
   "cronNotificationEnabled": "Zamanlanmış Görev Tamamlanma",
-  "promptTimeout": "LLM İstek Zaman Aşımı (sn)",
+  "promptTimeout": "GUI Tarafından Yönetilen LLM İstek Zaman Aşımı (sn)",
   "groupAiCore": "AI Çekirdek",
   "groupApp": "Uygulama",
   "groupAbout": "Diğer",
