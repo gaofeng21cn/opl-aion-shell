@@ -52,6 +52,29 @@ const readyInitializeResult: OplCommandResult = {
           total_required_count: 4,
         },
       },
+      recommended_skills: {
+        summary: {
+          total: 7,
+          ready: 7,
+          missing: 0,
+        },
+      },
+    },
+  }),
+  stderr: '',
+};
+const legacyReadyInitializeResult: OplCommandResult = {
+  exitCode: 0,
+  stdout: JSON.stringify({
+    system_initialize: {
+      setup_flow: {
+        ready_to_launch: true,
+        blocking_items: [],
+        progress: {
+          ready_required_count: 4,
+          total_required_count: 4,
+        },
+      },
     },
   }),
   stderr: '',
@@ -70,6 +93,8 @@ const missingRecommendedSkillsInitializeResult: OplCommandResult = {
       },
       recommended_skills: {
         summary: {
+          total: 7,
+          ready: 5,
           missing: 2,
         },
       },
@@ -192,12 +217,15 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockReadOplFirstRunLog).toHaveBeenCalledOnce();
   });
 
-  it('skips OPL install when command-line setup already made the environment launchable', async () => {
+  it('runs managed install once on first launch even when initialize is already launchable', async () => {
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(readyInitializeResult);
 
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
-      status: 'already-prepared',
+      status: 'prepared',
       readyToLaunch: true,
       progress: {
         currentStep: 4,
@@ -206,8 +234,30 @@ describe('oplFirstLaunchPreparation', () => {
       },
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledOnce();
-    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
+  it('runs managed install when initialize is launchable but lacks the recommended skill report', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(legacyReadyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(readyInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: [],
+    });
+
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
@@ -425,13 +475,18 @@ describe('oplFirstLaunchPreparation', () => {
     mockReadOplFirstRunLog.mockRejectedValue(new Error('log unavailable'));
     mockAppendOplFirstRunLog.mockRejectedValue(new Error('log unavailable'));
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(readyInitializeResult);
 
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
-      status: 'already-prepared',
+      status: 'prepared',
       readyToLaunch: true,
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
   });
 });

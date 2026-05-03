@@ -83,6 +83,7 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
 
   return {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
+    OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
     OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
     OPL_HERMES_BIN: path.join(runtimeHome, 'bin', 'hermes'),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
@@ -286,6 +287,7 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
 
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(normalized)}`,
+    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(normalized, 'skills'))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDDEEPSCIENTIST=${shellQuote(path.join(normalized, 'modules', 'mds'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,

@@ -71,6 +71,8 @@ type OplSystemInitializePayload = {
     codex_default_profile?: OplCodexDefaultProfile;
     recommended_skills?: {
       summary?: {
+        ready?: number;
+        total?: number;
         missing?: number;
       };
     };
@@ -215,7 +217,7 @@ const startModuleReconcileForAppVersion = (appVersion?: string): void => {
 
 const readInitializeState = async (
   readyStatus: Extract<OplFirstLaunchPreparationResult['status'], 'already-prepared' | 'prepared'> = 'prepared',
-  options: { installRecommendedSkills?: boolean } = {}
+  options: { forceManagedInstall?: boolean } = {}
 ): Promise<OplFirstLaunchPreparationResult> => {
   const initializeResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INITIALIZE_ARGS] });
   if (initializeResult.exitCode !== 0) {
@@ -229,7 +231,8 @@ const readInitializeState = async (
   const initialize = parseInitializePayload(initializeResult.stdout);
   const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   if (initialize?.setup_flow?.ready_to_launch) {
-    if (options.installRecommendedSkills && needsRecommendedSkillInstall(initialize)) {
+    const shouldRunManagedInstall = options.forceManagedInstall || needsRecommendedSkillInstall(initialize);
+    if (shouldRunManagedInstall) {
       return {
         status: 'setup-needed',
         readyToLaunch: true,
@@ -311,7 +314,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     }
 
     const initialState = await readInitializeState('already-prepared', {
-      installRecommendedSkills: true,
+      forceManagedInstall: true,
     });
 
     if (initialState.status === 'failed') {
