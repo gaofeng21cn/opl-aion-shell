@@ -122,15 +122,15 @@ describe('i18n Performance Tests', () => {
 
       const start = performance.now();
 
-      const jaJPTranslations: Record<string, unknown> = {};
+      const enUSTranslations: Record<string, unknown> = {};
       await Promise.all(
         MODULES.map(async (module) => {
-          const modulePath = path.join(LOCALES_DIR, 'ja-JP', `${module}.json`);
+          const modulePath = path.join(LOCALES_DIR, 'en-US', `${module}.json`);
           const content = await fs.promises.readFile(modulePath, 'utf-8');
-          jaJPTranslations[module] = JSON.parse(content);
+          enUSTranslations[module] = JSON.parse(content);
         })
       );
-      loadedTranslations.set('ja-JP', jaJPTranslations);
+      loadedTranslations.set('en-US', enUSTranslations);
 
       const end = performance.now();
 
@@ -139,13 +139,14 @@ describe('i18n Performance Tests', () => {
   });
 
   describe('Lazy Loading Impact', () => {
-    it('should reduce startup memory by loading only required locale', () => {
+    it('should estimate startup memory from the current supported locale count', () => {
       const estimatedSizePerLocale = 100 * 1024;
       const oldMemoryUsage = SUPPORTED_LANGUAGES.length * estimatedSizePerLocale;
       const newMemoryUsage = estimatedSizePerLocale;
 
       const reduction = (oldMemoryUsage - newMemoryUsage) / oldMemoryUsage;
-      expect(reduction).toBeGreaterThan(0.8);
+      expect(SUPPORTED_LANGUAGES).toHaveLength(2);
+      expect(reduction).toBe(0.5);
     });
   });
 });

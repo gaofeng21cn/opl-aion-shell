@@ -199,10 +199,10 @@ describe('i18n Build Safety Tests', () => {
     const content = fs.readFileSync(rendererI18nFile, 'utf-8');
     expect(content).toMatch(/import\s+enUS\s+from\s+['"]\.\/locales\/en-US\/index['"]/);
     expect(content).toMatch(/import\s+zhCN\s+from\s+['"]\.\/locales\/zh-CN\/index['"]/);
-    expect(content).toMatch(/import\s+jaJP\s+from\s+['"]\.\/locales\/ja-JP\/index['"]/);
-    expect(content).toMatch(/import\s+zhTW\s+from\s+['"]\.\/locales\/zh-TW\/index['"]/);
-    expect(content).toMatch(/import\s+koKR\s+from\s+['"]\.\/locales\/ko-KR\/index['"]/);
-    expect(content).toMatch(/import\s+trTR\s+from\s+['"]\.\/locales\/tr-TR\/index['"]/);
+    const importedLocales = Array.from(content.matchAll(/import\s+\w+\s+from\s+['"]\.\/locales\/([^/]+)\/index['"]/g))
+      .map((match) => match[1])
+      .sort();
+    expect(importedLocales).toEqual(['en-US', 'zh-CN']);
     expect(content).not.toContain('import(`./locales/${locale}/index`)');
   });
 

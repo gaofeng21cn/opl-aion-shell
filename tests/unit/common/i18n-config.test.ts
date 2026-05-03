@@ -7,8 +7,8 @@
 import { SUPPORTED_LANGUAGES } from '@/common/config/i18n';
 
 describe('i18n config', () => {
-  it('should include uk-UA in supported languages', () => {
-    expect(SUPPORTED_LANGUAGES).toContain('uk-UA');
+  it('should only include Simplified Chinese and English', () => {
+    expect(SUPPORTED_LANGUAGES).toEqual(['zh-CN', 'en-US']);
   });
 
   it('should have zh-CN as the first language in this project', () => {

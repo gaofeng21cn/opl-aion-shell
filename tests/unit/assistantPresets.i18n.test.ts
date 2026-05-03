@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { ASSISTANT_PRESETS } from '../../src/common/config/presets/assistantPresets';
 
-describe('assistant preset ru-RU coverage', () => {
-  it('every preset with a ru-RU name also has a ru-RU description', () => {
-    const missing = ASSISTANT_PRESETS.filter(
-      (preset) => preset.nameI18n['ru-RU'] && !preset.descriptionI18n['ru-RU']
-    ).map((preset) => preset.id);
+describe('assistant preset locale coverage', () => {
+  it('keeps preset locale metadata limited to Simplified Chinese and English', () => {
+    const extraLocaleKeys = ASSISTANT_PRESETS.flatMap((preset) =>
+      [
+        ...Object.keys(preset.ruleFiles),
+        ...Object.keys(preset.skillFiles ?? {}),
+        ...Object.keys(preset.nameI18n),
+        ...Object.keys(preset.descriptionI18n),
+        ...Object.keys(preset.promptsI18n ?? {}),
+      ].filter((locale) => locale !== 'zh-CN' && locale !== 'en-US')
+    );
 
-    expect(missing).toEqual([]);
+    expect(extraLocaleKeys).toEqual([]);
   });
 });
 

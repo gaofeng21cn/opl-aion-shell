@@ -45,7 +45,7 @@ describe('createConversationParams', () => {
     configGet.mockReset();
   });
 
-  it('uses the shared locale resolver for Turkish', async () => {
+  it('falls back to English when preset assistant locale is unsupported', async () => {
     loadPresetAssistantResources.mockResolvedValue({
       rules: 'preset rules',
       skills: '',
@@ -72,13 +72,13 @@ describe('createConversationParams', () => {
         presetAgentType: 'gemini',
       },
       '/tmp/workspace',
-      'tr'
+      'de-DE'
     );
 
-    expect(resolveLocaleKey('tr')).toBe('tr-TR');
+    expect(resolveLocaleKey('de-DE')).toBe('en-US');
     expect(loadPresetAssistantResources).toHaveBeenCalledWith({
       customAgentId: 'builtin-cowork',
-      localeKey: 'tr-TR',
+      localeKey: 'en-US',
     });
     expect(params.type).toBe('acp');
     expect(params.extra.backend).toBe('codex');

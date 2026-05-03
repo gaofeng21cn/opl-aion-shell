@@ -13,15 +13,14 @@ import {
 } from '@/common/config/i18n';
 
 describe('common i18n config module', () => {
-  it('should have uk-UA as a supported language', () => {
-    expect(SUPPORTED_LANGUAGES).toContain('uk-UA');
+  it('should support only Simplified Chinese and English', () => {
+    expect(SUPPORTED_LANGUAGES).toEqual(['zh-CN', 'en-US']);
   });
 
-  it('should normalize uk-UA correctly', () => {
-    // Test if normalizeLanguageCode handles uk-UA or similar variants
-    expect(normalizeLanguageCode('uk')).toBe('uk-UA');
-    expect(normalizeLanguageCode('uk-UA')).toBe('uk-UA');
-    expect(normalizeLanguageCode('UK-UA')).toBe('uk-UA');
+  it('should fall back to English for unsupported locales', () => {
+    expect(normalizeLanguageCode('uk')).toBe('en-US');
+    expect(normalizeLanguageCode('fr-FR')).toBe('en-US');
+    expect(normalizeLanguageCode('tr')).toBe('en-US');
   });
 
   it('should normalize macOS Simplified Chinese system language to zh-CN', () => {
@@ -29,22 +28,18 @@ describe('common i18n config module', () => {
     expect(tryNormalizeLanguageCode('fr-FR')).toBeUndefined();
   });
 
-  it('should prefer saved language, then system language, then fallback language', () => {
+  it('should prefer saved language, then system language, then fallback language within supported locales', () => {
     expect(
       resolveInitialLanguage({
-        savedLanguage: 'ja-JP',
+        savedLanguage: 'en-US',
         systemLanguages: ['zh-Hans-CN'],
       })
-    ).toBe('ja-JP');
+    ).toBe('en-US');
     expect(
       resolveInitialLanguage({
         systemLanguages: ['fr-FR', 'zh-Hans-CN', 'en-CN'],
       })
     ).toBe('zh-CN');
-    expect(resolveInitialLanguage({ fallbackLanguage: 'tr' })).toBe('tr-TR');
-  });
-
-  it('should have enough supported languages', () => {
-    expect(SUPPORTED_LANGUAGES.length).toBeGreaterThan(6);
+    expect(resolveInitialLanguage({ fallbackLanguage: 'tr' })).toBe('en-US');
   });
 });

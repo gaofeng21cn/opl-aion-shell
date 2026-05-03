@@ -25,29 +25,14 @@ export function tryNormalizeLanguageCode(language: string | null | undefined): S
   }
 
   const langOnly = normalized.toLowerCase().split('-')[0];
-  switch (langOnly) {
-    case 'en':
-      return 'en-US';
-    case 'zh':
-      return 'zh-CN';
-    case 'ja':
-      return 'ja-JP';
-    case 'ko':
-      return 'ko-KR';
-    case 'tr':
-      return 'tr-TR';
-    case 'ru':
-      return 'ru-RU';
-    case 'uk':
-      return 'uk-UA';
-    default:
-      return undefined;
-  }
+  if (langOnly === 'en') return 'en-US';
+  if (langOnly === 'zh') return 'zh-CN';
+  return undefined;
 }
 
 /**
  * Normalize a language code to a supported BCP 47 tag.
- * e.g. 'zh' → 'zh-CN', 'ja_JP' → 'ja-JP'
+ * e.g. 'zh' → 'zh-CN', unsupported locales → fallback language
  */
 export function normalizeLanguageCode(language: string): SupportedLanguage {
   return tryNormalizeLanguageCode(language) ?? DEFAULT_LANGUAGE;
