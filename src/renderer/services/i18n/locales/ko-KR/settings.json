@@ -1060,6 +1060,16 @@
     "failed": "환경 준비에 실패했습니다. 설정 > 환경 관리에서 설치를 복구하세요.",
     "readyEntry": "One Person Lab에 들어갈 준비가 되었습니다",
     "logPath": "첫 실행 로그: {{path}}",
+    "progress": {
+      "workingOn": "처리 중: {{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "로컬 환경 확인",
+        "configureCodex": "Codex 설정",
+        "installingModules": "모듈 설치 및 동기화",
+        "reviewingStatus": "준비 상태 확인",
+        "complete": "초기화 완료"
+      }
+    },
     "codex": {
       "prompt": "Codex API 키를 입력하세요. OPL은 기본 provider endpoint와 현재 초기 모델 profile을 사용합니다.",
       "providerEndpoint": "기본 provider endpoint",

@@ -1060,6 +1060,16 @@
     "failed": "環境準備失敗，請到設定-環境管理中修復安裝",
     "readyEntry": "可以進入 One Person Lab",
     "logPath": "首啟日誌：{{path}}",
+    "progress": {
+      "workingOn": "正在處理：{{step}}（{{current}}/{{total}}）",
+      "steps": {
+        "checkingEnvironment": "檢查本機環境",
+        "configureCodex": "設定 Codex",
+        "installingModules": "安裝並同步模組",
+        "reviewingStatus": "複查就緒狀態",
+        "complete": "完成初始化"
+      }
+    },
     "codex": {
       "prompt": "輸入你的 Codex API Key，OPL 會使用預設 provider endpoint 與目前初始模型 profile 寫入本機 Codex 設定。",
       "providerEndpoint": "預設 provider endpoint",

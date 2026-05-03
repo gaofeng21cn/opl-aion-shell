@@ -1059,6 +1059,16 @@
     "failed": "Не вдалося підготувати середовище. Відкрийте Налаштування > Керування середовищем, щоб відновити інсталяцію.",
     "readyEntry": "Готово до входу в One Person Lab",
     "logPath": "Журнал першого запуску: {{path}}",
+    "progress": {
+      "workingOn": "Виконується: {{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "перевірка локального середовища",
+        "configureCodex": "налаштування Codex",
+        "installingModules": "установлення й синхронізація модулів",
+        "reviewingStatus": "перевірка готовності",
+        "complete": "завершення налаштування"
+      }
+    },
     "codex": {
       "prompt": "Введіть API-ключ Codex. OPL використає типовий provider endpoint і поточний початковий профіль моделі.",
       "providerEndpoint": "Типовий provider endpoint",

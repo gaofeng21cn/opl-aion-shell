@@ -1060,6 +1060,16 @@
     "failed": "環境準備に失敗しました。設定 > 環境管理でインストールを修復してください。",
     "readyEntry": "One Person Lab に入る準備ができました",
     "logPath": "初回起動ログ: {{path}}",
+    "progress": {
+      "workingOn": "処理中: {{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "ローカル環境の確認",
+        "configureCodex": "Codex の設定",
+        "installingModules": "モジュールのインストールと同期",
+        "reviewingStatus": "準備状態の確認",
+        "complete": "初期化の完了"
+      }
+    },
     "codex": {
       "prompt": "Codex API キーを入力してください。OPL は既定の provider endpoint と現在の初期モデル profile を使用します。",
       "providerEndpoint": "既定の provider endpoint",

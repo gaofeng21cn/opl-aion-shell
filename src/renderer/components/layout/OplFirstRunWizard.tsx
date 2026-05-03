@@ -1,7 +1,12 @@
 import { Alert, Button, Input, Spin } from '@arco-design/web-react';
 import React, { useMemo, useState } from 'react';
 
-import type { OplCodexDefaultProfile, OplFirstLaunchPreparationResult } from './oplFirstLaunchPreparation';
+import type {
+  OplCodexDefaultProfile,
+  OplFirstLaunchPreparationResult,
+  OplFirstLaunchProgress,
+  OplFirstLaunchProgressStep,
+} from './oplFirstLaunchPreparation';
 
 export type OplFirstRunWizardState = {
   status: OplFirstLaunchPreparationResult['status'] | 'preparing';
@@ -9,6 +14,7 @@ export type OplFirstRunWizardState = {
   blockers?: string[];
   codexDefaultProfile?: OplCodexDefaultProfile;
   logPath?: string;
+  progress?: OplFirstLaunchProgress;
 };
 
 type OplFirstRunWizardProps = {
@@ -21,16 +27,15 @@ type OplFirstRunWizardProps = {
 
 const formatProviderEndpointLine = (profile?: OplCodexDefaultProfile): string => {
   if (!profile) return '';
-  return [
-    profile.provider_name ?? profile.model_provider,
-    profile.base_url,
-  ].filter(Boolean).join(' / ');
+  return [profile.provider_name ?? profile.model_provider, profile.base_url].filter(Boolean).join(' / ');
 };
 
 const formatInitialModelProfileLine = (profile?: OplCodexDefaultProfile): string => {
   if (!profile) return '';
   return [profile.model, profile.model_reasoning_effort].filter(Boolean).join(' / ');
 };
+
+const progressStepKey = (step: OplFirstLaunchProgressStep): string => `settings.oplFirstLaunch.progress.steps.${step}`;
 
 export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
   state,
@@ -46,6 +51,9 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
   const needsCodexConfig = state.status === 'codex-config-needed';
   const isPreparing = state.status === 'preparing';
   const isReady = state.status === 'prepared' || state.status === 'already-prepared';
+  const progress = state.progress;
+  const progressPercent = progress ? Math.round((progress.currentStep / progress.totalSteps) * 100) : 0;
+  const progressStepLabel = progress ? t(progressStepKey(progress.step)) : '';
   const providerEndpointLine = useMemo(
     () => formatProviderEndpointLine(state.codexDefaultProfile),
     [state.codexDefaultProfile]
@@ -96,9 +104,33 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
           </div>
 
           {isPreparing && (
-            <div className='flex items-center gap-12px text-14px text-t-secondary'>
-              <Spin size={18} />
-              <span>{t('settings.oplFirstLaunch.preparing')}</span>
+            <div className='flex flex-col gap-10px rounded-6px bg-fill-1 px-14px py-12px'>
+              <div className='flex items-center gap-12px text-14px text-t-secondary'>
+                <Spin size={18} />
+                <span>
+                  {progress
+                    ? t('settings.oplFirstLaunch.progress.workingOn', {
+                        step: progressStepLabel,
+                        current: String(progress.currentStep),
+                        total: String(progress.totalSteps),
+                      })
+                    : t('settings.oplFirstLaunch.preparing')}
+                </span>
+              </div>
+              {progress && (
+                <div
+                  className='h-4px overflow-hidden rd-999px bg-fill-3'
+                  role='progressbar'
+                  aria-valuemin={0}
+                  aria-valuemax={progress.totalSteps}
+                  aria-valuenow={progress.currentStep}
+                >
+                  <div
+                    className='h-full rd-999px bg-primary-6 transition-width duration-200 ease'
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -121,10 +153,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
                   )}
                 </div>
               )}
-              <div
-                data-testid='opl-first-run-codex-api-key-input'
-                aria-label='opl-first-run-codex-api-key-input'
-              >
+              <div data-testid='opl-first-run-codex-api-key-input' aria-label='opl-first-run-codex-api-key-input'>
                 <Input.Password
                   aria-label='opl-first-run-codex-api-key-input'
                   value={apiKey}

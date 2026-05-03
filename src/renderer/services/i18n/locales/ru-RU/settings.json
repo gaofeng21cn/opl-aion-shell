@@ -1060,6 +1060,16 @@
     "failed": "Не удалось подготовить среду. Откройте Настройки > Управление средой, чтобы восстановить установку.",
     "readyEntry": "Готово к входу в One Person Lab",
     "logPath": "Журнал первого запуска: {{path}}",
+    "progress": {
+      "workingOn": "Выполняется: {{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "проверка локальной среды",
+        "configureCodex": "настройка Codex",
+        "installingModules": "установка и синхронизация модулей",
+        "reviewingStatus": "проверка готовности",
+        "complete": "завершение настройки"
+      }
+    },
     "codex": {
       "prompt": "Введите API-ключ Codex. OPL использует provider endpoint по умолчанию и текущий начальный профиль модели.",
       "providerEndpoint": "Provider endpoint по умолчанию",

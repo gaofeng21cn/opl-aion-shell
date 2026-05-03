@@ -31,9 +31,8 @@ import { isElectronDesktop } from '@renderer/utils/platform';
 import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
 import { RUNTIME_TRAY_ITEM_STORAGE_KEY, type RuntimeTrayOpenPayload } from '@renderer/pages/runtime/types';
 import {
-  claimOplFirstLaunchPreparationMessage,
+  buildOplFirstLaunchProgress,
   configureOplCodexForFirstLaunch,
-  releaseOplFirstLaunchPreparationMessage,
   startOplFirstLaunchEnvironmentPreparation,
   type OplFirstLaunchPreparationResult,
 } from './oplFirstLaunchPreparation';
@@ -95,7 +94,17 @@ export type OplFirstRunPanelState = {
   blockers?: string[];
   codexDefaultProfile?: OplFirstRunWizardState['codexDefaultProfile'];
   logPath?: string;
+  progress?: OplFirstRunWizardState['progress'];
 };
+
+const toFirstRunPanelState = (result: OplFirstLaunchPreparationResult): OplFirstRunPanelState => ({
+  status: result.status,
+  message: result.message,
+  blockers: result.blockers,
+  codexDefaultProfile: result.codexDefaultProfile,
+  logPath: result.firstRunLog?.path,
+  progress: result.progress,
+});
 
 export const OplFirstRunStatusPanel: React.FC<{
   state: OplFirstRunPanelState;
@@ -230,58 +239,36 @@ const Layout: React.FC<{
     if (!isElectronDesktop()) return;
 
     let cancelled = false;
-    let hideLoadingMessage: ReturnType<typeof Message.loading> | undefined;
-    let releaseMessageOwner: (() => void) | undefined;
-    let showLoadingTimer: ReturnType<typeof setTimeout> | undefined;
-
-    const releaseOwnedMessage = () => {
-      if (releaseMessageOwner) {
-        releaseMessageOwner();
-        releaseMessageOwner = undefined;
-      }
-      if (showLoadingTimer) {
-        clearTimeout(showLoadingTimer);
-        showLoadingTimer = undefined;
-      }
-      if (hideLoadingMessage) {
-        hideLoadingMessage();
-        hideLoadingMessage = undefined;
-      }
-    };
 
     const prepareEnvironment = async () => {
       if (cancelled) return;
-      const messageOwner = Symbol('opl-first-launch-preparation-message');
       const appVersions = await ipcBridge.application.appVersions.invoke().catch((): null => null);
       if (cancelled) return;
       firstRunAppVersionRef.current = appVersions?.oplVersion?.trim() || undefined;
+      setFirstRunPanelState(
+        (current) =>
+          current ?? {
+            status: 'preparing',
+            blockers: [],
+            progress: buildOplFirstLaunchProgress('checkingEnvironment'),
+          }
+      );
       const preparationPromise = startOplFirstLaunchEnvironmentPreparation({
         appVersion: firstRunAppVersionRef.current,
-      });
-      const ownsMessage = claimOplFirstLaunchPreparationMessage(messageOwner);
-      if (ownsMessage) {
-        releaseMessageOwner = () => releaseOplFirstLaunchPreparationMessage(messageOwner);
-        showLoadingTimer = setTimeout(() => {
+        onProgress: (progress) => {
           if (cancelled) return;
-          setFirstRunPanelState((current) => current ?? { status: 'preparing', blockers: [] });
-          hideLoadingMessage = Message.loading({
-            content: t('settings.oplFirstLaunch.preparing'),
-            duration: 0,
-          });
-        }, 800);
-      }
+          setFirstRunPanelState((current) => ({
+            status: 'preparing',
+            blockers: current?.blockers ?? [],
+            progress,
+          }));
+        },
+      });
 
       try {
         const result = await preparationPromise;
         if (cancelled) return;
-        setFirstRunPanelState({
-          status: result.status,
-          message: result.message,
-          blockers: result.blockers,
-          codexDefaultProfile: result.codexDefaultProfile,
-          logPath: result.firstRunLog?.path,
-        });
-        if (!ownsMessage) return;
+        setFirstRunPanelState(toFirstRunPanelState(result));
 
         if (result.status === 'already-prepared') {
           return;
@@ -310,15 +297,12 @@ const Layout: React.FC<{
           });
           void navigate('/settings/runtime');
         }
-      } finally {
-        releaseOwnedMessage();
       }
     };
 
     void prepareEnvironment();
     return () => {
       cancelled = true;
-      releaseOwnedMessage();
     };
   }, [navigate, t]);
   const location = useLocation();
@@ -583,9 +567,7 @@ const Layout: React.FC<{
       )
     : DEFAULT_SIDER_WIDTH;
   const showFirstRunWizard = Boolean(
-    firstRunPanelState &&
-      firstRunPanelState.status !== 'prepared' &&
-      firstRunPanelState.status !== 'already-prepared'
+    firstRunPanelState && firstRunPanelState.status !== 'prepared' && firstRunPanelState.status !== 'already-prepared'
   );
   useEffect(() => {
     collapsedRef.current = collapsed;
@@ -749,42 +731,56 @@ const Layout: React.FC<{
                   state={firstRunPanelState}
                   t={t}
                   onRetry={() => {
-                    setFirstRunPanelState({ status: 'preparing', blockers: firstRunPanelState.blockers });
+                    setFirstRunPanelState({
+                      status: 'preparing',
+                      blockers: firstRunPanelState.blockers,
+                      progress: buildOplFirstLaunchProgress('checkingEnvironment'),
+                    });
                     void startOplFirstLaunchEnvironmentPreparation({
                       appVersion: firstRunAppVersionRef.current,
-                    }).then((result) => {
-                      setFirstRunPanelState({
-                        status: result.status,
-                        message: result.message,
-                        blockers: result.blockers,
-                        codexDefaultProfile: result.codexDefaultProfile,
-                        logPath: result.firstRunLog?.path,
+                      onProgress: (progress) => {
+                        setFirstRunPanelState((current) => ({
+                          status: 'preparing',
+                          blockers: current?.blockers ?? [],
+                          progress,
+                        }));
+                      },
+                    })
+                      .then((result) => {
+                        setFirstRunPanelState(toFirstRunPanelState(result));
+                      })
+                      .catch((error: unknown) => {
+                        setFirstRunPanelState({
+                          status: 'failed',
+                          message: error instanceof Error ? error.message : undefined,
+                        });
                       });
-                    }).catch((error: unknown) => {
-                      setFirstRunPanelState({
-                        status: 'failed',
-                        message: error instanceof Error ? error.message : undefined,
-                      });
-                    });
                   }}
                   onConfigureCodex={(apiKey) => {
-                    setFirstRunPanelState({ status: 'preparing', blockers: firstRunPanelState.blockers });
+                    setFirstRunPanelState({
+                      status: 'preparing',
+                      blockers: firstRunPanelState.blockers,
+                      progress: buildOplFirstLaunchProgress('configureCodex'),
+                    });
                     return configureOplCodexForFirstLaunch(apiKey, {
                       appVersion: firstRunAppVersionRef.current,
-                    }).then((result) => {
-                      setFirstRunPanelState({
-                        status: result.status,
-                        message: result.message,
-                        blockers: result.blockers,
-                        codexDefaultProfile: result.codexDefaultProfile,
-                        logPath: result.firstRunLog?.path,
+                      onProgress: (progress) => {
+                        setFirstRunPanelState((current) => ({
+                          status: 'preparing',
+                          blockers: current?.blockers ?? [],
+                          progress,
+                        }));
+                      },
+                    })
+                      .then((result) => {
+                        setFirstRunPanelState(toFirstRunPanelState(result));
+                      })
+                      .catch((error: unknown) => {
+                        setFirstRunPanelState({
+                          status: 'failed',
+                          message: error instanceof Error ? error.message : undefined,
+                        });
                       });
-                    }).catch((error: unknown) => {
-                      setFirstRunPanelState({
-                        status: 'failed',
-                        message: error instanceof Error ? error.message : undefined,
-                      });
-                    });
                   }}
                   onOpenEnvironment={() => {
                     void navigate('/settings/runtime');

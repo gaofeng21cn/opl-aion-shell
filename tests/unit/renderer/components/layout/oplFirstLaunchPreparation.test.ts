@@ -34,8 +34,6 @@ vi.mock('@/common/config/storage', () => ({
 }));
 
 import {
-  claimOplFirstLaunchPreparationMessage,
-  releaseOplFirstLaunchPreparationMessage,
   resetOplFirstLaunchPreparationStateForTests,
   configureOplCodexForFirstLaunch,
   startOplFirstLaunchEnvironmentPreparation,
@@ -49,6 +47,10 @@ const readyInitializeResult: OplCommandResult = {
       setup_flow: {
         ready_to_launch: true,
         blocking_items: [],
+        progress: {
+          ready_required_count: 4,
+          total_required_count: 4,
+        },
       },
     },
   }),
@@ -61,6 +63,10 @@ const missingRecommendedSkillsInitializeResult: OplCommandResult = {
       setup_flow: {
         ready_to_launch: true,
         blocking_items: [],
+        progress: {
+          ready_required_count: 3,
+          total_required_count: 4,
+        },
       },
       recommended_skills: {
         summary: {
@@ -78,6 +84,10 @@ const setupNeededInitializeResult: OplCommandResult = {
       setup_flow: {
         ready_to_launch: false,
         blocking_items: ['domain_modules'],
+        progress: {
+          ready_required_count: 2,
+          total_required_count: 4,
+        },
       },
       recommended_next_action: {
         label: 'Install domain modules',
@@ -93,6 +103,10 @@ const codexConfigNeededInitializeResult: OplCommandResult = {
       setup_flow: {
         ready_to_launch: false,
         blocking_items: ['codex_config', 'domain_modules'],
+        progress: {
+          ready_required_count: 1,
+          total_required_count: 4,
+        },
       },
       codex_default_profile: {
         model_provider: 'gflab',
@@ -127,11 +141,13 @@ const createDeferredOplCommandResult = (): {
   };
 };
 
-const waitForOplCommandCalls = async (count: number) => {
-  for (let attempt = 0; attempt < 20 && mockRunOplCommand.mock.calls.length < count; attempt += 1) {
-    await Promise.resolve();
+const waitForOplCommandCalls = async (count: number, attempt = 0): Promise<void> => {
+  if (attempt >= 20 || mockRunOplCommand.mock.calls.length >= count) {
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(count);
+    return;
   }
-  expect(mockRunOplCommand).toHaveBeenCalledTimes(count);
+  await Promise.resolve();
+  await waitForOplCommandCalls(count, attempt + 1);
 };
 
 describe('oplFirstLaunchPreparation', () => {
@@ -164,6 +180,11 @@ describe('oplFirstLaunchPreparation', () => {
       status: 'already-prepared',
       readyToLaunch: true,
       firstRunLog: { path: '/Users/test/Library/Logs/One Person Lab/first-run.jsonl' },
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
     });
 
     expect(mockRunOplCommand).not.toHaveBeenCalled();
@@ -178,6 +199,11 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'already-prepared',
       readyToLaunch: true,
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
     });
 
     expect(mockRunOplCommand).toHaveBeenCalledOnce();
@@ -235,6 +261,11 @@ describe('oplFirstLaunchPreparation', () => {
       status: 'prepared',
       readyToLaunch: true,
       blockers: [],
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
     });
 
     expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
@@ -256,6 +287,11 @@ describe('oplFirstLaunchPreparation', () => {
       status: 'codex-config-needed',
       readyToLaunch: false,
       blockers: ['codex_config', 'domain_modules'],
+      progress: {
+        currentStep: 2,
+        totalSteps: 4,
+        step: 'configureCodex',
+      },
       codexDefaultProfile: {
         model_provider: 'gflab',
         model: 'gpt-5.5',
@@ -280,6 +316,11 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(configureOplCodexForFirstLaunch('secret-api-key')).resolves.toMatchObject({
       status: 'prepared',
       readyToLaunch: true,
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
     });
 
     expect(mockConfigureOplCodex).toHaveBeenCalledWith({ apiKey: 'secret-api-key' });
@@ -332,26 +373,35 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('allows only one loading message owner while preparation is in flight', async () => {
+  it('reports preparation progress transitions while install is in flight', async () => {
     const deferredRun = createDeferredOplCommandResult();
+    const onProgress = vi.fn();
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand
       .mockResolvedValueOnce(setupNeededInitializeResult)
       .mockReturnValueOnce(deferredRun.promise)
       .mockResolvedValueOnce(readyInitializeResult);
 
-    const preparation = startOplFirstLaunchEnvironmentPreparation();
-    const firstOwner = Symbol('first');
-    const secondOwner = Symbol('second');
-
-    expect(claimOplFirstLaunchPreparationMessage(firstOwner)).toBe(true);
-    expect(claimOplFirstLaunchPreparationMessage(secondOwner)).toBe(false);
-
-    releaseOplFirstLaunchPreparationMessage(firstOwner);
-    expect(claimOplFirstLaunchPreparationMessage(secondOwner)).toBe(true);
+    const preparation = startOplFirstLaunchEnvironmentPreparation({ onProgress });
+    await waitForOplCommandCalls(2);
 
     deferredRun.resolve({ exitCode: 0, stdout: '', stderr: '' });
     await expect(preparation).resolves.toMatchObject({ status: 'prepared' });
+    expect(onProgress).toHaveBeenNthCalledWith(1, {
+      currentStep: 1,
+      totalSteps: 4,
+      step: 'checkingEnvironment',
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(2, {
+      currentStep: 3,
+      totalSteps: 4,
+      step: 'installingModules',
+    });
+    expect(onProgress).toHaveBeenNthCalledWith(3, {
+      currentStep: 4,
+      totalSteps: 4,
+      step: 'reviewingStatus',
+    });
   });
 
   it('returns command failure details without marking the environment prepared', async () => {
@@ -361,6 +411,11 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'failed',
       message: 'stderr details',
+      progress: {
+        currentStep: 1,
+        totalSteps: 4,
+        step: 'checkingEnvironment',
+      },
     });
 
     expect(mockConfigSet).not.toHaveBeenCalled();

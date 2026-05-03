@@ -1059,6 +1059,16 @@
     "failed": "环境准备失败，请到设置-环境管理中修复安装",
     "readyEntry": "可以进入 One Person Lab",
     "logPath": "首启日志：{{path}}",
+    "progress": {
+      "workingOn": "正在处理：{{step}}（{{current}}/{{total}}）",
+      "steps": {
+        "checkingEnvironment": "检查本机环境",
+        "configureCodex": "配置 Codex",
+        "installingModules": "安装并同步模块",
+        "reviewingStatus": "复查就绪状态",
+        "complete": "完成初始化"
+      }
+    },
     "codex": {
       "prompt": "输入你的 Codex API Key，OPL 会使用默认 provider endpoint 和当前初始模型 profile 写入本机 Codex 配置。",
       "providerEndpoint": "默认 provider endpoint",

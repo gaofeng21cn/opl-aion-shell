@@ -20,11 +20,11 @@ type OplFirstLaunchResultDetails = {
   blockers?: string[];
   codexDefaultProfile?: OplCodexDefaultProfile;
   firstRunLog?: OplFirstRunLogSnapshot;
+  progress?: OplFirstLaunchProgress;
 };
 
 type OplFirstLaunchPreparationState = {
   promise: Promise<OplFirstLaunchPreparationResult>;
-  messageOwner: symbol | null;
 };
 
 type OplModuleReconcileState = {
@@ -40,6 +40,20 @@ const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
 
 type OplFirstLaunchPreparationOptions = {
   appVersion?: string;
+  onProgress?: (progress: OplFirstLaunchProgress) => void;
+};
+
+export type OplFirstLaunchProgressStep =
+  | 'checkingEnvironment'
+  | 'configureCodex'
+  | 'installingModules'
+  | 'reviewingStatus'
+  | 'complete';
+
+export type OplFirstLaunchProgress = {
+  currentStep: number;
+  totalSteps: number;
+  step: OplFirstLaunchProgressStep;
 };
 
 type OplSystemInitializePayload = {
@@ -47,6 +61,12 @@ type OplSystemInitializePayload = {
     setup_flow?: {
       ready_to_launch?: boolean;
       blocking_items?: string[];
+      progress?: {
+        required_completed_count?: number;
+        required_total_count?: number;
+        ready_required_count?: number;
+        total_required_count?: number;
+      };
     };
     codex_default_profile?: OplCodexDefaultProfile;
     recommended_skills?: {
@@ -73,8 +93,55 @@ export type OplCodexDefaultProfile = {
 let preparationState: OplFirstLaunchPreparationState | null = null;
 let moduleReconcileState: OplModuleReconcileState | null = null;
 
+const FIRST_LAUNCH_STEP_TOTAL = 4;
+const FIRST_LAUNCH_STEP_INDEX: Record<OplFirstLaunchProgressStep, number> = {
+  checkingEnvironment: 1,
+  configureCodex: 2,
+  installingModules: 3,
+  reviewingStatus: 4,
+  complete: 4,
+};
+
 const getFailureMessage = (result: { stdout: string; stderr: string }): string | undefined =>
   result.stderr || result.stdout || undefined;
+
+export const buildOplFirstLaunchProgress = (step: OplFirstLaunchProgressStep): OplFirstLaunchProgress => ({
+  currentStep: FIRST_LAUNCH_STEP_INDEX[step],
+  totalSteps: FIRST_LAUNCH_STEP_TOTAL,
+  step,
+});
+
+const normalizeProgressCount = (value: number | undefined): number | null => {
+  if (!Number.isFinite(value)) return null;
+  return Math.max(0, Math.floor(value));
+};
+
+const buildInitializeProgress = (
+  initialize: OplSystemInitializePayload['system_initialize'] | null,
+  step: OplFirstLaunchProgressStep
+): OplFirstLaunchProgress => {
+  const requiredTotal =
+    normalizeProgressCount(initialize?.setup_flow?.progress?.total_required_count) ??
+    normalizeProgressCount(initialize?.setup_flow?.progress?.required_total_count);
+  if (!requiredTotal) return buildOplFirstLaunchProgress(step);
+
+  const requiredReady =
+    normalizeProgressCount(initialize?.setup_flow?.progress?.ready_required_count) ??
+    normalizeProgressCount(initialize?.setup_flow?.progress?.required_completed_count) ??
+    0;
+  const currentStep = initialize?.setup_flow?.ready_to_launch
+    ? requiredTotal
+    : Math.min(requiredTotal, Math.max(1, requiredReady + 1));
+  return {
+    currentStep,
+    totalSteps: requiredTotal,
+    step,
+  };
+};
+
+const emitProgress = (options: OplFirstLaunchPreparationOptions, step: OplFirstLaunchProgressStep): void => {
+  options.onProgress?.(buildOplFirstLaunchProgress(step));
+};
 
 const parseInitializePayload = (stdout: string): OplSystemInitializePayload['system_initialize'] | null => {
   try {
@@ -152,18 +219,32 @@ const readInitializeState = async (
 ): Promise<OplFirstLaunchPreparationResult> => {
   const initializeResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INITIALIZE_ARGS] });
   if (initializeResult.exitCode !== 0) {
-    return { status: 'failed', message: getFailureMessage(initializeResult) };
+    return {
+      status: 'failed',
+      message: getFailureMessage(initializeResult),
+      progress: buildOplFirstLaunchProgress('checkingEnvironment'),
+    };
   }
 
   const initialize = parseInitializePayload(initializeResult.stdout);
   const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   if (initialize?.setup_flow?.ready_to_launch) {
     if (options.installRecommendedSkills && needsRecommendedSkillInstall(initialize)) {
-      return { status: 'setup-needed', readyToLaunch: true, blockers: ['recommended_skills'] };
+      return {
+        status: 'setup-needed',
+        readyToLaunch: true,
+        blockers: ['recommended_skills'],
+        progress: buildOplFirstLaunchProgress('installingModules'),
+      };
     }
 
     await ConfigStorage.set(PREPARED_AT_CONFIG_KEY, Date.now());
-    return { status: readyStatus, readyToLaunch: true, blockers: [] };
+    return {
+      status: readyStatus,
+      readyToLaunch: true,
+      blockers: [],
+      progress: buildInitializeProgress(initialize, 'complete'),
+    };
   }
 
   const actionLabel = initialize?.recommended_next_action?.label;
@@ -174,6 +255,7 @@ const readInitializeState = async (
       readyToLaunch: false,
       blockers: blockingItems,
       codexDefaultProfile: initialize?.codex_default_profile,
+      progress: buildInitializeProgress(initialize, 'configureCodex'),
     };
   }
 
@@ -182,6 +264,7 @@ const readInitializeState = async (
     message: actionLabel || (blockingItems.length ? blockingItems.join(', ') : undefined),
     readyToLaunch: false,
     blockers: blockingItems,
+    progress: buildInitializeProgress(initialize, 'installingModules'),
   };
 };
 
@@ -189,6 +272,7 @@ export const configureOplCodexForFirstLaunch = async (
   apiKey: string,
   options: OplFirstLaunchPreparationOptions = {}
 ): Promise<OplFirstLaunchPreparationResult> => {
+  emitProgress(options, 'configureCodex');
   await appendFirstRunLogEvent('gui_codex_configure_started', { api_key_present: Boolean(apiKey.trim()) });
   const result = await ipcBridge.shell.configureOplCodex.invoke({ apiKey });
   if (result.exitCode !== 0) {
@@ -199,6 +283,7 @@ export const configureOplCodexForFirstLaunch = async (
       message,
       readyToLaunch: false,
       firstRunLog: await readFirstRunLogSnapshot(),
+      progress: buildOplFirstLaunchProgress('configureCodex'),
     };
   }
 
@@ -212,11 +297,17 @@ const runOplFirstLaunchEnvironmentPreparation = async (
   const firstRunLog = await readFirstRunLogSnapshot();
   await appendFirstRunLogEvent('gui_preparation_started');
   try {
+    emitProgress(options, 'checkingEnvironment');
     const wasPrepared = await readPreparedState();
     if (wasPrepared) {
       startModuleReconcileForAppVersion(options.appVersion);
       await appendFirstRunLogEvent('gui_preparation_skipped', { status: 'already-prepared' });
-      return { status: 'already-prepared', readyToLaunch: true, firstRunLog };
+      return {
+        status: 'already-prepared',
+        readyToLaunch: true,
+        firstRunLog,
+        progress: buildOplFirstLaunchProgress('complete'),
+      };
     }
 
     const initialState = await readInitializeState('already-prepared', {
@@ -234,13 +325,22 @@ const runOplFirstLaunchEnvironmentPreparation = async (
 
     let readyState = initialState;
     if (initialState.status === 'setup-needed') {
+      emitProgress(options, 'installingModules');
       const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
       if (result.exitCode !== 0) {
         const message = getFailureMessage(result);
         await appendFirstRunLogEvent('gui_install_failed', { status: 'failed', message });
-        return { status: 'failed', message, readyToLaunch: false, blockers: initialState.blockers, firstRunLog };
+        return {
+          status: 'failed',
+          message,
+          readyToLaunch: false,
+          blockers: initialState.blockers,
+          firstRunLog,
+          progress: buildOplFirstLaunchProgress('installingModules'),
+        };
       }
 
+      emitProgress(options, 'reviewingStatus');
       const preparedState = await readInitializeState('prepared');
       if (preparedState.status !== 'prepared' && preparedState.status !== 'already-prepared') {
         await appendFirstRunLogEvent('gui_post_install_initialize', {
@@ -255,11 +355,16 @@ const runOplFirstLaunchEnvironmentPreparation = async (
 
     startModuleReconcileForAppVersion(options.appVersion);
 
-    const result = options.appVersion && (readyState.status === 'prepared' || readyState.status === 'already-prepared')
-      ? { status: 'prepared' as const, readyToLaunch: true, blockers: [] }
-      : readyState;
+    const result =
+      options.appVersion && (readyState.status === 'prepared' || readyState.status === 'already-prepared')
+        ? { status: 'prepared' as const, readyToLaunch: true, blockers: [] }
+        : readyState;
     await appendFirstRunLogEvent('gui_preparation_completed', { status: result.status });
-    return { ...result, firstRunLog };
+    return {
+      ...result,
+      firstRunLog,
+      progress: result.progress ?? buildOplFirstLaunchProgress('complete'),
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : undefined;
     await appendFirstRunLogEvent('gui_preparation_error', { status: 'failed', message });
@@ -268,6 +373,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
       message,
       readyToLaunch: false,
       firstRunLog,
+      progress: buildOplFirstLaunchProgress('checkingEnvironment'),
     };
   }
 };
@@ -282,23 +388,8 @@ export const startOplFirstLaunchEnvironmentPreparation = (
   const promise = runOplFirstLaunchEnvironmentPreparation(options).finally(() => {
     preparationState = null;
   });
-  preparationState = { promise, messageOwner: null };
+  preparationState = { promise };
   return promise;
-};
-
-export const claimOplFirstLaunchPreparationMessage = (owner: symbol): boolean => {
-  if (!preparationState || preparationState.messageOwner) {
-    return false;
-  }
-
-  preparationState.messageOwner = owner;
-  return true;
-};
-
-export const releaseOplFirstLaunchPreparationMessage = (owner: symbol): void => {
-  if (preparationState?.messageOwner === owner) {
-    preparationState.messageOwner = null;
-  }
 };
 
 export const resetOplFirstLaunchPreparationStateForTests = (): void => {

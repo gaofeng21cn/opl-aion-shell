@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -6,7 +6,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { OplFirstRunStatusPanel } from '@/renderer/components/layout/Layout';
 import { OplFirstRunWizard } from '@/renderer/components/layout/OplFirstRunWizard';
 
-const t = (key: string, options?: Record<string, string>) => `${key}${options?.path ? `:${options.path}` : ''}`;
+const t = (key: string, options?: Record<string, string>) => {
+  if (key === 'settings.oplFirstLaunch.progress.workingOn') {
+    return `working:${options?.step}:${options?.current}/${options?.total}`;
+  }
+  if (key === 'settings.oplFirstLaunch.progress.steps.installingModules') {
+    return 'installing modules';
+  }
+  return `${key}${options?.path ? `:${options.path}` : ''}`;
+};
 
 describe('OplFirstRunStatusPanel', () => {
   it('renders stable first-run selectors and blocker status', async () => {
@@ -54,14 +62,39 @@ describe('OplFirstRunStatusPanel', () => {
       />
     );
 
-    expect(screen.getByTestId('opl-first-run-ready-entry')).toHaveAttribute(
-      'aria-label',
-      'opl-first-run-ready-entry'
-    );
+    expect(screen.getByTestId('opl-first-run-ready-entry')).toHaveAttribute('aria-label', 'opl-first-run-ready-entry');
   });
 });
 
 describe('OplFirstRunWizard', () => {
+  it('renders in-page first-run progress without repeating the generic preparing message', () => {
+    render(
+      <OplFirstRunWizard
+        state={{
+          status: 'preparing',
+          blockers: [],
+          progress: {
+            currentStep: 3,
+            totalSteps: 4,
+            step: 'installingModules',
+          },
+        }}
+        onConfigureCodex={vi.fn()}
+        onRetry={vi.fn()}
+        onOpenEnvironment={vi.fn()}
+        t={t}
+      />
+    );
+
+    expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.oplFirstLaunch.preparing');
+    expect(screen.getByText('working:installing modules:3/4')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '3');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuemax', '4');
+    expect(
+      within(screen.getByTestId('opl-first-run-window')).getAllByText('settings.oplFirstLaunch.preparing')
+    ).toHaveLength(1);
+  });
+
   it('renders the independent Codex configuration step with stable automation labels', async () => {
     const onConfigureCodex = vi.fn().mockResolvedValue(undefined);
     const onRetry = vi.fn();
@@ -106,6 +139,9 @@ describe('OplFirstRunWizard', () => {
     await userEvent.click(screen.getByTestId('opl-first-run-configure-codex-button'));
 
     expect(onConfigureCodex).toHaveBeenCalledWith('secret-api-key');
-    expect(screen.getByTestId('opl-first-run-retry-button')).toHaveAttribute('aria-label', 'opl-first-run-retry-button');
+    expect(screen.getByTestId('opl-first-run-retry-button')).toHaveAttribute(
+      'aria-label',
+      'opl-first-run-retry-button'
+    );
   });
 });

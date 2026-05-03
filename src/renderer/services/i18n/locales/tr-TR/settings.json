@@ -1058,6 +1058,16 @@
     "failed": "Ortam hazırlığı başarısız oldu. Kurulumu onarmak için Ayarlar > Ortam Yönetimi'ni açın.",
     "readyEntry": "One Person Lab'e girmeye hazır",
     "logPath": "İlk çalıştırma günlüğü: {{path}}",
+    "progress": {
+      "workingOn": "İşleniyor: {{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "yerel ortam denetleniyor",
+        "configureCodex": "Codex yapılandırılıyor",
+        "installingModules": "modüller yüklenip eşitleniyor",
+        "reviewingStatus": "hazırlık durumu gözden geçiriliyor",
+        "complete": "kurulum tamamlanıyor"
+      }
+    },
     "codex": {
       "prompt": "Codex API anahtarınızı girin. OPL varsayılan provider endpoint'i ve geçerli ilk model profile'ını kullanır.",
       "providerEndpoint": "Varsayılan provider endpoint",
