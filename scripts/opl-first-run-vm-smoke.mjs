@@ -279,16 +279,7 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
   if (!initialize?.setup_flow?.ready_to_launch) {
     throw new Error('OPL first-run initialize did not report ready_to_launch=true.');
   }
-  const requiredSkills = [
-    'mas',
-    'mag',
-    'rca',
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'ui-ux-pro-max',
-  ];
+  const requiredSkills = ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max'];
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
   for (const skillId of requiredSkills) {
@@ -297,9 +288,7 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     }
   }
   const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-  for (const skillId of requiredSkills.filter(
-    (skillId) => skillId !== 'mas' && skillId !== 'mag' && skillId !== 'rca'
-  )) {
+  for (const skillId of requiredSkills) {
     const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
     if (!fs.existsSync(skillPath)) {
       throw new Error(

@@ -12,9 +12,6 @@ type SmokeTestApi = {
 
 const tempRoots: string[] = [];
 const requiredSkills = [
-  'mas',
-  'mag',
-  'rca',
   'officecli',
   'officecli-docx',
   'officecli-pptx',
@@ -131,7 +128,7 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     for (const repoName of ['med-autoscience', 'med-deepscientist', 'med-autogrant', 'redcube-ai']) {
       fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
     }
-    for (const skillId of requiredSkills.filter((skillId) => !['mas', 'mag', 'rca'].includes(skillId))) {
+    for (const skillId of requiredSkills) {
       fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
       fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
     }
