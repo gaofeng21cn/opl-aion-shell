@@ -605,6 +605,11 @@ function describeFirstRunFailure(events) {
   return String(message);
 }
 
+function isFirstRunCompletionEvent(event) {
+  if (!event || event.event_type !== 'gui_preparation_completed') return false;
+  return event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared';
+}
+
 async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir) {
   const started = Date.now();
   let lastEvents = [];
@@ -615,11 +620,7 @@ async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codex
   let lastCodexSubmitAt = 0;
   while (Date.now() - started < timeoutMs) {
     lastEvents = readFirstRunEvents(filePath);
-    const completed = lastEvents.findLast?.(
-      (event) =>
-        event.event_type === 'gui_preparation_completed' &&
-        (event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared')
-    );
+    const completed = lastEvents.findLast?.((event) => isFirstRunCompletionEvent(event));
     if (completed) return { events: lastEvents, sawCodexWizard, submittedCodexWizard };
     try {
       lastTree = queryAccessibility(processName);

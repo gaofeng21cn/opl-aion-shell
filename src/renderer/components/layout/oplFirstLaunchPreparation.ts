@@ -173,6 +173,24 @@ const appendFirstRunLogEvent = async (eventType: string, payload: Record<string,
 const needsRecommendedSkillInstall = (initialize: OplSystemInitializePayload['system_initialize'] | null): boolean =>
   (initialize?.recommended_skills?.summary?.missing ?? 0) > 0;
 
+const hasOnlyRecommendedSkillAttention = (state: OplFirstLaunchPreparationResult): boolean =>
+  state.status === 'setup-needed' &&
+  state.readyToLaunch === true &&
+  (state.blockers ?? []).every((blocker) => blocker === 'recommended_skills');
+
+const markPreparedWithRecommendedSkillAttention = async (
+  state: OplFirstLaunchPreparationResult,
+  readyStatus: Extract<OplFirstLaunchPreparationResult['status'], 'already-prepared' | 'prepared'> = 'prepared'
+): Promise<Extract<OplFirstLaunchPreparationResult, { status: 'already-prepared' | 'prepared' }>> => {
+  await ConfigStorage.set(PREPARED_AT_CONFIG_KEY, Date.now());
+  return {
+    ...state,
+    status: readyStatus,
+    readyToLaunch: true,
+    progress: buildOplFirstLaunchProgress('complete'),
+  };
+};
+
 const readPreparedState = async (): Promise<boolean> => {
   const preparedAt = await ConfigStorage.get(PREPARED_AT_CONFIG_KEY);
   return Boolean(preparedAt);
@@ -345,15 +363,18 @@ const runOplFirstLaunchEnvironmentPreparation = async (
 
       emitProgress(options, 'reviewingStatus');
       const preparedState = await readInitializeState('prepared');
-      if (preparedState.status !== 'prepared' && preparedState.status !== 'already-prepared') {
+      if (hasOnlyRecommendedSkillAttention(preparedState)) {
+        readyState = await markPreparedWithRecommendedSkillAttention(preparedState, 'prepared');
+      } else if (preparedState.status !== 'prepared' && preparedState.status !== 'already-prepared') {
         await appendFirstRunLogEvent('gui_post_install_initialize', {
           status: preparedState.status,
           blockers: preparedState.blockers ?? [],
           message: preparedState.message,
         });
         return { ...preparedState, firstRunLog };
+      } else {
+        readyState = preparedState;
       }
-      readyState = preparedState;
     }
 
     startModuleReconcileForAppVersion(options.appVersion);

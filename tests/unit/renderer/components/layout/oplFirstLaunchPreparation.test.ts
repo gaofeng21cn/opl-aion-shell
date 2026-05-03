@@ -329,6 +329,31 @@ describe('oplFirstLaunchPreparation', () => {
     });
   });
 
+  it('keeps optional recommended skills as attention after required first-run checks pass', async () => {
+    mockRunOplCommand
+      .mockResolvedValueOnce(missingRecommendedSkillsInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce(missingRecommendedSkillsInitializeResult);
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
+    });
+
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(3);
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_preparation_completed',
+      payload: expect.objectContaining({ status: 'prepared' }),
+    });
+  });
+
   it('returns Codex configuration state without running install when API key is missing', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand.mockResolvedValue(codexConfigNeededInitializeResult);
