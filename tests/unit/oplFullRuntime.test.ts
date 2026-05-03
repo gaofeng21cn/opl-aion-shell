@@ -54,7 +54,9 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(installed?.runtimeHome).toBe(expectedHome);
     expect(fs.existsSync(path.join(expectedHome, 'bin', 'opl'))).toBe(true);
     expect(fs.existsSync(path.join(expectedHome, '.opl-full-runtime-installed.json'))).toBe(true);
-    expect(fs.existsSync(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current.json'))).toBe(true);
+    expect(fs.existsSync(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current.json'))).toBe(
+      true
+    );
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
     expect(installed?.env.OPL_MODULE_PATH_MEDDEEPSCIENTIST).toBe(path.join(expectedHome, 'modules', 'mds'));

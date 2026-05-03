@@ -66,17 +66,14 @@ const translations: Record<string, string> = {
   'common.open': 'Open',
   'common.runtimeTray.activeRun': 'Active Run',
   'common.runtimeTray.attentionReason': 'Status Note',
-  'common.runtimeTray.attentionReasonChecks':
-    'This task has {{count}} open quality or delivery check(s).',
-  'common.runtimeTray.attentionReasonDefault':
-    'Runtime state requires review against the current project projection.',
+  'common.runtimeTray.attentionReasonChecks': 'This task has {{count}} open quality or delivery check(s).',
+  'common.runtimeTray.attentionReasonDefault': 'Runtime state requires review against the current project projection.',
   'common.runtimeTray.actionSummaryDefault': 'Runtime projection loaded; awaiting the next status update.',
   'common.runtimeTray.attentionReasonInfra':
     'Background supervision item; no user action is required unless the condition persists.',
   'common.runtimeTray.attentionReasonRecovering':
     'Runtime recovery is in progress; continuity on the same paper line must be confirmed after recovery.',
-  'common.runtimeTray.attentionReasonReview':
-    'Review or delivery handoff is pending; user confirmation is required.',
+  'common.runtimeTray.attentionReasonReview': 'Review or delivery handoff is pending; user confirmation is required.',
   'common.runtimeTray.currentSituation': 'Current Status',
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',

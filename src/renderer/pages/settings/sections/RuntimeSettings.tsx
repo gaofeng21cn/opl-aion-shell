@@ -361,14 +361,15 @@ async function readCodexSessionContext(): Promise<string> {
     : mergeOplDefaultCodexContext();
 }
 
-async function readDefaultInstructionFile(homePath: string, file: (typeof DEFAULT_INSTRUCTION_FILES)[DefaultInstructionFileKey]) {
+async function readDefaultInstructionFile(
+  homePath: string,
+  file: (typeof DEFAULT_INSTRUCTION_FILES)[DefaultInstructionFileKey]
+) {
   const content = await ipcBridge.fs.readFile.invoke({ path: joinHomePath(homePath, file.relativePath) });
   return content || '';
 }
 
-async function readEnvironmentStatus(
-  fallbackWarning: string
-): Promise<EnvironmentStatusSnapshot> {
+async function readEnvironmentStatus(fallbackWarning: string): Promise<EnvironmentStatusSnapshot> {
   const [systemResult, versions] = await Promise.all([
     ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
     ipcBridge.application.appVersions.invoke().catch((_error: unknown): null => null),

@@ -57,11 +57,7 @@ function assertAllowedOplArgs(args: string[]): void {
   ) {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
   }
-  if (
-    args[0] === 'system' &&
-    args[1] === 'configure-codex' &&
-    !(args.length === 3 && args[2] === '--api-key-stdin')
-  ) {
+  if (args[0] === 'system' && args[1] === 'configure-codex' && !(args.length === 3 && args[2] === '--api-key-stdin')) {
     throw new Error(`Unsupported OPL system configure-codex arguments: ${args.slice(2).join(' ')}`);
   }
   if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
@@ -156,7 +152,9 @@ function buildOplCommand(args: string[]): string {
     buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME),
     'command -v opl >/dev/null || exit 127',
     `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`,
-  ].filter(Boolean).join(' && ');
+  ]
+    .filter(Boolean)
+    .join(' && ');
 }
 
 function buildOplBootstrapCommand(): string {
@@ -205,13 +203,7 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
   const bootstrappedCommandResult = await runLoginShell(buildOplCommand(args), timeout);
   return {
     ...bootstrappedCommandResult,
-    stdout: [
-      prefix,
-      bootstrapResult.stdout,
-      bootstrappedCommandResult.stdout,
-    ]
-      .filter(Boolean)
-      .join('\n'),
+    stdout: [prefix, bootstrapResult.stdout, bootstrappedCommandResult.stdout].filter(Boolean).join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
   };
 }
@@ -239,13 +231,7 @@ async function runOplCliWithInput(
   const bootstrappedCommandResult = await runLoginShellWithInput(buildOplCommand(args), timeout, input);
   return {
     ...bootstrappedCommandResult,
-    stdout: [
-      prefix,
-      bootstrapResult.stdout,
-      bootstrappedCommandResult.stdout,
-    ]
-      .filter(Boolean)
-      .join('\n'),
+    stdout: [prefix, bootstrapResult.stdout, bootstrappedCommandResult.stdout].filter(Boolean).join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
   };
 }

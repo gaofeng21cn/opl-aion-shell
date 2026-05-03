@@ -148,8 +148,8 @@ function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
 }
 
 function assertCleanFirstRunState(processName = DEFAULT_PROCESS_NAME) {
-  const existing = [defaultFirstRunLogPath(), defaultOplStatePath(), defaultAppSupportPath(processName)].filter((entry) =>
-    fs.existsSync(entry)
+  const existing = [defaultFirstRunLogPath(), defaultOplStatePath(), defaultAppSupportPath(processName)].filter(
+    (entry) => fs.existsSync(entry)
   );
   if (existing.length > 0) {
     throw new Error(`Fresh VM assertion failed; existing OPL state/log/app-local state found:\n${existing.join('\n')}`);
@@ -285,7 +285,9 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     ['medautogrant', 'med-autogrant'],
     ['redcube', 'redcube-ai'],
   ]);
-  const byId = new Map((modulesSurface?.items ?? modulesSurface?.modules ?? []).map((entry) => [entry.module_id, entry]));
+  const byId = new Map(
+    (modulesSurface?.items ?? modulesSurface?.modules ?? []).map((entry) => [entry.module_id, entry])
+  );
   const modulesRoot = modulesSurface?.modules_root;
   if (!modulesRoot || !modulesRoot.endsWith(path.join('OPL', 'state', 'modules'))) {
     throw new Error(`OPL modules_root is not the standard state modules directory: ${modulesRoot || '(missing)'}`);
@@ -298,7 +300,9 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     }
     const expectedPath = path.join(modulesRoot, repoName);
     if (module.checkout_path !== expectedPath || !fs.existsSync(expectedPath)) {
-      throw new Error(`OPL module ${moduleId} is not installed at ${expectedPath}: ${module.checkout_path || '(missing)'}`);
+      throw new Error(
+        `OPL module ${moduleId} is not installed at ${expectedPath}: ${module.checkout_path || '(missing)'}`
+      );
     }
   }
 }
@@ -756,29 +760,29 @@ async function main() {
     }
 
     const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
-    writeJsonArtifact(
-      path.join(options.artifacts, 'accessibility-tree.json'),
-      accessibility.tree,
-      codexApiKey
-    );
+    writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), accessibility.tree, codexApiKey);
 
     if (fs.existsSync(firstRunLog)) {
-      writeTextArtifact(path.join(options.artifacts, 'first-run.jsonl'), fs.readFileSync(firstRunLog, 'utf8'), codexApiKey);
+      writeTextArtifact(
+        path.join(options.artifacts, 'first-run.jsonl'),
+        fs.readFileSync(firstRunLog, 'utf8'),
+        codexApiKey
+      );
     }
 
     const systemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
     const modulesRaw = runOplJson(['modules']);
     assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw);
-    writeTextArtifact(
-      path.join(options.artifacts, 'system-initialize.json'),
-      systemInitializeRaw,
-      codexApiKey
-    );
+    writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
     writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
     spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
-    assertDoesNotContainSecret('unified-log.txt', fs.existsSync(unifiedLogPath) ? fs.readFileSync(unifiedLogPath, 'utf8') : '', codexApiKey);
+    assertDoesNotContainSecret(
+      'unified-log.txt',
+      fs.existsSync(unifiedLogPath) ? fs.readFileSync(unifiedLogPath, 'utf8') : '',
+      codexApiKey
+    );
 
     const summary = {
       surface_id: 'opl_packaged_gui_first_run_smoke',
@@ -798,15 +802,16 @@ async function main() {
   }
 }
 
-export const __test = process.env.NODE_ENV === 'test'
-  ? {
-      buildFullRuntimeCommandPrefix,
-      assertFullFirstRunEquivalence,
-      findLatestFullRuntimeHome,
-      isMainModule,
-      runOplJson,
-    }
-  : undefined;
+export const __test =
+  process.env.NODE_ENV === 'test'
+    ? {
+        buildFullRuntimeCommandPrefix,
+        assertFullFirstRunEquivalence,
+        findLatestFullRuntimeHome,
+        isMainModule,
+        runOplJson,
+      }
+    : undefined;
 
 if (isMainModule(import.meta.url)) {
   main().catch((error) => {

@@ -92,7 +92,11 @@ const extractReasoningEffort = (
   if (!option) return undefined;
   const rawValue = (option.id ? pendingOptions?.[option.id] : undefined) || option.currentValue || option.selectedValue;
   if (!rawValue) return undefined;
-  return option.options?.find((item) => item.value === rawValue)?.name || option.options?.find((item) => item.value === rawValue)?.label || rawValue;
+  return (
+    option.options?.find((item) => item.value === rawValue)?.name ||
+    option.options?.find((item) => item.value === rawValue)?.label ||
+    rawValue
+  );
 };
 
 const splitModelAndReasoning = (model: string | undefined): { model?: string; reasoning?: string } => {
@@ -143,9 +147,7 @@ const useConversationModelInfo = (
     }
 
     const load = async () => {
-      const result = await ipcBridge.acpConversation.getModelInfo
-        .invoke({ conversationId })
-        .catch((): null => null);
+      const result = await ipcBridge.acpConversation.getModelInfo.invoke({ conversationId }).catch((): null => null);
       if (cancelled) return;
       if (result?.success && result.data?.modelInfo) {
         setModelInfo(result.data.modelInfo);
@@ -452,16 +454,17 @@ const ChatConversation: React.FC<{
     );
   }, [t]);
 
-  const assistantStatusNode = conversation && !isUnsupportedProviderConversation ? (
-    <ConversationAssistantStatus
-      assistantName={assistantDisplayName}
-      modelSummary={modelSummary}
-      backend={conversationBackend}
-      status={conversation.status}
-      logo={presetAssistantInfo?.logo}
-      logoIsEmoji={presetAssistantInfo?.isEmoji}
-    />
-  ) : undefined;
+  const assistantStatusNode =
+    conversation && !isUnsupportedProviderConversation ? (
+      <ConversationAssistantStatus
+        assistantName={assistantDisplayName}
+        modelSummary={modelSummary}
+        backend={conversationBackend}
+        status={conversation.status}
+        logo={presetAssistantInfo?.logo}
+        logoIsEmoji={presetAssistantInfo?.isEmoji}
+      />
+    ) : undefined;
 
   // 如果有预设助手信息，使用预设助手的 logo 和名称；加载中时不进入 fallback；否则使用 backend 的 logo
   // If preset assistant info exists, use preset logo/name; while loading, avoid fallback; otherwise use backend logo

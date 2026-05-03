@@ -137,14 +137,7 @@ function shellQuote(value) {
 }
 
 function sshBaseArgs(options, ip) {
-  const args = [
-    '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'UserKnownHostsFile=/dev/null',
-    '-o',
-    'ConnectTimeout=10',
-  ];
+  const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'ConnectTimeout=10'];
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}`);
   return args;
@@ -155,12 +148,7 @@ function ssh(options, ip, command) {
 }
 
 function scpToGuest(options, ip, sources, targetDir) {
-  const args = [
-    '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'UserKnownHostsFile=/dev/null',
-  ];
+  const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(...sources, `${options.guestUser}@${ip}:${targetDir}/`);
   run('scp', args);
@@ -168,13 +156,7 @@ function scpToGuest(options, ip, sources, targetDir) {
 
 function scpFromGuest(options, ip, sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
-  const args = [
-    '-r',
-    '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'UserKnownHostsFile=/dev/null',
-  ];
+  const args = ['-r', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}:${sourceDir}/`, targetDir);
   run('scp', args);

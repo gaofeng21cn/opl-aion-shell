@@ -4,37 +4,37 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "GitHub release tag to test. Empty means latest release."
+        description: 'GitHub release tag to test. Empty means latest release.'
         required: false
         type: string
       release_dmg_url:
-        description: "Direct DMG URL. Overrides release_tag when set."
+        description: 'Direct DMG URL. Overrides release_tag when set.'
         required: false
         type: string
       tart_source_vm:
-        description: "Tart clean snapshot/base VM. Empty means repository variable OPL_FIRST_RUN_TART_SOURCE."
+        description: 'Tart clean snapshot/base VM. Empty means repository variable OPL_FIRST_RUN_TART_SOURCE.'
         required: false
         type: string
       guest_user:
-        description: "SSH user inside the VM. Empty means repository variable OPL_FIRST_RUN_GUEST_USER or runner."
+        description: 'SSH user inside the VM. Empty means repository variable OPL_FIRST_RUN_GUEST_USER or runner.'
         required: false
         type: string
       guest_ssh_key_path:
-        description: "SSH private key path on the self-hosted runner."
+        description: 'SSH private key path on the self-hosted runner.'
         required: false
         type: string
       no_graphics:
-        description: "Pass --no-graphics to tart run. Use only for VM images with a logged-in GUI session."
+        description: 'Pass --no-graphics to tart run. Use only for VM images with a logged-in GUI session.'
         required: false
         type: boolean
         default: false
       keep_vm:
-        description: "Leave temporary Tart VM for debugging."
+        description: 'Leave temporary Tart VM for debugging.'
         required: false
         type: boolean
         default: false
   schedule:
-    - cron: "0 18 * * *"
+    - cron: '0 18 * * *'
 
 concurrency:
   group: opl-gui-first-run-vm
@@ -61,7 +61,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: '22'
 
       - name: Validate smoke scripts
         shell: bash

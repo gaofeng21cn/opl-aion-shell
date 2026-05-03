@@ -34,18 +34,16 @@ export const shell = {
   runOplCommand: bridge.buildProvider<{ exitCode: number; stdout: string; stderr: string }, { args: string[] }>(
     'shell.run-opl-command'
   ), // Run a whitelisted OPL CLI command
-  configureOplCodex: bridge.buildProvider<
-    { exitCode: number; stdout: string; stderr: string },
-    { apiKey: string }
-  >('shell.configure-opl-codex'), // Configure Codex using stdin-only secret input
+  configureOplCodex: bridge.buildProvider<{ exitCode: number; stdout: string; stderr: string }, { apiKey: string }>(
+    'shell.configure-opl-codex'
+  ), // Configure Codex using stdin-only secret input
   readOplFirstRunLog: bridge.buildProvider<
     { path: string; entries: Array<Record<string, unknown>>; latest: Record<string, unknown> | null },
     void
   >('shell.read-opl-first-run-log'), // Read the structured OPL first-run log
-  appendOplFirstRunLog: bridge.buildProvider<
-    void,
-    { eventType: string; payload: Record<string, unknown> }
-  >('shell.append-opl-first-run-log'), // Append a structured OPL first-run log event
+  appendOplFirstRunLog: bridge.buildProvider<void, { eventType: string; payload: Record<string, unknown> }>(
+    'shell.append-opl-first-run-log'
+  ), // Append a structured OPL first-run log event
 };
 
 //通用会话能力

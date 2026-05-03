@@ -30,7 +30,7 @@ function readJsonRecord(filePath: string): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
     return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
+      ? (parsed as Record<string, unknown>)
       : null;
   } catch {
     return null;
@@ -49,7 +49,8 @@ function resolvePythonBin(runtimeHome: string): string | null {
     return null;
   }
 
-  const candidates = fs.readdirSync(pythonRoot)
+  const candidates = fs
+    .readdirSync(pythonRoot)
     .filter((entry) => entry.startsWith('cpython-'))
     .map((entry) => path.join(pythonRoot, entry, 'bin'))
     .filter((entry) => fs.existsSync(entry))
@@ -108,9 +109,8 @@ function resolvePayload(resourcesPath: string): {
 
   const runtimePayload = path.join(payloadRoot, 'runtime', ACTIVE_RUNTIME_DIR);
   const legacyRuntimePayload = path.join(payloadRoot, 'runtime', version);
-  const resolvedRuntimePayload = fs.existsSync(runtimePayload) && fs.statSync(runtimePayload).isDirectory()
-    ? runtimePayload
-    : legacyRuntimePayload;
+  const resolvedRuntimePayload =
+    fs.existsSync(runtimePayload) && fs.statSync(runtimePayload).isDirectory() ? runtimePayload : legacyRuntimePayload;
   if (!fs.existsSync(resolvedRuntimePayload) || !fs.statSync(resolvedRuntimePayload).isDirectory()) {
     return null;
   }
@@ -162,11 +162,15 @@ function installRuntimePayload(payloadRoot: string, runtimeHome: string, version
   });
   fs.writeFileSync(
     path.join(tempTarget, INSTALL_MARKER),
-    `${JSON.stringify({
-      version,
-      manifest_sha256: manifestSha256,
-      installed_at: new Date().toISOString(),
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        version,
+        manifest_sha256: manifestSha256,
+        installed_at: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`,
     'utf8'
   );
   fs.rmSync(runtimeHome, { recursive: true, force: true });
@@ -178,21 +182,27 @@ function writeActiveRuntimePointer(homeDir: string, runtimeHome: string, version
   fs.mkdirSync(path.dirname(pointerPath), { recursive: true });
   fs.writeFileSync(
     pointerPath,
-    `${JSON.stringify({
-      runtime_version: version,
-      runtime_home: runtimeHome,
-      manifest_sha256: manifestSha256,
-      activated_at: new Date().toISOString(),
-      source: 'packaged_payload',
-    }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        runtime_version: version,
+        runtime_home: runtimeHome,
+        manifest_sha256: manifestSha256,
+        activated_at: new Date().toISOString(),
+        source: 'packaged_payload',
+      },
+      null,
+      2
+    )}\n`,
     'utf8'
   );
 }
 
 function isUsableRuntimeHome(runtimeHome: string) {
-  return fs.existsSync(runtimeHome)
-    && fs.statSync(runtimeHome).isDirectory()
-    && fs.existsSync(path.join(runtimeHome, 'bin', 'opl'));
+  return (
+    fs.existsSync(runtimeHome) &&
+    fs.statSync(runtimeHome).isDirectory() &&
+    fs.existsSync(path.join(runtimeHome, 'bin', 'opl'))
+  );
 }
 
 export function applyOplFullRuntimeEnv(env: NodeJS.ProcessEnv): void {
@@ -228,27 +238,26 @@ export function ensurePackagedOplFullRuntime(
   };
 }
 
-export function activateInstalledOplFullRuntime(
-  input: { homeDir?: string } = {}
-): OplFullRuntimeInstallResult | null {
+export function activateInstalledOplFullRuntime(input: { homeDir?: string } = {}): OplFullRuntimeInstallResult | null {
   const homeDir = input.homeDir ?? os.homedir();
   const pointer = readJsonRecord(resolveRuntimePointerPath(homeDir));
   const pointerVersion = typeof pointer?.runtime_version === 'string' ? pointer.runtime_version.trim() : '';
-  const runtimeHomeFromPointer =
-    typeof pointer?.runtime_home === 'string' ? pointer.runtime_home.trim() : '';
+  const runtimeHomeFromPointer = typeof pointer?.runtime_home === 'string' ? pointer.runtime_home.trim() : '';
   const activeRuntimeHome = resolveRuntimeInstallRoot(homeDir);
   if (isUsableRuntimeHome(activeRuntimeHome)) {
     return {
-      version: readInstalledRuntimeVersion(activeRuntimeHome)
-        || (runtimeHomeFromPointer === activeRuntimeHome ? pointerVersion : '')
-        || ACTIVE_RUNTIME_DIR,
+      version:
+        readInstalledRuntimeVersion(activeRuntimeHome) ||
+        (runtimeHomeFromPointer === activeRuntimeHome ? pointerVersion : '') ||
+        ACTIVE_RUNTIME_DIR,
       runtimeHome: activeRuntimeHome,
       env: buildRuntimeEnv(activeRuntimeHome),
       source: 'active_pointer',
     };
   }
 
-  const runtimeHome = runtimeHomeFromPointer || (pointerVersion ? path.join(resolveRuntimeRoot(homeDir), pointerVersion) : '');
+  const runtimeHome =
+    runtimeHomeFromPointer || (pointerVersion ? path.join(resolveRuntimeRoot(homeDir), pointerVersion) : '');
   if (!pointerVersion || !runtimeHome || !isUsableRuntimeHome(runtimeHome)) {
     return null;
   }

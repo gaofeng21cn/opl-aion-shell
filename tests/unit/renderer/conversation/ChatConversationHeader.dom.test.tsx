@@ -83,7 +83,7 @@ vi.mock('@/renderer/hooks/agent/usePresetAssistantInfo', () => ({
     isLoading: mockPresetState.isLoading,
   }),
   resolveAssistantConfigId: (conversation: TChatConversation) =>
-    ((conversation.extra as { presetAssistantId?: string }).presetAssistantId ?? null),
+    (conversation.extra as { presetAssistantId?: string }).presetAssistantId ?? null,
 }));
 
 vi.mock('@/renderer/pages/conversation/Preview', () => ({
