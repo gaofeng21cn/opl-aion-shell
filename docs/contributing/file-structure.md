@@ -14,11 +14,11 @@ Rules for organizing files and directories across the entire Electron project.
 - **Config files** (`tsconfig.json`, `package.json`, etc.) stay at root — Node.js/Electron ecosystem convention
 - **New documentation** should be placed under the appropriate `docs/` subdirectory, not at project root
 
-### Current Root Cleanup Targets
+### Current Root State
 
-| Action                                     | Files                              |
-| ------------------------------------------ | ---------------------------------- |
-| Move readme translations to `docs/readme/` | `readme_{ch,es,jp,ko,pt,tr,tw}.md` |
+Localized README files already live under `docs/readme/`. Keep only the main
+`readme.md` at the repository root unless the upstream AionUi intake brings in a
+new locale that needs to be moved into `docs/readme/`.
 
 ## Project Layout (`src/`)
 

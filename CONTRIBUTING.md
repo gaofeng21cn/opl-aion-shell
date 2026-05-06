@@ -55,14 +55,15 @@ bunx vitest run
 
 ### One-command alternative
 
-This replicates the exact CI quality check, then runs tests:
+This replicates the OPL product-branch CI quality check, then runs tests:
 
 ```bash
-prek run --from-ref origin/main --to-ref HEAD
+prek run --from-ref gaofeng/main --to-ref HEAD
 bunx vitest run
 ```
 
 > `prek` runs format-check + lint + tsc in read-only mode. If it reports issues, run the auto-fix commands above first, then re-run prek.
+> Use `origin/main` only for explicit upstream AionUI intake comparisons.
 
 ### Common failures and fixes
 

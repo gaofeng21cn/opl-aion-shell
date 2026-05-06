@@ -31,5 +31,12 @@ architecture/spec material just because they are inherited from upstream.
 
 ## Current Consolidation Outcome
 
-No documents were moved during this consolidation pass. The current tree needed
-clearer indexing and ownership boundaries more than physical relocation.
+The first consolidation pass clarified indexing and ownership boundaries without
+moving files.
+
+The second content-alignment pass archived the dated Team Mode performance
+triage note from active architecture into `docs/history/`, because it is a
+branch-specific process record rather than durable architecture guidance. Active
+OPL shell ownership remains concentrated in `AGENTS.md`,
+`docs/architecture/opl-gui-shell-maintenance.md`, `docs/guides/`, and
+`docs/contributing/`.

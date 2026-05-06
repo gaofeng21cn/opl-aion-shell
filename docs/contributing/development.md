@@ -136,9 +136,11 @@ prek install
 # Run checks on staged files
 prek run
 
-# Run checks on changes vs main (same as CI)
-prek run --from-ref origin/main --to-ref HEAD
+# Run checks on changes vs the OPL product mainline
+prek run --from-ref gaofeng/main --to-ref HEAD
 ```
+
+Use `origin/main` as the base only for explicit upstream AionUI intake work.
 
 ## Build System
 

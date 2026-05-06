@@ -55,14 +55,15 @@ bunx vitest run
 
 ### 一条命令替代
 
-完全复刻 CI 质量检查，再跑测试：
+复刻 OPL 产品分支的 CI 质量检查，再跑测试：
 
 ```bash
-prek run --from-ref origin/main --to-ref HEAD
+prek run --from-ref gaofeng/main --to-ref HEAD
 bunx vitest run
 ```
 
 > `prek` 以只读模式运行 format-check + lint + tsc。如果报错，先运行上面的自动修复命令，再重新运行 prek。
+> 只有在明确进行上游 AionUI intake 对比时才使用 `origin/main`。
 
 ### 常见失败及修复
 

@@ -1,215 +1,146 @@
-# Build Scripts Documentation
+# Build And Maintenance Scripts
 
-This directory contains scripts for building and packaging AionUi across different platforms and architectures.
+This directory contains build, packaging, release, benchmark, i18n, automation,
+and OPL first-run smoke scripts for the One Person Lab GUI shell fork.
 
-## Scripts Overview
+The build scripts are part of the OPL product surface. Start product changes
+from `gaofeng/main`; use upstream `origin/main` only as an explicit AionUI intake
+source.
 
-| Script                    | Lines | Purpose                                         |
-| ------------------------- | ----- | ----------------------------------------------- |
-| `build-with-builder.js`   | 116   | Coordinates Electron Forge and electron-builder |
-| `rebuildNativeModules.js` | 219   | **Unified native module rebuild utility**       |
-| `beforeBuild.js`          | 38    | Pre-packaging native module rebuild hook        |
-| `afterPack.js`            | 67    | Post-packaging verification (Linux only)        |
-| `afterSign.js`            | 47    | macOS code signing and notarization             |
+## Current Build Scripts
 
-**Total**: 487 lines (down from 711 lines before optimization)
+| Script                             | Purpose                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `build-with-builder.js`            | Coordinates electron-vite output, electron-builder packaging, DMG retry, packaged-runtime validation, and release asset preparation. |
+| `rebuildNativeModules.js`          | Shared native module rebuild helper used by packaging hooks.                                                                         |
+| `afterPack.js`                     | electron-builder hook that rebuilds or verifies packaged native modules when target platform/architecture requires it.               |
+| `afterSign.js`                     | macOS code-signing and notarization hook.                                                                                            |
+| `prepare-release-assets.sh`        | Collects release artifacts after packaging.                                                                                          |
+| `verify-release-assets.sh`         | Verifies release artifact structure and expected files.                                                                              |
+| `create-mock-release-artifacts.sh` | Creates local mock release artifacts for workflow testing.                                                                           |
+| `validate-packaged-runtime.js`     | Validates packaged runtime contents after build output is produced.                                                                  |
 
-## Architecture
+`beforeBuild.js` and `release.sh` are no longer active scripts in this tree.
+Native rebuild work is coordinated by `afterPack.js` and
+`rebuildNativeModules.js`, with electron-builder native rebuilds disabled in
+`electron-builder.yml`.
 
-### Build Flow
+## Build Flow
 
 ```
-npm run dist:*
-    ↓
-build-with-builder.js
-    ↓
-    ├─→ Electron Forge (webpack compilation)
-    ↓
-electron-builder
-    ↓
-    ├─→ beforeBuild.js → rebuildNativeModules.js (all platforms)
-    ├─→ Package app
-    ├─→ afterPack.js → rebuildNativeModules.js (Linux only)
-    └─→ afterSign.js (macOS only)
+bun run dist:* / bun run build-*
+  -> scripts/build-with-builder.js
+     -> optional electron-vite build
+     -> electron-builder
+        -> scripts/afterPack.js
+        -> scripts/afterSign.js on macOS
+     -> packaged runtime validation
+     -> release asset preparation
 ```
 
-## Native Module Rebuild Strategy
+`build-with-builder.js` supports these important modes:
 
-### `rebuildNativeModules.js` - Unified Rebuild Utility
+| Mode            | Use when                                                     |
+| --------------- | ------------------------------------------------------------ |
+| `--skip-vite`   | Reusing an existing `out/` renderer/main/preload build.      |
+| `--force`       | Forcing a rebuild even when the incremental hash matches.    |
+| `--skip-native` | Skipping native rebuild handling for a controlled local run. |
+| `--pack-only`   | Creating the packaged app without distributable artifacts.   |
 
-This is the core module that handles all native module rebuilding. It provides:
+## Native Module Strategy
 
-#### Functions
+The packaged app carries native modules such as `better-sqlite3`. The current
+strategy is:
 
-1. **`rebuildWithElectronRebuild(options)`**
-   - Used by: `beforeBuild.js`
-   - Rebuilds all native modules in source directory
-   - Modules: `better-sqlite3`
+- electron-builder's built-in native rebuild knobs are disabled in
+  `electron-builder.yml`.
+- `afterPack.js` checks the target platform and architecture.
+- Same-architecture macOS/Linux builds normally skip rebuild unless
+  `FORCE_NATIVE_REBUILD=true` is set.
+- Windows rebuilds `better-sqlite3` to match the Electron ABI.
+- Cross-architecture builds clean wrong-architecture artifacts before rebuilding
+  or installing prebuilt binaries.
+- `rebuildNativeModules.js` prefers prebuilt binaries where appropriate and uses
+  `vx` toolchain prefixes when available.
 
-2. **`rebuildSingleModule(options)`**
-   - Used by: `afterPack.js`
-   - Rebuilds a single module in packaged app
-   - Strategy: Try prebuild-install first, fall back to electron-rebuild
-
-3. **`verifyModuleBinary(moduleRoot, moduleName)`**
-   - Verifies native binary exists after rebuild
-
-4. **Helper utilities**:
-   - `normalizeArch()`: Normalize architecture names
-   - `getModulesToRebuild()`: Get platform-specific module list
-   - `buildEnvironment()`: Create rebuild environment variables
-
-### Platform-Specific Behavior
-
-#### Windows
-
-- **Modules rebuilt**: `better-sqlite3`
-- **Skipped**: `node-pty` (uses prebuilt binaries)
-- **Environment**: MSVS 2022, Windows SDK 10.0.19041.0
-
-#### macOS
-
-- **Modules rebuilt**: `better-sqlite3`
-- **When**: `beforeBuild` hook only
-- **Post-build**: Code signing and notarization
-
-#### Linux
-
-- **Modules rebuilt**: `better-sqlite3`
-- **When**:
-  - `beforeBuild`: Rebuild in source directory
-  - `afterPack`: Rebuild `better-sqlite3` in packaged app
-- **Strategy**: Download prebuilt binary first, compile if unavailable
-
-## Usage Examples
-
-### Building for specific platform
+## Common Build Commands
 
 ```bash
-# Build for macOS
-npm run dist:mac
+# Current platform distributable
+bun run dist
 
-# Build for Windows
-npm run dist:win
+# macOS universal release artifact
+bun run build-mac
 
-# Build for Linux
-npm run dist:linux
+# Explicit macOS targets
+bun run build-mac:universal
+bun run build-mac:arm64
+bun run build-mac:x64
+
+# Windows and Linux targets
+bun run build-win
+bun run build-deb
 ```
-
-### Manual native module rebuild
-
-```javascript
-const { rebuildWithElectronRebuild } = require('./scripts/rebuildNativeModules');
-
-rebuildWithElectronRebuild({
-  platform: 'linux',
-  arch: 'arm64',
-  electronVersion: '37.3.1',
-});
-```
-
-### Rebuild single module in packaged app
-
-```javascript
-const { rebuildSingleModule } = require('./scripts/rebuildNativeModules');
-
-rebuildSingleModule({
-  moduleName: 'better-sqlite3',
-  moduleRoot: '/path/to/app.asar.unpacked/node_modules/better-sqlite3',
-  platform: 'linux',
-  arch: 'arm64',
-  electronVersion: '37.3.1',
-});
-```
-
-## Why Two Rebuild Stages?
-
-### beforeBuild (All Platforms)
-
-- Rebuilds modules in **source directory** (`node_modules/`)
-- Ensures correct binaries are packaged
-- Uses `electron-rebuild` for all modules
-
-### afterPack (Linux Only)
-
-- Rebuilds `better-sqlite3` in **packaged app** (`app.asar.unpacked/`)
-- Handles cross-compilation issues
-- Uses `prebuild-install` for faster builds (downloads prebuilt binary)
 
 ## Troubleshooting
 
-### Module not found after packaging
+### Packaged app cannot load a native module
 
-**Symptom**: `Error: Cannot find module 'better-sqlite3'`
+Check that:
 
-**Solution**: Check that:
+1. The module is included in `electron-builder.yml` `files`.
+2. The module is included in `asarUnpack` when required.
+3. `afterPack.js` ran for the target platform/architecture.
+4. The packaged app does not contain stale wrong-architecture `build/` or `bin/`
+   native artifacts.
 
-1. Module is in `electron-builder.yml` → `files` section
-2. Module is in `electron-builder.yml` → `asarUnpack` section
-3. `beforeBuild.js` ran successfully during build
-4. For Linux: `afterPack.js` ran successfully
+### Cross-architecture build fails
 
-### Native module crashes on launch
+Use the current target-specific path:
 
-**Symptom**: App crashes with segfault or binary incompatibility error
+- macOS: prefer the universal build path for user-facing release artifacts.
+- Windows: ensure the MSVC toolchain is available; `vx --with msvc` is used when
+  present.
+- Linux: prefer prebuilt binaries for cross-architecture native modules.
 
-**Solution**:
+## Automation And Diagnostics
 
-1. Verify target architecture matches build architecture
-2. Check that `beforeBuild.js` rebuilt for correct architecture
-3. For Linux ARM64: Ensure `afterPack.js` rebuilt the module
+| Script                     | Purpose                                 |
+| -------------------------- | --------------------------------------- |
+| `pr-automation.sh`         | PR review/fix/merge daemon entry point. |
+| `fix-issues-daemon.sh`     | Local issue-fix daemon wrapper.         |
+| `fix-sentry-daemon.sh`     | Local Sentry-fix daemon wrapper.        |
+| `benchmark-startup.ts`     | Startup benchmark harness.              |
+| `benchmark-acp-startup.ts` | ACP startup benchmark harness.          |
+| `run-benchmarks.ts`        | Benchmark runner and report generator.  |
+| `check-i18n.js`            | i18n consistency check.                 |
+| `generate-i18n-types.js`   | i18n type generation.                   |
+| `build-server.mjs`         | Standalone server build helper.         |
+| `build-mcp-servers.js`     | MCP server build helper.                |
 
-### Cross-compilation fails
-
-**Symptom**: Native module rebuild fails during cross-arch build
-
-**Solution**:
-
-- Windows: This is expected for `node-pty` (uses prebuilt binaries)
-- macOS/Linux: Ensure build tools for target architecture are installed
-- Consider building on native architecture instead
-
-## Optimization History
-
-### Version 1.0 (Before Optimization)
-
-- Total: 711 lines across 5 files
-- Duplication: Rebuild logic in both `beforeBuild` and `afterPack`
-
-### Version 2.0 (Current)
-
-- Total: 487 lines across 5 files
-- Savings: 224 lines (31% reduction)
-- Changes:
-  - ✅ Deleted `release.sh` (67 lines) - use `npm version` instead
-  - ✅ Created `rebuildNativeModules.js` (219 lines) - unified utility
-  - ✅ Simplified `build-with-builder.js`: 321 → 116 lines
-  - ✅ Simplified `beforeBuild.js`: 95 → 38 lines
-  - ✅ Simplified `afterPack.js`: 181 → 67 lines
-
-## Contributing
-
-When modifying build scripts:
-
-1. **Test on all platforms** before committing
-2. **Update this documentation** if behavior changes
-3. **Maintain the unified rebuild utility** - avoid duplicating logic
-4. **Keep error messages clear** - they help users troubleshoot
-
-## Related Files
-
-- `/electron-builder.yml` - electron-builder configuration
-- `/forge.config.ts` - Electron Forge configuration
-- `/.github/workflows/build-and-release.yml` - CI/CD pipeline
-- `/package.json` - Build scripts and dependencies
-
-## OPL first-run VM smoke
+## OPL First-Run VM Smoke
 
 The packaged OPL first-run test has two layers:
 
-- `scripts/opl-first-run-vm-smoke.mjs` runs inside a clean macOS GUI session. It installs a real `.dmg` or opens a packaged `.app`, checks stable accessibility labels, enters a test Codex API key through the standalone first-run wizard when Codex config is missing, and collects `first-run.jsonl`, `opl system initialize --json`, `opl modules`, wizard/final screenshots, and unified logs.
-- `scripts/opl-first-run-tart-smoke.mjs` runs on a self-hosted Mac with Tart. It clones a clean VM snapshot, copies the release DMG, guest smoke script, and an ephemeral test Codex API key file into the VM over SSH, runs the guest smoke, copies artifacts back, then stops and deletes the temporary VM.
+- `scripts/opl-first-run-vm-smoke.mjs` runs inside a clean macOS GUI session. It
+  installs a real `.dmg` or opens a packaged `.app`, checks stable accessibility
+  labels, enters a test Codex API key through the standalone first-run wizard
+  when Codex config is missing, and collects `first-run.jsonl`,
+  `opl system initialize --json`, `opl modules`, wizard/final screenshots, and
+  unified logs.
+- `scripts/opl-first-run-tart-smoke.mjs` runs on a self-hosted Mac with Tart. It
+  clones a clean VM snapshot, copies the release DMG, guest smoke script, and an
+  ephemeral test Codex API key file into the VM over SSH, runs the guest smoke,
+  copies artifacts back, then stops and deletes the temporary VM.
 
-Nightly execution is wired through `.github/workflows/opl-first-run-vm.yml`. Configure the self-hosted runner with labels from `OPL_FIRST_RUN_RUNNER_LABELS` or the default `["self-hosted","macOS","opl-gui-vm"]`, set `OPL_FIRST_RUN_TART_SOURCE` to a clean macOS Tart base VM, and ensure the guest user has SSH, Node.js, a logged-in desktop session, and Accessibility permission for `osascript`/System Events.
+Nightly execution is wired through `.github/workflows/opl-first-run-vm.yml`.
+Configure the self-hosted runner with labels from `OPL_FIRST_RUN_RUNNER_LABELS`
+or the default `["self-hosted","macOS","opl-gui-vm"]`, set
+`OPL_FIRST_RUN_TART_SOURCE` to a clean macOS Tart base VM, and ensure the guest
+user has SSH, Node.js, a logged-in desktop session, and Accessibility permission
+for `osascript`/System Events.
 
-Use `--codex-api-key-file <path>` or `OPL_FIRST_RUN_CODEX_API_KEY_FILE` when a specific test key is required. Do not pass API keys as command-line values; the scripts only pass a file path, record `codex_api_key_present`, and fail if collected text artifacts contain the key.
+Use `--codex-api-key-file <path>` or `OPL_FIRST_RUN_CODEX_API_KEY_FILE` when a
+specific test key is required. Do not pass API keys as command-line values; the
+scripts only pass a file path, record `codex_api_key_present`, and fail if
+collected text artifacts contain the key.

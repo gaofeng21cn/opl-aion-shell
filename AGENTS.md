@@ -96,12 +96,13 @@ bunx tsc --noEmit      # verify no type errors
 # One-time setup
 npm install -g @j178/prek
 
-# Replicate exact CI check (read-only — does not auto-fix)
-prek run --from-ref origin/main --to-ref HEAD
+# Replicate the OPL product-branch CI check (read-only — does not auto-fix)
+prek run --from-ref gaofeng/main --to-ref HEAD
 ```
 
 > Note: `prek` uses `lint` (check only) and `format:check` (check only) — it will fail if there are issues but won't fix them.
 > If prek reports formatting or lint issues, run the auto-fix commands above first, then re-run prek to verify.
+> Use `origin/main` as a comparison base only inside an explicit upstream AionUI intake branch.
 
 **i18n validation:** If your changes touch `src/renderer/`, `locales/`, or `src/common/config/i18n`, run:
 
