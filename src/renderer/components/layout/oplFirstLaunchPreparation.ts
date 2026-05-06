@@ -208,7 +208,7 @@ const markPreparedAfterReconcile = async (
     ...state,
     status: appVersion ? 'prepared' : state.status === 'already-prepared' ? 'already-prepared' : 'prepared',
     readyToLaunch: true,
-    blockers: appVersion ? [] : state.blockers ?? [],
+    blockers: appVersion ? [] : (state.blockers ?? []),
     progress: state.progress ?? buildOplFirstLaunchProgress('complete'),
   };
 };
@@ -240,9 +240,7 @@ const reconcileModulesForAppVersion = async (
   return null;
 };
 
-const reconcileModulesForFirstLaunch = async (
-  appVersion?: string
-): Promise<OplFirstLaunchPreparationResult | null> => {
+const reconcileModulesForFirstLaunch = async (appVersion?: string): Promise<OplFirstLaunchPreparationResult | null> => {
   const normalizedVersion = appVersion?.trim();
   const result = await reconcileModulesForAppVersion(normalizedVersion, { force: true });
   if (normalizedVersion && moduleReconcileState?.appVersion === normalizedVersion) {
@@ -429,9 +427,9 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     }
 
     const result =
-      readyState.status === 'prepared'
-        || readyState.status === 'already-prepared'
-        || (readyState.status === 'setup-needed' && hasOnlyRecommendedSkillAttention(readyState))
+      readyState.status === 'prepared' ||
+      readyState.status === 'already-prepared' ||
+      (readyState.status === 'setup-needed' && hasOnlyRecommendedSkillAttention(readyState))
         ? await markPreparedAfterReconcile(readyState, options.appVersion)
         : readyState;
     await appendFirstRunLogEvent('gui_preparation_completed', { status: result.status });

@@ -11,13 +11,7 @@ type SmokeTestApi = {
 };
 
 const tempRoots: string[] = [];
-const requiredSkills = [
-  'officecli',
-  'officecli-docx',
-  'officecli-pptx',
-  'officecli-xlsx',
-  'ui-ux-pro-max',
-];
+const requiredSkills = ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max'];
 
 function makeTempRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-smoke-'));
