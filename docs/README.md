@@ -15,6 +15,7 @@ starts from the OPL fork boundary described in [`../AGENTS.md`](../AGENTS.md).
 | [`../AGENTS.md`](../AGENTS.md)                                                           | Starting repo work, checking remote boundaries, coding conventions, and PR workflow rules.    |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md)                                               | Preparing a contributor PR and local checks.                                                  |
 | [`docs_portfolio_consolidation.md`](docs_portfolio_consolidation.md)                     | Understanding how the docs portfolio is organized and what should move to history.            |
+| [`contributing/file-structure.md`](contributing/file-structure.md)                       | Checking repository hygiene, root layout, and file placement rules.                           |
 
 ## Documentation Map
 
@@ -45,6 +46,10 @@ starts from the OPL fork boundary described in [`../AGENTS.md`](../AGENTS.md).
   docs portfolio: `../package/README.md` is the upstream package README for the
   packaged Claude Code payload, while `../scripts/README.md` documents build,
   packaging, release, and OPL first-run smoke scripts.
+- **Repository hygiene** is documented in
+  [`contributing/file-structure.md`](contributing/file-structure.md) and enforced
+  by `bun run hygiene`. This fork does not add broad line-budget gates over
+  upstream-owned source and test files.
 
 ## Quick pointers
 

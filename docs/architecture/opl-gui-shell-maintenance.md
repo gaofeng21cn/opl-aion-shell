@@ -4,6 +4,37 @@ Status anchor: 2026-05-01
 
 This repository is the current One Person Lab GUI shell. It keeps the AionUI source tree syncable while concentrating One Person Lab differences in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
 
+## Repository Role
+
+`opl-aion-shell` is an OPL product fork of upstream AionUI, not the canonical OPL runtime, not the OPL family control plane, and not the place where MAS/MAG/RCA/MDS domain truth is owned.
+
+Its durable role is deliberately narrow:
+
+- provide the desktop GUI shell and packaged application experience for OPL users
+- keep upstream AionUI source layout and dependencies cheap to follow
+- add the minimum OPL overlay needed for Codex-default runtime discovery, OPL branding, installer/release metadata, environment preparation, bridge policy, and packaging validation
+- call OPL-owned CLI or machine-readable surfaces when runtime truth is needed, instead of duplicating that truth in renderer state or fork-local ad hoc files
+
+The preferred long-term shape is a thin, syncable overlay. When a change can be implemented either by broad upstream source surgery or by a small OPL adapter, packaging rule, bridge policy, or configuration surface, choose the thin OPL layer.
+
+## Operational Boundary
+
+Use this repo for GUI-shell work:
+
+- OPL shell branding, first-run experience, updater/release metadata, packaged runtime validation, and installer packaging
+- Codex-default runtime wiring, visible skill filtering, bridge adapters, process launch policy, and environment discovery needed by the shell
+- upstream AionUI intake, conflict resolution, and patch-retirement audits
+- fork-safe hygiene that prevents tracked local runtime/build payloads from entering `gaofeng/main`
+
+Keep these responsibilities outside this repo:
+
+- OPL family contracts, shared runtime truth, portfolio/session ledgers, and cross-domain governance belong in `one-person-lab` or the relevant domain repo
+- MAS/MAG/RCA/MDS domain truth belongs in those domain repos and their contract surfaces
+- local agent sessions, prompt logs, runtime-state, generated debug output, and worktrees stay ignored or user-local
+- broad source-shape governance over upstream-owned AionUI code is avoided unless a specific OPL product risk justifies it
+
+Repository hygiene is intentionally limited for this reason. `bun run hygiene` blocks tracked generated and local-state payloads; it does not impose line-budget or broad architecture gates on upstream-owned source and tests.
+
 ## Fork Boundary
 
 - Treat `gaofeng/main` as the product mainline for OPL shell work. In this local checkout, `origin` is upstream `iOfficeAI/AionUi`; `origin/main` is not the OPL product branch.

@@ -38,6 +38,7 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
+    "hygiene": "node scripts/structure/repo-hygiene.mjs",
     "validate:packaged-runtime": "node scripts/validate-packaged-runtime.js",
     "validate:opl-package": "node scripts/validate-packaged-runtime.js --scan-all",
     "i18n:types": "node scripts/generate-i18n-types.js",

@@ -40,3 +40,8 @@ branch-specific process record rather than durable architecture guidance. Active
 OPL shell ownership remains concentrated in `AGENTS.md`,
 `docs/architecture/opl-gui-shell-maintenance.md`, `docs/guides/`, and
 `docs/contributing/`.
+
+The current repo-positioning and operations boundary for the OPL AionUI fork is
+owned by `docs/architecture/opl-gui-shell-maintenance.md`. Keep fork/upstream
+intake, release packaging, runtime bridge policy, and hygiene-scope decisions
+there instead of scattering them across new one-off notes.

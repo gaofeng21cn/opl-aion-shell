@@ -14,6 +14,23 @@ Rules for organizing files and directories across the entire Electron project.
 - **Config files** (`tsconfig.json`, `package.json`, etc.) stay at root — Node.js/Electron ecosystem convention
 - **New documentation** should be placed under the appropriate `docs/` subdirectory, not at project root
 
+### Repository Hygiene Gate
+
+This fork follows upstream AionUi closely, so repository hygiene is intentionally
+limited to tracked local-state and generated-payload checks. It does not impose
+line-budget or broad source-shape gates on upstream-owned code.
+
+`bun run hygiene` blocks tracked generated or runtime payloads from the
+mainline:
+
+- `build/`, `out/`, `dist/`, `__pycache__`, `*.egg-info`, `.DS_Store`,
+  `.codex/`, `.omx/`, `.runtime-program/`, `runtime-state/`, and
+  `.agent-contract-baseline.json`
+- `examples/**/dist/**` remains allowed because those files are intentional
+  example distributables
+- `node_modules/`, `.venv/`, and `.worktrees/` are local ignored payloads and
+  should not be cleaned through tracked-source edits
+
 ### Current Root State
 
 Localized README files already live under `docs/readme/`. Keep only the main
