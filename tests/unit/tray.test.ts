@@ -470,6 +470,8 @@ describe('tray module', () => {
                   requires_user_action: false,
                   action_kind: 'running',
                   action_summary: 'The runtime is running.',
+                  study_id: '001-risk',
+                  workspace_label: 'nf-pitnet',
                 },
               ],
               attention_items: [
@@ -549,7 +551,7 @@ describe('tray module', () => {
       expect(labels).toContain('common.tray.runtimeOplAction');
       expect(labels).toContain('MAS: Publication gate (Live: Analysis cam...)');
       expect(labels).toContain('common.tray.runtimeRunning');
-      expect(labels).toContain('MAS: Active study (Running)');
+      expect(labels).toContain('common.tray.runtimeMasItemLabel');
       expect(labels).toContain('common.tray.runtimeRecent');
       expect(labels).toContain('MAG: Grant route (Completed)');
     });
@@ -600,6 +602,8 @@ describe('tray module', () => {
                   command: 'opl start --project medautoscience',
                   workspace_path: '/tmp/mas',
                   source_refs: [],
+                  study_id: '001-risk',
+                  workspace_label: 'nf-pitnet',
                 },
               ],
               attention_items: [],
@@ -616,7 +620,7 @@ describe('tray module', () => {
         const labels = getLatestTemplate()
           .map((item: any) => item.label)
           .filter(Boolean);
-        expect(labels).toContain('MAS: Active study (Running)');
+        expect(labels).toContain('common.tray.runtimeMasItemLabel');
       });
       await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -630,7 +634,7 @@ describe('tray module', () => {
           .map((item: any) => item.label)
           .filter(Boolean);
         expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
-        expect(labels).not.toContain('MAS: Active study (Running)');
+        expect(labels).not.toContain('common.tray.runtimeMasItemLabel');
       });
     });
 
@@ -673,6 +677,11 @@ describe('tray module', () => {
                   next_action_summary: 'Continue supervision.',
                   active_run_id: 'run-001',
                   browser_url: 'https://example.com/runtime',
+                  portal_path: '/tmp/mas/portal/index.html',
+                  portal_url: 'https://example.com/portal',
+                  portal_payload_ref: '/tmp/mas/portal/payload.json',
+                  portal_freshness: { status: 'fresh', summary: 'Recent MAS progress exists' },
+                  portal_source_refs: [{ surface: 'mas_portal', path: '/tmp/mas/portal/source.json' }],
                   quest_session_api_url: 'https://example.com/session',
                   health_status: 'live',
                   blockers: ['publication gate'],
@@ -697,11 +706,11 @@ describe('tray module', () => {
 
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const runtimeItem = getLatestTemplate().find((item: any) => item.label === 'MAS: Active study (Running)');
+        const runtimeItem = getLatestTemplate().find((item: any) => item.label === 'common.tray.runtimeMasItemLabel');
         expect(runtimeItem).toBeDefined();
       });
       const templateArg = getLatestTemplate();
-      const runtimeItem = templateArg.find((item: any) => item.label === 'MAS: Active study (Running)');
+      const runtimeItem = templateArg.find((item: any) => item.label === 'common.tray.runtimeMasItemLabel');
       runtimeItem.click();
 
       expect(mockWindow.webContents.send).toHaveBeenCalledWith('tray:open-opl-runtime-item', {
@@ -725,6 +734,11 @@ describe('tray module', () => {
         nextActionSummary: 'Continue supervision.',
         activeRunId: 'run-001',
         browserUrl: 'https://example.com/runtime',
+        portalPath: '/tmp/mas/portal/index.html',
+        portalUrl: 'https://example.com/portal',
+        portalPayloadRef: '/tmp/mas/portal/payload.json',
+        portalFreshness: { status: 'fresh', summary: 'Recent MAS progress exists' },
+        portalSourceRefs: [{ surface: 'mas_portal', path: '/tmp/mas/portal/source.json' }],
         questSessionApiUrl: 'https://example.com/session',
         healthStatus: 'live',
         blockers: ['publication gate'],

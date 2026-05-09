@@ -53,6 +53,11 @@ type RuntimeTrayItem = {
   next_action_summary?: string | null;
   active_run_id?: string | null;
   browser_url?: string | null;
+  portal_path?: string | null;
+  portal_url?: string | null;
+  portal_payload_ref?: string | null;
+  portal_freshness?: Record<string, unknown> | null;
+  portal_source_refs?: Array<Record<string, unknown>>;
   quest_session_api_url?: string | null;
   health_status?: string | null;
   blockers?: string[];
@@ -230,6 +235,20 @@ const runtimeHealthI18nKey = (status: RuntimeTraySnapshot['runtime_health']['sta
 };
 
 const formatRuntimeItemLabel = (item: RuntimeTrayItem): string => {
+  if (item.project_label === 'MAS' || item.project_id === 'medautoscience') {
+    const workspace = item.workspace_label?.trim() || truncateMenuLabel(path.basename(item.workspace_path || ''), 24);
+    const study = item.study_id?.trim();
+    const status = item.status_label?.trim();
+    if (workspace && study && status) {
+      return i18n.t('common.tray.runtimeMasItemLabel', {
+        project: item.project_label,
+        workspace: truncateMenuLabel(workspace, 24),
+        study: truncateMenuLabel(study, 28),
+        status: truncateMenuLabel(status, 18),
+      });
+    }
+  }
+
   const title = truncateMenuLabel(item.title, 32);
   const status = item.status_label?.trim();
   const statusSuffix =
@@ -407,6 +426,11 @@ const buildTrayContextMenuFromState = ({
       nextActionSummary: item.next_action_summary,
       activeRunId: item.active_run_id,
       browserUrl: item.browser_url,
+      portalPath: item.portal_path,
+      portalUrl: item.portal_url,
+      portalPayloadRef: item.portal_payload_ref,
+      portalFreshness: item.portal_freshness,
+      portalSourceRefs: item.portal_source_refs,
       questSessionApiUrl: item.quest_session_api_url,
       healthStatus: item.health_status,
       blockers: item.blockers,

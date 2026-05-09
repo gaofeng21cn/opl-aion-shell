@@ -77,15 +77,20 @@ const translations: Record<string, string> = {
   'common.runtimeTray.currentSituation': 'Current Status',
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',
+  'common.runtimeTray.masPortal': 'MAS Portal',
   'common.runtimeTray.infrastructureProblem': 'Background Supervision Status',
   'common.runtimeTray.infrastructureRecovery': 'Recovery Action',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
   'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
+  'common.runtimeTray.openMasPortal': 'Open MAS Portal',
   'common.runtimeTray.openWorkspace': 'Open Workspace',
   'common.runtimeTray.operatorView': 'Operator View',
   'common.runtimeTray.oplHandling': 'Current Processing',
   'common.runtimeTray.physicianView': 'Status Summary',
+  'common.runtimeTray.portalFreshness': 'Portal Freshness',
+  'common.runtimeTray.portalPayloadRef': 'Portal Payload',
+  'common.runtimeTray.portalSourceRefs': 'Portal Source References',
   'common.runtimeTray.primaryCommand': 'Primary Command',
   'common.runtimeTray.project': 'Project',
   'common.runtimeTray.runtimeStatusTitle': 'OPL Runtime Status',
@@ -107,6 +112,7 @@ const translations: Record<string, string> = {
   'common.runtimeTray.updatedAt': 'Updated',
   'common.runtimeTray.userActionRequired': 'User Action',
   'common.runtimeTray.whyNotDone': 'Open Items',
+  'common.runtimeTray.workspaceLabel': 'Workspace',
   'common.status': 'Status',
   'common.tray.runtimeAttention': 'User Action Required',
   'common.tray.runtimeInfrastructure': 'Background Recovery',
@@ -153,6 +159,12 @@ const runtimeItem: RuntimeTrayOpenPayload = {
   detailSummary: '托管运行时在线，研究仍在自动推进。',
   nextActionSummary: '补充分析与稳健性验证',
   activeRunId: 'run-be197b12',
+  browserUrl: 'https://example.com/runtime',
+  portalPath: '/workspace/dm-cvd/portal/index.html',
+  portalUrl: 'https://example.com/mas-portal',
+  portalPayloadRef: '/workspace/dm-cvd/portal/payload.json',
+  portalFreshness: { status: 'fresh', summary: 'Recent MAS progress exists', latest_event_at: '2026-05-08T16:21:59+00:00' },
+  portalSourceRefs: [{ label: 'portal_status.json', path: '/workspace/portal/status.json' }],
   healthStatus: 'live',
   blockers: ['claim_evidence_consistency_failed'],
   recommendedCommands: [
@@ -187,6 +199,37 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
   });
 
+  it('shows MAS portal metadata and opens the local portal file first', async () => {
+    const openFileMock = vi.mocked(ipcBridge.shell.openFile.invoke);
+    const openExternalMock = vi.mocked(ipcBridge.shell.openExternal.invoke);
+    openFileMock.mockResolvedValue(undefined);
+    openExternalMock.mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/runtime/item', state: { runtimeItem } }]}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getAllByText('002-dm-china-us-mortality-attribution').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Active Run')).toBeInTheDocument();
+    expect(screen.getByText('run-be197b12')).toBeInTheDocument();
+    expect(screen.getByText('Health')).toBeInTheDocument();
+    expect(screen.getByText('live')).toBeInTheDocument();
+    expect(screen.getByText('Portal Freshness')).toBeInTheDocument();
+    expect(screen.getByText('fresh · Recent MAS progress exists · 2026-05-08T16:21:59+00:00')).toBeInTheDocument();
+    expect(screen.getByText('Portal Source References')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/portal/status.json')).toBeInTheDocument();
+
+    screen.getByText('Open MAS Portal').click();
+
+    expect(openFileMock).toHaveBeenCalledWith('/workspace/dm-cvd/portal/index.html');
+    expect(openExternalMock).not.toHaveBeenCalledWith('https://example.com/mas-portal');
+    expect(screen.getByText('Monitoring URL')).toBeInTheDocument();
+    expect(screen.getByText('https://example.com/runtime')).toBeInTheDocument();
+  });
+
   it('shows natural-language guidance on the runtime overview cards', async () => {
     runOplCommandMock.mockResolvedValue({
       exitCode: 0,
@@ -219,8 +262,15 @@ describe('RuntimeTrayItemPage', () => {
               action_kind: 'publication_gate',
               action_summary: 'Publication quality or delivery checks remain open; current stage: Analysis campaign.',
               study_id: '002-dm-china-us-mortality-attribution',
+              workspace_label: 'dm-cvd',
               detail_summary: '系统已检测到运行掉线，正在自动尝试恢复。',
               next_action_summary: '补充分析与稳健性验证',
+              active_run_id: 'run-be197b12',
+              portal_path: '/workspace/dm-cvd/portal/index.html',
+              portal_url: 'https://example.com/mas-portal',
+              portal_payload_ref: '/workspace/dm-cvd/portal/payload.json',
+              portal_freshness: { status: 'fresh', summary: 'Recent MAS progress exists' },
+              portal_source_refs: [{ label: 'portal_status.json', path: '/workspace/portal/status.json' }],
               health_status: 'recovering',
               blockers: ['claim_evidence_consistency_failed'],
               recommended_commands: [

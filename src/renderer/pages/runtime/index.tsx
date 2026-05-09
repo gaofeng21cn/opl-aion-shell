@@ -64,6 +64,24 @@ const getSourceRefDetail = (ref: Record<string, unknown>): string => {
   }
 };
 
+const getPortalFreshnessText = (freshness: Record<string, unknown>): string => {
+  const parts = ['status', 'summary', 'latest_event_at']
+    .map((key) => {
+      const value = freshness[key];
+      return typeof value === 'string' && value.trim() ? value.trim() : null;
+    })
+    .filter((value): value is string => Boolean(value));
+  if (parts.length > 0) {
+    return parts.join(' · ');
+  }
+
+  try {
+    return JSON.stringify(freshness, null, 2);
+  } catch {
+    return '';
+  }
+};
+
 const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => ({
   projectId: item.project_id,
   projectLabel: item.project_label,
@@ -85,6 +103,11 @@ const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => 
   nextActionSummary: item.next_action_summary,
   activeRunId: item.active_run_id,
   browserUrl: item.browser_url,
+  portalPath: item.portal_path,
+  portalUrl: item.portal_url,
+  portalPayloadRef: item.portal_payload_ref,
+  portalFreshness: item.portal_freshness,
+  portalSourceRefs: item.portal_source_refs,
   questSessionApiUrl: item.quest_session_api_url,
   healthStatus: item.health_status,
   blockers: item.blockers,
@@ -275,6 +298,21 @@ const RuntimeTrayItemPage: React.FC = () => {
       Message.error(error instanceof Error ? error.message : t('common.unknownError'));
     });
   }, [runtimeItem?.workspacePath, t]);
+
+  const handleOpenMasPortal = useCallback(() => {
+    if (runtimeItem?.portalPath) {
+      void ipcBridge.shell.openFile.invoke(runtimeItem.portalPath).catch((error) => {
+        Message.error(error instanceof Error ? error.message : t('common.unknownError'));
+      });
+      return;
+    }
+
+    if (runtimeItem?.portalUrl) {
+      void ipcBridge.shell.openExternal.invoke(runtimeItem.portalUrl).catch((error) => {
+        Message.error(error instanceof Error ? error.message : t('common.unknownError'));
+      });
+    }
+  }, [runtimeItem?.portalPath, runtimeItem?.portalUrl, t]);
 
   const handleOpenExternal = useCallback(
     (url: string | null | undefined) => {
@@ -505,6 +543,8 @@ const RuntimeTrayItemPage: React.FC = () => {
   }
 
   const sourceRefs = runtimeItem.sourceRefs || [];
+  const portalSourceRefs = runtimeItem.portalSourceRefs || [];
+  const hasMasPortal = Boolean(runtimeItem.portalPath || runtimeItem.portalUrl);
 
   return (
     <div className='w-full min-h-full box-border overflow-y-auto px-14px pt-28px pb-24px md:px-40px md:pt-52px md:pb-42px'>
@@ -568,6 +608,12 @@ const RuntimeTrayItemPage: React.FC = () => {
                     <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.studyId}</dd>
                   </>
                 )}
+                {runtimeItem.workspaceLabel && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.workspaceLabel')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.workspaceLabel}</dd>
+                  </>
+                )}
                 {runtimeItem.activeRunId && (
                   <>
                     <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.activeRun')}</dt>
@@ -606,6 +652,42 @@ const RuntimeTrayItemPage: React.FC = () => {
                     </dd>
                   </>
                 )}
+                {hasMasPortal && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.masPortal')}</dt>
+                    <dd className='m-0 flex min-w-0 flex-wrap items-center gap-8px text-14px text-t-primary'>
+                      <code className='min-w-0 break-all rounded bg-fill-2 px-6px py-2px text-12px'>
+                        {runtimeItem.portalPath || runtimeItem.portalUrl}
+                      </code>
+                      <Button
+                        size='mini'
+                        type='text'
+                        icon={<FolderOpen theme='outline' size={14} />}
+                        onClick={handleOpenMasPortal}
+                      >
+                        {t('common.runtimeTray.openMasPortal')}
+                      </Button>
+                    </dd>
+                  </>
+                )}
+                {runtimeItem.portalPayloadRef && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.portalPayloadRef')}</dt>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>
+                      <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-6px py-2px text-12px'>
+                        {runtimeItem.portalPayloadRef}
+                      </code>
+                    </dd>
+                  </>
+                )}
+                {runtimeItem.portalFreshness && (
+                  <>
+                    <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.portalFreshness')}</dt>
+                    <dd className='m-0 min-w-0 whitespace-pre-wrap break-words text-14px text-t-primary'>
+                      {getPortalFreshnessText(runtimeItem.portalFreshness)}
+                    </dd>
+                  </>
+                )}
                 {runtimeItem.browserUrl && (
                   <>
                     <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.monitoringUrl')}</dt>
@@ -620,6 +702,27 @@ const RuntimeTrayItemPage: React.FC = () => {
                   </>
                 )}
               </dl>
+
+              {portalSourceRefs.length > 0 && (
+                <>
+                  <div className='h-1px w-full bg-[var(--color-border-2)]' />
+                  <h3 className='m-0 text-13px font-medium text-t-secondary'>
+                    {t('common.runtimeTray.portalSourceRefs')}
+                  </h3>
+                  <div className='flex flex-col gap-12px'>
+                    {portalSourceRefs.map((ref, index) => (
+                      <div key={`${runtimeItem.itemId}-portal-${index}`} className='flex flex-col gap-5px'>
+                        <div className='text-13px font-medium text-t-primary'>
+                          {getSourceRefLabel(ref, t('common.runtimeTray.sourceRef', { index: index + 1 }))}
+                        </div>
+                        <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-secondary'>
+                          {getSourceRefDetail(ref)}
+                        </code>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
 
               <div className='h-1px w-full bg-[var(--color-border-2)]' />
               <h3 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.sourceRefs')}</h3>

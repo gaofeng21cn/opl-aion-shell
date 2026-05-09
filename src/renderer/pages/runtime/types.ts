@@ -44,6 +44,11 @@ export type RuntimeTrayOpenPayload = {
   nextActionSummary?: string | null;
   activeRunId?: string | null;
   browserUrl?: string | null;
+  portalPath?: string | null;
+  portalUrl?: string | null;
+  portalPayloadRef?: string | null;
+  portalFreshness?: Record<string, unknown> | null;
+  portalSourceRefs?: Array<Record<string, unknown>>;
   questSessionApiUrl?: string | null;
   healthStatus?: string | null;
   blockers?: string[];
@@ -71,6 +76,11 @@ export type RuntimeTrayItem = {
   next_action_summary?: string | null;
   active_run_id?: string | null;
   browser_url?: string | null;
+  portal_path?: string | null;
+  portal_url?: string | null;
+  portal_payload_ref?: string | null;
+  portal_freshness?: Record<string, unknown> | null;
+  portal_source_refs?: Array<Record<string, unknown>>;
   quest_session_api_url?: string | null;
   health_status?: string | null;
   blockers?: string[];
