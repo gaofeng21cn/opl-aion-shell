@@ -104,7 +104,6 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).toContain(`export OPL_FULL_RUNTIME_HOME='${runtimeHome}'`);
     expect(prefix).not.toContain('OPL_MODULES_ROOT');
     expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOSCIENCE='${path.join(runtimeHome, 'modules', 'mas')}'`);
-    expect(prefix).toContain(`export OPL_MODULE_PATH_MEDDEEPSCIENTIST='${path.join(runtimeHome, 'modules', 'mds')}'`);
     expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOGRANT='${path.join(runtimeHome, 'modules', 'mag')}'`);
     expect(prefix).toContain(`export OPL_MODULE_PATH_REDCUBE='${path.join(runtimeHome, 'modules', 'rca')}'`);
     expect(prefix).toContain(`export OPL_CODEX_BIN='${path.join(runtimeHome, 'bin', 'codex')}'`);
@@ -119,7 +118,7 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     const codexHome = path.join(homeRoot, '.codex');
     vi.stubEnv('CODEX_HOME', codexHome);
     const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
-    for (const repoName of ['med-autoscience', 'med-deepscientist', 'med-autogrant', 'redcube-ai']) {
+    for (const repoName of ['med-autoscience', 'med-autogrant', 'redcube-ai']) {
       fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
     }
     for (const skillId of requiredSkills) {
@@ -143,7 +142,6 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
         modules_root: modulesRoot,
         items: [
           ['medautoscience', 'med-autoscience'],
-          ['meddeepscientist', 'med-deepscientist'],
           ['medautogrant', 'med-autogrant'],
           ['redcube', 'redcube-ai'],
         ].map(([moduleId, repoName]) => ({

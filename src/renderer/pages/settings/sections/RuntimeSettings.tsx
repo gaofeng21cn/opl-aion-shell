@@ -12,7 +12,6 @@ import codexLogo from '@/renderer/assets/logos/tools/coding/codex.svg';
 import hermesLogo from '@/renderer/assets/logos/brand/hermes.svg';
 import onePersonLabLogo from '@/renderer/assets/logos/brand/app.png';
 import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
-import mdsLogo from '@/renderer/assets/logos/opl-modules/mds.svg';
 import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
 import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -184,14 +183,6 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
     roleKey: 'settings.oplEnvironmentPage.items.mas.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
     logo: masLogo,
-  },
-  {
-    id: 'mds',
-    moduleId: 'meddeepscientist',
-    name: 'Med DeepScientist (MDS)',
-    roleKey: 'settings.oplEnvironmentPage.items.mds.role',
-    latestVersionKey: 'settings.oplEnvironmentPage.items.module.latest',
-    logo: mdsLogo,
   },
   {
     id: 'mag',

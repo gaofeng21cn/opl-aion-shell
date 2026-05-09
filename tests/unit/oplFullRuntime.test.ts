@@ -59,7 +59,6 @@ describe('ensurePackagedOplFullRuntime', () => {
     );
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
-    expect(installed?.env.OPL_MODULE_PATH_MEDDEEPSCIENTIST).toBe(path.join(expectedHome, 'modules', 'mds'));
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(expectedHome, 'modules', 'mag'));
     expect(installed?.env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(expectedHome, 'modules', 'rca'));
     expect(installed?.env.OPL_CODEX_BIN).toBe(path.join(expectedHome, 'bin', 'codex'));
@@ -186,7 +185,6 @@ describe('buildOplFullRuntimeShellPrefix', () => {
 
     expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/tmp/OPL Full Runtime/current'");
     expect(prefix).toContain("export OPL_MODULE_PATH_MEDAUTOSCIENCE='/tmp/OPL Full Runtime/current/modules/mas'");
-    expect(prefix).toContain("export OPL_MODULE_PATH_MEDDEEPSCIENTIST='/tmp/OPL Full Runtime/current/modules/mds'");
     expect(prefix).toContain("export OPL_MODULE_PATH_MEDAUTOGRANT='/tmp/OPL Full Runtime/current/modules/mag'");
     expect(prefix).toContain("export OPL_MODULE_PATH_REDCUBE='/tmp/OPL Full Runtime/current/modules/rca'");
     expect(prefix).toContain("export OPL_CODEX_BIN='/tmp/OPL Full Runtime/current/bin/codex'");

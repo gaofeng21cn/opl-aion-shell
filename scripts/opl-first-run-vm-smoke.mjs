@@ -262,7 +262,6 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(runtimeHome, 'skills'))}`,
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
-    `export OPL_MODULE_PATH_MEDDEEPSCIENTIST=${shellQuote(path.join(runtimeHome, 'modules', 'mds'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
@@ -314,7 +313,6 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
 
   const requiredModules = new Map([
     ['medautoscience', 'med-autoscience'],
-    ['meddeepscientist', 'med-deepscientist'],
     ['medautogrant', 'med-autogrant'],
     ['redcube', 'redcube-ai'],
   ]);
