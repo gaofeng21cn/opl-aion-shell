@@ -153,6 +153,7 @@ type EnvironmentItem = {
   id: string;
   moduleId?: string;
   engineId?: 'codex' | 'hermes';
+  optionalCapability?: boolean;
   name: string;
   roleKey: string;
   latestVersionKey: string;
@@ -171,6 +172,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'hermes',
     engineId: 'hermes',
+    optionalCapability: true,
     name: 'Hermes-Agent',
     roleKey: 'settings.oplEnvironmentPage.items.hermes.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.hermes.latest',
@@ -315,10 +317,11 @@ function resolveModuleAction(status: OplModuleStatus | undefined): 'install' | '
 
 export function resolveEngineAction(
   engine: CoreEngineStatus | undefined,
-  engineId: EnvironmentItem['engineId']
+  engineId: EnvironmentItem['engineId'],
+  optionalCapability = false
 ): 'install' | 'update' | null {
   if (!engine) return null;
-  if (!engine.installed) return 'install';
+  if (!engine.installed) return optionalCapability ? null : 'install';
   if (engineId === 'codex') {
     return engine.version_status === 'outdated' || engine.version_status === 'unknown' ? 'update' : null;
   }
@@ -339,6 +342,17 @@ function formatTargetVersion(
 function formatHealthStatus(status: string | undefined, t: (key: string, options?: Record<string, string>) => string) {
   if (!status) return '';
   return t(`settings.oplEnvironmentPage.status.${status}`, { status });
+}
+
+function shouldShowEnvironmentItem(
+  item: EnvironmentItem,
+  coreEngines: CoreEngines,
+  interactionLayer: OplInteractionLayer
+): boolean {
+  if (!item.optionalCapability) return true;
+  if (item.engineId === interactionLayer) return true;
+  const engine = item.engineId ? coreEngines[item.engineId] : undefined;
+  return Boolean(engine?.installed || engine?.update_available);
 }
 
 async function readCodexSessionContext(): Promise<string> {
@@ -651,6 +665,7 @@ const OplEnvironmentContent: React.FC = () => {
   const [runningAction, setRunningAction] = useState<string | null>(null);
   const [moduleStatuses, setModuleStatuses] = useState<OplModuleStatus[]>([]);
   const [coreEngines, setCoreEngines] = useState<CoreEngines>({});
+  const [interactionLayer, setInteractionLayer] = useState<OplInteractionLayer>('codex');
   const [workspaceRoot, setWorkspaceRoot] = useState<WorkspaceRootStatus | undefined>();
   const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
 
@@ -686,6 +701,20 @@ const OplEnvironmentContent: React.FC = () => {
     };
   }, [t]);
 
+  useEffect(() => {
+    let cancelled = false;
+    ConfigStorage.get('opl.interactionLayer')
+      .then((value) => {
+        if (!cancelled) setInteractionLayer(normalizeInteractionLayer(value));
+      })
+      .catch(() => {
+        if (!cancelled) setInteractionLayer('codex');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const statusByModuleId = useMemo(() => {
     const map = new Map<string, OplModuleStatus>();
     for (const status of moduleStatuses) {
@@ -693,6 +722,11 @@ const OplEnvironmentContent: React.FC = () => {
     }
     return map;
   }, [moduleStatuses]);
+
+  const visibleEnvironmentItems = useMemo(
+    () => OPL_ENVIRONMENT_ITEMS.filter((item) => shouldShowEnvironmentItem(item, coreEngines, interactionLayer)),
+    [coreEngines, interactionLayer]
+  );
 
   const runOplCommand = useCallback(
     async (args: string[], actionId: string, successText: string) => {
@@ -842,7 +876,7 @@ const OplEnvironmentContent: React.FC = () => {
 
       <Card bordered className='rounded-xl overflow-hidden' id='modules'>
         <div className='flex flex-col divide-y divide-border-1'>
-          {OPL_ENVIRONMENT_ITEMS.map((item) => {
+          {visibleEnvironmentItems.map((item) => {
             const status = item.moduleId ? statusByModuleId.get(item.moduleId) : undefined;
             const engine = item.engineId ? coreEngines?.[item.engineId] : undefined;
             const currentVersion = item.moduleId
@@ -857,7 +891,9 @@ const OplEnvironmentContent: React.FC = () => {
             const hermesUpdateSummary =
               item.engineId === 'hermes' && engine?.update_summary ? firstLine(engine.update_summary) : null;
             const moduleAction = item.moduleId ? resolveModuleAction(status) : null;
-            const engineAction = item.engineId ? resolveEngineAction(engine, item.engineId) : null;
+            const engineAction = item.engineId
+              ? resolveEngineAction(engine, item.engineId, item.optionalCapability)
+              : null;
             const actionArgs =
               item.moduleId && moduleAction
                 ? ['module', moduleAction, '--module', item.moduleId]

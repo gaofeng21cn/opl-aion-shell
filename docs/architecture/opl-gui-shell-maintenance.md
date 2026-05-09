@@ -112,4 +112,4 @@ When adding or changing trim rules:
 - Run `bun run validate:opl-package` against the generated package.
 - Launch the packaged app once after the validation passes.
 
-Hermes-Agent support is an external ACP CLI path. It does not require bundling Aion CLI, aionrs, Gemini, googleapis, or `@office-ai/aioncli-core`.
+Hermes-Agent support is an explicit optional hosted/runtime/provider/online-management capability. The default OPL GUI, first-launch, Full first-install, and runtime tray baseline is Codex-default plus the local OPL/MAS scheduler surfaces; Hermes must not be treated as a mandatory package payload or readiness prerequisite. If a Full runtime explicitly includes `bin/hermes`, the shell may expose `OPL_HERMES_BIN` for that explicit path.

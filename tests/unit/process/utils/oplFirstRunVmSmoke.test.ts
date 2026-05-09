@@ -107,9 +107,19 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOGRANT='${path.join(runtimeHome, 'modules', 'mag')}'`);
     expect(prefix).toContain(`export OPL_MODULE_PATH_REDCUBE='${path.join(runtimeHome, 'modules', 'rca')}'`);
     expect(prefix).toContain(`export OPL_CODEX_BIN='${path.join(runtimeHome, 'bin', 'codex')}'`);
-    expect(prefix).toContain(`export OPL_HERMES_BIN='${path.join(runtimeHome, 'bin', 'hermes')}'`);
+    expect(prefix).not.toContain('OPL_HERMES_BIN');
     expect(prefix).toContain(path.join(runtimeHome, 'python', 'cpython-3.12.13-macos-aarch64-none', 'bin'));
     expect(prefix).toContain('PATH=');
+  });
+
+  it('includes Hermes in the smoke command env only when the optional binary exists', async () => {
+    const api = await loadSmokeTestApi();
+    const runtimeHome = path.join(makeTempRoot(), 'OPL Full Runtime', 'current');
+    writeExecutable(path.join(runtimeHome, 'bin', 'hermes'));
+
+    const prefix = api.buildFullRuntimeCommandPrefix(runtimeHome);
+
+    expect(prefix).toContain(`export OPL_HERMES_BIN='${path.join(runtimeHome, 'bin', 'hermes')}'`);
   });
 
   it('asserts Full first-run modules are materialized into standard state modules root', async () => {

@@ -252,6 +252,7 @@ function resolvePythonBin(runtimeHome) {
 function buildFullRuntimeCommandPrefix(runtimeHome) {
   if (!runtimeHome) return '';
   const pythonBin = resolvePythonBin(runtimeHome);
+  const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
     path.join(runtimeHome, 'node', 'bin'),
@@ -265,9 +266,11 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
-    `export OPL_HERMES_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'hermes'))}`,
+    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
-  ].join(' && ');
+  ]
+    .filter(Boolean)
+    .join(' && ');
 }
 
 function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {

@@ -72,6 +72,10 @@ function mergePathEntries(entries: string[], existingPath = process.env.PATH ?? 
   return merged.join(path.delimiter);
 }
 
+function existingFileEnv(name: string, filePath: string): NodeJS.ProcessEnv {
+  return fs.existsSync(filePath) ? { [name]: filePath } : {};
+}
+
 function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
   const pythonBin = resolvePythonBin(runtimeHome);
   const pathEntries = [
@@ -85,7 +89,7 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
     OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
     OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
-    OPL_HERMES_BIN: path.join(runtimeHome, 'bin', 'hermes'),
+    ...existingFileEnv('OPL_HERMES_BIN', path.join(runtimeHome, 'bin', 'hermes')),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
     OPL_MODULE_PATH_MEDAUTOGRANT: path.join(runtimeHome, 'modules', 'mag'),
     OPL_MODULE_PATH_REDCUBE: path.join(runtimeHome, 'modules', 'rca'),
@@ -291,7 +295,11 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(normalized, 'bin', 'codex'))}`,
-    `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`,
+    fs.existsSync(path.join(normalized, 'bin', 'hermes'))
+      ? `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`
+      : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
-  ].join(' && ');
+  ]
+    .filter(Boolean)
+    .join(' && ');
 }
