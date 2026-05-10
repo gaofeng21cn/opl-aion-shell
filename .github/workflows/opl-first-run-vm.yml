@@ -151,6 +151,22 @@ jobs:
           path: artifacts/opl-first-run-vm
           if-no-files-found: warn
 
+      - name: Clean stale first-run Tart VMs
+        if: always() && inputs.keep_vm != true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v tart >/dev/null 2>&1; then
+            exit 0
+          fi
+          while IFS= read -r vm_name; do
+            if [[ "$vm_name" == opl-first-run-20* ]]; then
+              echo "Cleaning stale first-run VM: $vm_name"
+              tart stop "$vm_name" || true
+              tart delete "$vm_name" || true
+            fi
+          done < <(tart list --source local --quiet)
+
       - name: Summarize
         if: always()
         shell: bash

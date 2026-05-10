@@ -7,6 +7,24 @@ import path from 'node:path';
 
 const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
 const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
+const SIGNAL_EXIT_CODES = new Map([
+  ['SIGHUP', 129],
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+]);
+
+const runtimeState = {
+  options: null,
+  stage: 'starting',
+  vmLogPath: '',
+  tartProcess: null,
+  currentChild: null,
+  codexApiKeyFile: null,
+  ip: '',
+  guestArtifactDir: '',
+  copiedArtifacts: false,
+  cleanupStarted: false,
+};
 
 function usage() {
   process.stdout.write(`Usage:
@@ -111,6 +129,42 @@ function prepareHostCodexApiKeyFile(options) {
   return { path: keyPath, temporary: true, tempDir };
 }
 
+function appendRuntimeLog(message) {
+  const line = `[${new Date().toISOString()}] ${message}\n`;
+  process.stdout.write(`[tart-smoke] ${message}\n`);
+  const options = runtimeState.options;
+  if (!options) return;
+  try {
+    fs.mkdirSync(options.artifacts, { recursive: true });
+    fs.appendFileSync(
+      path.join(options.artifacts, 'tart-smoke-events.jsonl'),
+      `${JSON.stringify({
+        timestamp: new Date().toISOString(),
+        event_type: 'host_runtime_event',
+        stage: runtimeState.stage,
+        message,
+        vm_name: options.vmName,
+        source_vm: options.sourceVm,
+        guest_ip: runtimeState.ip || null,
+      })}\n`,
+      'utf8'
+    );
+  } catch (_) {
+    // Best-effort diagnostics must not mask the real smoke failure.
+  }
+  if (!runtimeState.vmLogPath) return;
+  try {
+    fs.appendFileSync(runtimeState.vmLogPath, line, 'utf8');
+  } catch (_) {
+    // Best-effort diagnostics must not mask the real smoke failure.
+  }
+}
+
+function setStage(stage) {
+  runtimeState.stage = stage;
+  appendRuntimeLog(`stage=${stage}`);
+}
+
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
@@ -132,6 +186,47 @@ function run(command, args, options = {}) {
   return result.stdout ?? '';
 }
 
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd ?? process.cwd(),
+      env: options.env ?? process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    runtimeState.currentChild = child;
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.once('error', (error) => {
+      if (runtimeState.currentChild === child) runtimeState.currentChild = null;
+      reject(error);
+    });
+    child.once('close', (code, signal) => {
+      if (runtimeState.currentChild === child) runtimeState.currentChild = null;
+      if (code !== 0) {
+        reject(
+          new Error(
+            [
+              `${command} ${args.join(' ')} exited with ${code ?? `signal ${signal}`}`,
+              stdout ? `stdout:\n${stdout}` : '',
+              stderr ? `stderr:\n${stderr}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n')
+          )
+        );
+        return;
+      }
+      resolve(stdout);
+    });
+  });
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
@@ -143,23 +238,27 @@ function sshBaseArgs(options, ip) {
   return args;
 }
 
-function ssh(options, ip, command) {
-  return run('ssh', [...sshBaseArgs(options, ip), command]);
+async function ssh(options, ip, command) {
+  return await runAsync('ssh', [...sshBaseArgs(options, ip), command]);
 }
 
-function scpToGuest(options, ip, sources, targetDir) {
+async function scpToGuest(options, ip, sources, targetDir) {
   const args = ['-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(...sources, `${options.guestUser}@${ip}:${targetDir}/`);
-  run('scp', args);
+  await runAsync('scp', args);
 }
 
-function scpFromGuest(options, ip, sourceDir, targetDir) {
+async function scpFromGuest(options, ip, sourceDir, targetDir) {
   fs.mkdirSync(targetDir, { recursive: true });
   const args = ['-r', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}:${sourceDir}/`, targetDir);
-  run('scp', args);
+  await runAsync('scp', args);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function waitUntil(deadline, fn, failureMessage) {
@@ -185,18 +284,17 @@ function waitForTartIp(vmName, timeoutMs) {
   );
 }
 
-function waitForSsh(options, ip, timeoutMs) {
+async function waitForSsh(options, ip, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
-  waitUntil(
-    deadline,
-    () => {
-      const result = spawnSync('ssh', [...sshBaseArgs(options, ip), 'true'], {
-        encoding: 'utf8',
-      });
-      return result.status === 0;
-    },
-    `Timed out waiting for SSH to ${options.guestUser}@${ip}`
-  );
+  while (Date.now() < deadline) {
+    try {
+      await runAsync('ssh', [...sshBaseArgs(options, ip), 'true']);
+      return;
+    } catch (_) {
+      await sleep(2_000);
+    }
+  }
+  throw new Error(`Timed out waiting for SSH to ${options.guestUser}@${ip}`);
 }
 
 function startVm(options, vmLogPath) {
@@ -219,6 +317,69 @@ function stopAndDeleteVm(options) {
   if (!options.keepVm) {
     spawnSync('tart', ['delete', options.vmName], { stdio: 'ignore' });
   }
+}
+
+function writeInterruptedSummary(signal) {
+  const options = runtimeState.options;
+  if (!options) return;
+  try {
+    fs.mkdirSync(options.artifacts, { recursive: true });
+    const summary = {
+      surface_id: 'opl_tart_gui_first_run_smoke',
+      status: 'interrupted',
+      signal,
+      stage: runtimeState.stage,
+      vm_name: options.vmName,
+      source_vm: options.sourceVm,
+      guest_ip: runtimeState.ip || null,
+      guest_artifacts: runtimeState.guestArtifactDir || null,
+      host_artifacts: options.artifacts,
+      copied_guest_artifacts: runtimeState.copiedArtifacts,
+    };
+    fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
+  } catch (_) {
+    // Best-effort diagnostics must not mask signal handling.
+  }
+}
+
+async function cleanupRuntime({ copyGuestArtifacts, reason } = { copyGuestArtifacts: true, reason: 'cleanup' }) {
+  const options = runtimeState.options;
+  if (!options || runtimeState.cleanupStarted) return;
+  runtimeState.cleanupStarted = true;
+  appendRuntimeLog(`cleanup_started reason=${reason || 'cleanup'}`);
+
+  if (copyGuestArtifacts && runtimeState.ip && runtimeState.guestArtifactDir && !runtimeState.copiedArtifacts) {
+    try {
+      await scpFromGuest(options, runtimeState.ip, runtimeState.guestArtifactDir, options.artifacts);
+      runtimeState.copiedArtifacts = true;
+      appendRuntimeLog('copied_guest_artifacts_after_failure');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appendRuntimeLog(`artifact_copy_after_failure_failed ${message}`);
+    }
+  }
+
+  if (runtimeState.codexApiKeyFile?.temporary && runtimeState.codexApiKeyFile.tempDir) {
+    fs.rmSync(runtimeState.codexApiKeyFile.tempDir, { recursive: true, force: true });
+  }
+  if (runtimeState.currentChild && !runtimeState.currentChild.killed) {
+    runtimeState.currentChild.kill('SIGTERM');
+  }
+  if (runtimeState.tartProcess && !runtimeState.tartProcess.killed) {
+    runtimeState.tartProcess.kill('SIGTERM');
+  }
+  stopAndDeleteVm(options);
+  appendRuntimeLog('cleanup_finished');
+}
+
+for (const signal of SIGNAL_EXIT_CODES.keys()) {
+  process.once(signal, () => {
+    appendRuntimeLog(`received_signal signal=${signal}`);
+    writeInterruptedSummary(signal);
+    cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` }).finally(() => {
+      process.exit(SIGNAL_EXIT_CODES.get(signal));
+    });
+  });
 }
 
 function assertMacOSHost() {
@@ -246,7 +407,7 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
   return ['set -euo pipefail', smokeArgs].join('\n');
 }
 
-function resolveGuestNodeCommand(options, ip) {
+async function resolveGuestNodeCommand(options, ip) {
   const installScript = `
 set -euo pipefail
 if command -v node >/dev/null 2>&1; then
@@ -269,7 +430,7 @@ fi
 "$NODE_DIR/bin/node" --version >/dev/null
 printf '%s\\n' "$NODE_DIR/bin/node"
 `;
-  return ssh(options, ip, installScript).trim().split(/\r?\n/).at(-1);
+  return (await ssh(options, ip, installScript)).trim().split(/\r?\n/).at(-1);
 }
 
 function readGuestSmokeSummary(hostArtifactsDir) {
@@ -301,57 +462,67 @@ function writeSummary(options, ip, guestArtifactDir) {
 async function main() {
   assertMacOSHost();
   const options = parseArgs(process.argv.slice(2));
+  runtimeState.options = options;
   assertTartAvailable();
   fs.mkdirSync(options.artifacts, { recursive: true });
 
   const vmLogPath = path.join(options.artifacts, 'tart-run.log');
+  runtimeState.vmLogPath = vmLogPath;
   let tartProcess = null;
   const codexApiKeyFile = prepareHostCodexApiKeyFile(options);
+  runtimeState.codexApiKeyFile = codexApiKeyFile;
   let ip = '';
   let guestArtifactDir = '';
   let copiedArtifacts = false;
   try {
+    setStage('clone_vm');
     run('tart', ['clone', options.sourceVm, options.vmName]);
+    setStage('start_vm');
     tartProcess = startVm(options, vmLogPath);
+    runtimeState.tartProcess = tartProcess;
+    setStage('wait_for_ip');
     ip = waitForTartIp(options.vmName, options.timeoutMs);
-    waitForSsh(options, ip, options.timeoutMs);
+    runtimeState.ip = ip;
+    setStage('wait_for_ssh');
+    await waitForSsh(options, ip, options.timeoutMs);
 
     guestArtifactDir = `${options.guestWorkdir}/artifacts`;
+    runtimeState.guestArtifactDir = guestArtifactDir;
     const guestDmgPath = `${options.guestWorkdir}/${path.basename(options.dmg)}`;
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
     const guestCodexApiKeyPath = `${options.guestWorkdir}/codex-api-key.txt`;
-    ssh(options, ip, `rm -rf ${shellQuote(options.guestWorkdir)} && mkdir -p ${shellQuote(options.guestWorkdir)}`);
-    scpToGuest(
+    setStage('prepare_guest_workdir');
+    await ssh(
+      options,
+      ip,
+      `rm -rf ${shellQuote(options.guestWorkdir)} && mkdir -p ${shellQuote(options.guestWorkdir)}`
+    );
+    setStage('copy_inputs_to_guest');
+    await scpToGuest(
       options,
       ip,
       [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs'), codexApiKeyFile.path],
       options.guestWorkdir
     );
-    options.guestNodeCommand = resolveGuestNodeCommand(options, ip);
-    ssh(options, ip, guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath));
-    scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
+    setStage('resolve_guest_node');
+    options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);
+    setStage('run_guest_smoke');
+    await ssh(
+      options,
+      ip,
+      guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath)
+    );
+    setStage('copy_guest_artifacts');
+    await scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
     copiedArtifacts = true;
+    runtimeState.copiedArtifacts = true;
+    setStage('write_summary');
     writeSummary(options, ip, guestArtifactDir);
   } finally {
-    if (ip && guestArtifactDir && !copiedArtifacts) {
-      try {
-        scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
-        copiedArtifacts = true;
-      } catch (error) {
-        fs.appendFileSync(
-          vmLogPath,
-          `\n[artifact copy after failure failed: ${error instanceof Error ? error.message : String(error)}]\n`,
-          'utf8'
-        );
-      }
-    }
-    if (codexApiKeyFile.temporary && codexApiKeyFile.tempDir) {
-      fs.rmSync(codexApiKeyFile.tempDir, { recursive: true, force: true });
-    }
-    if (tartProcess && !tartProcess.killed) {
-      tartProcess.kill('SIGTERM');
-    }
-    stopAndDeleteVm(options);
+    runtimeState.ip = ip;
+    runtimeState.guestArtifactDir = guestArtifactDir;
+    runtimeState.copiedArtifacts = copiedArtifacts || runtimeState.copiedArtifacts;
+    await cleanupRuntime({ copyGuestArtifacts: true, reason: 'finally' });
   }
 }
 
