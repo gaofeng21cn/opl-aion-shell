@@ -229,7 +229,7 @@ describe('RuntimeSettings OPL environment section', () => {
     expect(screen.queryByTestId('opl-appearance-theme-settings')).not.toBeInTheDocument();
   });
 
-  it('does not show Hermes as a default environment dependency when Codex is the interaction layer', async () => {
+  it('shows Hermes as the default online runtime dependency when Codex is the interaction layer', async () => {
     mockConfigGet.mockImplementation(async (key: string) => (key === 'opl.interactionLayer' ? 'codex' : null));
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
@@ -250,9 +250,8 @@ describe('RuntimeSettings OPL environment section', () => {
     fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
 
     expect(await screen.findByText('Codex CLI')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.queryByText('Hermes-Agent')).not.toBeInTheDocument();
-    });
+    expect(await screen.findByText('Hermes-Agent')).toBeInTheDocument();
+    expect(screen.getByText('settings.oplEnvironmentPage.actions.install')).toBeInTheDocument();
   });
 
   it('does not repeat environment status loads when the message API identity changes', async () => {
@@ -443,7 +442,7 @@ describe('RuntimeSettings OPL engine action policy', () => {
     expect(resolveEngineAction({ installed: true, update_available: true }, 'hermes')).toBe('update');
   });
 
-  it('does not offer Hermes install actions for the optional hosted capability', () => {
-    expect(resolveEngineAction({ installed: false }, 'hermes', true)).toBeNull();
+  it('offers Hermes install actions when the default online runtime is missing', () => {
+    expect(resolveEngineAction({ installed: false }, 'hermes')).toBe('install');
   });
 });

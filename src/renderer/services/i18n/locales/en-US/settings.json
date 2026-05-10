@@ -1010,8 +1010,8 @@
         "latest": "Official latest (minimum {{minimumVersion}})"
       },
       "hermes": {
-        "role": "Optional hosted runtime and online management capability",
-        "latest": "Optional Hermes-Agent channel"
+        "role": "Default online runtime substrate",
+        "latest": "Hermes-Agent channel"
       },
       "module": {
         "latest": "GitHub main"

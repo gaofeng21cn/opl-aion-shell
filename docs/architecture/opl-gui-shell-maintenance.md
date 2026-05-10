@@ -112,4 +112,4 @@ When adding or changing trim rules:
 - Run `bun run validate:opl-package` against the generated package.
 - Launch the packaged app once after the validation passes.
 
-Hermes-Agent support is an explicit optional hosted/runtime/provider/online-management capability. The default OPL GUI, first-launch, Full first-install, and runtime tray baseline is Codex-default plus the local OPL/MAS scheduler surfaces; Hermes must not be treated as a mandatory package payload or readiness prerequisite. If a Full runtime explicitly includes `bin/hermes`, the shell may expose `OPL_HERMES_BIN` for that explicit path.
+Hermes-Agent is the default OPL online runtime substrate for first-launch readiness and Full first-install packaging. The GUI keeps Codex as the default concrete executor, but it must expose `OPL_HERMES_BIN` whenever an installed Full runtime carries `bin/hermes`, and the environment page should treat Hermes readiness as part of the OPL-managed runtime baseline. MDS remains retired and must not return as a default GUI module or package payload.

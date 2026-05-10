@@ -139,7 +139,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(activated?.env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
   });
 
-  it('does not advertise Hermes from an installed Full runtime unless the optional Hermes binary exists', () => {
+  it('does not advertise Hermes from a legacy installed runtime when the Hermes binary is absent', () => {
     const homeDir = makeTempRoot('opl-active-codex-runtime-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
@@ -214,7 +214,7 @@ describe('buildOplFullRuntimeShellPrefix', () => {
     expect(prefix).toContain('PATH=');
   });
 
-  it('includes the optional Hermes binary when a Full runtime explicitly carries it', () => {
+  it('includes the bundled Hermes binary when a Full runtime carries it', () => {
     const runtimeHome = path.join(makeTempRoot('opl-hermes-runtime-home'), 'current');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'hermes'), '#!/usr/bin/env bash\n', 'utf8');

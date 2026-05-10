@@ -1011,8 +1011,8 @@
         "latest": "官方 latest（最低 {{minimumVersion}}）"
       },
       "hermes": {
-        "role": "可选托管运行时与在线管理能力",
-        "latest": "可选 Hermes-Agent 通道"
+        "role": "默认在线运行时底座",
+        "latest": "Hermes-Agent 通道"
       },
       "module": {
         "latest": "GitHub main"

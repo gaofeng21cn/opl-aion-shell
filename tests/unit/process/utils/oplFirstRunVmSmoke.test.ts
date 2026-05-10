@@ -112,7 +112,7 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).toContain('PATH=');
   });
 
-  it('includes Hermes in the smoke command env only when the optional binary exists', async () => {
+  it('includes Hermes in the smoke command env when the bundled binary exists', async () => {
     const api = await loadSmokeTestApi();
     const runtimeHome = path.join(makeTempRoot(), 'OPL Full Runtime', 'current');
     writeExecutable(path.join(runtimeHome, 'bin', 'hermes'));
