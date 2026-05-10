@@ -7,6 +7,8 @@ export type RuntimeTrayCommand = {
   command: string;
 };
 
+export type RuntimeTrayJsonRecord = Record<string, unknown>;
+
 export type RuntimeTrayActionOwner = 'user' | 'opl' | 'infrastructure' | 'none';
 export type RuntimeTrayActionKind =
   | 'human_gate'
@@ -47,8 +49,11 @@ export type RuntimeTrayOpenPayload = {
   portalPath?: string | null;
   portalUrl?: string | null;
   portalPayloadRef?: string | null;
-  portalFreshness?: Record<string, unknown> | null;
-  portalSourceRefs?: Array<Record<string, unknown>>;
+  portalFreshness?: RuntimeTrayJsonRecord | null;
+  portalSourceRefs?: RuntimeTrayJsonRecord[];
+  workbenchProjection?: RuntimeTrayJsonRecord | null;
+  workbenchProjectionSourceRefs?: RuntimeTrayJsonRecord[];
+  studyWorkbench?: RuntimeTrayJsonRecord | null;
   questSessionApiUrl?: string | null;
   healthStatus?: string | null;
   blockers?: string[];
@@ -79,8 +84,11 @@ export type RuntimeTrayItem = {
   portal_path?: string | null;
   portal_url?: string | null;
   portal_payload_ref?: string | null;
-  portal_freshness?: Record<string, unknown> | null;
-  portal_source_refs?: Array<Record<string, unknown>>;
+  portal_freshness?: RuntimeTrayJsonRecord | null;
+  portal_source_refs?: RuntimeTrayJsonRecord[];
+  workbench_projection?: RuntimeTrayJsonRecord | null;
+  workbench_projection_source_refs?: RuntimeTrayJsonRecord[];
+  study_workbench?: RuntimeTrayJsonRecord | null;
   quest_session_api_url?: string | null;
   health_status?: string | null;
   blockers?: string[];

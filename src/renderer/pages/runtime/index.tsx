@@ -4,6 +4,7 @@ import { FolderOpen, Left, Refresh } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import MasRuntimeWorkbench from './MasRuntimeWorkbench';
 import {
   RUNTIME_TRAY_ITEM_STORAGE_KEY,
   type RuntimeTrayActionOwner,
@@ -108,6 +109,9 @@ const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => 
   portalPayloadRef: item.portal_payload_ref,
   portalFreshness: item.portal_freshness,
   portalSourceRefs: item.portal_source_refs,
+  workbenchProjection: item.workbench_projection,
+  workbenchProjectionSourceRefs: item.workbench_projection_source_refs,
+  studyWorkbench: item.study_workbench,
   questSessionApiUrl: item.quest_session_api_url,
   healthStatus: item.health_status,
   blockers: item.blockers,
@@ -577,6 +581,14 @@ const RuntimeTrayItemPage: React.FC = () => {
           <div className='h-1px w-full bg-[var(--color-border-2)]' />
           {renderRuntimeGuidance(runtimeItem)}
         </section>
+
+        {runtimeItem.projectId === 'medautoscience' && (
+          <MasRuntimeWorkbench
+            item={runtimeItem}
+            onOpenMasPortal={handleOpenMasPortal}
+            onOpenExternal={handleOpenExternal}
+          />
+        )}
 
         <Collapse bordered={false}>
           <Collapse.Item header={t('common.runtimeTray.developerDetails')} name='developer-details'>

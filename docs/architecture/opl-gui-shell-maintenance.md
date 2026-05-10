@@ -23,6 +23,7 @@ Use this repo for GUI-shell work:
 
 - OPL shell branding, first-run experience, updater/release metadata, packaged runtime validation, and installer packaging
 - Codex-default runtime wiring, visible skill filtering, bridge adapters, process launch policy, and environment discovery needed by the shell
+- human-facing runtime workbench views that consume OPL-indexed, domain-owned projections such as MAS `mas_opl_runtime_workbench_projection`
 - upstream AionUI intake, conflict resolution, and patch-retirement audits
 - fork-safe hygiene that prevents tracked local runtime/build payloads from entering `gaofeng/main`
 
@@ -30,6 +31,7 @@ Keep these responsibilities outside this repo:
 
 - OPL family contracts, shared runtime truth, portfolio/session ledgers, and cross-domain governance belong in `one-person-lab` or the relevant domain repo
 - MAS/MAG/RCA/MDS domain truth belongs in those domain repos and their contract surfaces
+- terminal input, pause/resume/stop ownership, publication judgment, artifact authority, and study truth remain domain-owned even when this GUI renders their read models
 - local agent sessions, prompt logs, runtime-state, generated debug output, and worktrees stay ignored or user-local
 - broad source-shape governance over upstream-owned AionUI code is avoided unless a specific OPL product risk justifies it
 

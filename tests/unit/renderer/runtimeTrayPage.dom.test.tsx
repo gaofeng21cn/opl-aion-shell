@@ -78,6 +78,40 @@ const translations: Record<string, string> = {
   'common.runtimeTray.developerDetails': 'Developer Details',
   'common.runtimeTray.health': 'Health',
   'common.runtimeTray.masPortal': 'MAS Portal',
+  'common.runtimeTray.masWorkbench.actionAvailable': 'Available',
+  'common.runtimeTray.masWorkbench.actionDisabled': 'Disabled',
+  'common.runtimeTray.masWorkbench.actionReceiptRequired': 'MAS receipt required',
+  'common.runtimeTray.masWorkbench.actions': 'Actions',
+  'common.runtimeTray.masWorkbench.activeRun': 'Active Run',
+  'common.runtimeTray.masWorkbench.artifact': 'Artifact',
+  'common.runtimeTray.masWorkbench.conversationReadModel': 'Executor Conversation',
+  'common.runtimeTray.masWorkbench.currentStage': 'Current Stage',
+  'common.runtimeTray.masWorkbench.freshnessStatus': 'Freshness',
+  'common.runtimeTray.masWorkbench.freshnessSummary': 'Freshness Summary',
+  'common.runtimeTray.masWorkbench.links': 'Workbench Links',
+  'common.runtimeTray.masWorkbench.liveConsoleReadModel': 'Live Console',
+  'common.runtimeTray.masWorkbench.noActions': 'No available actions',
+  'common.runtimeTray.masWorkbench.noLinks': 'No workbench links',
+  'common.runtimeTray.masWorkbench.openMonitoring': 'Open Monitoring',
+  'common.runtimeTray.masWorkbench.portalFallback': 'Portal fallback',
+  'common.runtimeTray.masWorkbench.portalFallbackDescription':
+    'This item has MAS Portal metadata but no App-native workbench projection yet. The workspace-local Portal remains available for inspection.',
+  'common.runtimeTray.masWorkbench.portalSource': 'Portal Source',
+  'common.runtimeTray.masWorkbench.progress': 'Progress',
+  'common.runtimeTray.masWorkbench.progressPayload': 'Progress Payload',
+  'common.runtimeTray.masWorkbench.sourceRefs': 'Workbench Source References',
+  'common.runtimeTray.masWorkbench.state': 'State',
+  'common.runtimeTray.masWorkbench.studyId': 'Study',
+  'common.runtimeTray.masWorkbench.summary': 'Summary',
+  'common.runtimeTray.masWorkbench.terminalAttachGate': 'Terminal Gate',
+  'common.runtimeTray.masWorkbench.terminalInput': 'Terminal Input',
+  'common.runtimeTray.masWorkbench.terminalInputDisabled':
+    'Interactive terminal input is disabled until MAS exposes an attach-capable live run.',
+  'common.runtimeTray.masWorkbench.terminalMode': 'Terminal',
+  'common.runtimeTray.masWorkbench.title': 'MAS Runtime Workbench',
+  'common.runtimeTray.masWorkbench.userNext': 'User Next',
+  'common.runtimeTray.masWorkbench.workbenchSource': 'Workbench Source',
+  'common.runtimeTray.masWorkbench.worker': 'Worker',
   'common.runtimeTray.infrastructureProblem': 'Background Supervision Status',
   'common.runtimeTray.infrastructureRecovery': 'Recovery Action',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
@@ -163,7 +197,11 @@ const runtimeItem: RuntimeTrayOpenPayload = {
   portalPath: '/workspace/dm-cvd/portal/index.html',
   portalUrl: 'https://example.com/mas-portal',
   portalPayloadRef: '/workspace/dm-cvd/portal/payload.json',
-  portalFreshness: { status: 'fresh', summary: 'Recent MAS progress exists', latest_event_at: '2026-05-08T16:21:59+00:00' },
+  portalFreshness: {
+    status: 'fresh',
+    summary: 'Recent MAS progress exists',
+    latest_event_at: '2026-05-08T16:21:59+00:00',
+  },
   portalSourceRefs: [{ label: 'portal_status.json', path: '/workspace/portal/status.json' }],
   healthStatus: 'live',
   blockers: ['claim_evidence_consistency_failed'],
@@ -213,21 +251,105 @@ describe('RuntimeTrayItemPage', () => {
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getAllByText('002-dm-china-us-mortality-attribution').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Active Run')).toBeInTheDocument();
-    expect(screen.getByText('run-be197b12')).toBeInTheDocument();
+    expect(screen.getAllByText('Active Run').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('run-be197b12').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Health')).toBeInTheDocument();
-    expect(screen.getByText('live')).toBeInTheDocument();
+    expect(screen.getAllByText('live').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Portal Freshness')).toBeInTheDocument();
     expect(screen.getByText('fresh · Recent MAS progress exists · 2026-05-08T16:21:59+00:00')).toBeInTheDocument();
     expect(screen.getByText('Portal Source References')).toBeInTheDocument();
-    expect(screen.getByText('/workspace/portal/status.json')).toBeInTheDocument();
+    expect(screen.getAllByText('/workspace/portal/status.json').length).toBeGreaterThanOrEqual(1);
 
-    screen.getByText('Open MAS Portal').click();
+    screen.getAllByText('Open MAS Portal')[0].click();
 
     expect(openFileMock).toHaveBeenCalledWith('/workspace/dm-cvd/portal/index.html');
     expect(openExternalMock).not.toHaveBeenCalledWith('https://example.com/mas-portal');
     expect(screen.getByText('Monitoring URL')).toBeInTheDocument();
     expect(screen.getByText('https://example.com/runtime')).toBeInTheDocument();
+  });
+
+  it('shows the App-native MAS runtime workbench projection without terminal input ownership', () => {
+    const workbenchItem: RuntimeTrayOpenPayload = {
+      ...runtimeItem,
+      workbenchProjection: {
+        surface_kind: 'mas_opl_runtime_workbench_projection',
+        schema_version: 'mas_opl_runtime_workbench_projection.v1',
+        generated_at: '2026-05-10T12:00:00+00:00',
+        terminal: {
+          mode: 'read_only_tail',
+          reason: 'Terminal input requires a MAS attach lease and action receipt.',
+        },
+      },
+      workbenchProjectionSourceRefs: [
+        {
+          label: 'workbench_projection',
+          path: '/workspace/dm-cvd/portal/payload.json#/mas_opl_runtime_workbench_projection',
+        },
+      ],
+      studyWorkbench: {
+        study_id: '002-dm-china-us-mortality-attribution',
+        current_stage: 'Analysis campaign',
+        macro_state: 'running',
+        next_action_summary: 'Finish reviewer evidence matrix',
+        user_next: 'No user input required',
+        active_run_id: 'run-be197b12',
+        worker_state: 'analysis_worker_active',
+        freshness: {
+          status: 'fresh',
+          summary: 'Projection generated from the latest MAS progress payload.',
+        },
+        terminal: {
+          mode: 'read_only_tail',
+          reason: 'Terminal input requires a MAS attach lease and action receipt.',
+        },
+        links: {
+          progress_payload_ref: '/workspace/dm-cvd/portal/payload.json',
+          conversation_read_model_ref: '/workspace/dm-cvd/runtime/conversation.json',
+          live_console_read_model_ref: '/workspace/dm-cvd/runtime/live-console.json',
+          terminal_attach_status_ref: '/workspace/dm-cvd/runtime/terminal-attach.json',
+          artifact_refs: [{ label: 'Current package', path: '/workspace/dm-cvd/current_package.zip' }],
+        },
+        actions: {
+          pause: {
+            allowed: false,
+            owner: 'mas',
+            endpoint_ref: 'mas:runtime-action:pause',
+          },
+          refresh_status: {
+            allowed: true,
+            owner: 'mas',
+            endpoint_ref: 'mas:runtime-action:refresh_status',
+          },
+        },
+        source_refs: [{ label: 'study_workbench', path: '/workspace/dm-cvd/runtime/study-workbench.json' }],
+      },
+    };
+
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/runtime/item', state: { runtimeItem: workbenchItem } }]}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('MAS Runtime Workbench')).toBeInTheDocument();
+    expect(screen.queryByText('Portal fallback')).not.toBeInTheDocument();
+    expect(screen.getByText('Analysis campaign')).toBeInTheDocument();
+    expect(screen.getByText('Finish reviewer evidence matrix')).toBeInTheDocument();
+    expect(screen.getByText('No user input required')).toBeInTheDocument();
+    expect(screen.getByText('Executor Conversation')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/dm-cvd/runtime/conversation.json')).toBeInTheDocument();
+    expect(screen.getByText('Terminal Gate')).toBeInTheDocument();
+    expect(screen.getByText('/workspace/dm-cvd/runtime/terminal-attach.json')).toBeInTheDocument();
+    expect(screen.getByText('Current package')).toBeInTheDocument();
+    expect(screen.getByText('pause')).toBeInTheDocument();
+    expect(screen.getAllByText('Disabled').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('refresh_status')).toBeInTheDocument();
+    expect(screen.getByText('Available')).toBeInTheDocument();
+    expect(screen.getByText('Terminal Input')).toBeInTheDocument();
+    expect(screen.getByText('Terminal input requires a MAS attach lease and action receipt.')).toBeInTheDocument();
+    expect(
+      screen.getByText('/workspace/dm-cvd/portal/payload.json#/mas_opl_runtime_workbench_projection')
+    ).toBeInTheDocument();
   });
 
   it('shows natural-language guidance on the runtime overview cards', async () => {
