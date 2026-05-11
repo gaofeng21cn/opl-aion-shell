@@ -185,6 +185,24 @@
       "sourceRefs": "工作台来源引用",
       "workbenchSource": "工作台来源",
       "portalSource": "Portal 来源"
+    },
+    "attemptWorkbench": {
+      "title": "Stage Attempt 工作台",
+      "attempt": "Stage Attempt",
+      "total": "Attempt 数",
+      "humanGateCount": "Human Gate",
+      "deadLetterCount": "Dead Letter",
+      "providerCompletion": "Provider 完成状态",
+      "domainReadyVerdict": "Domain Ready Verdict",
+      "closeoutReceipt": "Closeout 回执",
+      "nextOwner": "下一 Owner",
+      "heartbeat": "Heartbeat",
+      "checkpoints": "Checkpoint",
+      "closeoutRefs": "Closeout 引用",
+      "humanGate": "Human Gate",
+      "deadLetter": "Dead Letter",
+      "noAttempts": "本地 OPL ledger 暂无 stage attempt。",
+      "authorityBoundary": "Provider completion 只代表传输层状态；domain readiness、质量结论和产物 authority 仍由对应 domain agent 拥有。"
     }
   }
 }

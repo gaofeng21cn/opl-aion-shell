@@ -5,6 +5,7 @@ import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import MasRuntimeWorkbench from './MasRuntimeWorkbench';
+import RuntimeAttemptWorkbench from './RuntimeAttemptWorkbench';
 import {
   RUNTIME_TRAY_ITEM_STORAGE_KEY,
   type RuntimeTrayActionOwner,
@@ -112,6 +113,7 @@ const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => 
   workbenchProjection: item.workbench_projection,
   workbenchProjectionSourceRefs: item.workbench_projection_source_refs,
   studyWorkbench: item.study_workbench,
+  stageAttemptWorkbench: item.stage_attempt_workbench,
   questSessionApiUrl: item.quest_session_api_url,
   healthStatus: item.health_status,
   blockers: item.blockers,
@@ -527,6 +529,7 @@ const RuntimeTrayItemPage: React.FC = () => {
             <>
               {snapshotGroups && (
                 <>
+                  <RuntimeAttemptWorkbench workbench={snapshot.stage_attempt_workbench} />
                   {renderSnapshotSection(t('common.tray.runtimeUserAction'), snapshotGroups.user)}
                   {renderSnapshotSection(t('common.tray.runtimeOplAction'), snapshotGroups.opl)}
                   {renderSnapshotSection(t('common.tray.runtimeRunning'), snapshotGroups.running)}
@@ -589,6 +592,8 @@ const RuntimeTrayItemPage: React.FC = () => {
             onOpenExternal={handleOpenExternal}
           />
         )}
+
+        {runtimeItem.stageAttemptWorkbench && <RuntimeAttemptWorkbench workbench={runtimeItem.stageAttemptWorkbench} />}
 
         <Collapse bordered={false}>
           <Collapse.Item header={t('common.runtimeTray.developerDetails')} name='developer-details'>

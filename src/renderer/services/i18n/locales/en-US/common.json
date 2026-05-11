@@ -185,6 +185,24 @@
       "sourceRefs": "Workbench Source References",
       "workbenchSource": "Workbench Source",
       "portalSource": "Portal Source"
+    },
+    "attemptWorkbench": {
+      "title": "Stage Attempt Workbench",
+      "attempt": "Stage Attempt",
+      "total": "Attempts",
+      "humanGateCount": "Human Gates",
+      "deadLetterCount": "Dead Letters",
+      "providerCompletion": "Provider Completion",
+      "domainReadyVerdict": "Domain Ready Verdict",
+      "closeoutReceipt": "Closeout Receipt",
+      "nextOwner": "Next Owner",
+      "heartbeat": "Heartbeat",
+      "checkpoints": "Checkpoints",
+      "closeoutRefs": "Closeout References",
+      "humanGate": "Human Gate",
+      "deadLetter": "Dead Letter",
+      "noAttempts": "No stage attempts in the local OPL ledger.",
+      "authorityBoundary": "Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent."
     }
   }
 }

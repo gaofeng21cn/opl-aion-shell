@@ -58,6 +58,7 @@ type RuntimeTrayItem = {
   portal_payload_ref?: string | null;
   portal_freshness?: Record<string, unknown> | null;
   portal_source_refs?: Array<Record<string, unknown>>;
+  stage_attempt_workbench?: Record<string, unknown> | null;
   quest_session_api_url?: string | null;
   health_status?: string | null;
   blockers?: string[];
@@ -85,6 +86,7 @@ type RuntimeTraySnapshot = {
     opl: number;
     infrastructure: number;
   };
+  stage_attempt_workbench?: Record<string, unknown> | null;
   source_refs: Array<Record<string, unknown>>;
 };
 
@@ -431,6 +433,7 @@ const buildTrayContextMenuFromState = ({
       portalPayloadRef: item.portal_payload_ref,
       portalFreshness: item.portal_freshness,
       portalSourceRefs: item.portal_source_refs,
+      stageAttemptWorkbench: runtimeSnapshot.stage_attempt_workbench ?? item.stage_attempt_workbench,
       questSessionApiUrl: item.quest_session_api_url,
       healthStatus: item.health_status,
       blockers: item.blockers,

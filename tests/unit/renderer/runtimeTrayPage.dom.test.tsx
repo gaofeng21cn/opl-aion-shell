@@ -114,6 +114,23 @@ const translations: Record<string, string> = {
   'common.runtimeTray.masWorkbench.worker': 'Worker',
   'common.runtimeTray.infrastructureProblem': 'Background Supervision Status',
   'common.runtimeTray.infrastructureRecovery': 'Recovery Action',
+  'common.runtimeTray.attemptWorkbench.attempt': 'Stage Attempt',
+  'common.runtimeTray.attemptWorkbench.authorityBoundary':
+    'Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent.',
+  'common.runtimeTray.attemptWorkbench.checkpoints': 'Checkpoints',
+  'common.runtimeTray.attemptWorkbench.closeoutReceipt': 'Closeout Receipt',
+  'common.runtimeTray.attemptWorkbench.closeoutRefs': 'Closeout References',
+  'common.runtimeTray.attemptWorkbench.deadLetter': 'Dead Letter',
+  'common.runtimeTray.attemptWorkbench.deadLetterCount': 'Dead Letters',
+  'common.runtimeTray.attemptWorkbench.domainReadyVerdict': 'Domain Ready Verdict',
+  'common.runtimeTray.attemptWorkbench.heartbeat': 'Heartbeat',
+  'common.runtimeTray.attemptWorkbench.humanGate': 'Human Gate',
+  'common.runtimeTray.attemptWorkbench.humanGateCount': 'Human Gates',
+  'common.runtimeTray.attemptWorkbench.nextOwner': 'Next Owner',
+  'common.runtimeTray.attemptWorkbench.noAttempts': 'No stage attempts in the local OPL ledger.',
+  'common.runtimeTray.attemptWorkbench.providerCompletion': 'Provider Completion',
+  'common.runtimeTray.attemptWorkbench.title': 'Stage Attempt Workbench',
+  'common.runtimeTray.attemptWorkbench.total': 'Attempts',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
   'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
@@ -365,6 +382,37 @@ describe('RuntimeTrayItemPage', () => {
             summary: '0 running, 1 in process, 0 background recovery, 0 user action',
           },
           last_updated: '2026-04-30T10:51:34.483Z',
+          stage_attempt_workbench: {
+            surface_kind: 'opl_stage_attempt_workbench',
+            availability: 'available',
+            summary: {
+              total: 1,
+              human_gate_count: 0,
+              dead_letter_count: 0,
+            },
+            attempts: [
+              {
+                stage_attempt_id: 'sat_001',
+                provider_kind: 'temporal',
+                domain_id: 'medautoscience',
+                stage_id: 'analysis-campaign',
+                local_status: 'completed',
+                workflow_status: 'completed',
+                closeout_receipt_status: 'accepted_typed_closeout',
+                closeout_refs: ['receipt:analysis-closeout'],
+                checkpoint_refs: ['checkpoint:analysis-midpoint'],
+                next_owner: 'med-autoscience',
+                completion_boundary: {
+                  provider_completion: 'completed',
+                  domain_ready_verdict: 'domain_gate_pending',
+                  provider_completion_is_domain_ready: false,
+                },
+                heartbeat: {
+                  last_updated_at: '2026-05-10T12:00:00+00:00',
+                },
+              },
+            ],
+          },
           running_items: [],
           attention_items: [
             {
@@ -419,6 +467,15 @@ describe('RuntimeTrayItemPage', () => {
     );
 
     expect(await screen.findByText('In Process')).toBeInTheDocument();
+    expect(screen.getByText('Stage Attempt Workbench')).toBeInTheDocument();
+    expect(screen.getByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
+    expect(screen.getByText('Provider Completion')).toBeInTheDocument();
+    expect(screen.getByText('domain_gate_pending')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent.'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText('Current Processing')).toBeInTheDocument();
     expect(
       screen.getByText('Publication quality or delivery checks remain open; current stage: Analysis campaign.')

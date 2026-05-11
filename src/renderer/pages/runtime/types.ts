@@ -54,6 +54,7 @@ export type RuntimeTrayOpenPayload = {
   workbenchProjection?: RuntimeTrayJsonRecord | null;
   workbenchProjectionSourceRefs?: RuntimeTrayJsonRecord[];
   studyWorkbench?: RuntimeTrayJsonRecord | null;
+  stageAttemptWorkbench?: RuntimeTrayJsonRecord | null;
   questSessionApiUrl?: string | null;
   healthStatus?: string | null;
   blockers?: string[];
@@ -89,6 +90,7 @@ export type RuntimeTrayItem = {
   workbench_projection?: RuntimeTrayJsonRecord | null;
   workbench_projection_source_refs?: RuntimeTrayJsonRecord[];
   study_workbench?: RuntimeTrayJsonRecord | null;
+  stage_attempt_workbench?: RuntimeTrayJsonRecord | null;
   quest_session_api_url?: string | null;
   health_status?: string | null;
   blockers?: string[];
@@ -107,5 +109,6 @@ export type RuntimeTraySnapshot = {
   attention_items: RuntimeTrayItem[];
   recent_items: RuntimeTrayItem[];
   action_counts?: RuntimeTrayActionCounts;
+  stage_attempt_workbench?: RuntimeTrayJsonRecord | null;
   source_refs: Array<Record<string, unknown>>;
 };
