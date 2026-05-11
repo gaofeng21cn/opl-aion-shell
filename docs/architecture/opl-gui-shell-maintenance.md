@@ -1,6 +1,6 @@
 # OPL GUI Shell Maintenance
 
-Status anchor: 2026-05-01
+Status anchor: 2026-05-11
 
 This repository is the current One Person Lab GUI shell. It keeps the AionUI source tree syncable while concentrating One Person Lab differences in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
 
@@ -115,3 +115,17 @@ When adding or changing trim rules:
 - Launch the packaged app once after the validation passes.
 
 `opl-aion-shell` is the OPL GUI shell, not the runtime truth owner. The GUI consumes OPL CLI / machine-readable runtime surfaces and displays OPL-indexed, domain-owned projections. Codex remains the default concrete executor. Full readiness should depend on the configured family runtime provider; Temporal-backed provider is the production target for durable stage attempts, signals, retries, queries, and workflow history. Hermes may still appear as a migration-period `hermes_legacy` / optional provider or explicit executor/proof lane, but it is not the default future online substrate. MDS remains retired and must not return as a default GUI module or package payload.
+
+## Stage Attempt Workbench Boundary
+
+As of 2026-05-11, the shell includes a read-only `RuntimeAttemptWorkbench` that consumes OPL `runtime snapshot` data, including the `stage_attempt_workbench` projection. The workbench may display provider kind, stage attempt id, provider completion, domain ready verdict, heartbeat, checkpoint refs, consumed refs, closeout refs, rejected writes, route impact, human gate refs, resume refs, and dead-letter state.
+
+This workbench is a visibility surface only:
+
+- It reads the OPL CLI-backed `opl runtime snapshot --json` payload through the runtime tray bridge.
+- It distinguishes provider completion from domain ready verdict when the source projection provides both fields.
+- It can show MAS/MAG/RCA-owned refs, receipts, or blocked reasons, but it must not interpret them as medical, grant, or visual quality conclusions.
+- It does not create, accept, reject, or mutate MAS/MAG/RCA truth, artifact authority, memory body, or quality verdict.
+- It must not bypass OPL `family-runtime` provider contracts or call arbitrary runtime commands from renderer state.
+
+Current production gaps remain outside this GUI repo: Temporal server/worker residency proof, real long-running Codex stage activity, human gate / resume operation chain, MAS real paper-line guarded apply soak, MAG/RCA OPL-hosted controlled soaks, and retirement of legacy default runtime vocabulary. The GUI should stay aligned with OPL machine-readable snapshot fields while avoiding fork-local runtime truth.
