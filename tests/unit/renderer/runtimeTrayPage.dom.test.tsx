@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Message } from '@arco-design/web-react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -129,9 +130,15 @@ const translations: Record<string, string> = {
   'common.runtimeTray.attemptWorkbench.humanGateCount': 'Human Gates',
   'common.runtimeTray.attemptWorkbench.nextOwner': 'Next Owner',
   'common.runtimeTray.attemptWorkbench.noAttempts': 'No stage attempts in the local OPL ledger.',
+  'common.runtimeTray.attemptWorkbench.operations': 'Operations',
   'common.runtimeTray.attemptWorkbench.providerCompletion': 'Provider Completion',
   'common.runtimeTray.attemptWorkbench.rejectedWrites': 'Rejected Writes',
   'common.runtimeTray.attemptWorkbench.resume': 'Resume',
+  'common.runtimeTray.attemptWorkbench.signalDeadLetterRepair': 'Request Dead-letter Repair',
+  'common.runtimeTray.attemptWorkbench.signalFailed': 'Stage attempt signal failed.',
+  'common.runtimeTray.attemptWorkbench.signalHumanGate': 'Request Human Gate',
+  'common.runtimeTray.attemptWorkbench.signalQueued': 'Stage attempt signal sent.',
+  'common.runtimeTray.attemptWorkbench.signalResume': 'Resume Attempt',
   'common.runtimeTray.attemptWorkbench.routeImpact': 'Route Impact',
   'common.runtimeTray.attemptWorkbench.title': 'Stage Attempt Workbench',
   'common.runtimeTray.attemptWorkbench.total': 'Attempts',
@@ -519,5 +526,145 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
+  });
+
+  it('triggers stage attempt human gate, resume, and dead-letter repair through the signal bridge', async () => {
+    runOplCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_tray_snapshot: {
+          schema_version: 'runtime_tray_snapshot.v1',
+          runtime_health: {
+            status: 'needs_attention',
+            label: 'Needs attention',
+            summary: 'Stage attempts need operator review',
+          },
+          last_updated: '2026-05-11T10:00:00.000Z',
+          stage_attempt_workbench: {
+            surface_kind: 'opl_stage_attempt_workbench',
+            availability: 'available',
+            provider_completion_is_domain_ready: false,
+            summary: {
+              total: 3,
+              human_gate_count: 1,
+              dead_letter_count: 1,
+            },
+            attempts: [
+              {
+                stage_attempt_id: 'sat_running',
+                provider_kind: 'temporal',
+                domain_id: 'medautoscience',
+                stage_id: 'analysis-campaign',
+                local_status: 'running',
+                completion_boundary: {
+                  provider_completion: 'not_completed',
+                  domain_ready_verdict: 'domain_gate_pending',
+                  provider_completion_is_domain_ready: false,
+                },
+              },
+              {
+                stage_attempt_id: 'sat_human_gate',
+                provider_kind: 'temporal',
+                domain_id: 'medautogrant',
+                stage_id: 'critique',
+                local_status: 'human_gate',
+                human_gate_refs: ['gate:operator-review'],
+                resume_refs: ['resume:after-human-review'],
+                completion_boundary: {
+                  provider_completion: 'not_completed',
+                  domain_ready_verdict: null,
+                  provider_completion_is_domain_ready: false,
+                },
+              },
+              {
+                stage_attempt_id: 'sat_dead_letter',
+                provider_kind: 'temporal',
+                domain_id: 'redcube',
+                stage_id: 'visual-review',
+                local_status: 'dead_lettered',
+                dead_letter: 'retry_budget_exhausted',
+                completion_boundary: {
+                  provider_completion: 'not_completed',
+                  domain_ready_verdict: 'not_ready',
+                  provider_completion_is_domain_ready: false,
+                },
+              },
+            ],
+          },
+          running_items: [],
+          attention_items: [],
+          recent_items: [],
+          action_counts: { user: 0, opl: 0, infrastructure: 0 },
+          source_refs: [],
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/runtime']}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
+    expect(screen.getAllByText('Provider Completion').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Domain Ready Verdict').length).toBeGreaterThanOrEqual(1);
+
+    screen.getByText('Request Human Gate').click();
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: [
+          'family-runtime',
+          'attempt',
+          'signal',
+          'sat_running',
+          '--kind',
+          'human_gate',
+          '--payload',
+          '{"human_gate_ref":"opl-aion-shell:human_gate:sat_running","reason":"operator_human_gate_requested"}',
+          '--source',
+          'opl-aion-shell',
+        ],
+      });
+    });
+
+    screen.getByText('Resume Attempt').click();
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: [
+          'family-runtime',
+          'attempt',
+          'signal',
+          'sat_human_gate',
+          '--kind',
+          'resume',
+          '--payload',
+          '{"reason":"operator_resume_requested"}',
+          '--source',
+          'opl-aion-shell',
+        ],
+      });
+    });
+
+    screen.getByText('Request Dead-letter Repair').click();
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: [
+          'family-runtime',
+          'attempt',
+          'signal',
+          'sat_dead_letter',
+          '--kind',
+          'user_instruction',
+          '--payload',
+          '{"instruction_kind":"dead_letter_repair","reason":"operator_dead_letter_repair_requested"}',
+          '--source',
+          'opl-aion-shell',
+        ],
+      });
+    });
+
+    expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Stage attempt signal sent.');
   });
 });

@@ -205,6 +205,12 @@
       "humanGate": "Human Gate",
       "resume": "Resume",
       "deadLetter": "Dead Letter",
+      "operations": "Operations",
+      "signalHumanGate": "Request Human Gate",
+      "signalResume": "Resume Attempt",
+      "signalDeadLetterRepair": "Request Dead-letter Repair",
+      "signalQueued": "Stage attempt signal sent.",
+      "signalFailed": "Stage attempt signal failed.",
       "noAttempts": "No stage attempts in the local OPL ledger.",
       "authorityBoundary": "Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent."
     }

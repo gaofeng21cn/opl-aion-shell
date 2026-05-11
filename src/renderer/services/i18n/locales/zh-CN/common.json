@@ -205,6 +205,12 @@
       "humanGate": "Human Gate",
       "resume": "Resume",
       "deadLetter": "Dead Letter",
+      "operations": "操作",
+      "signalHumanGate": "请求 Human Gate",
+      "signalResume": "恢复 Attempt",
+      "signalDeadLetterRepair": "请求 Dead-letter 修复",
+      "signalQueued": "Stage attempt signal 已发送。",
+      "signalFailed": "Stage attempt signal 发送失败。",
       "noAttempts": "本地 OPL ledger 暂无 stage attempt。",
       "authorityBoundary": "Provider completion 只代表传输层状态；domain readiness、质量结论和产物 authority 仍由对应 domain agent 拥有。"
     }

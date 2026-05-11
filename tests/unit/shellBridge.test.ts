@@ -318,6 +318,114 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows stage attempt human gate, resume, and repair signals through the family-runtime bridge', async () => {
+      execFileMock.mockImplementation((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, {
+          stdout: '{"family_runtime_stage_attempt_signal":{"signal":{"signal_kind":"resume"}}}',
+          stderr: '',
+        });
+      });
+
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_human_gate',
+            '--kind',
+            'resume',
+            '--payload',
+            '{"reason":"operator_resume_requested"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).resolves.toMatchObject({ exitCode: 0 });
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_running',
+            '--kind',
+            'human_gate',
+            '--payload',
+            '{"human_gate_ref":"opl-aion-shell:human_gate:sat_running","reason":"operator_human_gate_requested"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).resolves.toMatchObject({ exitCode: 0 });
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_dead_letter',
+            '--kind',
+            'user_instruction',
+            '--payload',
+            '{"instruction_kind":"dead_letter_repair","reason":"operator_dead_letter_repair_requested"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).resolves.toMatchObject({ exitCode: 0 });
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'family-runtime' 'attempt' 'signal'")],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('rejects arbitrary family-runtime commands from the shell bridge', async () => {
+      await expect(runOplCommandProvider.fn!({ args: ['family-runtime', 'repair'] })).rejects.toThrow(
+        'Unsupported OPL family-runtime action: repair'
+      );
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['family-runtime', 'attempt', 'start', 'sat_001'],
+        })
+      ).rejects.toThrow('Unsupported OPL family-runtime action: attempt start');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_001',
+            '--kind',
+            'user_instruction',
+            '--payload',
+            '{"instruction_kind":"arbitrary_shell"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).rejects.toThrow('Unsupported OPL family-runtime user instruction');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_001',
+            '--kind',
+            'resume',
+            '--payload',
+            '{"reason":"operator_resume_requested","command":"family-runtime repair"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).rejects.toThrow('Unsupported OPL family-runtime resume signal');
+      expect(execFileMock).not.toHaveBeenCalled();
+    });
+
     it('allows the system update command for one-click environment maintenance', async () => {
       execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
         callback(null, { stdout: '{"updated":true}', stderr: '' });

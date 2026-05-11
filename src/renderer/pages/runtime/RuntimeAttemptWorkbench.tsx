@@ -1,14 +1,26 @@
 import React, { useMemo } from 'react';
-import { Empty, Tag } from '@arco-design/web-react';
+import { Button, Empty, Message, Tag } from '@arco-design/web-react';
+import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import type { RuntimeTrayJsonRecord } from './types';
 
 type RuntimeTranslator = ReturnType<typeof useTranslation>['t'];
+type AttemptOperationKind = 'human_gate' | 'resume' | 'dead_letter_repair';
+type AttemptOperation = {
+  kind: AttemptOperationKind;
+  label: string;
+  args: string[];
+};
 type AttemptItem = {
   id: string;
   title: string;
   status: string;
   details: Array<{ label: string; value: string }>;
+  operations: AttemptOperation[];
+};
+type StageAttemptIdentity = {
+  displayId: string;
+  signalId: string | null;
 };
 
 const isRecord = (value: unknown): value is RuntimeTrayJsonRecord =>
@@ -29,7 +41,10 @@ const nestedRecord = (record: RuntimeTrayJsonRecord, key: string): RuntimeTrayJs
 
 const textList = (value: unknown): string => {
   if (!Array.isArray(value)) return '';
-  return value.map(asString).filter((entry): entry is string => Boolean(entry)).join(', ');
+  return value
+    .map(asString)
+    .filter((entry): entry is string => Boolean(entry))
+    .join(', ');
 };
 
 const recordSummary = (value: RuntimeTrayJsonRecord): string => {
@@ -78,6 +93,71 @@ const statusColor = (status: string): string => {
   return 'gray';
 };
 
+const signalArgs = (
+  stageAttemptId: string,
+  signalKind: 'human_gate' | 'resume' | 'user_instruction',
+  payload: RuntimeTrayJsonRecord
+): string[] => [
+  'family-runtime',
+  'attempt',
+  'signal',
+  stageAttemptId,
+  '--kind',
+  signalKind,
+  '--payload',
+  JSON.stringify(payload),
+  '--source',
+  'opl-aion-shell',
+];
+
+const attemptOperations = (
+  attempt: RuntimeTrayJsonRecord,
+  status: string,
+  stageAttemptId: string | null,
+  t: RuntimeTranslator
+): AttemptOperation[] => {
+  if (!stageAttemptId) return [];
+  const operations: AttemptOperation[] = [];
+  if (!['completed', 'dead_lettered', 'human_gate'].includes(status)) {
+    operations.push({
+      kind: 'human_gate',
+      label: t('common.runtimeTray.attemptWorkbench.signalHumanGate'),
+      args: signalArgs(stageAttemptId, 'human_gate', {
+        human_gate_ref: `opl-aion-shell:human_gate:${stageAttemptId}`,
+        reason: 'operator_human_gate_requested',
+      }),
+    });
+  }
+  if (['human_gate', 'blocked', 'failed'].includes(status)) {
+    operations.push({
+      kind: 'resume',
+      label: t('common.runtimeTray.attemptWorkbench.signalResume'),
+      args: signalArgs(stageAttemptId, 'resume', {
+        reason: 'operator_resume_requested',
+      }),
+    });
+  }
+  if (status === 'dead_lettered') {
+    operations.push({
+      kind: 'dead_letter_repair',
+      label: t('common.runtimeTray.attemptWorkbench.signalDeadLetterRepair'),
+      args: signalArgs(stageAttemptId, 'user_instruction', {
+        instruction_kind: 'dead_letter_repair',
+        reason: 'operator_dead_letter_repair_requested',
+      }),
+    });
+  }
+  return operations;
+};
+
+const stageAttemptIdentity = (attempt: RuntimeTrayJsonRecord, index: number): StageAttemptIdentity => {
+  const stageAttemptId = asString(attempt.stage_attempt_id);
+  if (stageAttemptId) {
+    return { displayId: stageAttemptId, signalId: stageAttemptId };
+  }
+  return { displayId: `attempt-${index}`, signalId: null };
+};
+
 const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): AttemptItem[] =>
   asRecordArray(workbench.attempts).map((attempt, index) => {
     const completion = nestedRecord(attempt, 'completion_boundary');
@@ -85,14 +165,11 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
     const status = asString(attempt.local_status) ?? asString(attempt.workflow_status) ?? 'unknown';
     const closeoutStatus = asString(attempt.closeout_receipt_status);
     const domainReadyVerdict = asString(completion?.domain_ready_verdict);
+    const identity = stageAttemptIdentity(attempt, index);
     return {
-      id: asString(attempt.stage_attempt_id) ?? `attempt-${index}`,
+      id: identity.displayId,
       title:
-        [
-          asString(attempt.domain_id),
-          asString(attempt.stage_id),
-          asString(attempt.provider_kind),
-        ]
+        [asString(attempt.domain_id), asString(attempt.stage_id), asString(attempt.provider_kind)]
           .filter((value): value is string => Boolean(value))
           .join(' / ') || t('common.runtimeTray.attemptWorkbench.attempt'),
       status,
@@ -101,7 +178,11 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
         field(t('common.runtimeTray.attemptWorkbench.domainReadyVerdict'), domainReadyVerdict),
         field(t('common.runtimeTray.attemptWorkbench.closeoutReceipt'), closeoutStatus),
         field(t('common.runtimeTray.attemptWorkbench.nextOwner'), attempt.next_owner),
-        field(t('common.runtimeTray.attemptWorkbench.heartbeat'), heartbeat?.last_heartbeat_at, heartbeat?.last_updated_at),
+        field(
+          t('common.runtimeTray.attemptWorkbench.heartbeat'),
+          heartbeat?.last_heartbeat_at,
+          heartbeat?.last_updated_at
+        ),
         field(t('common.runtimeTray.attemptWorkbench.checkpoints'), textList(attempt.checkpoint_refs)),
         field(t('common.runtimeTray.attemptWorkbench.closeoutRefs'), textList(attempt.closeout_refs)),
         field(
@@ -121,6 +202,7 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
         field(t('common.runtimeTray.attemptWorkbench.resume'), attempt.resume_refs, attempt.resume_token_ref),
         field(t('common.runtimeTray.attemptWorkbench.deadLetter'), attempt.dead_letter),
       ]),
+      operations: attemptOperations(attempt, status, identity.signalId, t),
     };
   });
 
@@ -130,13 +212,24 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
   const attempts = useMemo(() => (projection ? attemptItems(projection, t) : []), [projection, t]);
   const availability = asString(projection?.availability) ?? 'missing';
   const summary = isRecord(projection?.summary) ? projection.summary : null;
+  const runAttemptOperation = (operation: AttemptOperation) => {
+    void ipcBridge.shell.runOplCommand
+      .invoke({ args: operation.args })
+      .then((result) => {
+        if (result.exitCode !== 0) {
+          throw new Error(result.stderr || result.stdout || t('common.runtimeTray.attemptWorkbench.signalFailed'));
+        }
+        Message.success(t('common.runtimeTray.attemptWorkbench.signalQueued'));
+      })
+      .catch((error) => {
+        Message.error(error instanceof Error ? error.message : t('common.runtimeTray.attemptWorkbench.signalFailed'));
+      });
+  };
 
   return (
     <section className='flex flex-col gap-14px'>
       <div className='flex flex-wrap items-center justify-between gap-10px'>
-        <h2 className='m-0 text-13px font-medium text-t-secondary'>
-          {t('common.runtimeTray.attemptWorkbench.title')}
-        </h2>
+        <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.attemptWorkbench.title')}</h2>
         <Tag color={statusColor(availability)}>{availability}</Tag>
       </div>
       <div className='h-1px w-full bg-[var(--color-border-2)]' />
@@ -179,6 +272,25 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
                   </React.Fragment>
                 ))}
               </dl>
+              {attempt.operations.length > 0 && (
+                <div className='mt-12px flex flex-col gap-8px'>
+                  <div className='text-12px font-medium text-t-secondary'>
+                    {t('common.runtimeTray.attemptWorkbench.operations')}
+                  </div>
+                  <div className='flex flex-wrap gap-8px'>
+                    {attempt.operations.map((operation) => (
+                      <Button
+                        key={`${attempt.id}-${operation.kind}`}
+                        size='mini'
+                        type='outline'
+                        onClick={() => runAttemptOperation(operation)}
+                      >
+                        {operation.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
           ))}
         </div>

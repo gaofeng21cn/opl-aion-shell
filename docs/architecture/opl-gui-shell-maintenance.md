@@ -118,14 +118,15 @@ When adding or changing trim rules:
 
 ## Stage Attempt Workbench Boundary
 
-As of 2026-05-11, the shell includes a read-only `RuntimeAttemptWorkbench` that consumes OPL `runtime snapshot` data, including the `stage_attempt_workbench` projection. The workbench may display provider kind, stage attempt id, provider completion, domain ready verdict, heartbeat, checkpoint refs, consumed refs, closeout refs, rejected writes, route impact, human gate refs, resume refs, and dead-letter state.
+As of 2026-05-11, the shell includes a constrained `RuntimeAttemptWorkbench` that consumes OPL `runtime snapshot` data, including the `stage_attempt_workbench` projection. The workbench may display provider kind, stage attempt id, provider completion, domain ready verdict, heartbeat, checkpoint refs, consumed refs, closeout refs, rejected writes, route impact, human gate refs, resume refs, and dead-letter state.
 
-This workbench is a visibility surface only:
+This workbench is an operator visibility surface with a narrow signal bridge:
 
 - It reads the OPL CLI-backed `opl runtime snapshot --json` payload through the runtime tray bridge.
 - It distinguishes provider completion from domain ready verdict when the source projection provides both fields.
+- It may trigger only OPL `family-runtime attempt signal` operations for `human_gate`, `resume`, and `dead_letter_repair` user-instruction payloads generated from the snapshot projection.
 - It can show MAS/MAG/RCA-owned refs, receipts, or blocked reasons, but it must not interpret them as medical, grant, or visual quality conclusions.
 - It does not create, accept, reject, or mutate MAS/MAG/RCA truth, artifact authority, memory body, or quality verdict.
-- It must not bypass OPL `family-runtime` provider contracts or call arbitrary runtime commands from renderer state.
+- It must not bypass OPL `family-runtime` provider contracts or call arbitrary runtime commands from renderer state; `shellBridge` must keep `family-runtime` restricted to the audited signal form.
 
-Current production gaps remain outside this GUI repo: Temporal server/worker residency proof, real long-running Codex stage activity, human gate / resume operation chain, MAS real paper-line guarded apply soak, MAG/RCA OPL-hosted controlled soaks, and retirement of legacy default runtime vocabulary. The GUI should stay aligned with OPL machine-readable snapshot fields while avoiding fork-local runtime truth.
+Current production gaps remain outside this GUI repo: Temporal server/worker residency proof, real long-running Codex stage activity, MAS real paper-line guarded apply soak, MAG/RCA OPL-hosted controlled soaks, and retirement of legacy default runtime vocabulary. The GUI should stay aligned with OPL machine-readable snapshot fields while avoiding fork-local runtime truth.

@@ -26,6 +26,7 @@ const ALLOWED_OPL_COMMANDS = new Set([
   'workspace',
   'packages',
   'runtime',
+  'family-runtime',
 ]);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab');
@@ -33,6 +34,70 @@ const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
 let oplBootstrapPromise: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null;
+
+function parseJsonRecord(value: string, context: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // The caller receives the scoped validation error below.
+  }
+  throw new Error(`Unsupported OPL ${context} payload`);
+}
+
+function hasOnlyKeys(record: Record<string, unknown>, keys: string[]): boolean {
+  return Object.keys(record).every((key) => keys.includes(key));
+}
+
+function assertAllowedFamilyRuntimeSignal(args: string[]): void {
+  const action = args.slice(1).join(' ');
+  if (!(args.length === 10 && args[1] === 'attempt' && args[2] === 'signal')) {
+    throw new Error(`Unsupported OPL family-runtime action: ${action}`);
+  }
+  const stageAttemptId = args[3];
+  const kindFlag = args[4];
+  const signalKind = args[5];
+  const payloadFlag = args[6];
+  const payloadRaw = args[7];
+  const sourceFlag = args[8];
+  const source = args[9];
+  if (!stageAttemptId.trim() || kindFlag !== '--kind' || payloadFlag !== '--payload' || sourceFlag !== '--source') {
+    throw new Error(`Unsupported OPL family-runtime action: ${action}`);
+  }
+  if (source !== 'opl-aion-shell') {
+    throw new Error(`Unsupported OPL family-runtime signal source: ${source}`);
+  }
+  if (!['human_gate', 'resume', 'user_instruction'].includes(signalKind)) {
+    throw new Error(`Unsupported OPL family-runtime signal kind: ${signalKind}`);
+  }
+  const payload = parseJsonRecord(payloadRaw, 'family-runtime signal');
+  if (signalKind === 'human_gate') {
+    const gateRef = typeof payload.human_gate_ref === 'string' ? payload.human_gate_ref : '';
+    if (
+      !hasOnlyKeys(payload, ['human_gate_ref', 'reason']) ||
+      !gateRef.startsWith('opl-aion-shell:human_gate:') ||
+      payload.reason !== 'operator_human_gate_requested'
+    ) {
+      throw new Error('Unsupported OPL family-runtime human gate signal');
+    }
+    return;
+  }
+  if (signalKind === 'resume') {
+    if (!hasOnlyKeys(payload, ['reason']) || payload.reason !== 'operator_resume_requested') {
+      throw new Error('Unsupported OPL family-runtime resume signal');
+    }
+    return;
+  }
+  if (
+    !hasOnlyKeys(payload, ['instruction_kind', 'reason']) ||
+    payload.instruction_kind !== 'dead_letter_repair' ||
+    payload.reason !== 'operator_dead_letter_repair_requested'
+  ) {
+    throw new Error('Unsupported OPL family-runtime user instruction');
+  }
+}
 
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
@@ -68,6 +133,9 @@ function assertAllowedOplArgs(args: string[]): void {
     if (!isSnapshot) {
       throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
     }
+  }
+  if (args[0] === 'family-runtime') {
+    assertAllowedFamilyRuntimeSignal(args);
   }
   if (args[0] === 'workspace') {
     const isRead = args.length === 2 && args[1] === 'root';
@@ -147,7 +215,9 @@ async function runLoginShellWithInput(
 }
 
 function buildOplCommand(args: string[]): string {
-  const envPrefix = ['modules', 'runtime', 'system', 'workspace'].includes(args[0]) ? 'OPL_OUTPUT=json ' : '';
+  const envPrefix = ['modules', 'runtime', 'system', 'workspace', 'family-runtime'].includes(args[0])
+    ? 'OPL_OUTPUT=json '
+    : '';
   return [
     buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME),
     'command -v opl >/dev/null || exit 127',
