@@ -199,7 +199,11 @@
       "heartbeat": "Heartbeat",
       "checkpoints": "Checkpoint",
       "closeoutRefs": "Closeout 引用",
+      "consumedRefs": "已消费引用",
+      "rejectedWrites": "被拒绝写入",
+      "routeImpact": "路线影响",
       "humanGate": "Human Gate",
+      "resume": "Resume",
       "deadLetter": "Dead Letter",
       "noAttempts": "本地 OPL ledger 暂无 stage attempt。",
       "authorityBoundary": "Provider completion 只代表传输层状态；domain readiness、质量结论和产物 authority 仍由对应 domain agent 拥有。"

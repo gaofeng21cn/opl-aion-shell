@@ -120,6 +120,7 @@ const translations: Record<string, string> = {
   'common.runtimeTray.attemptWorkbench.checkpoints': 'Checkpoints',
   'common.runtimeTray.attemptWorkbench.closeoutReceipt': 'Closeout Receipt',
   'common.runtimeTray.attemptWorkbench.closeoutRefs': 'Closeout References',
+  'common.runtimeTray.attemptWorkbench.consumedRefs': 'Consumed References',
   'common.runtimeTray.attemptWorkbench.deadLetter': 'Dead Letter',
   'common.runtimeTray.attemptWorkbench.deadLetterCount': 'Dead Letters',
   'common.runtimeTray.attemptWorkbench.domainReadyVerdict': 'Domain Ready Verdict',
@@ -129,6 +130,9 @@ const translations: Record<string, string> = {
   'common.runtimeTray.attemptWorkbench.nextOwner': 'Next Owner',
   'common.runtimeTray.attemptWorkbench.noAttempts': 'No stage attempts in the local OPL ledger.',
   'common.runtimeTray.attemptWorkbench.providerCompletion': 'Provider Completion',
+  'common.runtimeTray.attemptWorkbench.rejectedWrites': 'Rejected Writes',
+  'common.runtimeTray.attemptWorkbench.resume': 'Resume',
+  'common.runtimeTray.attemptWorkbench.routeImpact': 'Route Impact',
   'common.runtimeTray.attemptWorkbench.title': 'Stage Attempt Workbench',
   'common.runtimeTray.attemptWorkbench.total': 'Attempts',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
@@ -401,6 +405,20 @@ describe('RuntimeTrayItemPage', () => {
                 closeout_receipt_status: 'accepted_typed_closeout',
                 closeout_refs: ['receipt:analysis-closeout'],
                 checkpoint_refs: ['checkpoint:analysis-midpoint'],
+                consumed_memory_refs: ['memory:publication-route-risk-model'],
+                rejected_writeback_refs: [
+                  {
+                    writeback_id: 'wb_001',
+                    status: 'rejected',
+                    reason: 'single-study claim',
+                  },
+                ],
+                route_impact: {
+                  status: 'human_gate',
+                  next_owner: 'med-autoscience',
+                  summary: 'analysis-campaign closeout needs domain gate',
+                },
+                resume_refs: ['resume:after-human-review'],
                 next_owner: 'med-autoscience',
                 completion_boundary: {
                   provider_completion: 'completed',
@@ -471,6 +489,16 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
     expect(screen.getByText('Provider Completion')).toBeInTheDocument();
     expect(screen.getByText('domain_gate_pending')).toBeInTheDocument();
+    expect(screen.getByText('Consumed References')).toBeInTheDocument();
+    expect(screen.getByText('memory:publication-route-risk-model')).toBeInTheDocument();
+    expect(screen.getByText('Rejected Writes')).toBeInTheDocument();
+    expect(screen.getByText('id=wb_001; status=rejected; reason=single-study claim')).toBeInTheDocument();
+    expect(screen.getByText('Route Impact')).toBeInTheDocument();
+    expect(
+      screen.getByText('status=human_gate; next=med-autoscience; summary=analysis-campaign closeout needs domain gate')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Resume')).toBeInTheDocument();
+    expect(screen.getByText('resume:after-human-review')).toBeInTheDocument();
     expect(
       screen.getByText(
         'Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent.'

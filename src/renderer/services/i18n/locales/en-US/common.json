@@ -199,7 +199,11 @@
       "heartbeat": "Heartbeat",
       "checkpoints": "Checkpoints",
       "closeoutRefs": "Closeout References",
+      "consumedRefs": "Consumed References",
+      "rejectedWrites": "Rejected Writes",
+      "routeImpact": "Route Impact",
       "humanGate": "Human Gate",
+      "resume": "Resume",
       "deadLetter": "Dead Letter",
       "noAttempts": "No stage attempts in the local OPL ledger.",
       "authorityBoundary": "Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent."

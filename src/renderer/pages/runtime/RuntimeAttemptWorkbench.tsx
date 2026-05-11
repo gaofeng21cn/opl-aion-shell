@@ -32,9 +32,37 @@ const textList = (value: unknown): string => {
   return value.map(asString).filter((entry): entry is string => Boolean(entry)).join(', ');
 };
 
+const recordSummary = (value: RuntimeTrayJsonRecord): string => {
+  const parts = [
+    field('ref', value.ref, value.receipt_ref, value.source_ref),
+    field('id', value.id, value.memory_id, value.writeback_id, value.route_id),
+    field('status', value.status, value.decision, value.outcome),
+    field('reason', value.reason, value.blocked_reason),
+    field('next', value.next_owner),
+    field('summary', value.summary),
+  ];
+  return parts
+    .filter((part): part is { label: string; value: string } => Boolean(part))
+    .map((part) => `${part.label}=${part.value}`)
+    .join('; ');
+};
+
+const displayText = (value: unknown): string => {
+  const scalar = asString(value);
+  if (scalar) return scalar;
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (isRecord(entry) ? recordSummary(entry) : asString(entry)))
+      .filter((entry): entry is string => Boolean(entry))
+      .join(', ');
+  }
+  if (isRecord(value)) return recordSummary(value);
+  return '';
+};
+
 const field = (label: string, ...values: unknown[]): { label: string; value: string } | null => {
   for (const value of values) {
-    const text = asString(value);
+    const text = displayText(value);
     if (text) return { label, value: text };
   }
   return null;
@@ -76,7 +104,21 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
         field(t('common.runtimeTray.attemptWorkbench.heartbeat'), heartbeat?.last_heartbeat_at, heartbeat?.last_updated_at),
         field(t('common.runtimeTray.attemptWorkbench.checkpoints'), textList(attempt.checkpoint_refs)),
         field(t('common.runtimeTray.attemptWorkbench.closeoutRefs'), textList(attempt.closeout_refs)),
+        field(
+          t('common.runtimeTray.attemptWorkbench.consumedRefs'),
+          attempt.consumed_refs,
+          attempt.consumed_memory_refs,
+          attempt.consumed_knowledge_refs
+        ),
+        field(
+          t('common.runtimeTray.attemptWorkbench.rejectedWrites'),
+          attempt.rejected_writes,
+          attempt.rejected_writeback_refs,
+          attempt.rejected_write_refs
+        ),
+        field(t('common.runtimeTray.attemptWorkbench.routeImpact'), attempt.route_impact, attempt.route_impact_refs),
         field(t('common.runtimeTray.attemptWorkbench.humanGate'), textList(attempt.human_gate_refs)),
+        field(t('common.runtimeTray.attemptWorkbench.resume'), attempt.resume_refs, attempt.resume_token_ref),
         field(t('common.runtimeTray.attemptWorkbench.deadLetter'), attempt.dead_letter),
       ]),
     };
