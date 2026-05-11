@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button, Empty, Message, Tag } from '@arco-design/web-react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,11 @@ type AttemptOperation = {
   kind: AttemptOperationKind;
   label: string;
   args: string[];
+};
+type AttemptFilter = 'all' | 'active' | 'human_gate' | 'dead_letter';
+type AttemptFeedback = {
+  tone: 'pending' | 'success' | 'error';
+  message: string;
 };
 type AttemptItem = {
   id: string;
@@ -27,6 +32,9 @@ const isRecord = (value: unknown): value is RuntimeTrayJsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const asRecordArray = (value: unknown): RuntimeTrayJsonRecord[] => (Array.isArray(value) ? value.filter(isRecord) : []);
+
+const isStageAttemptWorkbench = (value: unknown): value is RuntimeTrayJsonRecord =>
+  isRecord(value) && value.surface_kind === 'opl_stage_attempt_workbench' && Array.isArray(value.attempts);
 
 const asString = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim()) return value.trim();
@@ -91,6 +99,13 @@ const statusColor = (status: string): string => {
   if (['human_gate', 'blocked'].includes(status)) return 'orangered';
   if (['running', 'checkpointed'].includes(status)) return 'blue';
   return 'gray';
+};
+
+const attemptMatchesFilter = (attempt: AttemptItem, filter: AttemptFilter): boolean => {
+  if (filter === 'all') return true;
+  if (filter === 'human_gate') return attempt.status === 'human_gate' || attempt.status === 'blocked';
+  if (filter === 'dead_letter') return attempt.status === 'dead_lettered';
+  return !['completed', 'dead_lettered'].includes(attempt.status);
 };
 
 const signalArgs = (
@@ -208,23 +223,63 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
 
 const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | null | undefined }> = ({ workbench }) => {
   const { t } = useTranslation();
-  const projection = isRecord(workbench) ? workbench : null;
+  const [filter, setFilter] = useState<AttemptFilter>('all');
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [feedbackByAttempt, setFeedbackByAttempt] = useState<Record<string, AttemptFeedback>>({});
+  const projection = isStageAttemptWorkbench(workbench) ? workbench : null;
   const attempts = useMemo(() => (projection ? attemptItems(projection, t) : []), [projection, t]);
+  const filteredAttempts = useMemo(
+    () => attempts.filter((attempt) => attemptMatchesFilter(attempt, filter)),
+    [attempts, filter]
+  );
+  const selectedAttempt = attempts.find((attempt) => attempt.id === selectedAttemptId) ?? null;
   const availability = asString(projection?.availability) ?? 'missing';
   const summary = isRecord(projection?.summary) ? projection.summary : null;
-  const runAttemptOperation = (operation: AttemptOperation) => {
+  if (!projection) return null;
+  const runAttemptOperation = (attempt: AttemptItem, operation: AttemptOperation) => {
+    setFeedbackByAttempt((feedback) => ({
+      ...feedback,
+      [attempt.id]: {
+        tone: 'pending',
+        message: t('common.runtimeTray.attemptWorkbench.feedbackPending', {
+          attempt: attempt.id,
+          operation: operation.label,
+        }),
+      },
+    }));
     void ipcBridge.shell.runOplCommand
       .invoke({ args: operation.args })
       .then((result) => {
         if (result.exitCode !== 0) {
           throw new Error(result.stderr || result.stdout || t('common.runtimeTray.attemptWorkbench.signalFailed'));
         }
+        setFeedbackByAttempt((feedback) => ({
+          ...feedback,
+          [attempt.id]: {
+            tone: 'success',
+            message: t('common.runtimeTray.attemptWorkbench.feedbackQueued', { attempt: attempt.id }),
+          },
+        }));
         Message.success(t('common.runtimeTray.attemptWorkbench.signalQueued'));
       })
       .catch((error) => {
-        Message.error(error instanceof Error ? error.message : t('common.runtimeTray.attemptWorkbench.signalFailed'));
+        const message = error instanceof Error ? error.message : t('common.runtimeTray.attemptWorkbench.signalFailed');
+        setFeedbackByAttempt((feedback) => ({
+          ...feedback,
+          [attempt.id]: {
+            tone: 'error',
+            message: t('common.runtimeTray.attemptWorkbench.feedbackFailed', { attempt: attempt.id, message }),
+          },
+        }));
+        Message.error(message);
       });
   };
+  const filters: Array<{ kind: AttemptFilter; label: string }> = [
+    { kind: 'all', label: t('common.runtimeTray.attemptWorkbench.filterAll') },
+    { kind: 'active', label: t('common.runtimeTray.attemptWorkbench.filterActive') },
+    { kind: 'human_gate', label: t('common.runtimeTray.attemptWorkbench.filterHumanGate') },
+    { kind: 'dead_letter', label: t('common.runtimeTray.attemptWorkbench.filterDeadLetter') },
+  ];
 
   return (
     <section className='flex flex-col gap-14px'>
@@ -253,9 +308,29 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
         </div>
       </div>
 
-      {attempts.length > 0 ? (
+      {attempts.length > 0 && (
+        <div className='flex flex-col gap-8px'>
+          <div className='text-12px font-medium text-t-secondary'>
+            {t('common.runtimeTray.attemptWorkbench.filterLabel')}
+          </div>
+          <div className='flex flex-wrap gap-8px'>
+            {filters.map((item) => (
+              <Button
+                key={item.kind}
+                size='mini'
+                type={filter === item.kind ? 'primary' : 'outline'}
+                onClick={() => setFilter(item.kind)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {filteredAttempts.length > 0 ? (
         <div className='grid grid-cols-1 gap-10px'>
-          {attempts.map((attempt) => (
+          {filteredAttempts.map((attempt) => (
             <section
               key={attempt.id}
               className='min-w-0 rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'
@@ -272,6 +347,17 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
                   </React.Fragment>
                 ))}
               </dl>
+              {feedbackByAttempt[attempt.id] && (
+                <div
+                  className={
+                    feedbackByAttempt[attempt.id].tone === 'error'
+                      ? 'mt-10px rounded-6px bg-fill-2 px-10px py-8px text-13px leading-20px text-danger-6'
+                      : 'mt-10px rounded-6px bg-fill-2 px-10px py-8px text-13px leading-20px text-t-primary'
+                  }
+                >
+                  {feedbackByAttempt[attempt.id].message}
+                </div>
+              )}
               {attempt.operations.length > 0 && (
                 <div className='mt-12px flex flex-col gap-8px'>
                   <div className='text-12px font-medium text-t-secondary'>
@@ -283,19 +369,44 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
                         key={`${attempt.id}-${operation.kind}`}
                         size='mini'
                         type='outline'
-                        onClick={() => runAttemptOperation(operation)}
+                        onClick={() => runAttemptOperation(attempt, operation)}
                       >
                         {operation.label}
                       </Button>
                     ))}
+                    <Button size='mini' type='outline' onClick={() => setSelectedAttemptId(attempt.id)}>
+                      {t('common.runtimeTray.attemptWorkbench.showDetails')}
+                    </Button>
                   </div>
                 </div>
               )}
             </section>
           ))}
         </div>
+      ) : attempts.length > 0 ? (
+        <Empty description={t('common.runtimeTray.attemptWorkbench.noFilteredAttempts')} />
       ) : (
         <Empty description={t('common.runtimeTray.attemptWorkbench.noAttempts')} />
+      )}
+
+      {selectedAttempt && (
+        <section className='min-w-0 rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'>
+          <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+            <span className='text-12px font-medium text-t-secondary'>
+              {t('common.runtimeTray.attemptWorkbench.selectedAttempt')}
+            </span>
+            <span className='min-w-0 break-words text-13px font-medium text-t-primary'>{selectedAttempt.id}</span>
+            <Tag color={statusColor(selectedAttempt.status)}>{selectedAttempt.status}</Tag>
+          </div>
+          <dl className='m-0 mt-10px grid grid-cols-1 gap-8px md:grid-cols-[150px_minmax(0,1fr)]'>
+            {selectedAttempt.details.map((item) => (
+              <React.Fragment key={`selected-${selectedAttempt.id}-${item.label}`}>
+                <dt className='text-12px text-t-secondary'>{item.label}</dt>
+                <dd className='m-0 min-w-0 break-words text-13px leading-20px text-t-primary'>{item.value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        </section>
       )}
 
       <div className='rounded-6px bg-fill-2 px-12px py-10px text-13px leading-20px text-t-secondary'>

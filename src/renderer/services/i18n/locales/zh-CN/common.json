@@ -194,6 +194,14 @@
       "deadLetterCount": "Dead Letter",
       "providerCompletion": "Provider 完成状态",
       "domainReadyVerdict": "Domain Ready Verdict",
+      "feedbackFailed": "{{attempt}} 的 signal 失败：{{message}}",
+      "feedbackPending": "正在为 {{attempt}} 发送 {{operation}}...",
+      "feedbackQueued": "{{attempt}} 的 signal 已排队。",
+      "filterActive": "活跃",
+      "filterAll": "全部",
+      "filterDeadLetter": "Dead Letter",
+      "filterHumanGate": "Human Gate",
+      "filterLabel": "Attempt 过滤",
       "closeoutReceipt": "Closeout 回执",
       "nextOwner": "下一 Owner",
       "heartbeat": "Heartbeat",
@@ -212,6 +220,9 @@
       "signalQueued": "Stage attempt signal 已发送。",
       "signalFailed": "Stage attempt signal 发送失败。",
       "noAttempts": "本地 OPL ledger 暂无 stage attempt。",
+      "noFilteredAttempts": "当前过滤条件下没有 stage attempt。",
+      "selectedAttempt": "已选 Attempt",
+      "showDetails": "查看详情",
       "authorityBoundary": "Provider completion 只代表传输层状态；domain readiness、质量结论和产物 authority 仍由对应 domain agent 拥有。"
     }
   }

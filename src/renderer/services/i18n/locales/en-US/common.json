@@ -194,6 +194,14 @@
       "deadLetterCount": "Dead Letters",
       "providerCompletion": "Provider Completion",
       "domainReadyVerdict": "Domain Ready Verdict",
+      "feedbackFailed": "Signal failed for {{attempt}}: {{message}}",
+      "feedbackPending": "Sending {{operation}} for {{attempt}}...",
+      "feedbackQueued": "Signal queued for {{attempt}}.",
+      "filterActive": "Active",
+      "filterAll": "All",
+      "filterDeadLetter": "Dead Letter",
+      "filterHumanGate": "Human Gate",
+      "filterLabel": "Attempt Filter",
       "closeoutReceipt": "Closeout Receipt",
       "nextOwner": "Next Owner",
       "heartbeat": "Heartbeat",
@@ -212,6 +220,9 @@
       "signalQueued": "Stage attempt signal sent.",
       "signalFailed": "Stage attempt signal failed.",
       "noAttempts": "No stage attempts in the local OPL ledger.",
+      "noFilteredAttempts": "No stage attempts match this filter.",
+      "selectedAttempt": "Selected Attempt",
+      "showDetails": "Show Details",
       "authorityBoundary": "Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent."
     }
   }

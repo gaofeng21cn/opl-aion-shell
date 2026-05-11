@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
@@ -125,15 +125,26 @@ const translations: Record<string, string> = {
   'common.runtimeTray.attemptWorkbench.deadLetter': 'Dead Letter',
   'common.runtimeTray.attemptWorkbench.deadLetterCount': 'Dead Letters',
   'common.runtimeTray.attemptWorkbench.domainReadyVerdict': 'Domain Ready Verdict',
+  'common.runtimeTray.attemptWorkbench.feedbackFailed': 'Signal failed for {{attempt}}: {{message}}',
+  'common.runtimeTray.attemptWorkbench.feedbackPending': 'Sending {{operation}} for {{attempt}}...',
+  'common.runtimeTray.attemptWorkbench.feedbackQueued': 'Signal queued for {{attempt}}.',
+  'common.runtimeTray.attemptWorkbench.filterActive': 'Active',
+  'common.runtimeTray.attemptWorkbench.filterAll': 'All',
+  'common.runtimeTray.attemptWorkbench.filterDeadLetter': 'Dead Letter',
+  'common.runtimeTray.attemptWorkbench.filterHumanGate': 'Human Gate',
+  'common.runtimeTray.attemptWorkbench.filterLabel': 'Attempt Filter',
   'common.runtimeTray.attemptWorkbench.heartbeat': 'Heartbeat',
   'common.runtimeTray.attemptWorkbench.humanGate': 'Human Gate',
   'common.runtimeTray.attemptWorkbench.humanGateCount': 'Human Gates',
   'common.runtimeTray.attemptWorkbench.nextOwner': 'Next Owner',
   'common.runtimeTray.attemptWorkbench.noAttempts': 'No stage attempts in the local OPL ledger.',
+  'common.runtimeTray.attemptWorkbench.noFilteredAttempts': 'No stage attempts match this filter.',
   'common.runtimeTray.attemptWorkbench.operations': 'Operations',
   'common.runtimeTray.attemptWorkbench.providerCompletion': 'Provider Completion',
   'common.runtimeTray.attemptWorkbench.rejectedWrites': 'Rejected Writes',
   'common.runtimeTray.attemptWorkbench.resume': 'Resume',
+  'common.runtimeTray.attemptWorkbench.selectedAttempt': 'Selected Attempt',
+  'common.runtimeTray.attemptWorkbench.showDetails': 'Show Details',
   'common.runtimeTray.attemptWorkbench.signalDeadLetterRepair': 'Request Dead-letter Repair',
   'common.runtimeTray.attemptWorkbench.signalFailed': 'Stage attempt signal failed.',
   'common.runtimeTray.attemptWorkbench.signalHumanGate': 'Request Human Gate',
@@ -666,5 +677,135 @@ describe('RuntimeTrayItemPage', () => {
     });
 
     expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Stage attempt signal sent.');
+  });
+
+  it('filters stage attempts, drills into one attempt, and keeps operation feedback visible', async () => {
+    runOplCommandMock
+      .mockResolvedValueOnce({
+        exitCode: 0,
+        stderr: '',
+        stdout: JSON.stringify({
+          runtime_tray_snapshot: {
+            schema_version: 'runtime_tray_snapshot.v1',
+            runtime_health: {
+              status: 'needs_attention',
+              label: 'Needs attention',
+              summary: 'Stage attempts need operator review',
+            },
+            last_updated: '2026-05-11T10:00:00.000Z',
+            stage_attempt_workbench: {
+              surface_kind: 'opl_stage_attempt_workbench',
+              availability: 'available',
+              summary: {
+                total: 3,
+                human_gate_count: 1,
+                dead_letter_count: 1,
+              },
+              attempts: [
+                {
+                  stage_attempt_id: 'sat_running',
+                  provider_kind: 'temporal',
+                  domain_id: 'medautoscience',
+                  stage_id: 'analysis-campaign',
+                  local_status: 'running',
+                  completion_boundary: {
+                    provider_completion: 'not_completed',
+                    domain_ready_verdict: 'domain_gate_pending',
+                  },
+                },
+                {
+                  stage_attempt_id: 'sat_human_gate',
+                  provider_kind: 'temporal',
+                  domain_id: 'medautogrant',
+                  stage_id: 'critique',
+                  local_status: 'human_gate',
+                  human_gate_refs: ['gate:operator-review'],
+                  resume_refs: ['resume:after-human-review'],
+                },
+                {
+                  stage_attempt_id: 'sat_dead_letter',
+                  provider_kind: 'temporal',
+                  domain_id: 'redcube',
+                  stage_id: 'visual-review',
+                  local_status: 'dead_lettered',
+                  dead_letter: 'retry_budget_exhausted',
+                },
+              ],
+            },
+            running_items: [],
+            attention_items: [],
+            recent_items: [],
+            action_counts: { user: 0, opl: 0, infrastructure: 0 },
+            source_refs: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({ exitCode: 0, stderr: '', stdout: '{"ok":true}' });
+
+    render(
+      <MemoryRouter initialEntries={['/runtime']}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Human Gate' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('medautoscience / analysis-campaign / temporal')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('medautogrant / critique / temporal')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Details' }));
+    expect(screen.getByText('Selected Attempt')).toBeInTheDocument();
+    expect(screen.getByText('sat_human_gate')).toBeInTheDocument();
+    expect(screen.getAllByText('gate:operator-review').length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(screen.getByText('Resume Attempt'));
+    expect(await screen.findByText('Signal queued for sat_human_gate.')).toBeInTheDocument();
+  });
+
+  it('ignores malformed or non-OPL attempt workbench records in the renderer', async () => {
+    runOplCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_tray_snapshot: {
+          schema_version: 'runtime_tray_snapshot.v1',
+          runtime_health: {
+            status: 'running',
+            label: 'Running',
+            summary: 'Runtime is available',
+          },
+          last_updated: '2026-05-11T10:00:00.000Z',
+          stage_attempt_workbench: {
+            surface_kind: 'family_runtime_internal_workbench',
+            availability: 'available',
+            attempts: [
+              {
+                stage_attempt_id: 'sat_internal',
+                domain_id: 'internal',
+                stage_id: 'fan-out',
+                local_status: 'running',
+              },
+            ],
+          },
+          running_items: [],
+          attention_items: [],
+          recent_items: [],
+          source_refs: [],
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/runtime']}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('OPL Runtime Status')).toBeInTheDocument();
+    expect(screen.queryByText('Stage Attempt Workbench')).not.toBeInTheDocument();
+    expect(screen.queryByText('internal / fan-out')).not.toBeInTheDocument();
   });
 });
