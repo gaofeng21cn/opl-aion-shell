@@ -122,8 +122,8 @@ describe('acpTypes — skillsDirs integration', () => {
     });
   });
 
-  describe('OPL interaction engines', () => {
-    it('detects Hermes as an enabled built-in ACP CLI without bundling a native skill dir', () => {
+  describe('optional ACP engines', () => {
+    it('detects Hermes as an optional ACP CLI without making it an OPL default skill carrier', () => {
       const hermesCli = [...POTENTIAL_ACP_CLIS].find((cli) => cli.backendId === 'hermes');
 
       expect(ACP_BACKENDS_ALL.hermes.enabled).toBe(true);

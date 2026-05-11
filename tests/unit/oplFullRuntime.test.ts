@@ -112,7 +112,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(ensurePackagedOplFullRuntime({ isPackaged: true, resourcesPath, homeDir })).toBeNull();
   });
 
-  it('activates an installed Full runtime from current.json when a standard app has no payload', () => {
+  it('activates an installed Full runtime and exposes optional hermes_legacy payload only when present', () => {
     const homeDir = makeTempRoot('opl-active-runtime-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
@@ -214,7 +214,7 @@ describe('buildOplFullRuntimeShellPrefix', () => {
     expect(prefix).toContain('PATH=');
   });
 
-  it('includes the bundled Hermes binary when a Full runtime carries it', () => {
+  it('includes the optional hermes_legacy binary when a Full runtime carries it', () => {
     const runtimeHome = path.join(makeTempRoot('opl-hermes-runtime-home'), 'current');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'hermes'), '#!/usr/bin/env bash\n', 'utf8');

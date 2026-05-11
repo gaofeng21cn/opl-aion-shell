@@ -6,7 +6,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, Collapse, Input, Message, Radio, Space, Tabs, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Collapse, Input, Message, Space, Tabs, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import codexLogo from '@/renderer/assets/logos/tools/coding/codex.svg';
 import hermesLogo from '@/renderer/assets/logos/brand/hermes.svg';
@@ -21,10 +21,10 @@ import { mergeOplDefaultCodexContext, normalizeOplCodexSessionContext } from '@/
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import SettingRow from './SettingRow';
 
-type OplInteractionLayer = 'codex' | 'hermes';
+type OplInteractionLayer = 'codex';
 type RuntimeSettingsTab = 'personalization' | 'environment';
 
-type DefaultInstructionFileKey = 'codex' | 'hermes';
+type DefaultInstructionFileKey = 'codex';
 
 type DefaultInstructionFileState = {
   loading: boolean;
@@ -41,20 +41,14 @@ const DEFAULT_INSTRUCTION_FILES: Record<
     titleKey: 'settings.runtimePage.defaultInstructionFiles.codex',
     relativePath: '.codex/AGENTS.md',
   },
-  hermes: {
-    key: 'hermes',
-    titleKey: 'settings.runtimePage.defaultInstructionFiles.hermes',
-    relativePath: '.hermes/SOUL.md',
-  },
 };
 
 const INITIAL_DEFAULT_INSTRUCTION_FILE_STATE: Record<DefaultInstructionFileKey, DefaultInstructionFileState> = {
   codex: { loading: false, content: '', error: false },
-  hermes: { loading: false, content: '', error: false },
 };
 
-function normalizeInteractionLayer(value: unknown): OplInteractionLayer {
-  return value === 'hermes' ? 'hermes' : 'codex';
+function normalizeInteractionLayer(_value: unknown): OplInteractionLayer {
+  return 'codex';
 }
 
 function isRuntimeSettingsTab(value: string | null): value is RuntimeSettingsTab {
@@ -347,10 +341,9 @@ function formatHealthStatus(status: string | undefined, t: (key: string, options
 function shouldShowEnvironmentItem(
   item: EnvironmentItem,
   coreEngines: CoreEngines,
-  interactionLayer: OplInteractionLayer
+  _interactionLayer: OplInteractionLayer
 ): boolean {
   if (!item.optionalCapability) return true;
-  if (item.engineId === interactionLayer) return true;
   const engine = item.engineId ? coreEngines[item.engineId] : undefined;
   return Boolean(engine?.installed || engine?.update_available);
 }
@@ -533,18 +526,6 @@ const RuntimeInstructionSettings: React.FC = () => {
     };
   }, [homePath, interactionLayer]);
 
-  const saveInteractionLayer = useCallback(
-    async (nextLayer: OplInteractionLayer) => {
-      setInteractionLayer(nextLayer);
-      await Promise.all([
-        ConfigStorage.set('opl.interactionLayer', nextLayer),
-        ConfigStorage.set('guid.lastSelectedAgent', nextLayer),
-      ]);
-      message.success(t('settings.runtimePage.messages.interactionLayerSaved'));
-    },
-    [message, t]
-  );
-
   const saveCodexSessionContext = useCallback(async () => {
     setSaving(true);
     try {
@@ -565,23 +546,6 @@ const RuntimeInstructionSettings: React.FC = () => {
   return (
     <div className='rounded-10px border border-solid border-border-1 bg-bg-1 divide-y divide-border-1 overflow-hidden'>
       {contextHolder}
-      <SettingRow
-        title={t('settings.runtimePage.interactionTitle')}
-        description={t('settings.runtimePage.interactionDescription')}
-      >
-        <Radio.Group
-          type='button'
-          size='small'
-          mode='outline'
-          value={interactionLayer}
-          options={[
-            { label: t('settings.runtimePage.interactionCodex'), value: 'codex' },
-            { label: t('settings.runtimePage.interactionHermes'), value: 'hermes' },
-          ]}
-          onChange={(value) => void saveInteractionLayer(normalizeInteractionLayer(value))}
-        />
-      </SettingRow>
-
       <SettingRow
         alignTop
         title={t('settings.runtimePage.sessionContextTitle')}

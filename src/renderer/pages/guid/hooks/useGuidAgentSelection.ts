@@ -69,7 +69,7 @@ type UseGuidAgentSelectionOptions = {
   locationKey?: string;
 };
 
-export type OplInteractionLayer = 'codex' | 'hermes';
+export type OplInteractionLayer = 'codex';
 
 type SystemCodexConfig = {
   model?: string;
@@ -77,8 +77,8 @@ type SystemCodexConfig = {
   sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
 };
 
-export function normalizeOplInteractionLayer(value: unknown): OplInteractionLayer {
-  return value === 'hermes' ? 'hermes' : 'codex';
+export function normalizeOplInteractionLayer(_value: unknown): OplInteractionLayer {
+  return 'codex';
 }
 
 export function resolvePreferredOplAgentKey(

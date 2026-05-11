@@ -418,7 +418,7 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
     });
   });
 
-  it('prefers the configured OPL interaction layer when no saved agent exists', async () => {
+  it('keeps Codex as the OPL default even when an old Hermes preference is stored', async () => {
     setupMocks({ acpConfig: {}, interactionLayer: 'hermes' });
     ipcMock.getAvailableAgents.mockResolvedValue({
       success: true,
@@ -431,23 +431,21 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
     const { result } = renderHook(() => useGuidAgentSelection(hookOptions));
 
     await waitFor(() => {
-      expect(result.current.selectedAgentKey).toBe('hermes');
+      expect(result.current.selectedAgentKey).toBe('codex');
     });
   });
 });
 
 describe('resolvePreferredOplAgentKey', () => {
-  it('uses Hermes only when the Hermes engine is detected', () => {
+  it('ignores retired Hermes default preferences and falls back to Codex', () => {
     expect(
       resolvePreferredOplAgentKey(
         [
           { backend: 'codex', name: 'Codex' },
           { backend: 'hermes', name: 'Hermes Agent' },
         ],
-        'hermes'
+        'codex'
       )
-    ).toBe('hermes');
-
-    expect(resolvePreferredOplAgentKey([{ backend: 'codex', name: 'Codex' }], 'hermes')).toBe('codex');
+    ).toBe('codex');
   });
 });

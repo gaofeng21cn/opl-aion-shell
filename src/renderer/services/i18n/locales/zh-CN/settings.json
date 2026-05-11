@@ -922,17 +922,17 @@
   },
   "personalizationPage": {
     "title": "个性化",
-    "description": "设置应用名称、界面风格、交互层和用户级指令。",
+    "description": "设置应用名称、界面风格、Codex 运行上下文和用户级指令。",
     "brandTitle": "应用名称",
     "brandDescription": "左上角图标旁显示的名称。",
     "appearanceTitle": "界面风格",
     "appearanceDescription": "选择 One Person Lab 的界面样式。",
     "interactionTitle": "交互层",
-    "interactionDescription": "新建 OPL 会话默认使用的交互引擎。",
+    "interactionDescription": "新建 OPL 会话默认使用的交互引擎。Codex 保持产品默认。",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "instructionsTitle": "用户级指令",
-    "instructionsDescription": "当前交互层启动时加载的规则文件。",
+    "instructionsDescription": "Codex-first OPL 会话运行时加载的规则文件。",
     "instructionsPathLoading": "正在读取路径...",
     "instructionsLoading": "正在读取用户级指令...",
     "instructionsEmpty": "未找到用户级指令内容。",
@@ -1127,13 +1127,13 @@
   },
   "runtimePage": {
     "title": "运行时",
-    "description": "分开管理个性化注入和 OPL 运行环境配置。",
+    "description": "分开管理 Codex 会话上下文和 OPL 运行环境配置。",
     "tabs": {
       "personalization": "个性化",
       "environment": "环境配置"
     },
     "interactionTitle": "交互层",
-    "interactionDescription": "新 OPL 会话默认使用的引擎。Codex 保持默认运行时。",
+    "interactionDescription": "新 OPL 会话默认使用 Codex CLI。",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {

@@ -921,17 +921,17 @@
   },
   "personalizationPage": {
     "title": "Personalization",
-    "description": "Set the app name, appearance, interaction layer, and user instructions.",
+    "description": "Set the app name, appearance, Codex runtime context, and user instructions.",
     "brandTitle": "App name",
     "brandDescription": "Name shown beside the top-left icon.",
     "appearanceTitle": "Appearance",
     "appearanceDescription": "Choose the interface style.",
     "interactionTitle": "Interaction layer",
-    "interactionDescription": "Default engine for new OPL sessions.",
+    "interactionDescription": "Default engine for new OPL sessions. Codex remains the product default.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "instructionsTitle": "User instructions",
-    "instructionsDescription": "Rules loaded by the active interaction layer.",
+    "instructionsDescription": "Rules loaded by the Codex-first OPL session runtime.",
     "instructionsPathLoading": "Loading path...",
     "instructionsLoading": "Loading user instructions...",
     "instructionsEmpty": "No user instructions found.",
@@ -1126,13 +1126,13 @@
   },
   "runtimePage": {
     "title": "Runtime",
-    "description": "Manage personalization and OPL runtime environment from separate tabs.",
+    "description": "Manage Codex session context and OPL runtime environment from separate tabs.",
     "tabs": {
       "personalization": "Personalization",
       "environment": "Environment"
     },
     "interactionTitle": "Interaction layer",
-    "interactionDescription": "Default engine for new OPL sessions. Codex remains the default runtime.",
+    "interactionDescription": "Codex CLI is the default engine for new OPL sessions.",
     "interactionCodex": "Codex CLI",
     "interactionHermes": "Hermes-Agent",
     "actions": {

@@ -350,17 +350,16 @@ describe('RuntimeSettings Codex session context', () => {
     );
   });
 
-  it('switches the default instruction file when Hermes is selected', async () => {
+  it('does not offer Hermes as an OPL default instruction source', async () => {
     render(<RuntimeSettings />);
 
-    fireEvent.click(await screen.findByText('settings.runtimePage.interactionHermes'));
     fireEvent.click(await screen.findByText('settings.runtimePage.defaultInstructionFilesTitle'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('hermes-default-instruction-file')).toHaveTextContent('Hermes global soul');
+      expect(screen.getByTestId('codex-default-instruction-file')).toHaveTextContent('Codex global agents');
     });
-    expect(mockReadFile).toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
-    expect(screen.queryByTestId('codex-default-instruction-file')).not.toBeInTheDocument();
+    expect(mockReadFile).not.toHaveBeenCalledWith({ path: '/Users/tester/.hermes/SOUL.md' });
+    expect(screen.queryByText('settings.runtimePage.interactionHermes')).not.toBeInTheDocument();
   });
 
   it('shows an empty state when the selected instruction file is missing', async () => {
@@ -395,14 +394,15 @@ describe('RuntimeSettings Codex session context', () => {
     );
   });
 
-  it('saves Hermes as the preferred OPL interaction layer from the runtime page', async () => {
+  it('does not save Hermes as the preferred OPL interaction layer from the runtime page', async () => {
     render(<RuntimeSettings />);
 
-    fireEvent.click(await screen.findByText('settings.runtimePage.interactionHermes'));
-
     await waitFor(() => {
-      expect(mockConfigSet).toHaveBeenCalledWith('opl.interactionLayer', 'hermes');
-      expect(mockConfigSet).toHaveBeenCalledWith('guid.lastSelectedAgent', 'hermes');
+      expect(screen.getByTestId('opl-codex-session-context-input')).toBeInTheDocument();
     });
+
+    expect(screen.queryByText('settings.runtimePage.interactionHermes')).not.toBeInTheDocument();
+    expect(mockConfigSet).not.toHaveBeenCalledWith('opl.interactionLayer', 'hermes');
+    expect(mockConfigSet).not.toHaveBeenCalledWith('guid.lastSelectedAgent', 'hermes');
   });
 });
