@@ -20,6 +20,7 @@ type AttemptItem = {
   id: string;
   title: string;
   status: string;
+  signals: Array<{ label: string; value: string; color: string }>;
   details: Array<{ label: string; value: string }>;
   operations: AttemptOperation[];
 };
@@ -99,6 +100,62 @@ const statusColor = (status: string): string => {
   if (['human_gate', 'blocked'].includes(status)) return 'orangered';
   if (['running', 'checkpointed'].includes(status)) return 'blue';
   return 'gray';
+};
+
+const hasDisplayValue = (value: unknown): boolean => Boolean(displayText(value));
+
+const operationSignal = (
+  label: string,
+  value: string,
+  active: boolean
+): { label: string; value: string; color: string } => ({
+  label,
+  value,
+  color: active ? 'orangered' : 'gray',
+});
+
+const attemptSignals = (
+  attempt: RuntimeTrayJsonRecord,
+  status: string,
+  completion: RuntimeTrayJsonRecord | null,
+  t: RuntimeTranslator
+): Array<{ label: string; value: string; color: string }> => {
+  const providerCompletion = displayText(completion?.provider_completion) || 'unknown';
+  const domainReadyVerdict = displayText(completion?.domain_ready_verdict) || 'unknown';
+  const humanGateActive = status === 'human_gate' || status === 'blocked' || hasDisplayValue(attempt.human_gate_refs);
+  const deadLetterActive = status === 'dead_lettered' || hasDisplayValue(attempt.dead_letter);
+  const rejectedWritebackActive = [
+    attempt.rejected_writes,
+    attempt.rejected_writeback_refs,
+    attempt.rejected_write_refs,
+  ].some(hasDisplayValue);
+  return [
+    {
+      label: t('common.runtimeTray.attemptWorkbench.providerCompletion'),
+      value: providerCompletion,
+      color: statusColor(providerCompletion),
+    },
+    {
+      label: t('common.runtimeTray.attemptWorkbench.domainReadyVerdict'),
+      value: domainReadyVerdict,
+      color: domainReadyVerdict === 'ready' || domainReadyVerdict === 'domain_ready' ? 'green' : 'orangered',
+    },
+    operationSignal(
+      t('common.runtimeTray.attemptWorkbench.humanGate'),
+      humanGateActive ? 'present' : 'clear',
+      humanGateActive
+    ),
+    operationSignal(
+      t('common.runtimeTray.attemptWorkbench.deadLetter'),
+      deadLetterActive ? 'present' : 'clear',
+      deadLetterActive
+    ),
+    operationSignal(
+      t('common.runtimeTray.attemptWorkbench.rejectedWrites'),
+      rejectedWritebackActive ? 'present' : 'clear',
+      rejectedWritebackActive
+    ),
+  ];
 };
 
 const attemptMatchesFilter = (attempt: AttemptItem, filter: AttemptFilter): boolean => {
@@ -188,6 +245,7 @@ const attemptItems = (workbench: RuntimeTrayJsonRecord, t: RuntimeTranslator): A
           .filter((value): value is string => Boolean(value))
           .join(' / ') || t('common.runtimeTray.attemptWorkbench.attempt'),
       status,
+      signals: attemptSignals(attempt, status, completion, t),
       details: compact([
         field(t('common.runtimeTray.attemptWorkbench.providerCompletion'), completion?.provider_completion),
         field(t('common.runtimeTray.attemptWorkbench.domainReadyVerdict'), domainReadyVerdict),
@@ -338,6 +396,16 @@ const RuntimeAttemptWorkbench: React.FC<{ workbench: RuntimeTrayJsonRecord | nul
               <div className='flex min-w-0 flex-wrap items-center gap-8px'>
                 <span className='min-w-0 break-words text-13px font-medium text-t-primary'>{attempt.title}</span>
                 <Tag color={statusColor(attempt.status)}>{attempt.status}</Tag>
+              </div>
+              <div className='mt-10px grid grid-cols-1 gap-8px md:grid-cols-5'>
+                {attempt.signals.map((signal) => (
+                  <div key={`${attempt.id}-${signal.label}`} className='min-w-0 rounded-6px bg-fill-2 px-10px py-8px'>
+                    <div className='truncate text-12px text-t-secondary'>{signal.label}</div>
+                    <div className='mt-5px'>
+                      <Tag color={signal.color}>{signal.value}</Tag>
+                    </div>
+                  </div>
+                ))}
               </div>
               <dl className='m-0 mt-10px grid grid-cols-1 gap-8px md:grid-cols-[150px_minmax(0,1fr)]'>
                 {attempt.details.map((item) => (

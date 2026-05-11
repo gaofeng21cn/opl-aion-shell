@@ -77,7 +77,7 @@ function assertAllowedFamilyRuntimeSignal(args: string[]): void {
     const gateRef = typeof payload.human_gate_ref === 'string' ? payload.human_gate_ref : '';
     if (
       !hasOnlyKeys(payload, ['human_gate_ref', 'reason']) ||
-      !gateRef.startsWith('opl-aion-shell:human_gate:') ||
+      gateRef !== `opl-aion-shell:human_gate:${stageAttemptId}` ||
       payload.reason !== 'operator_human_gate_requested'
     ) {
       throw new Error('Unsupported OPL family-runtime human gate signal');

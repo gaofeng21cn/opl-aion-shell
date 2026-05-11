@@ -423,6 +423,22 @@ describe('shellBridge', () => {
           ],
         })
       ).rejects.toThrow('Unsupported OPL family-runtime resume signal');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'family-runtime',
+            'attempt',
+            'signal',
+            'sat_001',
+            '--kind',
+            'human_gate',
+            '--payload',
+            '{"human_gate_ref":"opl-aion-shell:human_gate:sat_other","reason":"operator_human_gate_requested"}',
+            '--source',
+            'opl-aion-shell',
+          ],
+        })
+      ).rejects.toThrow('Unsupported OPL family-runtime human gate signal');
       expect(execFileMock).not.toHaveBeenCalled();
     });
 

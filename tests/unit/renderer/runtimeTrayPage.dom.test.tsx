@@ -505,11 +505,11 @@ describe('RuntimeTrayItemPage', () => {
     expect(await screen.findByText('In Process')).toBeInTheDocument();
     expect(screen.getByText('Stage Attempt Workbench')).toBeInTheDocument();
     expect(screen.getByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
-    expect(screen.getByText('Provider Completion')).toBeInTheDocument();
-    expect(screen.getByText('domain_gate_pending')).toBeInTheDocument();
+    expect(screen.getAllByText('Provider Completion').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('domain_gate_pending').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Consumed References')).toBeInTheDocument();
     expect(screen.getByText('memory:publication-route-risk-model')).toBeInTheDocument();
-    expect(screen.getByText('Rejected Writes')).toBeInTheDocument();
+    expect(screen.getAllByText('Rejected Writes').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('id=wb_001; status=rejected; reason=single-study claim')).toBeInTheDocument();
     expect(screen.getByText('Route Impact')).toBeInTheDocument();
     expect(
@@ -621,6 +621,9 @@ describe('RuntimeTrayItemPage', () => {
     expect(await screen.findByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
     expect(screen.getAllByText('Provider Completion').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Domain Ready Verdict').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('domain_gate_pending').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('present').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('clear').length).toBeGreaterThanOrEqual(1);
 
     screen.getByText('Request Human Gate').click();
     await waitFor(() => {
