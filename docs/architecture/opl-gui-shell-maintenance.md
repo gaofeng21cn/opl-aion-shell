@@ -6,7 +6,7 @@ This repository is the current One Person Lab GUI shell. It keeps the AionUI sou
 
 ## Repository Role
 
-`opl-aion-shell` is an OPL product fork of upstream AionUI, not the canonical OPL runtime, not the OPL family control plane, and not the place where MAS/MAG/RCA/MDS domain truth is owned.
+`opl-aion-shell` is an OPL product fork of upstream AionUI, not the canonical OPL runtime, not the OPL family control plane, and not the place where MAS/MAG/RCA domain truth is owned.
 
 Its durable role is deliberately narrow:
 
@@ -30,7 +30,7 @@ Use this repo for GUI-shell work:
 Keep these responsibilities outside this repo:
 
 - OPL family contracts, shared runtime truth, portfolio/session ledgers, and cross-domain governance belong in `one-person-lab` or the relevant domain repo
-- MAS/MAG/RCA/MDS domain truth belongs in those domain repos and their contract surfaces
+- MAS/MAG/RCA domain truth belongs in those domain repos and their contract surfaces
 - terminal input, pause/resume/stop ownership, publication judgment, artifact authority, and study truth remain domain-owned even when this GUI renders their read models
 - local agent sessions, prompt logs, runtime-state, generated debug output, and worktrees stay ignored or user-local
 - broad source-shape governance over upstream-owned AionUI code is avoided unless a specific OPL product risk justifies it

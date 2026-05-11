@@ -1010,7 +1010,7 @@
         "latest": "Official latest (minimum {{minimumVersion}})"
       },
       "hermes": {
-        "role": "Default online runtime substrate",
+        "role": "Optional migration and proof-lane capability",
         "latest": "Hermes-Agent channel"
       },
       "module": {

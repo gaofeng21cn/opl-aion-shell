@@ -1011,7 +1011,7 @@
         "latest": "官方 latest（最低 {{minimumVersion}}）"
       },
       "hermes": {
-        "role": "默认在线运行时底座",
+        "role": "可选迁移与证明通道能力",
         "latest": "Hermes-Agent 通道"
       },
       "module": {

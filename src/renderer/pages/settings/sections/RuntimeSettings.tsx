@@ -172,6 +172,7 @@ const OPL_ENVIRONMENT_ITEMS: EnvironmentItem[] = [
   {
     id: 'hermes',
     engineId: 'hermes',
+    optionalCapability: true,
     name: 'Hermes-Agent',
     roleKey: 'settings.oplEnvironmentPage.items.hermes.role',
     latestVersionKey: 'settings.oplEnvironmentPage.items.hermes.latest',
