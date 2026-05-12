@@ -27,6 +27,7 @@ export const OPL_APP_ACTIVATION_POLICY = [
   '- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。',
   '',
   '默认路由：',
+  '- OPL App 是前端和工作台；新增 OPL executor adapter 不改变默认会话行为。没有用户或 stage 的显式 executor 选择时，默认仍使用 Codex CLI 会话语义。',
   '- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。',
   '- 基金、标书、申请书：使用 MAG。',
   '- PPT、演示、视觉交付物：使用 RCA。',
