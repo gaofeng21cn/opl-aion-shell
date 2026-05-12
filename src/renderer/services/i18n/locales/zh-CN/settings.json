@@ -169,7 +169,7 @@
   "cronNotificationEnabled": "定时任务完成通知",
   "promptTimeout": "GUI 托管 LLM 请求超时（秒）",
   "groupAiCore": "能力",
-  "groupApp": "运行",
+  "groupApp": "App 访问",
   "groupAbout": "关于",
   "agentIdleTimeout": "Agent 空闲超时（分钟）",
   "agentIdleTimeoutDesc": "空闲超过该时长后自动终止 Agent 进程以释放内存",
@@ -946,13 +946,13 @@
       "instructionsLoadFailed": "读取用户级指令失败"
     }
   },
-  "oplEnvironment": "环境管理",
+  "oplEnvironment": "管理 Foundry Agents",
   "oplEnvironmentPage": {
-    "title": "环境管理",
-    "description": "管理 One Person Lab 运行依赖、MAS/MAG/RCA 模组、Codex skills、远程连接和桌面 App。",
-    "maintenanceTitle": "一键维护",
-    "maintenanceDescription": "直接调用本机 OPL CLI 执行环境检查、模块更新和安装修复；状态会在执行后刷新。",
-    "managedTag": "OPL 管理",
+    "title": "管理 Foundry Agents",
+    "description": "在 App 工作台中管理 MAS、MAG、RCA、Codex 和可选 adapter。领域真相、质量结论和产物 authority 仍由对应 Foundry Agent 持有。",
+    "maintenanceTitle": "Foundry 维护",
+    "maintenanceDescription": "直接调用本机 OPL CLI 执行 Foundry 检查、Foundry Agent 更新和安装修复；状态会在执行后刷新。",
+    "managedTag": "OPL 投影",
     "currentVersion": "当前：{{version}}",
     "latestVersion": "最新：{{version}}",
     "selectedBinary": "已选择二进制：{{path}}",
@@ -970,7 +970,7 @@
       }
     },
     "actions": {
-      "doctor": "检查环境",
+      "doctor": "检查 Foundry",
       "refresh": "刷新版本",
       "repair": "修复安装",
       "openRemote": "打开远程连接",
@@ -980,9 +980,9 @@
       "oneClickUpdate": "一键更新"
     },
     "messages": {
-      "loadModulesFailed": "读取模块状态失败",
+      "loadModulesFailed": "读取 Foundry Agent 状态失败",
       "commandFailed": "命令执行失败",
-      "doctorComplete": "环境检查完成",
+      "doctorComplete": "Foundry 检查完成",
       "repairComplete": "安装修复完成",
       "updateComplete": "{{name}} 更新完成",
       "systemUpdateComplete": "OPL 系统更新完成，App 已是最新版本",
@@ -995,7 +995,7 @@
     "status": {
       "notDetected": "未检测",
       "notInstalled": "未安装",
-      "managedByApp": "随 App / CLI 管理",
+      "managedByApp": "由 App / CLI 投影",
       "unknown": "未知",
       "ready": "就绪",
       "attention_needed": "需要处理",
@@ -1007,30 +1007,30 @@
     },
     "items": {
       "codex": {
-        "role": "核心执行环境",
+        "role": "OPL Agent 开发的 Codex-first executor",
         "latest": "官方 latest（最低 {{minimumVersion}}）"
       },
       "hermes": {
-        "role": "可选迁移与证明通道能力",
+        "role": "可选 executor adapter 与证明通道能力",
         "latest": "Hermes-Agent 通道"
       },
       "module": {
         "latest": "GitHub main"
       },
       "mas": {
-        "role": "医学研究模块"
+        "role": "医学研究 Foundry Agent"
       },
       "mds": {
         "role": "MAS 深度研究依赖"
       },
       "mag": {
-        "role": "基金申请模块"
+        "role": "基金申请 Foundry Agent"
       },
       "rca": {
-        "role": "汇报与幻灯片模块"
+        "role": "汇报与幻灯片 Foundry Agent"
       },
       "gui": {
-        "role": "桌面图形界面",
+        "role": "桌面工作台，不是 runtime truth owner",
         "latest": "Release 最新版"
       }
     },
@@ -1053,18 +1053,18 @@
   },
   "oplFirstLaunch": {
     "wizardTitle": "配置 One Person Lab",
-    "preparing": "One Person Lab 正在准备本机环境与 Codex，请稍候…",
-    "complete": "本机环境和 Codex 已准备完成",
-    "setupNeeded": "还需要完成一次初始化配置，请在环境管理中继续",
-    "failed": "环境准备失败，请到设置-环境管理中修复安装",
+    "preparing": "One Person Lab 正在准备 Codex 和本机 Foundry Agent 访问，请稍候…",
+    "complete": "Codex 和本机 Foundry Agent 访问已准备完成",
+    "setupNeeded": "还需要完成一次初始化配置，请在管理 Foundry Agents 中继续",
+    "failed": "准备失败，请到设置-管理 Foundry Agents 中修复安装",
     "readyEntry": "可以进入 One Person Lab",
     "logPath": "首启日志：{{path}}",
     "progress": {
       "workingOn": "正在处理：{{step}}（{{current}}/{{total}}）",
       "steps": {
-        "checkingEnvironment": "检查本机环境",
+        "checkingEnvironment": "检查本机访问",
         "configureCodex": "配置 Codex",
-        "installingModules": "安装并同步模块",
+        "installingModules": "安装并同步 Foundry Agents",
         "reviewingStatus": "复查就绪状态",
         "complete": "完成初始化"
       }
@@ -1081,30 +1081,32 @@
       "install": "安装",
       "retry": "重试",
       "openEnvironment": "环境",
-      "openModules": "模块"
+      "openModules": "Foundry Agents"
     }
   },
   "overview": "概览",
-  "runtime": "运行时",
+  "runtime": "开发 OPL Agent",
   "access": "访问",
   "appearance": "外观",
-  "groupOverview": "状态",
-  "groupRuntime": "运行时",
+  "groupOverview": "使用 One Person Lab",
+  "groupRuntime": "开发 OPL Agent",
   "overviewPage": {
-    "title": "概览",
-    "description": "集中查看 Codex、工作区、模块健康和远程访问状态。",
-    "codexTitle": "Codex 状态",
+    "title": "使用 One Person Lab",
+    "description": "把 App 作为普通用户/开发者桌面工作台使用。它负责状态投影与路线激活；runtime truth 留在 OPL Framework 和被选中的 Foundry Agent。",
+    "codexTitle": "OPL Agent executor",
     "workspaceTitle": "工作区目录",
-    "modulesTitle": "模块健康",
+    "modulesTitle": "Foundry Agents",
     "webuiTitle": "远程访问",
-    "modulesUnknown": "模块状态未知",
-    "modulesReady": "{{total}} 个模块就绪",
-    "modulesNeedAttention": "{{count}} / {{total}} 个模块需要处理",
-    "maintenanceTitle": "维护入口",
-    "maintenanceDescription": "快速进入运行时修复、远程访问和系统行为设置。",
+    "modulesUnknown": "Foundry Agent 状态未知",
+    "modulesReady": "{{total}} 个 Foundry Agents 就绪",
+    "modulesNeedAttention": "{{count}} / {{total}} 个 Foundry Agents 需要处理",
+    "maintenanceTitle": "产品层入口",
+    "maintenanceDescription": "快速进入 OPL Agent 开发、Foundry Agents 管理、远程访问和系统行为设置。",
     "actions": {
       "refresh": "刷新状态",
-      "openRuntime": "打开运行时",
+      "openRuntime": "打开 OPL Agent",
+      "openOplAgent": "打开 OPL Agent",
+      "openFoundryAgents": "管理 Foundry Agents",
       "openCapabilities": "打开能力",
       "openAccess": "打开访问",
       "openSystem": "打开系统"
@@ -1126,11 +1128,11 @@
     }
   },
   "runtimePage": {
-    "title": "运行时",
-    "description": "分开管理 Codex 会话上下文和 OPL 运行环境配置。",
+    "title": "开发 OPL Agent",
+    "description": "编辑 OPL Agent 开发用的 Codex 会话上下文，并管理 Foundry Agents；App 不承担 runtime truth owner 角色。",
     "tabs": {
-      "personalization": "个性化",
-      "environment": "环境配置"
+      "personalization": "OPL Agent 上下文",
+      "environment": "Foundry Agents"
     },
     "interactionTitle": "交互层",
     "interactionDescription": "新 OPL 会话默认使用 Codex CLI。",
@@ -1149,11 +1151,11 @@
       "sessionContextSaveFailed": "保存会话注入文本失败",
       "defaultInstructionFilesLoadFailed": "读取本机默认指令文件失败"
     },
-    "sessionContextTitle": "Codex 会话注入文本",
-    "sessionContextDescription": "新建 Codex 会话时，OPL 会把这里的内容作为初始上下文发送给 Codex。适合放置长期偏好、项目边界和默认路由规则。",
+    "sessionContextTitle": "OPL Agent Codex 上下文",
+    "sessionContextDescription": "新建 Codex 会话时，OPL 会把这里的内容作为初始上下文发送给 Codex。适合放置长期偏好、产品层边界和 Foundry Agent 路由规则。",
     "defaultCodexContextTitle": "OPL 默认 Codex 上下文",
-    "sessionContextInputTitle": "OPL Codex 会话注入文本",
-    "sessionContextPlaceholder": "在这里编辑完整的 OPL Codex 会话注入文本...",
+    "sessionContextInputTitle": "OPL Agent 会话上下文",
+    "sessionContextPlaceholder": "在这里编辑完整的 OPL Agent Codex 会话上下文...",
     "defaultInstructionFilesTitle": "本机默认指令文件",
     "defaultInstructionFilesLoading": "正在加载...",
     "defaultInstructionFilesLoadFailed": "读取此文件失败。",

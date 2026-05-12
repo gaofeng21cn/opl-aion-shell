@@ -169,7 +169,7 @@ describe('OverviewSettings module health summary', () => {
     expect(await screen.findByText('settings.overviewPage.modulesNeedAttention:2|4')).toBeInTheDocument();
   });
 
-  it('routes the module card to runtime environment modules instead of capabilities', async () => {
+  it('routes the Foundry Agent card to the Foundry Agents tab instead of capabilities', async () => {
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
       stdout: JSON.stringify({
@@ -186,8 +186,7 @@ describe('OverviewSettings module health summary', () => {
     render(<OverviewSettings />);
 
     await screen.findByText('settings.overviewPage.modulesReady:4');
-    const openRuntimeButtons = screen.getAllByText('settings.overviewPage.actions.openRuntime');
-    fireEvent.click(openRuntimeButtons[2]);
+    fireEvent.click(screen.getAllByText('settings.overviewPage.actions.openFoundryAgents')[0]);
 
     expect(mockNavigate).toHaveBeenCalledWith('/settings/runtime?tab=environment#modules');
   });

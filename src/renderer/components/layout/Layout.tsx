@@ -9,8 +9,7 @@ import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { ConfigStorage, type ICssTheme } from '@/common/config/storage';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
-import onePersonLabLogo from '@/renderer/assets/logos/brand/one-person-lab.svg';
-import onePersonLabLogoDark from '@/renderer/assets/logos/brand/one-person-lab-dark.svg';
+import onePersonLabLogo from '@/renderer/assets/logos/brand/app.png';
 import { Button, Layout as ArcoLayout, Message } from '@arco-design/web-react';
 import { MenuFold, MenuUnfold } from '@icon-park/react';
 import classNames from 'classnames';
@@ -227,7 +226,7 @@ const Layout: React.FC<{
   const oplBrandName = useOplBrandName();
   const { theme } = useThemeContext();
   const { t } = useTranslation();
-  const siderLogo = theme === 'dark' ? onePersonLabLogoDark : onePersonLabLogo;
+  const siderLogo = onePersonLabLogo;
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const [firstRunPanelState, setFirstRunPanelState] = useState<OplFirstRunPanelState | null>(null);
   const firstRunAppVersionRef = useRef<string | undefined>(undefined);

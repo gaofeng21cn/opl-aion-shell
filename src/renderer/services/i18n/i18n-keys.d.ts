@@ -1711,6 +1711,8 @@ export type I18nKey =
   | 'settings.overview'
   | 'settings.overviewPage.actions.openAccess'
   | 'settings.overviewPage.actions.openCapabilities'
+  | 'settings.overviewPage.actions.openFoundryAgents'
+  | 'settings.overviewPage.actions.openOplAgent'
   | 'settings.overviewPage.actions.openRuntime'
   | 'settings.overviewPage.actions.openSystem'
   | 'settings.overviewPage.actions.refresh'

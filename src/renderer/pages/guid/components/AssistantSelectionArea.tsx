@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import masLogo from '@/renderer/assets/logos/opl-modules/mas.svg';
-import magLogo from '@/renderer/assets/logos/opl-modules/mag.svg';
-import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.svg';
+import masLogo from '@/renderer/assets/logos/opl-modules/mas.png';
+import magLogo from '@/renderer/assets/logos/opl-modules/mag.png';
+import rcaLogo from '@/renderer/assets/logos/opl-modules/rca.png';
 import {
   useDetectedAgents,
   useAssistantEditor,

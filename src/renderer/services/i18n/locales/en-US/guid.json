@@ -7,12 +7,12 @@
   "autoSwitchedAgent": "{{from}} is not available, switched to {{to}}",
   "promptExamplesHint": "Try example prompts:",
   "oplQuickEntries": {
-    "researchLabel": "Research",
-    "researchPrompt": "@MAS Help me advance a medical research task: ",
-    "pptLabel": "PPT",
-    "pptPrompt": "@RCA Help me prepare a presentation task: ",
-    "grantLabel": "Grant",
-    "grantPrompt": "@MAG Help me advance a grant task: "
+    "researchLabel": "MAS Agent",
+    "researchPrompt": "@MAS Manage this medical research task through the MAS Foundry Agent: ",
+    "pptLabel": "RCA Agent",
+    "pptPrompt": "@RCA Manage this presentation deliverable through the RCA Foundry Agent: ",
+    "grantLabel": "MAG Agent",
+    "grantPrompt": "@MAG Manage this grant task through the MAG Foundry Agent: "
   },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "Switched to {{agent}}",

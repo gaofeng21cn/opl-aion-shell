@@ -36,19 +36,19 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'One Person Lab',
     },
     descriptionI18n: {
-      'en-US': 'Default OPL route for Codex-first research, grants, presentations, and domain module activation.',
-      'zh-CN': '默认 OPL 入口，用于 Codex 优先的研究、基金、汇报与领域模块激活。',
+      'en-US': 'Use One Person Lab as the Codex-first workbench for routing work to Foundry Agents or OPL Agent development.',
+      'zh-CN': '使用 One Person Lab 作为 Codex-first 工作台，用于分派 Foundry Agents 或开发 OPL Agent。',
     },
     promptsI18n: {
       'en-US': [
-        'Inspect this workspace and choose the right OPL domain route for the task.',
-        'Continue the active OPL task from current runtime status.',
-        'Set up the right domain module and start from the canonical product entry.',
+        'Inspect this workspace and choose between using One Person Lab, managing a Foundry Agent, or developing an OPL Agent.',
+        'Continue the active One Person Lab task from the current visible status.',
+        'Route this request to the right Foundry Agent while keeping domain truth in that agent.',
       ],
       'zh-CN': [
-        '检查当前工作区，并为这个任务选择合适的 OPL 领域入口。',
-        '从当前运行状态继续推进活跃的 OPL 任务。',
-        '配置合适的领域模块，并从 canonical product entry 开始。',
+        '检查当前工作区，并判断这个任务属于使用 One Person Lab、管理 Foundry Agent，还是开发 OPL Agent。',
+        '从当前可见状态继续推进活跃的 One Person Lab 任务。',
+        '把这个请求路由到合适的 Foundry Agent，同时保持领域真相由该 Agent 持有。',
       ],
     },
   },
@@ -67,8 +67,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'Med Auto Science',
     },
     descriptionI18n: {
-      'en-US': 'MAS entry for medical study runtime, paper progress, reviewer revision, and publication supervision.',
-      'zh-CN': 'MAS 入口，用于医学研究运行态、论文进度、返修与投稿监督。',
+      'en-US': 'Foundry Agent for medical study runtime, paper progress, reviewer revision, and publication supervision.',
+      'zh-CN': '医学研究 Foundry Agent，用于研究运行态、论文进度、返修与投稿监督。',
     },
     promptsI18n: {
       'en-US': [
@@ -98,8 +98,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'Med Auto Grant',
     },
     descriptionI18n: {
-      'en-US': 'MAG entry for grant planning, authoring, critique, revision, and package readiness.',
-      'zh-CN': 'MAG 入口，用于基金规划、写作、评审、修改与包就绪检查。',
+      'en-US': 'Foundry Agent for grant planning, authoring, critique, revision, and package readiness.',
+      'zh-CN': '基金申请 Foundry Agent，用于规划、写作、评审、修改与包就绪检查。',
     },
     promptsI18n: {
       'en-US': [
@@ -129,8 +129,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'RedCube AI',
     },
     descriptionI18n: {
-      'en-US': 'RCA entry for slide decks and visual deliverables through the RedCube product runtime.',
-      'zh-CN': 'RCA 入口，用于通过 RedCube product runtime 生成幻灯片和视觉交付物。',
+      'en-US': 'Foundry Agent for slide decks and visual deliverables through the RedCube product runtime.',
+      'zh-CN': '视觉交付 Foundry Agent，用于通过 RedCube product runtime 生成幻灯片和视觉交付物。',
     },
     promptsI18n: {
       'en-US': [

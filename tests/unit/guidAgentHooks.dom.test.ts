@@ -52,12 +52,12 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'guid.oplQuickEntries.researchLabel': '科研',
-        'guid.oplQuickEntries.researchPrompt': '@MAS 帮我推进一个医学研究任务：',
-        'guid.oplQuickEntries.pptLabel': 'PPT',
-        'guid.oplQuickEntries.pptPrompt': '@RCA 帮我推进一个汇报或幻灯片任务：',
-        'guid.oplQuickEntries.grantLabel': '基金',
-        'guid.oplQuickEntries.grantPrompt': '@MAG 帮我推进一个基金申请任务：',
+        'guid.oplQuickEntries.researchLabel': 'MAS Agent',
+        'guid.oplQuickEntries.researchPrompt': '@MAS 通过 MAS Foundry Agent 管理这个医学研究任务：',
+        'guid.oplQuickEntries.pptLabel': 'RCA Agent',
+        'guid.oplQuickEntries.pptPrompt': '@RCA 通过 RCA Foundry Agent 管理这个汇报或幻灯片交付：',
+        'guid.oplQuickEntries.grantLabel': 'MAG Agent',
+        'guid.oplQuickEntries.grantPrompt': '@MAG 通过 MAG Foundry Agent 管理这个基金申请任务：',
       })[key] ?? key,
   }),
 }));
@@ -440,12 +440,12 @@ describe('AssistantSelectionArea OPL quick entries', () => {
       })
     );
 
-  it('renders Research, PPT, and Grant quick entries before preset assistants load', () => {
+  it('renders MAS, RCA, and MAG quick entries before preset assistants load', () => {
     renderArea({ customAgents: [] });
 
-    expect(screen.getByTestId('opl-module-pill-mas')).toHaveTextContent('科研');
-    expect(screen.getByTestId('opl-module-pill-rca')).toHaveTextContent('PPT');
-    expect(screen.getByTestId('opl-module-pill-mag')).toHaveTextContent('基金');
+    expect(screen.getByTestId('opl-module-pill-mas')).toHaveTextContent('MAS Agent');
+    expect(screen.getByTestId('opl-module-pill-rca')).toHaveTextContent('RCA Agent');
+    expect(screen.getByTestId('opl-module-pill-mag')).toHaveTextContent('MAG Agent');
   });
 
   it('fills the matching module prompt when a quick entry is clicked', () => {
@@ -455,7 +455,7 @@ describe('AssistantSelectionArea OPL quick entries', () => {
 
     fireEvent.click(screen.getByTestId('opl-module-pill-rca'));
 
-    expect(onSetInput).toHaveBeenCalledWith('@RCA 帮我推进一个汇报或幻灯片任务：');
+    expect(onSetInput).toHaveBeenCalledWith('@RCA 通过 RCA Foundry Agent 管理这个汇报或幻灯片交付：');
     expect(onFocusInput).toHaveBeenCalledOnce();
   });
 });

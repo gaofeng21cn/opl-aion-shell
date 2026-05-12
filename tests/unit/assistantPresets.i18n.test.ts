@@ -25,4 +25,13 @@ describe('OPL domain assistant presets', () => {
       expect(presets.get(id)?.presetAgentType).toBe('codex');
     }
   });
+
+  it('labels active domain assistants as Foundry Agents', () => {
+    const presets = new Map(ASSISTANT_PRESETS.map((preset) => [preset.id, preset]));
+
+    for (const id of ['med-auto-science', 'med-auto-grant', 'redcube-ai']) {
+      expect(presets.get(id)?.descriptionI18n['en-US']).toContain('Foundry Agent');
+      expect(presets.get(id)?.descriptionI18n['zh-CN']).toContain('Foundry Agent');
+    }
+  });
 });

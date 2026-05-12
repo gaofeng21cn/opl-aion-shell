@@ -174,10 +174,10 @@ vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid='settings-wrapper'>{children}</div>,
 }));
 
-vi.mock('@/renderer/assets/logos/opl-modules/mas.svg', () => ({ default: 'mas.svg' }));
+vi.mock('@/renderer/assets/logos/opl-modules/mas.png', () => ({ default: 'mas.png' }));
 vi.mock('@/renderer/assets/logos/opl-modules/mds.svg', () => ({ default: 'mds.svg' }));
-vi.mock('@/renderer/assets/logos/opl-modules/mag.svg', () => ({ default: 'mag.svg' }));
-vi.mock('@/renderer/assets/logos/opl-modules/rca.svg', () => ({ default: 'rca.svg' }));
+vi.mock('@/renderer/assets/logos/opl-modules/mag.png', () => ({ default: 'mag.png' }));
+vi.mock('@/renderer/assets/logos/opl-modules/rca.png', () => ({ default: 'rca.png' }));
 vi.mock('@/renderer/assets/logos/tools/coding/codex.svg', () => ({ default: 'codex.svg' }));
 vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.svg' }));
 vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));

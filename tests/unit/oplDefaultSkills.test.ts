@@ -22,8 +22,11 @@ describe('OPL default Codex skills', () => {
     expect(params.extra?.enabledSkills).toEqual([...OPL_DEFAULT_CODEX_SKILLS]);
     expect(params.extra?.presetContext).toBe(OPL_CODEX_CONTEXT_SNIPPET);
     expect(params.extra?.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
+    expect(params.extra?.presetContext).toContain('三层产品模型');
+    expect(params.extra?.presetContext).toContain('管理 Foundry Agents');
+    expect(params.extra?.presetContext).toContain('它不是 runtime truth owner');
     expect(params.extra?.presetContext).toContain('默认路由');
-    expect(params.extra?.presetContext).toContain('不要要求用户输入 @MAS');
+    expect(params.extra?.presetContext).toContain('不要要求用户输入 @MAS/@MAG/@RCA');
     expect(params.extra?.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
   });
 

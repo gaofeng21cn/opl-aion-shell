@@ -115,8 +115,7 @@ vi.mock('@/renderer/components/settings/UpdateModal', () => ({
   default: () => null,
 }));
 
-vi.mock('@/renderer/assets/logos/brand/one-person-lab.svg', () => ({ default: 'logo.svg' }));
-vi.mock('@/renderer/assets/logos/brand/one-person-lab-dark.svg', () => ({ default: 'logo-dark.svg' }));
+vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'logo.png' }));
 
 vi.mock('@/renderer/hooks/system/useOplBrandName', () => ({
   useOplBrandName: () => 'One Person Lab',

@@ -74,6 +74,8 @@ describe('buildAgentConversationParams', () => {
     expect(params.extra.presetContext).toContain(OPL_APP_ACTIVATION_POLICY);
     expect(params.extra.presetContext).toContain('科研、研究、论文');
     expect(params.extra.presetContext).toContain('使用 MAS');
+    expect(params.extra.presetContext).toContain('管理 Foundry Agents');
+    expect(params.extra.presetContext).toContain('它不是 runtime truth owner');
     expect(params.extra.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
     expect(params.extra.currentModelId).toBeUndefined();
   });

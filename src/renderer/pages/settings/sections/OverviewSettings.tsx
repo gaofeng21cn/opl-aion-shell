@@ -149,7 +149,7 @@ const OverviewSettings: React.FC = () => {
         ? t(`settings.oplEnvironmentPage.status.${status.codexStatus}`, { status: status.codexStatus })
         : t('settings.oplEnvironmentPage.status.unknown'),
       icon: <Toolkit theme='outline' />,
-      action: t('settings.overviewPage.actions.openRuntime'),
+      action: t('settings.overviewPage.actions.openOplAgent'),
       route: '/settings/runtime',
       tone: status.codexStatus === 'ready' || status.codexStatus === 'compatible' ? 'green' : 'orange',
       tag: status.codexStatus
@@ -161,7 +161,7 @@ const OverviewSettings: React.FC = () => {
       title: t('settings.overviewPage.workspaceTitle'),
       value: status.workspaceRoot || t('settings.oplEnvironmentPage.workspaceRootMissing'),
       icon: <CheckOne theme='outline' />,
-      action: t('settings.overviewPage.actions.openRuntime'),
+      action: t('settings.overviewPage.actions.openOplAgent'),
       route: '/settings/runtime',
       tone: status.workspaceStatus === 'ready' ? 'green' : 'orange',
       tag: status.workspaceStatus
@@ -173,7 +173,7 @@ const OverviewSettings: React.FC = () => {
       title: t('settings.overviewPage.modulesTitle'),
       value: moduleStatusLabel,
       icon: <Lightning theme='outline' />,
-      action: t('settings.overviewPage.actions.openRuntime'),
+      action: t('settings.overviewPage.actions.openFoundryAgents'),
       route: '/settings/runtime?tab=environment#modules',
       tone: status.moduleKnown && status.moduleAttention === 0 && status.moduleTotal > 0 ? 'green' : 'orange',
       tag:
@@ -257,7 +257,10 @@ const OverviewSettings: React.FC = () => {
             </Typography.Text>
             <Space wrap>
               <Button type='primary' onClick={() => navigate('/settings/runtime')}>
-                {t('settings.overviewPage.actions.openRuntime')}
+                {t('settings.overviewPage.actions.openOplAgent')}
+              </Button>
+              <Button onClick={() => navigate('/settings/runtime?tab=environment#modules')}>
+                {t('settings.overviewPage.actions.openFoundryAgents')}
               </Button>
               <Button onClick={() => navigate('/settings/access')}>
                 {t('settings.overviewPage.actions.openAccess')}

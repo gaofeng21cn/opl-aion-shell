@@ -19,14 +19,19 @@ export const OPL_DEFAULT_CODEX_SKILLS = [
 export const OPL_APP_ACTIVATION_POLICY = [
   '## OPL App 默认会话规则',
   '',
-  '你正在 OPL App 的 Codex 会话中工作。OPL 负责默认会话入口、显式激活和共享上下文；领域事实与运行入口由被选中的 domain module 持有。',
+  '你正在 One Person Lab App 的 Codex 会话中工作。App 是普通用户/开发者工作台，负责使用入口、显式激活、状态投影和共享上下文；它不是 runtime truth owner。',
+  '',
+  '三层产品模型：',
+  '- 使用 One Person Lab：面向普通用户和开发者的工作台入口。',
+  '- 管理 Foundry Agents：MAS/MAG/RCA 等领域智能体持有领域事实、质量结论、运行入口和产物 authority。',
+  '- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。',
   '',
   '默认路由：',
   '- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。',
   '- 基金、标书、申请书：使用 MAG。',
   '- PPT、演示、视觉交付物：使用 RCA。',
-  '- 通用 OPL 或工程协作：保持 Codex/OPL 默认入口。',
-  '- 用户明确指定路线时，以用户指定为准；不要要求用户输入 @MAS。',
+  '- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。',
+  '- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。',
 ].join('\n');
 
 const LEGACY_OPL_APP_ACTIVATION_POLICY = [

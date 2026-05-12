@@ -169,7 +169,7 @@
   "cronNotificationEnabled": "Scheduled Task Completion",
   "promptTimeout": "GUI-Managed LLM Request Timeout (s)",
   "groupAiCore": "Capabilities",
-  "groupApp": "Runtime",
+  "groupApp": "App Access",
   "groupAbout": "About",
   "agentIdleTimeout": "Agent Idle Timeout (min)",
   "agentIdleTimeoutDesc": "Kill idle agent processes after this duration to free memory",
@@ -945,13 +945,13 @@
       "instructionsLoadFailed": "Failed to load instructions"
     }
   },
-  "oplEnvironment": "Environment Management",
+  "oplEnvironment": "Manage Foundry Agents",
   "oplEnvironmentPage": {
-    "title": "Environment Management",
-    "description": "Manage runtime, modules, skills, and the desktop app.",
-    "maintenanceTitle": "One-click maintenance",
-    "maintenanceDescription": "Run local OPL CLI checks, module updates, and install repair. Status refreshes after each action.",
-    "managedTag": "OPL managed",
+    "title": "Manage Foundry Agents",
+    "description": "Manage MAS, MAG, RCA, Codex, and optional adapters from the App workbench. Domain truth, quality verdicts, and artifact authority stay with each Foundry Agent.",
+    "maintenanceTitle": "Foundry maintenance",
+    "maintenanceDescription": "Run local OPL CLI checks, Foundry Agent updates, and install repair. Status refreshes after each action.",
+    "managedTag": "Projected by OPL",
     "currentVersion": "Current: {{version}}",
     "latestVersion": "Latest: {{version}}",
     "selectedBinary": "Selected binary: {{path}}",
@@ -969,7 +969,7 @@
       }
     },
     "actions": {
-      "doctor": "Check environment",
+      "doctor": "Check Foundry",
       "refresh": "Refresh versions",
       "repair": "Repair install",
       "openRemote": "Open Remote Connection",
@@ -979,9 +979,9 @@
       "oneClickUpdate": "Update all"
     },
     "messages": {
-      "loadModulesFailed": "Failed to read module status",
+      "loadModulesFailed": "Failed to read Foundry Agent status",
       "commandFailed": "Command failed",
-      "doctorComplete": "Environment check complete",
+      "doctorComplete": "Foundry check complete",
       "repairComplete": "Install repair complete",
       "updateComplete": "{{name}} update complete",
       "systemUpdateComplete": "OPL system update complete; the app is already up to date",
@@ -994,7 +994,7 @@
     "status": {
       "notDetected": "Not detected",
       "notInstalled": "Not installed",
-      "managedByApp": "Managed by App / CLI",
+      "managedByApp": "Projected by App / CLI",
       "unknown": "Unknown",
       "ready": "Ready",
       "attention_needed": "Needs attention",
@@ -1006,30 +1006,30 @@
     },
     "items": {
       "codex": {
-        "role": "Core execution environment",
+        "role": "Codex-first executor for OPL Agent development",
         "latest": "Official latest (minimum {{minimumVersion}})"
       },
       "hermes": {
-        "role": "Optional migration and proof-lane capability",
+        "role": "Optional executor adapter and proof-lane capability",
         "latest": "Hermes-Agent channel"
       },
       "module": {
         "latest": "GitHub main"
       },
       "mas": {
-        "role": "Medical research module"
+        "role": "Foundry Agent for medical research"
       },
       "mds": {
         "role": "MAS deep-research dependency"
       },
       "mag": {
-        "role": "Grant authoring module"
+        "role": "Foundry Agent for grant authoring"
       },
       "rca": {
-        "role": "Report and slide module"
+        "role": "Foundry Agent for reports and slides"
       },
       "gui": {
-        "role": "Desktop GUI",
+        "role": "Desktop workbench, not runtime truth owner",
         "latest": "Latest release"
       }
     },
@@ -1052,18 +1052,18 @@
   },
   "oplFirstLaunch": {
     "wizardTitle": "Set up One Person Lab",
-    "preparing": "One Person Lab is preparing the local environment and Codex…",
-    "complete": "Local environment and Codex are ready",
-    "setupNeeded": "Initial setup still needs attention. Continue in Environment Management.",
-    "failed": "Environment preparation failed. Open Settings > Environment Management to repair the install.",
+    "preparing": "One Person Lab is preparing Codex and local Foundry Agent access…",
+    "complete": "Codex and local Foundry Agent access are ready",
+    "setupNeeded": "Initial setup still needs attention. Continue in Manage Foundry Agents.",
+    "failed": "Preparation failed. Open Settings > Manage Foundry Agents to repair the install.",
     "readyEntry": "Ready to enter One Person Lab",
     "logPath": "First-run log: {{path}}",
     "progress": {
       "workingOn": "Working on: {{step}} ({{current}}/{{total}})",
       "steps": {
-        "checkingEnvironment": "checking the local environment",
+        "checkingEnvironment": "checking local access",
         "configureCodex": "configuring Codex",
-        "installingModules": "installing and syncing modules",
+        "installingModules": "installing and syncing Foundry Agents",
         "reviewingStatus": "reviewing readiness",
         "complete": "finishing setup"
       }
@@ -1080,30 +1080,32 @@
       "install": "Install",
       "retry": "Retry",
       "openEnvironment": "Environment",
-      "openModules": "Modules"
+      "openModules": "Foundry Agents"
     }
   },
   "overview": "Overview",
-  "runtime": "Runtime",
+  "runtime": "OPL Agent",
   "access": "Access",
   "appearance": "Appearance",
-  "groupOverview": "Status",
-  "groupRuntime": "Runtime",
+  "groupOverview": "Use One Person Lab",
+  "groupRuntime": "Develop OPL Agent",
   "overviewPage": {
-    "title": "Overview",
-    "description": "Check core runtime, workspace, module, and remote access status from one place.",
-    "codexTitle": "Codex status",
+    "title": "Use One Person Lab",
+    "description": "Use the App as a desktop workbench for users and developers. It projects status and activates routes; runtime truth stays in OPL Framework and the selected Foundry Agent.",
+    "codexTitle": "OPL Agent executor",
     "workspaceTitle": "Workspace folder",
-    "modulesTitle": "Module health",
+    "modulesTitle": "Foundry Agents",
     "webuiTitle": "Remote access",
-    "modulesUnknown": "Module status unknown",
-    "modulesReady": "{{total}} modules ready",
-    "modulesNeedAttention": "{{count}} of {{total}} modules need attention",
-    "maintenanceTitle": "Maintenance shortcuts",
-    "maintenanceDescription": "Open the pages that handle runtime repair, remote access, and system behavior.",
+    "modulesUnknown": "Foundry Agent status unknown",
+    "modulesReady": "{{total}} Foundry Agents ready",
+    "modulesNeedAttention": "{{count}} of {{total}} Foundry Agents need attention",
+    "maintenanceTitle": "Product layer shortcuts",
+    "maintenanceDescription": "Open the pages for developing OPL Agent behavior, managing Foundry Agents, remote access, and system behavior.",
     "actions": {
       "refresh": "Refresh status",
-      "openRuntime": "Open Runtime",
+      "openRuntime": "Open OPL Agent",
+      "openOplAgent": "Open OPL Agent",
+      "openFoundryAgents": "Manage Foundry Agents",
       "openCapabilities": "Open Capabilities",
       "openAccess": "Open Access",
       "openSystem": "Open System"
@@ -1125,11 +1127,11 @@
     }
   },
   "runtimePage": {
-    "title": "Runtime",
-    "description": "Manage Codex session context and OPL runtime environment from separate tabs.",
+    "title": "Develop OPL Agent",
+    "description": "Edit Codex session context for OPL Agent development and manage Foundry Agents without making the App a runtime truth owner.",
     "tabs": {
-      "personalization": "Personalization",
-      "environment": "Environment"
+      "personalization": "OPL Agent Context",
+      "environment": "Foundry Agents"
     },
     "interactionTitle": "Interaction layer",
     "interactionDescription": "Codex CLI is the default engine for new OPL sessions.",
@@ -1148,11 +1150,11 @@
       "sessionContextSaveFailed": "Failed to save session injection text",
       "defaultInstructionFilesLoadFailed": "Failed to load local default instruction files"
     },
-    "sessionContextTitle": "Codex session injection text",
-    "sessionContextDescription": "When a new Codex session starts, OPL sends this text to Codex as the initial context. Use it for durable preferences, project boundaries, and default routing rules.",
+    "sessionContextTitle": "OPL Agent Codex context",
+    "sessionContextDescription": "When a new Codex session starts, OPL sends this text to Codex as the initial context. Use it for durable preferences, product-layer boundaries, and Foundry Agent routing rules.",
     "defaultCodexContextTitle": "OPL default Codex context",
-    "sessionContextInputTitle": "OPL Codex session injection text",
-    "sessionContextPlaceholder": "Edit the full OPL Codex session injection text here...",
+    "sessionContextInputTitle": "OPL Agent session context",
+    "sessionContextPlaceholder": "Edit the full OPL Agent Codex session context here...",
     "defaultInstructionFilesTitle": "Local default instruction files",
     "defaultInstructionFilesLoading": "Loading...",
     "defaultInstructionFilesLoadFailed": "Failed to load this file.",
