@@ -65,7 +65,7 @@ const AboutModalContent: React.FC = () => {
     },
     {
       title: t('settings.updateLog'),
-      url: 'https://github.com/gaofeng21cn/one-person-lab/releases',
+      url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases',
       icon: <Right theme='outline' size='16' />,
     },
   ];

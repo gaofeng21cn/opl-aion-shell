@@ -58,7 +58,7 @@ export function initApplicationBridgeCore(): void {
       oplVersion: versions.oplVersion,
       guiVersion: versions.guiVersion,
       releaseRepo:
-        process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab',
+        process.env.OPL_RELEASE_REPO?.trim() || process.env.OPL_GITHUB_REPO?.trim() || 'gaofeng21cn/one-person-lab-app',
       releaseChannel: process.env.OPL_RELEASE_CHANNEL?.trim() || 'stable',
     });
   });

@@ -150,7 +150,9 @@ extraResources:
     to: trayTemplate.png
   - from: resources/trayTemplate@2x.png
     to: trayTemplate@2x.png
-  - from: packaged-runtimes/opl-full-runtime
+  # electron-builder resolves this path from shells/aionui; the packaged
+  # runtime is owned at the App repository root.
+  - from: ../../packaged-runtimes/opl-full-runtime
     to: opl-full-runtime
 win:
   target:

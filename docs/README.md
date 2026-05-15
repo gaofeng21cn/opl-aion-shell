@@ -2,11 +2,11 @@
 
 Documentation is organized by reader intent, not by document type.
 
-This checkout is the One Person Lab fork of AionUi. The OPL product mainline is
-`gaofeng/main`; upstream AionUi material remains useful, but OPL product work
-starts from the OPL fork boundary described in [`../AGENTS.md`](../AGENTS.md).
-As of 2026-05-15, this local checkout tracks `main...gaofeng/main`; `origin/main`
-is the upstream AionUi input, not the OPL product baseline.
+This checkout is the history-rich One Person Lab fork of AionUi. The OPL shell
+mainline is `origin/main`; upstream AionUi material remains useful, but OPL
+shell work starts from the fork boundary described in [`../AGENTS.md`](../AGENTS.md).
+As of 2026-05-15, this local checkout uses `origin` for
+`gaofeng21cn/opl-aion-shell` and `upstream` for `iOfficeAI/AionUi`.
 
 ## Active OPL Entry Points
 
@@ -34,7 +34,7 @@ is the upstream AionUi input, not the OPL product baseline.
 ## Boundary Notes
 
 - **OPL fork active docs** live in the root `readme.md`, `AGENTS.md`, and targeted
-  OPL architecture notes. Keep them current with `gaofeng/main`.
+  OPL architecture notes. Keep them current with `origin/main`.
 - **Architecture docs** describe durable system behavior or subsystem analysis.
   Place exploratory reports under `architecture/research/` until they are
   either promoted into an active architecture note or archived.

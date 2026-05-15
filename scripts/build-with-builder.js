@@ -225,8 +225,9 @@ function validatePackagedRuntime(outDir, buildStartedAt) {
   }
 
   const validatorPath = path.join(__dirname, 'validate-packaged-runtime.js');
+  const requireFullRuntime = process.env.OPL_REQUIRE_FULL_RUNTIME === '1' ? ' --require-full-runtime' : '';
   for (const asarPath of asars) {
-    execSync(`node "${validatorPath}" --asar "${asarPath}" --scan-all`, {
+    execSync(`node "${validatorPath}" --asar "${asarPath}" --scan-all${requireFullRuntime}`, {
       stdio: 'inherit',
       shell: process.platform === 'win32',
     });

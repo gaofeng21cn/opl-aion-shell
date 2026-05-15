@@ -39,6 +39,7 @@ function parseArgs(argv) {
     outDir: DEFAULT_OUT_DIR,
     entries: ['out/main/index.js'],
     scanAll: false,
+    requireFullRuntime: false,
   };
 
   for (let index = 0; index < args.length; index += 1) {
@@ -69,6 +70,10 @@ function parseArgs(argv) {
     }
     if (arg === '--scan-all') {
       parsed.scanAll = true;
+      continue;
+    }
+    if (arg === '--require-full-runtime') {
+      parsed.requireFullRuntime = true;
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
@@ -376,13 +381,6 @@ function validateFullRuntimeResources(resourcesRoot, options = {}) {
   return { checked: true, resourcesRoot, issues };
 }
 
-function requiresFullRuntimeForAsar(asarPath, resourcesRoot) {
-  return (
-    asarPath.includes(`${path.sep}Contents${path.sep}Resources${path.sep}app.asar`) ||
-    fs.existsSync(path.join(resourcesRoot, FULL_RUNTIME_RESOURCE_DIR))
-  );
-}
-
 function resolveFileLike(archive, basePath) {
   for (const candidate of candidatePaths(basePath)) {
     if (archive.isFile(candidate)) return candidate;
@@ -669,7 +667,7 @@ function main() {
 
     const resourcesRoot = path.dirname(target);
     const fullRuntime = validateFullRuntimeResources(resourcesRoot, {
-      require: requiresFullRuntimeForAsar(target, resourcesRoot),
+      require: parsed.requireFullRuntime,
     });
     if (fullRuntime.checked) {
       if (fullRuntime.issues.length === 0) {

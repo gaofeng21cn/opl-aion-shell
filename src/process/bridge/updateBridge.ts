@@ -59,7 +59,7 @@ interface AutoUpdateCheckParams {
   includePrerelease?: boolean;
 }
 
-const DEFAULT_REPO = 'gaofeng21cn/one-person-lab';
+const DEFAULT_REPO = 'gaofeng21cn/one-person-lab-app';
 const DEFAULT_USER_AGENT = 'One Person Lab';
 const DEFAULT_OPL_VERSION = '26.4.27';
 const ALLOWED_ASSET_EXTS = new Set(['.exe', '.msi', '.dmg', '.zip', '.deb', '.rpm']);

@@ -1,11 +1,11 @@
 # Build And Maintenance Scripts
 
 This directory contains build, packaging, release, benchmark, i18n, automation,
-and OPL first-run smoke scripts for the One Person Lab GUI shell fork.
+and OPL first-run smoke scripts for the One Person Lab App `aionui` shell adapter.
 
-The build scripts are part of the OPL product surface. Start product changes
-from `gaofeng/main`; use upstream `origin/main` only as an explicit AionUI intake
-source.
+The build scripts are part of the OPL shell surface consumed by the clean App
+repo. Start shell changes from `origin/main`; use upstream `upstream/main` only
+as an explicit AionUI intake source.
 
 ## Current Build Scripts
 

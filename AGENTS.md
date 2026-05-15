@@ -2,27 +2,30 @@
 
 All contributors (human and AI) must follow [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. ([Chinese version](CONTRIBUTING.zh.md))
 
-## OPL Fork Remote Boundary
+## OPL Shell Remote Boundary
 
-This checkout is the One Person Lab GUI shell fork, not the upstream AionUI mainline.
+This repository is the history-rich One Person Lab `aionui` shell adapter. It
+is consumed by the clean `one-person-lab-app` repository through an external
+checkout at `shells/aionui`; it is not the App repository root and not the
+upstream AionUI mainline.
 
-- `gaofeng/main` is the OPL shell product mainline.
-- `origin/main` points to upstream `iOfficeAI/AionUi` and is only an upstream sync source.
-- Start OPL product work, bug fixes, release work, and worktrees from `gaofeng/main`.
-- Do not create OPL feature branches or worktrees from `origin/main`; that starts from the upstream AionUI baseline and drops OPL shell changes.
-- When syncing upstream AionUI, first create an explicit upstream-sync branch and then merge or replay the vetted delta back into the OPL mainline.
+- `origin/main` is the OPL-maintained AionUI shell mainline.
+- `upstream/main` points to upstream `iOfficeAI/AionUi` and is only an upstream sync source.
+- Start shell implementation work, bug fixes, packaging-policy work, and worktrees from `origin/main`.
+- Do not create App feature branches or worktrees from `upstream/main`; that starts from the upstream AionUI baseline and drops OPL shell changes.
+- When syncing upstream AionUI, first create an explicit upstream-sync branch and then merge or replay the vetted delta back into the shell mainline.
 
 ## AionUI Upstream Intake Trigger
 
 When the user asks to "follow", "absorb", "sync", or "update to" the latest AionUI version, treat it as a standard upstream-intake request. Do the intake lifecycle directly from the repo state instead of asking for a longer prompt.
 
-- First audit `git status`, remotes, `gaofeng/main`, `origin/main`, latest upstream tags, and any dirty working-tree files. Preserve unrelated or in-progress local changes; do not overwrite them during upstream intake.
-- Start the intake from a clean OPL product baseline on `gaofeng/main`, using a short-lived branch/worktree named like `codex/aionui-upstream-intake-YYYYMMDD`.
+- First audit `git status`, remotes, `origin/main`, `upstream/main`, latest upstream tags, and any dirty working-tree files. Preserve unrelated or in-progress local changes; do not overwrite them during upstream intake.
+- Start the intake from a clean OPL shell baseline on `origin/main`, using a short-lived branch/worktree named like `codex/aionui-upstream-intake-YYYYMMDD`.
 - Fetch upstream, identify the current latest AionUI tag/HEAD, and compare three deltas before resolving code: upstream delta since the current AionUI baseline, OPL overlay delta since that baseline, and any dirty local delta.
 - Maintain a patch matrix for OPL overlay changes with these outcomes: `keep`, `drop-upstream-covered`, `adapt-to-upstream`, and `watch`.
 - If upstream AionUI now provides the same behavior or fixes the same root cause as an OPL patch, prefer retiring the local deep patch or reducing it to a thin OPL adapter. Do not keep redundant fork-specific code only because it already exists.
 - Keep OPL-specific changes concentrated in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
-- After validation, absorb the vetted result back into `gaofeng/main`, push when requested or when release work requires it, and clean up temporary worktrees/branches.
+- After validation, absorb the vetted result back into `origin/main`, push when requested or when App release work requires a new shell baseline, and clean up temporary worktrees/branches.
 
 ## Code Conventions
 
@@ -97,12 +100,12 @@ bunx tsc --noEmit      # verify no type errors
 npm install -g @j178/prek
 
 # Replicate the OPL product-branch CI check (read-only — does not auto-fix)
-prek run --from-ref gaofeng/main --to-ref HEAD
+prek run --from-ref origin/main --to-ref HEAD
 ```
 
 > Note: `prek` uses `lint` (check only) and `format:check` (check only) — it will fail if there are issues but won't fix them.
 > If prek reports formatting or lint issues, run the auto-fix commands above first, then re-run prek to verify.
-> Use `origin/main` as a comparison base only inside an explicit upstream AionUI intake branch.
+> Use `upstream/main` as a comparison base only inside an explicit upstream AionUI intake branch.
 
 **i18n validation:** If your changes touch `src/renderer/`, `locales/`, or `src/common/config/i18n`, run:
 
