@@ -1,6 +1,6 @@
 # OPL GUI Shell Maintenance
 
-Status anchor: 2026-05-11
+Status anchor: 2026-05-15
 
 This repository is the current One Person Lab GUI shell. It keeps the AionUI source tree syncable while concentrating One Person Lab differences in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
 
@@ -40,6 +40,7 @@ Repository hygiene is intentionally limited for this reason. `bun run hygiene` b
 ## Fork Boundary
 
 - Treat `gaofeng/main` as the product mainline for OPL shell work. In this local checkout, `origin` is upstream `iOfficeAI/AionUi`; `origin/main` is not the OPL product branch.
+- The current local branch tracks `gaofeng/main`; large ahead/behind counts against `origin/main` are expected upstream fork divergence and must not be read as OPL product drift.
 - Before creating a feature worktree, confirm `git remote -v` and branch tracking. OPL bug fixes, release changes, environment management changes, and product UI changes must branch from `gaofeng/main`.
 - Use `origin/main` only as an upstream sync input. Upstream sync work should live on an explicit upstream-sync branch, then be reviewed and absorbed into the OPL mainline.
 - If a worktree was accidentally created from `origin/main`, discard that worktree and recreate it from `gaofeng/main` before editing. Do not try to patch OPL changes onto an upstream-baseline worktree in place.
