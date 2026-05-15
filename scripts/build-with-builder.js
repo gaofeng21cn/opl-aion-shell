@@ -470,8 +470,28 @@ function ensureOplReleaseVersionEnv() {
   console.log(`🏷️  OPL release version: ${process.env.OPL_RELEASE_VERSION}`);
 }
 
+function prepareFullRuntimePayloadForBuild() {
+  const payloadRoot = path.resolve(__dirname, '../packaged-runtimes/opl-full-runtime');
+  const requireFullRuntime = process.env.OPL_REQUIRE_FULL_RUNTIME === '1';
+  if (!requireFullRuntime) {
+    fs.rmSync(path.join(payloadRoot, 'runtime'), { recursive: true, force: true });
+    fs.rmSync(path.join(payloadRoot, 'manifest'), { recursive: true, force: true });
+    return;
+  }
+
+  const runtimeCurrent = path.join(payloadRoot, 'runtime', 'current');
+  const manifestPath = path.join(payloadRoot, 'manifest', 'full-package-manifest.json');
+  if (!fs.existsSync(runtimeCurrent) || !fs.existsSync(manifestPath)) {
+    throw new Error(
+      `OPL_REQUIRE_FULL_RUNTIME=1 requires generated Full runtime payload under ${payloadRoot}. Run the App repo release:full wrapper.`
+    );
+  }
+  console.log(`📦 Including OPL Full runtime payload: ${payloadRoot}`);
+}
+
 try {
   ensureOplReleaseVersionEnv();
+  prepareFullRuntimePayloadForBuild();
 
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = readPackageJson();
