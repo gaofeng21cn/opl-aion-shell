@@ -1,9 +1,7 @@
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const repoHygiene = await import(
-  pathToFileURL(`${process.cwd()}/scripts/structure/repo-hygiene.mjs`).href
-);
+const repoHygiene = await import(pathToFileURL(`${process.cwd()}/scripts/structure/repo-hygiene.mjs`).href);
 
 describe('repo hygiene structure audit', () => {
   it('rejects tracked generated and runtime payload paths', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const mockUnstableMessageApi = vi.hoisted(() => ({ enabled: false }));
 const mockRunOplCommand = vi.fn();
@@ -277,6 +277,53 @@ describe('RuntimeSettings OPL environment section', () => {
     expect(await screen.findByText('Hermes-Agent')).toBeInTheDocument();
     expect(screen.getByText('settings.oplEnvironmentPage.items.hermes.role')).toBeInTheDocument();
     expect(screen.queryByText('settings.oplEnvironmentPage.actions.install')).not.toBeInTheDocument();
+  });
+
+  it('shows dirty installed Foundry modules as available with separate development diagnostics', async () => {
+    mockRunOplCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        system_initialize: {
+          core_engines: {},
+          domain_modules: {
+            modules: [
+              {
+                module_id: 'medautoscience',
+                label: 'Med Auto Science',
+                installed: true,
+                health_status: 'dirty',
+                recommended_action: null,
+                available_actions: [],
+                git: {
+                  branch: 'main',
+                  short_sha: '4b2357c',
+                  dirty: true,
+                  ahead_count: 3,
+                  sync_status: 'ahead',
+                },
+              },
+            ],
+          },
+        },
+      }),
+      stderr: '',
+    });
+
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
+
+    const masModuleName = await screen.findByText('Med AutoScience (MAS)');
+    expect(masModuleName).toBeInTheDocument();
+    expect(screen.getAllByText('settings.oplEnvironmentPage.status.ready:ready').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText('settings.oplEnvironmentPage.moduleDiagnostic:dirty · ahead · ahead 3')
+    ).toBeInTheDocument();
+    const masModuleRow = masModuleName.closest('div.justify-between');
+    expect(masModuleRow).toBeTruthy();
+    expect(
+      within(masModuleRow as HTMLElement).queryByText('settings.oplEnvironmentPage.actions.update')
+    ).not.toBeInTheDocument();
   });
 
   it('does not repeat environment status loads when the message API identity changes', async () => {

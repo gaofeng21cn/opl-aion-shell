@@ -36,7 +36,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'One Person Lab',
     },
     descriptionI18n: {
-      'en-US': 'Use One Person Lab as the Codex-first workbench for routing work to Foundry Agents or OPL Agent development.',
+      'en-US':
+        'Use One Person Lab as the Codex-first workbench for routing work to Foundry Agents or OPL Agent development.',
       'zh-CN': '使用 One Person Lab 作为 Codex-first 工作台，用于分派 Foundry Agents 或开发 OPL Agent。',
     },
     promptsI18n: {
@@ -67,7 +68,8 @@ export const ASSISTANT_PRESETS: AssistantPreset[] = [
       'zh-CN': 'Med Auto Science',
     },
     descriptionI18n: {
-      'en-US': 'Foundry Agent for medical study runtime, paper progress, reviewer revision, and publication supervision.',
+      'en-US':
+        'Foundry Agent for medical study runtime, paper progress, reviewer revision, and publication supervision.',
       'zh-CN': '医学研究 Foundry Agent，用于研究运行态、论文进度、返修与投稿监督。',
     },
     promptsI18n: {

@@ -206,6 +206,10 @@ const scoreAsset = (asset: GitHubReleaseAsset, runtime?: RuntimePlatformInfo): n
     if (ext === '.zip') score += 40;
   }
 
+  if (/\bfull\b/.test(nameLower)) {
+    score -= 30;
+  }
+
   return score;
 };
 

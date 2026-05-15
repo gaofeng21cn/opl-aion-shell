@@ -6,6 +6,14 @@ const asar = require('@electron/asar');
 const acorn = require('acorn');
 
 const DEFAULT_OUT_DIR = path.resolve(__dirname, '..', 'out');
+const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
+const REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES = [
+  '@temporalio/activity',
+  '@temporalio/client',
+  '@temporalio/common',
+  '@temporalio/worker',
+  '@temporalio/workflow',
+];
 const FORBIDDEN_ASAR_PATTERNS = [
   /^node_modules\/@office-ai\/aioncli-core(?:\/|$)/,
   /^node_modules\/@google\/genai(?:\/|$)/,
@@ -294,6 +302,87 @@ function makeArchiveAccess(asarPath, entries) {
   };
 }
 
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function listProductionNodeModulePaths(packageLock) {
+  return Object.entries(packageLock?.packages ?? {})
+    .filter(
+      ([packagePath, metadata]) =>
+        packagePath.startsWith('node_modules/') &&
+        !metadata?.dev &&
+        !metadata?.optional &&
+        packagePath.split('/').every(Boolean)
+    )
+    .map(([packagePath]) => packagePath)
+    .sort();
+}
+
+function validateFullRuntimeResources(resourcesRoot, options = {}) {
+  const fullRuntimeRoot = path.join(resourcesRoot, FULL_RUNTIME_RESOURCE_DIR);
+  const issues = [];
+  if (!fs.existsSync(fullRuntimeRoot)) {
+    if (options.require) {
+      issues.push(`missing ${FULL_RUNTIME_RESOURCE_DIR} extraResource under ${resourcesRoot}`);
+    }
+    return { checked: false, resourcesRoot, issues };
+  }
+
+  const oplRoot = path.join(fullRuntimeRoot, 'runtime', 'current', 'opl');
+  const packageJsonPath = path.join(oplRoot, 'package.json');
+  const packageLockPath = path.join(oplRoot, 'package-lock.json');
+  const packageJson = readJsonFile(packageJsonPath);
+  const packageLock = readJsonFile(packageLockPath);
+  if (!packageJson) {
+    issues.push(`missing or invalid OPL package.json at ${packageJsonPath}`);
+  }
+  if (!packageLock) {
+    issues.push(`missing or invalid OPL package-lock.json at ${packageLockPath}`);
+  }
+
+  const dependencies = packageJson?.dependencies ?? {};
+  for (const packageName of REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES) {
+    if (typeof dependencies[packageName] !== 'string') {
+      issues.push(`OPL Full runtime must declare ${packageName} in dependencies`);
+    }
+    if (!fs.existsSync(path.join(oplRoot, 'node_modules', ...packageName.split('/'), 'package.json'))) {
+      issues.push(`OPL Full runtime is missing node_modules/${packageName}`);
+    }
+  }
+
+  if (packageLock) {
+    const missingProductionPaths = listProductionNodeModulePaths(packageLock).filter(
+      (relativePath) => !fs.existsSync(path.join(oplRoot, relativePath))
+    );
+    for (const relativePath of missingProductionPaths.slice(0, 40)) {
+      issues.push(`OPL Full runtime is missing production dependency path ${relativePath}`);
+    }
+    if (missingProductionPaths.length > 40) {
+      issues.push(
+        `OPL Full runtime is missing ${missingProductionPaths.length - 40} additional production dependency paths`
+      );
+    }
+  }
+
+  if (fs.existsSync(path.join(oplRoot, 'node_modules', '@temporalio', 'testing'))) {
+    issues.push('OPL Full runtime includes dev-only @temporalio/testing');
+  }
+
+  return { checked: true, resourcesRoot, issues };
+}
+
+function requiresFullRuntimeForAsar(asarPath, resourcesRoot) {
+  return (
+    asarPath.includes(`${path.sep}Contents${path.sep}Resources${path.sep}app.asar`) ||
+    fs.existsSync(path.join(resourcesRoot, FULL_RUNTIME_RESOURCE_DIR))
+  );
+}
+
 function resolveFileLike(archive, basePath) {
   for (const candidate of candidatePaths(basePath)) {
     if (archive.isFile(candidate)) return candidate;
@@ -566,17 +655,39 @@ function main() {
       if (result.unresolvedBare.length > 0) {
         console.log(`   ℹ️  ${result.unresolvedBare.length} bare import(s) were not resolved by the static checker`);
       }
-      continue;
+    } else {
+      hasFailure = true;
+      console.error(`   ❌ ${result.missing.length} missing relative runtime import(s):`);
+      for (const issue of result.missing.slice(0, 80)) {
+        console.error(`      ${issue.from} -> ${issue.specifier} (expected around ${issue.expected})`);
+        if (issue.reason) console.error(`         ${issue.reason}`);
+      }
+      if (result.missing.length > 80) {
+        console.error(`      ... ${result.missing.length - 80} more omitted`);
+      }
     }
 
-    hasFailure = true;
-    console.error(`   ❌ ${result.missing.length} missing relative runtime import(s):`);
-    for (const issue of result.missing.slice(0, 80)) {
-      console.error(`      ${issue.from} -> ${issue.specifier} (expected around ${issue.expected})`);
-      if (issue.reason) console.error(`         ${issue.reason}`);
+    const resourcesRoot = path.dirname(target);
+    const fullRuntime = validateFullRuntimeResources(resourcesRoot, {
+      require: requiresFullRuntimeForAsar(target, resourcesRoot),
+    });
+    if (fullRuntime.checked) {
+      if (fullRuntime.issues.length === 0) {
+        console.log('   ✅ OPL Full runtime production dependencies are staged');
+      } else {
+        hasFailure = true;
+        console.error(`   ❌ ${fullRuntime.issues.length} OPL Full runtime issue(s):`);
+        for (const issue of fullRuntime.issues.slice(0, 80)) {
+          console.error(`      ${issue}`);
+        }
+        if (fullRuntime.issues.length > 80) {
+          console.error(`      ... ${fullRuntime.issues.length - 80} more omitted`);
+        }
+      }
     }
-    if (result.missing.length > 80) {
-      console.error(`      ... ${result.missing.length - 80} more omitted`);
+    if (!fullRuntime.checked && fullRuntime.issues.length > 0) {
+      hasFailure = true;
+      console.error(`   ❌ ${fullRuntime.issues.join('\n      ')}`);
     }
   }
 
@@ -585,9 +696,17 @@ function main() {
   }
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`❌ Packaged runtime validation failed: ${error.message}`);
-  process.exit(1);
+if (require.main === module) {
+  try {
+    main();
+  } catch (error) {
+    console.error(`❌ Packaged runtime validation failed: ${error.message}`);
+    process.exit(1);
+  }
 }
+
+module.exports = {
+  REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES,
+  listProductionNodeModulePaths,
+  validateFullRuntimeResources,
+};

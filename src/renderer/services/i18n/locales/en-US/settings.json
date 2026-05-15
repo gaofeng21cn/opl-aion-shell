@@ -954,6 +954,7 @@
     "managedTag": "Projected by OPL",
     "currentVersion": "Current: {{version}}",
     "latestVersion": "Latest: {{version}}",
+    "moduleDiagnostic": "Development state: {{detail}}",
     "selectedBinary": "Selected binary: {{path}}",
     "updateSummary": "Update summary: {{summary}}",
     "diagnostics": {

@@ -72,6 +72,9 @@ type OplModuleStatus = {
     branch?: string;
     short_sha?: string;
     dirty?: boolean;
+    ahead_count?: number;
+    behind_count?: number;
+    sync_status?: string;
   };
 };
 
@@ -307,6 +310,25 @@ function resolveModuleAction(status: OplModuleStatus | undefined): 'install' | '
     return status.recommended_action;
   }
   return null;
+}
+
+function resolveModuleAvailabilityStatus(status: OplModuleStatus | undefined): string {
+  if (!status) return 'notDetected';
+  if (!status.installed) return 'notInstalled';
+  if (resolveModuleAction(status)) return status.health_status ?? 'attention_needed';
+  return 'ready';
+}
+
+function resolveModuleDiagnostic(status: OplModuleStatus | undefined): string | null {
+  if (!status?.installed) return null;
+  const details = [
+    status.health_status && status.health_status !== 'ready' ? status.health_status : null,
+    status.git?.sync_status && status.git.sync_status !== 'synced' ? status.git.sync_status : null,
+    status.git?.ahead_count ? `ahead ${status.git.ahead_count}` : null,
+    status.git?.behind_count ? `behind ${status.git.behind_count}` : null,
+  ].filter((item): item is string => Boolean(item));
+
+  return details.length > 0 ? details.join(' · ') : null;
 }
 
 export function resolveEngineAction(
@@ -869,6 +891,9 @@ const OplEnvironmentContent: React.FC = () => {
                 ? t('settings.oplEnvironmentPage.actions.install')
                 : t('settings.oplEnvironmentPage.actions.update');
             const actionId = `update-${item.id}`;
+            const moduleAvailabilityStatus = item.moduleId ? resolveModuleAvailabilityStatus(status) : null;
+            const moduleDiagnostic = item.moduleId ? resolveModuleDiagnostic(status) : null;
+            const healthStatus = moduleAvailabilityStatus ?? status?.health_status ?? engine?.health_status;
             return (
               <div key={item.id} className='flex items-center justify-between gap-16px px-16px py-14px'>
                 <div className='flex items-center gap-12px min-w-0'>
@@ -902,6 +927,11 @@ const OplEnvironmentContent: React.FC = () => {
                         {t('settings.oplEnvironmentPage.updateSummary', { summary: hermesUpdateSummary })}
                       </Typography.Text>
                     )}
+                    {moduleDiagnostic && (
+                      <Typography.Text className='block text-12px text-t-tertiary truncate'>
+                        {t('settings.oplEnvironmentPage.moduleDiagnostic', { detail: moduleDiagnostic })}
+                      </Typography.Text>
+                    )}
                   </div>
                 </div>
                 <div className='flex items-center gap-12px shrink-0'>
@@ -912,12 +942,12 @@ const OplEnvironmentContent: React.FC = () => {
                     <Typography.Text className='text-12px text-t-tertiary'>
                       {t('settings.oplEnvironmentPage.latestVersion', { version: targetVersion })}
                     </Typography.Text>
-                    {(status?.health_status || engine?.health_status) && (
+                    {healthStatus && (
                       <Tag
                         size='small'
-                        color={(status?.health_status ?? engine?.health_status) === 'ready' ? 'green' : 'orange'}
+                        color={healthStatus === 'ready' || healthStatus === 'compatible' ? 'green' : 'orange'}
                       >
-                        {formatHealthStatus(status?.health_status ?? engine?.health_status, t)}
+                        {formatHealthStatus(healthStatus, t)}
                       </Tag>
                     )}
                   </div>
@@ -925,13 +955,11 @@ const OplEnvironmentContent: React.FC = () => {
                     <Button size='mini' onClick={() => navigate('/settings/about')}>
                       {t('settings.checkForUpdates')}
                     </Button>
-                  ) : (
+                  ) : actionArgs ? (
                     <Button
                       size='mini'
-                      disabled={!actionArgs}
                       loading={runningAction === actionId}
                       onClick={() => {
-                        if (!actionArgs) return;
                         void runOplCommand(
                           actionArgs,
                           actionId,
@@ -941,7 +969,7 @@ const OplEnvironmentContent: React.FC = () => {
                     >
                       {actionLabel}
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );

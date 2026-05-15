@@ -307,6 +307,30 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getByText('https://example.com/runtime')).toBeInTheDocument();
   });
 
+  it('keeps non-ISO runtime timestamps readable in developer details', () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/runtime/item',
+            state: {
+              runtimeItem: {
+                ...runtimeItem,
+                updatedAt: '当前 grant 已进入 critique 阶段',
+              },
+            },
+          },
+        ]}
+      >
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Updated')).toBeInTheDocument();
+    expect(screen.getByText('当前 grant 已进入 critique 阶段')).toBeInTheDocument();
+    expect(screen.queryByText('Invalid Date')).not.toBeInTheDocument();
+  });
+
   it('shows the App-native MAS runtime workbench projection without terminal input ownership', () => {
     const workbenchItem: RuntimeTrayOpenPayload = {
       ...runtimeItem,

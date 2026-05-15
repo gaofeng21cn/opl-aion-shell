@@ -84,6 +84,17 @@ const getPortalFreshnessText = (freshness: Record<string, unknown>): string => {
   }
 };
 
+const formatRuntimeTimestamp = (value: string | null | undefined): string | null => {
+  if (!value?.trim()) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return date.toLocaleString();
+};
+
 const toRuntimeOpenPayload = (item: RuntimeTrayItem): RuntimeTrayOpenPayload => ({
   projectId: item.project_id,
   projectLabel: item.project_label,
@@ -164,25 +175,26 @@ const allSnapshotItems = (snapshot: RuntimeTraySnapshot): RuntimeTrayItem[] => [
   ...snapshot.recent_items,
 ];
 
+const getSnapshotItemActionOwner = (item: RuntimeTrayItem): RuntimeTrayActionOwner => {
+  if (item.requires_user_action || item.action_owner === 'user') {
+    return 'user';
+  }
+  if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
+    return item.action_owner;
+  }
+  return 'none';
+};
+
 const getSnapshotGroups = (snapshot: RuntimeTraySnapshot) => {
   const items = allSnapshotItems(snapshot);
-  const ownerForItem = (item: RuntimeTrayItem): RuntimeTrayActionOwner => {
-    if (item.requires_user_action || item.action_owner === 'user') {
-      return 'user';
-    }
-    if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
-      return item.action_owner;
-    }
-    return 'none';
-  };
 
-  const legacyAttention = snapshot.attention_items.filter((item) => ownerForItem(item) === 'none');
+  const legacyAttention = snapshot.attention_items.filter((item) => getSnapshotItemActionOwner(item) === 'none');
   return {
-    user: items.filter((item) => ownerForItem(item) === 'user'),
-    opl: [...items.filter((item) => ownerForItem(item) === 'opl'), ...legacyAttention],
-    running: snapshot.running_items.filter((item) => ownerForItem(item) === 'none'),
-    infrastructure: items.filter((item) => ownerForItem(item) === 'infrastructure'),
-    recent: snapshot.recent_items.filter((item) => ownerForItem(item) === 'none'),
+    user: items.filter((item) => getSnapshotItemActionOwner(item) === 'user'),
+    opl: [...items.filter((item) => getSnapshotItemActionOwner(item) === 'opl'), ...legacyAttention],
+    running: snapshot.running_items.filter((item) => getSnapshotItemActionOwner(item) === 'none'),
+    infrastructure: items.filter((item) => getSnapshotItemActionOwner(item) === 'infrastructure'),
+    recent: snapshot.recent_items.filter((item) => getSnapshotItemActionOwner(item) === 'none'),
   };
 };
 
@@ -191,19 +203,21 @@ const getSnapshotActionCounts = (snapshot: RuntimeTraySnapshot) => {
     return snapshot.action_counts;
   }
 
-  const counts = allSnapshotItems(snapshot).reduce(
-    (counts, item) => {
+  const derivedCounts = allSnapshotItems(snapshot).reduce(
+    (acc, item) => {
       if (item.requires_user_action || item.action_owner === 'user') {
-        counts.user += 1;
+        acc.user += 1;
       } else if (item.action_owner === 'opl' || item.action_owner === 'infrastructure') {
-        counts[item.action_owner] += 1;
+        acc[item.action_owner] += 1;
       }
-      return counts;
+      return acc;
     },
     { user: 0, opl: 0, infrastructure: 0 }
   );
-  counts.opl += snapshot.attention_items.filter((item) => !item.requires_user_action && !item.action_owner).length;
-  return counts;
+  derivedCounts.opl += snapshot.attention_items.filter(
+    (item) => !item.requires_user_action && !item.action_owner
+  ).length;
+  return derivedCounts;
 };
 
 const getSnapshotSummary = (snapshot: RuntimeTraySnapshot, t: RuntimeTranslator): string => {
@@ -552,6 +566,7 @@ const RuntimeTrayItemPage: React.FC = () => {
   const sourceRefs = runtimeItem.sourceRefs || [];
   const portalSourceRefs = runtimeItem.portalSourceRefs || [];
   const hasMasPortal = Boolean(runtimeItem.portalPath || runtimeItem.portalUrl);
+  const updatedAtText = formatRuntimeTimestamp(runtimeItem.updatedAt);
 
   return (
     <div className='w-full min-h-full box-border overflow-y-auto px-14px pt-28px pb-24px md:px-40px md:pt-52px md:pb-42px'>
@@ -643,12 +658,10 @@ const RuntimeTrayItemPage: React.FC = () => {
                     <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{runtimeItem.healthStatus}</dd>
                   </>
                 )}
-                {runtimeItem.updatedAt && (
+                {updatedAtText && (
                   <>
                     <dt className='text-13px text-t-secondary'>{t('common.runtimeTray.updatedAt')}</dt>
-                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>
-                      {new Date(runtimeItem.updatedAt).toLocaleString()}
-                    </dd>
+                    <dd className='m-0 min-w-0 break-words text-14px text-t-primary'>{updatedAtText}</dd>
                   </>
                 )}
                 {runtimeItem.workspacePath && (

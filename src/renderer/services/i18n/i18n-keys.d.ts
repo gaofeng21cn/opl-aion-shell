@@ -1669,6 +1669,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.messages.systemUpdateComplete'
   | 'settings.oplEnvironmentPage.messages.updateComplete'
   | 'settings.oplEnvironmentPage.messages.workspaceRootSaved'
+  | 'settings.oplEnvironmentPage.moduleDiagnostic'
   | 'settings.oplEnvironmentPage.selectedBinary'
   | 'settings.oplEnvironmentPage.status.attention_needed'
   | 'settings.oplEnvironmentPage.status.compatible'

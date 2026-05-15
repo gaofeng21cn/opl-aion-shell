@@ -955,6 +955,7 @@
     "managedTag": "OPL 投影",
     "currentVersion": "当前：{{version}}",
     "latestVersion": "最新：{{version}}",
+    "moduleDiagnostic": "开发状态：{{detail}}",
     "selectedBinary": "已选择二进制：{{path}}",
     "updateSummary": "更新摘要：{{summary}}",
     "diagnostics": {

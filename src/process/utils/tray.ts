@@ -441,50 +441,37 @@ const buildTrayContextMenuFromState = ({
     });
   };
 
-  const template: Electron.MenuItemConstructorOptions[] = [
+  const runtimeSubmenu: Electron.MenuItemConstructorOptions[] = [
     {
-      label: i18n.t('common.tray.showWindow'),
-      click: showAndFocus,
+      label: `${i18n.t('common.tray.runtimeStatus')}: ${i18n.t(runtimeHealthI18nKey(runtimeSnapshot.runtime_health.status))}`,
+      enabled: false,
     },
     {
-      label: i18n.t('common.tray.closeToTray'),
-      click: hideToTray,
-    },
-    { type: 'separator' },
-    {
-      label: i18n.t('common.tray.newChat'),
-      click: () => {
-        showAndFocus();
-        mainWindowRef?.webContents.send('tray:navigate-to-guid');
-      },
+      label: formatRuntimeMenuSummary(runtimeSnapshot),
+      enabled: false,
     },
   ];
-
-  template.push({ type: 'separator' });
-  template.push({
-    label: `${i18n.t('common.tray.runtimeStatus')}: ${i18n.t(runtimeHealthI18nKey(runtimeSnapshot.runtime_health.status))}`,
-    enabled: false,
-  });
-  template.push({
-    label: formatRuntimeMenuSummary(runtimeSnapshot),
-    enabled: false,
-  });
   const runtimeGroups = partitionRuntimeItems(runtimeSnapshot);
-  appendRuntimeItems(template, 'common.tray.runtimeUserAction', runtimeGroups.user, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeOplAction', runtimeGroups.opl, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeRunning', runtimeGroups.running, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeInfrastructure', runtimeGroups.infrastructure, openRuntimeItem);
-  appendRuntimeItems(template, 'common.tray.runtimeRecent', runtimeGroups.recent, openRuntimeItem);
+  appendRuntimeItems(runtimeSubmenu, 'common.tray.runtimeUserAction', runtimeGroups.user, openRuntimeItem);
+  appendRuntimeItems(runtimeSubmenu, 'common.tray.runtimeOplAction', runtimeGroups.opl, openRuntimeItem);
+  appendRuntimeItems(runtimeSubmenu, 'common.tray.runtimeRunning', runtimeGroups.running, openRuntimeItem);
+  appendRuntimeItems(
+    runtimeSubmenu,
+    'common.tray.runtimeInfrastructure',
+    runtimeGroups.infrastructure,
+    openRuntimeItem
+  );
+  appendRuntimeItems(runtimeSubmenu, 'common.tray.runtimeRecent', runtimeGroups.recent, openRuntimeItem);
 
   if (recentConversations.length > 0) {
-    template.push({ type: 'separator' });
-    template.push({
+    runtimeSubmenu.push({ type: 'separator' });
+    runtimeSubmenu.push({
       label: i18n.t('common.tray.recentChats'),
       enabled: false,
     });
     for (const conv of recentConversations) {
       const displayTitle = conv.title.length > 20 ? conv.title.slice(0, 20) + '...' : conv.title;
-      template.push({
+      runtimeSubmenu.push({
         label: displayTitle,
         click: () => {
           showAndFocus();
@@ -496,12 +483,12 @@ const buildTrayContextMenuFromState = ({
     }
   }
 
-  template.push({ type: 'separator' });
-  template.push({
+  runtimeSubmenu.push({ type: 'separator' });
+  runtimeSubmenu.push({
     label: `${i18n.t('common.tray.runningTasks')}: ${runningTasksCount}`,
     enabled: false,
   });
-  template.push({
+  runtimeSubmenu.push({
     label: i18n.t('common.tray.pauseAll'),
     click: () => {
       showAndFocus();
@@ -509,9 +496,16 @@ const buildTrayContextMenuFromState = ({
     },
   });
 
+  const moreSubmenu: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: i18n.t('common.tray.closeToTray'),
+      click: hideToTray,
+    },
+  ];
+
   if (desktopPetEnabled) {
-    template.push({ type: 'separator' });
-    template.push({
+    moreSubmenu.push({ type: 'separator' });
+    moreSubmenu.push({
       label: `🐾 ${i18n.t('pet.desktopPet')}`,
       submenu: [
         {
@@ -563,23 +557,24 @@ const buildTrayContextMenuFromState = ({
       ],
     });
   }
-  template.push({ type: 'separator' });
-  template.push({
+
+  moreSubmenu.push({ type: 'separator' });
+  moreSubmenu.push({
     label: i18n.t('common.tray.checkUpdate'),
     click: () => {
       showAndFocus();
       mainWindowRef?.webContents.send('tray:check-update');
     },
   });
-  template.push({ type: 'separator' });
-  template.push({
+  moreSubmenu.push({ type: 'separator' });
+  moreSubmenu.push({
     label: i18n.t('common.tray.about'),
     click: () => {
       showAndFocus();
       mainWindowRef?.webContents.send('tray:open-about');
     },
   });
-  template.push({
+  moreSubmenu.push({
     label: i18n.t('common.tray.restart'),
     click: () => {
       isQuitting = true;
@@ -587,14 +582,35 @@ const buildTrayContextMenuFromState = ({
       app.exit(0);
     },
   });
-  template.push({ type: 'separator' });
-  template.push({
-    label: i18n.t('common.tray.quit'),
-    click: () => {
-      isQuitting = true;
-      app.quit();
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: i18n.t('common.tray.showWindow'),
+      click: showAndFocus,
     },
-  });
+    {
+      label: i18n.t('common.tray.newChat'),
+      click: () => {
+        showAndFocus();
+        mainWindowRef?.webContents.send('tray:navigate-to-guid');
+      },
+    },
+    {
+      label: i18n.t('common.tray.runtimeStatus'),
+      submenu: runtimeSubmenu,
+    },
+    {
+      label: i18n.t('common.more'),
+      submenu: moreSubmenu,
+    },
+    {
+      label: i18n.t('common.tray.quit'),
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ];
 
   return Menu.buildFromTemplate(template);
 };

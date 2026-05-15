@@ -103,6 +103,18 @@ describe('pickRecommendedAsset', () => {
 
     expect(result?.name).toBe('AionUi-1.0.0-win.exe');
   });
+
+  it('prefers the standard updater package over the Full first-install DMG', () => {
+    const assets = [
+      asset('One-Person-Lab-Full-26.5.10-mac-arm64.dmg'),
+      asset('One-Person-Lab-26.5.10-mac-arm64.dmg'),
+      asset('One-Person-Lab-26.5.10-mac-arm64.zip'),
+    ];
+
+    const result = pickRecommendedAsset(assets, { platform: 'darwin', arch: 'arm64' });
+
+    expect(result?.name).toBe('One-Person-Lab-26.5.10-mac-arm64.dmg');
+  });
 });
 
 describe('resolveCurrentOplReleaseVersion', () => {

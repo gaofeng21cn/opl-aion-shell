@@ -80,7 +80,7 @@ describe('OverviewSettings module health summary', () => {
           core_engines: { codex: { installed: true, health_status: 'ready' } },
           workspace_root: { selected_path: '/Users/tester/workspace', health_status: 'ready' },
           domain_modules: {
-            summary: { total: 0, healthy: 0, installed: 0 },
+            summary: { total_modules_count: 0, healthy_modules_count: 0, installed_modules_count: 0 },
             modules: [],
           },
         },
@@ -97,7 +97,7 @@ describe('OverviewSettings module health summary', () => {
           core_engines: { codex: { installed: true, health_status: 'ready' } },
           workspace_root: { selected_path: '/Users/tester/workspace', health_status: 'ready' },
           domain_modules: {
-            summary: { total: 4, healthy: 3, installed: 4 },
+            summary: { total_modules_count: 4, healthy_modules_count: 3, installed_modules_count: 4 },
             modules: [
               {
                 module_id: 'medautoscience',
@@ -169,13 +169,61 @@ describe('OverviewSettings module health summary', () => {
     expect(await screen.findByText('settings.overviewPage.modulesNeedAttention:2|4')).toBeInTheDocument();
   });
 
+  it('treats installed dirty default modules without repair actions as ready in g2 summaries', async () => {
+    mockRunOplCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        system_initialize: {
+          core_engines: { codex: { installed: true, health_status: 'ready' } },
+          workspace_root: { selected_path: '/Users/tester/workspace', health_status: 'ready' },
+          domain_modules: {
+            summary: {
+              total_modules_count: 3,
+              installed_modules_count: 3,
+              healthy_modules_count: 1,
+            },
+            modules: [
+              {
+                module_id: 'medautoscience',
+                installed: true,
+                health_status: 'dirty',
+                recommended_action: null,
+                available_actions: [],
+              },
+              {
+                module_id: 'medautogrant',
+                installed: true,
+                health_status: 'ready',
+                recommended_action: null,
+                available_actions: [],
+              },
+              {
+                module_id: 'redcube',
+                installed: true,
+                health_status: 'dirty',
+                recommended_action: null,
+                available_actions: [],
+              },
+            ],
+          },
+        },
+      }),
+      stderr: '',
+    });
+
+    render(<OverviewSettings />);
+
+    expect(await screen.findByText('settings.overviewPage.modulesReady:3')).toBeInTheDocument();
+    expect(screen.queryByText(/settings\.overviewPage\.modulesNeedAttention/)).not.toBeInTheDocument();
+  });
+
   it('routes the Foundry Agent card to the Foundry Agents tab instead of capabilities', async () => {
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
       stdout: JSON.stringify({
         system_initialize: {
           domain_modules: {
-            summary: { total: 4, healthy: 4, installed: 4 },
+            summary: { total_modules_count: 4, healthy_modules_count: 4, installed_modules_count: 4 },
             modules: [],
           },
         },

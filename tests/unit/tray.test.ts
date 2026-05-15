@@ -102,6 +102,23 @@ const createMockWindow = () =>
     },
   }) as any;
 
+type MockMenuTemplateItem = {
+  label?: string;
+  submenu?: MockMenuTemplateItem[];
+  enabled?: boolean;
+  click?: () => void;
+};
+
+const getMenuLabels = (items: MockMenuTemplateItem[]): string[] =>
+  items.flatMap((menuItem) => (menuItem.label ? [menuItem.label] : []));
+
+const getSubmenu = (items: MockMenuTemplateItem[], label: string): MockMenuTemplateItem[] => {
+  const menuItem = items.find((candidate) => candidate.label === label);
+  expect(menuItem).toBeDefined();
+  expect(Array.isArray(menuItem.submenu)).toBe(true);
+  return menuItem.submenu ?? [];
+};
+
 const {
   mockTrayInstance,
   mockMenuInstance,
@@ -257,11 +274,14 @@ describe('tray module', () => {
 
       expect(mockBuildFromTemplate).toHaveBeenCalled();
       expect(mockTrayInstance.setContextMenu).toHaveBeenCalledWith(mockMenuInstance);
-      const templateArg = mockBuildFromTemplate.mock.calls[0][0] as any[];
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      const templateArg = mockBuildFromTemplate.mock.calls[0][0] as MockMenuTemplateItem[];
+      const labels = getMenuLabels(templateArg);
       expect(labels).toContain('common.tray.showWindow');
       expect(labels).toContain('common.tray.newChat');
-      expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
+      const runtimeSubmenu = templateArg.find((menuItem) => menuItem.label === 'common.tray.runtimeStatus')?.submenu;
+      expect(runtimeSubmenu ? getMenuLabels(runtimeSubmenu) : []).toContain(
+        'common.tray.runtimeStatus: common.tray.runtimeStatusOffline'
+      );
     });
 
     it('should be idempotent - second call does not create another tray', async () => {
@@ -376,10 +396,10 @@ describe('tray module', () => {
       const previousCalls = mockBuildFromTemplate.mock.calls.length;
       await refreshTrayMenu();
       expect(mockBuildFromTemplate.mock.calls.length).toBeGreaterThan(previousCalls);
-      return mockBuildFromTemplate.mock.calls.at(-1)?.[0] as any[];
+      return mockBuildFromTemplate.mock.calls.at(-1)?.[0] as MockMenuTemplateItem[];
     };
 
-    const getLatestTemplate = () => mockBuildFromTemplate.mock.calls.at(-1)?.[0] as any[];
+    const getLatestTemplate = () => mockBuildFromTemplate.mock.calls.at(-1)?.[0] as MockMenuTemplateItem[];
 
     it('should include recent conversations when available', async () => {
       setupWithOverrides();
@@ -392,14 +412,10 @@ describe('tray module', () => {
 
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const labels = getLatestTemplate()
-          .map((item: any) => item.label)
-          .filter(Boolean);
+        const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
         expect(labels).toContain('Test Chat');
       });
-      const labels = getLatestTemplate()
-        .map((item: any) => item.label)
-        .filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
       expect(labels).toContain('Test Chat');
       expect(labels).toContain('Another Chat');
     });
@@ -418,14 +434,10 @@ describe('tray module', () => {
       const expectedTitle = 'A very long conversation title that exceeds twenty characters'.slice(0, 20) + '...';
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const labels = getLatestTemplate()
-          .map((item: any) => item.label)
-          .filter(Boolean);
+        const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
         expect(labels).toContain(expectedTitle);
       });
-      const labels = getLatestTemplate()
-        .map((item: any) => item.label)
-        .filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
       expect(labels).toContain(expectedTitle);
     });
 
@@ -434,9 +446,88 @@ describe('tray module', () => {
       mockListTasks.mockReturnValue([{ id: '1' }, { id: '2' }, { id: '3' }] as never[]);
 
       const templateArg = await getTemplateFromRefresh();
-      const taskItem = templateArg.find((item: any) => item.label?.includes('3'));
+      const runtimeSubmenu = getSubmenu(templateArg, 'common.tray.runtimeStatus');
+      const taskItem = runtimeSubmenu.find((menuItem) => menuItem.label?.includes('3'));
       expect(taskItem).toBeDefined();
       expect(taskItem.enabled).toBe(false);
+    });
+
+    it('should group runtime state and maintenance actions into compact top-level tray menus', async () => {
+      setupWithOverrides();
+      mockProcessConfigGet.mockResolvedValue(true);
+      mockListTasks.mockReturnValue([{ id: '1' }, { id: '2' }] as never[]);
+      mockGetUserConversations.mockReturnValue({
+        data: [{ id: '1', name: 'Runtime Chat' }],
+      });
+      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+        callback(
+          null,
+          JSON.stringify({
+            runtime_tray_snapshot: {
+              schema_version: 'runtime_tray_snapshot.v1',
+              runtime_health: {
+                status: 'running',
+                label: 'Running',
+                summary: 'One project is running.',
+              },
+              last_updated: '2026-04-29T00:00:00.000Z',
+              running_items: [
+                {
+                  item_id: 'medautoscience:study-runtime',
+                  project_id: 'medautoscience',
+                  project_label: 'MAS',
+                  title: 'Active study',
+                  status_label: 'Running',
+                  summary: 'Study runtime is active.',
+                  updated_at: '2026-04-29T00:00:00.000Z',
+                  command: 'opl start --project medautoscience',
+                  workspace_path: '/tmp/mas',
+                  source_refs: [],
+                  action_owner: 'none',
+                  requires_user_action: false,
+                  action_kind: 'running',
+                  action_summary: 'The runtime is running.',
+                  study_id: '001-risk',
+                  workspace_label: 'nf-pitnet',
+                },
+              ],
+              attention_items: [],
+              recent_items: [],
+              source_refs: [],
+            },
+          }),
+          ''
+        );
+      });
+
+      await getTemplateFromRefresh();
+      await vi.waitFor(() => {
+        expect(getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'))).toContain(
+          'common.tray.runtimeMasItemLabel'
+        );
+      });
+      const templateArg = getLatestTemplate();
+      expect(getMenuLabels(templateArg)).toEqual([
+        'common.tray.showWindow',
+        'common.tray.newChat',
+        'common.tray.runtimeStatus',
+        'common.more',
+        'common.tray.quit',
+      ]);
+
+      const runtimeLabels = getMenuLabels(getSubmenu(templateArg, 'common.tray.runtimeStatus'));
+      expect(runtimeLabels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusRunning');
+      expect(runtimeLabels).toContain('common.tray.runtimeMasItemLabel');
+      expect(runtimeLabels).toContain('Runtime Chat');
+      expect(runtimeLabels).toContain('common.tray.runningTasks: 2');
+      expect(runtimeLabels).toContain('common.tray.pauseAll');
+
+      const moreLabels = getMenuLabels(getSubmenu(templateArg, 'common.more'));
+      expect(moreLabels).toContain('common.tray.closeToTray');
+      expect(moreLabels).toContain('common.tray.checkUpdate');
+      expect(moreLabels).toContain('common.tray.about');
+      expect(moreLabels).toContain('common.tray.restart');
+      expect(moreLabels).toContain('🐾 pet.desktopPet');
     });
 
     it('should include OPL runtime snapshot lanes when available', async () => {
@@ -536,14 +627,10 @@ describe('tray module', () => {
 
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const labels = getLatestTemplate()
-          .map((item: any) => item.label)
-          .filter(Boolean);
+        const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
         expect(labels).toContain('common.tray.runtimeUserAction');
       });
-      const labels = getLatestTemplate()
-        .map((item: any) => item.label)
-        .filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
 
       expect(labels).toContain('common.tray.runtimeStatusSummary');
       expect(labels).toContain('common.tray.runtimeUserAction');
@@ -563,7 +650,7 @@ describe('tray module', () => {
       });
 
       const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(templateArg, 'common.tray.runtimeStatus'));
 
       expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
       expect(labels).not.toContain('common.tray.runtimeAttention');
@@ -617,9 +704,7 @@ describe('tray module', () => {
 
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const labels = getLatestTemplate()
-          .map((item: any) => item.label)
-          .filter(Boolean);
+        const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
         expect(labels).toContain('common.tray.runtimeMasItemLabel');
       });
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -630,9 +715,7 @@ describe('tray module', () => {
       clickHandler?.({ event: { button: 2 } });
 
       await vi.waitFor(() => {
-        const labels = getLatestTemplate()
-          .map((item: any) => item.label)
-          .filter(Boolean);
+        const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
         expect(labels).toContain('common.tray.runtimeStatus: common.tray.runtimeStatusOffline');
         expect(labels).not.toContain('common.tray.runtimeMasItemLabel');
       });
@@ -706,12 +789,15 @@ describe('tray module', () => {
 
       await getTemplateFromRefresh();
       await vi.waitFor(() => {
-        const runtimeItem = getLatestTemplate().find((item: any) => item.label === 'common.tray.runtimeMasItemLabel');
+        const runtimeItem = getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus').find(
+          (menuItem) => menuItem.label === 'common.tray.runtimeMasItemLabel'
+        );
         expect(runtimeItem).toBeDefined();
       });
-      const templateArg = getLatestTemplate();
-      const runtimeItem = templateArg.find((item: any) => item.label === 'common.tray.runtimeMasItemLabel');
-      runtimeItem.click();
+      const templateArg = getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus');
+      const runtimeItem = templateArg.find((menuItem) => menuItem.label === 'common.tray.runtimeMasItemLabel');
+      expect(runtimeItem).toBeDefined();
+      runtimeItem?.click?.();
 
       expect(mockWindow.webContents.send).toHaveBeenCalledWith('tray:open-opl-runtime-item', {
         projectId: 'medautoscience',
@@ -758,7 +844,7 @@ describe('tray module', () => {
       mockProcessConfigGet.mockResolvedValue(false);
 
       const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(templateArg, 'common.more'));
 
       expect(labels).not.toContain('🐾 pet.desktopPet');
     });
@@ -768,7 +854,7 @@ describe('tray module', () => {
       mockProcessConfigGet.mockResolvedValue(true);
 
       const templateArg = await getTemplateFromRefresh();
-      const labels = templateArg.map((item: any) => item.label).filter(Boolean);
+      const labels = getMenuLabels(getSubmenu(templateArg, 'common.more'));
 
       expect(labels).toContain('🐾 pet.desktopPet');
     });
@@ -796,9 +882,12 @@ describe('tray module', () => {
       setTrayMainWindow(mockWindow);
 
       const templateArg = await getTemplateFromRefresh();
-      const hideToTrayItem = templateArg.find((item: any) => item.label === 'common.tray.closeToTray');
+      const hideToTrayItem = getSubmenu(templateArg, 'common.more').find(
+        (menuItem) => menuItem.label === 'common.tray.closeToTray'
+      );
 
-      hideToTrayItem.click();
+      expect(hideToTrayItem).toBeDefined();
+      hideToTrayItem?.click?.();
 
       expect(mockWindow.hide).toHaveBeenCalledOnce();
       expect(mockDock.hide).toHaveBeenCalledOnce();
@@ -816,9 +905,10 @@ describe('tray module', () => {
       setTrayMainWindow(mockWindow);
 
       const templateArg = await getTemplateFromRefresh();
-      const showWindowItem = templateArg.find((item: any) => item.label === 'common.tray.showWindow');
+      const showWindowItem = templateArg.find((menuItem) => menuItem.label === 'common.tray.showWindow');
 
-      showWindowItem.click();
+      expect(showWindowItem).toBeDefined();
+      showWindowItem?.click?.();
 
       expect(mockDock.show).toHaveBeenCalledOnce();
       expect(mockWindow.restore).toHaveBeenCalledOnce();

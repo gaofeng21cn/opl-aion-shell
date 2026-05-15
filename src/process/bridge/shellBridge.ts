@@ -34,6 +34,7 @@ const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
 let oplBootstrapPromise: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null;
+let oplCommandQueue: Promise<void> = Promise.resolve();
 
 function parseJsonRecord(value: string, context: string): Record<string, unknown> {
   try {
@@ -241,7 +242,7 @@ function buildOplBootstrapCommand(): string {
 
 async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   if (!oplBootstrapPromise) {
-    oplBootstrapPromise = runLoginShell(buildOplBootstrapCommand(), 30 * 60_000).finally(() => {
+    oplBootstrapPromise = runLoginShell(buildOplBootstrapCommand(), 30 * 60_000).finally((): void => {
       oplBootstrapPromise = null;
     });
   }
@@ -276,6 +277,21 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
     stdout: [prefix, bootstrapResult.stdout, bootstrappedCommandResult.stdout].filter(Boolean).join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
   };
+}
+
+function enqueueOplCommand<T>(run: () => Promise<T>): Promise<T> {
+  const previous = oplCommandQueue;
+  let release: () => void = () => {};
+  oplCommandQueue = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  return previous
+    .catch((): void => undefined)
+    .then(run)
+    .finally((): void => {
+      release();
+    });
 }
 
 async function runOplCliWithInput(
@@ -605,8 +621,8 @@ export function initShellBridge(): void {
     }
   });
 
-  ipcBridge.shell.runOplCommand.provider(async ({ args }) => runOplCli(args));
-  ipcBridge.shell.configureOplCodex.provider(async ({ apiKey }) => configureOplCodex(apiKey));
+  ipcBridge.shell.runOplCommand.provider(async ({ args }) => enqueueOplCommand(() => runOplCli(args)));
+  ipcBridge.shell.configureOplCodex.provider(async ({ apiKey }) => enqueueOplCommand(() => configureOplCodex(apiKey)));
   ipcBridge.shell.readOplFirstRunLog.provider(async () => readOplFirstRunLog());
   ipcBridge.shell.appendOplFirstRunLog.provider(async ({ eventType, payload }) =>
     appendOplFirstRunLog(eventType, payload)

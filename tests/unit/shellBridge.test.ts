@@ -127,6 +127,12 @@ vi.mock('fs', () => ({
 
 let initShellBridge: typeof import('../../src/process/bridge/shellBridge').initShellBridge;
 
+const flushPromises = async (rounds = 3): Promise<void> => {
+  for (let index = 0; index < rounds; index += 1) {
+    await Promise.resolve();
+  }
+};
+
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -318,6 +324,34 @@ describe('shellBridge', () => {
       );
     });
 
+    it('serializes OPL CLI commands so status refreshes do not contend on the runtime database', async () => {
+      const started: string[] = [];
+      const finishers: Array<() => void> = [];
+
+      execFileMock.mockImplementation((_file: string, args: string[], _options: unknown, callback: Function) => {
+        const command = args[1];
+        started.push(command);
+        finishers.push(() => callback(null, { stdout: `{"command":${JSON.stringify(command)}}`, stderr: '' }));
+      });
+
+      const first = runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
+      const second = runOplCommandProvider.fn!({ args: ['runtime', 'snapshot', '--json'] });
+
+      await flushPromises();
+      expect(started).toHaveLength(1);
+      expect(started[0]).toContain("'system' 'initialize'");
+
+      finishers.shift()?.();
+      await expect(first).resolves.toMatchObject({ exitCode: 0 });
+
+      await flushPromises();
+      expect(started).toHaveLength(2);
+      expect(started[1]).toContain("'runtime' 'snapshot'");
+
+      finishers.shift()?.();
+      await expect(second).resolves.toMatchObject({ exitCode: 0 });
+    });
+
     it('allows stage attempt human gate, resume, and repair signals through the family-runtime bridge', async () => {
       execFileMock.mockImplementation((_file: string, _args: string[], _options: unknown, callback: Function) => {
         callback(null, {
@@ -501,6 +535,7 @@ describe('shellBridge', () => {
       spawnMock.mockReturnValueOnce(child);
 
       const promise = configureOplCodexProvider.fn!({ apiKey: 'secret-api-key' });
+      await flushPromises();
       stdoutData?.('{"codex_config":{"status":"completed"}}');
       exitHandler?.(0);
       const result = await promise;
@@ -544,21 +579,23 @@ describe('shellBridge', () => {
       expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
     });
 
-    it('shares one bootstrap across concurrent missing-opl commands', async () => {
+    it('runs missing-opl recovery through the serialized command queue', async () => {
       const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
       let directCommandCalls = 0;
       let bootstrapCalls = 0;
+      let installedAfterBootstrap = false;
 
       execFileMock.mockImplementation((_file: string, args: string[], _options: unknown, callback: Function) => {
         const command = args[1];
         if (command.includes('OPL_BOOTSTRAP_SCRIPT=')) {
           bootstrapCalls += 1;
+          installedAfterBootstrap = true;
           callback(null, { stdout: 'bootstrap ok', stderr: '' });
           return;
         }
         if (command.includes('command -v opl >/dev/null')) {
           directCommandCalls += 1;
-          if (directCommandCalls <= 2) {
+          if (!installedAfterBootstrap) {
             callback(missingOpl);
             return;
           }
@@ -576,7 +613,7 @@ describe('shellBridge', () => {
       expect(first.exitCode).toBe(0);
       expect(second.exitCode).toBe(0);
       expect(bootstrapCalls).toBe(1);
-      expect(directCommandCalls).toBe(4);
+      expect(directCommandCalls).toBe(3);
     });
 
     it('reads the structured first-run jsonl log for visible startup status', async () => {

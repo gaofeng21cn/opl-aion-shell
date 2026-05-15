@@ -13,6 +13,7 @@ type OverviewStatus = {
   moduleKnown: boolean;
   moduleTotal: number;
   moduleAttention: number;
+  moduleInstalled: number;
   webuiRunning?: boolean;
 };
 
@@ -56,18 +57,37 @@ function hasExecutableModuleAction(module: DomainModuleStatus) {
   return actions.some((action) => MODULE_ACTIONS_REQUIRING_ATTENTION.has(String(action)));
 }
 
+function getModuleSummaryNumber(summary: Record<string, unknown> | undefined, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = summary?.[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function parseOverviewStatus(
   stdout: string
 ): Pick<
   OverviewStatus,
-  'codexStatus' | 'workspaceRoot' | 'workspaceStatus' | 'moduleKnown' | 'moduleTotal' | 'moduleAttention'
+  | 'codexStatus'
+  | 'workspaceRoot'
+  | 'workspaceStatus'
+  | 'moduleKnown'
+  | 'moduleTotal'
+  | 'moduleInstalled'
+  | 'moduleAttention'
 > {
   try {
     const payload = JSON.parse(stdout) as SystemInitializePayload;
     const initialize = payload.system_initialize;
     const moduleSummary = initialize?.domain_modules?.summary;
     const modules = initialize?.domain_modules?.modules ?? [];
-    const moduleTotal = moduleSummary?.total ?? modules.length;
+    const moduleTotal = getModuleSummaryNumber(moduleSummary, 'total', 'total_modules_count') ?? modules.length;
+    const moduleInstalled =
+      getModuleSummaryNumber(moduleSummary, 'installed', 'installed_modules_count') ??
+      modules.filter((module) => module.installed).length;
     return {
       codexStatus:
         initialize?.core_engines?.codex?.health_status ??
@@ -77,12 +97,14 @@ function parseOverviewStatus(
       workspaceStatus: initialize?.workspace_root?.health_status,
       moduleKnown: Boolean(initialize?.domain_modules),
       moduleTotal,
+      moduleInstalled,
       moduleAttention: modules.filter(hasExecutableModuleAction).length,
     };
   } catch {
     return {
       moduleKnown: false,
       moduleTotal: 0,
+      moduleInstalled: 0,
       moduleAttention: 0,
     };
   }
@@ -93,7 +115,12 @@ const OverviewSettings: React.FC = () => {
   const navigate = useNavigate();
   const [message, contextHolder] = Message.useMessage();
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<OverviewStatus>({ moduleKnown: false, moduleTotal: 0, moduleAttention: 0 });
+  const [status, setStatus] = useState<OverviewStatus>({
+    moduleKnown: false,
+    moduleTotal: 0,
+    moduleInstalled: 0,
+    moduleAttention: 0,
+  });
 
   const loadOverview = useCallback(
     async (showError = false) => {
@@ -107,6 +134,7 @@ const OverviewSettings: React.FC = () => {
         setStatus({
           moduleKnown: false,
           moduleTotal: 0,
+          moduleInstalled: 0,
           moduleAttention: 0,
           ...parsed,
           webuiRunning: webuiResult?.success ? Boolean(webuiResult.data?.running) : undefined,
@@ -115,7 +143,7 @@ const OverviewSettings: React.FC = () => {
           message.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } catch {
-        setStatus({ moduleKnown: false, moduleTotal: 0, moduleAttention: 0 });
+        setStatus({ moduleKnown: false, moduleTotal: 0, moduleInstalled: 0, moduleAttention: 0 });
         if (showError) {
           message.warning(t('settings.overviewPage.messages.statusLoadFailed'));
         }
@@ -175,9 +203,12 @@ const OverviewSettings: React.FC = () => {
       icon: <Lightning theme='outline' />,
       action: t('settings.overviewPage.actions.openFoundryAgents'),
       route: '/settings/runtime?tab=environment#modules',
-      tone: status.moduleKnown && status.moduleAttention === 0 && status.moduleTotal > 0 ? 'green' : 'orange',
+      tone:
+        status.moduleKnown && status.moduleAttention === 0 && status.moduleInstalled >= status.moduleTotal
+          ? 'green'
+          : 'orange',
       tag:
-        status.moduleKnown && status.moduleAttention === 0 && status.moduleTotal > 0
+        status.moduleKnown && status.moduleAttention === 0 && status.moduleInstalled >= status.moduleTotal
           ? t('settings.oplEnvironmentPage.status.ready')
           : status.moduleKnown
             ? t('settings.oplEnvironmentPage.status.attention_needed')
