@@ -2,11 +2,11 @@
 
 Status anchor: 2026-05-15
 
-This repository is the current One Person Lab GUI shell. It keeps the AionUI source tree syncable while concentrating One Person Lab differences in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
+This directory is the current One Person Lab App GUI shell adapter. It keeps the AionUI source tree syncable while concentrating One Person Lab differences in branding, Codex-default runtime wiring, environment management, release/update metadata, bridge adapters, and packaging policy.
 
 ## Repository Role
 
-`opl-aion-shell` is an OPL product fork of upstream AionUI, not the canonical OPL runtime, not the OPL family control plane, and not the place where MAS/MAG/RCA domain truth is owned.
+`one-person-lab-app/shells/aionui` is an App shell adapter for upstream AionUI, not the canonical OPL runtime, not the OPL family control plane, and not the place where MAS/MAG/RCA domain truth is owned.
 
 Its durable role is deliberately narrow:
 
@@ -25,7 +25,7 @@ Use this repo for GUI-shell work:
 - Codex-default runtime wiring, visible skill filtering, bridge adapters, process launch policy, and environment discovery needed by the shell
 - human-facing runtime workbench views that consume OPL-indexed, domain-owned projections such as MAS `mas_opl_runtime_workbench_projection`
 - upstream AionUI intake, conflict resolution, and patch-retirement audits
-- fork-safe hygiene that prevents tracked local runtime/build payloads from entering `gaofeng/main`
+- fork-safe hygiene that prevents tracked local runtime/build payloads from entering `origin/main`
 
 Keep these responsibilities outside this repo:
 
@@ -39,11 +39,11 @@ Repository hygiene is intentionally limited for this reason. `bun run hygiene` b
 
 ## Fork Boundary
 
-- Treat `gaofeng/main` as the product mainline for OPL shell work. In this local checkout, `origin` is upstream `iOfficeAI/AionUi`; `origin/main` is not the OPL product branch.
-- The current local branch tracks `gaofeng/main`; large ahead/behind counts against `origin/main` are expected upstream fork divergence and must not be read as OPL product drift.
-- Before creating a feature worktree, confirm `git remote -v` and branch tracking. OPL bug fixes, release changes, environment management changes, and product UI changes must branch from `gaofeng/main`.
-- Use `origin/main` only as an upstream sync input. Upstream sync work should live on an explicit upstream-sync branch, then be reviewed and absorbed into the OPL mainline.
-- If a worktree was accidentally created from `origin/main`, discard that worktree and recreate it from `gaofeng/main` before editing. Do not try to patch OPL changes onto an upstream-baseline worktree in place.
+- Treat `origin/main` as the App product mainline for OPL shell work. In this local checkout, `upstream` is external `iOfficeAI/AionUi`; `upstream/main` is not the App product branch.
+- The current local branch tracks `origin/main`; large ahead/behind counts against `upstream/main` are expected upstream fork divergence and must not be read as App product drift.
+- Before creating a feature worktree, confirm `git remote -v` and branch tracking. OPL bug fixes, release changes, environment management changes, and product UI changes must branch from `origin/main`.
+- Use `upstream/main` only as an upstream sync input. Upstream sync work should live on an explicit upstream-sync branch, then be reviewed and absorbed into the App product mainline.
+- If a worktree was accidentally created from `upstream/main`, discard that worktree and recreate it from `origin/main` before editing. Do not try to patch OPL changes onto an upstream-baseline worktree in place.
 - Do not delete upstream source modules to reduce package size. Hide or bypass unused features in the OPL adapter layer and exclude unused runtime files at packaging time.
 - Do not copy `opl install`, module management, skill synchronization, or runtime truth into renderer-only code. The GUI calls OPL CLI-backed machine-readable surfaces.
 - Do not remove dependencies from `package.json` only because the OPL package excludes their runtime files. Source compatibility with upstream should remain cheap to rebase.
@@ -56,12 +56,12 @@ Requests such as "follow latest AionUI", "absorb AionUI latest", "sync upstream 
 Before changing code, establish the live state:
 
 - `git status --short --branch` and `git remote -v` for this repo.
-- Current OPL product baseline on `gaofeng/main`.
-- Current upstream AionUI `origin/main` and latest upstream tag.
+- Current App product baseline on `origin/main`.
+- Current upstream AionUI `upstream/main` and latest upstream tag.
 - Dirty files in the root checkout, separated from the intended upstream intake.
 - The previous AionUI baseline currently carried by OPL, usually visible in `package.json`, tags, or the last upstream-intake merge.
 
-Create a short-lived intake branch/worktree from a clean `gaofeng/main` baseline, named like `codex/aionui-upstream-intake-YYYYMMDD`. If the root checkout has unrelated dirty work, preserve it and do the intake in a separate worktree.
+Create a short-lived intake branch/worktree from a clean `origin/main` baseline, named like `codex/aionui-upstream-intake-YYYYMMDD`. If the root checkout has unrelated dirty work, preserve it and do the intake in a separate worktree.
 
 ## Sync Workflow
 
@@ -82,7 +82,7 @@ Use this sequence for every AionUI upstream sync:
 9. Build the app with `bun run build-mac` for the macOS universal release, or with the matching single-arch command when debugging an architecture-specific issue.
 10. Run packaged runtime validation with `bun run validate:opl-package`.
 11. Install the packaged app and run a real startup smoke.
-12. Absorb the validated result back into `gaofeng/main`, push when requested or required for release work, then remove temporary worktrees and branches.
+12. Absorb the validated result back into `origin/main`, push when requested or required for release work, then remove temporary worktrees and branches.
 
 The build script also runs packaged runtime validation with `--scan-all` after `electron-builder` produces a fresh `app.asar`. That makes missing relative runtime imports and forbidden packaged dependencies fail during packaging instead of after a user launches the app.
 
@@ -115,7 +115,7 @@ When adding or changing trim rules:
 - Run `bun run validate:opl-package` against the generated package.
 - Launch the packaged app once after the validation passes.
 
-`opl-aion-shell` is the OPL GUI shell, not the runtime truth owner. The GUI consumes OPL CLI / machine-readable runtime surfaces and displays OPL-indexed, domain-owned projections. Codex remains the default concrete executor. Full readiness should depend on the configured family runtime provider; Temporal-backed provider is the production target for durable stage attempts, signals, retries, queries, and workflow history. Hermes may still appear as a migration-period `hermes_legacy` / optional provider or explicit executor/proof lane, but it is not the default future online substrate. MDS remains retired and must not return as a default GUI module or package payload.
+`shells/aionui` is the active OPL GUI shell adapter, not the runtime truth owner. The GUI consumes OPL CLI / machine-readable runtime surfaces and displays OPL-indexed, domain-owned projections. Codex remains the default concrete executor. Full readiness should depend on the configured family runtime provider; Temporal-backed provider is the production target for durable stage attempts, signals, retries, queries, and workflow history. Hermes may still appear as a migration-period `hermes_legacy` / optional provider or explicit executor/proof lane, but it is not the default future online substrate. MDS remains retired and must not return as a default GUI module or package payload.
 
 ## Stage Attempt Workbench Boundary
 

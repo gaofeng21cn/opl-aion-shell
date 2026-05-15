@@ -35,6 +35,9 @@ jobs:
     name: Code Quality
     runs-on: ubuntu-latest
     if: ${{ !inputs.skip_code_quality }}
+    defaults:
+      run:
+        working-directory: shells/aionui
 
     steps:
       - name: Checkout code
@@ -75,6 +78,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: code-quality
     if: ${{ always() && (inputs.skip_code_quality || needs.code-quality.result == 'success') }}
+    defaults:
+      run:
+        working-directory: shells/aionui
 
     outputs:
       commit-short: ${{ steps.commit.outputs.short }}
@@ -123,7 +129,7 @@ jobs:
             ~/.cache/electron
             ~/.cache/electron-builder
             ${{ env.LOCALAPPDATA }}\electron-builder\Cache
-          key: electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('package.json', 'bun.lock') }}
+          key: electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('shells/aionui/package.json', 'shells/aionui/bun.lock') }}
           restore-keys: |
             electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-
             electron-cache-${{ matrix.platform }}-
@@ -137,7 +143,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           retry_wait_seconds: 30
-          command: bun install --frozen-lockfile
+          command: cd shells/aionui && bun install --frozen-lockfile
 
       - name: Run postinstall
         run: bun run postinstall || true
@@ -467,7 +473,7 @@ jobs:
           timeout_minutes: 60
           max_attempts: 2
           retry_wait_seconds: 60
-          command: ${{ matrix.command }}
+          command: cd shells/aionui && ${{ matrix.command }}
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
           npm_config_arch: ${{ matrix.native_arch || matrix.arch }}
@@ -565,12 +571,12 @@ jobs:
         with:
           name: ${{ inputs.append_commit_hash && format('{0}-{1}', matrix.artifact-name, steps.commit.outputs.short) || matrix.artifact-name }}
           path: |
-            out/*.exe
-            out/*.msi
-            out/*.dmg
-            out/*.deb
-            out/*.zip
-            out/*.yml
+            shells/aionui/out/*.exe
+            shells/aionui/out/*.msi
+            shells/aionui/out/*.dmg
+            shells/aionui/out/*.deb
+            shells/aionui/out/*.zip
+            shells/aionui/out/*.yml
           if-no-files-found: warn
           retention-days: 7
 

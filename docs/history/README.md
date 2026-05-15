@@ -1,14 +1,10 @@
-# History
+# App History
 
-This directory is for superseded one-time process notes after their active
-guidance has been replaced by current docs, implementation truth, or release
-workflow.
+Owner: `one-person-lab-app`
+Purpose: `app_history`
+State: `active`
+Machine boundary: Human-readable historical notes.
 
-Do not use this directory for upstream localized README copies, product PRDs, or
-active architecture/spec material.
-
-## Archived Notes
-
-| Document                                               | Why it is here                                                                                                                                 |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`team-mode-performance.md`](team-mode-performance.md) | Dated Team Mode performance triage for the `fix/team-solo-perf` lane. Keep as historical evidence; use current code and tests for live status. |
+Historical references to `opl-aion-shell` belong here or inside
+`shells/aionui/` upstream-intake documentation. Current product docs should use
+`one-person-lab-app`.

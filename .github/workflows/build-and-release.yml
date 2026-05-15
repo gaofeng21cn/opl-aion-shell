@@ -117,7 +117,7 @@ jobs:
       - name: Create and push tag
         id: create_tag
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=$(node -p "require('./shells/aionui/package.json').version")
           COMMIT_SHORT=$(git rev-parse --short HEAD)
           BRANCH_NAME=${GITHUB_REF#refs/heads/}
 
@@ -150,15 +150,15 @@ jobs:
 
                 echo "📝 Updating package.json version to $NEW_VERSION"
 
-                # 更新 package.json 版本号
-                bun pm version $NEW_VERSION
+                # 更新 active shell package.json 版本号
+                (cd shells/aionui && bun pm version $NEW_VERSION)
 
                 # 配置git用户信息
                 git config user.name "github-actions[bot]"
                 git config user.email "github-actions[bot]@users.noreply.github.com"
 
                 # 提交版本更新
-                git add package.json bun.lock
+                git add shells/aionui/package.json shells/aionui/bun.lock
                 git commit -m "chore: bump version to $NEW_VERSION"
                 git remote set-url origin https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }}.git
                 git push origin $BRANCH_NAME
@@ -234,11 +234,11 @@ jobs:
 
       - name: Prepare release assets (normalize updater metadata)
         shell: bash
-        run: bash scripts/prepare-release-assets.sh build-artifacts release-assets
+        run: node scripts/prepare-release-assets.mjs build-artifacts release-assets
 
       - name: Verify release assets
         shell: bash
-        run: bash scripts/verify-release-assets.sh release-assets
+        run: node scripts/validate-release.mjs release-assets
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

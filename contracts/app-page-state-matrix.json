@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "owner": "one-person-lab-app",
+  "purpose": "page_state_test_matrix",
+  "state": "active",
+  "active_shell": "aionui",
+  "shell_root": "shells/aionui",
+  "pages": [
+    {
+      "id": "runtime",
+      "expected_source": "OPL runtime snapshot or provider-backed projection",
+      "must_show": ["runtime state", "source surface", "repair action when available"]
+    },
+    {
+      "id": "settings_overview",
+      "expected_source": "App settings and OPL environment summary",
+      "must_show": ["current app version", "executor boundary", "environment state"]
+    },
+    {
+      "id": "environment",
+      "expected_source": "OPL system initialize / module / skill surfaces",
+      "must_show": ["Codex default path", "module state", "repair command when needed"]
+    },
+    {
+      "id": "about",
+      "expected_source": "packaged App metadata and release channel",
+      "must_show": ["product name", "version", "release channel"]
+    },
+    {
+      "id": "update",
+      "expected_source": "standard updater metadata",
+      "must_show": ["standard package update state"],
+      "must_not_show": ["Full first-install asset as standard update"]
+    },
+    {
+      "id": "first_launch_readiness",
+      "expected_source": "first-run wizard and OPL initialize result",
+      "must_show": ["required setup state", "completion state", "blocking error source"]
+    }
+  ]
+}

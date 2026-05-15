@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "owner": "one-person-lab-app",
+  "purpose": "first_run_test_matrix",
+  "state": "active",
+  "active_shell": "aionui",
+  "shell_root": "shells/aionui",
+  "scenarios": [
+    {
+      "id": "standard_app_existing_framework",
+      "package_type": "standard",
+      "expects": [
+        "App launches",
+        "OPL Framework is discovered through installed CLI or configured path",
+        "runtime page uses framework-owned machine-readable output"
+      ]
+    },
+    {
+      "id": "full_first_install_clean_machine",
+      "package_type": "full",
+      "expects": [
+        "Full runtime payload is materialized",
+        "Codex remains the default executor path",
+        "standard state modules are visible after initialization"
+      ]
+    },
+    {
+      "id": "updater_standard_channel",
+      "package_type": "standard",
+      "expects": [
+        "updater reads standard metadata",
+        "Full first-install assets are excluded from update selection"
+      ]
+    }
+  ],
+  "commands": [
+    "bun run --cwd shells/aionui test:opl-first-run-vm",
+    "bun run --cwd shells/aionui test:opl-first-run-vm:tart"
+  ]
+}

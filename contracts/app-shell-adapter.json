@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "owner": "one-person-lab-app",
+  "purpose": "active_shell_adapter",
+  "state": "active",
+  "app_repo": "gaofeng21cn/one-person-lab-app",
+  "active_shell": "aionui",
+  "shell_root": "shells/aionui",
+  "upstream_family": "AionUI",
+  "product_remote": {
+    "name": "origin",
+    "url": "git@github.com:gaofeng21cn/one-person-lab-app.git",
+    "main_branch": "main"
+  },
+  "upstream_remote": {
+    "name": "upstream",
+    "url": "https://github.com/iOfficeAI/AionUi",
+    "main_branch": "main"
+  },
+  "release_role": "stable_app_shell",
+  "framework_boundary": {
+    "framework_repo": "gaofeng21cn/one-person-lab",
+    "app_consumes": [
+      "OPL CLI JSON outputs",
+      "framework contracts",
+      "runtime snapshots",
+      "provider receipts",
+      "domain-owned projections"
+    ],
+    "app_does_not_own": [
+      "runtime truth",
+      "domain truth",
+      "provider implementation",
+      "domain artifact authority"
+    ]
+  },
+  "validation_commands": [
+    {
+      "id": "install",
+      "cwd": "shells/aionui",
+      "command": "bun install --frozen-lockfile"
+    },
+    {
+      "id": "i18n_types",
+      "cwd": "shells/aionui",
+      "command": "bun run i18n:types"
+    },
+    {
+      "id": "i18n_check",
+      "cwd": "shells/aionui",
+      "command": "node scripts/check-i18n.js"
+    },
+    {
+      "id": "typecheck",
+      "cwd": "shells/aionui",
+      "command": "bunx tsc --noEmit"
+    },
+    {
+      "id": "test",
+      "cwd": ".",
+      "command": "bun run test"
+    },
+    {
+      "id": "lint",
+      "cwd": "shells/aionui",
+      "command": "bun run lint"
+    },
+    {
+      "id": "packaged_runtime_validation",
+      "cwd": "shells/aionui",
+      "command": "node scripts/validate-packaged-runtime.js --scan-all"
+    }
+  ]
+}

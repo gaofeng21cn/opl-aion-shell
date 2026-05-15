@@ -36,10 +36,10 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Install prek
         run: npm install -g @j178/prek

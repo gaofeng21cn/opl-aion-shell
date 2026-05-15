@@ -67,6 +67,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Use active shell
+        run: echo "shells/aionui" >> .app-shell-root
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -74,10 +77,10 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Install prek
         run: npm install -g @j178/prek
@@ -110,6 +113,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Use active shell
+        run: echo "shells/aionui" >> .app-shell-root
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -124,13 +130,13 @@ jobs:
           Add-MpPreference -ExclusionPath "${{ github.workspace }}"
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Run extension system tests
-        run: bunx vitest run
+        run: cd shells/aionui && bunx vitest run
 
   # Job 3: Coverage test (Linux only)
   coverage-tests:
@@ -153,6 +159,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Use active shell
+        run: echo "shells/aionui" >> .app-shell-root
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -160,27 +169,27 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Run coverage tests
         id: coverage
         continue-on-error: true
-        run: bun run test:coverage
+        run: bun run --cwd shells/aionui test:coverage
 
       - name: Upload coverage to Codecov (Linux coverage only)
-        if: always() && hashFiles('coverage/lcov.info') != '' && github.repository == 'iOfficeAI/AionUi'
+        if: always() && hashFiles('shells/aionui/coverage/lcov.info') != '' && github.repository == 'iOfficeAI/AionUi'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           use_oidc: ${{ secrets.CODECOV_TOKEN == '' }}
-          files: coverage/lcov.info
+          files: shells/aionui/coverage/lcov.info
           fail_ci_if_error: false
           verbose: true
       - name: Skip Codecov upload when preconditions are not met
-        if: always() && hashFiles('coverage/lcov.info') != '' && github.repository != 'iOfficeAI/AionUi'
+        if: always() && hashFiles('shells/aionui/coverage/lcov.info') != '' && github.repository != 'iOfficeAI/AionUi'
         shell: bash
         run: |
           echo 'Skipping Codecov upload due to unmet preconditions.'
@@ -193,7 +202,7 @@ jobs:
             echo "::warning::Coverage tests failed (non-blocking). Check logs for failed test details."
             echo "## Coverage check (non-blocking warning)" >> $GITHUB_STEP_SUMMARY
             echo "Coverage command failed in this run. Please review test failures in logs." >> $GITHUB_STEP_SUMMARY
-            if [ -f coverage/lcov.info ]; then
+            if [ -f shells/aionui/coverage/lcov.info ]; then
               echo "lcov.info exists, Codecov upload can still run." >> $GITHUB_STEP_SUMMARY
             else
               echo "lcov.info not found, Codecov upload was skipped." >> $GITHUB_STEP_SUMMARY
@@ -201,7 +210,7 @@ jobs:
           else
             echo "## Coverage check" >> $GITHUB_STEP_SUMMARY
             echo "Coverage command passed." >> $GITHUB_STEP_SUMMARY
-            if [ -f coverage/lcov.info ]; then
+            if [ -f shells/aionui/coverage/lcov.info ]; then
               echo "Uploaded Linux (ubuntu-latest) coverage to Codecov." >> $GITHUB_STEP_SUMMARY
             else
               echo "Coverage passed but lcov.info is missing; Codecov upload was skipped." >> $GITHUB_STEP_SUMMARY
@@ -209,11 +218,11 @@ jobs:
           fi
 
       - name: Upload coverage artifacts
-        if: always() && hashFiles('coverage/lcov.info') != ''
+        if: always() && hashFiles('shells/aionui/coverage/lcov.info') != ''
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: coverage/
+          path: shells/aionui/coverage/
           if-no-files-found: warn
 
   i18n-check:
@@ -230,6 +239,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Use active shell
+        run: echo "shells/aionui" >> .app-shell-root
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -237,17 +249,18 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Run i18n validation (warning-only)
         id: i18n
         shell: bash
         run: |
           set -o pipefail
-          node scripts/check-i18n.js 2>&1 | tee i18n-check.log
+          cd shells/aionui
+          node scripts/check-i18n.js 2>&1 | tee ../../i18n-check.log
 
       - name: Publish i18n summary
         if: always()
@@ -317,6 +330,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Use active shell
+        run: echo "shells/aionui" >> .app-shell-root
+
       - name: Setup bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -332,10 +348,10 @@ jobs:
         uses: extractions/setup-just@v2
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --cwd shells/aionui --frozen-lockfile
 
       - name: Run postinstall
-        run: npm run postinstall || true
+        run: bun run --cwd shells/aionui postinstall || true
 
       - name: Install Linux dependencies
         if: matrix.platform == 'linux'
@@ -347,7 +363,7 @@ jobs:
         id: electron-version
         shell: bash
         run: |
-          ELECTRON_VERSION=$(node -p "require('./package.json').devDependencies.electron.replace(/[\^~]/g, '')")
+          ELECTRON_VERSION=$(node -p "require('./shells/aionui/package.json').devDependencies.electron.replace(/[\^~]/g, '')")
           echo "version=$ELECTRON_VERSION" >> $GITHUB_OUTPUT
           echo "Electron version: $ELECTRON_VERSION"
 
@@ -362,7 +378,7 @@ jobs:
             ~/.cache/electron
             ~/.cache/electron-builder
             ${{ env.LOCALAPPDATA }}\electron-builder\Cache
-          key: electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('package.json', 'bun.lock') }}
+          key: electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('shells/aionui/package.json', 'shells/aionui/bun.lock') }}
           restore-keys: |
             electron-cache-${{ matrix.platform }}-${{ matrix.arch }}-
             electron-cache-${{ matrix.platform }}-
@@ -372,7 +388,7 @@ jobs:
 
       - name: Rebuild native modules for Electron (non-Windows)
         if: "!startsWith(matrix.platform, 'windows')"
-        run: bunx electron-builder install-app-deps
+        run: cd shells/aionui && bunx electron-builder install-app-deps
         env:
           npm_config_runtime: electron
           npm_config_disturl: https://electronjs.org/headers
@@ -392,6 +408,7 @@ jobs:
           Write-Host "=========================================="
           Write-Host "BUILD TEST: ${{ matrix.platform }}"
           Write-Host "=========================================="
+          cd shells/aionui
           just build-win-x64
           Write-Host "✓Build test passed for ${{ matrix.platform }}"
         env:
@@ -409,6 +426,7 @@ jobs:
           Write-Host "=========================================="
           Write-Host "BUILD TEST: ${{ matrix.platform }}"
           Write-Host "=========================================="
+          cd shells/aionui
           just build-win-arm64
           Write-Host "✓Build test passed for ${{ matrix.platform }}"
         env:
@@ -426,6 +444,7 @@ jobs:
           echo "=========================================="
           echo "BUILD TEST: ${{ matrix.platform }}"
           echo "=========================================="
+          cd shells/aionui
           node scripts/build-with-builder.js auto ${{ matrix.build_args }}
           echo "✓Build test passed for ${{ matrix.platform }}"
         env:
@@ -439,7 +458,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Verify packaged bundled bun assets
-        run: bun run test:packaged:bun
+        run: bun run --cwd shells/aionui test:packaged:bun
 
       - name: Verify build artifacts exist
         shell: bash
@@ -447,17 +466,17 @@ jobs:
           echo "=========================================="
           echo "VERIFY ARTIFACTS: ${{ matrix.platform }}"
           echo "=========================================="
-          ls -lah out || true
+          ls -lah shells/aionui/out || true
 
           case "${{ matrix.platform }}" in
             windows-*)
-              ls out/*.exe out/*latest*.yml >/dev/null
+              ls shells/aionui/out/*.exe shells/aionui/out/*latest*.yml >/dev/null
               ;;
             macos-*)
-              ls out/*.dmg out/*.zip out/*latest*.yml >/dev/null
+              ls shells/aionui/out/*.dmg shells/aionui/out/*.zip shells/aionui/out/*latest*.yml >/dev/null
               ;;
             linux)
-              ls out/*.deb out/*latest*.yml >/dev/null
+              ls shells/aionui/out/*.deb shells/aionui/out/*latest*.yml >/dev/null
               ;;
           esac
 
@@ -469,18 +488,18 @@ jobs:
           Write-Host "SMOKE INSTALL: windows-x64"
           Write-Host "=========================================="
 
-          $installer = Get-ChildItem -Path out -Filter "AionUi-*-win-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          $installer = Get-ChildItem -Path shells/aionui/out -Filter "One-Person-Lab-*-win-*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
           if (-not $installer) {
-            throw "No Windows installer found in out/"
+            throw "No Windows installer found in shells/aionui/out/"
           }
 
           Write-Host "Using installer: $($installer.FullName)"
           Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -NoNewWindow
 
           $candidates = @(
-            "$env:LOCALAPPDATA\\Programs\\AionUi\\AionUi.exe",
-            "$env:ProgramFiles\\AionUi\\AionUi.exe",
-            "$env:ProgramFiles(x86)\\AionUi\\AionUi.exe"
+            "$env:LOCALAPPDATA\\Programs\\One Person Lab\\One Person Lab.exe",
+            "$env:ProgramFiles\\One Person Lab\\One Person Lab.exe",
+            "$env:ProgramFiles(x86)\\One Person Lab\\One Person Lab.exe"
           )
 
           $installedExe = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -495,7 +514,7 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "Skipping runtime install smoke for windows-arm64: runner is windows-x64, cannot reliably execute arm64 installer."
-          Get-ChildItem -Path out -Filter "AionUi-*-win-*.exe" | Format-Table Name, Length
+          Get-ChildItem -Path shells/aionui/out -Filter "One-Person-Lab-*-win-*.exe" | Format-Table Name, Length
 
       - name: Install smoke test (macOS arm64)
         if: matrix.platform == 'macos-arm64'
@@ -506,7 +525,7 @@ jobs:
           echo "SMOKE INSTALL: macos-arm64"
           echo "=========================================="
 
-          DMG_FILE=$(ls out/*.dmg | head -n 1)
+          DMG_FILE=$(ls shells/aionui/out/*.dmg | head -n 1)
           MOUNT_POINT="/tmp/aionui-smoke-mount"
           APP_DIR="/tmp/aionui-smoke-app"
 
@@ -518,7 +537,7 @@ jobs:
           hdiutil detach "$MOUNT_POINT"
 
           APP_PATH=$(ls -d "$APP_DIR"/*.app | head -n 1)
-          APP_BIN="$APP_PATH/Contents/MacOS/AionUi"
+          APP_BIN="$APP_PATH/Contents/MacOS/One Person Lab"
 
           test -x "$APP_BIN"
           "$APP_BIN" --version || true
@@ -528,7 +547,7 @@ jobs:
         shell: bash
         run: |
           echo "Skipping runtime launch smoke for macos-x64 cross build on arm64 runner."
-          ls -lah out/*.dmg out/*.zip
+          ls -lah shells/aionui/out/*.dmg shells/aionui/out/*.zip
 
       - name: Install smoke test (Linux)
         if: matrix.platform == 'linux'
@@ -539,11 +558,11 @@ jobs:
           echo "SMOKE INSTALL: linux"
           echo "=========================================="
 
-          DEB_FILE=$(ls out/*.deb | head -n 1)
+          DEB_FILE=$(ls shells/aionui/out/*.deb | head -n 1)
           PKG_NAME=$(dpkg-deb -f "$DEB_FILE" Package)
           sudo dpkg -i "$DEB_FILE" || sudo apt-get install -f -y
 
-          INSTALLED_BIN=$(dpkg -L "$PKG_NAME" | grep -Ei '/(bin|opt)/.*(aionui)$' | head -n 1 || true)
+          INSTALLED_BIN=$(dpkg -L "$PKG_NAME" | grep -Ei '/(bin|opt)/.*(one[- ]?person[- ]?lab)$' | head -n 1 || true)
           if [ -z "$INSTALLED_BIN" ]; then
             echo "Package files:"
             dpkg -L "$PKG_NAME" | head -n 50
@@ -565,12 +584,12 @@ jobs:
 
       - name: Create mock build artifacts
         shell: bash
-        run: bash scripts/create-mock-release-artifacts.sh build-artifacts
+        run: bash shells/aionui/scripts/create-mock-release-artifacts.sh build-artifacts
 
       - name: Run prepare-release-assets script
         shell: bash
-        run: bash scripts/prepare-release-assets.sh build-artifacts release-assets
+        run: node scripts/prepare-release-assets.mjs build-artifacts release-assets
 
       - name: Validate script output
         shell: bash
-        run: bash scripts/verify-release-assets.sh release-assets
+        run: node scripts/validate-release.mjs release-assets

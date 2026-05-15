@@ -66,8 +66,8 @@ jobs:
       - name: Validate smoke scripts
         shell: bash
         run: |
-          node --check scripts/opl-first-run-vm-smoke.mjs
-          node --check scripts/opl-first-run-tart-smoke.mjs
+          node --check shells/aionui/scripts/opl-first-run-vm-smoke.mjs
+          node --check shells/aionui/scripts/opl-first-run-tart-smoke.mjs
 
       - name: Resolve Full release DMG
         id: dmg
@@ -123,7 +123,7 @@ jobs:
           fi
 
           CMD=(
-            node scripts/opl-first-run-tart-smoke.mjs
+            node shells/aionui/scripts/opl-first-run-tart-smoke.mjs
             --source-vm "$SOURCE_VM"
             --dmg "${{ steps.dmg.outputs.dmg_path }}"
             --guest-user "$GUEST_USER"

@@ -18,6 +18,9 @@ jobs:
     name: E2E Artifacts (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: shells/aionui
 
     steps:
       - name: Checkout code
@@ -53,7 +56,7 @@ jobs:
           CI: true
           E2E_DEV: '1'
           E2E_SCREENSHOTS: '1'
-          AIONUI_EXTENSIONS_PATH: ${{ github.workspace }}/examples
+          AIONUI_EXTENSIONS_PATH: ${{ github.workspace }}/shells/aionui/examples
 
       - name: Upload E2E report (self-contained with screenshots & traces)
         if: always()
@@ -61,8 +64,8 @@ jobs:
         with:
           name: e2e-report-linux-pr
           path: |
-            tests/e2e/report/
-            tests/e2e/results/
-            tests/e2e/screenshots/
+            shells/aionui/tests/e2e/report/
+            shells/aionui/tests/e2e/results/
+            shells/aionui/tests/e2e/screenshots/
           retention-days: 14
           if-no-files-found: ignore

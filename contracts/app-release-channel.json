@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "owner": "one-person-lab-app",
+  "purpose": "release_channel_contract",
+  "state": "active",
+  "release_repo": "gaofeng21cn/one-person-lab-app",
+  "active_shell": "aionui",
+  "shell_root": "shells/aionui",
+  "standard_updater": {
+    "allowed_metadata": [
+      "latest.yml",
+      "latest-win-arm64.yml",
+      "latest-mac.yml",
+      "latest-arm64-mac.yml",
+      "latest-linux.yml",
+      "latest-linux-arm64.yml"
+    ],
+    "allowed_assets": [
+      "One-Person-Lab-*-win-*.exe",
+      "One-Person-Lab-*-mac-*.dmg",
+      "One-Person-Lab-*-mac-*.zip",
+      "One-Person-Lab-*-linux-*.deb"
+    ],
+    "forbidden_asset_substrings": ["Full"],
+    "rule": "standard updater metadata must never point to Full first-install assets"
+  },
+  "full_first_install": {
+    "asset_name_must_include": "Full",
+    "updater_visible": false,
+    "validation_required": true
+  },
+  "normalization_command": "node scripts/prepare-release-assets.mjs build-artifacts release-assets",
+  "validation_command": "node scripts/validate-release.mjs release-assets"
+}

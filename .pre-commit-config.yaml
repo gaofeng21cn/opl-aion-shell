@@ -1,25 +1,11 @@
-# Pre-commit configuration for AionUi
-# Ensures local checks match CI checks (TypeScript, Oxlint, Oxfmt)
-#
-# Installation:
-#   pip install pre-commit  (or: brew install pre-commit / choco install pre-commit)
-#   prek install            (or: pre-commit install)
-#
-# Run manually on staged files (same as CI pre-commit):
-#   prek run
-#
-# Run on changed files vs main (same as CI PR check):
-#   prek run --from-ref origin/main --to-ref HEAD
-#
-# Run on all files:
-#   prek run --all-files
+# Root pre-commit configuration for the App product repository.
+# AionUI shell checks are invoked through the active shell path.
 
 default_install_hook_types:
   - pre-commit
   - commit-msg
 
 repos:
-  # General file checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -32,54 +18,47 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=1000]
       - id: end-of-file-fixer
-        # Only fix text files, exclude binary files and special OS files
         exclude: '^(\.DS_Store|Thumbs\.db|.*\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|otf|pdf|zip|tar|gz|bz2|7z|exe|dll|so|dylib|node|bin))$'
       - id: trailing-whitespace
-        # Auto-fix trailing whitespace in text files
-        # Excludes binary files (matching end-of-file-fixer pattern)
         exclude: '^(\.DS_Store|Thumbs\.db|.*\.(png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|otf|pdf|zip|tar|gz|bz2|7z|exe|dll|so|dylib|node|bin|patch))$'
 
-  # TypeScript type checking (full project check required)
   - repo: local
     hooks:
-      - id: typecheck
-        name: TypeScript Check
-        entry: bunx tsc --noEmit
+      - id: active-shell-contract
+        name: Active Shell Contract
+        entry: node scripts/validate-active-shell.mjs --quick
         language: system
-        files: \.(ts|tsx)$
+        files: '^(contracts/|scripts/validate-active-shell\.mjs|package\.json|shells/aionui/package\.json|shells/aionui/AGENTS\.md)'
         pass_filenames: false
 
-  # Oxlint (replaces ESLint — checks staged files only)
-  - repo: local
-    hooks:
-      - id: oxlint
-        name: Oxlint
-        entry: bun run lint
+      - id: shell-typecheck
+        name: AionUI Shell TypeScript Check
+        entry: bash -lc 'cd shells/aionui && bunx tsc --noEmit'
         language: system
-        files: \.(ts|tsx|js|jsx)$
+        files: '^shells/aionui/.*\.(ts|tsx)$'
         pass_filenames: false
 
-  # Oxfmt (replaces Prettier — auto-fixes staged files only)
-  - repo: local
-    hooks:
-      - id: oxfmt
-        name: Oxfmt
-        entry: bun run format
+      - id: shell-oxlint
+        name: AionUI Shell Oxlint
+        entry: bun run --cwd shells/aionui lint
         language: system
-        files: \.(ts|tsx|js|jsx|json|css|md|yaml|yml|toml)$
-        pass_filenames: true
-
-  # i18n translation files validation
-  - repo: local
-    hooks:
-      - id: i18n-check
-        name: i18n Check
-        entry: node scripts/check-i18n.js
-        language: system
-        files: ^src/renderer/services/i18n/locales/
+        files: '^shells/aionui/.*\.(ts|tsx|js|jsx)$'
         pass_filenames: false
 
-  # Commit message format (Conventional Commits)
+      - id: shell-oxfmt
+        name: AionUI Shell Oxfmt
+        entry: bun run --cwd shells/aionui format
+        language: system
+        files: '^shells/aionui/.*\.(ts|tsx|js|jsx|json|css|md|yaml|yml|toml)$'
+        pass_filenames: false
+
+      - id: shell-i18n-check
+        name: AionUI Shell i18n Check
+        entry: bash -lc 'cd shells/aionui && node scripts/check-i18n.js'
+        language: system
+        files: '^shells/aionui/src/renderer/services/i18n/locales/'
+        pass_filenames: false
+
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
     hooks:
