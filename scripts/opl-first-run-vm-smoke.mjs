@@ -125,6 +125,14 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
+function runtimeShellExecutable() {
+  const override = process.env.OPL_FIRST_RUN_SHELL?.trim();
+  if (override) return override;
+  if (fs.existsSync('/bin/zsh')) return '/bin/zsh';
+  if (fs.existsSync('/bin/bash')) return '/bin/bash';
+  return 'sh';
+}
+
 function assertMacOS() {
   if (process.platform !== 'darwin') {
     throw new Error('OPL GUI first-run smoke must run on macOS.');
@@ -299,7 +307,7 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     }
   }
   const officeCliTool = spawnSync(
-    '/bin/zsh',
+    runtimeShellExecutable(),
     [
       '-lc',
       [buildFullRuntimeCommandPrefix(findLatestFullRuntimeHome()), 'officecli --version'].filter(Boolean).join(' && '),
@@ -350,7 +358,7 @@ function runOplJson(args) {
   ]
     .filter(Boolean)
     .join(' && ');
-  const result = spawnSync('/bin/zsh', ['-lc', command], {
+  const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json' },
   });
@@ -844,6 +852,7 @@ export const __test =
         assertFullFirstRunEquivalence,
         findLatestFullRuntimeHome,
         isMainModule,
+        runtimeShellExecutable,
         runOplJson,
       }
     : undefined;

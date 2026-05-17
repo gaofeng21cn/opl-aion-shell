@@ -8,6 +8,7 @@ type SmokeTestApi = {
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
   findLatestFullRuntimeHome(runtimeRoot?: string): string | null;
   isMainModule(moduleUrl: string, argvPath?: string): boolean;
+  runtimeShellExecutable(): string;
 };
 
 const tempRoots: string[] = [];
@@ -110,6 +111,13 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).not.toContain('OPL_HERMES_BIN');
     expect(prefix).toContain(path.join(runtimeHome, 'python', 'cpython-3.12.13-macos-aarch64-none', 'bin'));
     expect(prefix).toContain('PATH=');
+  });
+
+  it('allows CI to run Full runtime command probes through bash when zsh is unavailable', async () => {
+    vi.stubEnv('OPL_FIRST_RUN_SHELL', '/bin/bash');
+    const api = await loadSmokeTestApi();
+
+    expect(api.runtimeShellExecutable()).toBe('/bin/bash');
   });
 
   it('includes optional hermes_legacy env when the bundled binary exists', async () => {
