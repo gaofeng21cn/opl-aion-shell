@@ -13,6 +13,14 @@ function createProjectRoot() {
   return root;
 }
 
+function createOplWorkspaceRoot() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-workspace-root-'));
+  tempRoots.push(root);
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src', 'cli.ts'), '', 'utf8');
+  return root;
+}
+
 function canonicalPath(targetPath: string) {
   const parent = fs.existsSync(targetPath) ? targetPath : path.dirname(targetPath);
   const resolvedParent = fs.realpathSync(parent);
@@ -42,9 +50,12 @@ afterEach(() => {
 describe('scripts/packaged-launch', () => {
   it('falls back to dev bootstrap when no unpacked app exists', () => {
     const projectRoot = createProjectRoot();
+    const oplWorkspaceRoot = createOplWorkspaceRoot();
     fs.mkdirSync(path.join(projectRoot, 'examples', 'opl-acp-adapter-extension'), { recursive: true });
 
-    const output = runPackagedLaunch(projectRoot, ['--dry-run', '--opl']);
+    const output = runPackagedLaunch(projectRoot, ['--dry-run', '--opl'], {
+      OPL_ACP_WORKSPACE_ROOT: oplWorkspaceRoot,
+    });
     const canonicalProjectRoot = canonicalPath(projectRoot);
 
     expect(output).toContain('No unpacked app found under out/. Falling back to dev mode.');
@@ -58,9 +69,15 @@ describe('scripts/packaged-launch', () => {
 
   it('keeps packaged mode and clears inherited extension paths by default', () => {
     const projectRoot = createProjectRoot();
-    const packagedExecutable = path.join(projectRoot, 'out', 'mac', 'AionUi.app', 'Contents', 'MacOS', 'AionUi');
+    const packagedExecutable =
+      process.platform === 'win32'
+        ? path.join(projectRoot, 'out', 'win-unpacked', 'AionUi.exe')
+        : process.platform === 'darwin'
+          ? path.join(projectRoot, 'out', 'mac', 'AionUi.app', 'Contents', 'MacOS', 'AionUi')
+          : path.join(projectRoot, 'out', 'linux-unpacked', 'AionUi');
     fs.mkdirSync(path.dirname(packagedExecutable), { recursive: true });
     fs.writeFileSync(packagedExecutable, '');
+    fs.chmodSync(packagedExecutable, 0o755);
     const canonicalExecutable = canonicalPath(packagedExecutable);
 
     const output = runPackagedLaunch(projectRoot, ['--dry-run'], {
