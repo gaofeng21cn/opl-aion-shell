@@ -88,4 +88,31 @@ describe('scripts/packaged-launch', () => {
     expect(output).not.toContain('Falling back to dev mode');
     expect(output).toContain('AIONUI_EXTENSIONS_PATH: (unset)');
   });
+
+  it('does not run process cleanup during packaged dry-run', () => {
+    const projectRoot = createProjectRoot();
+    const binRoot = path.join(projectRoot, 'bin');
+    fs.mkdirSync(binRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(binRoot, 'pkill'),
+      '#!/usr/bin/env bash\necho "pkill should not run in dry-run" >&2\nexit 42\n',
+      'utf8'
+    );
+    fs.chmodSync(path.join(binRoot, 'pkill'), 0o755);
+    const packagedExecutable =
+      process.platform === 'win32'
+        ? path.join(projectRoot, 'out', 'win-unpacked', 'AionUi.exe')
+        : process.platform === 'darwin'
+          ? path.join(projectRoot, 'out', 'mac', 'AionUi.app', 'Contents', 'MacOS', 'AionUi')
+          : path.join(projectRoot, 'out', 'linux-unpacked', 'AionUi');
+    fs.mkdirSync(path.dirname(packagedExecutable), { recursive: true });
+    fs.writeFileSync(packagedExecutable, '');
+    fs.chmodSync(packagedExecutable, 0o755);
+
+    const output = runPackagedLaunch(projectRoot, ['--dry-run'], {
+      PATH: `${binRoot}${path.delimiter}${process.env.PATH ?? ''}`,
+    });
+
+    expect(output).toContain('[packaged-launch] executable:');
+  });
 });

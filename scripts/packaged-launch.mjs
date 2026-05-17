@@ -117,7 +117,7 @@ async function main() {
     return;
   }
 
-  if (shouldClean) {
+  if (shouldClean && !dryRun) {
     for (const name of executableNames) {
       await killProcessByName(`${name}.exe`);
       await killProcessByName(name);
