@@ -187,6 +187,9 @@ function oplCommandMayNeedCommandLineTools(args: string[]): boolean {
   if (process.platform !== 'darwin') return false;
   if (args[0] === 'install') return !process.env.OPL_FULL_RUNTIME_HOME?.trim();
   if (args[0] === 'module' && ['install', 'update', 'reinstall'].includes(args[1] ?? '')) return true;
+  if (args[0] === 'system' && args[1] === 'reconcile-modules' && process.env.OPL_FULL_RUNTIME_HOME?.trim()) {
+    return false;
+  }
   return args[0] === 'system' && ['update', 'reconcile-modules'].includes(args[1] ?? '');
 }
 
@@ -318,6 +321,14 @@ async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; st
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assertAllowedOplArgs(args);
+  if (args[0] === 'system' && args[1] === 'reconcile-modules' && process.env.OPL_FULL_RUNTIME_HOME?.trim()) {
+    return {
+      exitCode: 0,
+      stdout: '{"system_action":{"status":"skipped","reason":"full_runtime_managed_modules"}}',
+      stderr: '',
+    };
+  }
+
   const commandLineToolsInstall = await maybeOpenCommandLineToolsInstallerBeforeOplCommand(args);
   if (commandLineToolsInstall) {
     return commandLineToolsInstall;
@@ -699,6 +710,13 @@ export function initShellBridge(): void {
   ipcBridge.shell.appendOplFirstRunLog.provider(async ({ eventType, payload }) =>
     appendOplFirstRunLog(eventType, payload)
   );
+  ipcBridge.shell.getOplFullRuntimeStatus.provider(async () => {
+    const runtimeHome = process.env.OPL_FULL_RUNTIME_HOME?.trim() || null;
+    return {
+      active: Boolean(runtimeHome),
+      runtimeHome,
+    };
+  });
 
   // Open folder with specified tool
   ipcBridge.shell.openFolderWith.provider(async ({ folderPath, tool }) => {

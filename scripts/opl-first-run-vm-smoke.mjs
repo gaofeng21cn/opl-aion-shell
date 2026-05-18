@@ -20,6 +20,7 @@ const DEFAULT_LABELS = {
   guidEntry: 'opl-guid-entry',
   settingsEnvironment: 'opl-settings-environment',
 };
+const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 
 function usage() {
   process.stdout.write(`Usage:
@@ -281,13 +282,39 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     .join(' && ');
 }
 
+function listStringValues(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+}
+
+function hasOnlyDeferredFullFirstRunBlockers(blockers) {
+  return blockers.every((blocker) => DEFERRED_FULL_FIRST_RUN_BLOCKERS.has(blocker));
+}
+
+function isCoreFirstLaunchReady(initialize) {
+  if (initialize?.setup_flow?.ready_to_launch === true) return true;
+  const readiness = initialize?.readiness ?? {};
+  const blockers = listStringValues(initialize?.setup_flow?.blocking_items);
+  return (
+    readiness.launch_ready === true &&
+    readiness.core_ready !== false &&
+    readiness.domain_ready !== false &&
+    hasOnlyDeferredFullFirstRunBlockers(blockers)
+  );
+}
+
 function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
   const systemInitialize = JSON.parse(systemInitializeRaw);
   const modulesPayload = JSON.parse(modulesRaw);
   const initialize = systemInitialize.system_initialize;
   const modulesSurface = modulesPayload.modules;
-  if (!initialize?.setup_flow?.ready_to_launch) {
-    throw new Error('OPL first-run initialize did not report ready_to_launch=true.');
+  if (!isCoreFirstLaunchReady(initialize)) {
+    throw new Error(
+      `OPL first-run initialize did not report a launchable core state: ${JSON.stringify({
+        ready_to_launch: initialize?.setup_flow?.ready_to_launch ?? null,
+        blocking_items: initialize?.setup_flow?.blocking_items ?? [],
+        readiness: initialize?.readiness ?? null,
+      })}`
+    );
   }
   const requiredSkills = ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max'];
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];

@@ -44,6 +44,9 @@ export const shell = {
   appendOplFirstRunLog: bridge.buildProvider<void, { eventType: string; payload: Record<string, unknown> }>(
     'shell.append-opl-first-run-log'
   ), // Append a structured OPL first-run log event
+  getOplFullRuntimeStatus: bridge.buildProvider<{ active: boolean; runtimeHome: string | null }, void>(
+    'shell.get-opl-full-runtime-status'
+  ), // Read Full runtime activation from the main process
 };
 
 //通用会话能力

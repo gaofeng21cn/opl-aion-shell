@@ -18,6 +18,7 @@ const {
   configureOplCodexProvider,
   readOplFirstRunLogProvider,
   appendOplFirstRunLogProvider,
+  getOplFullRuntimeStatusProvider,
   shellMock,
   execMock,
   execFileMock,
@@ -33,6 +34,7 @@ const {
   configureOplCodexProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   readOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   appendOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  getOplFullRuntimeStatusProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   shellMock: {
     openPath: vi.fn().mockResolvedValue(''),
     showItemInFolder: vi.fn(),
@@ -100,6 +102,11 @@ vi.mock('@/common', () => ({
           appendOplFirstRunLogProvider.fn = fn;
         }),
       },
+      getOplFullRuntimeStatus: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          getOplFullRuntimeStatusProvider.fn = fn;
+        }),
+      },
     },
   },
 }));
@@ -145,6 +152,7 @@ beforeEach(async () => {
   configureOplCodexProvider.fn = undefined;
   readOplFirstRunLogProvider.fn = undefined;
   appendOplFirstRunLogProvider.fn = undefined;
+  getOplFullRuntimeStatusProvider.fn = undefined;
 
   // Default mocks
   Object.defineProperty(process, 'platform', { value: 'win32' });
@@ -167,6 +175,7 @@ describe('shellBridge', () => {
       expect(configureOplCodexProvider.fn).toBeDefined();
       expect(readOplFirstRunLogProvider.fn).toBeDefined();
       expect(appendOplFirstRunLogProvider.fn).toBeDefined();
+      expect(getOplFullRuntimeStatusProvider.fn).toBeDefined();
     });
   });
 
@@ -507,6 +516,31 @@ describe('shellBridge', () => {
         expect.objectContaining({ timeout: 30 * 60_000 }),
         expect.any(Function)
       );
+    });
+
+    it('reports the active Full runtime status from the main process environment', async () => {
+      process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
+
+      const status = await getOplFullRuntimeStatusProvider.fn!();
+
+      expect(status).toEqual({
+        active: true,
+        runtimeHome: '/tmp/OPL Full Runtime/current',
+      });
+    });
+
+    it('skips git-backed module reconcile in a Full runtime without probing Command Line Tools', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'reconcile-modules'] });
+
+      expect(result).toEqual({
+        exitCode: 0,
+        stdout: '{"system_action":{"status":"skipped","reason":"full_runtime_managed_modules"}}',
+        stderr: '',
+      });
+      expect(execFileMock).not.toHaveBeenCalled();
     });
 
     it('opens the macOS Command Line Tools installer before standard setup commands when tools are missing', async () => {

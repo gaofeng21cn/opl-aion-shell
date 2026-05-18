@@ -82,6 +82,11 @@ vi.mock('@/common', () => ({
           registeredProviders['appendOplFirstRunLog'] = fn;
         }),
       },
+      getOplFullRuntimeStatus: {
+        provider: vi.fn((fn: Function) => {
+          registeredProviders['getOplFullRuntimeStatus'] = fn;
+        }),
+      },
     },
   },
 }));

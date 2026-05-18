@@ -16,6 +16,7 @@ import * as path from 'path';
 import i18n from '@process/services/i18n';
 import { workerTaskManager } from '../task/workerTaskManagerSingleton';
 import { ProcessConfig } from './initStorage';
+import { buildOplFullRuntimeShellPrefix } from '../oplFullRuntime';
 
 let tray: TrayInstance | null = null;
 let closeToTrayEnabled = false;
@@ -107,7 +108,6 @@ type TrayClickEvent = Electron.KeyboardEvent & {
   };
 };
 
-const RUNTIME_SNAPSHOT_COMMAND = 'command -v opl >/dev/null && OPL_OUTPUT=json opl runtime snapshot --json';
 const RUNTIME_SNAPSHOT_TIMEOUT_MS = 20_000;
 
 const unavailableRuntimeTraySnapshot = (): RuntimeTraySnapshot => ({
@@ -193,9 +193,17 @@ const isRuntimeTraySnapshot = (value: unknown): value is RuntimeTraySnapshot => 
 
 const readRuntimeTraySnapshot = async (): Promise<RuntimeTraySnapshot | null> =>
   new Promise((resolve) => {
+    const runtimePrefix = buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME);
+    const runtimeSnapshotCommand = [
+      runtimePrefix,
+      'command -v opl >/dev/null',
+      'OPL_OUTPUT=json opl runtime snapshot --json',
+    ]
+      .filter(Boolean)
+      .join(' && ');
     execFile(
       '/bin/zsh',
-      ['-lc', RUNTIME_SNAPSHOT_COMMAND],
+      ['-lc', runtimeSnapshotCommand],
       {
         timeout: RUNTIME_SNAPSHOT_TIMEOUT_MS,
         maxBuffer: 10 * 1024 * 1024,

@@ -58,6 +58,7 @@ describe('ensurePackagedOplFullRuntime', () => {
       true
     );
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
+    expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(expectedHome, 'modules', 'mag'));
     expect(installed?.env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(expectedHome, 'modules', 'rca'));
@@ -69,6 +70,8 @@ describe('ensurePackagedOplFullRuntime', () => {
       path.join(expectedHome, 'uv', 'bin'),
       path.join(expectedHome, 'python', 'cpython-3.12.12-macos-aarch64-none', 'bin'),
     ]);
+    expect(installed?.env.PATH?.split(path.delimiter)).toContain('/usr/bin');
+    expect(installed?.env.PATH?.split(path.delimiter)).toContain('/bin');
 
     const markerMtime = fs.statSync(path.join(expectedHome, '.opl-full-runtime-installed.json')).mtimeMs;
     const second = ensurePackagedOplFullRuntime({
@@ -206,12 +209,15 @@ describe('buildOplFullRuntimeShellPrefix', () => {
     const prefix = buildOplFullRuntimeShellPrefix(runtimeHome);
 
     expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/tmp/OPL Full Runtime/current'");
+    expect(prefix).toContain('export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"');
     expect(prefix).toContain("export OPL_MODULE_PATH_MEDAUTOSCIENCE='/tmp/OPL Full Runtime/current/modules/mas'");
     expect(prefix).toContain("export OPL_MODULE_PATH_MEDAUTOGRANT='/tmp/OPL Full Runtime/current/modules/mag'");
     expect(prefix).toContain("export OPL_MODULE_PATH_REDCUBE='/tmp/OPL Full Runtime/current/modules/rca'");
     expect(prefix).toContain("export OPL_CODEX_BIN='/tmp/OPL Full Runtime/current/bin/codex'");
     expect(prefix).not.toContain('OPL_HERMES_BIN');
     expect(prefix).toContain('PATH=');
+    expect(prefix).toContain('/usr/bin');
+    expect(prefix).toContain('/bin');
   });
 
   it('includes the optional hermes_legacy binary when a Full runtime carries it', () => {

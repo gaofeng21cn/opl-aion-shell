@@ -532,115 +532,129 @@ describe('tray module', () => {
 
     it('should include OPL runtime snapshot lanes when available', async () => {
       setupWithOverrides();
-      mockExecFile.mockImplementation((_file, _args, _options, callback) => {
-        callback(
-          null,
-          JSON.stringify({
-            version: 'g2',
-            runtime_tray_snapshot: {
-              schema_version: 'runtime_tray_snapshot.v1',
-              runtime_health: {
-                status: 'needs_attention',
-                label: 'Needs attention',
-                summary: 'One project needs review.',
+      const previousRuntimeHome = process.env.OPL_FULL_RUNTIME_HOME;
+      process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
+      try {
+        mockExecFile.mockImplementation((_file, _args, _options, callback) => {
+          callback(
+            null,
+            JSON.stringify({
+              version: 'g2',
+              runtime_tray_snapshot: {
+                schema_version: 'runtime_tray_snapshot.v1',
+                runtime_health: {
+                  status: 'needs_attention',
+                  label: 'Needs attention',
+                  summary: 'One project needs review.',
+                },
+                last_updated: '2026-04-29T00:00:00.000Z',
+                running_items: [
+                  {
+                    item_id: 'medautoscience:study-runtime',
+                    project_id: 'medautoscience',
+                    project_label: 'MAS',
+                    title: 'Active study',
+                    status_label: 'Running',
+                    summary: 'Study runtime is active.',
+                    updated_at: '2026-04-29T00:00:00.000Z',
+                    command: 'opl start --project medautoscience',
+                    workspace_path: '/tmp/mas',
+                    source_refs: [],
+                    action_owner: 'none',
+                    requires_user_action: false,
+                    action_kind: 'running',
+                    action_summary: 'The runtime is running.',
+                    study_id: '001-risk',
+                    workspace_label: 'nf-pitnet',
+                  },
+                ],
+                attention_items: [
+                  {
+                    item_id: 'redcube:operator-review',
+                    project_id: 'redcube',
+                    project_label: 'RCA',
+                    title: 'Operator review',
+                    status_label: 'Needs attention',
+                    summary: 'Review the generated deck before continuing.',
+                    updated_at: '2026-04-29T00:00:00.000Z',
+                    command: 'opl start --project redcube',
+                    workspace_path: '/tmp/redcube',
+                    source_refs: [],
+                    action_owner: 'user',
+                    requires_user_action: true,
+                    action_kind: 'human_gate',
+                    action_summary: 'Review the generated deck before continuing.',
+                  },
+                  {
+                    item_id: 'medautoscience:study:002',
+                    project_id: 'medautoscience',
+                    project_label: 'MAS',
+                    title: 'Publication gate',
+                    status_label: 'Live: Analysis campaign',
+                    summary: 'Publication checks are still open.',
+                    updated_at: '2026-04-29T00:00:00.000Z',
+                    command: 'opl start --project medautoscience',
+                    workspace_path: '/tmp/mas',
+                    source_refs: [],
+                    action_owner: 'opl',
+                    requires_user_action: false,
+                    action_kind: 'publication_gate',
+                    action_summary: 'Publication quality or delivery checks remain open.',
+                  },
+                ],
+                recent_items: [
+                  {
+                    item_id: 'medautogrant:completed',
+                    project_id: 'medautogrant',
+                    project_label: 'MAG',
+                    title: 'Grant route',
+                    status_label: 'Completed',
+                    summary: 'Route completed.',
+                    updated_at: '2026-04-29T00:00:00.000Z',
+                    command: 'opl start --project medautogrant',
+                    workspace_path: '/tmp/mag',
+                    source_refs: [],
+                    action_owner: 'none',
+                    requires_user_action: false,
+                    action_kind: null,
+                    action_summary: 'Route completed.',
+                  },
+                ],
+                action_counts: { user: 1, opl: 1, infrastructure: 0 },
+                source_refs: [],
               },
-              last_updated: '2026-04-29T00:00:00.000Z',
-              running_items: [
-                {
-                  item_id: 'medautoscience:study-runtime',
-                  project_id: 'medautoscience',
-                  project_label: 'MAS',
-                  title: 'Active study',
-                  status_label: 'Running',
-                  summary: 'Study runtime is active.',
-                  updated_at: '2026-04-29T00:00:00.000Z',
-                  command: 'opl start --project medautoscience',
-                  workspace_path: '/tmp/mas',
-                  source_refs: [],
-                  action_owner: 'none',
-                  requires_user_action: false,
-                  action_kind: 'running',
-                  action_summary: 'The runtime is running.',
-                  study_id: '001-risk',
-                  workspace_label: 'nf-pitnet',
-                },
-              ],
-              attention_items: [
-                {
-                  item_id: 'redcube:operator-review',
-                  project_id: 'redcube',
-                  project_label: 'RCA',
-                  title: 'Operator review',
-                  status_label: 'Needs attention',
-                  summary: 'Review the generated deck before continuing.',
-                  updated_at: '2026-04-29T00:00:00.000Z',
-                  command: 'opl start --project redcube',
-                  workspace_path: '/tmp/redcube',
-                  source_refs: [],
-                  action_owner: 'user',
-                  requires_user_action: true,
-                  action_kind: 'human_gate',
-                  action_summary: 'Review the generated deck before continuing.',
-                },
-                {
-                  item_id: 'medautoscience:study:002',
-                  project_id: 'medautoscience',
-                  project_label: 'MAS',
-                  title: 'Publication gate',
-                  status_label: 'Live: Analysis campaign',
-                  summary: 'Publication checks are still open.',
-                  updated_at: '2026-04-29T00:00:00.000Z',
-                  command: 'opl start --project medautoscience',
-                  workspace_path: '/tmp/mas',
-                  source_refs: [],
-                  action_owner: 'opl',
-                  requires_user_action: false,
-                  action_kind: 'publication_gate',
-                  action_summary: 'Publication quality or delivery checks remain open.',
-                },
-              ],
-              recent_items: [
-                {
-                  item_id: 'medautogrant:completed',
-                  project_id: 'medautogrant',
-                  project_label: 'MAG',
-                  title: 'Grant route',
-                  status_label: 'Completed',
-                  summary: 'Route completed.',
-                  updated_at: '2026-04-29T00:00:00.000Z',
-                  command: 'opl start --project medautogrant',
-                  workspace_path: '/tmp/mag',
-                  source_refs: [],
-                  action_owner: 'none',
-                  requires_user_action: false,
-                  action_kind: null,
-                  action_summary: 'Route completed.',
-                },
-              ],
-              action_counts: { user: 1, opl: 1, infrastructure: 0 },
-              source_refs: [],
-            },
-          }),
-          ''
-        );
-      });
+            }),
+            ''
+          );
+        });
 
-      await getTemplateFromRefresh();
-      await vi.waitFor(() => {
+        await getTemplateFromRefresh();
+        const command = mockExecFile.mock.calls[0]?.[1]?.[1] as string;
+        expect(command).toContain("export OPL_FULL_RUNTIME_HOME='/tmp/OPL Full Runtime/current'");
+        expect(command).toContain('export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"');
+        expect(command).toContain('OPL_OUTPUT=json opl runtime snapshot --json');
+        await vi.waitFor(() => {
+          const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
+          expect(labels).toContain('common.tray.runtimeUserAction');
+        });
         const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
-        expect(labels).toContain('common.tray.runtimeUserAction');
-      });
-      const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
 
-      expect(labels).toContain('common.tray.runtimeStatusSummary');
-      expect(labels).toContain('common.tray.runtimeUserAction');
-      expect(labels).toContain('RCA: Operator review (Needs attention)');
-      expect(labels).toContain('common.tray.runtimeOplAction');
-      expect(labels).toContain('MAS: Publication gate (Live: Analysis cam...)');
-      expect(labels).toContain('common.tray.runtimeRunning');
-      expect(labels).toContain('common.tray.runtimeMasItemLabel');
-      expect(labels).toContain('common.tray.runtimeRecent');
-      expect(labels).toContain('MAG: Grant route (Completed)');
+        expect(labels).toContain('common.tray.runtimeStatusSummary');
+        expect(labels).toContain('common.tray.runtimeUserAction');
+        expect(labels).toContain('RCA: Operator review (Needs attention)');
+        expect(labels).toContain('common.tray.runtimeOplAction');
+        expect(labels).toContain('MAS: Publication gate (Live: Analysis cam...)');
+        expect(labels).toContain('common.tray.runtimeRunning');
+        expect(labels).toContain('common.tray.runtimeMasItemLabel');
+        expect(labels).toContain('common.tray.runtimeRecent');
+        expect(labels).toContain('MAG: Grant route (Completed)');
+      } finally {
+        if (previousRuntimeHome === undefined) {
+          delete process.env.OPL_FULL_RUNTIME_HOME;
+        } else {
+          process.env.OPL_FULL_RUNTIME_HOME = previousRuntimeHome;
+        }
+      }
     });
 
     it('should show the OPL runtime as offline when the snapshot cannot be read', async () => {

@@ -202,4 +202,69 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
 
     expect(() => api.assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw)).not.toThrow();
   });
+
+  it('accepts core-first readiness when only the family runtime provider remains deferred', async () => {
+    const api = await loadSmokeTestApi();
+    const homeRoot = makeTempRoot();
+    const codexHome = path.join(homeRoot, '.codex');
+    vi.stubEnv('HOME', homeRoot);
+    vi.stubEnv('CODEX_HOME', codexHome);
+    const runtimeRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'runtime');
+    const runtimeHome = path.join(runtimeRoot, 'current');
+    writeExecutable(path.join(runtimeHome, 'bin', 'opl'));
+    fs.writeFileSync(
+      path.join(runtimeHome, 'bin', 'officecli'),
+      '#!/usr/bin/env bash\nprintf "officecli 0.0.0-test\\n"\n',
+      'utf8'
+    );
+    fs.chmodSync(path.join(runtimeHome, 'bin', 'officecli'), 0o755);
+    const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
+    for (const repoName of ['med-autoscience', 'med-autogrant', 'redcube-ai']) {
+      fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
+    }
+    for (const skillId of requiredSkills) {
+      fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
+      fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
+    }
+
+    const systemInitializeRaw = JSON.stringify({
+      system_initialize: {
+        setup_flow: {
+          ready_to_launch: false,
+          blocking_items: ['family_runtime_provider'],
+        },
+        readiness: {
+          core_ready: true,
+          domain_ready: true,
+          launch_ready: true,
+          family_runtime_provider_ready: false,
+          full_ready: false,
+        },
+        recommended_skills: {
+          skills: requiredSkills.map((skillId) => ({
+            skill_id: skillId,
+            status: 'ready',
+          })),
+        },
+      },
+    });
+    const modulesRaw = JSON.stringify({
+      modules: {
+        modules_root: modulesRoot,
+        items: [
+          ['medautoscience', 'med-autoscience'],
+          ['medautogrant', 'med-autogrant'],
+          ['redcube', 'redcube-ai'],
+        ].map(([moduleId, repoName]) => ({
+          module_id: moduleId,
+          installed: true,
+          install_origin: 'managed_root',
+          health_status: 'ready',
+          checkout_path: path.join(modulesRoot, repoName),
+        })),
+      },
+    });
+
+    expect(() => api.assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw)).not.toThrow();
+  });
 });

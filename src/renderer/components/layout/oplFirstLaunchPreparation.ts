@@ -109,7 +109,15 @@ const FIRST_LAUNCH_STEP_INDEX: Record<OplFirstLaunchProgressStep, number> = {
 const getFailureMessage = (result: { stdout: string; stderr: string }): string | undefined =>
   result.stderr || result.stdout || undefined;
 
-const hasActiveOplFullRuntime = (): boolean => Boolean(process.env.OPL_FULL_RUNTIME_HOME?.trim());
+const hasActiveOplFullRuntime = async (): Promise<boolean> => {
+  if (process.env.OPL_FULL_RUNTIME_HOME?.trim()) return true;
+  try {
+    const status = await ipcBridge.shell.getOplFullRuntimeStatus.invoke();
+    return status.active === true;
+  } catch {
+    return false;
+  }
+};
 
 const DEFERRED_FIRST_LAUNCH_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 
@@ -232,7 +240,7 @@ const reconcileModulesForAppVersion = async (
   const normalizedVersion = appVersion?.trim();
   if (!normalizedVersion && !options.force) return null;
 
-  if (normalizedVersion && hasActiveOplFullRuntime()) {
+  if (normalizedVersion && (await hasActiveOplFullRuntime())) {
     await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, normalizedVersion);
     return null;
   }
@@ -255,7 +263,7 @@ const reconcileModulesForAppVersion = async (
 
 const reconcileModulesForFirstLaunch = async (appVersion?: string): Promise<OplFirstLaunchPreparationResult | null> => {
   const normalizedVersion = appVersion?.trim();
-  if (hasActiveOplFullRuntime()) {
+  if (await hasActiveOplFullRuntime()) {
     if (normalizedVersion) {
       await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, normalizedVersion);
     }
@@ -272,10 +280,15 @@ const reconcileModulesForFirstLaunch = async (appVersion?: string): Promise<OplF
 const startModuleReconcileForAppVersion = (appVersion?: string): void => {
   const normalizedVersion = appVersion?.trim();
   if (!normalizedVersion) return;
-  if (hasActiveOplFullRuntime()) return;
   if (moduleReconcileState?.appVersion === normalizedVersion) return;
 
-  const promise = reconcileModulesForAppVersion(normalizedVersion)
+  const promise = (async (): Promise<OplFirstLaunchPreparationResult | null> => {
+    if (await hasActiveOplFullRuntime()) {
+      await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, normalizedVersion);
+      return null;
+    }
+    return reconcileModulesForAppVersion(normalizedVersion);
+  })()
     .then((result) => {
       if (result?.status === 'failed') {
         console.warn('[OPL] Module reconcile failed after App version change:', result.message);
@@ -297,10 +310,11 @@ const startDeferredFirstLaunchMaintenance = (
   appVersion?: string
 ): void => {
   void (async () => {
+    const fullRuntime = await hasActiveOplFullRuntime();
     await appendFirstRunLogEvent('gui_deferred_maintenance_started', {
       blockers: sourceState.blockers ?? [],
       app_version: appVersion ?? null,
-      full_runtime: hasActiveOplFullRuntime(),
+      full_runtime: fullRuntime,
     });
     const installResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
     if (installResult.exitCode !== 0) {

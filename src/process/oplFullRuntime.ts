@@ -8,6 +8,8 @@ const FULL_RUNTIME_MANIFEST = 'full-package-manifest.json';
 const INSTALL_MARKER = '.opl-full-runtime-installed.json';
 const ACTIVE_RUNTIME_DIR = 'current';
 const ACTIVE_RUNTIME_POINTER = 'current.json';
+const SYSTEM_PATH_ENTRIES =
+  process.platform === 'win32' ? [] : ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
 export type OplFullRuntimeInstallResult = {
   version: string;
@@ -83,12 +85,14 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
     path.join(runtimeHome, 'node', 'bin'),
     path.join(runtimeHome, 'uv', 'bin'),
     ...(pythonBin ? [pythonBin] : []),
+    ...SYSTEM_PATH_ENTRIES,
   ];
 
   return {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
     OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
     OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
+    OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
     ...existingFileEnv('OPL_HERMES_BIN', path.join(runtimeHome, 'bin', 'hermes')),
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
     OPL_MODULE_PATH_MEDAUTOGRANT: path.join(runtimeHome, 'modules', 'mag'),
@@ -286,11 +290,13 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     path.join(normalized, 'node', 'bin'),
     path.join(normalized, 'uv', 'bin'),
     ...(pythonBin ? [pythonBin] : []),
+    ...SYSTEM_PATH_ENTRIES,
   ].join(path.delimiter);
 
   return [
     `export OPL_FULL_RUNTIME_HOME=${shellQuote(normalized)}`,
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(normalized, 'skills'))}`,
+    'export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"',
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,

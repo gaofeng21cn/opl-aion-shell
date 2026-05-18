@@ -4,6 +4,7 @@ const mockRunOplCommand = vi.hoisted(() => vi.fn());
 const mockConfigureOplCodex = vi.hoisted(() => vi.fn());
 const mockReadOplFirstRunLog = vi.hoisted(() => vi.fn());
 const mockAppendOplFirstRunLog = vi.hoisted(() => vi.fn());
+const mockGetOplFullRuntimeStatus = vi.hoisted(() => vi.fn());
 const mockConfigGet = vi.hoisted(() => vi.fn());
 const mockConfigSet = vi.hoisted(() => vi.fn());
 
@@ -21,6 +22,9 @@ vi.mock('@/common', () => ({
       },
       appendOplFirstRunLog: {
         invoke: mockAppendOplFirstRunLog,
+      },
+      getOplFullRuntimeStatus: {
+        invoke: mockGetOplFullRuntimeStatus,
       },
     },
   },
@@ -183,6 +187,7 @@ describe('oplFirstLaunchPreparation', () => {
     mockConfigureOplCodex.mockReset();
     mockReadOplFirstRunLog.mockReset();
     mockAppendOplFirstRunLog.mockReset();
+    mockGetOplFullRuntimeStatus.mockReset();
     mockConfigGet.mockReset();
     mockConfigSet.mockReset();
     mockReadOplFirstRunLog.mockResolvedValue({
@@ -191,6 +196,7 @@ describe('oplFirstLaunchPreparation', () => {
       latest: null,
     });
     mockAppendOplFirstRunLog.mockResolvedValue(undefined);
+    mockGetOplFullRuntimeStatus.mockResolvedValue({ active: false, runtimeHome: null });
     mockConfigureOplCodex.mockResolvedValue({
       exitCode: 0,
       stdout: JSON.stringify({ codex_config: { status: 'completed' } }),
@@ -287,6 +293,34 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
+  it('uses the main-process Full runtime status when renderer env is empty', async () => {
+    mockGetOplFullRuntimeStatus.mockResolvedValue({
+      active: true,
+      runtimeHome: '/Users/test/Library/Application Support/OPL/runtime/current',
+    });
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+    });
+
+    await waitForOplCommandCalls(2);
+    expect(process.env.OPL_FULL_RUNTIME_HOME).toBeUndefined();
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_maintenance_started',
+      payload: expect.objectContaining({ full_runtime: true }),
+    });
   });
 
   it('keeps Full runtime first launch prepared when bundled materialization fails in the background', async () => {
