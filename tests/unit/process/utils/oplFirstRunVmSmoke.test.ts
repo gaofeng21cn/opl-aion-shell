@@ -12,6 +12,7 @@ type SmokeTestApi = {
   assertFullFirstRunEquivalence(systemInitializeRaw: string, modulesRaw: string): void;
   buildLaunchAppArgs(appPath: string, options: { settingsSmoke: boolean; cdpPort: number }): string[];
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
+  captureMacScreenArtifact(target: string): { status: 'captured' | 'skipped'; target: string };
   findLatestFullRuntimeHome(runtimeRoot?: string): string | null;
   isFirstRunCompletionEvent(event: unknown): boolean;
   isMainModule(moduleUrl: string, argvPath?: string): boolean;
@@ -165,6 +166,18 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
         payload: { status: 'failed' },
       })
     ).toBe(false);
+  });
+
+  it('skips macOS screencapture by default to avoid clean-VM Screen & System Audio prompts', async () => {
+    const api = await loadSmokeTestApi();
+    const root = makeTempRoot();
+    const target = path.join(root, 'first-launch.png');
+
+    const result = api.captureMacScreenArtifact(target);
+
+    expect(result).toEqual({ status: 'skipped', target });
+    expect(fs.existsSync(target)).toBe(false);
+    expect(fs.readFileSync(`${target}.skipped.txt`, 'utf8')).toContain('Screen & System Audio permission prompts');
   });
 
   it('includes optional hermes_legacy env when the bundled binary exists', async () => {

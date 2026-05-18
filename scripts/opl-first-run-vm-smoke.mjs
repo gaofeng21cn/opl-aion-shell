@@ -536,6 +536,24 @@ function writeJsonArtifact(target, value, secret) {
   writeTextArtifact(target, `${JSON.stringify(value, null, 2)}\n`, secret);
 }
 
+function captureMacScreenArtifact(target) {
+  if (process.env.OPL_FIRST_RUN_ENABLE_MACOS_SCREENCAPTURE !== '1') {
+    fs.writeFileSync(
+      `${target}.skipped.txt`,
+      [
+        'Skipped macOS screencapture to avoid Screen & System Audio permission prompts in clean VM smoke.',
+        'Settings page screenshots are captured through CDP instead.',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    return { status: 'skipped', target };
+  }
+
+  const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
+  return { status: result.status === 0 ? 'captured' : 'skipped', target };
+}
+
 function submitCodexWizard(processName, apiKey) {
   const script = `
 ObjC.import('stdlib');
@@ -717,7 +735,7 @@ async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codex
         if (!capturedCodexWizard) {
           const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
           writeJsonArtifact(wizardTreePath, lastTree, codexApiKey);
-          spawnSync('screencapture', ['-x', path.join(artifactsDir, 'codex-config-wizard.png')], { stdio: 'ignore' });
+          captureMacScreenArtifact(path.join(artifactsDir, 'codex-config-wizard.png'));
           capturedCodexWizard = true;
         }
         if (!submittedCodexWizard || Date.now() - lastCodexSubmitAt > 10_000) {
@@ -1193,7 +1211,7 @@ function collectFailureArtifacts(options, codexApiKey) {
     }
   }
 
-  spawnSync('screencapture', ['-x', path.join(options.artifacts, 'failure-first-launch.png')], { stdio: 'ignore' });
+  captureMacScreenArtifact(path.join(options.artifacts, 'failure-first-launch.png'));
   const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
   captureUnifiedLog(options.processName, unifiedLogPath);
   if (fs.existsSync(unifiedLogPath)) {
@@ -1241,7 +1259,7 @@ async function main() {
     const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
     writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
     writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
-    spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
+    captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
     assertDoesNotContainSecret(
@@ -1279,6 +1297,7 @@ export const __test =
     ? {
         buildFullRuntimeCommandPrefix,
         assertFullFirstRunEquivalence,
+        captureMacScreenArtifact,
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,
         isMainModule,
