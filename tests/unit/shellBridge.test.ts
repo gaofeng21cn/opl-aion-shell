@@ -511,6 +511,35 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows the developer-supervisor command for OPL Developer Mode settings', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, {
+          stdout: '{"system_action":{"action":"developer_supervisor","status":"completed"}}',
+          stderr: '',
+        });
+      });
+
+      const result = await runOplCommandProvider.fn!({
+        args: ['system', 'developer-supervisor', '--enabled', 'off'],
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'developer-supervisor' '--enabled' 'off'")],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('rejects unsupported developer-supervisor arguments from the shell bridge', async () => {
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['system', 'developer-supervisor', '--enabled', 'maybe'],
+        })
+      ).rejects.toThrow('Unsupported OPL developer-supervisor enabled value: maybe');
+    });
+
     it('allows the system reconcile-modules command for App-version module coordination', async () => {
       execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
         callback(null, { stdout: '{"system_action":{"status":"completed"}}', stderr: '' });

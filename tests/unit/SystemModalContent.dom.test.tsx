@@ -88,6 +88,7 @@ const mockSetCronNotificationEnabled = vi.fn();
 const mockSetSaveUploadToWorkspace = vi.fn();
 const mockSetAutoPreviewOfficeFiles = vi.fn();
 const mockOpenFile = vi.fn();
+const mockRunOplCommand = vi.fn();
 const mockShowOpen = vi.fn();
 const mockUpdateSystemInfo = vi.fn();
 const mockGetStartOnBootStatus = vi.fn();
@@ -144,6 +145,7 @@ vi.mock('@/common', () => ({
     shell: {
       openExternal: { invoke: (...args: any[]) => mockOpenExternal(...args) },
       openFile: { invoke: (...args: any[]) => mockOpenFile(...args) },
+      runOplCommand: { invoke: (...args: any[]) => mockRunOplCommand(...args) },
     },
   },
 }));
@@ -248,6 +250,29 @@ describe('SystemModalContent', () => {
     mockSetCronNotificationEnabled.mockResolvedValue(undefined);
     mockSetSaveUploadToWorkspace.mockResolvedValue(undefined);
     mockSetAutoPreviewOfficeFiles.mockResolvedValue(undefined);
+    mockRunOplCommand.mockResolvedValue({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        system_action: {
+          developer_supervisor: {
+            enabled: 'on',
+            mode: 'developer_apply_safe',
+            auto_enable_github_login: 'gaofeng21cn',
+            source: 'user_config',
+          },
+          developer_mode: {
+            status: 'ready',
+            effective_state: 'active_direct',
+            allowed_route: 'direct_repo_fix',
+            github_identity: {
+              status: 'ready',
+              login: 'gaofeng21cn',
+            },
+          },
+        },
+      }),
+      stderr: '',
+    });
   });
 
   it('should default GUI-managed LLM prompt timeout to the backend long-run value', async () => {
@@ -292,6 +317,39 @@ describe('SystemModalContent', () => {
     expect(screen.getByText('settings.saveUploadToWorkspace')).toBeInTheDocument();
     expect(screen.getByText('settings.autoPreviewOfficeFiles')).toBeInTheDocument();
     expect(screen.getByText('settings.autoPreviewOfficeFilesDesc')).toBeInTheDocument();
+  });
+
+  it('should render OPL Developer Mode from the OPL system action surface', async () => {
+    render(<SystemModalContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.developerMode')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('settings.developerModeDescWithStatus')).toBeInTheDocument();
+    expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'developer-supervisor'] });
+  });
+
+  it('should toggle OPL Developer Mode through developer-supervisor', async () => {
+    render(<SystemModalContent />);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.developerMode')).toBeInTheDocument();
+    });
+
+    const developerModeSection = screen.getByText('settings.developerMode').closest('.flex-1')?.parentElement;
+    const developerModeSwitch = developerModeSection?.querySelector('button[role="switch"]');
+    expect(developerModeSwitch).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(developerModeSwitch!);
+    });
+
+    await waitFor(() => {
+      expect(mockRunOplCommand).toHaveBeenCalledWith({
+        args: ['system', 'developer-supervisor', '--enabled', 'off'],
+      });
+    });
   });
 
   it('should toggle start on boot when the switch is clicked', async () => {

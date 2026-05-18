@@ -27,6 +27,68 @@ const PROMPT_TIMEOUT_DEFAULT_SEC = 43_200;
 const PROMPT_TIMEOUT_MAX_SEC = 43_200;
 const AGENT_IDLE_TIMEOUT_DEFAULT_MIN = 5;
 const AGENT_IDLE_TIMEOUT_MAX_MIN = 60;
+type DeveloperModeEnabled = 'auto' | 'on' | 'off';
+
+type DeveloperModeSwitchState = {
+  known: boolean;
+  enabled: DeveloperModeEnabled;
+  mode?: string;
+  status?: string;
+  effectiveState?: string;
+  allowedRoute?: string;
+  githubLogin?: string | null;
+  configSource?: string;
+  switching: boolean;
+};
+
+const DEFAULT_DEVELOPER_MODE_STATE: DeveloperModeSwitchState = {
+  known: false,
+  enabled: 'off',
+  switching: false,
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function normalizeDeveloperModeEnabled(value: unknown): DeveloperModeEnabled {
+  return value === 'auto' || value === 'on' || value === 'off' ? value : 'off';
+}
+
+function parseDeveloperModeSwitchState(stdout: string): DeveloperModeSwitchState | null {
+  try {
+    const payload = asRecord(JSON.parse(stdout));
+    const systemAction = asRecord(payload?.system_action);
+    const supervisor = asRecord(systemAction?.developer_supervisor);
+    const developerMode = asRecord(systemAction?.developer_mode);
+    if (!supervisor && !developerMode) return null;
+
+    const githubIdentity = asRecord(developerMode?.github_identity);
+    return {
+      known: true,
+      enabled: normalizeDeveloperModeEnabled(supervisor?.enabled ?? developerMode?.enabled),
+      mode:
+        typeof supervisor?.mode === 'string'
+          ? supervisor.mode
+          : typeof developerMode?.mode === 'string'
+            ? developerMode.mode
+            : undefined,
+      status: typeof developerMode?.status === 'string' ? developerMode.status : undefined,
+      effectiveState: typeof developerMode?.effective_state === 'string' ? developerMode.effective_state : undefined,
+      allowedRoute: typeof developerMode?.allowed_route === 'string' ? developerMode.allowed_route : undefined,
+      githubLogin: typeof githubIdentity?.login === 'string' ? githubIdentity.login : null,
+      configSource:
+        typeof supervisor?.source === 'string'
+          ? supervisor.source
+          : typeof developerMode?.config_source === 'string'
+            ? developerMode.config_source
+            : undefined,
+      switching: false,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * System settings content component
@@ -57,6 +119,16 @@ const SystemModalContent: React.FC = () => {
   const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(AGENT_IDLE_TIMEOUT_DEFAULT_MIN);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
+  const [developerMode, setDeveloperMode] = useState<DeveloperModeSwitchState>(DEFAULT_DEVELOPER_MODE_STATE);
+
+  const developerModeDescription = developerMode.known
+    ? t('settings.developerModeDescWithStatus', {
+        status: developerMode.status ?? 'unknown',
+        mode: developerMode.mode ?? 'developer_apply_safe',
+        route: developerMode.allowedRoute ?? 'unknown',
+        login: developerMode.githubLogin ?? '-',
+      })
+    : t('settings.developerModeDesc');
 
   useEffect(() => {
     if (!isDesktop) {
@@ -122,6 +194,26 @@ const SystemModalContent: React.FC = () => {
       .invoke()
       .then((enabled) => setAutoPreviewOfficeFiles(enabled))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    ipcBridge.shell.runOplCommand
+      .invoke({ args: ['system', 'developer-supervisor'] })
+      .then((result) => {
+        if (cancelled) return;
+        const parsed = result.exitCode === 0 ? parseDeveloperModeSwitchState(result.stdout) : null;
+        setDeveloperMode(parsed ?? DEFAULT_DEVELOPER_MODE_STATE);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDeveloperMode(DEFAULT_DEVELOPER_MODE_STATE);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleCloseToTrayChange = useCallback((checked: boolean) => {
@@ -215,6 +307,32 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
+  const handleDeveloperModeChange = useCallback(
+    (checked: boolean) => {
+      const previous = developerMode;
+      const enabled: DeveloperModeEnabled = checked ? 'on' : 'off';
+      setDeveloperMode((current) => ({ ...current, enabled, switching: true }));
+
+      ipcBridge.shell.runOplCommand
+        .invoke({ args: ['system', 'developer-supervisor', '--enabled', enabled] })
+        .then((result) => {
+          const parsed = result.exitCode === 0 ? parseDeveloperModeSwitchState(result.stdout) : null;
+          if (parsed) {
+            setDeveloperMode(parsed);
+            return;
+          }
+
+          setDeveloperMode(previous);
+          Message.error(result.stderr || t('settings.developerModeUpdateFailed'));
+        })
+        .catch(() => {
+          setDeveloperMode(previous);
+          Message.error(t('settings.developerModeUpdateFailed'));
+        });
+    },
+    [developerMode, t]
+  );
+
   // Get system directory info
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
@@ -237,6 +355,18 @@ const SystemModalContent: React.FC = () => {
       description: startOnBoot.supported ? t('settings.startOnBootDesc') : t('settings.startOnBootUnsupported'),
       component: (
         <Switch checked={startOnBoot.enabled} onChange={handleStartOnBootChange} disabled={!startOnBoot.supported} />
+      ),
+    },
+    {
+      key: 'developerMode',
+      label: t('settings.developerMode'),
+      description: developerModeDescription,
+      component: (
+        <Switch
+          checked={developerMode.enabled !== 'off'}
+          loading={developerMode.switching}
+          onChange={handleDeveloperModeChange}
+        />
       ),
     },
     {

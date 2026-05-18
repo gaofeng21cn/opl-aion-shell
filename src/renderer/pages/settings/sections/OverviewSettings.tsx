@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, Message, Space, Tag, Typography } from '@arco-design/web-react';
@@ -114,6 +114,7 @@ const OverviewSettings: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [message, contextHolder] = Message.useMessage();
+  const messageRef = useRef(message);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<OverviewStatus>({
     moduleKnown: false,
@@ -121,6 +122,10 @@ const OverviewSettings: React.FC = () => {
     moduleInstalled: 0,
     moduleAttention: 0,
   });
+
+  useEffect(() => {
+    messageRef.current = message;
+  }, [message]);
 
   const loadOverview = useCallback(
     async (showError = false) => {
@@ -140,18 +145,18 @@ const OverviewSettings: React.FC = () => {
           webuiRunning: webuiResult?.success ? Boolean(webuiResult.data?.running) : undefined,
         });
         if (showError && systemResult.exitCode !== 0) {
-          message.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
+          messageRef.current.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } catch {
         setStatus({ moduleKnown: false, moduleTotal: 0, moduleInstalled: 0, moduleAttention: 0 });
         if (showError) {
-          message.warning(t('settings.overviewPage.messages.statusLoadFailed'));
+          messageRef.current.warning(t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } finally {
         setLoading(false);
       }
     },
-    [message, t]
+    [t]
   );
 
   useEffect(() => {

@@ -5,6 +5,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const mockNavigate = vi.fn();
 const mockRunOplCommand = vi.fn();
 const mockWebuiGetStatus = vi.fn();
+let useFreshMessageApi = false;
 
 vi.mock('react-i18next', () => {
   const t = (key: string, options?: Record<string, string | number>) =>
@@ -48,7 +49,7 @@ vi.mock('@arco-design/web-react', async () => {
     ...props
   }: React.HTMLAttributes<HTMLSpanElement> & { color?: string; size?: string }) => <span {...props}>{children}</span>;
   const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
-  const Message = { useMessage: () => [messageApi, null] };
+  const Message = { useMessage: () => [useFreshMessageApi ? { ...messageApi } : messageApi, null] };
   return { Button, Card, Message, Space, Tag, Typography };
 });
 
@@ -72,6 +73,7 @@ import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSetting
 describe('OverviewSettings module health summary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useFreshMessageApi = false;
     mockWebuiGetStatus.mockResolvedValue({ success: true, data: { running: false } });
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,
@@ -124,6 +126,20 @@ describe('OverviewSettings module health summary', () => {
 
     expect(await screen.findByText('settings.overviewPage.modulesReady:4')).toBeInTheDocument();
     expect(screen.queryByText(/settings\.overviewPage\.modulesNeedAttention/)).not.toBeInTheDocument();
+  });
+
+  it('does not re-run overview loading when the message API identity changes across renders', async () => {
+    useFreshMessageApi = true;
+
+    render(<OverviewSettings />);
+
+    await screen.findByText('settings.overviewPage.modulesUnknown');
+    await waitFor(() => {
+      expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
   });
 
   it('counts only modules with executable install/update/reinstall/remove actions as attention', async () => {

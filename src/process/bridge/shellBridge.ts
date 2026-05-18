@@ -109,6 +109,35 @@ function assertAllowedFamilyRuntimeSignal(args: string[]): void {
   }
 }
 
+function assertAllowedDeveloperSupervisorArgs(args: string[]): void {
+  const valuesByOption: Record<string, readonly string[] | null> = {
+    '--enabled': ['auto', 'on', 'off'],
+    '--mode': ['external_observe', 'developer_apply_safe'],
+    '--github-login': null,
+    '--auto-enable-github-login': null,
+  };
+
+  for (let index = 2; index < args.length; index += 2) {
+    const option = args[index];
+    const value = args[index + 1];
+    if (!option || !Object.prototype.hasOwnProperty.call(valuesByOption, option)) {
+      throw new Error(`Unsupported OPL developer-supervisor option: ${option ?? ''}`);
+    }
+    if (!value || value.startsWith('--')) {
+      throw new Error(`Missing OPL developer-supervisor value for option: ${option}`);
+    }
+
+    const allowedValues = valuesByOption[option];
+    if (allowedValues && !allowedValues.includes(value)) {
+      const label = option === '--enabled' ? 'enabled' : 'mode';
+      throw new Error(`Unsupported OPL developer-supervisor ${label} value: ${value}`);
+    }
+    if (!allowedValues && !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(value)) {
+      throw new Error(`Unsupported OPL developer-supervisor GitHub login value: ${value}`);
+    }
+  }
+}
+
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
     throw new Error('Missing OPL command');
@@ -128,9 +157,12 @@ function assertAllowedOplArgs(args: string[]): void {
   if (
     args[0] === 'system' &&
     args[1] &&
-    !['initialize', 'update', 'reconcile-modules', 'configure-codex'].includes(args[1])
+    !['initialize', 'update', 'reconcile-modules', 'configure-codex', 'developer-supervisor'].includes(args[1])
   ) {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
+  }
+  if (args[0] === 'system' && args[1] === 'developer-supervisor') {
+    assertAllowedDeveloperSupervisorArgs(args);
   }
   if (args[0] === 'system' && args[1] === 'configure-codex' && !(args.length === 3 && args[2] === '--api-key-stdin')) {
     throw new Error(`Unsupported OPL system configure-codex arguments: ${args.slice(2).join(' ')}`);
