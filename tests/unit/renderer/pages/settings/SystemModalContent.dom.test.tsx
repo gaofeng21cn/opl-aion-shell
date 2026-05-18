@@ -240,7 +240,19 @@ vi.mock('@/renderer/components/settings/SettingsModal/settingsViewContext', () =
 
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 
-function developerSupervisorPayload(enabled: 'on' | 'off') {
+function developerSupervisorPayload(
+  enabled: 'on' | 'off',
+  options: {
+    allowedRoute?: string;
+    effectiveState?: string;
+    githubLogin?: string | null;
+    status?: string;
+  } = {}
+) {
+  const status = options.status ?? (enabled === 'on' ? 'enabled' : 'disabled');
+  const allowedRoute = options.allowedRoute ?? 'developer_apply_safe';
+  const githubLogin = options.githubLogin === undefined ? 'tester' : options.githubLogin;
+
   return {
     exitCode: 0,
     stdout: JSON.stringify({
@@ -252,10 +264,10 @@ function developerSupervisorPayload(enabled: 'on' | 'off') {
         },
         developer_mode: {
           enabled,
-          status: enabled === 'on' ? 'enabled' : 'disabled',
-          effective_state: enabled,
-          allowed_route: 'developer_apply_safe',
-          github_identity: { login: 'tester' },
+          status,
+          effective_state: options.effectiveState ?? enabled,
+          allowed_route: allowedRoute,
+          github_identity: { login: githubLogin },
         },
       },
     }),
@@ -305,9 +317,16 @@ describe('SystemModalContent settings behavior', () => {
 
     const developerModeRow = await screen.findByTestId('preference-settings.developerMode');
     expect(within(developerModeRow).getByRole('switch')).toHaveAttribute('aria-checked', 'false');
-    expect(developerModeRow).toHaveTextContent('settings.developerModeDescWithStatus:disabled');
+    expect(developerModeRow).toHaveTextContent('settings.developerModeStateOff');
 
-    mockRunOplCommand.mockResolvedValueOnce(developerSupervisorPayload('on'));
+    mockRunOplCommand.mockResolvedValueOnce(
+      developerSupervisorPayload('on', {
+        allowedRoute: 'blocked',
+        effectiveState: 'blocked',
+        githubLogin: null,
+        status: 'blocked',
+      })
+    );
     fireEvent.click(within(developerModeRow).getByRole('switch'));
 
     await waitFor(() => {
@@ -316,6 +335,9 @@ describe('SystemModalContent settings behavior', () => {
       });
       expect(within(developerModeRow).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
     });
+    expect(developerModeRow).toHaveTextContent('settings.developerModeStateOnLimited');
+    expect(developerModeRow).not.toHaveTextContent('blocked');
+    expect(developerModeRow).not.toHaveTextContent('developer_apply_safe');
   });
 
   it('keeps key system switches clickable without crashing', async () => {

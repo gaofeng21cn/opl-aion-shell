@@ -90,6 +90,18 @@ function parseDeveloperModeSwitchState(stdout: string): DeveloperModeSwitchState
   }
 }
 
+function getDeveloperModeDescriptionKey(developerMode: DeveloperModeSwitchState): string {
+  if (!developerMode.known) return 'settings.developerModeDesc';
+  if (developerMode.enabled === 'off') return 'settings.developerModeStateOff';
+  if (developerMode.enabled === 'auto') return 'settings.developerModeStateAuto';
+
+  const blocked =
+    developerMode.status === 'blocked' ||
+    developerMode.effectiveState === 'blocked' ||
+    developerMode.allowedRoute === 'blocked';
+  return blocked ? 'settings.developerModeStateOnLimited' : 'settings.developerModeStateOnReady';
+}
+
 /**
  * System settings content component
  *
@@ -121,14 +133,7 @@ const SystemModalContent: React.FC = () => {
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
   const [developerMode, setDeveloperMode] = useState<DeveloperModeSwitchState>(DEFAULT_DEVELOPER_MODE_STATE);
 
-  const developerModeDescription = developerMode.known
-    ? t('settings.developerModeDescWithStatus', {
-        status: developerMode.status ?? 'unknown',
-        mode: developerMode.mode ?? 'developer_apply_safe',
-        route: developerMode.allowedRoute ?? 'unknown',
-        login: developerMode.githubLogin ?? '-',
-      })
-    : t('settings.developerModeDesc');
+  const developerModeDescription = t(getDeveloperModeDescriptionKey(developerMode));
 
   useEffect(() => {
     if (!isDesktop) {

@@ -326,7 +326,7 @@ describe('SystemModalContent', () => {
       expect(screen.getByText('settings.developerMode')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('settings.developerModeDescWithStatus')).toBeInTheDocument();
+    expect(screen.getByText('settings.developerModeStateOnReady')).toBeInTheDocument();
     expect(mockRunOplCommand).toHaveBeenCalledWith({ args: ['system', 'developer-supervisor'] });
   });
 

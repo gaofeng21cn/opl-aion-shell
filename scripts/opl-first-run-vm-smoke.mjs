@@ -1011,21 +1011,35 @@ async function exerciseOverviewRefresh(client) {
   );
 }
 
-async function exerciseDeveloperModeSwitch(client) {
-  const initialState = await waitForCdpPredicate(
-    client,
-    `(() => {
+function developerModeUiStateExpression(expectedChecked = null) {
+  const checkedPredicate = expectedChecked === null ? 'true' : `checked === ${expectedChecked ? 'true' : 'false'}`;
+  return `(() => {
       const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
       const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
       const text = document.body?.innerText || '';
-      return row && sw && text.includes('OPL Developer Mode')
+      if (!row || !sw || !text.includes('OPL Developer Mode')) return false;
+      if (sw.getAttribute('aria-busy') === 'true') return false;
+      const rowText = row.textContent || '';
+      const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
+      if (machineStatusPattern.test(rowText)) {
+        throw new Error(\`OPL Developer Mode row exposed machine status: \${rowText.slice(0, 220)}\`);
+      }
+      const checked = sw.getAttribute('aria-checked') === 'true';
+      return ${checkedPredicate}
         ? {
             developerModeVisible: true,
             switchRole: sw.getAttribute('role'),
-            checked: sw.getAttribute('aria-checked') === 'true',
+            checked,
+            rowText,
           }
         : false;
-    })()`,
+    })()`;
+}
+
+async function exerciseDeveloperModeSwitch(client) {
+  const initialState = await waitForCdpPredicate(
+    client,
+    developerModeUiStateExpression(),
     30_000,
     'System Settings did not expose the OPL Developer Mode switch'
   );
@@ -1040,13 +1054,7 @@ async function exerciseDeveloperModeSwitch(client) {
   );
   const toggledState = await waitForCdpPredicate(
     client,
-    `(() => {
-      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
-      if (!sw || sw.getAttribute('aria-busy') === 'true') return false;
-      return sw.getAttribute('aria-checked') === ${cdpString(String(!initialState.checked))}
-        ? { checked: sw.getAttribute('aria-checked') === 'true' }
-        : false;
-    })()`,
+    developerModeUiStateExpression(!initialState.checked),
     30_000,
     'OPL Developer Mode switch did not toggle'
   );
@@ -1061,13 +1069,7 @@ async function exerciseDeveloperModeSwitch(client) {
   );
   const restoredState = await waitForCdpPredicate(
     client,
-    `(() => {
-      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
-      if (!sw || sw.getAttribute('aria-busy') === 'true') return false;
-      return sw.getAttribute('aria-checked') === ${cdpString(String(initialState.checked))}
-        ? { checked: sw.getAttribute('aria-checked') === 'true' }
-        : false;
-    })()`,
+    developerModeUiStateExpression(initialState.checked),
     30_000,
     'OPL Developer Mode switch did not restore to its original state'
   );
