@@ -28,11 +28,13 @@ vi.mock('@arco-design/web-react', async () => {
   const Typography = { Text, Title };
   const Button = ({
     children,
-    loading: _loading,
+    loading,
     icon: _icon,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean; icon?: React.ReactNode }) => (
-    <button {...props}>{children}</button>
+    <button {...props} aria-busy={loading ? 'true' : undefined}>
+      {children}
+    </button>
   );
   const Card = ({
     children,
@@ -140,6 +142,22 @@ describe('OverviewSettings module health summary', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the refresh loading state after a manual overview reload', async () => {
+    render(<OverviewSettings />);
+
+    const refreshButton = await screen.findByText('settings.overviewPage.actions.refresh');
+    await waitFor(() => {
+      expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => {
+      expect(mockRunOplCommand).toHaveBeenCalledTimes(2);
+      expect(refreshButton).not.toHaveAttribute('aria-busy');
+    });
   });
 
   it('counts only modules with executable install/update/reinstall/remove actions as attention', async () => {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +35,8 @@ Options:
   --artifacts <path>     Artifact output directory. Default: ./artifacts/opl-first-run-<timestamp>.
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
+  --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
+  --cdp-port <n>         CDP port used by --settings-smoke. Default: 9230.
   --codex-api-key-file <path>
                          File containing a test Codex API key. The key is read from disk,
                          entered through the GUI wizard, and never passed as a CLI argument.
@@ -52,6 +55,8 @@ function parseArgs(argv) {
     artifacts: null,
     processName: DEFAULT_PROCESS_NAME,
     timeoutMs: 180_000,
+    settingsSmoke: false,
+    cdpPort: 9230,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     requireCodexConfigWizard: false,
     assertClean: false,
@@ -71,6 +76,10 @@ function parseArgs(argv) {
       options.requireCodexConfigWizard = true;
       continue;
     }
+    if (arg === '--settings-smoke') {
+      options.settingsSmoke = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${arg}`);
     index += 1;
@@ -80,6 +89,7 @@ function parseArgs(argv) {
     else if (arg === '--artifacts') options.artifacts = path.resolve(value);
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
+    else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -87,6 +97,9 @@ function parseArgs(argv) {
   if (options.app && options.dmg) throw new Error('Use only one of --app or --dmg.');
   if (!options.app && !options.dmg) throw new Error('One of --app or --dmg is required.');
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
+  if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
+    throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
+  }
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
@@ -196,7 +209,10 @@ function installDmgApp(dmgPath, installDir) {
   }
 }
 
-function launchApp(appPath) {
+function launchApp(appPath, options) {
+  if (options.settingsSmoke) {
+    run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
+  }
   run('open', ['-n', appPath, '--args', '--force-renderer-accessibility']);
 }
 
@@ -750,6 +766,335 @@ async function waitForGuidEntry(processName, timeoutMs) {
   );
 }
 
+function fetchJsonFromLocalhost(port, requestPath, timeoutMs = 2_000) {
+  return new Promise((resolve, reject) => {
+    const request = http.get(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path: requestPath,
+        timeout: timeoutMs,
+      },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) {
+            reject(new Error(`CDP HTTP ${requestPath} returned ${response.statusCode}: ${body.slice(0, 300)}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+    request.on('timeout', () => {
+      request.destroy(new Error(`Timed out reading CDP ${requestPath}`));
+    });
+    request.on('error', reject);
+  });
+}
+
+async function waitForCdpPageTarget(port, timeoutMs) {
+  const started = Date.now();
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const targets = await fetchJsonFromLocalhost(port, '/json/list');
+      const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (pageTarget) {
+        return pageTarget;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    `Timed out waiting for packaged app CDP target on port ${port}: ${lastError?.message ?? 'no target'}`
+  );
+}
+
+function waitForWebSocketOpen(socket) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timed out opening CDP websocket')), 10_000);
+    socket.addEventListener(
+      'open',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+    socket.addEventListener(
+      'error',
+      () => {
+        clearTimeout(timer);
+        reject(new Error('Failed to open CDP websocket'));
+      },
+      { once: true }
+    );
+  });
+}
+
+async function openCdpClient(webSocketDebuggerUrl) {
+  if (typeof WebSocket === 'undefined') {
+    throw new Error('This Node.js runtime does not expose global WebSocket, which is required for CDP settings smoke.');
+  }
+  const socket = new WebSocket(webSocketDebuggerUrl);
+  const pending = new Map();
+  let nextId = 1;
+
+  socket.addEventListener('message', (event) => {
+    const raw = typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8');
+    const message = JSON.parse(raw);
+    if (!message.id || !pending.has(message.id)) {
+      return;
+    }
+    const callbacks = pending.get(message.id);
+    pending.delete(message.id);
+    if (message.error) {
+      callbacks.reject(new Error(`${message.error.message || 'CDP error'} ${message.error.data || ''}`.trim()));
+      return;
+    }
+    callbacks.resolve(message.result);
+  });
+
+  await waitForWebSocketOpen(socket);
+
+  return {
+    send(method, params = {}) {
+      const id = nextId++;
+      socket.send(JSON.stringify({ id, method, params }));
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        setTimeout(() => {
+          if (!pending.has(id)) return;
+          pending.delete(id);
+          reject(new Error(`Timed out waiting for CDP response: ${method}`));
+        }, 15_000);
+      });
+    },
+    close() {
+      socket.close();
+    },
+  };
+}
+
+async function evaluateCdp(client, expression) {
+  const result = await client.send('Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (result.exceptionDetails) {
+    const detail =
+      result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'CDP evaluation failed';
+    throw new Error(detail);
+  }
+  return result.result?.value;
+}
+
+async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage) {
+  const started = Date.now();
+  let lastValue = null;
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastValue = await evaluateCdp(client, expression);
+      if (lastValue) return lastValue;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    [
+      failureMessage,
+      lastError ? `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastValue ? `Last value: ${JSON.stringify(lastValue).slice(0, 500)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+}
+
+const SETTINGS_PAGE_SMOKE_TARGETS = [
+  { id: 'overview', hash: '#/settings/overview', requiredTextAny: [['Refresh status', '刷新状态']] },
+  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Runtime', '运行时']] },
+  { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
+  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
+  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
+  { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode']] },
+  { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
+];
+
+function cdpString(value) {
+  return JSON.stringify(value);
+}
+
+function pageReadinessExpression(target) {
+  return `(() => {
+    const text = document.body?.innerText || '';
+    const navItem = document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]');
+    const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
+    const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const firstRunWindowVisible = Boolean(document.querySelector('[data-testid="opl-first-run-window"]'));
+    const hashOk = window.location.hash.startsWith(${cdpString(target.hash)});
+    return hashOk && navItem && text.length > 80 && missingText.length === 0 && !appLoaderVisible && !firstRunWindowVisible
+      ? {
+          id: ${cdpString(target.id)},
+          hash: window.location.hash,
+          textLength: text.length,
+          requiredTextAny,
+        }
+      : false;
+  })()`;
+}
+
+async function captureSettingsPage(client, target, options, secret) {
+  await evaluateCdp(client, `window.location.hash = ${cdpString(target.hash)}`);
+  const pageState = await waitForCdpPredicate(
+    client,
+    pageReadinessExpression(target),
+    30_000,
+    `Settings page did not become ready: ${target.id}`
+  );
+  const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
+  fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+  spawnSync('screencapture', ['-x', screenshotPath], { stdio: 'ignore' });
+  return pageState;
+}
+
+async function exerciseOverviewRefresh(client) {
+  await evaluateCdp(
+    client,
+    `(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
+      if (!button) throw new Error('Overview Refresh status button was not found');
+      button.click();
+      return true;
+    })()`
+  );
+  return await waitForCdpPredicate(
+    client,
+    `(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
+      if (!button) return false;
+      return !button.className.includes('arco-btn-loading') && !button.getAttribute('aria-busy')
+        ? { refreshButtonReady: true, className: button.className }
+        : false;
+    })()`,
+    30_000,
+    'Overview Refresh status stayed loading after click'
+  );
+}
+
+async function exerciseDeveloperModeSwitch(client) {
+  const initialState = await waitForCdpPredicate(
+    client,
+    `(() => {
+      const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      const text = document.body?.innerText || '';
+      return row && sw && text.includes('OPL Developer Mode')
+        ? {
+            developerModeVisible: true,
+            switchRole: sw.getAttribute('role'),
+            checked: sw.getAttribute('aria-checked') === 'true',
+          }
+        : false;
+    })()`,
+    30_000,
+    'System Settings did not expose the OPL Developer Mode switch'
+  );
+  await evaluateCdp(
+    client,
+    `(() => {
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      if (!sw) throw new Error('OPL Developer Mode switch disappeared before toggle');
+      sw.click();
+      return true;
+    })()`
+  );
+  const toggledState = await waitForCdpPredicate(
+    client,
+    `(() => {
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      if (!sw || sw.getAttribute('aria-busy') === 'true') return false;
+      return sw.getAttribute('aria-checked') === ${cdpString(String(!initialState.checked))}
+        ? { checked: sw.getAttribute('aria-checked') === 'true' }
+        : false;
+    })()`,
+    30_000,
+    'OPL Developer Mode switch did not toggle'
+  );
+  await evaluateCdp(
+    client,
+    `(() => {
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      if (!sw) throw new Error('OPL Developer Mode switch disappeared before restore');
+      sw.click();
+      return true;
+    })()`
+  );
+  const restoredState = await waitForCdpPredicate(
+    client,
+    `(() => {
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      if (!sw || sw.getAttribute('aria-busy') === 'true') return false;
+      return sw.getAttribute('aria-checked') === ${cdpString(String(initialState.checked))}
+        ? { checked: sw.getAttribute('aria-checked') === 'true' }
+        : false;
+    })()`,
+    30_000,
+    'OPL Developer Mode switch did not restore to its original state'
+  );
+  return { initialState, toggledState, restoredState };
+}
+
+async function runSettingsSmoke(options, secret) {
+  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  const results = [];
+  try {
+    await client.send('Runtime.enable');
+    for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
+      const pageState = await captureSettingsPage(client, pageTarget, options, secret);
+      const interactions = {};
+      if (pageTarget.id === 'overview') {
+        interactions.overviewRefresh = await exerciseOverviewRefresh(client);
+      }
+      if (pageTarget.id === 'system') {
+        interactions.developerMode = await exerciseDeveloperModeSwitch(client);
+      }
+      results.push({ ...pageState, interactions });
+    }
+  } finally {
+    client.close();
+  }
+  writeJsonArtifact(
+    path.join(options.artifacts, 'settings-smoke-summary.json'),
+    {
+      surface_id: 'opl_packaged_gui_settings_smoke',
+      status: 'passed',
+      cdp_port: options.cdpPort,
+      pages: results,
+    },
+    secret
+  );
+  return results;
+}
+
 function captureUnifiedLog(processName, target) {
   const predicate = `process == "${processName.replace(/"/g, '\\"')}"`;
   const result = spawnSync('log', ['show', '--last', '10m', '--style', 'compact', '--predicate', predicate], {
@@ -852,7 +1197,7 @@ async function main() {
     const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
-    launchApp(appPath);
+    launchApp(appPath, options);
     const firstRunLog = defaultFirstRunLogPath();
     const firstRun = await waitForFirstRunCompletion(
       firstRunLog,
@@ -867,6 +1212,8 @@ async function main() {
 
     const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
     writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), accessibility.tree, codexApiKey);
+
+    const settingsSmoke = options.settingsSmoke ? await runSettingsSmoke(options, codexApiKey) : [];
 
     if (fs.existsSync(firstRunLog)) {
       writeTextArtifact(
@@ -897,6 +1244,12 @@ async function main() {
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
       labels: accessibility.labels,
+      settings_smoke: options.settingsSmoke
+        ? {
+            status: 'passed',
+            pages: settingsSmoke.map((page) => page.id),
+          }
+        : null,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);

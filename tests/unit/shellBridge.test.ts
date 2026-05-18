@@ -343,7 +343,34 @@ describe('shellBridge', () => {
       );
     });
 
-    it('serializes OPL CLI commands so status refreshes do not contend on the runtime database', async () => {
+    it('does not queue read-only status refreshes behind long maintenance commands', async () => {
+      const started: string[] = [];
+      const finishers: Record<string, () => void> = {};
+
+      execFileMock.mockImplementation((_file: string, args: string[], _options: unknown, callback: Function) => {
+        const command = args[1];
+        started.push(command);
+        finishers[command] = () => callback(null, { stdout: `{"command":${JSON.stringify(command)}}`, stderr: '' });
+      });
+
+      const maintenance = runOplCommandProvider.fn!({ args: ['install', '--skip-gui-open'] });
+      const status = runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
+
+      await flushPromises();
+      expect(started).toHaveLength(2);
+      const installCommand = started.find((command) => command.includes("'install' '--skip-gui-open'"));
+      const statusCommand = started.find((command) => command.includes("'system' 'initialize'"));
+      expect(installCommand).toBeTruthy();
+      expect(statusCommand).toBeTruthy();
+
+      finishers[statusCommand!]?.();
+      await expect(status).resolves.toMatchObject({ exitCode: 0 });
+
+      finishers[installCommand!]?.();
+      await expect(maintenance).resolves.toMatchObject({ exitCode: 0 });
+    });
+
+    it('continues to serialize mutating OPL CLI commands', async () => {
       const started: string[] = [];
       const finishers: Array<() => void> = [];
 
@@ -353,19 +380,19 @@ describe('shellBridge', () => {
         finishers.push(() => callback(null, { stdout: `{"command":${JSON.stringify(command)}}`, stderr: '' }));
       });
 
-      const first = runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
-      const second = runOplCommandProvider.fn!({ args: ['runtime', 'snapshot', '--json'] });
+      const first = runOplCommandProvider.fn!({ args: ['install', '--skip-gui-open'] });
+      const second = runOplCommandProvider.fn!({ args: ['system', 'update'] });
 
       await flushPromises();
       expect(started).toHaveLength(1);
-      expect(started[0]).toContain("'system' 'initialize'");
+      expect(started[0]).toContain("'install' '--skip-gui-open'");
 
       finishers.shift()?.();
       await expect(first).resolves.toMatchObject({ exitCode: 0 });
 
       await flushPromises();
       expect(started).toHaveLength(2);
-      expect(started[1]).toContain("'runtime' 'snapshot'");
+      expect(started[1]).toContain("'system' 'update'");
 
       finishers.shift()?.();
       await expect(second).resolves.toMatchObject({ exitCode: 0 });
@@ -763,7 +790,7 @@ describe('shellBridge', () => {
       expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
     });
 
-    it('runs missing-opl recovery through the serialized command queue', async () => {
+    it('shares missing-opl bootstrap recovery while read-only commands run concurrently', async () => {
       const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
       let directCommandCalls = 0;
       let bootstrapCalls = 0;
@@ -797,7 +824,7 @@ describe('shellBridge', () => {
       expect(first.exitCode).toBe(0);
       expect(second.exitCode).toBe(0);
       expect(bootstrapCalls).toBe(1);
-      expect(directCommandCalls).toBe(3);
+      expect(directCommandCalls).toBe(4);
     });
 
     it('reads the structured first-run jsonl log for visible startup status', async () => {

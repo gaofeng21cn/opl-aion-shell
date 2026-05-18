@@ -63,6 +63,13 @@ export function initApplicationBridgeCore(): void {
     });
   });
 
+  ipcBridge.application.runtimeFlags.provider(() =>
+    Promise.resolve({
+      e2eTest: process.env.AIONUI_E2E_TEST === '1',
+      skipFirstRun: process.env.AIONUI_E2E_SKIP_FIRST_RUN === '1',
+    })
+  );
+
   ipcBridge.application.updateSystemInfo.provider(async ({ cacheDir, workDir }) => {
     try {
       // Normalize paths: if the user picked a real path that matches a CLI-safe

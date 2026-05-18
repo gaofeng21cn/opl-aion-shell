@@ -230,12 +230,36 @@ const Layout: React.FC<{
   const { contextHolder: directorySelectionContextHolder } = useDirectorySelection();
   const [firstRunPanelState, setFirstRunPanelState] = useState<OplFirstRunPanelState | null>(null);
   const firstRunAppVersionRef = useRef<string | undefined>(undefined);
+  const [runtimeFlags, setRuntimeFlags] = useState<{ skipFirstRun: boolean } | null>(null);
   useDeepLink();
   useNotificationClick();
   const navigate = useNavigate();
   useConversationShortcuts({ navigate });
   useEffect(() => {
-    if (!isElectronDesktop()) return;
+    if (!isElectronDesktop()) {
+      setRuntimeFlags({ skipFirstRun: false });
+      return;
+    }
+
+    let cancelled = false;
+    void ipcBridge.application.runtimeFlags
+      .invoke()
+      .then((flags) => {
+        if (!cancelled) {
+          setRuntimeFlags({ skipFirstRun: flags.skipFirstRun === true });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeFlags({ skipFirstRun: false });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (!isElectronDesktop() || runtimeFlags === null || runtimeFlags.skipFirstRun) return;
 
     let cancelled = false;
 
@@ -303,7 +327,7 @@ const Layout: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [navigate, t]);
+  }, [navigate, runtimeFlags, t]);
   const location = useLocation();
   const workspaceAvailable =
     location.pathname.startsWith('/conversation/') || (TEAM_MODE_ENABLED && location.pathname.startsWith('/team/'));

@@ -133,6 +133,13 @@ The packaged OPL first-run test has two layers:
   ephemeral test Codex API key file into the VM over SSH, runs the guest smoke,
   copies artifacts back, then stops and deletes the temporary VM.
 
+The Tart wrapper defaults the temporary VM display to `1920x1080px` and disables
+display refit so screenshots match a normal desktop viewport. Pass
+`--settings-smoke` to enable the packaged Settings page sweep after first-run
+completion; that CDP smoke verifies all built-in Settings pages, captures
+`settings-pages/*.png`, checks that Overview `Refresh status` returns to idle,
+and toggles/restores the System `OPL Developer Mode` switch.
+
 Nightly execution is wired through `.github/workflows/opl-first-run-vm.yml`.
 Configure the self-hosted runner with labels from `OPL_FIRST_RUN_RUNNER_LABELS`
 or the default `["self-hosted","macOS","opl-gui-vm"]`, set

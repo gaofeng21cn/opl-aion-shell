@@ -41,6 +41,9 @@ Options:
   --process-name <name>    macOS process name. Default: One Person Lab.
   --timeout-ms <n>         VM boot and SSH timeout. Default: 600000.
   --smoke-timeout-ms <n>   Guest GUI smoke timeout. Default: 180000.
+  --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
+  --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
+  --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
@@ -63,6 +66,9 @@ function parseArgs(argv) {
     processName: 'One Person Lab',
     timeoutMs: 600_000,
     smokeTimeoutMs: 180_000,
+    display: '1920x1080px',
+    settingsSmoke: false,
+    cdpPort: 9230,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     noGraphics: false,
     keepVm: false,
@@ -82,6 +88,10 @@ function parseArgs(argv) {
       options.keepVm = true;
       continue;
     }
+    if (arg === '--settings-smoke') {
+      options.settingsSmoke = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${arg}`);
     index += 1;
@@ -95,6 +105,8 @@ function parseArgs(argv) {
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
     else if (arg === '--smoke-timeout-ms') options.smokeTimeoutMs = Number(value);
+    else if (arg === '--display') options.display = value;
+    else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -105,6 +117,12 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
   if (!Number.isFinite(options.smokeTimeoutMs) || options.smokeTimeoutMs <= 0) {
     throw new Error('--smoke-timeout-ms must be positive.');
+  }
+  if (!/^\d+x\d+(?:pt|px)?$/.test(options.display)) {
+    throw new Error('--display must be a Tart display resolution like 1920x1080px.');
+  }
+  if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
+    throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
   }
 
   return options;
@@ -403,6 +421,8 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
+    options.settingsSmoke ? '--settings-smoke' : '',
+    options.settingsSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
   ].join(' ');
   return ['set -euo pipefail', smokeArgs].join('\n');
 }
@@ -446,6 +466,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     status: 'passed',
     vm_name: options.vmName,
     source_vm: options.sourceVm,
+    display: options.display,
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
@@ -453,6 +474,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
     codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
     labels: guestSummary?.labels ?? [],
+    settings_smoke: guestSummary?.settings_smoke ?? null,
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
@@ -477,6 +499,10 @@ async function main() {
   try {
     setStage('clone_vm');
     run('tart', ['clone', options.sourceVm, options.vmName]);
+    if (options.display) {
+      setStage('configure_display');
+      run('tart', ['set', options.vmName, '--display', options.display, '--no-display-refit']);
+    }
     setStage('start_vm');
     tartProcess = startVm(options, vmLogPath);
     runtimeState.tartProcess = tartProcess;

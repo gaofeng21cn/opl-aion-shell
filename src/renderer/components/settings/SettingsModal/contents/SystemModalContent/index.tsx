@@ -361,8 +361,10 @@ const SystemModalContent: React.FC = () => {
       key: 'developerMode',
       label: t('settings.developerMode'),
       description: developerModeDescription,
+      testId: 'opl-developer-mode-row',
       component: (
         <Switch
+          data-testid='opl-developer-mode-switch'
           checked={developerMode.enabled !== 'off'}
           loading={developerMode.switching}
           onChange={handleDeveloperModeChange}
@@ -472,7 +474,7 @@ const SystemModalContent: React.FC = () => {
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
             <div className='w-full flex flex-col divide-y divide-border-2'>
               {preferenceItems.map((item) => (
-                <PreferenceRow key={item.key} label={item.label} description={item.description}>
+                <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
                   {item.component}
                 </PreferenceRow>
               ))}

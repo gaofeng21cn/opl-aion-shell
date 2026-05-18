@@ -181,6 +181,7 @@ export const application = {
     { oplVersion: string; guiVersion: string; releaseRepo: string; releaseChannel: string },
     void
   >('app.versions'),
+  runtimeFlags: bridge.buildProvider<{ e2eTest: boolean; skipFirstRun: boolean }, void>('app.runtime-flags'),
   getPath: bridge.buildProvider<string, { name: 'desktop' | 'home' | 'downloads' }>('app.get-path'), // 获取系统路径
   updateSystemInfo: bridge.buildProvider<IBridgeResponse, { cacheDir: string; workDir: string }>('system.update-info'), // 更新系统信息
   getZoomFactor: bridge.buildProvider<number, void>('app.get-zoom-factor'),

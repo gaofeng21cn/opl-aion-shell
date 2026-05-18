@@ -191,12 +191,13 @@ Failed tests automatically get screenshots attached to the HTML report.
 
 Variables set automatically during test launch:
 
-| Variable                     | Value | Purpose                  |
-| ---------------------------- | ----- | ------------------------ |
-| `AIONUI_E2E_TEST`            | `1`   | App recognizes test mode |
-| `AIONUI_DISABLE_AUTO_UPDATE` | `1`   | No update checks         |
-| `AIONUI_DISABLE_DEVTOOLS`    | `1`   | No DevTools windows      |
-| `AIONUI_CDP_PORT`            | `0`   | CDP disabled             |
+| Variable                     | Value | Purpose                                                                             |
+| ---------------------------- | ----- | ----------------------------------------------------------------------------------- |
+| `AIONUI_E2E_TEST`            | `1`   | App recognizes test mode                                                            |
+| `AIONUI_E2E_SKIP_FIRST_RUN`  | `1`   | Skip the OPL first-run wizard so E2E tests exercise the target app surface directly |
+| `AIONUI_DISABLE_AUTO_UPDATE` | `1`   | No update checks                                                                    |
+| `AIONUI_DISABLE_DEVTOOLS`    | `1`   | No DevTools windows                                                                 |
+| `AIONUI_CDP_PORT`            | `0`   | CDP disabled                                                                        |
 
 ---
 

@@ -114,6 +114,7 @@ async function launchApp(): Promise<ElectronApplication> {
     AIONUI_DISABLE_AUTO_UPDATE: '1',
     AIONUI_DISABLE_DEVTOOLS: '1',
     AIONUI_E2E_TEST: '1',
+    AIONUI_E2E_SKIP_FIRST_RUN: process.env.AIONUI_E2E_SKIP_FIRST_RUN || '1',
     AIONUI_CDP_PORT: '0',
   };
 

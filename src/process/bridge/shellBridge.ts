@@ -357,6 +357,21 @@ function buildOplBootstrapCommand(): string {
   ].join(' && ');
 }
 
+function shouldQueueOplCommand(args: string[]): boolean {
+  if (args[0] === 'install') return true;
+  if (args[0] === 'module' || args[0] === 'engine') return true;
+  if (args[0] === 'family-runtime') return true;
+  if (args[0] === 'system') {
+    if (args[1] === 'update' || args[1] === 'reconcile-modules' || args[1] === 'configure-codex') return true;
+    if (args[1] === 'developer-supervisor') return args.length > 2;
+    return false;
+  }
+  if (args[0] === 'workspace') {
+    return args[1] === 'root' && args[2] === 'set';
+  }
+  return false;
+}
+
 async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   if (!oplBootstrapPromise) {
     oplBootstrapPromise = runLoginShell(buildOplBootstrapCommand(), 30 * 60_000).finally((): void => {
@@ -751,7 +766,10 @@ export function initShellBridge(): void {
     }
   });
 
-  ipcBridge.shell.runOplCommand.provider(async ({ args }) => enqueueOplCommand(() => runOplCli(args)));
+  ipcBridge.shell.runOplCommand.provider(async ({ args }) => {
+    const run = () => runOplCli(args);
+    return shouldQueueOplCommand(args) ? enqueueOplCommand(run) : run();
+  });
   ipcBridge.shell.configureOplCodex.provider(async ({ apiKey }) => enqueueOplCommand(() => configureOplCodex(apiKey)));
   ipcBridge.shell.readOplFirstRunLog.provider(async () => readOplFirstRunLog());
   ipcBridge.shell.appendOplFirstRunLog.provider(async ({ eventType, payload }) =>

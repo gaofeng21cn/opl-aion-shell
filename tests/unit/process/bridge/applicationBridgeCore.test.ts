@@ -6,6 +6,7 @@ vi.mock('@/common', () => ({
       systemInfo: { provider: vi.fn() },
       updateSystemInfo: { provider: vi.fn() },
       appVersions: { provider: vi.fn() },
+      runtimeFlags: { provider: vi.fn() },
       getPath: { provider: vi.fn() },
       restart: { provider: vi.fn() },
       openDevTools: { provider: vi.fn() },
@@ -61,6 +62,8 @@ vi.mock('@process/utils', () => ({
 describe('initApplicationBridgeCore', () => {
   beforeEach(() => {
     vi.resetModules();
+    delete process.env.AIONUI_E2E_TEST;
+    delete process.env.AIONUI_E2E_SKIP_FIRST_RUN;
   });
 
   it('imports without requiring electron', async () => {
@@ -86,5 +89,21 @@ describe('initApplicationBridgeCore', () => {
       oplVersion: '26.4.27',
       guiVersion: '1.9.21',
     });
+  });
+
+  it('reports E2E runtime flags from the main process environment', async () => {
+    process.env.AIONUI_E2E_TEST = '1';
+    process.env.AIONUI_E2E_SKIP_FIRST_RUN = '1';
+    const { ipcBridge } = await import('@/common');
+    const { initApplicationBridgeCore } = await import('@process/bridge/applicationBridgeCore');
+    initApplicationBridgeCore();
+
+    const provider = vi.mocked(ipcBridge.application.runtimeFlags.provider).mock.calls[0][0];
+    await expect(provider()).resolves.toEqual({
+      e2eTest: true,
+      skipFirstRun: true,
+    });
+    delete process.env.AIONUI_E2E_TEST;
+    delete process.env.AIONUI_E2E_SKIP_FIRST_RUN;
   });
 });

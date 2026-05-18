@@ -9,6 +9,7 @@ const {
   mockMessageWarning,
   mockMessageError,
   mockAppVersions,
+  mockRuntimeFlags,
   mockStartPreparation,
   mockConfigureCodex,
   mockT,
@@ -18,6 +19,7 @@ const {
   mockMessageWarning: vi.fn(),
   mockMessageError: vi.fn(),
   mockAppVersions: vi.fn(),
+  mockRuntimeFlags: vi.fn(),
   mockStartPreparation: vi.fn(),
   mockConfigureCodex: vi.fn(),
   mockT: vi.fn((key: string, options?: Record<string, string>) => {
@@ -61,6 +63,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     application: {
       appVersions: { invoke: mockAppVersions },
+      runtimeFlags: { invoke: mockRuntimeFlags },
       openDevTools: { invoke: vi.fn() },
       logStream: { on: vi.fn(() => vi.fn()) },
     },
@@ -148,6 +151,7 @@ describe('Layout first-run preparation notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAppVersions.mockResolvedValue({ oplVersion: '26.5.3' });
+    mockRuntimeFlags.mockResolvedValue({ e2eTest: false, skipFirstRun: false });
   });
 
   it('uses the wizard as the only long-running preparation surface', async () => {
@@ -196,5 +200,18 @@ describe('Layout first-run preparation notifications', () => {
     });
     expect(mockMessageLoading).not.toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith('/settings/runtime');
+  });
+
+  it('skips first-run preparation when the main process enables E2E surface testing', async () => {
+    mockRuntimeFlags.mockResolvedValue({ e2eTest: true, skipFirstRun: true });
+
+    renderLayout();
+
+    await waitFor(() => {
+      expect(mockRuntimeFlags).toHaveBeenCalledOnce();
+    });
+    expect(mockAppVersions).not.toHaveBeenCalled();
+    expect(mockStartPreparation).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('opl-first-run-window')).not.toBeInTheDocument();
   });
 });

@@ -12,11 +12,15 @@ import { channelItemById, webuiTabByKey } from './selectors';
 export const ROUTES = {
   guid: '#/guid',
   settings: {
+    overview: '#/settings/overview',
+    runtime: '#/settings/runtime',
     gemini: '#/settings/gemini',
     model: '#/settings/model',
     agent: '#/settings/agent',
     assistants: '#/settings/assistants',
     capabilities: '#/settings/capabilities',
+    access: '#/settings/access',
+    appearance: '#/settings/appearance',
     display: '#/settings/display',
     webui: '#/settings/access',
     system: '#/settings/system',
