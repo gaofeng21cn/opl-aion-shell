@@ -110,5 +110,6 @@ export type RuntimeTraySnapshot = {
   recent_items: RuntimeTrayItem[];
   action_counts?: RuntimeTrayActionCounts;
   stage_attempt_workbench?: RuntimeTrayJsonRecord | null;
+  app_operator_drilldown?: RuntimeTrayJsonRecord | null;
   source_refs: Array<Record<string, unknown>>;
 };

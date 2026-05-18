@@ -4,6 +4,7 @@ import { FolderOpen, Left, Refresh } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
+import AppOperatorDrilldown from './AppOperatorDrilldown';
 import MasRuntimeWorkbench from './MasRuntimeWorkbench';
 import RuntimeAttemptWorkbench from './RuntimeAttemptWorkbench';
 import {
@@ -544,6 +545,7 @@ const RuntimeTrayItemPage: React.FC = () => {
               {snapshotGroups && (
                 <>
                   <RuntimeAttemptWorkbench workbench={snapshot.stage_attempt_workbench} />
+                  <AppOperatorDrilldown drilldown={snapshot.app_operator_drilldown} />
                   {renderSnapshotSection(t('common.tray.runtimeUserAction'), snapshotGroups.user)}
                   {renderSnapshotSection(t('common.tray.runtimeOplAction'), snapshotGroups.opl)}
                   {renderSnapshotSection(t('common.tray.runtimeRunning'), snapshotGroups.running)}

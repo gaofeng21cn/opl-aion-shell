@@ -224,6 +224,32 @@
       "selectedAttempt": "已选 Attempt",
       "showDetails": "查看详情",
       "authorityBoundary": "Provider completion 只代表传输层状态；domain readiness、质量结论和产物 authority 仍由对应 domain agent 拥有。"
+    },
+    "appDrilldown": {
+      "title": "App 操作钻取",
+      "stageAttempts": "Stage Attempt",
+      "routeGraph": "路线图",
+      "decisionMap": "决策图",
+      "reviewRepair": "Review Queue",
+      "artifacts": "产物",
+      "packageLifecycle": "Package / Export 生命周期",
+      "packages": "Package",
+      "exports": "Export",
+      "memory": "记忆引用",
+      "memoryWriteback": "写回回执",
+      "quality": "质量引用",
+      "readiness": "就绪引用",
+      "providerSlo": "Provider SLO",
+      "actionRouting": "动作路由",
+      "safeActions": "安全动作",
+      "executableRoutes": "可执行路由",
+      "functionalAudit": "功能私有化审计",
+      "privateResidue": "私有残留",
+      "watchlist": "Watchlist",
+      "semanticReview": "语义等价复核",
+      "blockers": "Blocker",
+      "noRefs": "暂无引用",
+      "authorityBoundary": "仅展示引用。OPL 不持有 domain truth、memory body、artifact body、quality readiness 或 export verdict。"
     }
   }
 }

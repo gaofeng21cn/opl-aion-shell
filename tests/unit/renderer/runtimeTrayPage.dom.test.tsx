@@ -153,6 +153,31 @@ const translations: Record<string, string> = {
   'common.runtimeTray.attemptWorkbench.routeImpact': 'Route Impact',
   'common.runtimeTray.attemptWorkbench.title': 'Stage Attempt Workbench',
   'common.runtimeTray.attemptWorkbench.total': 'Attempts',
+  'common.runtimeTray.appDrilldown.actionRouting': 'Action Routes',
+  'common.runtimeTray.appDrilldown.artifacts': 'Artifacts',
+  'common.runtimeTray.appDrilldown.authorityBoundary':
+    'Refs-only view. OPL does not own domain truth, memory body, artifact body, quality readiness, or export verdict.',
+  'common.runtimeTray.appDrilldown.blockers': 'Blockers',
+  'common.runtimeTray.appDrilldown.decisionMap': 'Decision Map',
+  'common.runtimeTray.appDrilldown.executableRoutes': 'Executable Routes',
+  'common.runtimeTray.appDrilldown.exports': 'Exports',
+  'common.runtimeTray.appDrilldown.functionalAudit': 'Functional Privatization Audit',
+  'common.runtimeTray.appDrilldown.memory': 'Memory Refs',
+  'common.runtimeTray.appDrilldown.memoryWriteback': 'Writeback Receipts',
+  'common.runtimeTray.appDrilldown.noRefs': 'No refs',
+  'common.runtimeTray.appDrilldown.packageLifecycle': 'Package / Export Lifecycle',
+  'common.runtimeTray.appDrilldown.packages': 'Packages',
+  'common.runtimeTray.appDrilldown.privateResidue': 'Private Residue',
+  'common.runtimeTray.appDrilldown.providerSlo': 'Provider SLO',
+  'common.runtimeTray.appDrilldown.quality': 'Quality Refs',
+  'common.runtimeTray.appDrilldown.readiness': 'Readiness Refs',
+  'common.runtimeTray.appDrilldown.reviewRepair': 'Review Queue',
+  'common.runtimeTray.appDrilldown.routeGraph': 'Route Graph',
+  'common.runtimeTray.appDrilldown.safeActions': 'Safe Actions',
+  'common.runtimeTray.appDrilldown.semanticReview': 'Semantic Review',
+  'common.runtimeTray.appDrilldown.stageAttempts': 'Stage Attempts',
+  'common.runtimeTray.appDrilldown.title': 'App Operator Drilldown',
+  'common.runtimeTray.appDrilldown.watchlist': 'Watchlist',
   'common.runtimeTray.monitoringUrl': 'Monitoring URL',
   'common.runtimeTray.noRuntimeItems': 'No runtime items',
   'common.runtimeTray.noSourceRefs': 'No source references',
@@ -473,6 +498,102 @@ describe('RuntimeTrayItemPage', () => {
               },
             ],
           },
+          app_operator_drilldown: {
+            surface_kind: 'opl_app_operator_drilldown_read_model',
+            availability: 'available',
+            summary: {
+              stage_attempt_count: 1,
+              route_graph_ref_count: 1,
+              decision_map_ref_count: 1,
+              review_repair_queue_item_count: 1,
+              artifact_gallery_item_count: 2,
+              package_ref_count: 1,
+              export_ref_count: 1,
+              memory_ref_count: 1,
+              memory_writeback_ref_count: 1,
+              quality_ref_count: 1,
+              readiness_ref_count: 1,
+              provider_slo_action_count: 1,
+              operator_action_route_count: 2,
+              operator_executable_route_count: 1,
+              safe_action_ref_count: 1,
+              functional_privatization_active_private_generic_residue_count: 0,
+              functional_privatization_default_watchlist_count: 0,
+              functional_privatization_semantic_equivalence_review_count: 0,
+              functional_privatization_blocker_count: 0,
+            },
+            route_graph_refs: {
+              refs: [{ ref: '/stage_attempt_workbench/attempts/sat_001/route_decision_graph', role: 'route_graph' }],
+            },
+            decision_map_refs: {
+              refs: [{ ref: '/stage_attempt_workbench/attempts/sat_001/decision_map', role: 'decision_map' }],
+            },
+            review_repair_queue_refs: {
+              items: [{ repair_target: 'opl family-runtime attempt query sat_001', role: 'review_repair' }],
+            },
+            artifact_gallery_refs: {
+              refs: [
+                { ref: 'artifact:analysis-table', role: 'artifact_ref' },
+                { ref: 'package:submission-minimal', role: 'package_ref' },
+              ],
+            },
+            package_export_lifecycle_refs: {
+              package_refs: ['package:submission-minimal'],
+              export_refs: ['export:current-package'],
+              gap_report_refs: ['gap:package-readiness'],
+              handoff_refs: ['handoff:manual-submission'],
+            },
+            memory_writeback_refs: {
+              consumed_memory_refs: ['memory:publication-route-risk-model'],
+              writeback_receipt_refs: ['memory-writeback:receipt-1'],
+            },
+            quality_readiness_refs: {
+              quality_refs: ['publication_eval/latest.json'],
+              readiness_refs: ['controller_decisions/latest.json'],
+            },
+            provider_slo_operator_action_refs: {
+              refs: [
+                {
+                  ref: 'opl family-runtime residency proof --provider temporal --production',
+                  role: 'provider_slo_cadence_execution',
+                  execution_owner: 'operator_or_infrastructure',
+                },
+              ],
+            },
+            operator_action_routing_refs: {
+              refs: [
+                {
+                  ref: 'opl family-runtime attempt query sat_001',
+                  action_kind: 'stage_attempt_query',
+                  owner: 'opl',
+                  execution_policy: 'opl_safe_action_shell',
+                },
+                {
+                  ref: 'domain_owner:med-autoscience',
+                  action_kind: 'domain_owner_handoff',
+                  owner: 'domain',
+                },
+              ],
+            },
+            safe_action_refs: {
+              refs: [
+                {
+                  ref: 'opl family-runtime attempt query sat_001',
+                  role: 'safe_action',
+                  execution_policy: 'opl_safe_action_shell',
+                },
+              ],
+            },
+            functional_privatization_audit_summary: {
+              default_watchlist_count: 0,
+              semantic_equivalence_review_count: 0,
+              active_private_generic_residue_count: 0,
+              blocker_count: 0,
+            },
+            authority_boundary: {
+              domain: 'truth_memory_artifact_quality_export_owner',
+            },
+          },
           running_items: [],
           attention_items: [
             {
@@ -528,11 +649,37 @@ describe('RuntimeTrayItemPage', () => {
 
     expect(await screen.findByText('In Process')).toBeInTheDocument();
     expect(screen.getByText('Stage Attempt Workbench')).toBeInTheDocument();
+    expect(screen.getByText('App Operator Drilldown')).toBeInTheDocument();
+    expect(screen.getAllByText('Route Graph').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Decision Map').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Review Queue').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Artifacts').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Package / Export Lifecycle').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/package:submission-minimal/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/export:current-package/)).toBeInTheDocument();
+    expect(screen.getByText(/gap:package-readiness/)).toBeInTheDocument();
+    expect(screen.getByText(/handoff:manual-submission/)).toBeInTheDocument();
+    expect(screen.getAllByText('Memory Refs').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('memory:publication-route-risk-model').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('memory-writeback:receipt-1')).toBeInTheDocument();
+    expect(screen.getByText('publication_eval/latest.json')).toBeInTheDocument();
+    expect(screen.getByText('controller_decisions/latest.json')).toBeInTheDocument();
+    expect(screen.getByText(/provider_slo_cadence_execution/)).toBeInTheDocument();
+    expect(screen.getByText(/domain_owner:med-autoscience/)).toBeInTheDocument();
+    expect(screen.getByText(/Functional Privatization Audit/)).toBeInTheDocument();
+    expect(screen.getByText(/Private Residue: 0; Watchlist: 0; Semantic Review: 0; Blockers: 0/)).toBeInTheDocument();
+    expect(screen.getAllByText('Safe Actions').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/role=safe_action/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Refs-only view. OPL does not own domain truth, memory body, artifact body, quality readiness, or export verdict. truth_memory_artifact_quality_export_owner'
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText('medautoscience / analysis-campaign / temporal')).toBeInTheDocument();
     expect(screen.getAllByText('Provider Completion').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('domain_gate_pending').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Consumed References')).toBeInTheDocument();
-    expect(screen.getByText('memory:publication-route-risk-model')).toBeInTheDocument();
+    expect(screen.getAllByText('memory:publication-route-risk-model').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Rejected Writes').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('id=wb_001; status=rejected; reason=single-study claim')).toBeInTheDocument();
     expect(screen.getByText('Route Impact')).toBeInTheDocument();

@@ -224,6 +224,32 @@
       "selectedAttempt": "Selected Attempt",
       "showDetails": "Show Details",
       "authorityBoundary": "Provider completion is transport status only. Domain readiness, quality verdicts, and artifact authority remain owned by the domain agent."
+    },
+    "appDrilldown": {
+      "title": "App Operator Drilldown",
+      "stageAttempts": "Stage Attempts",
+      "routeGraph": "Route Graph",
+      "decisionMap": "Decision Map",
+      "reviewRepair": "Review Queue",
+      "artifacts": "Artifacts",
+      "packageLifecycle": "Package / Export Lifecycle",
+      "packages": "Packages",
+      "exports": "Exports",
+      "memory": "Memory Refs",
+      "memoryWriteback": "Writeback Receipts",
+      "quality": "Quality Refs",
+      "readiness": "Readiness Refs",
+      "providerSlo": "Provider SLO",
+      "actionRouting": "Action Routes",
+      "safeActions": "Safe Actions",
+      "executableRoutes": "Executable Routes",
+      "functionalAudit": "Functional Privatization Audit",
+      "privateResidue": "Private Residue",
+      "watchlist": "Watchlist",
+      "semanticReview": "Semantic Review",
+      "blockers": "Blockers",
+      "noRefs": "No refs",
+      "authorityBoundary": "Refs-only view. OPL does not own domain truth, memory body, artifact body, quality readiness, or export verdict."
     }
   }
 }
