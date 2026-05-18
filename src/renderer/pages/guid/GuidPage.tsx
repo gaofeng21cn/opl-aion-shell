@@ -489,7 +489,7 @@ const GuidPage: React.FC = () => {
         className={styles.guidContainer}
         data-testid='opl-guid-entry'
         aria-label='opl-guid-entry'
-        role='main'
+        role='region'
       >
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
