@@ -65,7 +65,8 @@ if (isWebUI || isResetPassword) {
 // so chrome-devtools-mcp and other CDP clients can connect to this Electron app.
 //
 // Default port: 9230 (avoids conflict with common CDP ports).
-// Override via AIONUI_CDP_PORT env variable. Set to "0" to disable.
+// Override via AIONUI_CDP_PORT env variable or --aionui-cdp-port=<port>.
+// Set to "0" or "false" to disable.
 //
 // Configuration file: userData/cdp.config.json
 // - enabled: boolean - whether CDP is enabled (default: true in dev mode, false in production)
@@ -246,15 +247,28 @@ export function saveCdpConfig(config: CdpConfig): void {
 }
 
 /**
- * Resolve CDP port from environment variable.
- * Returns null if explicitly disabled via env.
+ * Resolve CDP port from explicit startup input.
+ * Returns null if explicitly disabled.
  */
-function resolveCdpPortFromEnv(): number | null | undefined {
-  const envVal = process.env.AIONUI_CDP_PORT;
-  if (envVal === '0' || envVal === 'false') return null;
-  if (envVal) {
-    const parsed = Number(envVal);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+function resolveExplicitCdpValue(): string | undefined {
+  const switchArg = process.argv.find((arg) => arg === '--aionui-cdp-port' || arg.startsWith('--aionui-cdp-port='));
+  const switchValue =
+    switchArg === '--aionui-cdp-port'
+      ? process.argv[process.argv.indexOf(switchArg) + 1]
+      : switchArg?.slice('--aionui-cdp-port='.length);
+  return switchValue || process.env.AIONUI_CDP_PORT;
+}
+
+function isCdpExplicitlyDisabled(value: string | undefined): boolean {
+  return value === '0' || value === 'false';
+}
+
+function resolveExplicitCdpPort(): number | null | undefined {
+  const rawValue = resolveExplicitCdpValue();
+  if (rawValue === '0' || rawValue === 'false') return null;
+  if (rawValue) {
+    const parsed = Number(rawValue);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
   }
   return undefined;
 }
@@ -264,9 +278,9 @@ function resolveCdpPortFromEnv(): number | null | undefined {
  * Priority: env variable > config file > default (dev mode: true, production: false)
  */
 function shouldEnableCdp(config: CdpConfig): boolean {
-  const envVal = process.env.AIONUI_CDP_PORT;
-  if (envVal === '0' || envVal === 'false') return false;
-  if (envVal) return true;
+  const explicitValue = resolveExplicitCdpValue();
+  if (isCdpExplicitlyDisabled(explicitValue)) return false;
+  if (explicitValue) return true;
 
   if (app.isPackaged) {
     return false;
@@ -284,10 +298,10 @@ function shouldEnableCdp(config: CdpConfig): boolean {
  * Priority: env variable > config file > default (9230)
  */
 function getPreferredPort(config: CdpConfig): number {
-  // Environment variable takes highest priority
-  const envPort = resolveCdpPortFromEnv();
-  if (envPort !== null && envPort !== undefined) {
-    return envPort;
+  // Explicit startup input takes highest priority.
+  const explicitPort = resolveExplicitCdpPort();
+  if (explicitPort !== null && explicitPort !== undefined) {
+    return explicitPort;
   }
 
   // Config file setting

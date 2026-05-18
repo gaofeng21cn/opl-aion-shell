@@ -209,11 +209,19 @@ function installDmgApp(dmgPath, installDir) {
   }
 }
 
+function buildLaunchAppArgs(appPath, options) {
+  const args = ['--force-renderer-accessibility'];
+  if (options.settingsSmoke) {
+    args.push(`--aionui-cdp-port=${options.cdpPort}`);
+  }
+  return ['-n', appPath, '--args', ...args];
+}
+
 function launchApp(appPath, options) {
   if (options.settingsSmoke) {
     run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
   }
-  run('open', ['-n', appPath, '--args', '--force-renderer-accessibility']);
+  run('open', buildLaunchAppArgs(appPath, options));
 }
 
 function sleep(ms) {
@@ -1270,6 +1278,7 @@ export const __test =
         runtimeShellExecutable,
         waitForFullFirstRunEquivalence,
         runOplJson,
+        buildLaunchAppArgs,
       }
     : undefined;
 

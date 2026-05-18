@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 type SmokeTestApi = {
   assertFullFirstRunEquivalence(systemInitializeRaw: string, modulesRaw: string): void;
+  buildLaunchAppArgs(appPath: string, options: { settingsSmoke: boolean; cdpPort: number }): string[];
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
   findLatestFullRuntimeHome(runtimeRoot?: string): string | null;
   isFirstRunCompletionEvent(event: unknown): boolean;
@@ -42,6 +43,18 @@ afterEach(() => {
 });
 
 describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
+  it('launches packaged settings smoke with an explicit CDP startup argument', async () => {
+    const api = await loadSmokeTestApi();
+
+    expect(api.buildLaunchAppArgs('/Applications/One Person Lab.app', { settingsSmoke: true, cdpPort: 9230 })).toEqual([
+      '-n',
+      '/Applications/One Person Lab.app',
+      '--args',
+      '--force-renderer-accessibility',
+      '--aionui-cdp-port=9230',
+    ]);
+  });
+
   it('recognizes the script entrypoint through a macOS /tmp realpath alias', async () => {
     const api = await loadSmokeTestApi();
     const root = makeTempRoot();

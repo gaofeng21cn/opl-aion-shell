@@ -14,6 +14,7 @@ type MockApp = {
 
 const originalArgv = [...process.argv];
 const originalDisplay = process.env.DISPLAY;
+const originalCdpPort = process.env.AIONUI_CDP_PORT;
 const originalPlatform = process.platform;
 
 async function loadModuleWithArgs(args: string[], platform: NodeJS.Platform): Promise<MockApp> {
@@ -55,6 +56,11 @@ afterEach(() => {
     delete process.env.DISPLAY;
   } else {
     process.env.DISPLAY = originalDisplay;
+  }
+  if (originalCdpPort === undefined) {
+    delete process.env.AIONUI_CDP_PORT;
+  } else {
+    process.env.AIONUI_CDP_PORT = originalCdpPort;
   }
 
   vi.resetModules();
@@ -98,5 +104,13 @@ describe('configureChromium Linux headless flags', () => {
     expect(mockApp.commandLine.appendSwitch).not.toHaveBeenCalledWith('ozone-platform', 'headless');
     expect(mockApp.commandLine.appendSwitch).not.toHaveBeenCalledWith('disable-gpu');
     expect(mockApp.commandLine.appendSwitch).not.toHaveBeenCalledWith('disable-software-rasterizer');
+  });
+
+  it('enables CDP from an explicit startup argument in packaged desktop startup', async () => {
+    delete process.env.AIONUI_CDP_PORT;
+
+    const mockApp = await loadModuleWithArgs(['--aionui-cdp-port=9304'], 'darwin');
+
+    expect(mockApp.commandLine.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9304');
   });
 });

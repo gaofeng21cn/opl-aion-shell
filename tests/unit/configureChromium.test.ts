@@ -27,6 +27,7 @@ function removeSandbox(dir: string): void {
 type SetupOptions = {
   isPackaged?: boolean;
   envPort?: string;
+  argv?: string[];
   config?: Record<string, unknown>;
   registry?: Array<Record<string, unknown>>;
 };
@@ -55,6 +56,7 @@ async function loadConfigureChromium(options: SetupOptions = {}) {
   if (options.envPort !== undefined) {
     process.env.AIONUI_CDP_PORT = options.envPort;
   }
+  process.argv = ['node', 'test-entry', ...(options.argv ?? [])];
 
   const appendSwitch = vi.fn();
   const processOnSpy = vi.spyOn(process, 'on').mockImplementation(() => process);
@@ -127,6 +129,7 @@ describe('configureChromium CDP (lightweight mock + file sandbox)', () => {
       restore?.();
     }
     process.env = { ...originalEnv };
+    process.argv = ['node', 'test-entry'];
     // Restore the real registry
     try {
       if (savedRegistry !== null) {
@@ -158,6 +161,27 @@ describe('configureChromium CDP (lightweight mock + file sandbox)', () => {
     expect(ctx.mod.cdpStartupEnabled).toBe(true);
     expect(ctx.mod.cdpPort).toBe(9301);
     expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9301');
+  });
+
+  it('Allows explicit CDP enablement via startup argument in packaged builds', async () => {
+    const ctx = await loadConfigureChromium({ isPackaged: true, argv: ['--aionui-cdp-port=9302'] });
+    restores.push(ctx.restore);
+
+    expect(ctx.mod.cdpStartupEnabled).toBe(true);
+    expect(ctx.mod.cdpPort).toBe(9302);
+    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9302');
+  });
+
+  it('Prefers startup argument over environment variable for CDP port', async () => {
+    const ctx = await loadConfigureChromium({
+      isPackaged: true,
+      envPort: '9301',
+      argv: ['--aionui-cdp-port', '9303'],
+    });
+    restores.push(ctx.restore);
+
+    expect(ctx.mod.cdpPort).toBe(9303);
+    expect(ctx.appendSwitch).toHaveBeenCalledWith('remote-debugging-port', '9303');
   });
 
   it('Falls back to the default port constant for an invalid environment variable', async () => {
