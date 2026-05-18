@@ -178,6 +178,7 @@ const waitForOplCommandCalls = async (count: number, attempt = 0): Promise<void>
 describe('oplFirstLaunchPreparation', () => {
   beforeEach(() => {
     resetOplFirstLaunchPreparationStateForTests();
+    delete process.env.OPL_FULL_RUNTIME_HOME;
     mockRunOplCommand.mockReset();
     mockConfigureOplCodex.mockReset();
     mockReadOplFirstRunLog.mockReset();
@@ -217,7 +218,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockReadOplFirstRunLog).toHaveBeenCalledOnce();
   });
 
-  it('runs managed install once on first launch even when initialize is already launchable', async () => {
+  it('starts managed install in the background when initialize is already launchable', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand
       .mockResolvedValueOnce(readyInitializeResult)
@@ -228,6 +229,7 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'prepared',
       readyToLaunch: true,
+      blockers: ['recommended_skills'],
       progress: {
         currentStep: 4,
         totalSteps: 4,
@@ -235,15 +237,13 @@ describe('oplFirstLaunchPreparation', () => {
       },
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
+    await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('waits for module reconcile before completing first launch for a new App version', async () => {
+  it('does not wait for module reconcile before completing first launch for a new App version', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.lastModuleReconcileAppVersion') return undefined;
       return undefined;
@@ -257,19 +257,62 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.4' })).resolves.toMatchObject({
       status: 'prepared',
       readyToLaunch: true,
-      blockers: [],
+      blockers: ['recommended_skills'],
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
+    await waitForOplCommandCalls(3);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.4');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('does not mark first launch prepared when required module reconcile fails', async () => {
+  it('does not run git-backed module reconcile on a Full runtime first launch', async () => {
+    process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+    });
+
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
+  it('keeps Full runtime first launch prepared when bundled materialization fails in the background', async () => {
+    process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
+    mockConfigGet.mockResolvedValue(undefined);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 1, stdout: 'install stdout', stderr: 'install failed' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+    });
+
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_install_failed',
+      payload: expect.objectContaining({ status: 'failed', message: 'install failed' }),
+    });
+  });
+
+  it('keeps App launch prepared when background module reconcile fails', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.lastModuleReconcileAppVersion') return undefined;
       return undefined;
@@ -277,22 +320,21 @@ describe('oplFirstLaunchPreparation', () => {
     mockRunOplCommand
       .mockResolvedValueOnce(readyInitializeResult)
       .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce(readyInitializeResult)
       .mockResolvedValueOnce({ exitCode: 1, stdout: 'reconcile stdout', stderr: 'reconcile failed' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.4' })).resolves.toMatchObject({
-      status: 'failed',
-      readyToLaunch: false,
-      message: 'reconcile failed',
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
+    await waitForOplCommandCalls(3);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).not.toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.4');
-    expect(mockConfigSet).not.toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('runs managed install when initialize is launchable but lacks the recommended skill report', async () => {
+  it('starts managed install when initialize is launchable but lacks the recommended skill report', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand
       .mockResolvedValueOnce(legacyReadyInitializeResult)
@@ -303,14 +345,12 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'prepared',
       readyToLaunch: true,
-      blockers: [],
+      blockers: ['recommended_skills'],
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
+    await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
@@ -364,7 +404,7 @@ describe('oplFirstLaunchPreparation', () => {
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'prepared',
       readyToLaunch: true,
-      blockers: [],
+      blockers: ['recommended_skills'],
       progress: {
         currentStep: 4,
         totalSteps: 4,
@@ -372,14 +412,12 @@ describe('oplFirstLaunchPreparation', () => {
       },
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
+    await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
-      eventType: 'gui_preparation_completed',
+      eventType: 'gui_preparation_completed_with_deferred_attention',
       payload: expect.objectContaining({ status: 'prepared' }),
     });
   });
@@ -402,11 +440,11 @@ describe('oplFirstLaunchPreparation', () => {
       },
     });
 
-    expect(mockRunOplCommand).toHaveBeenCalledTimes(4);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
-      eventType: 'gui_preparation_completed',
+      eventType: 'gui_preparation_completed_with_deferred_attention',
       payload: expect.objectContaining({ status: 'prepared' }),
     });
   });
@@ -457,17 +495,15 @@ describe('oplFirstLaunchPreparation', () => {
     });
 
     expect(mockConfigureOplCodex).toHaveBeenCalledWith({ apiKey: 'secret-api-key' });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
     expect(JSON.stringify(mockRunOplCommand.mock.calls)).not.toContain('secret-api-key');
     expect(JSON.stringify(mockAppendOplFirstRunLog.mock.calls)).not.toContain('secret-api-key');
   });
 
-  it('keeps Codex configuration blocking after install even when reconciling for an App version', async () => {
+  it('keeps Codex configuration blocking when initialize still reports it before install', async () => {
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand
-      .mockResolvedValueOnce(setupNeededInitializeResult)
-      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
-      .mockResolvedValueOnce(codexConfigNeededInitializeResult);
+    mockRunOplCommand.mockResolvedValueOnce(codexConfigNeededInitializeResult);
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.1' })).resolves.toMatchObject({
       status: 'codex-config-needed',
@@ -480,16 +516,13 @@ describe('oplFirstLaunchPreparation', () => {
       eventType: 'gui_preparation_completed',
       payload: expect.anything(),
     });
+    expect(mockRunOplCommand).toHaveBeenCalledOnce();
   });
 
   it('reuses one in-flight OPL install across concurrent callers', async () => {
     const deferredRun = createDeferredOplCommandResult();
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand
-      .mockResolvedValueOnce(setupNeededInitializeResult)
-      .mockReturnValueOnce(deferredRun.promise)
-      .mockResolvedValueOnce(readyInitializeResult)
-      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    mockRunOplCommand.mockResolvedValueOnce(setupNeededInitializeResult).mockReturnValueOnce(deferredRun.promise);
 
     const firstPreparation = startOplFirstLaunchEnvironmentPreparation();
     const secondPreparation = startOplFirstLaunchEnvironmentPreparation();
@@ -503,21 +536,15 @@ describe('oplFirstLaunchPreparation', () => {
 
     await expect(firstPreparation).resolves.toMatchObject({ status: 'prepared' });
     await expect(secondPreparation).resolves.toMatchObject({ status: 'prepared' });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
     expect(mockConfigSet).toHaveBeenCalledTimes(1);
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('reports preparation progress transitions while install is in flight', async () => {
+  it('reports checking progress and does not wait for deferred install', async () => {
     const deferredRun = createDeferredOplCommandResult();
     const onProgress = vi.fn();
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand
-      .mockResolvedValueOnce(setupNeededInitializeResult)
-      .mockReturnValueOnce(deferredRun.promise)
-      .mockResolvedValueOnce(readyInitializeResult)
-      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+    mockRunOplCommand.mockResolvedValueOnce(setupNeededInitializeResult).mockReturnValueOnce(deferredRun.promise);
 
     const preparation = startOplFirstLaunchEnvironmentPreparation({ onProgress });
     await waitForOplCommandCalls(2);
@@ -529,16 +556,7 @@ describe('oplFirstLaunchPreparation', () => {
       totalSteps: 4,
       step: 'checkingEnvironment',
     });
-    expect(onProgress).toHaveBeenNthCalledWith(2, {
-      currentStep: 3,
-      totalSteps: 4,
-      step: 'installingModules',
-    });
-    expect(onProgress).toHaveBeenNthCalledWith(3, {
-      currentStep: 4,
-      totalSteps: 4,
-      step: 'reviewingStatus',
-    });
+    expect(onProgress).toHaveBeenCalledTimes(1);
   });
 
   it('returns command failure details without marking the environment prepared', async () => {
@@ -575,7 +593,6 @@ describe('oplFirstLaunchPreparation', () => {
 
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['system', 'reconcile-modules'] });
+    await waitForOplCommandCalls(2);
   });
 });

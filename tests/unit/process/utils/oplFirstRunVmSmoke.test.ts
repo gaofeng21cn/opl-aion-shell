@@ -7,6 +7,7 @@ type SmokeTestApi = {
   assertFullFirstRunEquivalence(systemInitializeRaw: string, modulesRaw: string): void;
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
   findLatestFullRuntimeHome(runtimeRoot?: string): string | null;
+  isFirstRunCompletionEvent(event: unknown): boolean;
   isMainModule(moduleUrl: string, argvPath?: string): boolean;
   runtimeShellExecutable(): string;
 };
@@ -118,6 +119,23 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     const api = await loadSmokeTestApi();
 
     expect(api.runtimeShellExecutable()).toBe('/bin/bash');
+  });
+
+  it('treats deferred-attention preparation as a completed core first launch', async () => {
+    const api = await loadSmokeTestApi();
+
+    expect(
+      api.isFirstRunCompletionEvent({
+        event_type: 'gui_preparation_completed_with_deferred_attention',
+        payload: { status: 'prepared' },
+      })
+    ).toBe(true);
+    expect(
+      api.isFirstRunCompletionEvent({
+        event_type: 'gui_deferred_install_failed',
+        payload: { status: 'failed' },
+      })
+    ).toBe(false);
   });
 
   it('includes optional hermes_legacy env when the bundled binary exists', async () => {

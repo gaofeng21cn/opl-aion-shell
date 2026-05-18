@@ -148,6 +148,7 @@ beforeEach(async () => {
 
   // Default mocks
   Object.defineProperty(process, 'platform', { value: 'win32' });
+  delete process.env.OPL_FULL_RUNTIME_HOME;
 
   const mod = await import('../../src/process/bridge/shellBridge');
   initShellBridge = mod.initShellBridge;
@@ -504,6 +505,68 @@ describe('shellBridge', () => {
         '/bin/zsh',
         ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'reconcile-modules'")],
         expect.objectContaining({ timeout: 30 * 60_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('opens the macOS Command Line Tools installer before standard setup commands when tools are missing', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const missingTools = Object.assign(new Error('xcode-select missing'), { code: 2, stdout: '', stderr: '' });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(missingTools);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '', stderr: '' });
+        });
+
+      const result = await runOplCommandProvider.fn!({ args: ['install', '--skip-gui-open'] });
+
+      expect(result.exitCode).toBe(69);
+      expect(result.stderr).toContain('Command Line Tools installer has been opened');
+      expect(execFileMock).toHaveBeenNthCalledWith(
+        1,
+        '/usr/bin/xcode-select',
+        ['-p'],
+        expect.objectContaining({ timeout: 10_000 }),
+        expect.any(Function)
+      );
+      expect(execFileMock).toHaveBeenNthCalledWith(
+        2,
+        '/usr/bin/xcode-select',
+        ['--install'],
+        expect.objectContaining({ timeout: 10_000 }),
+        expect.any(Function)
+      );
+      expect(JSON.stringify(execFileMock.mock.calls)).not.toContain("'opl' 'install'");
+    });
+
+    it('replaces raw xcode-select stderr with a user-facing installer prompt', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const xcodeSelectFailure = Object.assign(new Error('git failed'), {
+        code: 3,
+        stdout: '{"error":{"code":"build_command_failed"}}',
+        stderr: 'xcode-select: note: No developer tools were found, requesting install',
+      });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(xcodeSelectFailure);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '', stderr: '' });
+        });
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] });
+
+      expect(result.exitCode).toBe(3);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('Command Line Tools installer has been opened');
+      expect(result.stderr).not.toContain('build_command_failed');
+      expect(execFileMock).toHaveBeenNthCalledWith(
+        2,
+        '/usr/bin/xcode-select',
+        ['--install'],
+        expect.objectContaining({ timeout: 10_000 }),
         expect.any(Function)
       );
     });

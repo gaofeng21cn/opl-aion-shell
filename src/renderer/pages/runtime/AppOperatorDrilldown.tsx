@@ -108,12 +108,18 @@ const functionalBlockerCount = (summary: RuntimeTrayJsonRecord, functional: Runt
 
 const functionalReviewCount = (summary: RuntimeTrayJsonRecord, functional: RuntimeTrayJsonRecord): string => {
   return (
-    firstText(functional.semantic_equivalence_review_count, summary.functional_privatization_semantic_equivalence_review_count) ||
-    '0'
+    firstText(
+      functional.semantic_equivalence_review_count,
+      summary.functional_privatization_semantic_equivalence_review_count
+    ) || '0'
   );
 };
 
-const functionalAuditSummary = (summary: RuntimeTrayJsonRecord, functional: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+const functionalAuditSummary = (
+  summary: RuntimeTrayJsonRecord,
+  functional: RuntimeTrayJsonRecord,
+  t: RuntimeTranslator
+): string => {
   const entries = [
     [t('common.runtimeTray.appDrilldown.privateResidue'), functionalResidueCount(summary, functional)],
     [t('common.runtimeTray.appDrilldown.watchlist'), functionalWatchlistCount(summary, functional)],
@@ -259,7 +265,10 @@ const sectionSummary = (section: DrilldownSection): string => {
 
 const renderSection = (section: DrilldownSection): React.ReactNode => {
   return (
-    <section key={section.title} className='rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'>
+    <section
+      key={section.title}
+      className='rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'
+    >
       <div className='mb-8px flex items-center justify-between gap-8px text-12px font-medium text-t-secondary'>
         <span>{section.title}</span>
         {sectionSummary(section) && <span>{sectionSummary(section)}</span>}
@@ -297,7 +306,11 @@ const buildMetrics = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): Dri
   metric(summary, t('common.runtimeTray.appDrilldown.providerSlo'), 'provider_slo_action_count'),
   metric(summary, t('common.runtimeTray.appDrilldown.actionRouting'), 'operator_action_route_count'),
   metric(summary, t('common.runtimeTray.appDrilldown.safeActions'), 'safe_action_ref_count'),
-  metric(summary, t('common.runtimeTray.appDrilldown.privateResidue'), 'functional_privatization_active_private_generic_residue_count'),
+  metric(
+    summary,
+    t('common.runtimeTray.appDrilldown.privateResidue'),
+    'functional_privatization_active_private_generic_residue_count'
+  ),
 ];
 
 const statusColor = (status: string): string => {
@@ -335,7 +348,9 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
 
       <div className='grid grid-cols-1 gap-10px md:grid-cols-4'>{metrics.map(renderMetricCard)}</div>
 
-      <div className='grid grid-cols-1 gap-10px md:grid-cols-3'>{summaryCards(summary, functional, t).map(renderSummaryCard)}</div>
+      <div className='grid grid-cols-1 gap-10px md:grid-cols-3'>
+        {summaryCards(summary, functional, t).map(renderSummaryCard)}
+      </div>
 
       <div className='grid grid-cols-1 gap-10px md:grid-cols-2'>
         <div className='rounded-6px bg-fill-2 px-10px py-8px'>
@@ -358,11 +373,17 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
         </div>
       </div>
 
-      {sections.length > 0 ? <div className='grid grid-cols-1 gap-10px'>{sections.map(renderSection)}</div> : <Empty description={t('common.runtimeTray.appDrilldown.noRefs')} />}
+      {sections.length > 0 ? (
+        <div className='grid grid-cols-1 gap-10px'>{sections.map(renderSection)}</div>
+      ) : (
+        <Empty description={t('common.runtimeTray.appDrilldown.noRefs')} />
+      )}
 
       <div className='rounded-6px bg-fill-2 px-12px py-10px text-13px leading-20px text-t-secondary'>
         {t('common.runtimeTray.appDrilldown.authorityBoundary')}{' '}
-        {firstText(authority.domain) || firstText(authority.provider) || 'domain truth and provider receipts stay with owners'}
+        {firstText(authority.domain) ||
+          firstText(authority.provider) ||
+          'domain truth and provider receipts stay with owners'}
       </div>
     </section>
   );

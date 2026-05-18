@@ -33,6 +33,11 @@ const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Pe
 const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
+const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = [
+  'One Person Lab needs Apple Command Line Tools to finish the standard setup on this Mac.',
+  'The macOS Command Line Tools installer has been opened. Please finish that installer, then retry setup in One Person Lab.',
+  'For a first-time install without developer tools, use the Full One Person Lab DMG so MAS/MAG/RCA modules are installed from the bundled runtime payload.',
+].join('\n');
 let oplBootstrapPromise: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null;
 let oplCommandQueue: Promise<void> = Promise.resolve();
 
@@ -153,6 +158,68 @@ function shellQuote(value: string): string {
   return "'" + value.replace(/'/g, "'\\''") + "'";
 }
 
+function isMacCommandLineToolsMissingOutput(output: string): boolean {
+  return /xcode-select: note: No developer tools were found|No developer tools were found, requesting install|invalid active developer path/i.test(
+    output
+  );
+}
+
+async function commandLineToolsAreAvailable(): Promise<boolean> {
+  if (process.platform !== 'darwin') return true;
+  try {
+    await execFileAsync('/usr/bin/xcode-select', ['-p'], { timeout: 10_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openCommandLineToolsInstaller(): Promise<void> {
+  if (process.platform !== 'darwin') return;
+  try {
+    await execFileAsync('/usr/bin/xcode-select', ['--install'], { timeout: 10_000 });
+  } catch {
+    // macOS returns a non-zero status when the installer is already open or tools are already installed.
+  }
+}
+
+function oplCommandMayNeedCommandLineTools(args: string[]): boolean {
+  if (process.platform !== 'darwin') return false;
+  if (args[0] === 'install') return !process.env.OPL_FULL_RUNTIME_HOME?.trim();
+  if (args[0] === 'module' && ['install', 'update', 'reinstall'].includes(args[1] ?? '')) return true;
+  return args[0] === 'system' && ['update', 'reconcile-modules'].includes(args[1] ?? '');
+}
+
+async function maybeOpenCommandLineToolsInstallerBeforeOplCommand(
+  args: string[]
+): Promise<{ exitCode: number; stdout: string; stderr: string } | null> {
+  if (!oplCommandMayNeedCommandLineTools(args)) return null;
+  if (await commandLineToolsAreAvailable()) return null;
+
+  await openCommandLineToolsInstaller();
+  return {
+    exitCode: 69,
+    stdout: '',
+    stderr: COMMAND_LINE_TOOLS_INSTALL_MESSAGE,
+  };
+}
+
+async function normalizeOplCommandResult(result: {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  if (result.exitCode === 0) return result;
+  if (!isMacCommandLineToolsMissingOutput([result.stdout, result.stderr].filter(Boolean).join('\n'))) return result;
+
+  await openCommandLineToolsInstaller();
+  return {
+    exitCode: result.exitCode,
+    stdout: '',
+    stderr: COMMAND_LINE_TOOLS_INSTALL_MESSAGE,
+  };
+}
+
 async function runLoginShell(
   command: string,
   timeout: number
@@ -251,6 +318,11 @@ async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; st
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assertAllowedOplArgs(args);
+  const commandLineToolsInstall = await maybeOpenCommandLineToolsInstallerBeforeOplCommand(args);
+  if (commandLineToolsInstall) {
+    return commandLineToolsInstall;
+  }
+
   const timeout =
     args[0] === 'install' ||
     args[0] === 'engine' ||
@@ -259,24 +331,24 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
       : 120_000;
   const directResult = await runLoginShell(buildOplCommand(args), timeout);
   if (directResult.exitCode !== 127) {
-    return directResult;
+    return await normalizeOplCommandResult(directResult);
   }
 
   const bootstrapResult = await bootstrapOplCli();
   const prefix = '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.';
   if (bootstrapResult.exitCode !== 0) {
-    return {
+    return await normalizeOplCommandResult({
       ...bootstrapResult,
       stdout: [prefix, bootstrapResult.stdout].filter(Boolean).join('\n'),
-    };
+    });
   }
 
   const bootstrappedCommandResult = await runLoginShell(buildOplCommand(args), timeout);
-  return {
+  return await normalizeOplCommandResult({
     ...bootstrappedCommandResult,
     stdout: [prefix, bootstrapResult.stdout, bootstrappedCommandResult.stdout].filter(Boolean).join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
-  };
+  });
 }
 
 function enqueueOplCommand<T>(run: () => Promise<T>): Promise<T> {
@@ -302,24 +374,24 @@ async function runOplCliWithInput(
   const timeout = 120_000;
   const directResult = await runLoginShellWithInput(buildOplCommand(args), timeout, input);
   if (directResult.exitCode !== 127) {
-    return directResult;
+    return await normalizeOplCommandResult(directResult);
   }
 
   const bootstrapResult = await bootstrapOplCli();
   const prefix = '[One Person Lab App] OPL CLI was not found; bootstrapped one-person-lab through the OPL installer.';
   if (bootstrapResult.exitCode !== 0) {
-    return {
+    return await normalizeOplCommandResult({
       ...bootstrapResult,
       stdout: [prefix, bootstrapResult.stdout].filter(Boolean).join('\n'),
-    };
+    });
   }
 
   const bootstrappedCommandResult = await runLoginShellWithInput(buildOplCommand(args), timeout, input);
-  return {
+  return await normalizeOplCommandResult({
     ...bootstrappedCommandResult,
     stdout: [prefix, bootstrapResult.stdout, bootstrappedCommandResult.stdout].filter(Boolean).join('\n'),
     stderr: [bootstrapResult.stderr, bootstrappedCommandResult.stderr].filter(Boolean).join('\n'),
-  };
+  });
 }
 
 async function configureOplCodex(apiKey: string): Promise<{ exitCode: number; stdout: string; stderr: string }> {

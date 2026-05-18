@@ -604,8 +604,44 @@ function describeFirstRunFailure(events) {
 }
 
 function isFirstRunCompletionEvent(event) {
-  if (!event || event.event_type !== 'gui_preparation_completed') return false;
+  if (
+    !event ||
+    !['gui_preparation_completed', 'gui_preparation_completed_with_deferred_attention'].includes(event.event_type)
+  ) {
+    return false;
+  }
   return event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared';
+}
+
+async function waitForFullFirstRunEquivalence(timeoutMs) {
+  const started = Date.now();
+  let lastError = null;
+  let lastSystemInitializeRaw = '';
+  let lastModulesRaw = '';
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+      lastModulesRaw = runOplJson(['modules']);
+      assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw);
+      return {
+        systemInitializeRaw: lastSystemInitializeRaw,
+        modulesRaw: lastModulesRaw,
+      };
+    } catch (error) {
+      lastError = error;
+      await sleep(2_000);
+    }
+  }
+  throw new Error(
+    [
+      'Timed out waiting for Full runtime modules and companion skills to materialize after core first launch.',
+      lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
+      lastModulesRaw ? `Last modules sample: ${lastModulesRaw.slice(0, 1200)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
 }
 
 async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir) {
@@ -813,9 +849,7 @@ async function main() {
       );
     }
 
-    const systemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
-    const modulesRaw = runOplJson(['modules']);
-    assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw);
+    const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
     writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
     writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
     spawnSync('screencapture', ['-x', path.join(options.artifacts, 'first-launch.png')], { stdio: 'ignore' });
@@ -851,8 +885,10 @@ export const __test =
         buildFullRuntimeCommandPrefix,
         assertFullFirstRunEquivalence,
         findLatestFullRuntimeHome,
+        isFirstRunCompletionEvent,
         isMainModule,
         runtimeShellExecutable,
+        waitForFullFirstRunEquivalence,
         runOplJson,
       }
     : undefined;
