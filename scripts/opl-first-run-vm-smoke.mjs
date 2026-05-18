@@ -935,7 +935,7 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
 
 const SETTINGS_PAGE_SMOKE_TARGETS = [
   { id: 'overview', hash: '#/settings/overview', requiredTextAny: [['Refresh status', '刷新状态']] },
-  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Runtime', '运行时']] },
+  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Develop OPL Agent', '开发 OPL Agent']] },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
   { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
   { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
@@ -977,7 +977,11 @@ async function captureSettingsPage(client, target, options, secret) {
   );
   const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
   fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
-  spawnSync('screencapture', ['-x', screenshotPath], { stdio: 'ignore' });
+  const screenshot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  if (!screenshot?.data) {
+    throw new Error(`CDP screenshot capture returned no data for Settings page: ${target.id}`);
+  }
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
   return pageState;
 }
 
@@ -1076,6 +1080,7 @@ async function runSettingsSmoke(options, secret) {
   const results = [];
   try {
     await client.send('Runtime.enable');
+    await client.send('Page.enable');
     for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
       const pageState = await captureSettingsPage(client, pageTarget, options, secret);
       const interactions = {};
@@ -1279,6 +1284,7 @@ export const __test =
         waitForFullFirstRunEquivalence,
         runOplJson,
         buildLaunchAppArgs,
+        SETTINGS_PAGE_SMOKE_TARGETS,
       }
     : undefined;
 

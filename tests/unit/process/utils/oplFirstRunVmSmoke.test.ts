@@ -4,6 +4,11 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 type SmokeTestApi = {
+  SETTINGS_PAGE_SMOKE_TARGETS: Array<{
+    id: string;
+    hash: string;
+    requiredTextAny: string[][];
+  }>;
   assertFullFirstRunEquivalence(systemInitializeRaw: string, modulesRaw: string): void;
   buildLaunchAppArgs(appPath: string, options: { settingsSmoke: boolean; cdpPort: number }): string[];
   buildFullRuntimeCommandPrefix(runtimeHome: string): string;
@@ -53,6 +58,17 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
       '--force-renderer-accessibility',
       '--aionui-cdp-port=9230',
     ]);
+  });
+
+  it('expects the current OPL Agent wording for the runtime Settings route', async () => {
+    const api = await loadSmokeTestApi();
+
+    const runtimeTarget = api.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'runtime');
+
+    expect(runtimeTarget).toMatchObject({
+      hash: '#/settings/runtime',
+      requiredTextAny: [['Develop OPL Agent', '开发 OPL Agent']],
+    });
   });
 
   it('recognizes the script entrypoint through a macOS /tmp realpath alias', async () => {
