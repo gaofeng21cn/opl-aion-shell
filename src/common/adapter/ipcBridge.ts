@@ -47,6 +47,10 @@ export const shell = {
   getOplFullRuntimeStatus: bridge.buildProvider<{ active: boolean; runtimeHome: string | null }, void>(
     'shell.get-opl-full-runtime-status'
   ), // Read Full runtime activation from the main process
+  prepareCommandLineTools: bridge.buildProvider<
+    { status: 'available' | 'installer_requested' | 'unsupported'; message?: string },
+    void
+  >('shell.prepare-command-line-tools'), // Check macOS CLT and request the system installer when missing
 };
 
 //通用会话能力

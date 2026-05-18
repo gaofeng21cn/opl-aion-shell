@@ -19,6 +19,7 @@ const {
   readOplFirstRunLogProvider,
   appendOplFirstRunLogProvider,
   getOplFullRuntimeStatusProvider,
+  prepareCommandLineToolsProvider,
   shellMock,
   execMock,
   execFileMock,
@@ -35,6 +36,7 @@ const {
   readOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   appendOplFirstRunLogProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   getOplFullRuntimeStatusProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
+  prepareCommandLineToolsProvider: { fn: undefined as ((...args: any[]) => any) | undefined },
   shellMock: {
     openPath: vi.fn().mockResolvedValue(''),
     showItemInFolder: vi.fn(),
@@ -107,6 +109,11 @@ vi.mock('@/common', () => ({
           getOplFullRuntimeStatusProvider.fn = fn;
         }),
       },
+      prepareCommandLineTools: {
+        provider: vi.fn((fn: (...args: any[]) => any) => {
+          prepareCommandLineToolsProvider.fn = fn;
+        }),
+      },
     },
   },
 }));
@@ -153,6 +160,7 @@ beforeEach(async () => {
   readOplFirstRunLogProvider.fn = undefined;
   appendOplFirstRunLogProvider.fn = undefined;
   getOplFullRuntimeStatusProvider.fn = undefined;
+  prepareCommandLineToolsProvider.fn = undefined;
 
   // Default mocks
   Object.defineProperty(process, 'platform', { value: 'win32' });
@@ -176,6 +184,7 @@ describe('shellBridge', () => {
       expect(readOplFirstRunLogProvider.fn).toBeDefined();
       expect(appendOplFirstRunLogProvider.fn).toBeDefined();
       expect(getOplFullRuntimeStatusProvider.fn).toBeDefined();
+      expect(prepareCommandLineToolsProvider.fn).toBeDefined();
     });
   });
 
@@ -573,6 +582,55 @@ describe('shellBridge', () => {
         expect.any(Function)
       );
       expect(JSON.stringify(execFileMock.mock.calls)).not.toContain("'opl' 'install'");
+    });
+
+    it('reports available Command Line Tools without opening the installer', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '/Library/Developer/CommandLineTools\n', stderr: '' });
+      });
+
+      const result = await prepareCommandLineToolsProvider.fn!();
+
+      expect(result).toEqual({ status: 'available' });
+      expect(execFileMock).toHaveBeenCalledOnce();
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/usr/bin/xcode-select',
+        ['-p'],
+        expect.objectContaining({ timeout: 10_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('requests the macOS Command Line Tools installer when tools are missing', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const missingTools = Object.assign(new Error('xcode-select missing'), { code: 2, stdout: '', stderr: '' });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(missingTools);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '', stderr: '' });
+        });
+
+      const result = await prepareCommandLineToolsProvider.fn!();
+
+      expect(result.status).toBe('installer_requested');
+      expect(result.message).toContain('Command Line Tools installer has been opened');
+      expect(execFileMock).toHaveBeenNthCalledWith(
+        1,
+        '/usr/bin/xcode-select',
+        ['-p'],
+        expect.objectContaining({ timeout: 10_000 }),
+        expect.any(Function)
+      );
+      expect(execFileMock).toHaveBeenNthCalledWith(
+        2,
+        '/usr/bin/xcode-select',
+        ['--install'],
+        expect.objectContaining({ timeout: 10_000 }),
+        expect.any(Function)
+      );
     });
 
     it('replaces raw xcode-select stderr with a user-facing installer prompt', async () => {

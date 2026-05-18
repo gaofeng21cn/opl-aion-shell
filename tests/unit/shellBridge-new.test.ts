@@ -87,6 +87,11 @@ vi.mock('@/common', () => ({
           registeredProviders['getOplFullRuntimeStatus'] = fn;
         }),
       },
+      prepareCommandLineTools: {
+        provider: vi.fn((fn: Function) => {
+          registeredProviders['prepareCommandLineTools'] = fn;
+        }),
+      },
     },
   },
 }));

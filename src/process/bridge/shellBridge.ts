@@ -34,10 +34,14 @@ const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
 const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = [
-  'One Person Lab needs Apple Command Line Tools to finish the standard setup on this Mac.',
+  'One Person Lab uses Apple Command Line Tools for Git-backed updates and standard module maintenance on this Mac.',
   'The macOS Command Line Tools installer has been opened. Please finish that installer, then retry setup in One Person Lab.',
-  'For a first-time install without developer tools, use the Full One Person Lab DMG so MAS/MAG/RCA modules are installed from the bundled runtime payload.',
+  'Full first-install can continue with the bundled runtime while Command Line Tools is being installed.',
 ].join('\n');
+type CommandLineToolsPreparationResult = {
+  status: 'available' | 'installer_requested' | 'unsupported';
+  message?: string;
+};
 let oplBootstrapPromise: Promise<{ exitCode: number; stdout: string; stderr: string }> | null = null;
 let oplCommandQueue: Promise<void> = Promise.resolve();
 
@@ -181,6 +185,17 @@ async function openCommandLineToolsInstaller(): Promise<void> {
   } catch {
     // macOS returns a non-zero status when the installer is already open or tools are already installed.
   }
+}
+
+async function prepareCommandLineTools(): Promise<CommandLineToolsPreparationResult> {
+  if (process.platform !== 'darwin') return { status: 'unsupported' };
+  if (await commandLineToolsAreAvailable()) return { status: 'available' };
+
+  await openCommandLineToolsInstaller();
+  return {
+    status: 'installer_requested',
+    message: COMMAND_LINE_TOOLS_INSTALL_MESSAGE,
+  };
 }
 
 function oplCommandMayNeedCommandLineTools(args: string[]): boolean {
@@ -717,6 +732,7 @@ export function initShellBridge(): void {
       runtimeHome,
     };
   });
+  ipcBridge.shell.prepareCommandLineTools.provider(async () => prepareCommandLineTools());
 
   // Open folder with specified tool
   ipcBridge.shell.openFolderWith.provider(async ({ folderPath, tool }) => {

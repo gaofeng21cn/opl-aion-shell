@@ -36,6 +36,7 @@ type OplModuleReconcileState = {
 
 const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
 const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
+const COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY = 'opl.commandLineToolsPreparationPromptedAt';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
 const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
@@ -108,6 +109,14 @@ const FIRST_LAUNCH_STEP_INDEX: Record<OplFirstLaunchProgressStep, number> = {
 
 const getFailureMessage = (result: { stdout: string; stderr: string }): string | undefined =>
   result.stderr || result.stdout || undefined;
+
+const isCommandLineToolsInstallerMessage = (message: string | undefined): boolean =>
+  Boolean(
+    message &&
+    /Command Line Tools installer has been opened|needs Apple Command Line Tools|No developer tools were found|invalid active developer path/i.test(
+      message
+    )
+  );
 
 const hasActiveOplFullRuntime = async (): Promise<boolean> => {
   if (process.env.OPL_FULL_RUNTIME_HOME?.trim()) return true;
@@ -184,6 +193,33 @@ const appendFirstRunLogEvent = async (eventType: string, payload: Record<string,
     await ipcBridge.shell.appendOplFirstRunLog.invoke({ eventType, payload });
   } catch {
     // First-run log visibility must not block environment preparation.
+  }
+};
+
+const prepareCommandLineToolsInBackground = async (): Promise<
+  'available' | 'installer_requested' | 'unsupported' | 'failed' | 'skipped'
+> => {
+  const promptedAt = await ConfigStorage.get(COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY);
+  if (promptedAt) return 'skipped';
+
+  await appendFirstRunLogEvent('gui_deferred_command_line_tools_started');
+  try {
+    const result = await ipcBridge.shell.prepareCommandLineTools.invoke();
+    if (result.status === 'available' || result.status === 'installer_requested') {
+      await ConfigStorage.set(COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY, Date.now());
+    }
+    await appendFirstRunLogEvent('gui_deferred_command_line_tools_completed', {
+      status: result.status,
+      message: result.message,
+    });
+    return result.status;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : undefined;
+    await appendFirstRunLogEvent('gui_deferred_command_line_tools_failed', {
+      status: 'failed',
+      message,
+    });
+    return 'failed';
   }
 };
 
@@ -316,11 +352,21 @@ const startDeferredFirstLaunchMaintenance = (
       app_version: appVersion ?? null,
       full_runtime: fullRuntime,
     });
+    const commandLineToolsStatus = await prepareCommandLineToolsInBackground();
     const installResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
     if (installResult.exitCode !== 0) {
+      const message = getFailureMessage(installResult);
+      if (isCommandLineToolsInstallerMessage(message)) {
+        await appendFirstRunLogEvent('gui_deferred_install_waiting_for_command_line_tools', {
+          status: 'waiting_for_user',
+          message,
+          command_line_tools_status: commandLineToolsStatus,
+        });
+        return;
+      }
       await appendFirstRunLogEvent('gui_deferred_install_failed', {
         status: 'failed',
-        message: getFailureMessage(installResult),
+        message,
       });
       return;
     }
