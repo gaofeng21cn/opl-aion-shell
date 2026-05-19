@@ -11,6 +11,7 @@ import {
 } from '@/common/types/acpTypes';
 import type { McpServer } from '@agentclientprotocol/sdk';
 import type { AgentConfig, AgentSource, ConfigOption, InitialDesiredConfig, ModelSnapshot } from '@process/acp/types';
+import { readCodexDefaultModelIdFromConfig } from '@process/agent/acp/utils';
 import { getEnhancedEnv, loadFullShellEnvironment } from '@process/utils/shellEnv';
 /**
  * Old ACP agent config type from AcpAgent/AcpAgentManager
@@ -81,7 +82,9 @@ export function toAgentConfig(old: OldAcpAgentConfig): AgentConfig {
 
   // Build initialDesired from Guid page selections
   const initialDesired: InitialDesiredConfig = {};
+  const codexDefaultModelId = backend === 'codex' ? readCodexDefaultModelIdFromConfig() : null;
   if (old.extra?.currentModelId) initialDesired.model = old.extra.currentModelId;
+  else if (codexDefaultModelId) initialDesired.model = codexDefaultModelId;
   if (old.extra?.sessionMode) initialDesired.mode = old.extra.sessionMode;
   if (old.extra?.pendingConfigOptions && Object.keys(old.extra.pendingConfigOptions).length > 0) {
     initialDesired.configOptions = old.extra.pendingConfigOptions;

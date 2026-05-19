@@ -1,6 +1,9 @@
 // tests/unit/process/acp/compat/typeBridge.test.ts
 
-import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import {
   toAgentConfig,
   toAcpModelInfo,
@@ -14,6 +17,10 @@ import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TMessage } from '@/common/chat/chatLib';
 
 describe('typeBridge', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   describe('toAgentConfig', () => {
     it('should convert basic old config to new config', () => {
       const oldConfig: OldAcpAgentConfig = {
@@ -86,6 +93,85 @@ describe('typeBridge', () => {
       const result = toAgentConfig(oldConfig);
 
       expect(result.yoloMode).toBe(true);
+    });
+
+    it('should apply Codex model and reasoning defaults when no model override exists', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-typebridge-codex-'));
+      const codexHome = path.join(root, '.codex');
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(
+        path.join(codexHome, 'config.toml'),
+        ['model = "gpt-5.5"', 'model_reasoning_effort = "xhigh"'].join('\n'),
+        'utf8'
+      );
+      vi.stubEnv('CODEX_HOME', codexHome);
+
+      const oldConfig: OldAcpAgentConfig = {
+        id: 'codex-agent',
+        backend: 'codex',
+        workingDir: '/workspace',
+        onStreamEvent: () => {},
+        extra: {
+          backend: 'codex',
+        },
+      };
+
+      const result = toAgentConfig(oldConfig);
+
+      expect(result.initialDesired?.model).toBe('gpt-5.5/xhigh');
+    });
+
+    it('should keep explicit Codex model override ahead of config.toml defaults', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-typebridge-codex-'));
+      const codexHome = path.join(root, '.codex');
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(
+        path.join(codexHome, 'config.toml'),
+        ['model = "gpt-5.5"', 'model_reasoning_effort = "xhigh"'].join('\n'),
+        'utf8'
+      );
+      vi.stubEnv('CODEX_HOME', codexHome);
+
+      const oldConfig: OldAcpAgentConfig = {
+        id: 'codex-agent',
+        backend: 'codex',
+        workingDir: '/workspace',
+        onStreamEvent: () => {},
+        extra: {
+          backend: 'codex',
+          currentModelId: 'gpt-5.4/high',
+        },
+      };
+
+      const result = toAgentConfig(oldConfig);
+
+      expect(result.initialDesired?.model).toBe('gpt-5.4/high');
+    });
+
+    it('should not read Codex defaults for non-Codex backends', () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aionui-typebridge-codex-'));
+      const codexHome = path.join(root, '.codex');
+      fs.mkdirSync(codexHome, { recursive: true });
+      fs.writeFileSync(
+        path.join(codexHome, 'config.toml'),
+        ['model = "gpt-5.5"', 'model_reasoning_effort = "xhigh"'].join('\n'),
+        'utf8'
+      );
+      vi.stubEnv('CODEX_HOME', codexHome);
+
+      const oldConfig: OldAcpAgentConfig = {
+        id: 'claude-agent',
+        backend: 'claude',
+        workingDir: '/workspace',
+        onStreamEvent: () => {},
+        extra: {
+          backend: 'claude',
+        },
+      };
+
+      const result = toAgentConfig(oldConfig);
+
+      expect(result.initialDesired?.model).toBeUndefined();
     });
 
     it('should convert resumeSessionId from acpSessionId', () => {
