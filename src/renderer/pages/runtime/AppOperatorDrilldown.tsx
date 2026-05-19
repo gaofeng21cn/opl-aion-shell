@@ -189,6 +189,36 @@ const legacyCleanupSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslat
   return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
 };
 
+const providerCadenceWindowSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+  const entries = [
+    [
+      t('common.runtimeTray.appDrilldown.cadenceWindowStatus'),
+      firstText(summary.provider_cadence_window_status) || 'unknown',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.longEvidenceReady'),
+      firstText(summary.provider_cadence_window_long_evidence_ready) || 'false',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.expectedReceipts'),
+      firstText(summary.provider_cadence_window_expected_receipt_count) || '0',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.observedReceipts'),
+      firstText(summary.provider_cadence_window_observed_receipt_count) || '0',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.missingReceipts'),
+      firstText(summary.provider_cadence_window_missing_receipt_count) || '0',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.blockedRepairReceipts'),
+      firstText(summary.provider_cadence_window_blocked_repair_receipt_count) || '0',
+    ],
+  ];
+  return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
+};
+
 const sectionCount = (drilldown: RuntimeTrayJsonRecord, key: string): number => {
   const section = nestedRecord(drilldown, key);
   if (Array.isArray(section.refs)) return section.refs.length;
@@ -293,6 +323,10 @@ const summaryCards = (
     {
       label: t('common.runtimeTray.appDrilldown.legacyCleanup'),
       value: legacyCleanupSummary(summary, t),
+    },
+    {
+      label: t('common.runtimeTray.appDrilldown.providerCadenceWindow'),
+      value: providerCadenceWindowSummary(summary, t),
     },
   ];
 };

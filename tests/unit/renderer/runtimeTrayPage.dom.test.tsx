@@ -167,6 +167,13 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.evidenceGates': 'Evidence Gates',
   'common.runtimeTray.appDrilldown.legacyCleanup': 'Legacy Cleanup',
   'common.runtimeTray.appDrilldown.cleanupPlans': 'Cleanup Plans',
+  'common.runtimeTray.appDrilldown.providerCadenceWindow': 'Provider Cadence Window',
+  'common.runtimeTray.appDrilldown.cadenceWindowStatus': 'Status',
+  'common.runtimeTray.appDrilldown.longEvidenceReady': 'Long Evidence Ready',
+  'common.runtimeTray.appDrilldown.expectedReceipts': 'Expected Receipts',
+  'common.runtimeTray.appDrilldown.observedReceipts': 'Observed Receipts',
+  'common.runtimeTray.appDrilldown.missingReceipts': 'Missing Receipts',
+  'common.runtimeTray.appDrilldown.blockedRepairReceipts': 'Blocked Repair Receipts',
   'common.runtimeTray.appDrilldown.functionalAudit': 'Functional Privatization Audit',
   'common.runtimeTray.appDrilldown.openRequests': 'Open Requests',
   'common.runtimeTray.appDrilldown.remainingGates': 'Remaining Gates',
@@ -529,6 +536,12 @@ describe('RuntimeTrayItemPage', () => {
               quality_ref_count: 1,
               readiness_ref_count: 1,
               provider_slo_action_count: 1,
+              provider_cadence_window_status: 'window_evidence_incomplete',
+              provider_cadence_window_long_evidence_ready: false,
+              provider_cadence_window_expected_receipt_count: 7,
+              provider_cadence_window_observed_receipt_count: 0,
+              provider_cadence_window_missing_receipt_count: 7,
+              provider_cadence_window_blocked_repair_receipt_count: 0,
               operator_action_route_count: 2,
               operator_executable_route_count: 1,
               safe_action_ref_count: 1,
@@ -685,6 +698,12 @@ describe('RuntimeTrayItemPage', () => {
             quality_ref_count: 1,
             readiness_ref_count: 1,
             provider_slo_action_count: 1,
+            provider_cadence_window_status: 'window_evidence_incomplete',
+            provider_cadence_window_long_evidence_ready: false,
+            provider_cadence_window_expected_receipt_count: 7,
+            provider_cadence_window_observed_receipt_count: 0,
+            provider_cadence_window_missing_receipt_count: 7,
+            provider_cadence_window_blocked_repair_receipt_count: 0,
             operator_action_route_count: 2,
             operator_executable_route_count: 1,
             safe_action_ref_count: 1,
@@ -745,6 +764,12 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getByText(/Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3/)).toBeInTheDocument();
     expect(screen.getByText(/Legacy Cleanup/)).toBeInTheDocument();
     expect(screen.getByText(/Cleanup Plans: 3; Ready Plans: 3; Apply Ready: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/Provider Cadence Window/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Status: window_evidence_incomplete; Long Evidence Ready: false; Expected Receipts: 7; Observed Receipts: 0; Missing Receipts: 7; Blocked Repair Receipts: 0/
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText('summary')).toBeInTheDocument();
     expect(screen.getAllByText('Safe Actions').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/role=safe_action/)).toBeInTheDocument();
