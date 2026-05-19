@@ -135,6 +135,9 @@ vi.mock('fs', () => ({
     mkdir: fsMock.mkdir,
     appendFile: fsMock.appendFile,
   },
+  default: {
+    existsSync: fsMock.existsSync,
+  },
 }));
 
 // --- Tests ---
@@ -325,6 +328,32 @@ describe('shellBridge', () => {
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+    });
+
+    it('allows managed companion skill sync through the Full runtime without probing Command Line Tools', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"companion_skills":{"summary":{"synced":4}}}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({
+        args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledOnce();
+      const command = execFileMock.mock.calls[0][1][1];
+      expect(command).toContain("OPL_OUTPUT=json 'opl' 'skill' 'companion' 'apply'");
+      expect(command).toContain('OPL_FULL_RUNTIME_HOME=');
+      expect(command).toContain('OPL_PACKAGED_SKILLS_ROOT=');
+      expect(JSON.stringify(execFileMock.mock.calls)).not.toContain('/usr/bin/xcode-select');
+    });
+
+    it('rejects unsupported skill commands', async () => {
+      await expect(
+        runOplCommandProvider.fn!({ args: ['skill', 'companion', 'apply', '--mode', 'managed'] })
+      ).rejects.toThrow('Unsupported OPL skill action');
     });
 
     it('allows the runtime snapshot command as a read-only OPL status surface', async () => {

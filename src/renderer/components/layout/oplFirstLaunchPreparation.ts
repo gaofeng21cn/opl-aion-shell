@@ -41,6 +41,15 @@ const INSTALL_ARGS = ['install', '--skip-gui-open'];
 const CORE_INSTALL_ARGS = ['install', '--skip-modules', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
 const STARTUP_MAINTENANCE_ARGS = ['system', 'startup-maintenance'];
+const PACKAGED_COMPANION_SKILL_SYNC_ARGS = [
+  'skill',
+  'companion',
+  'apply',
+  '--mode',
+  'managed',
+  '--superpowers',
+  'keep',
+];
 
 type OplFirstLaunchPreparationOptions = {
   appVersion?: string;
@@ -224,6 +233,20 @@ const prepareCommandLineToolsInBackground = async (): Promise<
   }
 };
 
+const syncPackagedCompanionSkillsForFullRuntime = async (): Promise<'synced' | 'failed'> => {
+  await appendFirstRunLogEvent('gui_deferred_packaged_skill_sync_started');
+  const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...PACKAGED_COMPANION_SKILL_SYNC_ARGS] });
+  if (result.exitCode !== 0) {
+    await appendFirstRunLogEvent('gui_deferred_packaged_skill_sync_failed', {
+      status: 'failed',
+      message: getFailureMessage(result),
+    });
+    return 'failed';
+  }
+  await appendFirstRunLogEvent('gui_deferred_packaged_skill_sync_completed', { status: 'synced' });
+  return 'synced';
+};
+
 const needsRecommendedSkillInstall = (initialize: OplSystemInitializePayload['system_initialize'] | null): boolean =>
   (initialize?.recommended_skills?.summary?.missing ?? 0) > 0;
 
@@ -362,6 +385,7 @@ const startDeferredFirstLaunchMaintenance = (
     });
     const commandLineToolsStatus = await prepareCommandLineToolsInBackground();
     if (fullRuntime) {
+      const packagedSkillSyncStatus = await syncPackagedCompanionSkillsForFullRuntime();
       if (appVersion?.trim()) {
         await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, appVersion.trim());
       }
@@ -369,6 +393,7 @@ const startDeferredFirstLaunchMaintenance = (
         status: 'completed',
         reason: 'full_runtime_bundled_modules',
         command_line_tools_status: commandLineToolsStatus,
+        packaged_skill_sync_status: packagedSkillSyncStatus,
       });
       return;
     }

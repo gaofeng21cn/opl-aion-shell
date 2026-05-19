@@ -27,6 +27,7 @@ const ALLOWED_OPL_COMMANDS = new Set([
   'packages',
   'runtime',
   'family-runtime',
+  'skill',
 ]);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab');
@@ -184,6 +185,19 @@ function assertAllowedOplArgs(args: string[]): void {
   }
   if (args[0] === 'packages' && (args.length !== 2 || args[1] !== 'manifest')) {
     throw new Error(`Unsupported OPL packages action: ${args.slice(1).join(' ')}`);
+  }
+  if (args[0] === 'skill') {
+    const isCompanionApply =
+      args.length === 7 &&
+      args[1] === 'companion' &&
+      args[2] === 'apply' &&
+      args[3] === '--mode' &&
+      args[4] === 'managed' &&
+      args[5] === '--superpowers' &&
+      args[6] === 'keep';
+    if (!isCompanionApply) {
+      throw new Error(`Unsupported OPL skill action: ${args.slice(1).join(' ')}`);
+    }
   }
   if (args[0] === 'runtime') {
     const isSnapshot = args.length >= 2 && args[1] === 'snapshot' && args.slice(2).every((arg) => arg === '--json');
@@ -353,7 +367,7 @@ async function runLoginShellWithInput(
 
 function buildOplCommand(args: string[]): string {
   const fullRuntimeHome = process.env.OPL_FULL_RUNTIME_HOME;
-  const envPrefix = ['modules', 'runtime', 'system', 'workspace', 'family-runtime'].includes(args[0])
+  const envPrefix = ['modules', 'runtime', 'system', 'workspace', 'family-runtime', 'skill'].includes(args[0])
     ? 'OPL_OUTPUT=json '
     : '';
   return [
@@ -381,6 +395,7 @@ function buildOplBootstrapCommand(): string {
 function shouldQueueOplCommand(args: string[]): boolean {
   if (args[0] === 'install') return true;
   if (args[0] === 'module' || args[0] === 'engine') return true;
+  if (args[0] === 'skill') return args[1] === 'companion' && args[2] === 'apply';
   if (args[0] === 'family-runtime') return true;
   if (args[0] === 'system') {
     if (

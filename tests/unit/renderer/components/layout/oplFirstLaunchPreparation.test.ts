@@ -202,6 +202,37 @@ const waitForOplCommandCalls = async (count: number, attempt = 0): Promise<void>
   await waitForOplCommandCalls(count, attempt + 1);
 };
 
+const waitForMockCall = async (
+  calls: unknown[][],
+  predicate: (call: unknown[]) => boolean,
+  failureMessage: string,
+  attempt = 0
+): Promise<void> => {
+  if (calls.some(predicate)) return;
+  if (attempt >= 20) {
+    throw new Error(failureMessage);
+  }
+  await Promise.resolve();
+  await waitForMockCall(calls, predicate, failureMessage, attempt + 1);
+};
+
+const waitForConfigSetCall = async (key: string, value: unknown): Promise<void> =>
+  waitForMockCall(
+    mockConfigSet.mock.calls,
+    (call) => call[0] === key && call[1] === value,
+    `Timed out waiting for ConfigStorage.set(${key})`
+  );
+
+const waitForFirstRunLogEvent = async (eventType: string): Promise<void> =>
+  waitForMockCall(
+    mockAppendOplFirstRunLog.mock.calls,
+    (call) => {
+      const event = call[0] as { eventType?: unknown } | undefined;
+      return event?.eventType === eventType;
+    },
+    `Timed out waiting for first-run event ${eventType}`
+  );
+
 describe('oplFirstLaunchPreparation', () => {
   beforeEach(() => {
     resetOplFirstLaunchPreparationStateForTests();
@@ -302,7 +333,9 @@ describe('oplFirstLaunchPreparation', () => {
   it('does not run git-backed startup maintenance on a Full runtime first launch', async () => {
     process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
       status: 'prepared',
@@ -310,15 +343,23 @@ describe('oplFirstLaunchPreparation', () => {
       blockers: ['recommended_skills'],
     });
 
-    await waitForOplCommandCalls(1);
+    await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, {
+      args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+    });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['install', '--skip-gui-open'] });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
+    await waitForConfigSetCall('opl.lastModuleReconcileAppVersion', '26.5.18');
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_completed',
-      payload: expect.objectContaining({ reason: 'full_runtime_bundled_modules' }),
+      payload: expect.objectContaining({
+        reason: 'full_runtime_bundled_modules',
+        packaged_skill_sync_status: 'synced',
+      }),
     });
   });
 
@@ -328,7 +369,9 @@ describe('oplFirstLaunchPreparation', () => {
       runtimeHome: '/Users/test/Library/Application Support/OPL/runtime/current',
     });
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
       status: 'prepared',
@@ -336,11 +379,16 @@ describe('oplFirstLaunchPreparation', () => {
       blockers: ['recommended_skills'],
     });
 
-    await waitForOplCommandCalls(1);
+    await waitForOplCommandCalls(2);
     expect(process.env.OPL_FULL_RUNTIME_HOME).toBeUndefined();
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, {
+      args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+    });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['install', '--skip-gui-open'] });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
+    await waitForConfigSetCall('opl.lastModuleReconcileAppVersion', '26.5.18');
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_started',
@@ -348,7 +396,10 @@ describe('oplFirstLaunchPreparation', () => {
     });
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_completed',
-      payload: expect.objectContaining({ reason: 'full_runtime_bundled_modules' }),
+      payload: expect.objectContaining({
+        reason: 'full_runtime_bundled_modules',
+        packaged_skill_sync_status: 'synced',
+      }),
     });
   });
 
@@ -359,7 +410,9 @@ describe('oplFirstLaunchPreparation', () => {
       status: 'installer_requested',
       message: 'The macOS Command Line Tools installer has been opened.',
     });
-    mockRunOplCommand.mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
       status: 'prepared',
@@ -367,8 +420,11 @@ describe('oplFirstLaunchPreparation', () => {
       blockers: ['recommended_skills'],
     });
 
-    await waitForOplCommandCalls(1);
+    await waitForOplCommandCalls(2);
     expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, {
+      args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+    });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['install', '--skip-gui-open'] });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.commandLineToolsPreparationPromptedAt', expect.any(Number));
@@ -376,11 +432,13 @@ describe('oplFirstLaunchPreparation', () => {
       eventType: 'gui_deferred_command_line_tools_completed',
       payload: expect.objectContaining({ status: 'installer_requested' }),
     });
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_completed',
       payload: expect.objectContaining({
         reason: 'full_runtime_bundled_modules',
         command_line_tools_status: 'installer_requested',
+        packaged_skill_sync_status: 'synced',
       }),
     });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
@@ -459,7 +517,9 @@ describe('oplFirstLaunchPreparation', () => {
   it('keeps Full runtime first launch prepared without running git-backed bundled materialization', async () => {
     process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
     mockConfigGet.mockResolvedValue(undefined);
-    mockRunOplCommand.mockResolvedValueOnce(readyInitializeResult);
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.18' })).resolves.toMatchObject({
       status: 'prepared',
@@ -467,14 +527,22 @@ describe('oplFirstLaunchPreparation', () => {
       blockers: ['recommended_skills'],
     });
 
-    await waitForOplCommandCalls(1);
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, {
+      args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+    });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['install', '--skip-gui-open'] });
     expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
+    await waitForConfigSetCall('opl.lastModuleReconcileAppVersion', '26.5.18');
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_completed',
-      payload: expect.objectContaining({ reason: 'full_runtime_bundled_modules' }),
+      payload: expect.objectContaining({
+        reason: 'full_runtime_bundled_modules',
+        packaged_skill_sync_status: 'synced',
+      }),
     });
     expect(mockAppendOplFirstRunLog).not.toHaveBeenCalledWith(
       expect.objectContaining({ eventType: 'gui_deferred_install_failed' })
