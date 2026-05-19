@@ -17,6 +17,7 @@ type SmokeTestApi = {
   isFirstRunCompletionEvent(event: unknown): boolean;
   isMainModule(moduleUrl: string, argvPath?: string): boolean;
   runtimeShellExecutable(): string;
+  shouldVerifyFullFirstRunEquivalence(runtimeProfile: string): boolean;
 };
 
 const tempRoots: string[] = [];
@@ -166,6 +167,13 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
         payload: { status: 'failed' },
       })
     ).toBe(false);
+  });
+
+  it('only requires Full runtime equivalence for the Full first-run profile', async () => {
+    const api = await loadSmokeTestApi();
+
+    expect(api.shouldVerifyFullFirstRunEquivalence('full')).toBe(true);
+    expect(api.shouldVerifyFullFirstRunEquivalence('standard')).toBe(false);
   });
 
   it('skips macOS screencapture by default to avoid clean-VM Screen & System Audio prompts', async () => {

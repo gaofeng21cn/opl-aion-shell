@@ -44,6 +44,10 @@ Options:
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
   --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
+  --runtime-profile <profile>
+                           First-run package profile to verify: full or standard. Default: full.
+                           Use standard for the public macOS app DMG when Full-only bundled
+                           module/skill equivalence is not expected.
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
@@ -69,6 +73,7 @@ function parseArgs(argv) {
     display: '1920x1080px',
     settingsSmoke: false,
     cdpPort: 9230,
+    runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     noGraphics: false,
     keepVm: false,
@@ -107,6 +112,7 @@ function parseArgs(argv) {
     else if (arg === '--smoke-timeout-ms') options.smokeTimeoutMs = Number(value);
     else if (arg === '--display') options.display = value;
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
+    else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -123,6 +129,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
+  }
+  if (!['full', 'standard'].includes(options.runtimeProfile)) {
+    throw new Error('--runtime-profile must be one of: full, standard.');
   }
 
   return options;
@@ -423,6 +432,7 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     options.settingsSmoke ? '--settings-smoke' : '',
     options.settingsSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
+    `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
   ].join(' ');
   return ['set -euo pipefail', smokeArgs].join('\n');
 }

@@ -22,6 +22,7 @@ const DEFAULT_LABELS = {
   settingsEnvironment: 'opl-settings-environment',
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
+const RUNTIME_PROFILES = new Set(['full', 'standard']);
 
 function usage() {
   process.stdout.write(`Usage:
@@ -37,6 +38,11 @@ Options:
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --cdp-port <n>         CDP port used by --settings-smoke. Default: 9230.
+  --runtime-profile <profile>
+                         First-run package profile to verify: full or standard. Default: full.
+                         The full profile verifies bundled runtime/module/skill equivalence.
+                         The standard profile verifies core launch readiness without requiring
+                         Full-only bundled modules.
   --codex-api-key-file <path>
                          File containing a test Codex API key. The key is read from disk,
                          entered through the GUI wizard, and never passed as a CLI argument.
@@ -57,6 +63,7 @@ function parseArgs(argv) {
     timeoutMs: 180_000,
     settingsSmoke: false,
     cdpPort: 9230,
+    runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     requireCodexConfigWizard: false,
     assertClean: false,
@@ -90,6 +97,7 @@ function parseArgs(argv) {
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
+    else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -100,11 +108,18 @@ function parseArgs(argv) {
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
   }
+  if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
+    throw new Error('--runtime-profile must be one of: full, standard.');
+  }
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
   }
   return options;
+}
+
+function shouldVerifyFullFirstRunEquivalence(runtimeProfile) {
+  return runtimeProfile === 'full';
 }
 
 function readCodexApiKey(options) {
@@ -1246,9 +1261,11 @@ async function main() {
       );
     }
 
-    const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
-    writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
-    writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+    if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
+      const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
+      writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
+      writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+    }
     captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
     captureUnifiedLog(options.processName, unifiedLogPath);
@@ -1263,6 +1280,7 @@ async function main() {
       status: 'passed',
       app_path: appPath,
       artifacts: options.artifacts,
+      runtime_profile: options.runtimeProfile,
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
@@ -1296,6 +1314,7 @@ export const __test =
         runOplJson,
         buildLaunchAppArgs,
         SETTINGS_PAGE_SMOKE_TARGETS,
+        shouldVerifyFullFirstRunEquivalence,
       }
     : undefined;
 
