@@ -19,7 +19,7 @@ Its durable role is deliberately narrow:
 
 - provide the desktop GUI shell and packaged application experience for OPL users
 - keep upstream AionUI source layout and dependencies cheap to follow
-- add the minimum OPL overlay needed for Codex-default runtime discovery, OPL branding, installer/release metadata, environment preparation, bridge policy, and packaging validation
+- add the minimum OPL overlay needed for App-generated product profile consumption, OPL branding, installer/release metadata, environment preparation, bridge policy, and packaging validation
 - call OPL-owned CLI or machine-readable surfaces when runtime truth is needed, instead of duplicating that truth in renderer state or fork-local ad hoc files
 
 The preferred long-term shape is a thin, syncable overlay. When a change can be implemented either by broad upstream source surgery or by a small OPL adapter, packaging rule, bridge policy, or configuration surface, choose the thin OPL layer.
@@ -29,7 +29,7 @@ The preferred long-term shape is a thin, syncable overlay. When a change can be 
 Use this repo for GUI-shell work:
 
 - OPL shell branding, first-run experience, updater/release metadata, packaged runtime validation, and installer packaging
-- Codex-default runtime wiring, visible skill filtering, bridge adapters, process launch policy, and environment discovery needed by the shell
+- generated product profile consumption for Codex defaults, visible skill filtering, first-run copy, bridge adapters, process launch policy, and environment discovery needed by the shell
 - human-facing runtime workbench views that consume OPL-indexed, domain-owned projections such as MAS `mas_opl_runtime_workbench_projection`
 - upstream AionUI intake, conflict resolution, and patch-retirement audits
 - fork-safe hygiene that prevents tracked local runtime/build payloads from entering `origin/main`
@@ -37,6 +37,7 @@ Use this repo for GUI-shell work:
 Keep these responsibilities outside this repo:
 
 - OPL family contracts, shared runtime truth, portfolio/session ledgers, and cross-domain governance belong in `one-person-lab` or the relevant domain repo
+- App product policy, release defaults, companion payload declarations, and user-facing desktop session defaults belong in `one-person-lab-app`
 - MAS/MAG/RCA domain truth belongs in those domain repos and their contract surfaces
 - terminal input, pause/resume/stop ownership, publication judgment, artifact authority, and study truth remain domain-owned even when this GUI renders their read models
 - local agent sessions, prompt logs, runtime-state, generated debug output, and worktrees stay ignored or user-local
@@ -62,6 +63,7 @@ Repository hygiene is intentionally limited for this reason. `bun run hygiene` b
 - If a worktree was accidentally created from `upstream/main`, discard that worktree and recreate it from `origin/main` before editing. Do not try to patch OPL changes onto an upstream-baseline worktree in place.
 - Do not delete upstream source modules to reduce package size. Hide or bypass unused features in the OPL adapter layer and exclude unused runtime files at packaging time.
 - Do not copy `opl install`, module management, skill synchronization, or runtime truth into renderer-only code. The GUI calls OPL CLI-backed machine-readable surfaces.
+- Do not scatter App product defaults through fork-local shell modules. Codex default model/reasoning, visible companion skills, first-run CLT copy, and Settings product policy should be consumed through `src/common/config/oplProductProfile.ts`; `one-person-lab-app` release preparation refreshes the generated JSON source.
 - Do not remove dependencies from `package.json` only because the OPL package excludes their runtime files. Source compatibility with upstream should remain cheap to rebase.
 - Keep Aion CLI, aionrs, Gemini, and other unused upstream runtimes disabled or excluded through bridge policy and packaging rules, not broad source deletion.
 

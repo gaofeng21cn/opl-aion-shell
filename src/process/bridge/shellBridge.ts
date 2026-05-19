@@ -11,6 +11,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { getOplCommandLineToolsInstallMessage } from '@/common/config/oplProductProfile';
 import { buildOplFullRuntimeShellPrefix } from '../oplFullRuntime';
 
 const execAsync = promisify(exec);
@@ -42,11 +43,7 @@ const OPL_STANDARD_TOOLCHAIN_PREFIX = [
   'unset _opl_node_bin;',
   'fi',
 ].join(' ');
-const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = [
-  'One Person Lab uses Apple Command Line Tools for Git-backed updates and standard module maintenance on this Mac.',
-  'The macOS Command Line Tools installer has been opened. Please finish that installer, then retry setup in One Person Lab.',
-  'Full first-install can continue with the bundled runtime while Command Line Tools is being installed.',
-].join('\n');
+const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = getOplCommandLineToolsInstallMessage();
 type CommandLineToolsPreparationResult = {
   status: 'available' | 'installer_requested' | 'unsupported';
   message?: string;

@@ -57,6 +57,10 @@ As of 2026-05-15, this local checkout uses `origin` for
 
 - New to the project? Start with [`architecture/overview.md`](architecture/overview.md).
 - Maintaining OPL-specific shell behavior? Start with [`architecture/opl-gui-shell-maintenance.md`](architecture/opl-gui-shell-maintenance.md).
+- Changing desktop product defaults such as Codex model/reasoning, visible
+  companion skills, CLT/deferred-maintenance copy, or Settings presentation?
+  Change the App-owned contract in `one-person-lab-app` and let release
+  preparation regenerate `src/common/config/oplProductProfile.generated.json`.
 - Setting up a dev environment? See [`contributing/development.md`](contributing/development.md).
 - Writing code? The entry point for code-style, linting, formatting, and commit rules is [`AGENTS.md`](../AGENTS.md) at the repo root.
 - Deploying a server? [`guides/deploy-server.md`](guides/deploy-server.md).

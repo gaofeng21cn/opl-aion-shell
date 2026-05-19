@@ -11,7 +11,7 @@ import {
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 describe('OPL default Codex skills', () => {
-  it('adds MAS, MAG, RCA, superpowers, and Office skills to plain Codex conversations', () => {
+  it('adds MAS, MAG, RCA, superpowers, Office, MinerU, and UI/UX skills to plain Codex conversations', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'One Person Lab',
@@ -28,6 +28,7 @@ describe('OPL default Codex skills', () => {
     expect(params.extra?.presetContext).toContain('默认路由');
     expect(params.extra?.presetContext).toContain('不要要求用户输入 @MAS/@MAG/@RCA');
     expect(params.extra?.presetContext).not.toContain('One Person Lab is the default Codex runtime surface');
+    expect(params.extra?.enabledSkills).toEqual(expect.arrayContaining(['mineru-document-extractor', 'ui-ux-pro-max']));
   });
 
   it('keeps the OPL activation policy scoped to conversation context instead of AGENTS files', () => {

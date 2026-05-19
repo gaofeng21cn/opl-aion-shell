@@ -130,6 +130,31 @@ it('prioritizes OPL family and companion skills in the compact popover', () => {
   expect(screen.getByText('4')).toBeInTheDocument();
 });
 
+it('orders generated OPL profile skills before morph-ppt and non-priority skills', () => {
+  const skills = [
+    { name: 'write', description: 'write' },
+    { name: 'ui-ux-pro-max', description: 'ui ux' },
+    { name: 'morph-ppt', description: 'morph' },
+    { name: 'mineru-document-extractor', description: 'mineru' },
+    { name: 'officecli-xlsx', description: 'xlsx' },
+    { name: 'mag', description: 'mag' },
+    { name: 'mas', description: 'mas' },
+  ];
+
+  render(<ConversationSkillsIndicator conversation={createConversation(skills)} />);
+
+  const renderedNames = screen.getAllByTestId('skill-row').map((node) => node.textContent);
+  expect(renderedNames).toEqual([
+    'mas',
+    'mag',
+    'officecli-xlsx',
+    'mineru-document-extractor',
+    'ui-ux-pro-max',
+    'morph-ppt',
+    'write',
+  ]);
+});
+
 it('deduplicates repeated loaded skills by display name', () => {
   const skills = [
     { name: 'mas', description: 'mas' },

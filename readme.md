@@ -79,6 +79,7 @@ The default OPL path remains `Codex` plus the OPL skill pack from `one-person-la
 - `opl` remains the default interactive frontdoor
 - `opl exec` remains the one-shot frontdoor
 - AionUi consumes the OPL adapter/extension to discover the same local session/runtime surface
+- One Person Lab App owns desktop product defaults. This shell consumes the generated `src/common/config/oplProductProfile.generated.json` profile for Codex defaults, companion skills, first-run maintenance copy, and Settings presentation instead of defining those defaults locally.
 
 ---
 

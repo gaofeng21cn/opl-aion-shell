@@ -79,6 +79,7 @@
 - `opl` 继续是默认持续交互前门
 - `opl exec` 继续是一次性前门
 - AionUi 通过 OPL adapter/extension 发现同一套本地 session/runtime surface
+- One Person Lab App 负责桌面产品默认策略。这个 shell 消费生成的 `src/common/config/oplProductProfile.generated.json`，用于 Codex 默认值、配套技能、首次启动维护文案和 Settings 展示策略，而不在 shell 内部分散定义这些默认值。
 
 ---
 

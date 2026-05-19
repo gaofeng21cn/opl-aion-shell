@@ -5,6 +5,7 @@
  */
 
 import type { TChatConversation } from '@/common/config/storage';
+import { getOplSkillPriority } from '@/common/config/oplProductProfile';
 import { iconColors } from '@/renderer/styles/colors';
 import { Popover } from '@arco-design/web-react';
 import { Lightning } from '@icon-park/react';
@@ -15,6 +16,8 @@ import { useNavigate } from 'react-router-dom';
 type ConversationSkillsIndicatorProps = {
   conversation: TChatConversation | undefined;
 };
+
+const OPL_SKILL_PRIORITY_BY_NAME = new Map(getOplSkillPriority().map((name, index) => [name, index]));
 
 /**
  * Shows loaded skills for a conversation in a popover dropdown.
@@ -27,22 +30,10 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
 
   const loadedSkills = (conversation?.extra as { loadedSkills?: Array<{ name: string; description: string }> })
     ?.loadedSkills;
-  const prioritySkills = [
-    'mas',
-    'mag',
-    'rca',
-    'superpowers',
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'morph-ppt',
-  ];
-  const priorityByName = new Map(prioritySkills.map((name, index) => [name, index]));
   const visibleSkills = Array.from(new Map((loadedSkills ?? []).map((skill) => [skill.name, skill])).values()).sort(
     (a, b) => {
-      const aPriority = priorityByName.get(a.name) ?? Number.MAX_SAFE_INTEGER;
-      const bPriority = priorityByName.get(b.name) ?? Number.MAX_SAFE_INTEGER;
+      const aPriority = OPL_SKILL_PRIORITY_BY_NAME.get(a.name) ?? Number.MAX_SAFE_INTEGER;
+      const bPriority = OPL_SKILL_PRIORITY_BY_NAME.get(b.name) ?? Number.MAX_SAFE_INTEGER;
       if (aPriority !== bPriority) return aPriority - bPriority;
       return a.name.localeCompare(b.name);
     }

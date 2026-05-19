@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { getOplDeferredFirstLaunchBlockers } from '@/common/config/oplProductProfile';
 import { ConfigStorage } from '@/common/config/storage';
 
 export type OplFirstLaunchPreparationResult =
@@ -138,7 +139,7 @@ const hasActiveOplFullRuntime = async (): Promise<boolean> => {
   }
 };
 
-const DEFERRED_FIRST_LAUNCH_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
+const DEFERRED_FIRST_LAUNCH_BLOCKERS = new Set(getOplDeferredFirstLaunchBlockers());
 
 const hasOnlyDeferredFirstLaunchBlockers = (blockers: string[]): boolean =>
   blockers.length > 0 && blockers.every((blocker) => DEFERRED_FIRST_LAUNCH_BLOCKERS.has(blocker));
