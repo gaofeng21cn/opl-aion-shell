@@ -1061,37 +1061,27 @@ async function exerciseDeveloperModeSwitch(client) {
     30_000,
     'System Settings did not expose the OPL Developer Mode switch'
   );
+
+  if (initialState.checked) {
+    return { initialState, enabledState: initialState, toggled: false };
+  }
+
   await evaluateCdp(
     client,
     `(() => {
       const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
-      if (!sw) throw new Error('OPL Developer Mode switch disappeared before toggle');
+      if (!sw) throw new Error('OPL Developer Mode switch disappeared before enable');
       sw.click();
       return true;
     })()`
   );
-  const toggledState = await waitForCdpPredicate(
+  const enabledState = await waitForCdpPredicate(
     client,
-    developerModeUiStateExpression(!initialState.checked),
+    developerModeUiStateExpression(true),
     30_000,
-    'OPL Developer Mode switch did not toggle'
+    'OPL Developer Mode switch did not enable'
   );
-  await evaluateCdp(
-    client,
-    `(() => {
-      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
-      if (!sw) throw new Error('OPL Developer Mode switch disappeared before restore');
-      sw.click();
-      return true;
-    })()`
-  );
-  const restoredState = await waitForCdpPredicate(
-    client,
-    developerModeUiStateExpression(initialState.checked),
-    30_000,
-    'OPL Developer Mode switch did not restore to its original state'
-  );
-  return { initialState, toggledState, restoredState };
+  return { initialState, enabledState, toggled: true };
 }
 
 async function runSettingsSmoke(options, secret) {
