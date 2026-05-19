@@ -583,6 +583,25 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows the system startup-maintenance command for App startup module and skill refresh', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, {
+          stdout: '{"system_action":{"action":"startup_maintenance","status":"completed"}}',
+          stderr: '',
+        });
+      });
+
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'startup-maintenance'] });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'startup-maintenance'")],
+        expect.objectContaining({ timeout: 30 * 60_000 }),
+        expect.any(Function)
+      );
+    });
+
     it('reports the active Full runtime status from the main process environment', async () => {
       process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
 
@@ -594,11 +613,11 @@ describe('shellBridge', () => {
       });
     });
 
-    it('skips git-backed module reconcile in a Full runtime without probing Command Line Tools', async () => {
+    it('skips git-backed startup maintenance in a Full runtime without probing Command Line Tools', async () => {
       Object.defineProperty(process, 'platform', { value: 'darwin' });
       process.env.OPL_FULL_RUNTIME_HOME = '/tmp/OPL Full Runtime/current';
 
-      const result = await runOplCommandProvider.fn!({ args: ['system', 'reconcile-modules'] });
+      const result = await runOplCommandProvider.fn!({ args: ['system', 'startup-maintenance'] });
 
       expect(result).toEqual({
         exitCode: 0,

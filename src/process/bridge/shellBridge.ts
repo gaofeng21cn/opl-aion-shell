@@ -165,7 +165,14 @@ function assertAllowedOplArgs(args: string[]): void {
   if (
     args[0] === 'system' &&
     args[1] &&
-    !['initialize', 'update', 'reconcile-modules', 'configure-codex', 'developer-supervisor'].includes(args[1])
+    ![
+      'initialize',
+      'update',
+      'startup-maintenance',
+      'reconcile-modules',
+      'configure-codex',
+      'developer-supervisor',
+    ].includes(args[1])
   ) {
     throw new Error(`Unsupported OPL system action: ${args[1]}`);
   }
@@ -242,10 +249,14 @@ function oplCommandMayNeedCommandLineTools(args: string[]): boolean {
   if (process.platform !== 'darwin') return false;
   if (args[0] === 'install') return !process.env.OPL_FULL_RUNTIME_HOME?.trim() && !args.includes('--skip-modules');
   if (args[0] === 'module' && ['install', 'update', 'reinstall'].includes(args[1] ?? '')) return true;
-  if (args[0] === 'system' && args[1] === 'reconcile-modules' && process.env.OPL_FULL_RUNTIME_HOME?.trim()) {
+  if (
+    args[0] === 'system' &&
+    ['startup-maintenance', 'reconcile-modules'].includes(args[1] ?? '') &&
+    process.env.OPL_FULL_RUNTIME_HOME?.trim()
+  ) {
     return false;
   }
-  return args[0] === 'system' && ['update', 'reconcile-modules'].includes(args[1] ?? '');
+  return args[0] === 'system' && ['update', 'startup-maintenance', 'reconcile-modules'].includes(args[1] ?? '');
 }
 
 async function maybeOpenCommandLineToolsInstallerBeforeOplCommand(
@@ -371,7 +382,13 @@ function shouldQueueOplCommand(args: string[]): boolean {
   if (args[0] === 'module' || args[0] === 'engine') return true;
   if (args[0] === 'family-runtime') return true;
   if (args[0] === 'system') {
-    if (args[1] === 'update' || args[1] === 'reconcile-modules' || args[1] === 'configure-codex') return true;
+    if (
+      args[1] === 'update' ||
+      args[1] === 'startup-maintenance' ||
+      args[1] === 'reconcile-modules' ||
+      args[1] === 'configure-codex'
+    )
+      return true;
     if (args[1] === 'developer-supervisor') return args.length > 2;
     return false;
   }
@@ -392,7 +409,11 @@ async function bootstrapOplCli(): Promise<{ exitCode: number; stdout: string; st
 
 async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   assertAllowedOplArgs(args);
-  if (args[0] === 'system' && args[1] === 'reconcile-modules' && process.env.OPL_FULL_RUNTIME_HOME?.trim()) {
+  if (
+    args[0] === 'system' &&
+    ['startup-maintenance', 'reconcile-modules'].includes(args[1] ?? '') &&
+    process.env.OPL_FULL_RUNTIME_HOME?.trim()
+  ) {
     return {
       exitCode: 0,
       stdout: '{"system_action":{"status":"skipped","reason":"full_runtime_managed_modules"}}',
@@ -408,7 +429,8 @@ async function runOplCli(args: string[]): Promise<{ exitCode: number; stdout: st
   const timeout =
     args[0] === 'install' ||
     args[0] === 'engine' ||
-    (args[0] === 'system' && (args[1] === 'update' || args[1] === 'reconcile-modules'))
+    (args[0] === 'system' &&
+      (args[1] === 'update' || args[1] === 'startup-maintenance' || args[1] === 'reconcile-modules'))
       ? 30 * 60_000
       : 120_000;
   const directResult = await runLoginShell(buildOplCommand(args), timeout);

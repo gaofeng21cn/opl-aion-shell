@@ -274,7 +274,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('does not wait for module reconcile before completing first launch for a new App version', async () => {
+  it('does not wait for startup maintenance before completing first launch for a new App version', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.lastModuleReconcileAppVersion') return undefined;
       return undefined;
@@ -294,12 +294,12 @@ describe('oplFirstLaunchPreparation', () => {
     await waitForOplCommandCalls(3);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.4');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('does not run git-backed module reconcile on a Full runtime first launch', async () => {
+  it('does not run git-backed startup maintenance on a Full runtime first launch', async () => {
     process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
     mockConfigGet.mockResolvedValue(undefined);
     mockRunOplCommand
@@ -315,7 +315,7 @@ describe('oplFirstLaunchPreparation', () => {
     await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
@@ -340,7 +340,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(process.env.OPL_FULL_RUNTIME_HOME).toBeUndefined();
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.18');
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_maintenance_started',
@@ -367,7 +367,7 @@ describe('oplFirstLaunchPreparation', () => {
 
     await waitForOplCommandCalls(2);
     expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
-    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.commandLineToolsPreparationPromptedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_command_line_tools_completed',
@@ -423,7 +423,7 @@ describe('oplFirstLaunchPreparation', () => {
 
     await waitForOplCommandCalls(2);
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
-    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_install_failed',
@@ -431,7 +431,7 @@ describe('oplFirstLaunchPreparation', () => {
     });
   });
 
-  it('keeps App launch prepared when background module reconcile fails', async () => {
+  it('keeps App launch prepared when background startup maintenance fails', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.lastModuleReconcileAppVersion') return undefined;
       return undefined;
@@ -448,7 +448,7 @@ describe('oplFirstLaunchPreparation', () => {
     });
 
     await waitForOplCommandCalls(3);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'startup-maintenance'] });
     expect(mockConfigSet).not.toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.5.4');
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
@@ -473,7 +473,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
-  it('starts module reconcile in the background when the App version changes after first launch preparation', async () => {
+  it('starts startup maintenance in the background when the App version changes after first launch preparation', async () => {
     const deferredReconcile = createDeferredOplCommandResult();
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
@@ -488,7 +488,7 @@ describe('oplFirstLaunchPreparation', () => {
     });
 
     await waitForOplCommandCalls(1);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'reconcile-modules'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'startup-maintenance'] });
 
     deferredReconcile.resolve({ exitCode: 0, stdout: '', stderr: '' });
     await deferredReconcile.promise;
@@ -496,7 +496,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.4.30');
   });
 
-  it('does not rerun module reconcile for the same App version', async () => {
+  it('does not rerun startup maintenance for the same App version', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
       if (key === 'opl.lastModuleReconcileAppVersion') return '26.4.30';

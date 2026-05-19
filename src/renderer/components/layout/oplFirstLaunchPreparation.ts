@@ -40,7 +40,7 @@ const COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY = 'opl.commandLineToolsPreparati
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
 const CORE_INSTALL_ARGS = ['install', '--skip-modules', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
-const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
+const STARTUP_MAINTENANCE_ARGS = ['system', 'startup-maintenance'];
 
 type OplFirstLaunchPreparationOptions = {
   appVersion?: string;
@@ -287,7 +287,7 @@ const reconcileModulesForAppVersion = async (
     if (reconciledVersion === normalizedVersion) return null;
   }
 
-  const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...RECONCILE_MODULES_ARGS] });
+  const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...STARTUP_MAINTENANCE_ARGS] });
   if (result.exitCode !== 0) {
     return { status: 'failed', message: getFailureMessage(result) };
   }

@@ -1,5 +1,7 @@
 import React from 'react';
-import { Empty, Tag } from '@arco-design/web-react';
+import { Button, Empty, Message, Tag } from '@arco-design/web-react';
+import { Refresh } from '@icon-park/react';
+import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
 import type { RuntimeTrayJsonRecord } from './types';
 
@@ -145,6 +147,48 @@ const safeActionSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator)
   return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
 };
 
+const evidenceSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+  const entries = [
+    [
+      t('common.runtimeTray.appDrilldown.externalRequests'),
+      firstText(summary.domain_external_evidence_request_count) || '0',
+    ],
+    [t('common.runtimeTray.appDrilldown.openRequests'), firstText(summary.domain_open_evidence_request_count) || '0'],
+    [
+      t('common.runtimeTray.appDrilldown.verifiedReceipts'),
+      firstText(summary.domain_external_verified_evidence_receipt_count) || '0',
+    ],
+  ];
+  return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
+};
+
+const evidenceGateSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+  const entries = [
+    [t('common.runtimeTray.appDrilldown.evidenceGates'), firstText(summary.domain_evidence_gate_count) || '0'],
+    [
+      t('common.runtimeTray.appDrilldown.remainingGates'),
+      firstText(summary.domain_remaining_evidence_gate_count) || '0',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.verifiedGateReceipts'),
+      firstText(summary.domain_evidence_gate_verified_receipt_count) || '0',
+    ],
+  ];
+  return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
+};
+
+const legacyCleanupSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+  const entries = [
+    [t('common.runtimeTray.appDrilldown.cleanupPlans'), firstText(summary.domain_legacy_cleanup_plan_count) || '0'],
+    [t('common.runtimeTray.appDrilldown.readyPlans'), firstText(summary.domain_legacy_cleanup_ready_plan_count) || '0'],
+    [
+      t('common.runtimeTray.appDrilldown.applyReady'),
+      firstText(summary.domain_legacy_cleanup_opl_apply_ready_count) || '0',
+    ],
+  ];
+  return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
+};
+
 const sectionCount = (drilldown: RuntimeTrayJsonRecord, key: string): number => {
   const section = nestedRecord(drilldown, key);
   if (Array.isArray(section.refs)) return section.refs.length;
@@ -238,6 +282,18 @@ const summaryCards = (
       label: t('common.runtimeTray.appDrilldown.functionalAudit'),
       value: functionalAuditSummary(summary, functional, t),
     },
+    {
+      label: t('common.runtimeTray.appDrilldown.externalEvidence'),
+      value: evidenceSummary(summary, t),
+    },
+    {
+      label: t('common.runtimeTray.appDrilldown.evidenceGateReceipts'),
+      value: evidenceGateSummary(summary, t),
+    },
+    {
+      label: t('common.runtimeTray.appDrilldown.legacyCleanup'),
+      value: legacyCleanupSummary(summary, t),
+    },
   ];
 };
 
@@ -320,12 +376,36 @@ const statusColor = (status: string): string => {
   return 'blue';
 };
 
+const projectionSourceKey = (projection: RuntimeTrayJsonRecord | null): string => {
+  if (!projection) return 'missing';
+  const summary = nestedRecord(projection, 'summary');
+  return [
+    firstText(projection.surface_kind) || 'unknown',
+    firstText(projection.detail_level) || 'summary',
+    firstText(projection.availability) || 'unknown',
+    firstText(summary.stage_attempt_count) || '0',
+    firstText(summary.domain_evidence_gate_count) || '0',
+    firstText(summary.domain_remaining_evidence_gate_count) || '0',
+    firstText(summary.domain_legacy_cleanup_plan_count) || '0',
+  ].join(':');
+};
+
 const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null | undefined }> = ({ drilldown }) => {
   const { t } = useTranslation();
-  const projection = isAppOperatorDrilldown(drilldown) ? drilldown : null;
+  const sourceProjection = isAppOperatorDrilldown(drilldown) ? drilldown : null;
+  const sourceProjectionKey = projectionSourceKey(sourceProjection);
+  const [fullDetail, setFullDetail] = React.useState<RuntimeTrayJsonRecord | null>(null);
+  const [loadingFullDetail, setLoadingFullDetail] = React.useState(false);
+
+  React.useEffect(() => {
+    setFullDetail(null);
+  }, [sourceProjectionKey]);
+
+  const projection = isAppOperatorDrilldown(fullDetail) ? fullDetail : sourceProjection;
   if (!projection) return null;
 
   const availability = firstText(projection.availability) || 'unknown';
+  const detailLevel = firstText(projection.detail_level) || 'summary';
   const summary = nestedRecord(projection, 'summary');
   const authority = nestedRecord(projection, 'authority_boundary');
   const memory = nestedRecord(projection, 'memory_writeback_refs');
@@ -337,12 +417,46 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
   const writebackReceiptRefs = textList(memory.writeback_receipt_refs);
   const qualityRefs = textList(quality.quality_refs);
   const readinessRefs = textList(quality.readiness_refs);
+  const handleLoadFullDetail = () => {
+    setLoadingFullDetail(true);
+    void ipcBridge.shell.runOplCommand
+      .invoke({ args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'] })
+      .then((result) => {
+        if (result.exitCode !== 0) {
+          throw new Error(result.stderr || result.stdout || t('common.runtimeTray.appDrilldown.fullDetailFailed'));
+        }
+        const payload = JSON.parse(result.stdout) as { app_operator_drilldown?: unknown };
+        if (!isAppOperatorDrilldown(payload.app_operator_drilldown)) {
+          throw new Error(t('common.runtimeTray.appDrilldown.fullDetailFailed'));
+        }
+        setFullDetail(payload.app_operator_drilldown);
+        Message.success(t('common.runtimeTray.appDrilldown.fullDetailLoaded'));
+      })
+      .catch((error) => {
+        Message.error(error instanceof Error ? error.message : t('common.runtimeTray.appDrilldown.fullDetailFailed'));
+      })
+      .finally(() => {
+        setLoadingFullDetail(false);
+      });
+  };
 
   return (
     <section className='flex flex-col gap-14px'>
       <div className='flex flex-wrap items-center justify-between gap-10px'>
         <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('common.runtimeTray.appDrilldown.title')}</h2>
-        <Tag color={statusColor(availability)}>{availability}</Tag>
+        <div className='flex flex-wrap items-center gap-8px'>
+          <Tag color={statusColor(availability)}>{availability}</Tag>
+          <Tag color={detailLevel === 'full' ? 'green' : 'blue'}>{detailLevel}</Tag>
+          <Button
+            size='mini'
+            type='outline'
+            icon={<Refresh theme='outline' size={12} />}
+            loading={loadingFullDetail}
+            onClick={handleLoadFullDetail}
+          >
+            {t('common.runtimeTray.appDrilldown.loadFullDetail')}
+          </Button>
+        </div>
       </div>
       <div className='h-1px w-full bg-[var(--color-border-2)]' />
 

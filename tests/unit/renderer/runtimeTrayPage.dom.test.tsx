@@ -161,7 +161,22 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.decisionMap': 'Decision Map',
   'common.runtimeTray.appDrilldown.executableRoutes': 'Executable Routes',
   'common.runtimeTray.appDrilldown.exports': 'Exports',
+  'common.runtimeTray.appDrilldown.externalEvidence': 'External Evidence',
+  'common.runtimeTray.appDrilldown.externalRequests': 'External Requests',
+  'common.runtimeTray.appDrilldown.evidenceGateReceipts': 'Evidence Gate Receipts',
+  'common.runtimeTray.appDrilldown.evidenceGates': 'Evidence Gates',
+  'common.runtimeTray.appDrilldown.legacyCleanup': 'Legacy Cleanup',
+  'common.runtimeTray.appDrilldown.cleanupPlans': 'Cleanup Plans',
   'common.runtimeTray.appDrilldown.functionalAudit': 'Functional Privatization Audit',
+  'common.runtimeTray.appDrilldown.openRequests': 'Open Requests',
+  'common.runtimeTray.appDrilldown.remainingGates': 'Remaining Gates',
+  'common.runtimeTray.appDrilldown.readyPlans': 'Ready Plans',
+  'common.runtimeTray.appDrilldown.applyReady': 'Apply Ready',
+  'common.runtimeTray.appDrilldown.verifiedReceipts': 'Verified Receipts',
+  'common.runtimeTray.appDrilldown.verifiedGateReceipts': 'Verified Gate Receipts',
+  'common.runtimeTray.appDrilldown.loadFullDetail': 'Load Full Detail',
+  'common.runtimeTray.appDrilldown.fullDetailLoaded': 'Full App drilldown loaded.',
+  'common.runtimeTray.appDrilldown.fullDetailFailed': 'Failed to load full App drilldown.',
   'common.runtimeTray.appDrilldown.memory': 'Memory Refs',
   'common.runtimeTray.appDrilldown.memoryWriteback': 'Writeback Receipts',
   'common.runtimeTray.appDrilldown.noRefs': 'No refs',
@@ -441,7 +456,7 @@ describe('RuntimeTrayItemPage', () => {
   });
 
   it('shows natural-language guidance on the runtime overview cards', async () => {
-    runOplCommandMock.mockResolvedValue({
+    const snapshotResponse = {
       exitCode: 0,
       stderr: '',
       stdout: JSON.stringify({
@@ -521,6 +536,15 @@ describe('RuntimeTrayItemPage', () => {
               functional_privatization_default_watchlist_count: 0,
               functional_privatization_semantic_equivalence_review_count: 0,
               functional_privatization_blocker_count: 0,
+              domain_external_evidence_request_count: 7,
+              domain_open_evidence_request_count: 2,
+              domain_external_verified_evidence_receipt_count: 5,
+              domain_evidence_gate_count: 4,
+              domain_remaining_evidence_gate_count: 1,
+              domain_evidence_gate_verified_receipt_count: 3,
+              domain_legacy_cleanup_plan_count: 3,
+              domain_legacy_cleanup_ready_plan_count: 3,
+              domain_legacy_cleanup_opl_apply_ready_count: 2,
             },
             route_graph_refs: {
               refs: [{ ref: '/stage_attempt_workbench/attempts/sat_001/route_decision_graph', role: 'route_graph' }],
@@ -639,6 +663,53 @@ describe('RuntimeTrayItemPage', () => {
           source_refs: [],
         },
       }),
+    };
+    const fullDetailResponse = {
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        app_operator_drilldown: {
+          surface_kind: 'opl_app_operator_drilldown_read_model',
+          availability: 'available',
+          detail_level: 'full',
+          summary: {
+            stage_attempt_count: 1,
+            route_graph_ref_count: 2,
+            decision_map_ref_count: 1,
+            review_repair_queue_item_count: 1,
+            artifact_gallery_item_count: 2,
+            package_ref_count: 1,
+            export_ref_count: 1,
+            memory_ref_count: 1,
+            memory_writeback_ref_count: 1,
+            quality_ref_count: 1,
+            readiness_ref_count: 1,
+            provider_slo_action_count: 1,
+            operator_action_route_count: 2,
+            operator_executable_route_count: 1,
+            safe_action_ref_count: 1,
+            functional_privatization_active_private_generic_residue_count: 0,
+            functional_privatization_default_watchlist_count: 0,
+            functional_privatization_semantic_equivalence_review_count: 0,
+            functional_privatization_blocker_count: 0,
+          },
+          route_graph_refs: {
+            refs: [
+              { ref: '/stage_attempt_workbench/attempts/sat_001/route_decision_graph', role: 'route_graph' },
+              { ref: '/stage_attempt_workbench/attempts/sat_full/route_decision_graph', role: 'route_graph' },
+            ],
+          },
+          authority_boundary: {
+            domain: 'truth_memory_artifact_quality_export_owner',
+          },
+        },
+      }),
+    };
+    runOplCommandMock.mockImplementation(({ args }: { args: string[] }) => {
+      if (args.join(' ') === 'runtime app-operator-drilldown --detail full --json') {
+        return Promise.resolve(fullDetailResponse);
+      }
+      return Promise.resolve(snapshotResponse);
     });
 
     render(
@@ -668,6 +739,13 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getByText(/domain_owner:med-autoscience/)).toBeInTheDocument();
     expect(screen.getByText(/Functional Privatization Audit/)).toBeInTheDocument();
     expect(screen.getByText(/Private Residue: 0; Watchlist: 0; Semantic Review: 0; Blockers: 0/)).toBeInTheDocument();
+    expect(screen.getByText(/External Evidence/)).toBeInTheDocument();
+    expect(screen.getByText(/External Requests: 7; Open Requests: 2; Verified Receipts: 5/)).toBeInTheDocument();
+    expect(screen.getByText(/Evidence Gate Receipts/)).toBeInTheDocument();
+    expect(screen.getByText(/Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3/)).toBeInTheDocument();
+    expect(screen.getByText(/Legacy Cleanup/)).toBeInTheDocument();
+    expect(screen.getByText(/Cleanup Plans: 3; Ready Plans: 3; Apply Ready: 2/)).toBeInTheDocument();
+    expect(screen.getByText('summary')).toBeInTheDocument();
     expect(screen.getAllByText('Safe Actions').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/role=safe_action/)).toBeInTheDocument();
     expect(
@@ -708,6 +786,18 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Load Full Detail'));
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+      });
+    });
+    await waitFor(() => {
+      expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Full App drilldown loaded.');
+    });
+    expect(await screen.findByText(/sat_full/)).toBeInTheDocument();
+    expect(screen.getByText('full')).toBeInTheDocument();
   });
 
   it('triggers stage attempt human gate, resume, and dead-letter repair through the signal bridge', async () => {
