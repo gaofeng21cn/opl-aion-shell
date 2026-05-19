@@ -640,6 +640,22 @@ describe('shellBridge', () => {
       expect(JSON.stringify(execFileMock.mock.calls)).not.toContain("'opl' 'install'");
     });
 
+    it('allows standard core install without Command Line Tools so Codex can be prepared first', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"install":{"selected_engines":["codex"],"selected_modules":[]}}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({ args: ['install', '--skip-modules', '--skip-gui-open'] });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledOnce();
+      const command = execFileMock.mock.calls[0][1][1];
+      expect(command).toContain('$HOME/.opl/toolchain');
+      expect(command).toContain("'opl' 'install' '--skip-modules' '--skip-gui-open'");
+      expect(JSON.stringify(execFileMock.mock.calls)).not.toContain('/usr/bin/xcode-select');
+    });
+
     it('reports available Command Line Tools without opening the installer', async () => {
       Object.defineProperty(process, 'platform', { value: 'darwin' });
       execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {

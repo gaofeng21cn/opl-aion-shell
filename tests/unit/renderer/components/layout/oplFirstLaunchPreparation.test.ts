@@ -154,6 +154,25 @@ const codexConfigNeededInitializeResult: OplCommandResult = {
   }),
   stderr: '',
 };
+const codexCliMissingAfterConfigInitializeResult: OplCommandResult = {
+  exitCode: 0,
+  stdout: JSON.stringify({
+    system_initialize: {
+      setup_flow: {
+        ready_to_launch: false,
+        blocking_items: ['codex', 'domain_modules', 'family_runtime_provider'],
+        progress: {
+          ready_required_count: 1,
+          total_required_count: 4,
+        },
+      },
+      recommended_next_action: {
+        label: 'Install Codex',
+      },
+    },
+  }),
+  stderr: '',
+};
 
 const createDeferredOplCommandResult = (): {
   promise: Promise<OplCommandResult>;
@@ -599,6 +618,44 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
     expect(JSON.stringify(mockRunOplCommand.mock.calls)).not.toContain('secret-api-key');
     expect(JSON.stringify(mockAppendOplFirstRunLog.mock.calls)).not.toContain('secret-api-key');
+  });
+
+  it('uses core install and defers git-backed setup when standard first launch is waiting for Command Line Tools', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand
+      .mockResolvedValueOnce(codexCliMissingAfterConfigInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '{"install":{"selected_modules":[]}}', stderr: '' })
+      .mockResolvedValueOnce(setupNeededInitializeResult)
+      .mockResolvedValueOnce({
+        exitCode: 69,
+        stdout: '',
+        stderr: 'The macOS Command Line Tools installer has been opened.',
+      });
+
+    await expect(configureOplCodexForFirstLaunch('secret-api-key', { appVersion: '26.5.18' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['domain_modules'],
+    });
+
+    expect(mockConfigureOplCodex).toHaveBeenCalledWith({ apiKey: 'secret-api-key' });
+    await waitForOplCommandCalls(4);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-modules', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['install', '--skip-gui-open'] });
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_install_waiting_for_command_line_tools',
+      payload: expect.objectContaining({ status: 'waiting_for_user' }),
+    });
+    expect(mockAppendOplFirstRunLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'gui_install_failed' })
+    );
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
   it('keeps Codex configuration blocking when initialize still reports it before install', async () => {

@@ -38,6 +38,7 @@ const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
 const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
 const COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY = 'opl.commandLineToolsPreparationPromptedAt';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
+const CORE_INSTALL_ARGS = ['install', '--skip-modules', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
 const RECONCILE_MODULES_ARGS = ['system', 'reconcile-modules'];
 
@@ -307,6 +308,13 @@ const reconcileModulesForFirstLaunch = async (appVersion?: string): Promise<OplF
   }
 
   const result = await reconcileModulesForAppVersion(normalizedVersion, { force: true });
+  if (result?.status === 'failed' && isCommandLineToolsInstallerMessage(result.message)) {
+    await appendFirstRunLogEvent('gui_module_reconcile_waiting_for_command_line_tools', {
+      status: 'waiting_for_user',
+      message: result.message,
+    });
+    return null;
+  }
   if (normalizedVersion && moduleReconcileState?.appVersion === normalizedVersion) {
     moduleReconcileState = null;
   }
@@ -455,6 +463,26 @@ const readInitializeState = async (
   };
 };
 
+const runForegroundInstallForFirstLaunch = async (): Promise<{
+  result: { exitCode: number; stdout: string; stderr: string };
+  usedCoreInstall: boolean;
+}> => {
+  const fullRuntime = await hasActiveOplFullRuntime();
+  const commandLineToolsStatus = await prepareCommandLineToolsInBackground();
+  const shouldUseCoreInstall = !fullRuntime && commandLineToolsStatus === 'installer_requested';
+  const args = shouldUseCoreInstall ? CORE_INSTALL_ARGS : INSTALL_ARGS;
+  let result = await ipcBridge.shell.runOplCommand.invoke({ args: [...args] });
+  if (!fullRuntime && !shouldUseCoreInstall && result.exitCode !== 0 && isCommandLineToolsInstallerMessage(getFailureMessage(result))) {
+    await appendFirstRunLogEvent('gui_install_waiting_for_command_line_tools', {
+      status: 'waiting_for_user',
+      message: getFailureMessage(result),
+    });
+    result = await ipcBridge.shell.runOplCommand.invoke({ args: [...CORE_INSTALL_ARGS] });
+    return { result, usedCoreInstall: true };
+  }
+  return { result, usedCoreInstall: shouldUseCoreInstall };
+};
+
 export const configureOplCodexForFirstLaunch = async (
   apiKey: string,
   options: OplFirstLaunchPreparationOptions = {}
@@ -521,9 +549,10 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     }
 
     let readyState = initialState;
+    let deferPostInstallMaintenance = false;
     if (initialState.status === 'setup-needed') {
       emitProgress(options, 'installingModules');
-      const result = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
+      const { result, usedCoreInstall } = await runForegroundInstallForFirstLaunch();
       if (result.exitCode !== 0) {
         const message = getFailureMessage(result);
         await appendFirstRunLogEvent('gui_install_failed', { status: 'failed', message });
@@ -536,6 +565,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
           progress: buildOplFirstLaunchProgress('installingModules'),
         };
       }
+      deferPostInstallMaintenance = usedCoreInstall;
 
       emitProgress(options, 'reviewingStatus');
       const preparedState = await readInitializeState('prepared', { markPrepared: false });
@@ -553,13 +583,17 @@ const runOplFirstLaunchEnvironmentPreparation = async (
       }
     }
 
-    const reconcileResult = await reconcileModulesForFirstLaunch(options.appVersion);
-    if (reconcileResult?.status === 'failed') {
-      await appendFirstRunLogEvent('gui_module_reconcile_failed', {
-        status: 'failed',
-        message: reconcileResult.message,
-      });
-      return { ...reconcileResult, readyToLaunch: false, firstRunLog };
+    if (deferPostInstallMaintenance) {
+      startDeferredFirstLaunchMaintenance(readyState, options.appVersion);
+    } else {
+      const reconcileResult = await reconcileModulesForFirstLaunch(options.appVersion);
+      if (reconcileResult?.status === 'failed') {
+        await appendFirstRunLogEvent('gui_module_reconcile_failed', {
+          status: 'failed',
+          message: reconcileResult.message,
+        });
+        return { ...reconcileResult, readyToLaunch: false, firstRunLog };
+      }
     }
 
     const result =

@@ -33,6 +33,14 @@ const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Pe
 const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
+const OPL_STANDARD_TOOLCHAIN_PREFIX = [
+  'if [ -d "$HOME/.opl/toolchain" ]; then',
+  'for _opl_node_bin in "$HOME"/.opl/toolchain/node-v*/bin; do',
+  'if [ -x "$_opl_node_bin/node" ] && [ -x "$_opl_node_bin/npm" ]; then export PATH="$_opl_node_bin:$PATH"; break; fi',
+  'done',
+  'unset _opl_node_bin',
+  'fi',
+].join(' ');
 const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = [
   'One Person Lab uses Apple Command Line Tools for Git-backed updates and standard module maintenance on this Mac.',
   'The macOS Command Line Tools installer has been opened. Please finish that installer, then retry setup in One Person Lab.',
@@ -232,7 +240,7 @@ async function prepareCommandLineTools(): Promise<CommandLineToolsPreparationRes
 
 function oplCommandMayNeedCommandLineTools(args: string[]): boolean {
   if (process.platform !== 'darwin') return false;
-  if (args[0] === 'install') return !process.env.OPL_FULL_RUNTIME_HOME?.trim();
+  if (args[0] === 'install') return !process.env.OPL_FULL_RUNTIME_HOME?.trim() && !args.includes('--skip-modules');
   if (args[0] === 'module' && ['install', 'update', 'reinstall'].includes(args[1] ?? '')) return true;
   if (args[0] === 'system' && args[1] === 'reconcile-modules' && process.env.OPL_FULL_RUNTIME_HOME?.trim()) {
     return false;
@@ -338,6 +346,7 @@ function buildOplCommand(args: string[]): string {
     : '';
   return [
     buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME),
+    OPL_STANDARD_TOOLCHAIN_PREFIX,
     'command -v opl >/dev/null || exit 127',
     `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`,
   ]
