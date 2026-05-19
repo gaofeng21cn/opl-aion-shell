@@ -36,9 +36,9 @@ const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
 const OPL_STANDARD_TOOLCHAIN_PREFIX = [
   'if [ -d "$HOME/.opl/toolchain" ]; then',
   'for _opl_node_bin in "$HOME"/.opl/toolchain/node-v*/bin; do',
-  'if [ -x "$_opl_node_bin/node" ] && [ -x "$_opl_node_bin/npm" ]; then export PATH="$_opl_node_bin:$PATH"; break; fi',
-  'done',
-  'unset _opl_node_bin',
+  'if [ -x "$_opl_node_bin/node" ] && [ -x "$_opl_node_bin/npm" ]; then export PATH="$_opl_node_bin:$PATH"; break; fi;',
+  'done;',
+  'unset _opl_node_bin;',
   'fi',
 ].join(' ');
 const COMMAND_LINE_TOOLS_INSTALL_MESSAGE = [

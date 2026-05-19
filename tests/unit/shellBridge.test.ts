@@ -652,6 +652,7 @@ describe('shellBridge', () => {
       expect(execFileMock).toHaveBeenCalledOnce();
       const command = execFileMock.mock.calls[0][1][1];
       expect(command).toContain('$HOME/.opl/toolchain');
+      expect(command).toContain('fi; done; unset _opl_node_bin; fi');
       expect(command).toContain("'opl' 'install' '--skip-modules' '--skip-gui-open'");
       expect(JSON.stringify(execFileMock.mock.calls)).not.toContain('/usr/bin/xcode-select');
     });
