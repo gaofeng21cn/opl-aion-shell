@@ -122,6 +122,8 @@ vi.mock('../../src/process/agent/acp/modelInfo', () => ({
 
 vi.mock('../../src/process/agent/acp/utils', () => ({
   getClaudeModel: vi.fn(),
+  getClaudeModelSlot: vi.fn(),
+  readCodexDefaultModelIdFromConfig: vi.fn().mockReturnValue(null),
 }));
 
 vi.mock('../../src/process/team/mcpReadiness', () => ({

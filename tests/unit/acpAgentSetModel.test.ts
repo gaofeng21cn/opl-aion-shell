@@ -6,12 +6,14 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockConnect, mockSetModel, mockDisconnect, mockGetInitializeResponse } = vi.hoisted(() => ({
-  mockConnect: vi.fn().mockResolvedValue(undefined),
-  mockSetModel: vi.fn().mockResolvedValue(undefined),
-  mockDisconnect: vi.fn().mockResolvedValue(undefined),
-  mockGetInitializeResponse: vi.fn().mockReturnValue(null),
-}));
+const { mockConnect, mockSetModel, mockDisconnect, mockGetInitializeResponse, mockReadCodexDefaultModelIdFromConfig } =
+  vi.hoisted(() => ({
+    mockConnect: vi.fn().mockResolvedValue(undefined),
+    mockSetModel: vi.fn().mockResolvedValue(undefined),
+    mockDisconnect: vi.fn().mockResolvedValue(undefined),
+    mockGetInitializeResponse: vi.fn().mockReturnValue(null),
+    mockReadCodexDefaultModelIdFromConfig: vi.fn().mockReturnValue(null),
+  }));
 
 vi.mock('../../src/process/agent/acp/AcpConnection', () => ({
   AcpConnection: class {
@@ -50,6 +52,7 @@ vi.mock('../../src/process/agent/acp/ApprovalStore', () => ({
 vi.mock('../../src/process/agent/acp/utils', () => ({
   getClaudeModel: vi.fn().mockReturnValue(null),
   getClaudeModelSlot: vi.fn().mockReturnValue(null),
+  readCodexDefaultModelIdFromConfig: mockReadCodexDefaultModelIdFromConfig,
   killChild: vi.fn(),
   readTextFile: vi.fn(),
   writeJsonRpcMessage: vi.fn(),
@@ -149,6 +152,54 @@ describe('AcpAgent.start() — setModel for non-claude backends', () => {
     await agent.start();
 
     expect(mockSetModel).not.toHaveBeenCalled();
+  });
+});
+
+describe('AcpAgent.start() — Codex default reasoning model', () => {
+  const baseConfig = {
+    id: 'test-agent',
+    backend: 'codex' as const,
+    workingDir: '/tmp',
+    onStreamEvent: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConnect.mockResolvedValue(undefined);
+    mockSetModel.mockResolvedValue(undefined);
+    mockGetInitializeResponse.mockReturnValue(null);
+    mockReadCodexDefaultModelIdFromConfig.mockReturnValue(null);
+  });
+
+  it('applies the configured Codex model with reasoning suffix after session creation', async () => {
+    mockReadCodexDefaultModelIdFromConfig.mockReturnValue('gpt-5.5/xhigh');
+
+    const agent = new AcpAgent({
+      ...baseConfig,
+      extra: {
+        backend: 'codex',
+      },
+    });
+
+    await agent.start();
+
+    expect(mockSetModel).toHaveBeenCalledOnce();
+    expect(mockSetModel).toHaveBeenCalledWith('gpt-5.5/xhigh');
+  });
+
+  it('does not block Codex startup when the configured model cannot be applied', async () => {
+    mockReadCodexDefaultModelIdFromConfig.mockReturnValue('gpt-5.5/xhigh');
+    mockSetModel.mockRejectedValue(new Error('model not supported'));
+
+    const agent = new AcpAgent({
+      ...baseConfig,
+      extra: {
+        backend: 'codex',
+      },
+    });
+
+    await expect(agent.start()).resolves.toBeUndefined();
+    expect(mockSetModel).toHaveBeenCalledWith('gpt-5.5/xhigh');
   });
 });
 

@@ -52,6 +52,7 @@ vi.mock('../../src/process/agent/acp/ApprovalStore', () => ({
 vi.mock('../../src/process/agent/acp/utils', () => ({
   getClaudeModel: vi.fn().mockReturnValue(null),
   getClaudeModelSlot: vi.fn().mockReturnValue(null),
+  readCodexDefaultModelIdFromConfig: vi.fn().mockReturnValue(null),
   killChild: vi.fn(),
   readTextFile: vi.fn(),
   writeJsonRpcMessage: vi.fn(),

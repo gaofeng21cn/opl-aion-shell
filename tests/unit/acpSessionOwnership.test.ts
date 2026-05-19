@@ -94,6 +94,8 @@ vi.mock('@process/agent/acp/modelInfo', () => ({
 
 vi.mock('@process/agent/acp/utils', () => ({
   getClaudeModel: vi.fn(),
+  getClaudeModelSlot: vi.fn(),
+  readCodexDefaultModelIdFromConfig: vi.fn().mockReturnValue(null),
 }));
 
 import { AcpAgent } from '@process/agent/acp';

@@ -44,7 +44,7 @@ describe('buildAcpModelInfo', () => {
     expect(result).toEqual(preferredModelInfo);
   });
 
-  it('prefers stable configOptions model data when available', () => {
+  it('preserves reasoning suffixes from ACP models over base configOptions values', () => {
     const configOptions: AcpSessionConfigOption[] = [
       {
         id: 'model',
@@ -62,6 +62,44 @@ describe('buildAcpModelInfo', () => {
     const models: AcpSessionModels = {
       currentModelId: 'gpt-5.4/xhigh',
       availableModels: [{ modelId: 'gpt-5.4/xhigh', name: 'gpt-5.4 (xhigh)' }],
+    };
+
+    const result = buildAcpModelInfo(configOptions, models, {
+      currentModelId: null,
+      currentModelLabel: null,
+      availableModels: [],
+      canSwitch: false,
+      source: 'models',
+    });
+
+    expect(result).toEqual({
+      currentModelId: 'gpt-5.4/xhigh',
+      currentModelLabel: 'gpt-5.4 (xhigh)',
+      availableModels: [{ id: 'gpt-5.4/xhigh', label: 'gpt-5.4 (xhigh)' }],
+      canSwitch: false,
+      source: 'models',
+      sourceDetail: 'acp-models',
+    });
+  });
+
+  it('prefers stable configOptions model data when ACP models do not include reasoning suffixes', () => {
+    const configOptions: AcpSessionConfigOption[] = [
+      {
+        id: 'model',
+        name: 'Model',
+        category: 'model',
+        type: 'select',
+        currentValue: 'gpt-5.4',
+        options: [
+          { value: 'gpt-5.3-codex', name: 'gpt-5.3-codex' },
+          { value: 'gpt-5.4', name: 'gpt-5.4' },
+        ],
+      },
+    ];
+
+    const models: AcpSessionModels = {
+      currentModelId: 'gpt-5.4',
+      availableModels: [{ modelId: 'gpt-5.4', name: 'gpt-5.4' }],
     };
 
     const result = buildAcpModelInfo(configOptions, models, {

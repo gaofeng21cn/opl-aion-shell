@@ -9,6 +9,11 @@ export function buildAcpModelInfo(
     return preferredModelInfo;
   }
 
+  const modelsInfo = models ? buildModelsInfo(models) : null;
+  if (modelsInfo?.currentModelId?.includes('/')) {
+    return modelsInfo;
+  }
+
   const modelOption = configOptions?.find((opt) => opt.category === 'model');
   if (modelOption && modelOption.type === 'select' && modelOption.options) {
     const activeValue = modelOption.currentValue || modelOption.selectedValue || null;
@@ -26,21 +31,23 @@ export function buildAcpModelInfo(
     };
   }
 
-  if (models) {
-    const available = models.availableModels || [];
-    const getModelId = (model: (typeof available)[number]) => model.id || model.modelId || '';
-    return {
-      currentModelId: models.currentModelId || null,
-      currentModelLabel:
-        available.find((model) => getModelId(model) === models.currentModelId)?.name || models.currentModelId || null,
-      availableModels: available.map((model) => ({ id: getModelId(model), label: model.name || getModelId(model) })),
-      canSwitch: available.length > 1,
-      source: 'models',
-      sourceDetail: 'acp-models',
-    };
-  }
+  if (modelsInfo) return modelsInfo;
 
   return null;
+}
+
+function buildModelsInfo(models: AcpSessionModels): AcpModelInfo {
+  const available = models.availableModels || [];
+  const getModelId = (model: (typeof available)[number]) => model.id || model.modelId || '';
+  return {
+    currentModelId: models.currentModelId || null,
+    currentModelLabel:
+      available.find((model) => getModelId(model) === models.currentModelId)?.name || models.currentModelId || null,
+    availableModels: available.map((model) => ({ id: getModelId(model), label: model.name || getModelId(model) })),
+    canSwitch: available.length > 1,
+    source: 'models',
+    sourceDetail: 'acp-models',
+  };
 }
 
 export function summarizeAcpModelInfo(modelInfo: AcpModelInfo | null): {

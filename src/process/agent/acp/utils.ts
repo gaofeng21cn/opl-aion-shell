@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import { promises as fsAsync } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { parse as parseToml } from 'smol-toml';
 
 const execFile = promisify(execFileCb);
 
@@ -212,6 +213,38 @@ export function writeJsonRpcMessage(child: ChildProcess, message: object): void 
   if (child.stdin) {
     const lineEnding = process.platform === 'win32' ? '\r\n' : '\n';
     child.stdin.write(JSON.stringify(message) + lineEnding);
+  }
+}
+
+// ── Codex settings ─────────────────────────────────────────────────
+
+const CODEX_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
+
+function getCodexConfigPath(env: NodeJS.ProcessEnv = process.env): string {
+  const codexHome = env.CODEX_HOME?.trim();
+  return codexHome ? path.join(codexHome, 'config.toml') : path.join(os.homedir(), '.codex', 'config.toml');
+}
+
+/**
+ * Read the effective Codex model id from config.toml for ACP session/model sync.
+ * Codex ACP accepts reasoning as a model suffix, for example `gpt-5.5/xhigh`.
+ */
+export function readCodexDefaultModelIdFromConfig(env: NodeJS.ProcessEnv = process.env): string | null {
+  try {
+    const configPath = getCodexConfigPath(env);
+    if (!fs.existsSync(configPath)) return null;
+
+    const parsed = parseToml(fs.readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+    const model = typeof parsed.model === 'string' ? parsed.model.trim() : '';
+    if (!model) return null;
+    if (model.includes('/')) return model;
+
+    const effort = typeof parsed.model_reasoning_effort === 'string' ? parsed.model_reasoning_effort.trim() : '';
+    if (!CODEX_REASONING_EFFORTS.has(effort)) return model;
+
+    return `${model}/${effort}`;
+  } catch {
+    return null;
   }
 }
 

@@ -38,7 +38,7 @@ import { AcpApprovalStore, createAcpApprovalKey } from './ApprovalStore';
 import { CLAUDE_YOLO_SESSION_MODE, CODEBUDDY_YOLO_SESSION_MODE, QWEN_YOLO_SESSION_MODE } from './constants';
 import { buildAcpModelInfo } from './modelInfo';
 import { buildBuiltinAcpSessionMcpServers, buildTeamMcpServer, type AcpSessionMcpServer } from './mcpSessionConfig';
-import { getClaudeModelSlot } from './utils';
+import { getClaudeModelSlot, readCodexDefaultModelIdFromConfig } from './utils';
 import { getTeamGuideStdioConfig } from '@process/team/mcp/guide/teamGuideSingleton';
 import { shouldInjectTeamGuideMcp } from '@process/team/prompts/teamGuideCapability.ts';
 import { waitForMcpReady } from '@process/team/mcpReadiness';
@@ -374,6 +374,19 @@ export class AcpAgent {
                   `Falling back to the relay's default Claude slot.`
               );
             }
+          }
+        }
+      } else if (this.extra.backend === 'codex') {
+        const configuredModel = readCodexDefaultModelIdFromConfig();
+        if (configuredModel) {
+          try {
+            const modelStart = Date.now();
+            await this.connection.setModel(configuredModel);
+            console.log(`[ACP-PERF] start: codex model set ${Date.now() - modelStart}ms`);
+          } catch (error) {
+            console.warn(
+              `[ACP] Failed to set Codex model "${configuredModel}": ${error instanceof Error ? error.message : String(error)}`
+            );
           }
         }
       } else if (this.extra.currentModelId) {
