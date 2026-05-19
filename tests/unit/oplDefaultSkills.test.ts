@@ -75,6 +75,7 @@ describe('OPL default Codex skills', () => {
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
+      'mineru-document-extractor',
       'ui-ux-pro-max',
       'custom-skill',
     ]);

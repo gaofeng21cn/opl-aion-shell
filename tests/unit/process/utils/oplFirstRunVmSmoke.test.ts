@@ -30,6 +30,7 @@ const requiredSkills = [
   'officecli-docx',
   'officecli-pptx',
   'officecli-xlsx',
+  'mineru-document-extractor',
   'ui-ux-pro-max',
 ];
 const bundledModules = [
@@ -79,6 +80,12 @@ function createFullRuntimeFixture(homeRoot: string) {
     'utf8'
   );
   fs.chmodSync(path.join(runtimeHome, 'bin', 'officecli'), 0o755);
+  fs.writeFileSync(
+    path.join(runtimeHome, 'bin', 'mineru-open-api'),
+    '#!/usr/bin/env bash\nif [ "${1:-}" = "version" ]; then printf "mineru-open-api version v0.1.3-test\\n"; else printf "mineru-open-api test\\n"; fi\n',
+    'utf8'
+  );
+  fs.chmodSync(path.join(runtimeHome, 'bin', 'mineru-open-api'), 0o755);
   for (const [moduleId, repoName, relativePath] of bundledModules) {
     writePackagedRuntimeModule(runtimeHome, moduleId, repoName, relativePath);
   }

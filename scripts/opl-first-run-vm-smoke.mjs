@@ -379,11 +379,19 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     'officecli-docx',
     'officecli-pptx',
     'officecli-xlsx',
+    'mineru-document-extractor',
     'ui-ux-pro-max',
   ];
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
-  for (const skillId of ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max']) {
+  for (const skillId of [
+    'officecli',
+    'officecli-docx',
+    'officecli-pptx',
+    'officecli-xlsx',
+    'mineru-document-extractor',
+    'ui-ux-pro-max',
+  ]) {
     if (readySkills.get(skillId) !== 'ready') {
       throw new Error(`OPL Full first-run skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`);
     }
@@ -409,18 +417,25 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
   ]) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath);
   }
-  const officeCliTool = spawnSync(
-    runtimeShellExecutable(),
-    ['-lc', [buildFullRuntimeCommandPrefix(runtimeHome), 'officecli --version'].filter(Boolean).join(' && ')],
-    {
-      encoding: 'utf8',
-    }
-  );
-  if (officeCliTool.status !== 0 || !officeCliTool.stdout.trim()) {
-    throw new Error(
-      `officecli is not callable from the Full runtime PATH: ${officeCliTool.stderr || officeCliTool.stdout}`
+  const assertFullRuntimeToolCallable = (command, args) => {
+    const probe = spawnSync(
+      runtimeShellExecutable(),
+      [
+        '-lc',
+        [buildFullRuntimeCommandPrefix(runtimeHome), [command, ...args].map(shellQuote).join(' ')]
+          .filter(Boolean)
+          .join(' && '),
+      ],
+      {
+        encoding: 'utf8',
+      }
     );
-  }
+    if (probe.status !== 0 || !probe.stdout.trim()) {
+      throw new Error(`${command} is not callable from the Full runtime PATH: ${probe.stderr || probe.stdout}`);
+    }
+  };
+  assertFullRuntimeToolCallable('officecli', ['--version']);
+  assertFullRuntimeToolCallable('mineru-open-api', ['version']);
 }
 
 function runOplJson(args) {

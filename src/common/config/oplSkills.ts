@@ -13,6 +13,7 @@ export const OPL_DEFAULT_CODEX_SKILLS = [
   'officecli-docx',
   'officecli-pptx',
   'officecli-xlsx',
+  'mineru-document-extractor',
   'ui-ux-pro-max',
 ] as const;
 

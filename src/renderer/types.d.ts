@@ -23,6 +23,7 @@ declare module 'unocss';
 interface ImportMetaEnv {
   readonly VITE_OPL_DEFAULT_LANGUAGE?: string;
   readonly VITE_AIONUI_DEFAULT_LANGUAGE?: string;
+  readonly VITE_OPL_OVERVIEW_STATUS_TIMEOUT_MS?: string;
 }
 
 interface ImportMeta {
