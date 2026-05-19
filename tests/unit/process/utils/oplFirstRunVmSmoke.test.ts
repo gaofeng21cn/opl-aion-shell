@@ -21,7 +21,23 @@ type SmokeTestApi = {
 };
 
 const tempRoots: string[] = [];
-const requiredSkills = ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max'];
+const requiredSkills = [
+  'mas',
+  'mag',
+  'rca',
+  'opl-meta-agent',
+  'officecli',
+  'officecli-docx',
+  'officecli-pptx',
+  'officecli-xlsx',
+  'ui-ux-pro-max',
+];
+const bundledModules = [
+  ['medautoscience', 'med-autoscience', path.join('modules', 'mas')],
+  ['medautogrant', 'med-autogrant', path.join('modules', 'mag')],
+  ['redcube', 'redcube-ai', path.join('modules', 'rca')],
+  ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent')],
+] as const;
 
 function makeTempRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-smoke-'));
@@ -33,6 +49,43 @@ function writeExecutable(filePath: string) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '#!/usr/bin/env bash\n', 'utf8');
   fs.chmodSync(filePath, 0o755);
+}
+
+function writePackagedRuntimeModule(runtimeHome: string, moduleId: string, repoName: string, relativePath: string) {
+  const moduleRoot = path.join(runtimeHome, relativePath);
+  fs.mkdirSync(path.join(moduleRoot, 'agent'), { recursive: true });
+  fs.mkdirSync(path.join(moduleRoot, 'plugins'), { recursive: true });
+  fs.writeFileSync(
+    path.join(moduleRoot, 'opl-runtime-module.json'),
+    `${JSON.stringify({
+      module_id: moduleId,
+      repo_name: repoName,
+      packaged_runtime: true,
+    })}\n`,
+    'utf8'
+  );
+}
+
+function createFullRuntimeFixture(homeRoot: string) {
+  const codexHome = path.join(homeRoot, '.codex');
+  vi.stubEnv('HOME', homeRoot);
+  vi.stubEnv('CODEX_HOME', codexHome);
+  const runtimeRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'runtime');
+  const runtimeHome = path.join(runtimeRoot, 'current');
+  writeExecutable(path.join(runtimeHome, 'bin', 'opl'));
+  fs.writeFileSync(
+    path.join(runtimeHome, 'bin', 'officecli'),
+    '#!/usr/bin/env bash\nprintf "officecli 0.0.0-test\\n"\n',
+    'utf8'
+  );
+  fs.chmodSync(path.join(runtimeHome, 'bin', 'officecli'), 0o755);
+  for (const [moduleId, repoName, relativePath] of bundledModules) {
+    writePackagedRuntimeModule(runtimeHome, moduleId, repoName, relativePath);
+  }
+  for (const skillId of requiredSkills) {
+    fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
+    fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
+  }
 }
 
 async function loadSmokeTestApi(): Promise<SmokeTestApi> {
@@ -139,6 +192,9 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOSCIENCE='${path.join(runtimeHome, 'modules', 'mas')}'`);
     expect(prefix).toContain(`export OPL_MODULE_PATH_MEDAUTOGRANT='${path.join(runtimeHome, 'modules', 'mag')}'`);
     expect(prefix).toContain(`export OPL_MODULE_PATH_REDCUBE='${path.join(runtimeHome, 'modules', 'rca')}'`);
+    expect(prefix).toContain(
+      `export OPL_MODULE_PATH_OPLMETAAGENT='${path.join(runtimeHome, 'modules', 'meta-agent')}'`
+    );
     expect(prefix).toContain(`export OPL_CODEX_BIN='${path.join(runtimeHome, 'bin', 'codex')}'`);
     expect(prefix).not.toContain('OPL_HERMES_BIN');
     expect(prefix).toContain(path.join(runtimeHome, 'python', 'cpython-3.12.13-macos-aarch64-none', 'bin'));
@@ -198,29 +254,10 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     expect(prefix).toContain(`export OPL_HERMES_BIN='${path.join(runtimeHome, 'bin', 'hermes')}'`);
   });
 
-  it('asserts Full first-run modules are materialized into standard state modules root', async () => {
+  it('asserts Full first-run modules are available from bundled runtime payloads', async () => {
     const api = await loadSmokeTestApi();
     const homeRoot = makeTempRoot();
-    const codexHome = path.join(homeRoot, '.codex');
-    vi.stubEnv('HOME', homeRoot);
-    vi.stubEnv('CODEX_HOME', codexHome);
-    const runtimeRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'runtime');
-    const runtimeHome = path.join(runtimeRoot, 'current');
-    writeExecutable(path.join(runtimeHome, 'bin', 'opl'));
-    fs.writeFileSync(
-      path.join(runtimeHome, 'bin', 'officecli'),
-      '#!/usr/bin/env bash\nprintf "officecli 0.0.0-test\\n"\n',
-      'utf8'
-    );
-    fs.chmodSync(path.join(runtimeHome, 'bin', 'officecli'), 0o755);
-    const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
-    for (const repoName of ['med-autoscience', 'med-autogrant', 'redcube-ai']) {
-      fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
-    }
-    for (const skillId of requiredSkills) {
-      fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
-      fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
-    }
+    createFullRuntimeFixture(homeRoot);
 
     const systemInitializeRaw = JSON.stringify({
       system_initialize: {
@@ -235,18 +272,8 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     });
     const modulesRaw = JSON.stringify({
       modules: {
-        modules_root: modulesRoot,
-        items: [
-          ['medautoscience', 'med-autoscience'],
-          ['medautogrant', 'med-autogrant'],
-          ['redcube', 'redcube-ai'],
-        ].map(([moduleId, repoName]) => ({
-          module_id: moduleId,
-          installed: true,
-          install_origin: 'managed_root',
-          health_status: 'ready',
-          checkout_path: path.join(modulesRoot, repoName),
-        })),
+        modules_root: path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules'),
+        items: [],
       },
     });
 
@@ -256,26 +283,7 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
   it('accepts core-first readiness when only the family runtime provider remains deferred', async () => {
     const api = await loadSmokeTestApi();
     const homeRoot = makeTempRoot();
-    const codexHome = path.join(homeRoot, '.codex');
-    vi.stubEnv('HOME', homeRoot);
-    vi.stubEnv('CODEX_HOME', codexHome);
-    const runtimeRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'runtime');
-    const runtimeHome = path.join(runtimeRoot, 'current');
-    writeExecutable(path.join(runtimeHome, 'bin', 'opl'));
-    fs.writeFileSync(
-      path.join(runtimeHome, 'bin', 'officecli'),
-      '#!/usr/bin/env bash\nprintf "officecli 0.0.0-test\\n"\n',
-      'utf8'
-    );
-    fs.chmodSync(path.join(runtimeHome, 'bin', 'officecli'), 0o755);
-    const modulesRoot = path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules');
-    for (const repoName of ['med-autoscience', 'med-autogrant', 'redcube-ai']) {
-      fs.mkdirSync(path.join(modulesRoot, repoName), { recursive: true });
-    }
-    for (const skillId of requiredSkills) {
-      fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
-      fs.writeFileSync(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`, 'utf8');
-    }
+    createFullRuntimeFixture(homeRoot);
 
     const systemInitializeRaw = JSON.stringify({
       system_initialize: {
@@ -300,18 +308,8 @@ describe('scripts/opl-first-run-vm-smoke Full runtime CLI fallback', () => {
     });
     const modulesRaw = JSON.stringify({
       modules: {
-        modules_root: modulesRoot,
-        items: [
-          ['medautoscience', 'med-autoscience'],
-          ['medautogrant', 'med-autogrant'],
-          ['redcube', 'redcube-ai'],
-        ].map(([moduleId, repoName]) => ({
-          module_id: moduleId,
-          installed: true,
-          install_origin: 'managed_root',
-          health_status: 'ready',
-          checkout_path: path.join(modulesRoot, repoName),
-        })),
+        modules_root: path.join(homeRoot, 'Library', 'Application Support', 'OPL', 'state', 'modules'),
+        items: [],
       },
     });
 

@@ -361,6 +361,17 @@ const startDeferredFirstLaunchMaintenance = (
       full_runtime: fullRuntime,
     });
     const commandLineToolsStatus = await prepareCommandLineToolsInBackground();
+    if (fullRuntime) {
+      if (appVersion?.trim()) {
+        await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, appVersion.trim());
+      }
+      await appendFirstRunLogEvent('gui_deferred_maintenance_completed', {
+        status: 'completed',
+        reason: 'full_runtime_bundled_modules',
+        command_line_tools_status: commandLineToolsStatus,
+      });
+      return;
+    }
     const installResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
     if (installResult.exitCode !== 0) {
       const message = getFailureMessage(installResult);
@@ -472,7 +483,12 @@ const runForegroundInstallForFirstLaunch = async (): Promise<{
   const shouldUseCoreInstall = !fullRuntime && commandLineToolsStatus === 'installer_requested';
   const args = shouldUseCoreInstall ? CORE_INSTALL_ARGS : INSTALL_ARGS;
   let result = await ipcBridge.shell.runOplCommand.invoke({ args: [...args] });
-  if (!fullRuntime && !shouldUseCoreInstall && result.exitCode !== 0 && isCommandLineToolsInstallerMessage(getFailureMessage(result))) {
+  if (
+    !fullRuntime &&
+    !shouldUseCoreInstall &&
+    result.exitCode !== 0 &&
+    isCommandLineToolsInstallerMessage(getFailureMessage(result))
+  ) {
     await appendFirstRunLogEvent('gui_install_waiting_for_command_line_tools', {
       status: 'waiting_for_user',
       message: getFailureMessage(result),

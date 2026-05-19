@@ -97,6 +97,7 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
     OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
     OPL_MODULE_PATH_MEDAUTOGRANT: path.join(runtimeHome, 'modules', 'mag'),
     OPL_MODULE_PATH_REDCUBE: path.join(runtimeHome, 'modules', 'rca'),
+    OPL_MODULE_PATH_OPLMETAAGENT: path.join(runtimeHome, 'modules', 'meta-agent'),
     PATH: mergePathEntries(pathEntries),
   };
 }
@@ -300,6 +301,7 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(normalized, 'modules', 'meta-agent'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(normalized, 'bin', 'codex'))}`,
     fs.existsSync(path.join(normalized, 'bin', 'hermes'))
       ? `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`

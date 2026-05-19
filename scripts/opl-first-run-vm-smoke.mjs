@@ -313,6 +313,7 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(runtimeHome, 'modules', 'meta-agent'))}`,
     `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
     fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
@@ -341,11 +342,24 @@ function isCoreFirstLaunchReady(initialize) {
   );
 }
 
+function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath) {
+  const moduleRoot = path.join(runtimeHome, runtimeRelativePath);
+  const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
+  if (!fs.existsSync(markerPath)) {
+    throw new Error(`OPL Full runtime module ${moduleId} is missing packaged marker: ${markerPath}`);
+  }
+  const marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+  if (marker.packaged_runtime !== true || marker.module_id !== moduleId || marker.repo_name !== repoName) {
+    throw new Error(`OPL Full runtime module ${moduleId} has an invalid packaged marker: ${JSON.stringify(marker)}`);
+  }
+  if (!fs.existsSync(path.join(moduleRoot, 'agent')) || !fs.existsSync(path.join(moduleRoot, 'plugins'))) {
+    throw new Error(`OPL Full runtime module ${moduleId} is missing expected agent/plugin payload: ${moduleRoot}`);
+  }
+}
+
 function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
   const systemInitialize = JSON.parse(systemInitializeRaw);
-  const modulesPayload = JSON.parse(modulesRaw);
   const initialize = systemInitialize.system_initialize;
-  const modulesSurface = modulesPayload.modules;
   if (!isCoreFirstLaunchReady(initialize)) {
     throw new Error(
       `OPL first-run initialize did not report a launchable core state: ${JSON.stringify({
@@ -355,10 +369,21 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
       })}`
     );
   }
-  const requiredSkills = ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max'];
+  JSON.parse(modulesRaw);
+  const requiredSkills = [
+    'mas',
+    'mag',
+    'rca',
+    'opl-meta-agent',
+    'officecli',
+    'officecli-docx',
+    'officecli-pptx',
+    'officecli-xlsx',
+    'ui-ux-pro-max',
+  ];
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
-  for (const skillId of requiredSkills) {
+  for (const skillId of ['officecli', 'officecli-docx', 'officecli-pptx', 'officecli-xlsx', 'ui-ux-pro-max']) {
     if (readySkills.get(skillId) !== 'ready') {
       throw new Error(`OPL Full first-run skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`);
     }
@@ -372,12 +397,21 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
       );
     }
   }
+  const runtimeHome = findLatestFullRuntimeHome();
+  if (!runtimeHome) {
+    throw new Error('OPL Full runtime home was not found after first launch.');
+  }
+  for (const [moduleId, repoName, runtimeRelativePath] of [
+    ['medautoscience', 'med-autoscience', path.join('modules', 'mas')],
+    ['medautogrant', 'med-autogrant', path.join('modules', 'mag')],
+    ['redcube', 'redcube-ai', path.join('modules', 'rca')],
+    ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent')],
+  ]) {
+    assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath);
+  }
   const officeCliTool = spawnSync(
     runtimeShellExecutable(),
-    [
-      '-lc',
-      [buildFullRuntimeCommandPrefix(findLatestFullRuntimeHome()), 'officecli --version'].filter(Boolean).join(' && '),
-    ],
+    ['-lc', [buildFullRuntimeCommandPrefix(runtimeHome), 'officecli --version'].filter(Boolean).join(' && ')],
     {
       encoding: 'utf8',
     }
@@ -386,32 +420,6 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     throw new Error(
       `officecli is not callable from the Full runtime PATH: ${officeCliTool.stderr || officeCliTool.stdout}`
     );
-  }
-
-  const requiredModules = new Map([
-    ['medautoscience', 'med-autoscience'],
-    ['medautogrant', 'med-autogrant'],
-    ['redcube', 'redcube-ai'],
-  ]);
-  const byId = new Map(
-    (modulesSurface?.items ?? modulesSurface?.modules ?? []).map((entry) => [entry.module_id, entry])
-  );
-  const modulesRoot = modulesSurface?.modules_root;
-  if (!modulesRoot || !modulesRoot.endsWith(path.join('OPL', 'state', 'modules'))) {
-    throw new Error(`OPL modules_root is not the standard state modules directory: ${modulesRoot || '(missing)'}`);
-  }
-
-  for (const [moduleId, repoName] of requiredModules) {
-    const module = byId.get(moduleId);
-    if (!module?.installed || module.install_origin !== 'managed_root' || module.health_status !== 'ready') {
-      throw new Error(`OPL module ${moduleId} is not ready in managed_root: ${JSON.stringify(module ?? null)}`);
-    }
-    const expectedPath = path.join(modulesRoot, repoName);
-    if (module.checkout_path !== expectedPath || !fs.existsSync(expectedPath)) {
-      throw new Error(
-        `OPL module ${moduleId} is not installed at ${expectedPath}: ${module.checkout_path || '(missing)'}`
-      );
-    }
   }
 }
 
