@@ -140,6 +140,22 @@ completion; that CDP smoke verifies all built-in Settings pages, captures
 `settings-pages/*.png`, checks that Overview `Refresh status` returns to idle,
 and toggles/restores the System `OPL Developer Mode` switch.
 
+For faster clean-VM iteration without installing Command Line Tools, use the
+`no-clt-clean-vm` profile:
+
+```bash
+bun run test:opl-first-run-vm:tart:no-clt -- --source-vm opl-clean-node \
+  --dmg ./release/One-Person-Lab.dmg
+```
+
+That profile keeps the VM clone clean, fixes the display at `1920x1080px`, runs
+the Settings sweep, verifies the `standard` runtime profile, and uses the
+guest's existing `node` command so the wrapper skips the Node download/probe
+install path. The source VM must already have SSH, Node.js, a logged-in desktop
+session, and Accessibility permission for `osascript`/System Events. Use
+`--dry-run` with the same arguments to write `tart-smoke-plan.json` and verify
+the resolved profile without cloning or starting Tart.
+
 Pass `--runtime-profile standard` for the standard public DMG. Standard first
 launch verifies the Codex configuration wizard, core app entry, structured
 first-run log, and Settings sweep without requiring Full-only bundled

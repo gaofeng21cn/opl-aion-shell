@@ -7,12 +7,12 @@
   "autoSwitchedAgent": "{{from}} 不可用，已自动切换到 {{to}}",
   "promptExamplesHint": "试试这些可点击的案例提示词：",
   "oplQuickEntries": {
-    "researchLabel": "MAS Agent",
-    "researchPrompt": "@MAS 通过 MAS Foundry Agent 管理这个医学研究任务：",
-    "pptLabel": "RCA Agent",
-    "pptPrompt": "@RCA 通过 RCA Foundry Agent 管理这个汇报或幻灯片交付：",
-    "grantLabel": "MAG Agent",
-    "grantPrompt": "@MAG 通过 MAG Foundry Agent 管理这个基金申请任务："
+    "researchLabel": "医学研究",
+    "researchPrompt": "@MAS 用医学研究智能体管理这个医学研究任务：",
+    "pptLabel": "汇报材料",
+    "pptPrompt": "@RCA 用汇报材料智能体管理这个汇报或幻灯片交付：",
+    "grantLabel": "基金申请",
+    "grantPrompt": "@MAG 用基金申请智能体管理这个基金申请任务："
   },
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "已切换到 {{agent}}",

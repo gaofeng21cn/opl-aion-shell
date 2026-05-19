@@ -630,9 +630,11 @@ describe('tray module', () => {
 
         await getTemplateFromRefresh();
         const command = mockExecFile.mock.calls[0]?.[1]?.[1] as string;
+        const options = mockExecFile.mock.calls[0]?.[2] as { timeout?: number };
         expect(command).toContain("export OPL_FULL_RUNTIME_HOME='/tmp/OPL Full Runtime/current'");
         expect(command).toContain('export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"');
         expect(command).toContain('OPL_OUTPUT=json opl runtime snapshot --json');
+        expect(options.timeout).toBe(120_000);
         await vi.waitFor(() => {
           const labels = getMenuLabels(getSubmenu(getLatestTemplate(), 'common.tray.runtimeStatus'));
           expect(labels).toContain('common.tray.runtimeUserAction');

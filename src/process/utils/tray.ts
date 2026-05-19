@@ -108,7 +108,7 @@ type TrayClickEvent = Electron.KeyboardEvent & {
   };
 };
 
-const RUNTIME_SNAPSHOT_TIMEOUT_MS = 20_000;
+const RUNTIME_SNAPSHOT_TIMEOUT_MS = 120_000;
 
 const unavailableRuntimeTraySnapshot = (): RuntimeTraySnapshot => ({
   schema_version: 'runtime_tray_snapshot.v1',

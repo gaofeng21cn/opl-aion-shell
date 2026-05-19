@@ -18,6 +18,12 @@ type OverviewStatus = {
 };
 
 const MODULE_ACTIONS_REQUIRING_ATTENTION = new Set(['install', 'update', 'reinstall', 'remove']);
+const readOverviewStatusTimeoutMs = (): number => {
+  const globalOverride = (globalThis as typeof globalThis & { __OPL_OVERVIEW_STATUS_TIMEOUT_MS__?: number | string })
+    .__OPL_OVERVIEW_STATUS_TIMEOUT_MS__;
+  const parsed = Number(globalOverride ?? import.meta.env?.VITE_OPL_OVERVIEW_STATUS_TIMEOUT_MS ?? 6_000);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 6_000;
+};
 
 type SystemInitializePayload = {
   system_initialize?: {
@@ -123,6 +129,37 @@ const OverviewSettings: React.FC = () => {
     moduleAttention: 0,
   });
 
+  const emptyStatus = useCallback(
+    (webuiRunning?: boolean): OverviewStatus => ({
+      moduleKnown: false,
+      moduleTotal: 0,
+      moduleInstalled: 0,
+      moduleAttention: 0,
+      webuiRunning,
+    }),
+    []
+  );
+
+  const withOverviewTimeout = useCallback(
+    <T,>(promise: Promise<T>, timeoutMessage: string): Promise<T> =>
+      new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          reject(new Error(timeoutMessage));
+        }, readOverviewStatusTimeoutMs());
+        promise.then(
+          (value) => {
+            window.clearTimeout(timer);
+            resolve(value);
+          },
+          (error: unknown) => {
+            window.clearTimeout(timer);
+            reject(error);
+          }
+        );
+      }),
+    []
+  );
+
   useEffect(() => {
     messageRef.current = message;
   }, [message]);
@@ -132,7 +169,10 @@ const OverviewSettings: React.FC = () => {
       setLoading(true);
       try {
         const [systemResult, webuiResult] = await Promise.all([
-          ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
+          withOverviewTimeout(
+            ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
+            'OPL status refresh timed out.'
+          ),
           ipcBridge.webui.getStatus.invoke().catch((_error: unknown): null => null),
         ]);
         const parsed = systemResult.exitCode === 0 ? parseOverviewStatus(systemResult.stdout) : {};
@@ -148,7 +188,7 @@ const OverviewSettings: React.FC = () => {
           messageRef.current.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } catch {
-        setStatus({ moduleKnown: false, moduleTotal: 0, moduleInstalled: 0, moduleAttention: 0 });
+        setStatus(emptyStatus());
         if (showError) {
           messageRef.current.warning(t('settings.overviewPage.messages.statusLoadFailed'));
         }
@@ -156,7 +196,7 @@ const OverviewSettings: React.FC = () => {
         setLoading(false);
       }
     },
-    [t]
+    [emptyStatus, t, withOverviewTimeout]
   );
 
   useEffect(() => {

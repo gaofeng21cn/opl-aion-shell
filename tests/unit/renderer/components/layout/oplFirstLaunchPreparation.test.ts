@@ -408,6 +408,44 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
+  it('lets a standard first launch continue when module setup has opened the Command Line Tools installer', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand.mockResolvedValueOnce(setupNeededInitializeResult).mockResolvedValueOnce({
+      exitCode: 69,
+      stdout: '',
+      stderr: 'The macOS Command Line Tools installer has been opened.',
+    });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['domain_modules'],
+    });
+
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_install_waiting_for_command_line_tools',
+      payload: expect.objectContaining({
+        status: 'waiting_for_user',
+        command_line_tools_status: 'installer_requested',
+      }),
+    });
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_preparation_completed_with_deferred_attention',
+      payload: expect.objectContaining({
+        status: 'prepared',
+        blockers: ['domain_modules'],
+      }),
+    });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
   it('keeps Full runtime first launch prepared when bundled materialization fails in the background', async () => {
     process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
     mockConfigGet.mockResolvedValue(undefined);

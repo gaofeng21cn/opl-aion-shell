@@ -49,6 +49,7 @@
     "test:integration": "vitest run tests/integration",
     "test:opl-first-run-vm": "node scripts/opl-first-run-vm-smoke.mjs",
     "test:opl-first-run-vm:tart": "node scripts/opl-first-run-tart-smoke.mjs",
+    "test:opl-first-run-vm:tart:no-clt": "node scripts/opl-first-run-tart-smoke.mjs --smoke-profile no-clt-clean-vm",
     "test:packaged:i18n": "vitest run tests/integration/i18n-packaged.test.ts",
     "bench": "vitest bench",
     "bench:db": "bun test ./tests/bench/database.bench.bun.ts",

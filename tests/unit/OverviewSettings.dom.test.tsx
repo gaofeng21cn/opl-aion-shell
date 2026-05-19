@@ -70,6 +70,8 @@ vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid='settings-wrapper'>{children}</div>,
 }));
 
+globalThis.__OPL_OVERVIEW_STATUS_TIMEOUT_MS__ = 5;
+
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
 describe('OverviewSettings module health summary', () => {
@@ -158,6 +160,20 @@ describe('OverviewSettings module health summary', () => {
       expect(mockRunOplCommand).toHaveBeenCalledTimes(2);
       expect(refreshButton).not.toHaveAttribute('aria-busy');
     });
+  });
+
+  it('settles a slow overview refresh without leaving the Refresh Status button busy', async () => {
+    mockRunOplCommand.mockReturnValue(new Promise(() => {}));
+
+    render(<OverviewSettings />);
+
+    const refreshButton = screen.getByText('settings.overviewPage.actions.refresh');
+    expect(refreshButton).toHaveAttribute('aria-busy', 'true');
+
+    await waitFor(() => {
+      expect(refreshButton).not.toHaveAttribute('aria-busy');
+    });
+    expect(await screen.findByText('settings.overviewPage.modulesUnknown')).toBeInTheDocument();
   });
 
   it('counts only modules with executable install/update/reinstall/remove actions as attention', async () => {

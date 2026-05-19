@@ -826,6 +826,33 @@ describe('shellBridge', () => {
       expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
     });
 
+    it('adds the App-managed Node toolchain to standard OPL commands after bootstrap', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(missingOpl);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: 'bootstrap ok', stderr: '' });
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '{"ready":true}', stderr: '' });
+        });
+
+      await expect(runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] })).resolves.toMatchObject({
+        exitCode: 0,
+      });
+
+      const directCommand = execFileMock.mock.calls[0][1][1];
+      const bootstrappedCommand = execFileMock.mock.calls[2][1][1];
+      expect(directCommand).toContain('"$HOME"/.opl/toolchain/node-v*/bin');
+      expect(directCommand).toContain('export PATH="$_opl_node_bin:$PATH"');
+      expect(bootstrappedCommand).toContain('"$HOME"/.opl/toolchain/node-v*/bin');
+      expect(bootstrappedCommand).toContain('export PATH="$_opl_node_bin:$PATH"');
+      expect(bootstrappedCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+    });
+
     it('shares missing-opl bootstrap recovery while read-only commands run concurrently', async () => {
       const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
       let directCommandCalls = 0;

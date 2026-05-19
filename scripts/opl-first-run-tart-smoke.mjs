@@ -12,6 +12,24 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGINT', 130],
   ['SIGTERM', 143],
 ]);
+const SMOKE_PROFILES = new Map([
+  [
+    'full-gate',
+    {
+      runtimeProfile: 'full',
+      settingsSmoke: false,
+    },
+  ],
+  [
+    'no-clt-clean-vm',
+    {
+      runtimeProfile: 'standard',
+      settingsSmoke: true,
+      display: '1920x1080px',
+      guestNodeCommand: 'node',
+    },
+  ],
+]);
 
 const runtimeState = {
   options: null,
@@ -42,6 +60,7 @@ Options:
   --timeout-ms <n>         VM boot and SSH timeout. Default: 600000.
   --smoke-timeout-ms <n>   Guest GUI smoke timeout. Default: 180000.
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
+  --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
   --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
   --runtime-profile <profile>
@@ -51,6 +70,9 @@ Options:
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
+  --guest-node-command <cmd>
+                           Existing Node.js command in the guest. Skips Node download/probe install.
+  --dry-run                Resolve arguments and write a host plan without cloning or starting Tart.
   --no-graphics            Start Tart with --no-graphics. Use only for images with a logged-in GUI session.
   --keep-vm                Leave the temporary VM running for debugging.
   --help                   Show this message.
@@ -71,13 +93,17 @@ function parseArgs(argv) {
     timeoutMs: 600_000,
     smokeTimeoutMs: 180_000,
     display: '1920x1080px',
+    smokeProfile: 'full-gate',
     settingsSmoke: false,
     cdpPort: 9230,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
+    guestNodeCommand: '',
+    dryRun: false,
     noGraphics: false,
     keepVm: false,
   };
+  const explicit = new Set();
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -87,39 +113,86 @@ function parseArgs(argv) {
     }
     if (arg === '--no-graphics') {
       options.noGraphics = true;
+      explicit.add('noGraphics');
       continue;
     }
     if (arg === '--keep-vm') {
       options.keepVm = true;
+      explicit.add('keepVm');
       continue;
     }
     if (arg === '--settings-smoke') {
       options.settingsSmoke = true;
+      explicit.add('settingsSmoke');
+      continue;
+    }
+    if (arg === '--dry-run') {
+      options.dryRun = true;
+      explicit.add('dryRun');
       continue;
     }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${arg}`);
     index += 1;
-    if (arg === '--source-vm') options.sourceVm = value;
-    else if (arg === '--dmg') options.dmg = path.resolve(value);
-    else if (arg === '--guest-user') options.guestUser = value;
-    else if (arg === '--ssh-key') options.sshKey = path.resolve(value);
-    else if (arg === '--vm-name') options.vmName = value;
-    else if (arg === '--artifacts') options.artifacts = path.resolve(value);
-    else if (arg === '--guest-workdir') options.guestWorkdir = value;
-    else if (arg === '--process-name') options.processName = value;
-    else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
-    else if (arg === '--smoke-timeout-ms') options.smokeTimeoutMs = Number(value);
-    else if (arg === '--display') options.display = value;
-    else if (arg === '--cdp-port') options.cdpPort = Number(value);
-    else if (arg === '--runtime-profile') options.runtimeProfile = value;
-    else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
-    else throw new Error(`Unsupported argument: ${arg}`);
+    if (arg === '--source-vm') {
+      options.sourceVm = value;
+      explicit.add('sourceVm');
+    } else if (arg === '--dmg') {
+      options.dmg = path.resolve(value);
+      explicit.add('dmg');
+    } else if (arg === '--guest-user') {
+      options.guestUser = value;
+      explicit.add('guestUser');
+    } else if (arg === '--ssh-key') {
+      options.sshKey = path.resolve(value);
+      explicit.add('sshKey');
+    } else if (arg === '--vm-name') {
+      options.vmName = value;
+      explicit.add('vmName');
+    } else if (arg === '--artifacts') {
+      options.artifacts = path.resolve(value);
+      explicit.add('artifacts');
+    } else if (arg === '--guest-workdir') {
+      options.guestWorkdir = value;
+      explicit.add('guestWorkdir');
+    } else if (arg === '--process-name') {
+      options.processName = value;
+      explicit.add('processName');
+    } else if (arg === '--timeout-ms') {
+      options.timeoutMs = Number(value);
+      explicit.add('timeoutMs');
+    } else if (arg === '--smoke-timeout-ms') {
+      options.smokeTimeoutMs = Number(value);
+      explicit.add('smokeTimeoutMs');
+    } else if (arg === '--display') {
+      options.display = value;
+      explicit.add('display');
+    } else if (arg === '--smoke-profile') {
+      options.smokeProfile = value;
+      explicit.add('smokeProfile');
+    } else if (arg === '--cdp-port') {
+      options.cdpPort = Number(value);
+      explicit.add('cdpPort');
+    } else if (arg === '--runtime-profile') {
+      options.runtimeProfile = value;
+      explicit.add('runtimeProfile');
+    } else if (arg === '--codex-api-key-file') {
+      options.codexApiKeyFile = path.resolve(value);
+      explicit.add('codexApiKeyFile');
+    } else if (arg === '--guest-node-command') {
+      options.guestNodeCommand = value;
+      explicit.add('guestNodeCommand');
+    } else throw new Error(`Unsupported argument: ${arg}`);
   }
 
+  const profile = SMOKE_PROFILES.get(options.smokeProfile);
+  if (!profile) throw new Error(`--smoke-profile must be one of: ${Array.from(SMOKE_PROFILES.keys()).join(', ')}.`);
+  for (const [key, value] of Object.entries(profile)) {
+    if (!explicit.has(key)) options[key] = value;
+  }
   if (!options.sourceVm) throw new Error('--source-vm or OPL_FIRST_RUN_TART_SOURCE is required.');
   if (!options.dmg) throw new Error('--dmg is required.');
-  if (!fs.existsSync(options.dmg)) throw new Error(`DMG does not exist: ${options.dmg}`);
+  if (!options.dryRun && !fs.existsSync(options.dmg)) throw new Error(`DMG does not exist: ${options.dmg}`);
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
   if (!Number.isFinite(options.smokeTimeoutMs) || options.smokeTimeoutMs <= 0) {
     throw new Error('--smoke-timeout-ms must be positive.');
@@ -135,6 +208,26 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function buildDryRunPlan(options) {
+  return {
+    surface_id: 'opl_tart_gui_first_run_smoke_plan',
+    status: 'dry_run',
+    smoke_profile: options.smokeProfile,
+    source_vm: options.sourceVm,
+    vm_name: options.vmName,
+    dmg: options.dmg,
+    artifacts: options.artifacts,
+    guest_workdir: options.guestWorkdir,
+    display: options.display,
+    settings_smoke: options.settingsSmoke,
+    cdp_port: options.settingsSmoke ? options.cdpPort : null,
+    runtime_profile: options.runtimeProfile,
+    guest_node_command: options.guestNodeCommand || null,
+    no_graphics: options.noGraphics,
+    keep_vm: options.keepVm,
+  };
 }
 
 function prepareHostCodexApiKeyFile(options) {
@@ -399,14 +492,16 @@ async function cleanupRuntime({ copyGuestArtifacts, reason } = { copyGuestArtifa
   appendRuntimeLog('cleanup_finished');
 }
 
-for (const signal of SIGNAL_EXIT_CODES.keys()) {
-  process.once(signal, () => {
-    appendRuntimeLog(`received_signal signal=${signal}`);
-    writeInterruptedSummary(signal);
-    cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` }).finally(() => {
-      process.exit(SIGNAL_EXIT_CODES.get(signal));
+if (process.env.NODE_ENV !== 'test') {
+  for (const signal of SIGNAL_EXIT_CODES.keys()) {
+    process.once(signal, () => {
+      appendRuntimeLog(`received_signal signal=${signal}`);
+      writeInterruptedSummary(signal);
+      cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` }).finally(() => {
+        process.exit(SIGNAL_EXIT_CODES.get(signal));
+      });
     });
-  });
+  }
 }
 
 function assertMacOSHost() {
@@ -469,14 +564,43 @@ function readGuestSmokeSummary(hostArtifactsDir) {
   return JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
 }
 
+function assertGuestSmokeSummary(options, guestSummary) {
+  if (!guestSummary) {
+    throw new Error('Guest smoke summary is missing from copied artifacts.');
+  }
+  if (guestSummary.status !== 'passed') {
+    throw new Error(`Guest smoke summary did not pass: ${guestSummary.status ?? 'missing status'}`);
+  }
+  if (guestSummary.runtime_profile !== options.runtimeProfile) {
+    throw new Error(
+      `Guest smoke runtime profile mismatch: expected ${options.runtimeProfile}, got ${
+        guestSummary.runtime_profile ?? 'missing'
+      }`
+    );
+  }
+  if (!guestSummary.codex_config_wizard_submitted) {
+    throw new Error('Guest smoke did not submit the Codex configuration wizard.');
+  }
+  if (!options.settingsSmoke) return;
+  if (guestSummary.settings_smoke?.status !== 'passed') {
+    throw new Error('Guest Settings smoke did not pass.');
+  }
+  if (!Array.isArray(guestSummary.settings_smoke.pages) || guestSummary.settings_smoke.pages.length === 0) {
+    throw new Error('Guest Settings smoke summary did not record visited pages.');
+  }
+}
+
 function writeSummary(options, ip, guestArtifactDir) {
   const guestSummary = readGuestSmokeSummary(options.artifacts);
+  assertGuestSmokeSummary(options, guestSummary);
   const summary = {
     surface_id: 'opl_tart_gui_first_run_smoke',
     status: 'passed',
+    smoke_profile: options.smokeProfile,
     vm_name: options.vmName,
     source_vm: options.sourceVm,
     display: options.display,
+    runtime_profile: options.runtimeProfile,
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
@@ -495,6 +619,13 @@ async function main() {
   assertMacOSHost();
   const options = parseArgs(process.argv.slice(2));
   runtimeState.options = options;
+  if (options.dryRun) {
+    fs.mkdirSync(options.artifacts, { recursive: true });
+    const plan = buildDryRunPlan(options);
+    fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-plan.json'), JSON.stringify(plan, null, 2));
+    process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
+    return;
+  }
   assertTartAvailable();
   fs.mkdirSync(options.artifacts, { recursive: true });
 
@@ -540,8 +671,10 @@ async function main() {
       [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs'), codexApiKeyFile.path],
       options.guestWorkdir
     );
-    setStage('resolve_guest_node');
-    options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);
+    setStage(options.guestNodeCommand ? 'use_guest_node_command' : 'resolve_guest_node');
+    if (!options.guestNodeCommand) {
+      options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);
+    }
     setStage('run_guest_smoke');
     await ssh(
       options,
@@ -562,7 +695,30 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-  process.exitCode = 1;
-});
+function isMainModule(moduleUrl, argvPath = process.argv[1]) {
+  if (!argvPath) return false;
+  try {
+    return fs.realpathSync(new URL(moduleUrl)) === fs.realpathSync(argvPath);
+  } catch (_) {
+    return false;
+  }
+}
+
+export const __test =
+  process.env.NODE_ENV === 'test'
+    ? {
+        assertGuestSmokeSummary,
+        buildDryRunPlan,
+        guestSmokeCommand,
+        isMainModule,
+        parseArgs,
+        writeSummary,
+      }
+    : undefined;
+
+if (isMainModule(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

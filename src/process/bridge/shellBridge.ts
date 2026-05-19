@@ -352,11 +352,12 @@ async function runLoginShellWithInput(
 }
 
 function buildOplCommand(args: string[]): string {
+  const fullRuntimeHome = process.env.OPL_FULL_RUNTIME_HOME;
   const envPrefix = ['modules', 'runtime', 'system', 'workspace', 'family-runtime'].includes(args[0])
     ? 'OPL_OUTPUT=json '
     : '';
   return [
-    buildOplFullRuntimeShellPrefix(process.env.OPL_FULL_RUNTIME_HOME),
+    buildOplFullRuntimeShellPrefix(fullRuntimeHome),
     OPL_STANDARD_TOOLCHAIN_PREFIX,
     'command -v opl >/dev/null || exit 127',
     `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`,
