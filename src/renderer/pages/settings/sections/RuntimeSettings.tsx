@@ -114,6 +114,8 @@ type CoreEngines = {
   hermes?: CoreEngineStatus;
 };
 
+type AutoUpdateStatus = 'idle' | 'checking' | 'downloading' | 'ready' | 'unavailable' | 'error';
+
 type WorkspaceRootStatus = {
   selected_path?: string | null;
   health_status?: string | null;
@@ -688,6 +690,7 @@ const OplEnvironmentContent: React.FC = () => {
   const [interactionLayer, setInteractionLayer] = useState<OplInteractionLayer>('codex');
   const [workspaceRoot, setWorkspaceRoot] = useState<WorkspaceRootStatus | undefined>();
   const [appVersions, setAppVersions] = useState<AppVersions | null>(null);
+  const [autoUpdateStatus, setAutoUpdateStatus] = useState<AutoUpdateStatus>('idle');
 
   const loadEnvironment = useCallback(
     async (showLoading = false) => {
@@ -787,23 +790,29 @@ const OplEnvironmentContent: React.FC = () => {
       }
 
       await loadEnvironment();
+      setAutoUpdateStatus('checking');
       const updateResult = await ipcBridge.autoUpdate.check.invoke({ includePrerelease: false });
       if (!updateResult?.success || !updateResult.data?.updateInfo) {
+        setAutoUpdateStatus('unavailable');
         message.success(t('settings.oplEnvironmentPage.messages.systemUpdateComplete'));
         return;
       }
 
+      setAutoUpdateStatus('downloading');
       const downloadResult = await ipcBridge.autoUpdate.download.invoke();
       if (!downloadResult?.success) {
+        setAutoUpdateStatus('error');
         message.error(downloadResult?.msg || t('settings.oplEnvironmentPage.messages.appUpdateDownloadFailed'));
         return;
       }
 
+      setAutoUpdateStatus('ready');
       window.dispatchEvent(
         new CustomEvent('aionui-open-update-modal', { detail: { status: 'downloaded', source: 'one-click' } })
       );
       message.success(t('settings.oplEnvironmentPage.messages.appUpdateDownloaded'));
     } catch {
+      setAutoUpdateStatus('error');
       message.warning(t('settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'));
     } finally {
       setRunningAction(null);
@@ -866,6 +875,11 @@ const OplEnvironmentContent: React.FC = () => {
           <Typography.Text className='text-t-secondary'>
             {t('settings.oplEnvironmentPage.maintenanceDescription')}
           </Typography.Text>
+          {autoUpdateStatus !== 'idle' && (
+            <Typography.Text className='text-12px text-t-tertiary'>
+              {t(`settings.oplEnvironmentPage.updateState.${autoUpdateStatus}`)}
+            </Typography.Text>
+          )}
           <Space wrap>
             <Button
               type='primary'

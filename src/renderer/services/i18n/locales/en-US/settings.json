@@ -986,6 +986,13 @@
       "update": "Update",
       "oneClickUpdate": "Update all"
     },
+    "updateState": {
+      "checking": "Checking the App update channel...",
+      "downloading": "Downloading the App update in the background.",
+      "ready": "App update is ready. Restart One Person Lab to install it.",
+      "unavailable": "App is already up to date.",
+      "error": "App update needs attention. You can keep using One Person Lab."
+    },
     "messages": {
       "loadModulesFailed": "Failed to read Foundry Agent status",
       "commandFailed": "Command failed",

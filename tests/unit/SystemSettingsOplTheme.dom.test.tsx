@@ -511,6 +511,7 @@ describe('RuntimeSettings OPL environment section', () => {
       });
     expect(updateModalEvent).toBeInstanceOf(CustomEvent);
     expect((updateModalEvent as CustomEvent).detail).toEqual({ status: 'downloaded', source: 'one-click' });
+    expect(await screen.findByText('settings.oplEnvironmentPage.updateState.ready')).toBeInTheDocument();
     dispatchSpy.mockRestore();
   });
 

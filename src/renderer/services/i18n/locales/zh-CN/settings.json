@@ -987,6 +987,13 @@
       "update": "更新",
       "oneClickUpdate": "一键更新"
     },
+    "updateState": {
+      "checking": "正在检查 App 更新通道...",
+      "downloading": "正在后台下载 App 更新。",
+      "ready": "App 更新已准备好，重启 One Person Lab 即可安装。",
+      "unavailable": "App 已是最新版本。",
+      "error": "App 更新需要处理。你可以继续使用 One Person Lab。"
+    },
     "messages": {
       "loadModulesFailed": "读取 Foundry Agent 状态失败",
       "commandFailed": "命令执行失败",
