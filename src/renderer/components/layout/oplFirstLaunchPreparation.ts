@@ -38,6 +38,7 @@ type OplModuleReconcileState = {
 const PREPARED_AT_CONFIG_KEY = 'opl.firstLaunchInstallPreparedAt';
 const MODULE_RECONCILED_APP_VERSION_CONFIG_KEY = 'opl.lastModuleReconcileAppVersion';
 const COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY = 'opl.commandLineToolsPreparationPromptedAt';
+const COMMAND_LINE_TOOLS_AVAILABLE_CONFIG_KEY = 'opl.commandLineToolsAvailableAt';
 const INSTALL_ARGS = ['install', '--skip-gui-open'];
 const CORE_INSTALL_ARGS = ['install', '--skip-modules', '--skip-gui-open'];
 const INITIALIZE_ARGS = ['system', 'initialize', '--json'];
@@ -210,14 +211,17 @@ const appendFirstRunLogEvent = async (eventType: string, payload: Record<string,
 const prepareCommandLineToolsInBackground = async (): Promise<
   'available' | 'installer_requested' | 'unsupported' | 'failed' | 'skipped'
 > => {
-  const promptedAt = await ConfigStorage.get(COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY);
-  if (promptedAt) return 'skipped';
+  const availableAt = await ConfigStorage.get(COMMAND_LINE_TOOLS_AVAILABLE_CONFIG_KEY);
+  if (availableAt) return 'skipped';
 
   await appendFirstRunLogEvent('gui_deferred_command_line_tools_started');
   try {
     const result = await ipcBridge.shell.prepareCommandLineTools.invoke();
-    if (result.status === 'available' || result.status === 'installer_requested') {
-      await ConfigStorage.set(COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY, Date.now());
+    const checkedAt = Date.now();
+    if (result.status === 'available') {
+      await ConfigStorage.set(COMMAND_LINE_TOOLS_AVAILABLE_CONFIG_KEY, checkedAt);
+    } else if (result.status === 'installer_requested') {
+      await ConfigStorage.set(COMMAND_LINE_TOOLS_PREPARATION_CONFIG_KEY, checkedAt);
     }
     await appendFirstRunLogEvent('gui_deferred_command_line_tools_completed', {
       status: result.status,

@@ -444,6 +444,58 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
+  it('retries Command Line Tools preparation until availability is confirmed', async () => {
+    process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.commandLineToolsPreparationPromptedAt') return 123;
+      if (key === 'opl.commandLineToolsAvailableAt') return undefined;
+      return undefined;
+    });
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+    });
+
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.commandLineToolsPreparationPromptedAt', expect.any(Number));
+    expect(mockConfigSet).not.toHaveBeenCalledWith('opl.commandLineToolsAvailableAt', expect.any(Number));
+  });
+
+  it('skips Command Line Tools preparation after availability is confirmed', async () => {
+    process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.commandLineToolsAvailableAt') return 456;
+      return undefined;
+    });
+    mockRunOplCommand
+      .mockResolvedValueOnce(readyInitializeResult)
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['recommended_skills'],
+    });
+
+    expect(mockPrepareCommandLineTools).not.toHaveBeenCalled();
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_maintenance_completed',
+      payload: expect.objectContaining({
+        command_line_tools_status: 'skipped',
+      }),
+    });
+  });
+
   it('does not mark deferred standard setup as failed when it is waiting for Command Line Tools', async () => {
     mockConfigGet.mockResolvedValue(undefined);
     mockPrepareCommandLineTools.mockResolvedValue({

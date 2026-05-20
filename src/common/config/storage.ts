@@ -90,6 +90,8 @@ export interface IConfigStorageRefer {
   'opl.firstLaunchInstallPreparedAt'?: number;
   /** First macOS Command Line Tools preparation prompt triggered by the desktop app. */
   'opl.commandLineToolsPreparationPromptedAt'?: number;
+  /** First confirmed macOS Command Line Tools availability check. */
+  'opl.commandLineToolsAvailableAt'?: number;
   'opl.lastModuleReconcileAppVersion'?: string;
   colorScheme: string;
   /** Persisted app-wide UI zoom factor for Display settings */
