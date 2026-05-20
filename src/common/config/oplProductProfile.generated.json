@@ -9,7 +9,9 @@
     "id": "one_person_lab_app",
     "display_name": "One Person Lab App",
     "primary_surface": "desktop_workbench",
-    "supported_release_platforms": ["macos-arm64"]
+    "supported_release_platforms": [
+      "macos-arm64"
+    ]
   },
   "contract_refs": {
     "active_shell": "contracts/app-shell-adapter.json",
@@ -73,21 +75,44 @@
     ]
   },
   "first_run": {
-    "readiness_layers": ["core", "domain_modules", "family_runtime_provider"],
-    "deferred_blockers": ["domain_modules", "family_runtime_provider", "recommended_skills"],
+    "readiness_layers": [
+      "core",
+      "domain_modules",
+      "family_runtime_provider"
+    ],
+    "deferred_blockers": [
+      "domain_modules",
+      "family_runtime_provider",
+      "recommended_skills"
+    ],
     "command_line_tools": {
       "auto_request_installer": true,
       "blocks_full_first_launch": false,
       "messages": [
         "One Person Lab uses Apple Command Line Tools for Git-backed updates and standard module maintenance on this Mac.",
-        "The macOS Command Line Tools installer has been opened. Please finish that installer, then retry setup in One Person Lab.",
-        "Full first-install can continue with the bundled runtime while Command Line Tools is being installed."
+        "The macOS Command Line Tools installer has been opened. You can keep using One Person Lab while that Apple installer runs.",
+        "If module maintenance or Git-backed updates are still waiting afterward, One Person Lab will resume them from Settings."
       ]
     }
   },
   "settings": {
-    "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
-    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
+    "visible_tabs": [
+      "overview",
+      "runtime",
+      "capabilities",
+      "access",
+      "appearance",
+      "system",
+      "about"
+    ],
+    "environment_items": [
+      "codex",
+      "temporal",
+      "mas",
+      "mag",
+      "rca",
+      "app"
+    ],
     "developer_mode": {
       "label_key": "settings.developerMode",
       "description_key": "settings.developerModeDesc",
@@ -102,8 +127,16 @@
     }
   },
   "companion_payloads": {
-    "tools": ["officecli", "mineru-open-api"],
-    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
+    "tools": [
+      "officecli",
+      "mineru-open-api"
+    ],
+    "domain_modules": [
+      "mas",
+      "mag",
+      "rca",
+      "opl-meta-agent"
+    ],
     "recommended_codex_skills": [
       "mas",
       "mag",

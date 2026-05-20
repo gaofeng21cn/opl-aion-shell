@@ -289,6 +289,20 @@ const markPreparedAfterReconcile = async (
   };
 };
 
+const markPreparedWithDeferredCoreSetup = async (
+  state: OplFirstLaunchPreparationResult,
+  message?: string
+): Promise<Extract<OplFirstLaunchPreparationResult, { status: 'prepared' }>> => {
+  await ConfigStorage.set(PREPARED_AT_CONFIG_KEY, Date.now());
+  return {
+    ...state,
+    status: 'prepared',
+    message,
+    readyToLaunch: true,
+    progress: buildOplFirstLaunchProgress('complete'),
+  };
+};
+
 const readPreparedState = async (): Promise<boolean> => {
   const preparedAt = await ConfigStorage.get(PREPARED_AT_CONFIG_KEY);
   return Boolean(preparedAt);
@@ -597,15 +611,28 @@ const runOplFirstLaunchEnvironmentPreparation = async (
       const { result, usedCoreInstall } = await runForegroundInstallForFirstLaunch();
       if (result.exitCode !== 0) {
         const message = getFailureMessage(result);
+        if (usedCoreInstall) {
+          await appendFirstRunLogEvent('gui_core_install_deferred_after_failure', {
+            status: 'deferred',
+            message,
+            blockers: initialState.blockers ?? [],
+          });
+          const deferredCoreState = await markPreparedWithDeferredCoreSetup(initialState, message);
+          return { ...deferredCoreState, firstRunLog };
+        }
+        if (isCommandLineToolsInstallerMessage(message)) {
+          await appendFirstRunLogEvent('gui_install_waiting_for_command_line_tools', {
+            status: 'waiting_for_user',
+            message,
+          });
+          const deferredInstallerState = await markPreparedWithDeferredCoreSetup(initialState, message);
+          startDeferredFirstLaunchMaintenance(deferredInstallerState, options.appVersion);
+          return { ...deferredInstallerState, firstRunLog };
+        }
         await appendFirstRunLogEvent('gui_install_failed', { status: 'failed', message });
-        return {
-          status: 'failed',
-          message,
-          readyToLaunch: false,
-          blockers: initialState.blockers,
-          firstRunLog,
-          progress: buildOplFirstLaunchProgress('installingModules'),
-        };
+        const deferredInstallState = await markPreparedWithDeferredCoreSetup(initialState, message);
+        startDeferredFirstLaunchMaintenance(deferredInstallState, options.appVersion);
+        return { ...deferredInstallState, firstRunLog };
       }
       deferPostInstallMaintenance = usedCoreInstall;
 

@@ -150,6 +150,22 @@ const flushPromises = async (rounds = 3): Promise<void> => {
   }
 };
 
+const expectOplCliSelector = (command: string): void => {
+  expect(command).toContain('OPL_APP_MANAGED_CLI=');
+  expect(command).toContain('if command -v opl >/dev/null 2>&1; then OPL_APP_CLI=opl');
+  expect(command).toContain('elif [ -x "$OPL_APP_MANAGED_CLI" ]; then OPL_APP_CLI="$OPL_APP_MANAGED_CLI"');
+};
+
+const expectOplCommandArgs = (command: string, args: string[]): void => {
+  expectOplCliSelector(command);
+  expect(command).toContain(`"$OPL_APP_CLI" ${args.join(' ')}`);
+};
+
+const expectOplJsonCommandArgs = (command: string, args: string[]): void => {
+  expectOplCliSelector(command);
+  expect(command).toContain(`OPL_OUTPUT=json "$OPL_APP_CLI" ${args.join(' ')}`);
+};
+
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
@@ -308,10 +324,11 @@ describe('shellBridge', () => {
       expect(result).toEqual({ exitCode: 0, stdout: '{"ok":true}', stderr: '' });
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000, maxBuffer: 20 * 1024 * 1024 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'system'", "'initialize'", "'--json'"]);
     });
 
     it('allows the packages manifest command for environment management', async () => {
@@ -324,10 +341,11 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("'opl' 'packages' 'manifest'")],
+        ['-lc', expect.stringContaining('"$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplCommandArgs(execFileMock.mock.calls[0][1][1], ["'packages'", "'manifest'"]);
     });
 
     it('allows managed companion skill sync through the Full runtime without probing Command Line Tools', async () => {
@@ -344,7 +362,7 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledOnce();
       const command = execFileMock.mock.calls[0][1][1];
-      expect(command).toContain("OPL_OUTPUT=json 'opl' 'skill' 'companion' 'apply'");
+      expectOplJsonCommandArgs(command, ["'skill'", "'companion'", "'apply'"]);
       expect(command).toContain('OPL_FULL_RUNTIME_HOME=');
       expect(command).toContain('OPL_PACKAGED_SKILLS_ROOT=');
       expect(JSON.stringify(execFileMock.mock.calls)).not.toContain('/usr/bin/xcode-select');
@@ -366,10 +384,11 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'runtime' 'snapshot' '--json'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'runtime'", "'snapshot'", "'--json'"]);
     });
 
     it('allows the App operator drilldown summary and full-detail read models only as JSON', async () => {
@@ -388,21 +407,28 @@ describe('shellBridge', () => {
 
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'runtime' 'app-operator-drilldown' '--json'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        [
-          '-lc',
-          expect.stringContaining(
-            "OPL_OUTPUT=json 'opl' 'runtime' 'app-operator-drilldown' '--detail' 'full' '--json'"
-          ),
-        ],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
+        "'runtime'",
+        "'app-operator-drilldown'",
+        "'--json'",
+      ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[1][1][1], [
+        "'runtime'",
+        "'app-operator-drilldown'",
+        "'--detail'",
+        "'full'",
+        "'--json'",
+      ]);
     });
 
     it('rejects unsupported App operator drilldown argument shapes before invoking OPL', async () => {
@@ -445,15 +471,17 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        [
-          '-lc',
-          expect.stringContaining(
-            "OPL_OUTPUT=json 'opl' 'runtime' 'action' 'execute' '--action' 'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record'"
-          ),
-        ],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
+        "'runtime'",
+        "'action'",
+        "'execute'",
+        "'--action'",
+        "'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record'",
+      ]);
     });
 
     it('rejects runtime action execute payload bodies and unsupported options before invoking OPL', async () => {
@@ -595,10 +623,15 @@ describe('shellBridge', () => {
       ).resolves.toMatchObject({ exitCode: 0 });
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'family-runtime' 'attempt' 'signal'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
+        "'family-runtime'",
+        "'attempt'",
+        "'signal'",
+      ]);
     });
 
     it('rejects arbitrary family-runtime commands from the shell bridge', async () => {
@@ -671,10 +704,11 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'update'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 30 * 60_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'system'", "'update'"]);
     });
 
     it('allows the developer-supervisor command for OPL Developer Mode settings', async () => {
@@ -692,10 +726,16 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'developer-supervisor' '--enabled' 'off'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
+        "'system'",
+        "'developer-supervisor'",
+        "'--enabled'",
+        "'off'",
+      ]);
     });
 
     it('rejects unsupported developer-supervisor arguments from the shell bridge', async () => {
@@ -716,10 +756,11 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'reconcile-modules'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 30 * 60_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'system'", "'reconcile-modules'"]);
     });
 
     it('allows the system startup-maintenance command for App startup module and skill refresh', async () => {
@@ -735,10 +776,11 @@ describe('shellBridge', () => {
       expect(result.exitCode).toBe(0);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'system' 'startup-maintenance'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ timeout: 30 * 60_000 }),
         expect.any(Function)
       );
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'system'", "'startup-maintenance'"]);
     });
 
     it('reports the active Full runtime status from the main process environment', async () => {
@@ -811,7 +853,7 @@ describe('shellBridge', () => {
       const command = execFileMock.mock.calls[0][1][1];
       expect(command).toContain('$HOME/.opl/toolchain');
       expect(command).toContain('fi; done; unset _opl_node_bin; fi');
-      expect(command).toContain("'opl' 'install' '--skip-modules' '--skip-gui-open'");
+      expectOplCommandArgs(command, ["'install'", "'--skip-modules'", "'--skip-gui-open'"]);
       expect(JSON.stringify(execFileMock.mock.calls)).not.toContain('/usr/bin/xcode-select');
     });
 
@@ -932,9 +974,14 @@ describe('shellBridge', () => {
       expect(stdin.end).toHaveBeenCalled();
       expect(spawnMock).toHaveBeenCalledWith(
         '/bin/zsh',
-        ['-lc', expect.stringContaining("'opl' 'system' 'configure-codex' '--api-key-stdin'")],
+        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
+      expectOplJsonCommandArgs(spawnMock.mock.calls[0][1][1], [
+        "'system'",
+        "'configure-codex'",
+        "'--api-key-stdin'",
+      ]);
       expect(JSON.stringify(spawnMock.mock.calls)).not.toContain('secret-api-key');
     });
 
@@ -962,7 +1009,8 @@ describe('shellBridge', () => {
       expect(bootstrapCommand).toContain('curl --http1.1 --connect-timeout 20 --max-time 120 --retry 3');
       expect(bootstrapCommand).toContain('--bootstrap-only');
       expect(bootstrapCommand).not.toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
-      expect(bootstrappedOplCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+      expect(bootstrappedOplCommand).toContain('OPL_OUTPUT=json "$OPL_APP_CLI"');
+      expect(bootstrappedOplCommand).toContain("'system' 'initialize' '--json'");
     });
 
     it('adds the App-managed Node toolchain to standard OPL commands after bootstrap', async () => {
@@ -989,7 +1037,37 @@ describe('shellBridge', () => {
       expect(directCommand).toContain('export PATH="$_opl_node_bin:$PATH"');
       expect(bootstrappedCommand).toContain('"$HOME"/.opl/toolchain/node-v*/bin');
       expect(bootstrappedCommand).toContain('export PATH="$_opl_node_bin:$PATH"');
-      expect(bootstrappedCommand).toContain("OPL_OUTPUT=json 'opl' 'system' 'initialize' '--json'");
+      expect(bootstrappedCommand).toContain('OPL_OUTPUT=json "$OPL_APP_CLI"');
+      expect(bootstrappedCommand).toContain("'system' 'initialize' '--json'");
+    });
+
+    it('falls back to the App-managed OPL checkout when npm global link is not on PATH', async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin' });
+      const missingOpl = Object.assign(new Error('opl not found'), { code: 127, stdout: '', stderr: '' });
+      execFileMock
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(missingOpl);
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: 'bootstrap ok', stderr: '' });
+        })
+        .mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+          callback(null, { stdout: '{"ready":true}', stderr: '' });
+        });
+
+      await expect(runOplCommandProvider.fn!({ args: ['system', 'initialize', '--json'] })).resolves.toMatchObject({
+        exitCode: 0,
+      });
+
+      const bootstrapCommand = execFileMock.mock.calls[1][1][1];
+      const bootstrappedCommand = execFileMock.mock.calls[2][1][1];
+      expect(bootstrapCommand).toContain('OPL_INSTALL_DIR=');
+      expect(bootstrapCommand).toContain('Library/Application Support/One Person Lab/opl/one-person-lab');
+      expect(bootstrappedCommand).toContain('OPL_APP_MANAGED_CLI=');
+      expect(bootstrappedCommand).toContain('if command -v opl >/dev/null 2>&1; then');
+      expect(bootstrappedCommand).toContain('elif [ -x "$OPL_APP_MANAGED_CLI" ]; then');
+      expect(bootstrappedCommand).toContain('"$OPL_APP_MANAGED_CLI"');
+      expect(bootstrappedCommand).not.toContain('command -v opl >/dev/null || exit 127');
     });
 
     it('shares missing-opl bootstrap recovery while read-only commands run concurrently', async () => {

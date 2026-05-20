@@ -35,6 +35,15 @@ const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Pe
 const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
 const OPL_FIRST_RUN_LOG_READ_LIMIT = 200;
 const OPL_FIRST_RUN_EVENT_SCHEMA_VERSION = 'opl_first_run_event.v1';
+const OPL_STANDARD_INSTALL_DIR = path.join(
+  os.homedir(),
+  'Library',
+  'Application Support',
+  'One Person Lab',
+  'opl',
+  'one-person-lab'
+);
+const OPL_STANDARD_CLI = path.join(OPL_STANDARD_INSTALL_DIR, 'bin', 'opl');
 const OPL_STANDARD_TOOLCHAIN_PREFIX = [
   'if [ -d "$HOME/.opl/toolchain" ]; then',
   'for _opl_node_bin in "$HOME"/.opl/toolchain/node-v*/bin; do',
@@ -467,11 +476,13 @@ function buildOplCommand(args: string[]): string {
   const envPrefix = ['modules', 'runtime', 'system', 'workspace', 'family-runtime', 'skill'].includes(args[0])
     ? 'OPL_OUTPUT=json '
     : '';
+  const standardCli = shellQuote(OPL_STANDARD_CLI);
   return [
     buildOplFullRuntimeShellPrefix(fullRuntimeHome),
     OPL_STANDARD_TOOLCHAIN_PREFIX,
-    'command -v opl >/dev/null || exit 127',
-    `${envPrefix}${['opl', ...args].map(shellQuote).join(' ')}`,
+    `OPL_APP_MANAGED_CLI=${standardCli}`,
+    'if command -v opl >/dev/null 2>&1; then OPL_APP_CLI=opl; elif [ -x "$OPL_APP_MANAGED_CLI" ]; then OPL_APP_CLI="$OPL_APP_MANAGED_CLI"; else exit 127; fi',
+    `${envPrefix}"$OPL_APP_CLI" ${args.map(shellQuote).join(' ')}`,
   ]
     .filter(Boolean)
     .join(' && ');
@@ -482,6 +493,8 @@ function buildOplBootstrapCommand(): string {
     'set -euo pipefail',
     'command -v curl >/dev/null',
     `OPL_INSTALL_SCRIPT_URL="\${OPL_INSTALL_SCRIPT_URL:-${OPL_INSTALL_SCRIPT_URL}}"`,
+    `OPL_INSTALL_DIR=${shellQuote(OPL_STANDARD_INSTALL_DIR)}`,
+    'export OPL_INSTALL_DIR',
     'OPL_BOOTSTRAP_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/opl-install.XXXXXX")"',
     'trap \'rm -f "$OPL_BOOTSTRAP_SCRIPT"\' EXIT',
     'curl --http1.1 --connect-timeout 20 --max-time 120 --retry 3 --retry-delay 2 --retry-all-errors -fsSL "$OPL_INSTALL_SCRIPT_URL" -o "$OPL_BOOTSTRAP_SCRIPT"',

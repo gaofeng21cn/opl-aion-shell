@@ -514,6 +514,45 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
   });
 
+  it('keeps standard first launch usable when core install fails after Codex is configured', async () => {
+    mockConfigGet.mockResolvedValue(undefined);
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand.mockResolvedValueOnce(codexCliMissingAfterConfigInitializeResult).mockResolvedValueOnce({
+      exitCode: 2,
+      stdout: '',
+      stderr: 'npm error command sh -c npm run build',
+    });
+
+    await expect(configureOplCodexForFirstLaunch('secret-api-key', { appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'prepared',
+      readyToLaunch: true,
+      blockers: ['codex', 'domain_modules', 'family_runtime_provider'],
+      progress: {
+        currentStep: 4,
+        totalSteps: 4,
+        step: 'complete',
+      },
+    });
+
+    expect(mockConfigureOplCodex).toHaveBeenCalledWith({ apiKey: 'secret-api-key' });
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-modules', '--skip-gui-open'] });
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_core_install_deferred_after_failure',
+      payload: expect.objectContaining({
+        status: 'deferred',
+        message: 'npm error command sh -c npm run build',
+      }),
+    });
+    expect(mockAppendOplFirstRunLog).not.toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: 'gui_install_failed' })
+    );
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.firstLaunchInstallPreparedAt', expect.any(Number));
+  });
+
   it('keeps Full runtime first launch prepared without running git-backed bundled materialization', async () => {
     process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
     mockConfigGet.mockResolvedValue(undefined);

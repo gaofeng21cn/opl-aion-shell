@@ -68,7 +68,8 @@ describe('OPL generated product profile', () => {
       'recommended_skills',
     ]);
     expect(getOplCommandLineToolsInstallMessage()).toContain('Command Line Tools installer has been opened');
-    expect(getOplCommandLineToolsInstallMessage()).toContain('Full first-install can continue');
+    expect(getOplCommandLineToolsInstallMessage()).toContain('You can keep using One Person Lab');
+    expect(getOplCommandLineToolsInstallMessage()).toContain('resume them from Settings');
   });
 
   it('exposes the Codex session context without embedded secrets', () => {
