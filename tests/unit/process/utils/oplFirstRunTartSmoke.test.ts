@@ -31,6 +31,7 @@ type TartSmokeTestApi = {
     guestCodexApiKeyPath: string
   ): string;
   parseArgs(argv: string[]): TartSmokeOptions;
+  resolveGuestSmokeScriptPath(): string;
   writeSummary(options: TartSmokeOptions, ip: string, guestArtifactDir: string): void;
 };
 
@@ -124,6 +125,19 @@ describe('scripts/opl-first-run-tart-smoke profile parsing', () => {
 });
 
 describe('scripts/opl-first-run-tart-smoke dry-run and artifact criteria', () => {
+  it('resolves the guest smoke script independently of process cwd', async () => {
+    const api = await loadTartSmokeTestApi();
+    const originalCwd = process.cwd();
+    const cwd = makeTempRoot();
+    process.chdir(cwd);
+    try {
+      expect(api.resolveGuestSmokeScriptPath()).toMatch(/scripts[/\\]opl-first-run-vm-smoke\.mjs$/);
+      expect(fs.existsSync(api.resolveGuestSmokeScriptPath())).toBe(true);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
   it('builds a dry-run plan without requiring the release DMG to exist', async () => {
     const api = await loadTartSmokeTestApi();
     const options = api.parseArgs([

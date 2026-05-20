@@ -7,6 +7,8 @@ import path from 'node:path';
 
 const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
 const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
+const SCRIPT_DIR = path.dirname(fs.realpathSync(new URL(import.meta.url)));
+const GUEST_SMOKE_SCRIPT_PATH = path.join(SCRIPT_DIR, 'opl-first-run-vm-smoke.mjs');
 const SIGNAL_EXIT_CODES = new Map([
   ['SIGHUP', 129],
   ['SIGINT', 130],
@@ -532,6 +534,13 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
   return ['set -euo pipefail', smokeArgs].join('\n');
 }
 
+function resolveGuestSmokeScriptPath() {
+  if (!fs.existsSync(GUEST_SMOKE_SCRIPT_PATH)) {
+    throw new Error(`Guest first-run smoke script is missing: ${GUEST_SMOKE_SCRIPT_PATH}`);
+  }
+  return GUEST_SMOKE_SCRIPT_PATH;
+}
+
 async function resolveGuestNodeCommand(options, ip) {
   const installScript = `
 set -euo pipefail
@@ -668,7 +677,7 @@ async function main() {
     await scpToGuest(
       options,
       ip,
-      [options.dmg, path.resolve('scripts', 'opl-first-run-vm-smoke.mjs'), codexApiKeyFile.path],
+      [options.dmg, resolveGuestSmokeScriptPath(), codexApiKeyFile.path],
       options.guestWorkdir
     );
     setStage(options.guestNodeCommand ? 'use_guest_node_command' : 'resolve_guest_node');
@@ -712,6 +721,7 @@ export const __test =
         guestSmokeCommand,
         isMainModule,
         parseArgs,
+        resolveGuestSmokeScriptPath,
         writeSummary,
       }
     : undefined;
