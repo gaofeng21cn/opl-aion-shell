@@ -7,7 +7,11 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
 import type { AcpSessionConfigOption } from '@/common/types/acpTypes';
-import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
+import {
+  resolveAgentModeOptions,
+  supportsModeSwitch,
+  type AgentModeOption,
+} from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { AgentLogoIcon } from './AgentBadge';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
@@ -137,11 +141,9 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     };
   }, [backend]);
 
-  // Priority: dynamicModes (runtime) > cachedModes (from cache) > getAgentModes (static fallback)
+  // Priority: runtime/cache options for ACP backends, static OPL modes for Codex.
   const modes = useMemo(() => {
-    if (dynamicModes && dynamicModes.length > 0) return dynamicModes;
-    if (cachedModes.length > 0) return cachedModes;
-    return getAgentModes(backend);
+    return resolveAgentModeOptions(backend, dynamicModes, cachedModes);
   }, [dynamicModes, cachedModes, backend]);
   const defaultMode = modes[0]?.value ?? 'default';
   // Validate initialMode against available modes; fall back to backend's default

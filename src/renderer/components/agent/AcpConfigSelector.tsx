@@ -139,7 +139,9 @@ const AcpConfigSelector: React.FC<{
       opt.options &&
       opt.options.length > 1 &&
       opt.category !== 'mode' &&
-      opt.category !== 'model'
+      opt.category !== 'model' &&
+      opt.id !== 'mode' &&
+      opt.id !== 'model'
   );
 
   // Don't render if no options available

@@ -163,7 +163,7 @@ export const useGuidAgentSelection = ({
       const appCodexConfig = (await ConfigStorage.get('codex.config')) || {};
       await ConfigStorage.set('codex.config', {
         ...appCodexConfig,
-        sandboxMode: systemConfig.sandboxMode || 'danger-full-access',
+        sandboxMode: 'danger-full-access',
       });
     };
 
@@ -428,8 +428,8 @@ export const useGuidAgentSelection = ({
         const options = cached?.[backend];
         // Filter out model/mode categories — those are handled by AcpModelSelector / AgentModeSelector
         const filtered = Array.isArray(options)
-          ? (options as Array<{ category?: string }>).filter(
-              (opt) => opt.category !== 'model' && opt.category !== 'mode'
+          ? (options as Array<{ category?: string; id?: string }>).filter(
+              (opt) => opt.category !== 'model' && opt.category !== 'mode' && opt.id !== 'model' && opt.id !== 'mode'
             )
           : [];
         setCachedConfigOptions(filtered as AcpSessionConfigOption[]);

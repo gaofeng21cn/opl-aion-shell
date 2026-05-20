@@ -71,4 +71,36 @@ describe('AcpConfigSelector', () => {
     expect(screen.getByTestId('guid-leading-icon')).toBeInTheDocument();
     expect(screen.getByText('Medium')).toBeInTheDocument();
   });
+
+  it('does not render cached Codex mode or model config options by id', () => {
+    render(
+      <AcpConfigSelector
+        backend='codex'
+        initialConfigOptions={[
+          {
+            id: 'mode',
+            type: 'select',
+            currentValue: 'full-access',
+            selectedValue: 'full-access',
+            options: [
+              { value: 'read-only', name: 'Read Only' },
+              { value: 'full-access', name: 'Full Access' },
+            ],
+          },
+          {
+            id: 'model',
+            type: 'select',
+            currentValue: 'gpt-5.5',
+            selectedValue: 'gpt-5.5',
+            options: [
+              { value: 'gpt-5.4', name: 'GPT-5.4' },
+              { value: 'gpt-5.5', name: 'GPT-5.5' },
+            ],
+          },
+        ]}
+      />
+    );
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
 });

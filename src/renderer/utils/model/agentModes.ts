@@ -129,6 +129,23 @@ export function mergeWithCapabilities(
   return capabilityModes.map((value) => staticMap.get(value) ?? { value, label: toTitleCase(value) });
 }
 
+export function shouldUseRuntimeModeOptions(backend: string | undefined): boolean {
+  return backend !== 'codex';
+}
+
+export function resolveAgentModeOptions(
+  backend: string | undefined,
+  dynamicModes: AgentModeOption[] | undefined,
+  cachedModes: AgentModeOption[]
+): AgentModeOption[] {
+  if (shouldUseRuntimeModeOptions(backend)) {
+    if (dynamicModes && dynamicModes.length > 0) return dynamicModes;
+    if (cachedModes.length > 0) return cachedModes;
+  }
+
+  return getAgentModes(backend);
+}
+
 /**
  * Check if a backend supports mode switching during session
  *

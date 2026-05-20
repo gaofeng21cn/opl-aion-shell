@@ -10,6 +10,8 @@ import {
   AGENT_MODES,
   getAgentModes,
   mergeWithCapabilities,
+  resolveAgentModeOptions,
+  shouldUseRuntimeModeOptions,
   supportsModeSwitch,
 } from '@renderer/utils/model/agentModes';
 
@@ -63,6 +65,28 @@ describe('supportsModeSwitch', () => {
 
   it('returns false for undefined', () => {
     expect(supportsModeSwitch(undefined)).toBe(false);
+  });
+});
+
+describe('resolveAgentModeOptions', () => {
+  it('ignores Codex runtime sandbox modes and keeps the OPL full-access mode surface', () => {
+    const runtimeModes = [
+      { value: 'read-only', label: 'Read Only' },
+      { value: 'workspace-write', label: 'Workspace Write' },
+      { value: 'danger-full-access', label: 'Full Access' },
+    ];
+
+    expect(shouldUseRuntimeModeOptions('codex')).toBe(false);
+    expect(resolveAgentModeOptions('codex', runtimeModes, [])).toEqual(getAgentModes('codex'));
+    expect(resolveAgentModeOptions('codex', undefined, runtimeModes)).toEqual(getAgentModes('codex'));
+  });
+
+  it('keeps runtime mode options for non-Codex ACP backends', () => {
+    const runtimeModes = [{ value: 'plan', label: 'Plan' }];
+
+    expect(shouldUseRuntimeModeOptions('claude')).toBe(true);
+    expect(resolveAgentModeOptions('claude', runtimeModes, [])).toEqual(runtimeModes);
+    expect(resolveAgentModeOptions('claude', undefined, runtimeModes)).toEqual(runtimeModes);
   });
 });
 

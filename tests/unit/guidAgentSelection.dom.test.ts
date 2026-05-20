@@ -154,6 +154,7 @@ const MODEL_LIST: IProvider[] = [
 function setupMocks(overrides?: {
   cachedModels?: Record<string, AcpModelInfo>;
   acpConfig?: Record<string, unknown>;
+  codexConfig?: Record<string, unknown>;
   geminiConfig?: Record<string, unknown>;
   interactionLayer?: string | null;
 }) {
@@ -176,6 +177,8 @@ function setupMocks(overrides?: {
         return overrides?.interactionLayer ?? null;
       case 'acp.config':
         return acpConfig;
+      case 'codex.config':
+        return overrides?.codexConfig ?? {};
       case 'gemini.config':
         return geminiConfig;
       case 'gemini.defaultModel':
@@ -415,6 +418,28 @@ describe('useGuidAgentSelection – preset agent config resolution', () => {
     expect(result.current.currentAcpCachedModelInfo).toBeNull();
     expect(configStorageMock.set).toHaveBeenCalledWith('acp.config', {
       codex: { preferredMode: 'yoloNoSandbox' },
+    });
+    expect(configStorageMock.set).toHaveBeenCalledWith('codex.config', {
+      sandboxMode: 'danger-full-access',
+    });
+  });
+
+  it('overrides a persisted read-only Codex sandbox default for new OPL App sessions', async () => {
+    setupMocks({
+      cachedModels: {},
+      acpConfig: {},
+      codexConfig: { sandboxMode: 'read-only', cliPath: '/opt/codex' },
+    });
+
+    const { result } = renderHook(() => useGuidAgentSelection(hookOptions));
+
+    await waitFor(() => {
+      expect(result.current.availableAgents).toBeDefined();
+    });
+
+    expect(configStorageMock.set).toHaveBeenCalledWith('codex.config', {
+      cliPath: '/opt/codex',
+      sandboxMode: 'danger-full-access',
     });
   });
 
