@@ -226,7 +226,6 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.fullDetailFailed': 'Failed to load full App drilldown.',
   'common.runtimeTray.appDrilldown.execute': 'Execute',
   'common.runtimeTray.appDrilldown.executeDryRun': 'Dry Run',
-  'common.runtimeTray.appDrilldown.executeApproveDomainAction': 'Approve domain action',
   'common.runtimeTray.appDrilldown.actionExecutionSucceeded': 'Action completed.',
   'common.runtimeTray.appDrilldown.actionExecutionFailed': 'Action failed.',
   'common.runtimeTray.appDrilldown.nextSafeAction': 'Next Safe Action',
@@ -997,7 +996,7 @@ describe('RuntimeTrayItemPage', () => {
     };
     let snapshotCallCount = 0;
     runOplCommandMock.mockImplementation(({ args }: { args: string[] }) => {
-      if (args.join(' ') === 'runtime app-operator-drilldown --detail full --json') {
+      if (args.join(' ') === 'runtime app-operator-drilldown --json --detail full') {
         return Promise.resolve(fullDetailResponse);
       }
       if (args.join(' ') === 'runtime app-operator-drilldown --json') {
@@ -1167,7 +1166,7 @@ describe('RuntimeTrayItemPage', () => {
     fireEvent.click(screen.getByText('Load Full Detail'));
     await waitFor(() => {
       expect(runOplCommandMock).toHaveBeenCalledWith({
-        args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+        args: ['runtime', 'app-operator-drilldown', '--json', '--detail', 'full'],
       });
     });
     await waitFor(() => {

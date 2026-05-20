@@ -278,7 +278,6 @@
       "fullDetailFailed": "加载 App drilldown 完整详情失败。",
       "execute": "执行",
       "executeDryRun": "Dry Run",
-      "executeApproveDomainAction": "批准 domain action",
       "actionExecutionSucceeded": "动作已完成。",
       "actionExecutionFailed": "动作执行失败。",
       "nextSafeAction": "下一安全动作",

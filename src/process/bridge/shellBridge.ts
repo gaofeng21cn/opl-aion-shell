@@ -181,7 +181,6 @@ function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
   let actionId = '';
   let sawPayload = false;
   let sawDryRun = false;
-  let sawApproveDomainAction = false;
   for (let index = 3; index < args.length; index += 1) {
     const option = args[index];
     const value = args[index + 1];
@@ -212,13 +211,6 @@ function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
       sawDryRun = true;
       continue;
     }
-    if (option === '--approve-domain-action') {
-      if (sawApproveDomainAction) {
-        throw new Error('Unsupported OPL runtime action execute duplicate --approve-domain-action');
-      }
-      sawApproveDomainAction = true;
-      continue;
-    }
     throw new Error(`Unsupported OPL runtime action execute option: ${option ?? ''}`);
   }
 
@@ -241,9 +233,9 @@ function assertAllowedRuntimeArgs(args: string[]): void {
   const isAppOperatorFull =
     args.length === 5 &&
     args[1] === 'app-operator-drilldown' &&
-    args[2] === '--detail' &&
-    args[3] === 'full' &&
-    args[4] === '--json';
+    args[2] === '--json' &&
+    args[3] === '--detail' &&
+    args[4] === 'full';
   if (isAppOperatorFull) {
     return;
   }

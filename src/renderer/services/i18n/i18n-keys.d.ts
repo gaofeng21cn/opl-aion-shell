@@ -230,7 +230,6 @@ export type I18nKey =
   | 'common.runtimeTray.appDrilldown.evidenceGates'
   | 'common.runtimeTray.appDrilldown.executableRoutes'
   | 'common.runtimeTray.appDrilldown.execute'
-  | 'common.runtimeTray.appDrilldown.executeApproveDomainAction'
   | 'common.runtimeTray.appDrilldown.executeDryRun'
   | 'common.runtimeTray.appDrilldown.expectedReceipts'
   | 'common.runtimeTray.appDrilldown.exports'

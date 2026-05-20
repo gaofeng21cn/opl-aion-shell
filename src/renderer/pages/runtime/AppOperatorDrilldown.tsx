@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Checkbox, Empty, Input, Message, Tag } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Tag } from '@arco-design/web-react';
 import { Refresh } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
@@ -143,12 +143,7 @@ const attentionListSummary = (value: unknown): string => {
   return [total ? `total=${total}` : '', omitted ? `omitted=${omitted}` : ''].filter(Boolean).join('; ');
 };
 
-const buildActionArgs = (
-  action: RuntimeTrayJsonRecord,
-  mode: ActionExecutionMode,
-  payloadInput: string,
-  approveDomainAction: boolean
-): string[] => {
+const buildActionArgs = (action: RuntimeTrayJsonRecord, mode: ActionExecutionMode, payloadInput: string): string[] => {
   const actionId = firstText(action.action_id);
   if (!actionId) {
     throw new Error('missing action id');
@@ -162,7 +157,6 @@ const buildActionArgs = (
     actionId,
     ...(Object.keys(payload).length > 0 ? ['--payload', JSON.stringify(payload)] : []),
     ...(mode === 'dry_run' ? ['--dry-run'] : []),
-    ...(approveDomainAction ? ['--approve-domain-action'] : []),
   ];
 };
 
@@ -642,7 +636,6 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const [fullDetail, setFullDetail] = React.useState<RuntimeTrayJsonRecord | null>(null);
   const [loadingFullDetail, setLoadingFullDetail] = React.useState(false);
   const [actionPayloadInput, setActionPayloadInput] = React.useState('');
-  const [approveDomainAction, setApproveDomainAction] = React.useState(false);
   const [runningActionMode, setRunningActionMode] = React.useState<ActionExecutionMode | null>(null);
   const [actionResult, setActionResult] = React.useState<RuntimeTrayJsonRecord | null>(null);
 
@@ -666,7 +659,6 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const providerHealth = nestedRecord(attentionPayload, 'provider_health');
   const attentionAuthority = nestedRecord(attentionPayload, 'authority_boundary');
   const hasNextSafeAction = Boolean(firstText(nextSafeAction.action_id));
-  const approveDomainActionSupported = nextSafeAction.approve_domain_action_supported === true;
   const metrics = buildMetrics(summary, t);
   const sections = buildSections(projection, t);
   const omaSummarySections = omaSections(projection, t);
@@ -677,7 +669,7 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const handleLoadFullDetail = () => {
     setLoadingFullDetail(true);
     void ipcBridge.shell.runOplCommand
-      .invoke({ args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'] })
+      .invoke({ args: ['runtime', 'app-operator-drilldown', '--json', '--detail', 'full'] })
       .then((result) => {
         if (result.exitCode !== 0) {
           throw new Error(result.stderr || result.stdout || t('common.runtimeTray.appDrilldown.fullDetailFailed'));
@@ -712,7 +704,7 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const handleRunAction = (mode: ActionExecutionMode) => {
     setRunningActionMode(mode);
     void Promise.resolve()
-      .then(() => buildActionArgs(nextSafeAction, mode, actionPayloadInput, approveDomainAction))
+      .then(() => buildActionArgs(nextSafeAction, mode, actionPayloadInput))
       .then((args) => ipcBridge.shell.runOplCommand.invoke({ args }))
       .then(async (result) => {
         if (result.exitCode !== 0) {
@@ -815,13 +807,6 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
             />
           </div>
           <div className='flex flex-col gap-8px'>
-            <Checkbox
-              checked={approveDomainAction}
-              disabled={!approveDomainActionSupported}
-              onChange={setApproveDomainAction}
-            >
-              {t('common.runtimeTray.appDrilldown.executeApproveDomainAction')}
-            </Checkbox>
             {renderRecordCard(
               t('common.runtimeTray.appDrilldown.providerHealth'),
               providerHealth,

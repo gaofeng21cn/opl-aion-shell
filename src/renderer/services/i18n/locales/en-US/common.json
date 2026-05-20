@@ -278,7 +278,6 @@
       "fullDetailFailed": "Failed to load full App drilldown.",
       "execute": "Execute",
       "executeDryRun": "Dry Run",
-      "executeApproveDomainAction": "Approve domain action",
       "actionExecutionSucceeded": "Action completed.",
       "actionExecutionFailed": "Action failed.",
       "nextSafeAction": "Next Safe Action",

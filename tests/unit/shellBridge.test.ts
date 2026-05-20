@@ -401,7 +401,7 @@ describe('shellBridge', () => {
       ).resolves.toMatchObject({ exitCode: 0 });
       await expect(
         runOplCommandProvider.fn!({
-          args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+          args: ['runtime', 'app-operator-drilldown', '--json', '--detail', 'full'],
         })
       ).resolves.toMatchObject({ exitCode: 0 });
 
@@ -421,9 +421,9 @@ describe('shellBridge', () => {
       expectOplJsonCommandArgs(execFileMock.mock.calls[1][1][1], [
         "'runtime'",
         "'app-operator-drilldown'",
+        "'--json'",
         "'--detail'",
         "'full'",
-        "'--json'",
       ]);
     });
 
@@ -438,14 +438,14 @@ describe('shellBridge', () => {
       ).rejects.toThrow('Unsupported OPL runtime action');
       await expect(
         runOplCommandProvider.fn!({
-          args: ['runtime', 'app-operator-drilldown', '--json', '--detail', 'full'],
+          args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
         })
       ).rejects.toThrow('Unsupported OPL runtime action');
 
       expect(execFileMock).not.toHaveBeenCalled();
     });
 
-    it('allows runtime action execute with optional refs-only payload and action safety flags', async () => {
+    it('allows runtime action execute with optional refs-only payload and dry-run only', async () => {
       execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
         callback(null, { stdout: '{"runtime_operator_action_execution":{"dry_run":true}}', stderr: '' });
       });
@@ -460,7 +460,6 @@ describe('shellBridge', () => {
           '--payload',
           '{"evidence_refs":["receipt:external"],"domain_receipt_ref":"domain:receipt"}',
           '--dry-run',
-          '--approve-domain-action',
         ],
       });
 
@@ -501,6 +500,11 @@ describe('shellBridge', () => {
       ).rejects.toThrow('Unsupported OPL runtime action refs-only payload');
       await expect(
         runOplCommandProvider.fn!({ args: ['runtime', 'action', 'execute', '--action', 'action:one', '--json'] })
+      ).rejects.toThrow('Unsupported OPL runtime action execute option');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'action', 'execute', '--action', 'action:one', '--approve-domain-action'],
+        })
       ).rejects.toThrow('Unsupported OPL runtime action execute option');
 
       expect(execFileMock).not.toHaveBeenCalled();
