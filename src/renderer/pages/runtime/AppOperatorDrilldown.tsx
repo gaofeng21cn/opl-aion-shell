@@ -14,6 +14,10 @@ type DrilldownSection = {
   title: string;
   refs: RuntimeTrayJsonRecord[];
 };
+type OmaSectionSpec = {
+  key: string;
+  title: string;
+};
 
 const isRecord = (value: unknown): value is RuntimeTrayJsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -74,6 +78,19 @@ const refSummary = (ref: RuntimeTrayJsonRecord): string => {
   return parts.map(([label, value]) => `${label}=${value}`).join('; ');
 };
 
+const omaSummary = (ref: RuntimeTrayJsonRecord): string => {
+  const parts = [
+    [
+      'ref',
+      firstText(ref.ref, ref.section_ref, ref.package_ref, ref.evidence_ref, ref.proposal_ref, ref.work_order_ref),
+    ],
+    ['status', firstText(ref.status, ref.state, ref.result_status, ref.review_status)],
+    ['blocker', firstText(ref.blocker, ref.blocker_ref, ref.typed_blocker_ref, ref.blocking_reason)],
+    ['receipt', firstText(ref.receipt, ref.receipt_ref, ref.owner_receipt_ref, ref.evidence_receipt_ref)],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  return parts.map(([label, value]) => `${label}=${value}`).join('; ');
+};
+
 const metric = (summary: RuntimeTrayJsonRecord, label: string, key: string): DrilldownMetric => ({
   label,
   value: firstText(summary[key]) || '0',
@@ -89,6 +106,46 @@ const sectionRefs = (drilldown: RuntimeTrayJsonRecord, key: string): RuntimeTray
     ...refsFromStrings(section.gap_report_refs, 'gap_report_ref'),
     ...refsFromStrings(section.handoff_refs, 'handoff_ref'),
   ];
+};
+
+const omaSectionRecord = (drilldown: RuntimeTrayJsonRecord, key: string): RuntimeTrayJsonRecord => {
+  const sections = nestedRecord(drilldown, 'oma_sections');
+  const fromGrouped = sections[key];
+  if (isRecord(fromGrouped)) return fromGrouped;
+  const direct = drilldown[key];
+  if (isRecord(direct)) return direct;
+  const directSection = drilldown[`${key}_section`];
+  return isRecord(directSection) ? directSection : {};
+};
+
+const omaSectionRefs = (drilldown: RuntimeTrayJsonRecord, key: string): RuntimeTrayJsonRecord[] => {
+  const section = omaSectionRecord(drilldown, key);
+  const refs = [
+    ...asRecordArray(section.refs),
+    ...asRecordArray(section.items),
+    ...refsFromStrings(section.ref_refs, 'ref'),
+    ...refsFromStrings(section.refs, 'ref'),
+    ...refsFromStrings(section.blocker_refs, 'blocker'),
+    ...refsFromStrings(section.typed_blocker_refs, 'blocker'),
+    ...refsFromStrings(section.receipt_refs, 'receipt'),
+    ...refsFromStrings(section.status_refs, 'status'),
+    ...refsFromStrings(section.evidence_refs, 'evidence'),
+  ];
+  if (refs.length > 0) return refs;
+  const synthetic = {
+    ref: firstText(
+      section.ref,
+      section.section_ref,
+      section.package_ref,
+      section.evidence_ref,
+      section.proposal_ref,
+      section.work_order_ref
+    ),
+    status: firstText(section.status, section.state, section.result_status, section.review_status),
+    blocker_ref: firstText(section.blocker_ref, section.typed_blocker_ref, section.blocking_reason),
+    receipt_ref: firstText(section.receipt_ref, section.owner_receipt_ref, section.evidence_receipt_ref),
+  };
+  return firstText(synthetic.ref, synthetic.status, synthetic.blocker_ref, synthetic.receipt_ref) ? [synthetic] : [];
 };
 
 const functionalResidueCount = (summary: RuntimeTrayJsonRecord, functional: RuntimeTrayJsonRecord): string => {
@@ -294,6 +351,24 @@ const drilldownSections = (drilldown: RuntimeTrayJsonRecord, t: RuntimeTranslato
   ]);
 };
 
+const omaSectionSpecs = (t: RuntimeTranslator): OmaSectionSpec[] => [
+  { key: 'target_brief', title: t('common.runtimeTray.appDrilldown.omaTargetBrief') },
+  { key: 'candidate_package', title: t('common.runtimeTray.appDrilldown.omaCandidatePackage') },
+  { key: 'agent_lab_results', title: t('common.runtimeTray.appDrilldown.omaAgentLabResults') },
+  { key: 'developer_work_order', title: t('common.runtimeTray.appDrilldown.omaDeveloperWorkOrder') },
+  { key: 'mechanism_proposal', title: t('common.runtimeTray.appDrilldown.omaMechanismProposal') },
+  { key: 'scaleout_evidence', title: t('common.runtimeTray.appDrilldown.omaScaleoutEvidence') },
+];
+
+const omaSections = (drilldown: RuntimeTrayJsonRecord, t: RuntimeTranslator): DrilldownSection[] => {
+  return sectionList(
+    omaSectionSpecs(t).map((spec) => ({
+      title: spec.title,
+      refs: omaSectionRefs(drilldown, spec.key),
+    }))
+  );
+};
+
 const summaryCards = (
   summary: RuntimeTrayJsonRecord,
   functional: RuntimeTrayJsonRecord,
@@ -377,6 +452,30 @@ const renderSection = (section: DrilldownSection): React.ReactNode => {
   );
 };
 
+const renderOmaSection = (section: DrilldownSection): React.ReactNode => {
+  return (
+    <section
+      key={section.title}
+      className='rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'
+    >
+      <div className='mb-8px flex items-center justify-between gap-8px text-12px font-medium text-t-secondary'>
+        <span>{section.title}</span>
+        {sectionSummary(section) && <span>{sectionSummary(section)}</span>}
+      </div>
+      <div className='flex flex-col gap-6px'>
+        {section.refs.slice(0, 5).map((ref, index) => (
+          <code
+            key={`${section.title}-${index}`}
+            className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'
+          >
+            {omaSummary(ref)}
+          </code>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 const buildSections = (drilldown: RuntimeTrayJsonRecord, t: RuntimeTranslator): DrilldownSection[] => {
   return drilldownSections(drilldown, t);
 };
@@ -447,6 +546,7 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
   const functional = nestedRecord(projection, 'functional_privatization_audit_summary');
   const metrics = buildMetrics(summary, t);
   const sections = buildSections(projection, t);
+  const omaSummarySections = omaSections(projection, t);
   const consumedMemoryRefs = textList(memory.consumed_memory_refs);
   const writebackReceiptRefs = textList(memory.writeback_receipt_refs);
   const qualityRefs = textList(quality.quality_refs);
@@ -499,6 +599,10 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
       <div className='grid grid-cols-1 gap-10px md:grid-cols-3'>
         {summaryCards(summary, functional, t).map(renderSummaryCard)}
       </div>
+
+      {omaSummarySections.length > 0 && (
+        <div className='grid grid-cols-1 gap-10px'>{omaSummarySections.map(renderOmaSection)}</div>
+      )}
 
       <div className='grid grid-cols-1 gap-10px md:grid-cols-2'>
         <div className='rounded-6px bg-fill-2 px-10px py-8px'>

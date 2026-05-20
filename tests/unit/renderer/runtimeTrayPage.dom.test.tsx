@@ -166,6 +166,12 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.evidenceGateReceipts': 'Evidence Gate Receipts',
   'common.runtimeTray.appDrilldown.evidenceGates': 'Evidence Gates',
   'common.runtimeTray.appDrilldown.legacyCleanup': 'Legacy Cleanup',
+  'common.runtimeTray.appDrilldown.omaAgentLabResults': 'Agent Lab Results',
+  'common.runtimeTray.appDrilldown.omaCandidatePackage': 'Candidate Package',
+  'common.runtimeTray.appDrilldown.omaDeveloperWorkOrder': 'Developer Work Order',
+  'common.runtimeTray.appDrilldown.omaMechanismProposal': 'Mechanism Proposal',
+  'common.runtimeTray.appDrilldown.omaScaleoutEvidence': 'Scaleout Evidence',
+  'common.runtimeTray.appDrilldown.omaTargetBrief': 'Target Brief',
   'common.runtimeTray.appDrilldown.cleanupPlans': 'Cleanup Plans',
   'common.runtimeTray.appDrilldown.providerCadenceWindow': 'Provider Cadence Window',
   'common.runtimeTray.appDrilldown.cadenceWindowStatus': 'Status',
@@ -630,6 +636,68 @@ describe('RuntimeTrayItemPage', () => {
             authority_boundary: {
               domain: 'truth_memory_artifact_quality_export_owner',
             },
+            oma_sections: {
+              target_brief: {
+                refs: [
+                  {
+                    ref: 'oma:target-brief/medautoscience-operator-loop',
+                    status: 'blocked_pending_owner_receipt',
+                    typed_blocker_ref: 'typed-blocker:oma/target-brief-domain-owner',
+                    receipt_ref: 'receipt:oma/target-brief-intake',
+                  },
+                ],
+              },
+              candidate_package: {
+                refs: [
+                  {
+                    package_ref: 'package:oma/candidate-standard-domain-agent',
+                    status: 'review_pending',
+                    blocker_ref: 'blocker:oma/candidate-package-owner-boundary',
+                    receipt_ref: 'receipt:oma/candidate-package-captured',
+                  },
+                ],
+              },
+              agent_lab_results: {
+                refs: [
+                  {
+                    evidence_ref: 'agent-lab-result:oma/repair-route-suite',
+                    result_status: 'blocked_from_auto_promotion',
+                    typed_blocker_ref: 'typed-blocker:oma/agent-lab-independent-review',
+                    receipt_ref: 'receipt:oma/agent-lab-suite-result',
+                  },
+                ],
+              },
+              developer_work_order: {
+                refs: [
+                  {
+                    work_order_ref: 'work-order:oma/app-render-lane-d',
+                    status: 'operator_review_required',
+                    blocker_ref: 'blocker:oma/work-order-needs-runtime-proof',
+                    owner_receipt_ref: 'receipt:oma/work-order-owner-ack',
+                  },
+                ],
+              },
+              mechanism_proposal: {
+                refs: [
+                  {
+                    proposal_ref: 'mechanism-proposal:oma/summary-first-app-drilldown',
+                    review_status: 'ai_review_pending',
+                    typed_blocker_ref: 'typed-blocker:oma/mechanism-review-gate',
+                    receipt_ref: 'receipt:oma/mechanism-proposal-captured',
+                  },
+                ],
+              },
+              scaleout_evidence: {
+                refs: [
+                  {
+                    evidence_ref: 'scaleout-evidence:oma/mas-mag-rca-owner-chain',
+                    status: 'evidence_incomplete',
+                    blocker_ref: 'blocker:oma/scaleout-receipt-gap',
+                    evidence_receipt_ref: 'receipt:oma/scaleout-partial',
+                  },
+                ],
+              },
+            },
           },
           running_items: [],
           attention_items: [
@@ -771,6 +839,36 @@ describe('RuntimeTrayItemPage', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText('summary')).toBeInTheDocument();
+    expect(screen.getByText('Target Brief')).toBeInTheDocument();
+    expect(screen.getByText(/ref=oma:target-brief\/medautoscience-operator-loop/)).toBeInTheDocument();
+    expect(screen.getByText(/status=blocked_pending_owner_receipt/)).toBeInTheDocument();
+    expect(screen.getByText(/blocker=typed-blocker:oma\/target-brief-domain-owner/)).toBeInTheDocument();
+    expect(screen.getByText(/receipt=receipt:oma\/target-brief-intake/)).toBeInTheDocument();
+    expect(screen.getByText('Candidate Package')).toBeInTheDocument();
+    expect(screen.getByText(/ref=package:oma\/candidate-standard-domain-agent/)).toBeInTheDocument();
+    expect(screen.getByText(/blocker=blocker:oma\/candidate-package-owner-boundary/)).toBeInTheDocument();
+    expect(screen.getByText('Agent Lab Results')).toBeInTheDocument();
+    expect(screen.getByText(/ref=agent-lab-result:oma\/repair-route-suite/)).toBeInTheDocument();
+    expect(screen.getByText(/status=blocked_from_auto_promotion/)).toBeInTheDocument();
+    expect(screen.getByText('Developer Work Order')).toBeInTheDocument();
+    expect(screen.getByText(/ref=work-order:oma\/app-render-lane-d/)).toBeInTheDocument();
+    expect(screen.getByText('Mechanism Proposal')).toBeInTheDocument();
+    expect(screen.getByText(/ref=mechanism-proposal:oma\/summary-first-app-drilldown/)).toBeInTheDocument();
+    expect(screen.getByText('Scaleout Evidence')).toBeInTheDocument();
+    expect(screen.getByText(/ref=scaleout-evidence:oma\/mas-mag-rca-owner-chain/)).toBeInTheDocument();
+    const omaText = [
+      'Target Brief',
+      'Candidate Package',
+      'Agent Lab Results',
+      'Developer Work Order',
+      'Mechanism Proposal',
+      'Scaleout Evidence',
+    ]
+      .map((title) => screen.getByText(title).closest('section')?.textContent ?? '')
+      .join(' ');
+    expect(omaText).not.toMatch(/\bpromoted\b/i);
+    expect(omaText).not.toMatch(/\bready\b/i);
+    expect(omaText).not.toMatch(/quality verdict/i);
     expect(screen.getAllByText('Safe Actions').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/role=safe_action/)).toBeInTheDocument();
     expect(
