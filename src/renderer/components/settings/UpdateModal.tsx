@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Progress, Message } from '@arco-design/web-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Message, Progress } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import AionModal from '@/renderer/components/base/AionModal';
@@ -26,6 +26,7 @@ type AppVersions = {
 
 type OpenUpdateModalDetail = {
   status?: 'downloaded';
+  source?: 'about' | 'menu' | 'one-click' | 'ready-toast' | 'tray';
 };
 
 const UpdateModal: React.FC = () => {
@@ -43,6 +44,7 @@ const UpdateModal: React.FC = () => {
   // Whether electron-updater auto-update is available (determined automatically, not user-controllable)
   const [autoUpdateAvailable, setAutoUpdateAvailable] = useState(false);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
+  const updateReadyPromptedRef = useRef(false);
 
   const resetState = () => {
     setStatus('checking');
@@ -87,6 +89,7 @@ const UpdateModal: React.FC = () => {
             version: res.data.updateInfo.version,
             releaseNotes: res.data.updateInfo.releaseNotes,
           });
+          setProgress({ percent: 0, speed: '', total: 0, transferred: 0 });
         } else if (res?.msg) {
           console.warn('Auto-update check failed, using manual mode:', res.msg);
         }
@@ -138,11 +141,14 @@ const UpdateModal: React.FC = () => {
     if (!updateInfo && !autoUpdateAvailable) return;
     setStatus('downloading');
     try {
-      // Prefer the manual path so the URL is the CDN-rewritten asset.url.
-      // Fall back to electron-updater (GitHub) only when the GitHub API manual check failed
-      // but the yml-based auto-update check succeeded — a rare edge case.
-      // 优先走手动路径（URL 是重写后的 CDN 地址）。仅当 GitHub API 失败但 electron-updater 检查成功时，
-      // 回退到 electron-updater 的下载（走 GitHub），保证用户能升级。
+      if (autoUpdateAvailable) {
+        const res = await ipcBridge.autoUpdate.download.invoke();
+        if (!res?.success) {
+          throw new Error(res?.msg || t('update.downloadStartFailed'));
+        }
+        return;
+      }
+
       if (updateInfo?.recommendedAsset) {
         const asset = updateInfo.recommendedAsset;
         const res = await ipcBridge.update.download.invoke({
@@ -155,14 +161,6 @@ const UpdateModal: React.FC = () => {
         }
         setDownloadId(res.data.downloadId);
         setDownloadPath(res.data.filePath);
-        return;
-      }
-
-      if (autoUpdateAvailable) {
-        const res = await ipcBridge.autoUpdate.download.invoke();
-        if (!res?.success) {
-          throw new Error(res?.msg || t('update.downloadStartFailed'));
-        }
         return;
       }
 
@@ -203,6 +201,7 @@ const UpdateModal: React.FC = () => {
     setVisible(true);
     resetState();
     if (detail?.status === 'downloaded') {
+      updateReadyPromptedRef.current = true;
       setAutoUpdateAvailable(true);
       setStatus('downloaded');
       return;
@@ -244,12 +243,12 @@ const UpdateModal: React.FC = () => {
             releaseNotes: evt.releaseNotes,
           });
           setStatus('available');
-          setVisible(true);
           break;
         case 'not-available':
           setStatus('upToDate');
           break;
         case 'downloading':
+          setStatus('downloading');
           if (evt.progress) {
             setProgress({
               percent: Math.round(evt.progress.percent),
@@ -260,7 +259,34 @@ const UpdateModal: React.FC = () => {
           }
           break;
         case 'downloaded':
+          setAutoUpdateAvailable(true);
+          setAutoUpdateInfo((current) => ({
+            version: evt.version || current?.version || '',
+            releaseNotes: current?.releaseNotes,
+          }));
           setStatus('downloaded');
+          if (!visible && !updateReadyPromptedRef.current) {
+            updateReadyPromptedRef.current = true;
+            Message.info({
+              content: (
+                <span>
+                  {t('update.readyToast')}{' '}
+                  <Button
+                    size='mini'
+                    type='text'
+                    onClick={() => {
+                      openUpdateModal({ status: 'downloaded', source: 'ready-toast' });
+                    }}
+                    className='!px-4px'
+                  >
+                    {t('update.restartToUpdate')}
+                  </Button>
+                </span>
+              ),
+              duration: 0,
+              closable: true,
+            });
+          }
           break;
         case 'error':
           setStatus('error');
@@ -272,7 +298,7 @@ const UpdateModal: React.FC = () => {
     return () => {
       removeListener();
     };
-  }, [t]);
+  }, [t, visible]);
 
   useEffect(() => {
     const removeProgressListener = ipcBridge.update.downloadProgress.on((evt: UpdateDownloadProgressEvent) => {
@@ -394,7 +420,7 @@ const UpdateModal: React.FC = () => {
                   </Button>
                 ) : autoUpdateAvailable ? (
                   <Button type='primary' size='small' onClick={startDownload} className='!px-16px'>
-                    {t('update.downloadAndInstall')}
+                    {t(progress.percent > 0 ? 'update.continueDownload' : 'update.downloadInBackground')}
                   </Button>
                 ) : (
                   <Button type='primary' size='small' onClick={startDownload} className='!px-16px'>
@@ -459,15 +485,20 @@ const UpdateModal: React.FC = () => {
             <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>
               {t('update.readyToInstallDesc')}
             </div>
-            <Button
-              type='primary'
-              size='small'
-              onClick={quitAndInstall}
-              icon={<Install size='14' />}
-              className='!px-16px'
-            >
-              {t('update.installNow')}
-            </Button>
+            <div className='flex gap-12px'>
+              <Button size='small' onClick={handleClose} className='!px-16px'>
+                {t('update.later')}
+              </Button>
+              <Button
+                type='primary'
+                size='small'
+                onClick={quitAndInstall}
+                icon={<Install size='14' />}
+                className='!px-16px'
+              >
+                {t('update.restartToUpdate')}
+              </Button>
+            </div>
           </div>
         );
 

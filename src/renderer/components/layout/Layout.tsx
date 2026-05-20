@@ -105,6 +105,8 @@ const toFirstRunPanelState = (result: OplFirstLaunchPreparationResult): OplFirst
   progress: result.progress,
 });
 
+const firstRunBlockerKey = (blocker: string): string => `settings.oplFirstLaunch.blockers.${blocker}`;
+
 export const OplFirstRunStatusPanel: React.FC<{
   state: OplFirstRunPanelState;
   onInstall: () => void;
@@ -159,7 +161,7 @@ export const OplFirstRunStatusPanel: React.FC<{
               className='m-0 mt-4px pl-16px text-12px text-warning-6'
             >
               {blockers.map((blocker) => (
-                <li key={blocker}>{blocker}</li>
+                <li key={blocker}>{t(firstRunBlockerKey(blocker))}</li>
               ))}
             </ul>
           )}

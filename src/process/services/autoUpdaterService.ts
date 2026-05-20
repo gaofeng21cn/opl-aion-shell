@@ -95,8 +95,9 @@ class AutoUpdaterService extends EventEmitter {
     autoUpdater.logger = log;
     (autoUpdater.logger as typeof log).transports.file.level = 'info';
 
-    // Disable auto-download for manual control
-    autoUpdater.autoDownload = false;
+    // Match modern desktop update behavior: check in the background, download
+    // silently, and prompt only after the update is ready to install.
+    autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
 
     // Set the correct update channel based on platform and architecture before
@@ -351,13 +352,13 @@ class AutoUpdaterService extends EventEmitter {
   /**
    * Check for updates and notify (for startup)
    */
-  async checkForUpdatesAndNotify(): Promise<void> {
+  async checkForUpdatesInBackground(): Promise<void> {
     try {
       // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
       autoUpdater.allowDowngrade = false;
-      await autoUpdater.checkForUpdatesAndNotify();
+      await autoUpdater.checkForUpdates();
     } catch (error) {
-      log.error('Auto-update check failed:', error);
+      log.error('Background auto-update check failed:', error);
     }
   }
 }

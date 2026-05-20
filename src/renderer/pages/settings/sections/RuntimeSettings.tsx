@@ -799,7 +799,9 @@ const OplEnvironmentContent: React.FC = () => {
         return;
       }
 
-      window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { status: 'downloaded' } }));
+      window.dispatchEvent(
+        new CustomEvent('aionui-open-update-modal', { detail: { status: 'downloaded', source: 'one-click' } })
+      );
       message.success(t('settings.oplEnvironmentPage.messages.appUpdateDownloaded'));
     } catch {
       message.warning(t('settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'));

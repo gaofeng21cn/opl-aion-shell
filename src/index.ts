@@ -201,6 +201,7 @@ const isWebUIMode = hasSwitch('webui');
 const isRemoteMode = hasSwitch('remote');
 const isResetPasswordMode = hasCommand('--resetpass');
 const isVersionMode = hasCommand('--version') || hasCommand('-v');
+const AUTO_UPDATE_STARTUP_DELAY_MS = 15_000;
 
 // Flag to distinguish intentional quit from unexpected exit in WebUI mode
 let isExplicitQuit = false;
@@ -312,6 +313,11 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
         // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
         const statusBroadcast = createAutoUpdateStatusBroadcast();
         autoUpdaterService.initialize(statusBroadcast);
+        if (app.isPackaged) {
+          setTimeout(() => {
+            void autoUpdaterService.checkForUpdatesInBackground();
+          }, AUTO_UPDATE_STARTUP_DELAY_MS);
+        }
       })
       .catch((error) => {
         console.error('[App] Failed to initialize autoUpdaterService:', error);

@@ -504,12 +504,13 @@ describe('RuntimeSettings OPL environment section', () => {
       expect(mockAutoUpdateDownload).toHaveBeenCalledTimes(1);
     });
     expect(mockAutoUpdateQuitAndInstall).not.toHaveBeenCalled();
-    expect(dispatchSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'aionui-open-update-modal',
-        detail: { status: 'downloaded' },
-      })
-    );
+    const updateModalEvent = dispatchSpy.mock.calls
+      .map(([event]) => event)
+      .find((event) => {
+        return event instanceof CustomEvent && event.type === 'aionui-open-update-modal';
+      });
+    expect(updateModalEvent).toBeInstanceOf(CustomEvent);
+    expect((updateModalEvent as CustomEvent).detail).toEqual({ status: 'downloaded', source: 'one-click' });
     dispatchSpy.mockRestore();
   });
 

@@ -109,10 +109,12 @@ describe('Auto-Update IPC Bridge Integration', () => {
       expect(() => initUpdateBridge()).not.toThrow();
     });
 
-    it('should not run electron-updater checks automatically during app startup', () => {
+    it('should schedule a quiet electron-updater check during packaged app startup', () => {
       const indexFile = path.resolve(__dirname, '../../src/index.ts');
       const content = fs.readFileSync(indexFile, 'utf-8');
 
+      expect(content).toContain('AUTO_UPDATE_STARTUP_DELAY_MS');
+      expect(content).toContain('checkForUpdatesInBackground()');
       expect(content).not.toContain('checkForUpdatesAndNotify()');
     });
   });

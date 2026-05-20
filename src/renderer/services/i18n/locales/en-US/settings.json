@@ -1077,6 +1077,12 @@
         "complete": "finishing setup"
       }
     },
+    "blockers": {
+      "codex_config": "Codex API key is required.",
+      "domain_modules": "Foundry Agent modules are being prepared in the background.",
+      "family_runtime_provider": "OPL runtime provider checks are continuing in the background.",
+      "recommended_skills": "Recommended Codex skills are being installed in the background."
+    },
     "codex": {
       "prompt": "Enter your Codex API key. OPL will use the default provider endpoint and the current initial model profile.",
       "providerEndpoint": "Default provider endpoint",

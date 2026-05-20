@@ -13,6 +13,12 @@ const t = (key: string, options?: Record<string, string>) => {
   if (key === 'settings.oplFirstLaunch.progress.steps.installingModules') {
     return 'installing modules';
   }
+  if (key === 'settings.oplFirstLaunch.blockers.domain_modules') {
+    return 'Foundry Agent modules are being prepared in the background.';
+  }
+  if (key === 'settings.oplFirstLaunch.blockers.codex_config') {
+    return 'Codex API key is required.';
+  }
   return `${key}${options?.path ? `:${options.path}` : ''}`;
 };
 
@@ -39,7 +45,9 @@ describe('OplFirstRunStatusPanel', () => {
 
     expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('aria-label', 'opl-first-run-window');
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('Install domain modules');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('domain_modules');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
+      'Foundry Agent modules are being prepared in the background.'
+    );
     expect(screen.getByText(/first-run\.jsonl/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('opl-first-run-install-button'));
@@ -131,6 +139,7 @@ describe('OplFirstRunWizard', () => {
     expect(screen.getByText(/gpt-5\.5/)).toBeInTheDocument();
     expect(screen.getByText(/xhigh/)).toBeInTheDocument();
     expect(screen.getByText(/https:\/\/gflabtoken\.cn\/v1/)).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('Codex API key is required.');
 
     const input = screen.getByTestId('opl-first-run-codex-api-key-input').querySelector('input');
     expect(input).not.toBeNull();

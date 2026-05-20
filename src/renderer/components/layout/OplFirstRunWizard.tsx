@@ -37,6 +37,8 @@ const formatInitialModelProfileLine = (profile?: OplCodexDefaultProfile): string
 
 const progressStepKey = (step: OplFirstLaunchProgressStep): string => `settings.oplFirstLaunch.progress.steps.${step}`;
 
+const blockerKey = (blocker: string): string => `settings.oplFirstLaunch.blockers.${blocker}`;
+
 export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
   state,
   onConfigureCodex,
@@ -230,7 +232,7 @@ export const OplFirstRunWizard: React.FC<OplFirstRunWizardProps> = ({
               className='m-0 pl-18px text-12px text-warning-6'
             >
               {blockers.map((blocker) => (
-                <li key={blocker}>{blocker}</li>
+                <li key={blocker}>{t(blockerKey(blocker))}</li>
               ))}
             </ul>
           )}

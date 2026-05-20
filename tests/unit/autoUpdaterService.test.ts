@@ -76,6 +76,11 @@ describe('AutoUpdaterService', () => {
   });
 
   describe('initialize', () => {
+    it('should enable silent download and install-on-quit defaults', () => {
+      expect(autoUpdater.autoDownload).toBe(true);
+      expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
+    });
+
     it('should initialize with status broadcast callback', () => {
       expect(autoUpdaterService.isInitialized).toBe(false);
 
@@ -250,19 +255,23 @@ describe('AutoUpdaterService', () => {
   });
 
   describe('checkForUpdatesAndNotify', () => {
-    it('should call checkForUpdatesAndNotify', async () => {
-      vi.mocked(autoUpdater.checkForUpdatesAndNotify).mockResolvedValueOnce(null);
+    it('should use background check without system notifications', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+        isUpdateAvailable: false,
+        updateInfo: { version: '1.0.0' },
+      });
 
-      await autoUpdaterService.checkForUpdatesAndNotify();
+      await autoUpdaterService.checkForUpdatesInBackground();
 
-      expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalled();
+      expect(autoUpdater.checkForUpdates).toHaveBeenCalled();
+      expect(autoUpdater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
     });
 
-    it('should handle checkForUpdatesAndNotify error gracefully', async () => {
-      vi.mocked(autoUpdater.checkForUpdatesAndNotify).mockRejectedValueOnce(new Error('Update check failed'));
+    it('should handle background check error gracefully', async () => {
+      vi.mocked(autoUpdater.checkForUpdates).mockRejectedValueOnce(new Error('Update check failed'));
 
       // Should not throw
-      await expect(autoUpdaterService.checkForUpdatesAndNotify()).resolves.not.toThrow();
+      await expect(autoUpdaterService.checkForUpdatesInBackground()).resolves.not.toThrow();
     });
   });
 
