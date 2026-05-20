@@ -52,6 +52,40 @@ vi.mock('@arco-design/web-react', () => {
     ),
     Collapse,
     Empty: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
+    Checkbox: ({
+      children,
+      checked,
+      disabled,
+      onChange,
+    }: {
+      children?: React.ReactNode;
+      checked?: boolean;
+      disabled?: boolean;
+      onChange?: (checked: boolean) => void;
+    }) => (
+      <label>
+        <input
+          type='checkbox'
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange?.(event.currentTarget.checked)}
+        />
+        {children}
+      </label>
+    ),
+    Input: {
+      TextArea: ({
+        value,
+        placeholder,
+        onChange,
+      }: {
+        value?: string;
+        placeholder?: string;
+        onChange?: (value: string) => void;
+      }) => (
+        <textarea value={value} placeholder={placeholder} onChange={(event) => onChange?.(event.currentTarget.value)} />
+      ),
+    },
     Message: {
       error: vi.fn(),
       success: vi.fn(),
@@ -184,6 +218,22 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.loadFullDetail': 'Load Full Detail',
   'common.runtimeTray.appDrilldown.fullDetailLoaded': 'Full App drilldown loaded.',
   'common.runtimeTray.appDrilldown.fullDetailFailed': 'Failed to load full App drilldown.',
+  'common.runtimeTray.appDrilldown.execute': 'Execute',
+  'common.runtimeTray.appDrilldown.executeDryRun': 'Dry Run',
+  'common.runtimeTray.appDrilldown.executeApproveDomainAction': 'Approve domain action',
+  'common.runtimeTray.appDrilldown.actionExecutionSucceeded': 'Action completed.',
+  'common.runtimeTray.appDrilldown.actionExecutionFailed': 'Action failed.',
+  'common.runtimeTray.appDrilldown.nextSafeAction': 'Next Safe Action',
+  'common.runtimeTray.appDrilldown.providerHealth': 'Provider Health',
+  'common.runtimeTray.appDrilldown.missingEvidence': 'Missing Evidence',
+  'common.runtimeTray.appDrilldown.blocking': 'Blocking',
+  'common.runtimeTray.appDrilldown.advisory': 'Advisory',
+  'common.runtimeTray.appDrilldown.owner': 'Owner',
+  'common.runtimeTray.appDrilldown.payloadRefs': 'Payload Refs',
+  'common.runtimeTray.appDrilldown.payloadRefsPlaceholder': 'Refs-only JSON payload',
+  'common.runtimeTray.appDrilldown.invalidPayload': 'Payload must be refs-only JSON.',
+  'common.runtimeTray.appDrilldown.noAttentionPayload': 'No attention-first payload',
+  'common.runtimeTray.appDrilldown.noSafeAction': 'No safe action available',
   'common.runtimeTray.appDrilldown.memory': 'Memory Refs',
   'common.runtimeTray.appDrilldown.memoryWriteback': 'Writeback Receipts',
   'common.runtimeTray.appDrilldown.noRefs': 'No refs',
@@ -559,6 +609,96 @@ describe('RuntimeTrayItemPage', () => {
               domain_legacy_cleanup_ready_plan_count: 3,
               domain_legacy_cleanup_opl_apply_ready_count: 2,
             },
+            attention_first_payload: {
+              surface_kind: 'opl_app_drilldown_attention_first_payload',
+              owner: {
+                projection_owner: 'one-person-lab',
+                active_action_owner: 'opl',
+                domain_truth_owner: 'domain repositories',
+              },
+              blocking: {
+                items: [
+                  {
+                    owner: 'medautoscience',
+                    blocking_kind: 'typed_blocker_ref',
+                    blocker_ref: 'blocker:publication-readiness',
+                  },
+                ],
+                omitted_count: 0,
+                total_count: 1,
+              },
+              advisory: {
+                items: [
+                  {
+                    owner: 'one-person-lab',
+                    advisory_kind: 'production_evidence_tail',
+                    status: 'open',
+                    detail_ref: 'tail:production-evidence',
+                  },
+                ],
+                omitted_count: 0,
+                total_count: 1,
+              },
+              missing_evidence: {
+                items: [
+                  {
+                    owner: 'medautoscience',
+                    evidence_kind: 'stage_production_evidence',
+                    domain_id: 'medautoscience',
+                    stage_id: 'analysis-campaign',
+                    missing: ['evidence:soak-window'],
+                    detail_ref: 'stage:analysis-campaign',
+                    next_safe_action_id: 'stage-production-attempt:medautoscience:analysis-campaign',
+                  },
+                ],
+                omitted_count: 0,
+                total_count: 1,
+              },
+              next_safe_action: {
+                action_id: 'stage-production-attempt:medautoscience:analysis-campaign',
+                action_kind: 'stage_production_attempt_request',
+                owner: 'opl',
+                route_target_kind: 'opl_cli',
+                submit_via: 'opl runtime action execute',
+                submit_args: [
+                  'runtime',
+                  'action',
+                  'execute',
+                  '--action',
+                  'stage-production-attempt:medautoscience:analysis-campaign',
+                ],
+                dry_run_supported: true,
+                approve_domain_action_supported: false,
+                can_submit_to_safe_action_shell: true,
+                can_execute_domain_action_directly: false,
+                domain_id: 'medautoscience',
+                stage_id: 'analysis-campaign',
+                expected_receipt_refs: ['receipt:stage-production-request'],
+              },
+              additional_safe_action_count: 1,
+              provider_health: {
+                health_status: 'attention_required',
+                provider_kind: 'temporal',
+                missing_receipt_count: 7,
+                blocked_repair_receipt_count: 0,
+                domain_truth_boundary_preserved: true,
+              },
+              authority_boundary: {
+                can_write_domain_truth: false,
+                can_read_memory_body: false,
+                can_read_artifact_body: false,
+                can_authorize_quality_verdict: false,
+                can_authorize_export_verdict: false,
+              },
+              full_detail_args: ['--detail', 'full'],
+              lazy_load_targets: [
+                {
+                  section: 'operator_action_routing_refs',
+                  detail_args: ['--detail', 'full'],
+                  load_policy: 'explicit_drilldown_lazy_load',
+                },
+              ],
+            },
             route_graph_refs: {
               refs: [{ ref: '/stage_attempt_workbench/attempts/sat_001/route_decision_graph', role: 'route_graph' }],
             },
@@ -724,10 +864,81 @@ describe('RuntimeTrayItemPage', () => {
         },
       }),
     };
+    const dryRunResponse = {
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_operator_action_execution: {
+          surface_kind: 'opl_runtime_operator_action_execution',
+          action_id: 'stage-production-attempt:medautoscience:analysis-campaign',
+          dry_run: true,
+          execution: {
+            execution_status: 'dry_run',
+            execution_kind: 'opl_cli_stage_attempt_create',
+            executed_runtime_command: 'opl family-runtime attempt create --domain medautoscience',
+          },
+          authority_boundary: {
+            can_write_domain_truth: false,
+            can_read_memory_body: false,
+            can_read_artifact_body: false,
+            can_authorize_quality_verdict: false,
+            can_authorize_export_verdict: false,
+          },
+        },
+      }),
+    };
+    const executeResponse = {
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_operator_action_execution: {
+          surface_kind: 'opl_runtime_operator_action_execution',
+          action_id: 'stage-production-attempt:medautoscience:analysis-campaign',
+          dry_run: false,
+          execution: {
+            execution_status: 'executed',
+            execution_kind: 'opl_cli_stage_attempt_create',
+            executed_runtime_command: 'opl family-runtime attempt create --domain medautoscience',
+          },
+          authority_boundary: {
+            can_write_domain_truth: false,
+            can_read_memory_body: false,
+            can_read_artifact_body: false,
+            can_authorize_quality_verdict: false,
+            can_authorize_export_verdict: false,
+          },
+        },
+      }),
+    };
+    const refreshedSummaryResponse = {
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        app_operator_drilldown: {
+          surface_kind: 'opl_app_operator_drilldown_read_model',
+          availability: 'available',
+          detail_level: 'summary',
+          summary: {
+            stage_attempt_count: 1,
+            route_graph_ref_count: 2,
+            operator_action_route_count: 2,
+            safe_action_ref_count: 1,
+          },
+        },
+      }),
+    };
+    let snapshotCallCount = 0;
     runOplCommandMock.mockImplementation(({ args }: { args: string[] }) => {
       if (args.join(' ') === 'runtime app-operator-drilldown --detail full --json') {
         return Promise.resolve(fullDetailResponse);
       }
+      if (args.join(' ') === 'runtime app-operator-drilldown --json') {
+        return Promise.resolve(refreshedSummaryResponse);
+      }
+      if (args.join(' ').startsWith('runtime action execute')) {
+        return Promise.resolve(args.includes('--dry-run') ? dryRunResponse : executeResponse);
+      }
+      snapshotCallCount += 1;
       return Promise.resolve(snapshotResponse);
     });
 
@@ -771,6 +982,18 @@ describe('RuntimeTrayItemPage', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText('summary')).toBeInTheDocument();
+    expect(screen.getByText('Next Safe Action')).toBeInTheDocument();
+    expect(
+      screen.getAllByText(/stage-production-attempt:medautoscience:analysis-campaign/).length
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Provider Health')).toBeInTheDocument();
+    expect(screen.getByText(/health_status=attention_required/)).toBeInTheDocument();
+    expect(screen.getByText('Missing Evidence')).toBeInTheDocument();
+    expect(screen.getByText(/evidence:soak-window/)).toBeInTheDocument();
+    expect(screen.getByText('Blocking')).toBeInTheDocument();
+    expect(screen.getByText(/blocker:publication-readiness/)).toBeInTheDocument();
+    expect(screen.getByText('Advisory')).toBeInTheDocument();
+    expect(screen.getByText(/tail:production-evidence/)).toBeInTheDocument();
     expect(screen.getAllByText('Safe Actions').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/role=safe_action/)).toBeInTheDocument();
     expect(
@@ -811,6 +1034,37 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.queryByText(/Recommended route-back/)).not.toBeInTheDocument();
     expect(screen.queryByText(/return_to_analysis_campaign/)).not.toBeInTheDocument();
     expect(screen.queryByText('medautosci study-progress --study-id 002')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Dry Run'));
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: [
+          'runtime',
+          'action',
+          'execute',
+          '--action',
+          'stage-production-attempt:medautoscience:analysis-campaign',
+          '--dry-run',
+        ],
+      });
+    });
+    expect(await screen.findByText(/execution_status=dry_run/)).toBeInTheDocument();
+    expect(screen.getByText(/can_write_domain_truth=false/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Execute'));
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: ['runtime', 'action', 'execute', '--action', 'stage-production-attempt:medautoscience:analysis-campaign'],
+      });
+    });
+    await waitFor(() => {
+      expect(runOplCommandMock).toHaveBeenCalledWith({
+        args: ['runtime', 'app-operator-drilldown', '--json'],
+      });
+    });
+    await waitFor(() => {
+      expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Action completed.');
+    });
 
     fireEvent.click(screen.getByText('Load Full Detail'));
     await waitFor(() => {

@@ -1,9 +1,9 @@
 import React from 'react';
-import { Button, Empty, Message, Tag } from '@arco-design/web-react';
+import { Button, Checkbox, Empty, Input, Message, Tag } from '@arco-design/web-react';
 import { Refresh } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useTranslation } from 'react-i18next';
-import type { RuntimeTrayJsonRecord } from './types';
+import type { RuntimeTrayAppOperatorDrilldown, RuntimeTrayJsonRecord } from './types';
 
 type RuntimeTranslator = ReturnType<typeof useTranslation>['t'];
 type DrilldownMetric = {
@@ -14,13 +14,18 @@ type DrilldownSection = {
   title: string;
   refs: RuntimeTrayJsonRecord[];
 };
+type ActionExecutionMode = 'dry_run' | 'execute';
+type AppOperatorDrilldownProps = {
+  drilldown: RuntimeTrayJsonRecord | null | undefined;
+};
+const REFS_ONLY_PAYLOAD_ERROR = 'OPL_REFS_ONLY_PAYLOAD_INVALID';
 
 const isRecord = (value: unknown): value is RuntimeTrayJsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
 const asRecordArray = (value: unknown): RuntimeTrayJsonRecord[] => (Array.isArray(value) ? value.filter(isRecord) : []);
 
-const isAppOperatorDrilldown = (value: unknown): value is RuntimeTrayJsonRecord =>
+const isAppOperatorDrilldown = (value: unknown): value is RuntimeTrayAppOperatorDrilldown =>
   isRecord(value) && value.surface_kind === 'opl_app_operator_drilldown_read_model';
 
 const asString = (value: unknown): string | null => {
@@ -50,6 +55,25 @@ const refsFromStrings = (value: unknown, role: string): RuntimeTrayJsonRecord[] 
     .map((ref) => ({ ref, role }));
 };
 
+const refsOnlyPayloadRecord = (value: string): RuntimeTrayJsonRecord => {
+  const trimmed = value.trim();
+  if (!trimmed) return {};
+  const parsed = JSON.parse(trimmed) as unknown;
+  if (!isRecord(parsed)) {
+    throw new Error(REFS_ONLY_PAYLOAD_ERROR);
+  }
+  for (const [key, entry] of Object.entries(parsed)) {
+    const keyAllowsRefs = /(^refs?$|_refs?$)/.test(key);
+    const valueAllowsRefs =
+      (typeof entry === 'string' && entry.trim()) ||
+      (Array.isArray(entry) && entry.every((item) => typeof item === 'string' && item.trim()));
+    if (!keyAllowsRefs || !valueAllowsRefs) {
+      throw new Error(REFS_ONLY_PAYLOAD_ERROR);
+    }
+  }
+  return parsed;
+};
+
 const firstText = (...values: unknown[]): string => {
   for (const value of values) {
     const scalar = asString(value);
@@ -64,6 +88,7 @@ const firstText = (...values: unknown[]): string => {
 
 const refSummary = (ref: RuntimeTrayJsonRecord): string => {
   const parts = [
+    ['action', firstText(ref.action_id)],
     ['ref', firstText(ref.ref, ref.command_or_surface_ref, ref.receipt_ref, ref.source_ref)],
     ['role', firstText(ref.role, ref.action_kind, ref.item_kind)],
     ['owner', firstText(ref.owner, ref.action_owner, ref.execution_owner)],
@@ -72,6 +97,56 @@ const refSummary = (ref: RuntimeTrayJsonRecord): string => {
     ['policy', firstText(ref.execution_policy, ref.projection_policy, ref.content_policy)],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
   return parts.map(([label, value]) => `${label}=${value}`).join('; ');
+};
+
+const recordSummary = (record: RuntimeTrayJsonRecord): string => {
+  return Object.entries(record)
+    .map(([key, value]) => {
+      if (value === null || value === undefined) return '';
+      if (Array.isArray(value)) {
+        const list = textList(value);
+        return list ? `${key}=${list}` : '';
+      }
+      if (isRecord(value)) return '';
+      return `${key}=${String(value)}`;
+    })
+    .filter(Boolean)
+    .join('; ');
+};
+
+const attentionListItems = (value: unknown): RuntimeTrayJsonRecord[] => {
+  if (!isRecord(value)) return [];
+  return asRecordArray(value.items);
+};
+
+const attentionListSummary = (value: unknown): string => {
+  if (!isRecord(value)) return '';
+  const total = firstText(value.total_count);
+  const omitted = firstText(value.omitted_count);
+  return [total ? `total=${total}` : '', omitted ? `omitted=${omitted}` : ''].filter(Boolean).join('; ');
+};
+
+const buildActionArgs = (
+  action: RuntimeTrayJsonRecord,
+  mode: ActionExecutionMode,
+  payloadInput: string,
+  approveDomainAction: boolean
+): string[] => {
+  const actionId = firstText(action.action_id);
+  if (!actionId) {
+    throw new Error('missing action id');
+  }
+  const payload = refsOnlyPayloadRecord(payloadInput);
+  return [
+    'runtime',
+    'action',
+    'execute',
+    '--action',
+    actionId,
+    ...(Object.keys(payload).length > 0 ? ['--payload', JSON.stringify(payload)] : []),
+    ...(mode === 'dry_run' ? ['--dry-run'] : []),
+    ...(approveDomainAction ? ['--approve-domain-action'] : []),
+  ];
 };
 
 const metric = (summary: RuntimeTrayJsonRecord, label: string, key: string): DrilldownMetric => ({
@@ -377,6 +452,43 @@ const renderSection = (section: DrilldownSection): React.ReactNode => {
   );
 };
 
+const renderRecordList = (title: string, value: unknown, empty: string): React.ReactNode => {
+  const items = attentionListItems(value);
+  const summary = attentionListSummary(value);
+  return (
+    <section className='rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'>
+      <div className='mb-8px flex items-center justify-between gap-8px text-12px font-medium text-t-secondary'>
+        <span>{title}</span>
+        {summary && <span>{summary}</span>}
+      </div>
+      {items.length > 0 ? (
+        <div className='flex flex-col gap-6px'>
+          {items.map((item, index) => (
+            <code
+              key={`${title}-${index}`}
+              className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'
+            >
+              {recordSummary(item)}
+            </code>
+          ))}
+        </div>
+      ) : (
+        <div className='text-12px text-t-secondary'>{empty}</div>
+      )}
+    </section>
+  );
+};
+
+const renderRecordCard = (title: string, record: RuntimeTrayJsonRecord, empty: string): React.ReactNode => {
+  const summary = recordSummary(record);
+  return (
+    <div className='rounded-6px bg-fill-2 px-10px py-8px'>
+      <div className='text-12px font-medium text-t-secondary'>{title}</div>
+      <div className='mt-5px break-words text-13px leading-20px text-t-primary'>{summary || empty}</div>
+    </div>
+  );
+};
+
 const buildSections = (drilldown: RuntimeTrayJsonRecord, t: RuntimeTranslator): DrilldownSection[] => {
   return drilldownSections(drilldown, t);
 };
@@ -424,15 +536,20 @@ const projectionSourceKey = (projection: RuntimeTrayJsonRecord | null): string =
   ].join(':');
 };
 
-const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null | undefined }> = ({ drilldown }) => {
+const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }) => {
   const { t } = useTranslation();
   const sourceProjection = isAppOperatorDrilldown(drilldown) ? drilldown : null;
   const sourceProjectionKey = projectionSourceKey(sourceProjection);
   const [fullDetail, setFullDetail] = React.useState<RuntimeTrayJsonRecord | null>(null);
   const [loadingFullDetail, setLoadingFullDetail] = React.useState(false);
+  const [actionPayloadInput, setActionPayloadInput] = React.useState('');
+  const [approveDomainAction, setApproveDomainAction] = React.useState(false);
+  const [runningActionMode, setRunningActionMode] = React.useState<ActionExecutionMode | null>(null);
+  const [actionResult, setActionResult] = React.useState<RuntimeTrayJsonRecord | null>(null);
 
   React.useEffect(() => {
     setFullDetail(null);
+    setActionResult(null);
   }, [sourceProjectionKey]);
 
   const projection = isAppOperatorDrilldown(fullDetail) ? fullDetail : sourceProjection;
@@ -445,6 +562,12 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
   const memory = nestedRecord(projection, 'memory_writeback_refs');
   const quality = nestedRecord(projection, 'quality_readiness_refs');
   const functional = nestedRecord(projection, 'functional_privatization_audit_summary');
+  const attentionPayload = nestedRecord(projection, 'attention_first_payload');
+  const nextSafeAction = nestedRecord(attentionPayload, 'next_safe_action');
+  const providerHealth = nestedRecord(attentionPayload, 'provider_health');
+  const attentionAuthority = nestedRecord(attentionPayload, 'authority_boundary');
+  const hasNextSafeAction = Boolean(firstText(nextSafeAction.action_id));
+  const approveDomainActionSupported = nextSafeAction.approve_domain_action_supported === true;
   const metrics = buildMetrics(summary, t);
   const sections = buildSections(projection, t);
   const consumedMemoryRefs = textList(memory.consumed_memory_refs);
@@ -473,6 +596,53 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
         setLoadingFullDetail(false);
       });
   };
+  const refreshSummaryProjection = async () => {
+    const result = await ipcBridge.shell.runOplCommand.invoke({
+      args: ['runtime', 'app-operator-drilldown', '--json'],
+    });
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr || result.stdout || t('common.runtimeTray.appDrilldown.fullDetailFailed'));
+    }
+    const payload = JSON.parse(result.stdout) as { app_operator_drilldown?: unknown };
+    if (!isAppOperatorDrilldown(payload.app_operator_drilldown)) {
+      throw new Error(t('common.runtimeTray.appDrilldown.fullDetailFailed'));
+    }
+    setFullDetail(payload.app_operator_drilldown);
+  };
+  const handleRunAction = (mode: ActionExecutionMode) => {
+    setRunningActionMode(mode);
+    void Promise.resolve()
+      .then(() => buildActionArgs(nextSafeAction, mode, actionPayloadInput, approveDomainAction))
+      .then((args) => ipcBridge.shell.runOplCommand.invoke({ args }))
+      .then(async (result) => {
+        if (result.exitCode !== 0) {
+          throw new Error(result.stderr || result.stdout || t('common.runtimeTray.appDrilldown.actionExecutionFailed'));
+        }
+        const payload = JSON.parse(result.stdout) as { runtime_operator_action_execution?: unknown };
+        const execution = isRecord(payload.runtime_operator_action_execution)
+          ? payload.runtime_operator_action_execution
+          : {};
+        setActionResult(execution);
+        if (mode === 'execute') {
+          await refreshSummaryProjection();
+          Message.success(t('common.runtimeTray.appDrilldown.actionExecutionSucceeded'));
+        }
+      })
+      .catch((error) => {
+        const fallback =
+          error instanceof SyntaxError || (error instanceof Error && error.message === REFS_ONLY_PAYLOAD_ERROR)
+            ? t('common.runtimeTray.appDrilldown.invalidPayload')
+            : t('common.runtimeTray.appDrilldown.actionExecutionFailed');
+        Message.error(
+          error instanceof Error && error.message !== REFS_ONLY_PAYLOAD_ERROR && !(error instanceof SyntaxError)
+            ? error.message
+            : fallback
+        );
+      })
+      .finally(() => {
+        setRunningActionMode(null);
+      });
+  };
 
   return (
     <section className='flex flex-col gap-14px'>
@@ -498,6 +668,94 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
 
       <div className='grid grid-cols-1 gap-10px md:grid-cols-3'>
         {summaryCards(summary, functional, t).map(renderSummaryCard)}
+      </div>
+
+      <div className='rounded-6px border border-solid border-[var(--color-border-2)] px-12px py-10px'>
+        <div className='mb-8px flex flex-wrap items-center justify-between gap-8px'>
+          <div className='text-12px font-medium text-t-secondary'>
+            {t('common.runtimeTray.appDrilldown.nextSafeAction')}
+          </div>
+          <div className='flex flex-wrap items-center gap-8px'>
+            <Button
+              size='mini'
+              type='outline'
+              disabled={!hasNextSafeAction}
+              loading={runningActionMode === 'dry_run'}
+              onClick={() => handleRunAction('dry_run')}
+            >
+              {t('common.runtimeTray.appDrilldown.executeDryRun')}
+            </Button>
+            <Button
+              size='mini'
+              type='primary'
+              disabled={!hasNextSafeAction}
+              loading={runningActionMode === 'execute'}
+              onClick={() => handleRunAction('execute')}
+            >
+              {t('common.runtimeTray.appDrilldown.execute')}
+            </Button>
+          </div>
+        </div>
+        <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'>
+          {hasNextSafeAction ? recordSummary(nextSafeAction) : t('common.runtimeTray.appDrilldown.noSafeAction')}
+        </code>
+        <div className='mt-10px grid grid-cols-1 gap-10px md:grid-cols-2'>
+          <div>
+            <div className='mb-5px text-12px font-medium text-t-secondary'>
+              {t('common.runtimeTray.appDrilldown.payloadRefs')}
+            </div>
+            <Input.TextArea
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              value={actionPayloadInput}
+              placeholder={t('common.runtimeTray.appDrilldown.payloadRefsPlaceholder')}
+              onChange={setActionPayloadInput}
+            />
+          </div>
+          <div className='flex flex-col gap-8px'>
+            <Checkbox
+              checked={approveDomainAction}
+              disabled={!approveDomainActionSupported}
+              onChange={setApproveDomainAction}
+            >
+              {t('common.runtimeTray.appDrilldown.executeApproveDomainAction')}
+            </Checkbox>
+            {renderRecordCard(
+              t('common.runtimeTray.appDrilldown.providerHealth'),
+              providerHealth,
+              t('common.runtimeTray.appDrilldown.noRefs')
+            )}
+          </div>
+        </div>
+        {actionResult && (
+          <code className='mt-10px block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'>
+            {recordSummary(actionResult)}
+            {isRecord(actionResult.execution) ? `; ${recordSummary(actionResult.execution)}` : ''}
+            {isRecord(actionResult.authority_boundary) ? `; ${recordSummary(actionResult.authority_boundary)}` : ''}
+          </code>
+        )}
+      </div>
+
+      <div className='grid grid-cols-1 gap-10px md:grid-cols-2'>
+        {renderRecordList(
+          t('common.runtimeTray.appDrilldown.blocking'),
+          attentionPayload.blocking,
+          t('common.runtimeTray.appDrilldown.noRefs')
+        )}
+        {renderRecordList(
+          t('common.runtimeTray.appDrilldown.advisory'),
+          attentionPayload.advisory,
+          t('common.runtimeTray.appDrilldown.noRefs')
+        )}
+        {renderRecordList(
+          t('common.runtimeTray.appDrilldown.missingEvidence'),
+          attentionPayload.missing_evidence,
+          t('common.runtimeTray.appDrilldown.noRefs')
+        )}
+        {renderRecordCard(
+          t('common.runtimeTray.appDrilldown.owner'),
+          nestedRecord(attentionPayload, 'owner'),
+          t('common.runtimeTray.appDrilldown.noAttentionPayload')
+        )}
       </div>
 
       <div className='grid grid-cols-1 gap-10px md:grid-cols-2'>
@@ -530,6 +788,7 @@ const AppOperatorDrilldown: React.FC<{ drilldown: RuntimeTrayJsonRecord | null |
       <div className='rounded-6px bg-fill-2 px-12px py-10px text-13px leading-20px text-t-secondary'>
         {t('common.runtimeTray.appDrilldown.authorityBoundary')}{' '}
         {firstText(authority.domain) ||
+          firstText(attentionAuthority.domain) ||
           firstText(authority.provider) ||
           'domain truth and provider receipts stay with owners'}
       </div>
