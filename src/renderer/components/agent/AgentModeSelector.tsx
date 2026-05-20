@@ -7,11 +7,7 @@
 import { ipcBridge } from '@/common';
 import { ConfigStorage } from '@/common/config/storage';
 import type { AcpSessionConfigOption } from '@/common/types/acpTypes';
-import {
-  resolveAgentModeOptions,
-  supportsModeSwitch,
-  type AgentModeOption,
-} from '@/renderer/utils/model/agentModes';
+import { resolveAgentModeOptions, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { AgentLogoIcon } from './AgentBadge';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
