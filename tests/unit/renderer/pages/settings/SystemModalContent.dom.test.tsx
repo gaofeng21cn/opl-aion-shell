@@ -240,8 +240,9 @@ vi.mock('@/renderer/components/settings/SettingsModal/settingsViewContext', () =
 
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 
-(globalThis as typeof globalThis & { __OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__?: number })
-  .__OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__ = 5;
+(
+  globalThis as typeof globalThis & { __OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__?: number }
+).__OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__ = 5;
 
 function developerSupervisorPayload(
   enabled: 'on' | 'off',

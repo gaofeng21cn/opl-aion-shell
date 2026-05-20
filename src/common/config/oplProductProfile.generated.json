@@ -9,9 +9,7 @@
     "id": "one_person_lab_app",
     "display_name": "One Person Lab App",
     "primary_surface": "desktop_workbench",
-    "supported_release_platforms": [
-      "macos-arm64"
-    ]
+    "supported_release_platforms": ["macos-arm64"]
   },
   "contract_refs": {
     "active_shell": "contracts/app-shell-adapter.json",
@@ -75,16 +73,8 @@
     ]
   },
   "first_run": {
-    "readiness_layers": [
-      "core",
-      "domain_modules",
-      "family_runtime_provider"
-    ],
-    "deferred_blockers": [
-      "domain_modules",
-      "family_runtime_provider",
-      "recommended_skills"
-    ],
+    "readiness_layers": ["core", "domain_modules", "family_runtime_provider"],
+    "deferred_blockers": ["domain_modules", "family_runtime_provider", "recommended_skills"],
     "command_line_tools": {
       "auto_request_installer": true,
       "blocks_full_first_launch": false,
@@ -96,23 +86,8 @@
     }
   },
   "settings": {
-    "visible_tabs": [
-      "overview",
-      "runtime",
-      "capabilities",
-      "access",
-      "appearance",
-      "system",
-      "about"
-    ],
-    "environment_items": [
-      "codex",
-      "temporal",
-      "mas",
-      "mag",
-      "rca",
-      "app"
-    ],
+    "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
+    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
     "developer_mode": {
       "label_key": "settings.developerMode",
       "description_key": "settings.developerModeDesc",
@@ -127,16 +102,8 @@
     }
   },
   "companion_payloads": {
-    "tools": [
-      "officecli",
-      "mineru-open-api"
-    ],
-    "domain_modules": [
-      "mas",
-      "mag",
-      "rca",
-      "opl-meta-agent"
-    ],
+    "tools": ["officecli", "mineru-open-api"],
+    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
     "recommended_codex_skills": [
       "mas",
       "mag",

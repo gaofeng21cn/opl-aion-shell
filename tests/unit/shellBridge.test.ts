@@ -417,11 +417,7 @@ describe('shellBridge', () => {
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
-      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
-        "'runtime'",
-        "'app-operator-drilldown'",
-        "'--json'",
-      ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'runtime'", "'app-operator-drilldown'", "'--json'"]);
       expectOplJsonCommandArgs(execFileMock.mock.calls[1][1][1], [
         "'runtime'",
         "'app-operator-drilldown'",
@@ -627,11 +623,7 @@ describe('shellBridge', () => {
         expect.objectContaining({ timeout: 120_000 }),
         expect.any(Function)
       );
-      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], [
-        "'family-runtime'",
-        "'attempt'",
-        "'signal'",
-      ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'family-runtime'", "'attempt'", "'signal'"]);
     });
 
     it('rejects arbitrary family-runtime commands from the shell bridge', async () => {
@@ -977,11 +969,7 @@ describe('shellBridge', () => {
         ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
         expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
       );
-      expectOplJsonCommandArgs(spawnMock.mock.calls[0][1][1], [
-        "'system'",
-        "'configure-codex'",
-        "'--api-key-stdin'",
-      ]);
+      expectOplJsonCommandArgs(spawnMock.mock.calls[0][1][1], ["'system'", "'configure-codex'", "'--api-key-stdin'"]);
       expect(JSON.stringify(spawnMock.mock.calls)).not.toContain('secret-api-key');
     });
 

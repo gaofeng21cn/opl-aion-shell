@@ -119,9 +119,7 @@ vi.mock('@arco-design/web-react', async () => {
   );
   const Message = {
     useMessage: () => [
-      mockUnstableMessageApi.enabled
-        ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() }
-        : mockRuntimeMessages,
+      mockUnstableMessageApi.enabled ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() } : mockRuntimeMessages,
       null,
     ],
   };
@@ -191,14 +189,18 @@ vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }))
 
 import RuntimeSettings, { resolveEngineAction } from '@/renderer/pages/settings/sections/RuntimeSettings';
 
-(globalThis as typeof globalThis & {
-  __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
-  __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
-}).__OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__ = 5;
-(globalThis as typeof globalThis & {
-  __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
-  __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
-}).__OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__ = 5;
+(
+  globalThis as typeof globalThis & {
+    __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
+    __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
+  }
+).__OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__ = 5;
+(
+  globalThis as typeof globalThis & {
+    __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
+    __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
+  }
+).__OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__ = 5;
 
 describe('RuntimeSettings OPL environment section', () => {
   beforeEach(() => {
