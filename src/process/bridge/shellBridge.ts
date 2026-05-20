@@ -30,6 +30,19 @@ const ALLOWED_OPL_COMMANDS = new Set([
   'family-runtime',
   'skill',
 ]);
+const ALLOWED_RUNTIME_ACTION_ID_FAMILIES = new Set([
+  'external_evidence_request',
+  'legacy-cleanup',
+  'legacy_cleanup',
+  'provider-scheduler',
+  'provider_scheduler',
+  'stage-production-attempt',
+  'stage_production_attempt',
+  'stage-production-evidence',
+  'stage_production_evidence',
+  'stage-production-evidence-receipt',
+  'stage_production_evidence_receipt',
+]);
 const OPL_INSTALL_SCRIPT_URL = 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/main/install.sh';
 const OPL_FIRST_RUN_LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab');
 const OPL_FIRST_RUN_LOG_PATH = path.join(OPL_FIRST_RUN_LOG_DIR, 'first-run.jsonl');
@@ -173,6 +186,16 @@ function assertRefsOnlyRuntimeActionPayload(value: string): void {
   }
 }
 
+function assertAllowedRuntimeActionId(value: string): void {
+  if (!/^[A-Za-z0-9_.:-]+$/.test(value)) {
+    throw new Error(`Unsupported OPL runtime action id: ${value}`);
+  }
+  const family = value.split(':', 1)[0] ?? '';
+  if (!ALLOWED_RUNTIME_ACTION_ID_FAMILIES.has(family)) {
+    throw new Error(`Unsupported OPL runtime action id: ${value}`);
+  }
+}
+
 function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
   if (!(args[1] === 'action' && args[2] === 'execute')) {
     throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
@@ -188,9 +211,7 @@ function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
       if (actionId || !value || value.startsWith('--')) {
         throw new Error('Unsupported OPL runtime action execute --action');
       }
-      if (!/^[A-Za-z0-9_.:-]+$/.test(value)) {
-        throw new Error(`Unsupported OPL runtime action id: ${value}`);
-      }
+      assertAllowedRuntimeActionId(value);
       actionId = value;
       index += 1;
       continue;

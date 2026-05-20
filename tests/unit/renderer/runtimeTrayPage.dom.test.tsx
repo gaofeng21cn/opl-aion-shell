@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcBridge } from '@/common';
 import type { RuntimeTrayOpenPayload } from '@/renderer/pages/runtime/types';
 import RuntimeTrayItemPage from '@/renderer/pages/runtime';
@@ -196,6 +196,7 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.executableRoutes': 'Executable Routes',
   'common.runtimeTray.appDrilldown.exports': 'Exports',
   'common.runtimeTray.appDrilldown.externalEvidence': 'External Evidence',
+  'common.runtimeTray.appDrilldown.evidenceCounters': 'Evidence Counters',
   'common.runtimeTray.appDrilldown.externalRequests': 'External Requests',
   'common.runtimeTray.appDrilldown.evidenceGateReceipts': 'Evidence Gate Receipts',
   'common.runtimeTray.appDrilldown.evidenceGates': 'Evidence Gates',
@@ -226,9 +227,14 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.fullDetailFailed': 'Failed to load full App drilldown.',
   'common.runtimeTray.appDrilldown.execute': 'Execute',
   'common.runtimeTray.appDrilldown.executeDryRun': 'Dry Run',
+  'common.runtimeTray.appDrilldown.dryRunResult': 'Dry-run Result',
+  'common.runtimeTray.appDrilldown.executeResult': 'Execute Result',
   'common.runtimeTray.appDrilldown.actionExecutionSucceeded': 'Action completed.',
   'common.runtimeTray.appDrilldown.actionExecutionFailed': 'Action failed.',
   'common.runtimeTray.appDrilldown.nextSafeAction': 'Next Safe Action',
+  'common.runtimeTray.appDrilldown.safeActionRouteBoundary': 'Safe Action Route',
+  'common.runtimeTray.appDrilldown.safeActionRouteInvalid':
+    'Safe action is disabled because this projection does not route through the OPL CLI safe-action shell.',
   'common.runtimeTray.appDrilldown.providerHealth': 'Provider Health',
   'common.runtimeTray.appDrilldown.missingEvidence': 'Missing Evidence',
   'common.runtimeTray.appDrilldown.blocking': 'Blocking',
@@ -303,15 +309,17 @@ const translations: Record<string, string> = {
   'common.workspace': 'Workspace',
 };
 
+const translate = (key: string, values?: Record<string, string | number>) => {
+  let value = translations[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{{${name}}}`, String(replacement));
+  }
+  return value;
+};
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: Record<string, string | number>) => {
-      let value = translations[key] ?? key;
-      for (const [name, replacement] of Object.entries(values ?? {})) {
-        value = value.replaceAll(`{{${name}}}`, String(replacement));
-      }
-      return value;
-    },
+    t: translate,
   }),
 }));
 
@@ -359,6 +367,11 @@ const runtimeItem: RuntimeTrayOpenPayload = {
 const runOplCommandMock = vi.mocked(ipcBridge.shell.runOplCommand.invoke);
 
 describe('RuntimeTrayItemPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    runOplCommandMock.mockReset();
+  });
+
   it('shows professional status guidance instead of command suggestions', () => {
     render(
       <MemoryRouter initialEntries={[{ pathname: '/runtime/item', state: { runtimeItem } }]}>
@@ -1037,9 +1050,17 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getByText(/Functional Privatization Audit/)).toBeInTheDocument();
     expect(screen.getByText(/Private Residue: 0; Watchlist: 0; Semantic Review: 0; Blockers: 0/)).toBeInTheDocument();
     expect(screen.getByText(/External Evidence/)).toBeInTheDocument();
-    expect(screen.getByText(/External Requests: 7; Open Requests: 2; Verified Receipts: 5/)).toBeInTheDocument();
+    expect(screen.getByText(/External Requests: 7; Open Requests: 2; Verified Receipts: 5$/)).toBeInTheDocument();
+    expect(screen.getByText(/Evidence Counters/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /External Requests: 7; Open Requests: 2; Verified Receipts: 5; Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3/
+      )
+    ).toBeInTheDocument();
     expect(screen.getByText(/Evidence Gate Receipts/)).toBeInTheDocument();
-    expect(screen.getByText(/Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3$/)
+    ).toBeInTheDocument();
     expect(screen.getByText(/Legacy Cleanup/)).toBeInTheDocument();
     expect(screen.getByText(/Cleanup Plans: 3; Ready Plans: 3; Apply Ready: 2/)).toBeInTheDocument();
     expect(screen.getByText(/Provider Cadence Window/)).toBeInTheDocument();
@@ -1083,6 +1104,10 @@ describe('RuntimeTrayItemPage', () => {
     expect(
       screen.getAllByText(/stage-production-attempt:medautoscience:analysis-campaign/).length
     ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Safe Action Route')).toBeInTheDocument();
+    expect(screen.getAllByText(/route_target_kind=opl_cli/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/submit_via=opl runtime action execute/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/can_execute_domain_action_directly=false/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Provider Health')).toBeInTheDocument();
     expect(screen.getByText(/health_status=attention_required/)).toBeInTheDocument();
     expect(screen.getByText('Missing Evidence')).toBeInTheDocument();
@@ -1145,8 +1170,9 @@ describe('RuntimeTrayItemPage', () => {
         ],
       });
     });
-    expect(await screen.findByText(/execution_status=dry_run/)).toBeInTheDocument();
-    expect(screen.getByText(/can_write_domain_truth=false/)).toBeInTheDocument();
+    expect(await screen.findByText('Dry-run Result')).toBeInTheDocument();
+    expect(screen.getByText(/execution_status=dry_run/)).toBeInTheDocument();
+    expect(screen.getAllByText(/can_write_domain_truth=false/).length).toBeGreaterThanOrEqual(1);
 
     fireEvent.click(screen.getByText('Execute'));
     await waitFor(() => {
@@ -1162,6 +1188,8 @@ describe('RuntimeTrayItemPage', () => {
     await waitFor(() => {
       expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Action completed.');
     });
+    expect(await screen.findByText('Execute Result')).toBeInTheDocument();
+    expect(screen.getByText(/execution_status=executed/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Load Full Detail'));
     await waitFor(() => {
@@ -1317,6 +1345,68 @@ describe('RuntimeTrayItemPage', () => {
     });
 
     expect(vi.mocked(Message.success)).toHaveBeenCalledWith('Stage attempt signal sent.');
+  });
+
+  it('disables App safe actions that are not explicitly routed through the OPL CLI shell', async () => {
+    runOplCommandMock.mockResolvedValue({
+      exitCode: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        runtime_tray_snapshot: {
+          schema_version: 'runtime_tray_snapshot.v1',
+          runtime_health: {
+            status: 'needs_attention',
+            label: 'Needs attention',
+            summary: 'Unsafe route blocked',
+          },
+          last_updated: '2026-05-11T10:00:00.000Z',
+          app_operator_drilldown: {
+            surface_kind: 'opl_app_operator_drilldown_read_model',
+            availability: 'available',
+            detail_level: 'summary',
+            summary: {
+              safe_action_ref_count: 1,
+              operator_executable_route_count: 1,
+            },
+            attention_first_payload: {
+              next_safe_action: {
+                action_id: 'domain-direct:medautoscience:unsafe-apply',
+                action_kind: 'domain_apply',
+                owner: 'domain',
+                route_target_kind: 'domain_action',
+                submit_via: 'domain runtime',
+                can_submit_to_safe_action_shell: false,
+                can_execute_domain_action_directly: true,
+                approve_domain_action_supported: true,
+              },
+            },
+          },
+          running_items: [],
+          attention_items: [],
+          recent_items: [],
+          action_counts: { user: 0, opl: 0, infrastructure: 0 },
+          source_refs: [],
+        },
+      }),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/runtime']}>
+        <RuntimeTrayItemPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('App Operator Drilldown')).toBeInTheDocument();
+    expect(screen.getByText('Safe Action Route')).toBeInTheDocument();
+    expect(screen.getAllByText(/route_target_kind=domain_action/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/can_execute_domain_action_directly=true/).length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText('Safe action is disabled because this projection does not route through the OPL CLI safe-action shell.')
+    ).toBeInTheDocument();
+
+    const executeButton = screen.getByText('Execute').closest('button');
+    expect(executeButton).toBeDisabled();
+    expect(runOplCommandMock).toHaveBeenCalledTimes(1);
   });
 
   it('filters stage attempts, drills into one attempt, and keeps operation feedback visible', async () => {
