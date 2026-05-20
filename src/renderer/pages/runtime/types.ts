@@ -9,6 +9,15 @@ export type RuntimeTrayCommand = {
 
 export type RuntimeTrayJsonRecord = Record<string, unknown>;
 
+export type RuntimeTrayAppOperatorDrilldown = RuntimeTrayJsonRecord & {
+  surface_kind: 'opl_app_operator_drilldown_read_model';
+  availability?: string;
+  detail_level?: 'summary' | 'full' | string;
+  summary?: RuntimeTrayJsonRecord;
+  attention_first_payload?: RuntimeTrayJsonRecord;
+  authority_boundary?: RuntimeTrayJsonRecord;
+};
+
 export type RuntimeTrayActionOwner = 'user' | 'opl' | 'infrastructure' | 'none';
 export type RuntimeTrayActionKind =
   | 'human_gate'

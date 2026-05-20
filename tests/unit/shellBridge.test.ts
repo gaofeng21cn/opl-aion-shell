@@ -372,6 +372,116 @@ describe('shellBridge', () => {
       );
     });
 
+    it('allows the App operator drilldown summary and full-detail read models only as JSON', async () => {
+      execFileMock.mockImplementation((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"app_operator_drilldown":{}}', stderr: '' });
+      });
+
+      await expect(
+        runOplCommandProvider.fn!({ args: ['runtime', 'app-operator-drilldown', '--json'] })
+      ).resolves.toMatchObject({ exitCode: 0 });
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+        })
+      ).resolves.toMatchObject({ exitCode: 0 });
+
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        ['-lc', expect.stringContaining("OPL_OUTPUT=json 'opl' 'runtime' 'app-operator-drilldown' '--json'")],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        [
+          '-lc',
+          expect.stringContaining(
+            "OPL_OUTPUT=json 'opl' 'runtime' 'app-operator-drilldown' '--detail' 'full' '--json'"
+          ),
+        ],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('rejects unsupported App operator drilldown argument shapes before invoking OPL', async () => {
+      await expect(runOplCommandProvider.fn!({ args: ['runtime', 'app-operator-drilldown'] })).rejects.toThrow(
+        'Unsupported OPL runtime action'
+      );
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'app-operator-drilldown', '--detail', 'domain-truth', '--json'],
+        })
+      ).rejects.toThrow('Unsupported OPL runtime action');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'app-operator-drilldown', '--json', '--detail', 'full'],
+        })
+      ).rejects.toThrow('Unsupported OPL runtime action');
+
+      expect(execFileMock).not.toHaveBeenCalled();
+    });
+
+    it('allows runtime action execute with optional refs-only payload and action safety flags', async () => {
+      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+        callback(null, { stdout: '{"runtime_operator_action_execution":{"dry_run":true}}', stderr: '' });
+      });
+
+      const result = await runOplCommandProvider.fn!({
+        args: [
+          'runtime',
+          'action',
+          'execute',
+          '--action',
+          'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record',
+          '--payload',
+          '{"evidence_refs":["receipt:external"],"domain_receipt_ref":"domain:receipt"}',
+          '--dry-run',
+          '--approve-domain-action',
+        ],
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(execFileMock).toHaveBeenCalledWith(
+        '/bin/zsh',
+        [
+          '-lc',
+          expect.stringContaining(
+            "OPL_OUTPUT=json 'opl' 'runtime' 'action' 'execute' '--action' 'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record'"
+          ),
+        ],
+        expect.objectContaining({ timeout: 120_000 }),
+        expect.any(Function)
+      );
+    });
+
+    it('rejects runtime action execute payload bodies and unsupported options before invoking OPL', async () => {
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'action', 'execute', '--action', 'action:one', '--payload', '{"memory_body":"secret"}'],
+        })
+      ).rejects.toThrow('Unsupported OPL runtime action refs-only payload');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: [
+            'runtime',
+            'action',
+            'execute',
+            '--action',
+            'action:one',
+            '--payload',
+            '{"evidence_refs":[{"body":"secret"}]}',
+          ],
+        })
+      ).rejects.toThrow('Unsupported OPL runtime action refs-only payload');
+      await expect(
+        runOplCommandProvider.fn!({ args: ['runtime', 'action', 'execute', '--action', 'action:one', '--json'] })
+      ).rejects.toThrow('Unsupported OPL runtime action execute option');
+
+      expect(execFileMock).not.toHaveBeenCalled();
+    });
+
     it('does not queue read-only status refreshes behind long maintenance commands', async () => {
       const started: string[] = [];
       const finishers: Record<string, () => void> = {};

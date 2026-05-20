@@ -144,6 +144,109 @@ function assertAllowedDeveloperSupervisorArgs(args: string[]): void {
   }
 }
 
+function assertRefsOnlyPayloadValue(key: string, value: unknown): void {
+  if (!/(^refs?$|_refs?$)/.test(key)) {
+    throw new Error(`Unsupported OPL runtime action refs-only payload key: ${key}`);
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return;
+  }
+  if (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === 'string' && entry.trim())) {
+    return;
+  }
+  throw new Error(`Unsupported OPL runtime action refs-only payload value for key: ${key}`);
+}
+
+function assertRefsOnlyRuntimeActionPayload(value: string): void {
+  const payload = parseJsonRecord(value, 'runtime action execute');
+  for (const [key, entry] of Object.entries(payload)) {
+    assertRefsOnlyPayloadValue(key, entry);
+  }
+}
+
+function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
+  if (!(args[1] === 'action' && args[2] === 'execute')) {
+    throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
+  }
+
+  let actionId = '';
+  let sawPayload = false;
+  let sawDryRun = false;
+  let sawApproveDomainAction = false;
+  for (let index = 3; index < args.length; index += 1) {
+    const option = args[index];
+    const value = args[index + 1];
+    if (option === '--action') {
+      if (actionId || !value || value.startsWith('--')) {
+        throw new Error('Unsupported OPL runtime action execute --action');
+      }
+      if (!/^[A-Za-z0-9_.:-]+$/.test(value)) {
+        throw new Error(`Unsupported OPL runtime action id: ${value}`);
+      }
+      actionId = value;
+      index += 1;
+      continue;
+    }
+    if (option === '--payload') {
+      if (sawPayload || !value || value.startsWith('--')) {
+        throw new Error('Unsupported OPL runtime action execute --payload');
+      }
+      assertRefsOnlyRuntimeActionPayload(value);
+      sawPayload = true;
+      index += 1;
+      continue;
+    }
+    if (option === '--dry-run') {
+      if (sawDryRun) {
+        throw new Error('Unsupported OPL runtime action execute duplicate --dry-run');
+      }
+      sawDryRun = true;
+      continue;
+    }
+    if (option === '--approve-domain-action') {
+      if (sawApproveDomainAction) {
+        throw new Error('Unsupported OPL runtime action execute duplicate --approve-domain-action');
+      }
+      sawApproveDomainAction = true;
+      continue;
+    }
+    throw new Error(`Unsupported OPL runtime action execute option: ${option ?? ''}`);
+  }
+
+  if (!actionId) {
+    throw new Error('Unsupported OPL runtime action execute missing --action');
+  }
+}
+
+function assertAllowedRuntimeArgs(args: string[]): void {
+  const isSnapshot = args.length >= 2 && args[1] === 'snapshot' && args.slice(2).every((arg) => arg === '--json');
+  if (isSnapshot) {
+    return;
+  }
+
+  const isAppOperatorSummary = args.length === 3 && args[1] === 'app-operator-drilldown' && args[2] === '--json';
+  if (isAppOperatorSummary) {
+    return;
+  }
+
+  const isAppOperatorFull =
+    args.length === 5 &&
+    args[1] === 'app-operator-drilldown' &&
+    args[2] === '--detail' &&
+    args[3] === 'full' &&
+    args[4] === '--json';
+  if (isAppOperatorFull) {
+    return;
+  }
+
+  if (args[1] === 'action') {
+    assertAllowedRuntimeActionExecuteArgs(args);
+    return;
+  }
+
+  throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
+}
+
 function assertAllowedOplArgs(args: string[]): void {
   if (args.length === 0) {
     throw new Error('Missing OPL command');
@@ -197,10 +300,7 @@ function assertAllowedOplArgs(args: string[]): void {
     }
   }
   if (args[0] === 'runtime') {
-    const isSnapshot = args.length >= 2 && args[1] === 'snapshot' && args.slice(2).every((arg) => arg === '--json');
-    if (!isSnapshot) {
-      throw new Error(`Unsupported OPL runtime action: ${args.slice(1).join(' ')}`);
-    }
+    assertAllowedRuntimeArgs(args);
   }
   if (args[0] === 'family-runtime') {
     assertAllowedFamilyRuntimeSignal(args);
@@ -394,6 +494,9 @@ function shouldQueueOplCommand(args: string[]): boolean {
   if (args[0] === 'module' || args[0] === 'engine') return true;
   if (args[0] === 'skill') return args[1] === 'companion' && args[2] === 'apply';
   if (args[0] === 'family-runtime') return true;
+  if (args[0] === 'runtime') {
+    return args[1] === 'action' && args[2] === 'execute' && !args.includes('--dry-run');
+  }
   if (args[0] === 'system') {
     if (
       args[1] === 'update' ||
