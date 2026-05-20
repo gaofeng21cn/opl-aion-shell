@@ -990,6 +990,7 @@
     "messages": {
       "loadModulesFailed": "读取 Foundry Agent 状态失败",
       "commandFailed": "命令执行失败",
+      "backgroundOperationStillRunning": "这项维护仍在后台执行。你可以继续使用 One Person Lab，稍后回到本页刷新状态。",
       "doctorComplete": "Foundry 检查完成",
       "repairComplete": "安装修复完成",
       "updateComplete": "{{name}} 更新完成",

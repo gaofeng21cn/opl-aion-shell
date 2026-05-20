@@ -173,7 +173,9 @@ const OverviewSettings: React.FC = () => {
             ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'initialize'] }),
             'OPL status refresh timed out.'
           ),
-          ipcBridge.webui.getStatus.invoke().catch((_error: unknown): null => null),
+          withOverviewTimeout(ipcBridge.webui.getStatus.invoke(), 'OPL WebUI status refresh timed out.').catch(
+            (_error: unknown): null => null
+          ),
         ]);
         const parsed = systemResult.exitCode === 0 ? parseOverviewStatus(systemResult.stdout) : {};
         setStatus({
@@ -185,7 +187,7 @@ const OverviewSettings: React.FC = () => {
           webuiRunning: webuiResult?.success ? Boolean(webuiResult.data?.running) : undefined,
         });
         if (showError && systemResult.exitCode !== 0) {
-          messageRef.current.warning(systemResult.stderr || t('settings.overviewPage.messages.statusLoadFailed'));
+          messageRef.current.warning(t('settings.overviewPage.messages.statusLoadFailed'));
         }
       } catch {
         setStatus(emptyStatus());

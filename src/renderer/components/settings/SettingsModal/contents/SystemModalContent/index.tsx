@@ -27,6 +27,15 @@ const PROMPT_TIMEOUT_DEFAULT_SEC = 43_200;
 const PROMPT_TIMEOUT_MAX_SEC = 43_200;
 const AGENT_IDLE_TIMEOUT_DEFAULT_MIN = 5;
 const AGENT_IDLE_TIMEOUT_MAX_MIN = 60;
+const DEVELOPER_MODE_STATUS_TIMEOUT_MS = 8_000;
+
+function readDeveloperModeStatusTimeoutMs(): number {
+  const override = (globalThis as typeof globalThis & { __OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__?: number | string })
+    .__OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__;
+  const parsed = Number(override ?? DEVELOPER_MODE_STATUS_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEVELOPER_MODE_STATUS_TIMEOUT_MS;
+}
+
 type DeveloperModeEnabled = 'auto' | 'on' | 'off';
 
 type DeveloperModeSwitchState = {
@@ -100,6 +109,24 @@ function getDeveloperModeDescriptionKey(developerMode: DeveloperModeSwitchState)
     developerMode.effectiveState === 'blocked' ||
     developerMode.allowedRoute === 'blocked';
   return blocked ? 'settings.developerModeStateOnLimited' : 'settings.developerModeStateOnReady';
+}
+
+function withDeveloperModeTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error('OPL Developer Mode status timed out.'));
+    }, readDeveloperModeStatusTimeoutMs());
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 /**
@@ -203,8 +230,7 @@ const SystemModalContent: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    ipcBridge.shell.runOplCommand
-      .invoke({ args: ['system', 'developer-supervisor'] })
+    withDeveloperModeTimeout(ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'developer-supervisor'] }))
       .then((result) => {
         if (cancelled) return;
         const parsed = result.exitCode === 0 ? parseDeveloperModeSwitchState(result.stdout) : null;
@@ -318,8 +344,9 @@ const SystemModalContent: React.FC = () => {
       const enabled: DeveloperModeEnabled = checked ? 'on' : 'off';
       setDeveloperMode((current) => ({ ...current, enabled, switching: true }));
 
-      ipcBridge.shell.runOplCommand
-        .invoke({ args: ['system', 'developer-supervisor', '--enabled', enabled] })
+      withDeveloperModeTimeout(
+        ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'developer-supervisor', '--enabled', enabled] })
+      )
         .then((result) => {
           const parsed = result.exitCode === 0 ? parseDeveloperModeSwitchState(result.stdout) : null;
           if (parsed) {
@@ -328,7 +355,7 @@ const SystemModalContent: React.FC = () => {
           }
 
           setDeveloperMode(previous);
-          Message.error(result.stderr || t('settings.developerModeUpdateFailed'));
+          Message.error(t('settings.developerModeUpdateFailed'));
         })
         .catch(() => {
           setDeveloperMode(previous);

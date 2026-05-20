@@ -989,6 +989,7 @@
     "messages": {
       "loadModulesFailed": "Failed to read Foundry Agent status",
       "commandFailed": "Command failed",
+      "backgroundOperationStillRunning": "This maintenance action is still running in the background. You can keep using One Person Lab and refresh this page later.",
       "doctorComplete": "Foundry check complete",
       "repairComplete": "Install repair complete",
       "updateComplete": "{{name}} update complete",

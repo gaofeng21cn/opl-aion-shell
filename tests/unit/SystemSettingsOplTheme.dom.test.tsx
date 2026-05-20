@@ -3,6 +3,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const mockUnstableMessageApi = vi.hoisted(() => ({ enabled: false }));
+const mockRuntimeMessages = vi.hoisted(() => ({ success: vi.fn(), warning: vi.fn(), error: vi.fn() }));
 const mockRunOplCommand = vi.fn();
 const mockAutoUpdateCheck = vi.fn();
 const mockAutoUpdateDownload = vi.fn();
@@ -36,11 +37,13 @@ vi.mock('@arco-design/web-react', async () => {
   const Typography = { Text, Title };
   const Button = ({
     children,
-    loading: _loading,
+    loading,
     icon: _icon,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean; icon?: React.ReactNode }) => (
-    <button {...props}>{children}</button>
+    <button {...props} aria-busy={loading ? 'true' : undefined}>
+      {children}
+    </button>
   );
   const Card = ({
     children,
@@ -114,10 +117,11 @@ vi.mock('@arco-design/web-react', async () => {
     ),
     { TabPane: (_props: { title?: React.ReactNode }) => null }
   );
-  const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
   const Message = {
     useMessage: () => [
-      mockUnstableMessageApi.enabled ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() } : messageApi,
+      mockUnstableMessageApi.enabled
+        ? { success: vi.fn(), warning: vi.fn(), error: vi.fn() }
+        : mockRuntimeMessages,
       null,
     ],
   };
@@ -186,6 +190,15 @@ vi.mock('@/renderer/assets/logos/brand/hermes.svg', () => ({ default: 'hermes.sv
 vi.mock('@/renderer/assets/logos/brand/app.png', () => ({ default: 'app.png' }));
 
 import RuntimeSettings, { resolveEngineAction } from '@/renderer/pages/settings/sections/RuntimeSettings';
+
+(globalThis as typeof globalThis & {
+  __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
+  __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
+}).__OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__ = 5;
+(globalThis as typeof globalThis & {
+  __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number;
+  __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number;
+}).__OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__ = 5;
 
 describe('RuntimeSettings OPL environment section', () => {
   beforeEach(() => {
@@ -496,6 +509,48 @@ describe('RuntimeSettings OPL environment section', () => {
       })
     );
     dispatchSpy.mockRestore();
+  });
+
+  it('settles a slow environment refresh and tells the user to continue using the app', async () => {
+    mockRunOplCommand.mockReturnValue(new Promise(() => {}));
+
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
+
+    const refreshButton = await screen.findByText('settings.oplEnvironmentPage.actions.refresh');
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => {
+      expect(refreshButton).not.toHaveAttribute('aria-busy');
+      expect(mockRuntimeMessages.warning).toHaveBeenCalledWith(
+        'settings.oplEnvironmentPage.messages.loadModulesFailed'
+      );
+    });
+  });
+
+  it('settles a slow repair command without exposing command output', async () => {
+    mockRunOplCommand.mockResolvedValueOnce({
+      exitCode: 0,
+      stdout: JSON.stringify({ system_initialize: { core_engines: {}, domain_modules: { modules: [] } } }),
+      stderr: '',
+    });
+    mockRunOplCommand.mockReturnValueOnce(new Promise(() => {}));
+
+    render(<RuntimeSettings />);
+
+    fireEvent.click(await screen.findByText('settings.runtimePage.tabs.environment'));
+
+    const repairButton = await screen.findByText('settings.oplEnvironmentPage.actions.repair');
+    fireEvent.click(repairButton);
+
+    await waitFor(() => {
+      expect(repairButton).not.toHaveAttribute('aria-busy');
+      expect(mockRuntimeMessages.warning).toHaveBeenCalledWith(
+        'settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'
+      );
+    });
+    expect(mockRuntimeMessages.error).not.toHaveBeenCalledWith(expect.stringContaining('stderr'));
   });
 });
 

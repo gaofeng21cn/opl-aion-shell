@@ -176,6 +176,21 @@ describe('OverviewSettings module health summary', () => {
     expect(await screen.findByText('settings.overviewPage.modulesUnknown')).toBeInTheDocument();
   });
 
+  it('settles a slow WebUI status read without leaving the Refresh Status button busy', async () => {
+    mockWebuiGetStatus.mockReturnValue(new Promise(() => {}));
+
+    render(<OverviewSettings />);
+
+    const refreshButton = screen.getByText('settings.overviewPage.actions.refresh');
+    expect(refreshButton).toHaveAttribute('aria-busy', 'true');
+
+    await waitFor(() => {
+      expect(mockRunOplCommand).toHaveBeenCalledTimes(1);
+      expect(refreshButton).not.toHaveAttribute('aria-busy');
+    });
+    expect(await screen.findByText('settings.overviewPage.modulesUnknown')).toBeInTheDocument();
+  });
+
   it('counts only modules with executable install/update/reinstall/remove actions as attention', async () => {
     mockRunOplCommand.mockResolvedValue({
       exitCode: 0,

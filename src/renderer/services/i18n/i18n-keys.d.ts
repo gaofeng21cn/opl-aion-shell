@@ -1713,6 +1713,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.managedTag'
   | 'settings.oplEnvironmentPage.messages.appUpdateDownloadFailed'
   | 'settings.oplEnvironmentPage.messages.appUpdateDownloaded'
+  | 'settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'
   | 'settings.oplEnvironmentPage.messages.brandNameSaveFailed'
   | 'settings.oplEnvironmentPage.messages.brandNameSaved'
   | 'settings.oplEnvironmentPage.messages.commandFailed'

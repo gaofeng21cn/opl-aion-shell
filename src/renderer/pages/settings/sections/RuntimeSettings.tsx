@@ -216,6 +216,22 @@ const CODEX_ISSUE_KEYS: Record<string, string> = {
   codex_cli_path_version_conflict_nonblocking:
     'settings.oplEnvironmentPage.diagnostics.issues.codexCliCompatiblePathDuplicate',
 };
+const OPL_ENVIRONMENT_STATUS_TIMEOUT_MS = 8_000;
+const OPL_ENVIRONMENT_ACTION_TIMEOUT_MS = 12_000;
+
+function readEnvironmentTimeoutMs(key: 'status' | 'action'): number {
+  const globalOverrides = globalThis as typeof globalThis & {
+    __OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__?: number | string;
+    __OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__?: number | string;
+  };
+  const fallback = key === 'status' ? OPL_ENVIRONMENT_STATUS_TIMEOUT_MS : OPL_ENVIRONMENT_ACTION_TIMEOUT_MS;
+  const override =
+    key === 'status'
+      ? globalOverrides.__OPL_ENVIRONMENT_STATUS_TIMEOUT_MS__
+      : globalOverrides.__OPL_ENVIRONMENT_ACTION_TIMEOUT_MS__;
+  const parsed = Number(override ?? fallback);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 function parseModules(stdout: string): OplModuleStatus[] {
   try {
@@ -416,6 +432,24 @@ async function readEnvironmentStatus(fallbackWarning: string): Promise<Environme
     appVersions: versions,
     warning: systemResult.stderr || modulesResult.stderr || fallbackWarning,
   };
+}
+
+function withEnvironmentTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error('OPL environment operation timed out.'));
+    }, timeoutMs);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 function applyEnvironmentSnapshot(
@@ -659,10 +693,13 @@ const OplEnvironmentContent: React.FC = () => {
     async (showLoading = false) => {
       if (showLoading) setRunningAction('refresh');
       try {
-        const snapshot = await readEnvironmentStatus(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
+        const snapshot = await withEnvironmentTimeout(
+          readEnvironmentStatus(t('settings.oplEnvironmentPage.messages.loadModulesFailed')),
+          readEnvironmentTimeoutMs('status')
+        );
         applyEnvironmentSnapshot(snapshot, { setAppVersions, setCoreEngines, setModuleStatuses, setWorkspaceRoot });
         if (snapshot.warning) {
-          message.warning(snapshot.warning);
+          message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
         }
       } catch {
         message.warning(t('settings.oplEnvironmentPage.messages.loadModulesFailed'));
@@ -718,13 +755,18 @@ const OplEnvironmentContent: React.FC = () => {
     async (args: string[], actionId: string, successText: string) => {
       setRunningAction(actionId);
       try {
-        const result = await ipcBridge.shell.runOplCommand.invoke({ args });
+        const result = await withEnvironmentTimeout(
+          ipcBridge.shell.runOplCommand.invoke({ args }),
+          readEnvironmentTimeoutMs('action')
+        );
         if (result.exitCode === 0) {
           message.success(successText);
           await loadEnvironment();
         } else {
-          message.error(result.stderr || result.stdout || t('settings.oplEnvironmentPage.messages.commandFailed'));
+          message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
         }
+      } catch {
+        message.warning(t('settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'));
       } finally {
         setRunningAction(null);
       }
@@ -735,9 +777,12 @@ const OplEnvironmentContent: React.FC = () => {
   const handleOneClickUpdate = useCallback(async () => {
     setRunningAction('one-click-update');
     try {
-      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'update'] });
+      const result = await withEnvironmentTimeout(
+        ipcBridge.shell.runOplCommand.invoke({ args: ['system', 'update'] }),
+        readEnvironmentTimeoutMs('action')
+      );
       if (result.exitCode !== 0) {
-        message.error(result.stderr || result.stdout || t('settings.oplEnvironmentPage.messages.commandFailed'));
+        message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
         return;
       }
 
@@ -756,8 +801,8 @@ const OplEnvironmentContent: React.FC = () => {
 
       window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { status: 'downloaded' } }));
       message.success(t('settings.oplEnvironmentPage.messages.appUpdateDownloaded'));
-    } catch (error: unknown) {
-      message.error(error instanceof Error ? error.message : t('settings.oplEnvironmentPage.messages.commandFailed'));
+    } catch {
+      message.warning(t('settings.oplEnvironmentPage.messages.backgroundOperationStillRunning'));
     } finally {
       setRunningAction(null);
     }

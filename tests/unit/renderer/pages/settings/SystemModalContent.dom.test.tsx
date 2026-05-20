@@ -240,6 +240,9 @@ vi.mock('@/renderer/components/settings/SettingsModal/settingsViewContext', () =
 
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 
+(globalThis as typeof globalThis & { __OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__?: number })
+  .__OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__ = 5;
+
 function developerSupervisorPayload(
   enabled: 'on' | 'off',
   options: {
@@ -338,6 +341,21 @@ describe('SystemModalContent settings behavior', () => {
     expect(developerModeRow).toHaveTextContent('settings.developerModeStateOnLimited');
     expect(developerModeRow).not.toHaveTextContent('blocked');
     expect(developerModeRow).not.toHaveTextContent('developer_apply_safe');
+  });
+
+  it('settles a slow Developer Mode toggle without exposing command stderr', async () => {
+    render(<SystemModalContent />);
+
+    const developerModeRow = await screen.findByTestId('preference-settings.developerMode');
+    mockRunOplCommand.mockReturnValueOnce(new Promise(() => {}));
+
+    fireEvent.click(within(developerModeRow).getByRole('switch'));
+
+    await waitFor(() => {
+      expect(within(developerModeRow).getByRole('switch')).not.toHaveAttribute('aria-busy');
+      expect(mockMessageError).toHaveBeenCalledWith('settings.developerModeUpdateFailed');
+    });
+    expect(mockMessageError).not.toHaveBeenCalledWith(expect.stringContaining('stderr'));
   });
 
   it('keeps key system switches clickable without crashing', async () => {
