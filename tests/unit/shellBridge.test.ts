@@ -445,25 +445,36 @@ describe('shellBridge', () => {
       expect(execFileMock).not.toHaveBeenCalled();
     });
 
-    it('allows runtime action execute with optional refs-only payload and dry-run only', async () => {
-      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
+    it('allows runtime action execute for OPL-owned safe action families with refs-only payloads', async () => {
+      const safeActions = [
+        'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record',
+        'provider-scheduler:temporal:trigger',
+        'legacy-cleanup:medautoscience:app-workbench-route:apply',
+        'stage-production-evidence-receipt:medautoscience:analysis-campaign:record',
+      ];
+
+      execFileMock.mockImplementation((_file: string, _args: string[], _options: unknown, callback: Function) => {
         callback(null, { stdout: '{"runtime_operator_action_execution":{"dry_run":true}}', stderr: '' });
       });
 
-      const result = await runOplCommandProvider.fn!({
-        args: [
-          'runtime',
-          'action',
-          'execute',
-          '--action',
-          'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record',
-          '--payload',
-          '{"evidence_refs":["receipt:external"],"domain_receipt_ref":"domain:receipt"}',
-          '--dry-run',
-        ],
-      });
+      for (const actionId of safeActions) {
+        const result = await runOplCommandProvider.fn!({
+          args: [
+            'runtime',
+            'action',
+            'execute',
+            '--action',
+            actionId,
+            '--payload',
+            '{"evidence_refs":["receipt:external"],"domain_receipt_ref":"domain:receipt"}',
+            '--dry-run',
+          ],
+        });
 
-      expect(result.exitCode).toBe(0);
+        expect(result.exitCode).toBe(0);
+      }
+
+      expect(execFileMock).toHaveBeenCalledTimes(safeActions.length);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
         ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
@@ -477,12 +488,41 @@ describe('shellBridge', () => {
         "'--action'",
         "'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record'",
       ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[1][1][1], [
+        "'runtime'",
+        "'action'",
+        "'execute'",
+        "'--action'",
+        "'provider-scheduler:temporal:trigger'",
+      ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[2][1][1], [
+        "'runtime'",
+        "'action'",
+        "'execute'",
+        "'--action'",
+        "'legacy-cleanup:medautoscience:app-workbench-route:apply'",
+      ]);
+      expectOplJsonCommandArgs(execFileMock.mock.calls[3][1][1], [
+        "'runtime'",
+        "'action'",
+        "'execute'",
+        "'--action'",
+        "'stage-production-evidence-receipt:medautoscience:analysis-campaign:record'",
+      ]);
     });
 
     it('rejects runtime action execute payload bodies and unsupported options before invoking OPL', async () => {
       await expect(
         runOplCommandProvider.fn!({
-          args: ['runtime', 'action', 'execute', '--action', 'action:one', '--payload', '{"memory_body":"secret"}'],
+          args: [
+            'runtime',
+            'action',
+            'execute',
+            '--action',
+            'stage-production-attempt:medautoscience:analysis-campaign',
+            '--payload',
+            '{"memory_body":"secret"}',
+          ],
         })
       ).rejects.toThrow('Unsupported OPL runtime action refs-only payload');
       await expect(
@@ -492,20 +532,41 @@ describe('shellBridge', () => {
             'action',
             'execute',
             '--action',
-            'action:one',
+            'stage-production-attempt:medautoscience:analysis-campaign',
             '--payload',
             '{"evidence_refs":[{"body":"secret"}]}',
           ],
         })
       ).rejects.toThrow('Unsupported OPL runtime action refs-only payload');
       await expect(
-        runOplCommandProvider.fn!({ args: ['runtime', 'action', 'execute', '--action', 'action:one', '--json'] })
+        runOplCommandProvider.fn!({
+          args: [
+            'runtime',
+            'action',
+            'execute',
+            '--action',
+            'stage-production-attempt:medautoscience:analysis-campaign',
+            '--json',
+          ],
+        })
       ).rejects.toThrow('Unsupported OPL runtime action execute option');
       await expect(
         runOplCommandProvider.fn!({
-          args: ['runtime', 'action', 'execute', '--action', 'action:one', '--approve-domain-action'],
+          args: [
+            'runtime',
+            'action',
+            'execute',
+            '--action',
+            'stage-production-attempt:medautoscience:analysis-campaign',
+            '--approve-domain-action',
+          ],
         })
       ).rejects.toThrow('Unsupported OPL runtime action execute option');
+      await expect(
+        runOplCommandProvider.fn!({
+          args: ['runtime', 'action', 'execute', '--action', 'domain-direct:medautoscience:unsafe-apply'],
+        })
+      ).rejects.toThrow('Unsupported OPL runtime action id');
 
       expect(execFileMock).not.toHaveBeenCalled();
     });

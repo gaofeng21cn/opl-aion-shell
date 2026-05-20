@@ -23,6 +23,7 @@ type AppOperatorDrilldownProps = {
   drilldown: RuntimeTrayJsonRecord | null | undefined;
 };
 const REFS_ONLY_PAYLOAD_ERROR = 'OPL_REFS_ONLY_PAYLOAD_INVALID';
+const OPL_CLI_ROUTE_ERROR = 'OPL_CLI_ROUTE_INVALID';
 
 const isRecord = (value: unknown): value is RuntimeTrayJsonRecord =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -35,6 +36,15 @@ const isAppOperatorDrilldown = (value: unknown): value is RuntimeTrayAppOperator
 const asString = (value: unknown): string | null => {
   if (typeof value === 'string' && value.trim()) return value.trim();
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return null;
+};
+
+const asBoolean = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+  }
   return null;
 };
 
@@ -143,10 +153,23 @@ const attentionListSummary = (value: unknown): string => {
   return [total ? `total=${total}` : '', omitted ? `omitted=${omitted}` : ''].filter(Boolean).join('; ');
 };
 
+const isOplCliSafeActionRoute = (action: RuntimeTrayJsonRecord): boolean => {
+  return (
+    firstText(action.route_target_kind) === 'opl_cli' &&
+    firstText(action.submit_via) === 'opl runtime action execute' &&
+    asBoolean(action.can_submit_to_safe_action_shell) === true &&
+    asBoolean(action.can_execute_domain_action_directly) === false &&
+    asBoolean(action.approve_domain_action_supported) !== true
+  );
+};
+
 const buildActionArgs = (action: RuntimeTrayJsonRecord, mode: ActionExecutionMode, payloadInput: string): string[] => {
   const actionId = firstText(action.action_id);
   if (!actionId) {
     throw new Error('missing action id');
+  }
+  if (!isOplCliSafeActionRoute(action)) {
+    throw new Error(OPL_CLI_ROUTE_ERROR);
   }
   const payload = refsOnlyPayloadRecord(payloadInput);
   return [
@@ -303,6 +326,30 @@ const evidenceGateSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslato
   return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
 };
 
+const evidenceCounterSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
+  const entries = [
+    [
+      t('common.runtimeTray.appDrilldown.externalRequests'),
+      firstText(summary.domain_external_evidence_request_count) || '0',
+    ],
+    [t('common.runtimeTray.appDrilldown.openRequests'), firstText(summary.domain_open_evidence_request_count) || '0'],
+    [
+      t('common.runtimeTray.appDrilldown.verifiedReceipts'),
+      firstText(summary.domain_external_verified_evidence_receipt_count) || '0',
+    ],
+    [t('common.runtimeTray.appDrilldown.evidenceGates'), firstText(summary.domain_evidence_gate_count) || '0'],
+    [
+      t('common.runtimeTray.appDrilldown.remainingGates'),
+      firstText(summary.domain_remaining_evidence_gate_count) || '0',
+    ],
+    [
+      t('common.runtimeTray.appDrilldown.verifiedGateReceipts'),
+      firstText(summary.domain_evidence_gate_verified_receipt_count) || '0',
+    ],
+  ];
+  return entries.map(([label, value]) => `${label}: ${value}`).join('; ');
+};
+
 const legacyCleanupSummary = (summary: RuntimeTrayJsonRecord, t: RuntimeTranslator): string => {
   const entries = [
     [t('common.runtimeTray.appDrilldown.cleanupPlans'), firstText(summary.domain_legacy_cleanup_plan_count) || '0'],
@@ -445,6 +492,10 @@ const summaryCards = (
 ): DrilldownMetric[] => {
   return [
     {
+      label: t('common.runtimeTray.appDrilldown.evidenceCounters'),
+      value: evidenceCounterSummary(summary, t),
+    },
+    {
       label: t('common.runtimeTray.appDrilldown.packageLifecycle'),
       value: lifecycleSummary(summary, t),
     },
@@ -582,6 +633,36 @@ const renderRecordCard = (title: string, record: RuntimeTrayJsonRecord, empty: s
   );
 };
 
+const actionRouteBoundaryRecord = (action: RuntimeTrayJsonRecord): RuntimeTrayJsonRecord => ({
+  route_target_kind: firstText(action.route_target_kind),
+  submit_via: firstText(action.submit_via),
+  can_submit_to_safe_action_shell: firstText(action.can_submit_to_safe_action_shell),
+  can_execute_domain_action_directly: firstText(action.can_execute_domain_action_directly),
+  approve_domain_action_supported: firstText(action.approve_domain_action_supported),
+});
+
+const mergeBoundaryRecords = (...records: RuntimeTrayJsonRecord[]): RuntimeTrayJsonRecord => {
+  const merged: RuntimeTrayJsonRecord = {};
+  for (const record of records) {
+    for (const [key, value] of Object.entries(record)) {
+      if (value === null || value === undefined) continue;
+      if (typeof value === 'string' && !value.trim()) continue;
+      merged[key] = value;
+    }
+  }
+  return merged;
+};
+
+const actionResultSummary = (result: RuntimeTrayJsonRecord): string => {
+  return [
+    recordSummary(result),
+    isRecord(result.execution) ? recordSummary(result.execution) : '',
+    isRecord(result.authority_boundary) ? recordSummary(result.authority_boundary) : '',
+  ]
+    .filter(Boolean)
+    .join('; ');
+};
+
 const buildSections = (drilldown: RuntimeTrayJsonRecord, t: RuntimeTranslator): DrilldownSection[] => {
   return drilldownSections(drilldown, t);
 };
@@ -637,11 +718,13 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const [loadingFullDetail, setLoadingFullDetail] = React.useState(false);
   const [actionPayloadInput, setActionPayloadInput] = React.useState('');
   const [runningActionMode, setRunningActionMode] = React.useState<ActionExecutionMode | null>(null);
-  const [actionResult, setActionResult] = React.useState<RuntimeTrayJsonRecord | null>(null);
+  const [actionResults, setActionResults] = React.useState<Partial<Record<ActionExecutionMode, RuntimeTrayJsonRecord>>>(
+    {}
+  );
 
   React.useEffect(() => {
     setFullDetail(null);
-    setActionResult(null);
+    setActionResults({});
   }, [sourceProjectionKey]);
 
   const projection = isAppOperatorDrilldown(fullDetail) ? fullDetail : sourceProjection;
@@ -659,6 +742,8 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
   const providerHealth = nestedRecord(attentionPayload, 'provider_health');
   const attentionAuthority = nestedRecord(attentionPayload, 'authority_boundary');
   const hasNextSafeAction = Boolean(firstText(nextSafeAction.action_id));
+  const hasOplCliSafeActionRoute = hasNextSafeAction && isOplCliSafeActionRoute(nextSafeAction);
+  const boundaryFields = mergeBoundaryRecords(authority, attentionAuthority);
   const metrics = buildMetrics(summary, t);
   const sections = buildSections(projection, t);
   const omaSummarySections = omaSections(projection, t);
@@ -714,7 +799,10 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
         const execution = isRecord(payload.runtime_operator_action_execution)
           ? payload.runtime_operator_action_execution
           : {};
-        setActionResult(execution);
+        setActionResults((current) => ({
+          ...current,
+          [mode]: execution,
+        }));
         if (mode === 'execute') {
           await refreshSummaryProjection();
           Message.success(t('common.runtimeTray.appDrilldown.actionExecutionSucceeded'));
@@ -724,9 +812,14 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
         const fallback =
           error instanceof SyntaxError || (error instanceof Error && error.message === REFS_ONLY_PAYLOAD_ERROR)
             ? t('common.runtimeTray.appDrilldown.invalidPayload')
+            : error instanceof Error && error.message === OPL_CLI_ROUTE_ERROR
+              ? t('common.runtimeTray.appDrilldown.safeActionRouteInvalid')
             : t('common.runtimeTray.appDrilldown.actionExecutionFailed');
         Message.error(
-          error instanceof Error && error.message !== REFS_ONLY_PAYLOAD_ERROR && !(error instanceof SyntaxError)
+          error instanceof Error &&
+            error.message !== REFS_ONLY_PAYLOAD_ERROR &&
+            error.message !== OPL_CLI_ROUTE_ERROR &&
+            !(error instanceof SyntaxError)
             ? error.message
             : fallback
         );
@@ -774,7 +867,7 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
             <Button
               size='mini'
               type='outline'
-              disabled={!hasNextSafeAction}
+              disabled={!hasOplCliSafeActionRoute}
               loading={runningActionMode === 'dry_run'}
               onClick={() => handleRunAction('dry_run')}
             >
@@ -783,7 +876,7 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
             <Button
               size='mini'
               type='primary'
-              disabled={!hasNextSafeAction}
+              disabled={!hasOplCliSafeActionRoute}
               loading={runningActionMode === 'execute'}
               onClick={() => handleRunAction('execute')}
             >
@@ -794,6 +887,11 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
         <code className='block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'>
           {hasNextSafeAction ? recordSummary(nextSafeAction) : t('common.runtimeTray.appDrilldown.noSafeAction')}
         </code>
+        {hasNextSafeAction && !hasOplCliSafeActionRoute && (
+          <div className='mt-8px rounded-6px bg-fill-2 px-10px py-8px text-12px leading-18px text-t-secondary'>
+            {t('common.runtimeTray.appDrilldown.safeActionRouteInvalid')}
+          </div>
+        )}
         <div className='mt-10px grid grid-cols-1 gap-10px md:grid-cols-2'>
           <div>
             <div className='mb-5px text-12px font-medium text-t-secondary'>
@@ -808,18 +906,32 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
           </div>
           <div className='flex flex-col gap-8px'>
             {renderRecordCard(
+              t('common.runtimeTray.appDrilldown.safeActionRouteBoundary'),
+              actionRouteBoundaryRecord(nextSafeAction),
+              t('common.runtimeTray.appDrilldown.noRefs')
+            )}
+            {renderRecordCard(
               t('common.runtimeTray.appDrilldown.providerHealth'),
               providerHealth,
               t('common.runtimeTray.appDrilldown.noRefs')
             )}
           </div>
         </div>
-        {actionResult && (
-          <code className='mt-10px block min-w-0 whitespace-pre-wrap break-all rounded bg-fill-2 px-8px py-6px text-12px text-t-primary'>
-            {recordSummary(actionResult)}
-            {isRecord(actionResult.execution) ? `; ${recordSummary(actionResult.execution)}` : ''}
-            {isRecord(actionResult.authority_boundary) ? `; ${recordSummary(actionResult.authority_boundary)}` : ''}
-          </code>
+        {(actionResults.dry_run || actionResults.execute) && (
+          <div className='mt-10px grid grid-cols-1 gap-10px md:grid-cols-2'>
+            {actionResults.dry_run &&
+              renderRecordCard(
+                t('common.runtimeTray.appDrilldown.dryRunResult'),
+                { result: actionResultSummary(actionResults.dry_run) },
+                t('common.runtimeTray.appDrilldown.noRefs')
+              )}
+            {actionResults.execute &&
+              renderRecordCard(
+                t('common.runtimeTray.appDrilldown.executeResult'),
+                { result: actionResultSummary(actionResults.execute) },
+                t('common.runtimeTray.appDrilldown.noRefs')
+              )}
+          </div>
         )}
       </div>
 
@@ -879,6 +991,9 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
           firstText(attentionAuthority.domain) ||
           firstText(authority.provider) ||
           'domain truth and provider receipts stay with owners'}
+        <div className='mt-6px break-words text-12px leading-18px'>
+          {recordSummary(boundaryFields) || t('common.runtimeTray.appDrilldown.noRefs')}
+        </div>
       </div>
     </section>
   );
