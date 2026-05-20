@@ -30,8 +30,8 @@ type OplFirstLaunchPreparationState = {
 
 type OplSetupNeededFirstLaunchResult = Extract<OplFirstLaunchPreparationResult, { status: 'setup-needed' }>;
 
-type OplModuleReconcileState = {
-  appVersion: string;
+type OplDeferredMaintenanceState = {
+  key: string;
   promise: Promise<void>;
 };
 
@@ -108,7 +108,7 @@ export type OplCodexDefaultProfile = {
 };
 
 let preparationState: OplFirstLaunchPreparationState | null = null;
-let moduleReconcileState: OplModuleReconcileState | null = null;
+let deferredMaintenanceState: OplDeferredMaintenanceState | null = null;
 
 const FIRST_LAUNCH_STEP_TOTAL = 4;
 const FIRST_LAUNCH_STEP_INDEX: Record<OplFirstLaunchProgressStep, number> = {
@@ -357,45 +357,15 @@ const reconcileModulesForFirstLaunch = async (appVersion?: string): Promise<OplF
     });
     return null;
   }
-  if (normalizedVersion && moduleReconcileState?.appVersion === normalizedVersion) {
-    moduleReconcileState = null;
-  }
   return result;
-};
-
-const startModuleReconcileForAppVersion = (appVersion?: string): void => {
-  const normalizedVersion = appVersion?.trim();
-  if (!normalizedVersion) return;
-  if (moduleReconcileState?.appVersion === normalizedVersion) return;
-
-  const promise = (async (): Promise<OplFirstLaunchPreparationResult | null> => {
-    if (await hasActiveOplFullRuntime()) {
-      await ConfigStorage.set(MODULE_RECONCILED_APP_VERSION_CONFIG_KEY, normalizedVersion);
-      return null;
-    }
-    return reconcileModulesForAppVersion(normalizedVersion);
-  })()
-    .then((result) => {
-      if (result?.status === 'failed') {
-        console.warn('[OPL] Module reconcile failed after App version change:', result.message);
-      }
-    })
-    .catch((error) => {
-      console.warn('[OPL] Module reconcile failed after App version change:', error);
-    })
-    .finally(() => {
-      if (moduleReconcileState?.appVersion === normalizedVersion) {
-        moduleReconcileState = null;
-      }
-    });
-  moduleReconcileState = { appVersion: normalizedVersion, promise };
 };
 
 const startDeferredFirstLaunchMaintenance = (
   sourceState: OplFirstLaunchPreparationResult,
-  appVersion?: string
-): void => {
-  void (async () => {
+  appVersion?: string,
+  options: { forceModuleMaintenance?: boolean } = {}
+): Promise<void> =>
+  (async () => {
     const fullRuntime = await hasActiveOplFullRuntime();
     await appendFirstRunLogEvent('gui_deferred_maintenance_started', {
       blockers: sourceState.blockers ?? [],
@@ -416,7 +386,8 @@ const startDeferredFirstLaunchMaintenance = (
       });
       return;
     }
-    const installResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...INSTALL_ARGS] });
+    const installArgs = commandLineToolsStatus === 'installer_requested' ? CORE_INSTALL_ARGS : INSTALL_ARGS;
+    const installResult = await ipcBridge.shell.runOplCommand.invoke({ args: [...installArgs] });
     if (installResult.exitCode !== 0) {
       const message = getFailureMessage(installResult);
       if (isCommandLineToolsInstallerMessage(message)) {
@@ -433,7 +404,16 @@ const startDeferredFirstLaunchMaintenance = (
       });
       return;
     }
-    const reconcileResult = await reconcileModulesForAppVersion(appVersion);
+    if (commandLineToolsStatus === 'installer_requested') {
+      await appendFirstRunLogEvent('gui_deferred_install_waiting_for_command_line_tools', {
+        status: 'waiting_for_user',
+        command_line_tools_status: commandLineToolsStatus,
+      });
+      return;
+    }
+    const reconcileResult = await reconcileModulesForAppVersion(appVersion, {
+      force: options.forceModuleMaintenance,
+    });
     if (reconcileResult?.status === 'failed') {
       await appendFirstRunLogEvent('gui_deferred_module_reconcile_failed', {
         status: 'failed',
@@ -448,6 +428,34 @@ const startDeferredFirstLaunchMaintenance = (
       message: error instanceof Error ? error.message : undefined,
     });
   });
+
+const startPreparedStateMaintenance = async (appVersion?: string): Promise<void> => {
+  try {
+    await startDeferredFirstLaunchMaintenance(
+      {
+        status: 'already-prepared',
+        readyToLaunch: true,
+        blockers: getOplDeferredFirstLaunchBlockers(),
+        progress: buildOplFirstLaunchProgress('complete'),
+      },
+      appVersion,
+      { forceModuleMaintenance: true }
+    );
+  } catch (error: unknown) {
+    console.warn('[OPL] Prepared-state maintenance failed to start:', error);
+  }
+};
+
+const queuePreparedStateMaintenance = (appVersion?: string): void => {
+  const key = appVersion?.trim() || '__no_version__';
+  if (deferredMaintenanceState?.key === key) return;
+
+  const promise = startPreparedStateMaintenance(appVersion).finally(() => {
+    if (deferredMaintenanceState?.key === key) {
+      deferredMaintenanceState = null;
+    }
+  });
+  deferredMaintenanceState = { key, promise };
 };
 
 const readInitializeState = async (
@@ -575,7 +583,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     emitProgress(options, 'checkingEnvironment');
     const wasPrepared = await readPreparedState();
     if (wasPrepared) {
-      startModuleReconcileForAppVersion(options.appVersion);
+      queuePreparedStateMaintenance(options.appVersion);
       await appendFirstRunLogEvent('gui_preparation_skipped', { status: 'already-prepared' });
       return {
         status: 'already-prepared',
@@ -599,7 +607,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     }
 
     if (initialState.status === 'setup-needed' && initialState.readyToLaunch) {
-      startDeferredFirstLaunchMaintenance(initialState, options.appVersion);
+      void startDeferredFirstLaunchMaintenance(initialState, options.appVersion);
       const preparedResult = await markPreparedWithDeferredFirstLaunchAttention(initialState, 'prepared');
       await appendFirstRunLogEvent('gui_preparation_completed_with_deferred_attention', {
         status: preparedResult.status,
@@ -630,12 +638,12 @@ const runOplFirstLaunchEnvironmentPreparation = async (
             message,
           });
           const deferredInstallerState = await markPreparedWithDeferredCoreSetup(initialState, message);
-          startDeferredFirstLaunchMaintenance(deferredInstallerState, options.appVersion);
+          void startDeferredFirstLaunchMaintenance(deferredInstallerState, options.appVersion);
           return { ...deferredInstallerState, firstRunLog };
         }
         await appendFirstRunLogEvent('gui_install_failed', { status: 'failed', message });
         const deferredInstallState = await markPreparedWithDeferredCoreSetup(initialState, message);
-        startDeferredFirstLaunchMaintenance(deferredInstallState, options.appVersion);
+        void startDeferredFirstLaunchMaintenance(deferredInstallState, options.appVersion);
         return { ...deferredInstallState, firstRunLog };
       }
       deferPostInstallMaintenance = usedCoreInstall;
@@ -657,7 +665,7 @@ const runOplFirstLaunchEnvironmentPreparation = async (
     }
 
     if (deferPostInstallMaintenance) {
-      startDeferredFirstLaunchMaintenance(readyState, options.appVersion);
+      void startDeferredFirstLaunchMaintenance(readyState, options.appVersion);
     } else {
       const reconcileResult = await reconcileModulesForFirstLaunch(options.appVersion);
       if (reconcileResult?.status === 'failed') {
@@ -710,5 +718,5 @@ export const startOplFirstLaunchEnvironmentPreparation = (
 
 export const resetOplFirstLaunchPreparationStateForTests = (): void => {
   preparationState = null;
-  moduleReconcileState = null;
+  deferredMaintenanceState = null;
 };

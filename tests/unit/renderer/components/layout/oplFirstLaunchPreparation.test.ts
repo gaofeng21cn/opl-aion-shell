@@ -223,6 +223,13 @@ const waitForConfigSetCall = async (key: string, value: unknown): Promise<void> 
     `Timed out waiting for ConfigStorage.set(${key})`
   );
 
+const waitForOplCommandWithArgs = async (args: string[]): Promise<void> =>
+  waitForMockCall(
+    mockRunOplCommand.mock.calls,
+    (call) => JSON.stringify(call[0]) === JSON.stringify({ args }),
+    `Timed out waiting for OPL command ${args.join(' ')}`
+  );
+
 const waitForFirstRunLogEvent = async (eventType: string): Promise<void> =>
   waitForMockCall(
     mockAppendOplFirstRunLog.mock.calls,
@@ -231,6 +238,13 @@ const waitForFirstRunLogEvent = async (eventType: string): Promise<void> =>
       return event?.eventType === eventType;
     },
     `Timed out waiting for first-run event ${eventType}`
+  );
+
+const waitForCommandLineToolsPreparation = async (): Promise<void> =>
+  waitForMockCall(
+    mockPrepareCommandLineTools.mock.calls,
+    () => true,
+    'Timed out waiting for Command Line Tools preparation'
   );
 
 describe('oplFirstLaunchPreparation', () => {
@@ -260,9 +274,12 @@ describe('oplFirstLaunchPreparation', () => {
     });
   });
 
-  it('does not run blocking initialize or install when the environment was already prepared', async () => {
-    mockConfigGet.mockResolvedValue(123);
-    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+  it('skips blocking initialize and install while continuing background maintenance when already prepared', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      return undefined;
+    });
+    mockRunOplCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
       status: 'already-prepared',
@@ -275,9 +292,98 @@ describe('oplFirstLaunchPreparation', () => {
       },
     });
 
-    expect(mockRunOplCommand).not.toHaveBeenCalled();
+    await waitForCommandLineToolsPreparation();
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    await waitForOplCommandWithArgs(['install', '--skip-gui-open']);
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'initialize', '--json'] });
+    await waitForOplCommandWithArgs(['system', 'startup-maintenance']);
     expect(mockConfigSet).not.toHaveBeenCalled();
     expect(mockReadOplFirstRunLog).toHaveBeenCalledOnce();
+  });
+
+  it('continues Full runtime deferred maintenance after first launch was already prepared', async () => {
+    process.env.OPL_FULL_RUNTIME_HOME = '/tmp/opl-full-runtime/current';
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      if (key === 'opl.commandLineToolsAvailableAt') return undefined;
+      return undefined;
+    });
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+    });
+
+    await waitForOplCommandCalls(1);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, {
+      args: ['skill', 'companion', 'apply', '--mode', 'managed', '--superpowers', 'keep'],
+    });
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
+    await waitForFirstRunLogEvent('gui_deferred_maintenance_completed');
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_maintenance_completed',
+      payload: expect.objectContaining({
+        reason: 'full_runtime_bundled_modules',
+        command_line_tools_status: 'installer_requested',
+        packaged_skill_sync_status: 'synced',
+      }),
+    });
+  });
+
+  it('continues standard deferred maintenance after first launch was already prepared even without an app version', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      if (key === 'opl.commandLineToolsAvailableAt') return undefined;
+      return undefined;
+    });
+    mockRunOplCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation()).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+    });
+
+    await waitForCommandLineToolsPreparation();
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    await waitForOplCommandWithArgs(['install', '--skip-gui-open']);
+    await waitForOplCommandWithArgs(['system', 'startup-maintenance']);
+  });
+
+  it('requests CLT and keeps standard already-prepared maintenance nonblocking while CLT installs', async () => {
+    mockConfigGet.mockImplementation(async (key: string) => {
+      if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
+      return undefined;
+    });
+    mockPrepareCommandLineTools.mockResolvedValue({
+      status: 'installer_requested',
+      message: 'The macOS Command Line Tools installer has been opened.',
+    });
+    mockRunOplCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
+
+    await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.5.19' })).resolves.toMatchObject({
+      status: 'already-prepared',
+      readyToLaunch: true,
+    });
+
+    await waitForOplCommandCalls(1);
+    expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['install', '--skip-modules', '--skip-gui-open'] });
+    expect(mockRunOplCommand).not.toHaveBeenCalledWith({ args: ['system', 'startup-maintenance'] });
+    await waitForFirstRunLogEvent('gui_deferred_install_waiting_for_command_line_tools');
+    expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
+      eventType: 'gui_deferred_install_waiting_for_command_line_tools',
+      payload: expect.objectContaining({
+        status: 'waiting_for_user',
+        command_line_tools_status: 'installer_requested',
+      }),
+    });
   });
 
   it('starts managed install in the background when initialize is already launchable', async () => {
@@ -547,7 +653,7 @@ describe('oplFirstLaunchPreparation', () => {
     });
 
     await waitForOplCommandCalls(2);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-modules', '--skip-gui-open'] });
     expect(mockPrepareCommandLineTools).toHaveBeenCalledOnce();
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_install_waiting_for_command_line_tools',
@@ -689,15 +795,18 @@ describe('oplFirstLaunchPreparation', () => {
       if (key === 'opl.lastModuleReconcileAppVersion') return '26.4.29';
       return undefined;
     });
-    mockRunOplCommand.mockReturnValueOnce(deferredReconcile.promise);
+    mockRunOplCommand
+      .mockResolvedValueOnce({ exitCode: 0, stdout: '', stderr: '' })
+      .mockReturnValueOnce(deferredReconcile.promise);
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toMatchObject({
       status: 'already-prepared',
       readyToLaunch: true,
     });
 
-    await waitForOplCommandCalls(1);
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'startup-maintenance'] });
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['system', 'startup-maintenance'] });
 
     deferredReconcile.resolve({ exitCode: 0, stdout: '', stderr: '' });
     await deferredReconcile.promise;
@@ -705,21 +814,23 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.4.30');
   });
 
-  it('does not rerun startup maintenance for the same App version', async () => {
+  it('continues nonblocking startup maintenance for the same App version', async () => {
     mockConfigGet.mockImplementation(async (key: string) => {
       if (key === 'opl.firstLaunchInstallPreparedAt') return 123;
       if (key === 'opl.lastModuleReconcileAppVersion') return '26.4.30';
       return undefined;
     });
-    mockRunOplCommand.mockResolvedValue(readyInitializeResult);
+    mockRunOplCommand.mockResolvedValue({ exitCode: 0, stdout: '', stderr: '' });
 
     await expect(startOplFirstLaunchEnvironmentPreparation({ appVersion: '26.4.30' })).resolves.toMatchObject({
       status: 'already-prepared',
       readyToLaunch: true,
     });
 
-    expect(mockRunOplCommand).not.toHaveBeenCalled();
-    expect(mockConfigSet).not.toHaveBeenCalled();
+    await waitForOplCommandCalls(2);
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['system', 'startup-maintenance'] });
+    expect(mockConfigSet).toHaveBeenCalledWith('opl.lastModuleReconcileAppVersion', '26.4.30');
   });
 
   it('runs OPL install to sync missing recommended skills without blocking launch', async () => {
@@ -856,7 +967,7 @@ describe('oplFirstLaunchPreparation', () => {
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(1, { args: ['system', 'initialize', '--json'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(2, { args: ['install', '--skip-modules', '--skip-gui-open'] });
     expect(mockRunOplCommand).toHaveBeenNthCalledWith(3, { args: ['system', 'initialize', '--json'] });
-    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['install', '--skip-gui-open'] });
+    expect(mockRunOplCommand).toHaveBeenNthCalledWith(4, { args: ['install', '--skip-modules', '--skip-gui-open'] });
     expect(mockAppendOplFirstRunLog).toHaveBeenCalledWith({
       eventType: 'gui_deferred_install_waiting_for_command_line_tools',
       payload: expect.objectContaining({ status: 'waiting_for_user' }),
