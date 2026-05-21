@@ -796,9 +796,14 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
           throw new Error(result.stderr || result.stdout || t('common.runtimeTray.appDrilldown.actionExecutionFailed'));
         }
         const payload = JSON.parse(result.stdout) as { runtime_operator_action_execution?: unknown };
-        const execution = isRecord(payload.runtime_operator_action_execution)
-          ? payload.runtime_operator_action_execution
-          : {};
+        if (!isRecord(payload.runtime_operator_action_execution)) {
+          throw new Error(t('common.runtimeTray.appDrilldown.actionExecutionInvalid'));
+        }
+        const execution = payload.runtime_operator_action_execution;
+        const resultDryRun = asBoolean(execution.dry_run);
+        if ((mode === 'dry_run' && resultDryRun !== true) || (mode === 'execute' && resultDryRun !== false)) {
+          throw new Error(t('common.runtimeTray.appDrilldown.actionExecutionInvalid'));
+        }
         setActionResults((current) => ({
           ...current,
           [mode]: execution,

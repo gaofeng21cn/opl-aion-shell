@@ -241,11 +241,6 @@ function assertAllowedRuntimeActionExecuteArgs(args: string[]): void {
 }
 
 function assertAllowedRuntimeArgs(args: string[]): void {
-  const isSnapshot = args.length >= 2 && args[1] === 'snapshot' && args.slice(2).every((arg) => arg === '--json');
-  if (isSnapshot) {
-    return;
-  }
-
   const isAppOperatorSummary = args.length === 3 && args[1] === 'app-operator-drilldown' && args[2] === '--json';
   if (isAppOperatorSummary) {
     return;

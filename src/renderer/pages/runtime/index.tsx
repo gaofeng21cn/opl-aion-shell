@@ -12,6 +12,7 @@ import {
   type RuntimeTrayActionOwner,
   type RuntimeTrayItem,
   type RuntimeTrayOpenPayload,
+  type RuntimeOperatorSummary,
   type RuntimeTraySnapshot,
 } from './types';
 
@@ -41,6 +42,37 @@ const isRuntimeTraySnapshot = (value: unknown): value is RuntimeTraySnapshot => 
     Boolean(snapshot.runtime_health)
   );
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const asRuntimeItems = (value: unknown): RuntimeTrayItem[] => (Array.isArray(value) ? (value as RuntimeTrayItem[]) : []);
+
+const isRuntimeOperatorSummary = (value: unknown): value is RuntimeOperatorSummary =>
+  isRecord(value) && value.surface_kind === 'opl_app_operator_drilldown_read_model';
+
+const defaultRuntimeHealth = (drilldown: RuntimeOperatorSummary): RuntimeTraySnapshot['runtime_health'] => {
+  const availability = typeof drilldown.availability === 'string' ? drilldown.availability : 'idle';
+  const status = availability === 'unavailable' || availability === 'blocked' ? 'needs_attention' : 'idle';
+  return {
+    status,
+    label: availability,
+    summary: availability,
+  };
+};
+
+const snapshotFromOperatorDrilldown = (drilldown: RuntimeOperatorSummary): RuntimeTraySnapshot => ({
+  schema_version: 'runtime_tray_snapshot.v1',
+  runtime_health: drilldown.runtime_health ?? defaultRuntimeHealth(drilldown),
+  last_updated: typeof drilldown.last_updated === 'string' ? drilldown.last_updated : new Date().toISOString(),
+  running_items: asRuntimeItems(drilldown.running_items),
+  attention_items: asRuntimeItems(drilldown.attention_items),
+  recent_items: asRuntimeItems(drilldown.recent_items),
+  action_counts: drilldown.action_counts,
+  stage_attempt_workbench: isRecord(drilldown.stage_attempt_workbench) ? drilldown.stage_attempt_workbench : null,
+  app_operator_drilldown: drilldown,
+  source_refs: [],
+});
 
 const getSourceRefLabel = (ref: Record<string, unknown>, fallback: string): string => {
   for (const key of ['label', 'title', 'surface', 'kind', 'type']) {
@@ -349,11 +381,18 @@ const RuntimeTrayItemPage: React.FC = () => {
     setLoadingSnapshot(true);
     setSnapshotError(null);
     try {
-      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['runtime', 'snapshot', '--json'] });
+      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['runtime', 'app-operator-drilldown', '--json'] });
       if (result.exitCode !== 0) {
         throw new Error(result.stderr || result.stdout || t('common.runtimeTray.snapshotLoadFailed'));
       }
-      const payload = JSON.parse(result.stdout) as { runtime_tray_snapshot?: unknown };
+      const payload = JSON.parse(result.stdout) as {
+        app_operator_drilldown?: unknown;
+        runtime_tray_snapshot?: unknown;
+      };
+      if (isRuntimeOperatorSummary(payload.app_operator_drilldown)) {
+        setSnapshot(snapshotFromOperatorDrilldown(payload.app_operator_drilldown));
+        return;
+      }
       if (!isRuntimeTraySnapshot(payload.runtime_tray_snapshot)) {
         throw new Error(t('common.runtimeTray.snapshotInvalid'));
       }

@@ -283,6 +283,7 @@
       "executeResult": "Execute Result",
       "actionExecutionSucceeded": "Action completed.",
       "actionExecutionFailed": "Action failed.",
+      "actionExecutionInvalid": "Action result has an invalid format.",
       "nextSafeAction": "Next Safe Action",
       "safeActionRouteBoundary": "Safe Action Route",
       "safeActionRouteInvalid": "Safe action is disabled because this projection does not route through the OPL CLI safe-action shell.",

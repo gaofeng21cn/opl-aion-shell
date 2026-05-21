@@ -122,3 +122,18 @@ export type RuntimeTraySnapshot = {
   app_operator_drilldown?: RuntimeTrayJsonRecord | null;
   source_refs: Array<Record<string, unknown>>;
 };
+
+export type RuntimeOperatorSummary = {
+  surface_kind?: 'opl_app_operator_drilldown_read_model' | string;
+  availability?: string;
+  detail_level?: 'summary' | 'full' | string;
+  schema_version?: string;
+  runtime_health?: RuntimeTraySnapshot['runtime_health'];
+  last_updated?: string;
+  action_counts?: RuntimeTrayActionCounts;
+  running_items?: RuntimeTrayItem[];
+  attention_items?: RuntimeTrayItem[];
+  recent_items?: RuntimeTrayItem[];
+  stage_attempt_workbench?: RuntimeTrayJsonRecord | null;
+  app_operator_drilldown?: RuntimeTrayJsonRecord | null;
+};

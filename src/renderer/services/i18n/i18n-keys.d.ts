@@ -214,6 +214,7 @@ export type I18nKey =
   | 'common.runtimeTray.actionSummaryDefault'
   | 'common.runtimeTray.activeRun'
   | 'common.runtimeTray.appDrilldown.actionExecutionFailed'
+  | 'common.runtimeTray.appDrilldown.actionExecutionInvalid'
   | 'common.runtimeTray.appDrilldown.actionExecutionSucceeded'
   | 'common.runtimeTray.appDrilldown.actionRouting'
   | 'common.runtimeTray.appDrilldown.advisory'

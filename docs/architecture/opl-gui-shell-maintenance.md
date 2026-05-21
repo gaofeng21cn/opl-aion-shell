@@ -137,25 +137,33 @@ When adding or changing trim rules:
 
 ## Stage Attempt Workbench Boundary
 
-As of 2026-05-11, the shell includes a constrained `RuntimeAttemptWorkbench` that consumes OPL `runtime snapshot` data, including the `stage_attempt_workbench` projection. The workbench may display provider kind, stage attempt id, provider completion, domain ready verdict, heartbeat, checkpoint refs, consumed refs, closeout refs, rejected writes, route impact, human gate refs, resume refs, and dead-letter state.
+As of 2026-05-11, the shell includes a constrained `RuntimeAttemptWorkbench`
+that consumes OPL `stage_attempt_workbench` projection data when it is present in
+the App/operator drilldown. The workbench may display provider kind, stage
+attempt id, provider completion, domain ready verdict, heartbeat, checkpoint
+refs, consumed refs, closeout refs, rejected writes, route impact, human gate
+refs, resume refs, and dead-letter state.
 
 This workbench is an operator visibility surface with a narrow signal bridge:
 
-- It reads the OPL CLI-backed `opl runtime snapshot --json` payload through the runtime tray bridge.
+- It reads the `stage_attempt_workbench` projection when OPL includes it in the
+  App/operator drilldown summary payload.
 - It distinguishes provider completion from domain ready verdict when the source projection provides both fields.
-- It may trigger only OPL `family-runtime attempt signal` operations for `human_gate`, `resume`, and `dead_letter_repair` user-instruction payloads generated from the snapshot projection.
+- It may trigger only OPL `family-runtime attempt signal` operations for `human_gate`, `resume`, and `dead_letter_repair` user-instruction payloads generated from the projection.
 - It can show MAS/MAG/RCA-owned refs, receipts, or blocked reasons, but it must not interpret them as medical, grant, or visual quality conclusions.
 - It does not create, accept, reject, or mutate MAS/MAG/RCA truth, artifact authority, memory body, or quality verdict.
 - It must not bypass OPL `family-runtime` provider contracts or call arbitrary runtime commands from renderer state; `shellBridge` must keep `family-runtime` restricted to the audited signal form.
 
 ## App Operator Drilldown Boundary
 
-As of 2026-05-20, the runtime page also renders the OPL
-`app_operator_drilldown` projection. This view is summary-first by default: it
-shows evidence counters, package/export counts, route counts, provider cadence,
-attention-first items, and authority-boundary fields from the summary payload.
-Full detail is loaded only after an explicit operator click through
-`opl runtime app-operator-drilldown --json --detail full`.
+As of 2026-05-20, the runtime page renders the OPL
+`app_operator_drilldown` projection as its App/operator evidence path. This
+view is summary-first by default through
+`opl runtime app-operator-drilldown --json`: it shows evidence counters,
+package/export counts, route counts, provider cadence, attention-first items,
+and authority-boundary fields from the summary payload. Full detail is loaded
+only after an explicit operator click through
+`opl runtime app-operator-drilldown --detail full --json`.
 
 The drilldown safe-action controls are intentionally narrower than generic
 runtime execution:
@@ -172,8 +180,11 @@ runtime execution:
   any CLI process starts.
 - Payloads remain refs-only. Memory bodies, artifact bodies, quality verdicts,
   export verdicts, and domain truth writes are not accepted by the shell.
+- The `runtime` bridge whitelist is limited to `app-operator-drilldown --json`,
+  `app-operator-drilldown --detail full --json`, and
+  `action execute --action ... [--payload refs-only-json] [--dry-run]`.
 - Dry-run and execute results are displayed as OPL CLI receipts, including their
   authority-boundary fields. The shell may refresh the OPL summary projection
   after execute, but it does not become the MAS/MAG/RCA truth owner.
 
-Current production gaps remain outside this GUI repo: Temporal server/worker residency proof, production long-duration domain activity soak using the OPL Codex runner, MAS real paper-line guarded apply soak, MAG/RCA OPL-hosted controlled soaks, real domain-memory writeback receipt instances, and retirement of legacy default runtime vocabulary. The OPL Codex runner has repo/test harness coverage in the framework repo; this GUI should stay aligned with OPL machine-readable snapshot fields while avoiding fork-local runtime truth.
+Current production gaps remain outside this GUI repo: Temporal server/worker residency proof, production long-duration domain activity soak using the OPL Codex runner, MAS real paper-line guarded apply soak, MAG/RCA OPL-hosted controlled soaks, real domain-memory writeback receipt instances, and retirement of legacy default runtime vocabulary. The OPL Codex runner has repo/test harness coverage in the framework repo; this GUI should stay aligned with OPL machine-readable App/operator drilldown fields while avoiding fork-local runtime truth.

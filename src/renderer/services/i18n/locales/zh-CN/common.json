@@ -283,6 +283,7 @@
       "executeResult": "执行结果",
       "actionExecutionSucceeded": "动作已完成。",
       "actionExecutionFailed": "动作执行失败。",
+      "actionExecutionInvalid": "动作结果格式无效。",
       "nextSafeAction": "下一安全动作",
       "safeActionRouteBoundary": "安全动作路由",
       "safeActionRouteInvalid": "该投影未通过 OPL CLI safe-action shell 路由，安全动作已禁用。",

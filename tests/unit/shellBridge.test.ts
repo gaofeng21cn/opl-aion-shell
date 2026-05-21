@@ -374,21 +374,11 @@ describe('shellBridge', () => {
       ).rejects.toThrow('Unsupported OPL skill action');
     });
 
-    it('allows the runtime snapshot command as a read-only OPL status surface', async () => {
-      execFileMock.mockImplementationOnce((_file: string, _args: string[], _options: unknown, callback: Function) => {
-        callback(null, { stdout: '{"runtime_tray_snapshot":{}}', stderr: '' });
-      });
-
-      const result = await runOplCommandProvider.fn!({ args: ['runtime', 'snapshot', '--json'] });
-
-      expect(result.exitCode).toBe(0);
-      expect(execFileMock).toHaveBeenCalledWith(
-        '/bin/zsh',
-        ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],
-        expect.objectContaining({ timeout: 120_000 }),
-        expect.any(Function)
+    it('rejects the legacy runtime snapshot command from the App operator bridge', async () => {
+      await expect(runOplCommandProvider.fn!({ args: ['runtime', 'snapshot', '--json'] })).rejects.toThrow(
+        'Unsupported OPL runtime action'
       );
-      expectOplJsonCommandArgs(execFileMock.mock.calls[0][1][1], ["'runtime'", "'snapshot'", "'--json'"]);
+      expect(execFileMock).not.toHaveBeenCalled();
     });
 
     it('allows the App operator drilldown summary and full-detail read models only as JSON', async () => {
@@ -445,7 +435,7 @@ describe('shellBridge', () => {
       expect(execFileMock).not.toHaveBeenCalled();
     });
 
-    it('allows runtime action execute for OPL-owned safe action families with refs-only payloads', async () => {
+    it('allows runtime action execute for whitelisted safe action families with refs-only payloads', async () => {
       const safeActions = [
         'external_evidence_request:medautoscience:app_workbench_package_ref_consumption:record',
         'provider-scheduler:temporal:trigger',
@@ -474,7 +464,12 @@ describe('shellBridge', () => {
         expect(result.exitCode).toBe(0);
       }
 
-      expect(execFileMock).toHaveBeenCalledTimes(safeActions.length);
+      const noPayloadExecute = await runOplCommandProvider.fn!({
+        args: ['runtime', 'action', 'execute', '--action', 'stage-production-attempt:medautoscience:analysis-campaign'],
+      });
+      expect(noPayloadExecute.exitCode).toBe(0);
+
+      expect(execFileMock).toHaveBeenCalledTimes(safeActions.length + 1);
       expect(execFileMock).toHaveBeenCalledWith(
         '/bin/zsh',
         ['-lc', expect.stringContaining('OPL_OUTPUT=json "$OPL_APP_CLI"')],

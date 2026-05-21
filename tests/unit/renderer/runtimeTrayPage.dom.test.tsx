@@ -231,6 +231,7 @@ const translations: Record<string, string> = {
   'common.runtimeTray.appDrilldown.executeResult': 'Execute Result',
   'common.runtimeTray.appDrilldown.actionExecutionSucceeded': 'Action completed.',
   'common.runtimeTray.appDrilldown.actionExecutionFailed': 'Action failed.',
+  'common.runtimeTray.appDrilldown.actionExecutionInvalid': 'Action result has an invalid format.',
   'common.runtimeTray.appDrilldown.nextSafeAction': 'Next Safe Action',
   'common.runtimeTray.appDrilldown.safeActionRouteBoundary': 'Safe Action Route',
   'common.runtimeTray.appDrilldown.safeActionRouteInvalid':
@@ -897,6 +898,21 @@ describe('RuntimeTrayItemPage', () => {
         },
       }),
     };
+    const snapshotPayload = JSON.parse(snapshotResponse.stdout) as { runtime_tray_snapshot: Record<string, unknown> };
+    const snapshotRecord = snapshotPayload.runtime_tray_snapshot;
+    const drilldownRecord = snapshotRecord.app_operator_drilldown as Record<string, unknown>;
+    snapshotResponse.stdout = JSON.stringify({
+      app_operator_drilldown: {
+        ...drilldownRecord,
+        runtime_health: snapshotRecord.runtime_health,
+        last_updated: snapshotRecord.last_updated,
+        stage_attempt_workbench: snapshotRecord.stage_attempt_workbench,
+        running_items: snapshotRecord.running_items,
+        attention_items: snapshotRecord.attention_items,
+        recent_items: snapshotRecord.recent_items,
+        action_counts: snapshotRecord.action_counts,
+      },
+    });
     const fullDetailResponse = {
       exitCode: 0,
       stderr: '',
@@ -1013,13 +1029,13 @@ describe('RuntimeTrayItemPage', () => {
         return Promise.resolve(fullDetailResponse);
       }
       if (args.join(' ') === 'runtime app-operator-drilldown --json') {
-        return Promise.resolve(refreshedSummaryResponse);
+        snapshotCallCount += 1;
+        return Promise.resolve(snapshotCallCount === 1 ? snapshotResponse : refreshedSummaryResponse);
       }
       if (args.join(' ').startsWith('runtime action execute')) {
         return Promise.resolve(args.includes('--dry-run') ? dryRunResponse : executeResponse);
       }
-      snapshotCallCount += 1;
-      return Promise.resolve(snapshotResponse);
+      throw new Error(`unexpected command ${args.join(' ')}`);
     });
 
     render(
@@ -1029,6 +1045,10 @@ describe('RuntimeTrayItemPage', () => {
     );
 
     expect(await screen.findByText('In Process')).toBeInTheDocument();
+    expect(runOplCommandMock).toHaveBeenCalledWith({
+      args: ['runtime', 'app-operator-drilldown', '--json'],
+    });
+    expect(runOplCommandMock).not.toHaveBeenCalledWith({ args: ['runtime', 'snapshot', '--json'] });
     expect(screen.getByText('Stage Attempt Workbench')).toBeInTheDocument();
     expect(screen.getByText('App Operator Drilldown')).toBeInTheDocument();
     expect(screen.getAllByText('Route Graph').length).toBeGreaterThanOrEqual(1);
