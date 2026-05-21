@@ -9,6 +9,10 @@ is consumed by the clean `one-person-lab-app` repository through an external
 checkout at `shells/aionui`; it is not the App repository root and not the
 upstream AionUI mainline.
 
+Root `TASTE.md` records the shared OPL family maintenance taste for the OPL
+overlay in this shell repository. Apply it together with this guide,
+CONTRIBUTING.md, and the upstream AionUI engineering rules.
+
 - `origin/main` is the OPL-maintained AionUI shell mainline.
 - `upstream/main` points to upstream `iOfficeAI/AionUi` and is only an upstream sync source.
 - Start shell implementation work, bug fixes, packaging-policy work, and worktrees from `origin/main`.
