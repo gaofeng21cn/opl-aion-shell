@@ -122,6 +122,23 @@ Retain OPL-specific product behavior only when it is still required by the One P
 
 OPL macOS releases use a universal DMG/ZIP by default. The earlier arm64/x64 split came from the inherited AionUI multi-architecture build matrix plus OPL's previous `build-mac` script, not from an Electron requirement. Keep `build-mac:arm64`, `build-mac:x64`, and `build-mac:dual` as release-engineering fallback paths, but the normal user-facing macOS release should be `mac-universal` so the GitHub Release page does not expose two equivalent downloads to ordinary users.
 
+## Release Workflow Ownership
+
+App release ownership has moved to `one-person-lab-app`. This shell repo keeps
+build, packaging, validation, and manual diagnostic capability, but it must not
+be the owner that automatically publishes GitHub Releases or distributes release
+assets from scheduled, tag, or release-event workflows.
+
+The 2026-05-15 `Build and Release` and `Distribute Release Assets` failures for
+`v26.5.15` are archived nested-topology history, not current App release
+failures. Current release-health checks should treat them as superseded evidence;
+use [`../history/release-workflow-v26.5.15.md`](../history/release-workflow-v26.5.15.md)
+for provenance.
+
+`bun run hygiene` includes a release workflow policy audit that fails if the
+retired release workflow names or automatic shell-side release
+publishing/distribution triggers are reintroduced.
+
 ## Packaging Trim Policy
 
 The central trim rules live in `electron-builder.yml`. The central validation rules live in `scripts/validate-packaged-runtime.js`.

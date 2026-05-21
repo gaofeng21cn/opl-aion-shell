@@ -7,6 +7,11 @@ The build scripts are part of the OPL shell surface consumed by the clean App
 repo. Start shell changes from `origin/main`; use upstream `upstream/main` only
 as an explicit AionUI intake source.
 
+App release publishing and release asset distribution are owned by
+`one-person-lab-app`. Scripts here may prepare and verify local packaging output
+for diagnostics or App-owned release preparation, but shell-side GitHub Actions
+must not automatically publish releases or distribute release assets.
+
 ## Current Build Scripts
 
 | Script                             | Purpose                                                                                                                              |
@@ -105,18 +110,19 @@ Use the current target-specific path:
 
 ## Automation And Diagnostics
 
-| Script                     | Purpose                                 |
-| -------------------------- | --------------------------------------- |
-| `pr-automation.sh`         | PR review/fix/merge daemon entry point. |
-| `fix-issues-daemon.sh`     | Local issue-fix daemon wrapper.         |
-| `fix-sentry-daemon.sh`     | Local Sentry-fix daemon wrapper.        |
-| `benchmark-startup.ts`     | Startup benchmark harness.              |
-| `benchmark-acp-startup.ts` | ACP startup benchmark harness.          |
-| `run-benchmarks.ts`        | Benchmark runner and report generator.  |
-| `check-i18n.js`            | i18n consistency check.                 |
-| `generate-i18n-types.js`   | i18n type generation.                   |
-| `build-server.mjs`         | Standalone server build helper.         |
-| `build-mcp-servers.js`     | MCP server build helper.                |
+| Script                                  | Purpose                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pr-automation.sh`                      | PR review/fix/merge daemon entry point.                                                          |
+| `fix-issues-daemon.sh`                  | Local issue-fix daemon wrapper.                                                                  |
+| `fix-sentry-daemon.sh`                  | Local Sentry-fix daemon wrapper.                                                                 |
+| `benchmark-startup.ts`                  | Startup benchmark harness.                                                                       |
+| `benchmark-acp-startup.ts`              | ACP startup benchmark harness.                                                                   |
+| `run-benchmarks.ts`                     | Benchmark runner and report generator.                                                           |
+| `check-i18n.js`                         | i18n consistency check.                                                                          |
+| `generate-i18n-types.js`                | i18n type generation.                                                                            |
+| `build-server.mjs`                      | Standalone server build helper.                                                                  |
+| `build-mcp-servers.js`                  | MCP server build helper.                                                                         |
+| `structure/release-workflow-policy.mjs` | Guard that prevents retired shell-side release publishing/distribution workflows from returning. |
 
 ## OPL First-Run VM Smoke
 

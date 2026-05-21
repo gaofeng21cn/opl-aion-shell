@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runReleaseWorkflowPolicyAudit } from './release-workflow-policy.mjs';
 
 const FORBIDDEN_DIRS = new Set([
   'build',
@@ -49,15 +50,25 @@ export function runHygieneAudit(cwd = process.cwd()) {
 }
 
 function main() {
-  const violations = runHygieneAudit();
-  if (violations.length === 0) {
+  const hygieneViolations = runHygieneAudit();
+  const releaseWorkflowViolations = runReleaseWorkflowPolicyAudit();
+  if (hygieneViolations.length === 0 && releaseWorkflowViolations.length === 0) {
     console.log('repo hygiene audit passed');
     return;
   }
 
-  console.error('Tracked generated/runtime payloads are not allowed:');
-  for (const violation of violations) {
-    console.error(`- ${violation}`);
+  if (hygieneViolations.length > 0) {
+    console.error('Tracked generated/runtime payloads are not allowed:');
+    for (const violation of hygieneViolations) {
+      console.error(`- ${violation}`);
+    }
+  }
+
+  if (releaseWorkflowViolations.length > 0) {
+    console.error('Obsolete shell release workflows are not allowed:');
+    for (const violation of releaseWorkflowViolations) {
+      console.error(`- ${violation}`);
+    }
   }
   process.exitCode = 1;
 }
