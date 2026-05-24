@@ -342,7 +342,7 @@ function isCoreFirstLaunchReady(initialize) {
   );
 }
 
-function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath) {
+function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths) {
   const moduleRoot = path.join(runtimeHome, runtimeRelativePath);
   const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
   if (!fs.existsSync(markerPath)) {
@@ -352,8 +352,11 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   if (marker.packaged_runtime !== true || marker.module_id !== moduleId || marker.repo_name !== repoName) {
     throw new Error(`OPL Full runtime module ${moduleId} has an invalid packaged marker: ${JSON.stringify(marker)}`);
   }
-  if (!fs.existsSync(path.join(moduleRoot, 'agent')) || !fs.existsSync(path.join(moduleRoot, 'plugins'))) {
-    throw new Error(`OPL Full runtime module ${moduleId} is missing expected agent/plugin payload: ${moduleRoot}`);
+  const missingPayloadPaths = requiredPayloadPaths.filter((relativePath) => !fs.existsSync(path.join(moduleRoot, relativePath)));
+  if (missingPayloadPaths.length > 0) {
+    throw new Error(
+      `OPL Full runtime module ${moduleId} is missing expected payload path(s): ${missingPayloadPaths.join(', ')} in ${moduleRoot}`
+    );
   }
 }
 
@@ -409,13 +412,17 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
-  for (const [moduleId, repoName, runtimeRelativePath] of [
-    ['medautoscience', 'med-autoscience', path.join('modules', 'mas')],
-    ['medautogrant', 'med-autogrant', path.join('modules', 'mag')],
-    ['redcube', 'redcube-ai', path.join('modules', 'rca')],
-    ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent')],
+  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of [
+    ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
+    ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
+    ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
+    ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent'), [
+      'agent',
+      'contracts',
+      path.join('runtime', 'authority_functions'),
+    ]],
   ]) {
-    assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath);
+    assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }
   const assertFullRuntimeToolCallable = (command, args) => {
     const probe = spawnSync(

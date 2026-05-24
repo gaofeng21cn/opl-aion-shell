@@ -72,6 +72,7 @@ Options:
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
+  --guest-node-root <path> Copy a host Node.js runtime directory into the guest workdir and use it for the smoke.
   --guest-node-command <cmd>
                            Existing Node.js command in the guest. Skips Node download/probe install.
   --dry-run                Resolve arguments and write a host plan without cloning or starting Tart.
@@ -100,6 +101,7 @@ function parseArgs(argv) {
     cdpPort: 9230,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
+    guestNodeRoot: '',
     guestNodeCommand: '',
     dryRun: false,
     noGraphics: false,
@@ -181,6 +183,9 @@ function parseArgs(argv) {
     } else if (arg === '--codex-api-key-file') {
       options.codexApiKeyFile = path.resolve(value);
       explicit.add('codexApiKeyFile');
+    } else if (arg === '--guest-node-root') {
+      options.guestNodeRoot = path.resolve(value);
+      explicit.add('guestNodeRoot');
     } else if (arg === '--guest-node-command') {
       options.guestNodeCommand = value;
       explicit.add('guestNodeCommand');
@@ -205,6 +210,12 @@ function parseArgs(argv) {
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
   }
+  if (options.guestNodeRoot) {
+    const nodeBin = path.join(options.guestNodeRoot, 'bin', 'node');
+    if (!fs.existsSync(nodeBin)) {
+      throw new Error(`--guest-node-root must contain bin/node: ${options.guestNodeRoot}`);
+    }
+  }
   if (!['full', 'standard'].includes(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
   }
@@ -226,6 +237,7 @@ function buildDryRunPlan(options) {
     settings_smoke: options.settingsSmoke,
     cdp_port: options.settingsSmoke ? options.cdpPort : null,
     runtime_profile: options.runtimeProfile,
+    guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
@@ -349,6 +361,37 @@ function runAsync(command, args, options = {}) {
   });
 }
 
+function runPipe(leftCommand, leftArgs, rightCommand, rightArgs) {
+  return new Promise((resolve, reject) => {
+    const left = spawn(leftCommand, leftArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const right = spawn(rightCommand, rightArgs, { stdio: ['pipe', 'pipe', 'pipe'] });
+    runtimeState.currentChild = right;
+    left.stdout.pipe(right.stdin);
+    let stderr = '';
+    left.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    right.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    const failures = [];
+    left.once('error', (error) => failures.push(error));
+    right.once('error', (error) => failures.push(error));
+    left.once('close', (code, signal) => {
+      if (code !== 0) failures.push(new Error(`${leftCommand} ${leftArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
+    });
+    right.once('close', (code, signal) => {
+      if (runtimeState.currentChild === right) runtimeState.currentChild = null;
+      if (code !== 0) failures.push(new Error(`${rightCommand} ${rightArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
+      if (failures.length > 0) {
+        reject(new Error([...failures.map((failure) => failure.message), stderr ? `stderr:\n${stderr}` : ''].filter(Boolean).join('\n')));
+        return;
+      }
+      resolve('');
+    });
+  });
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
@@ -377,6 +420,23 @@ async function scpFromGuest(options, ip, sourceDir, targetDir) {
   if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
   args.push(`${options.guestUser}@${ip}:${sourceDir}/`, targetDir);
   await runAsync('scp', args);
+}
+
+async function copyHostNodeRootToGuest(options, ip) {
+  if (!options.guestNodeRoot) return null;
+  const guestNodeRoot = `${options.guestWorkdir}/host-node-${path.basename(options.guestNodeRoot)}`;
+  await ssh(
+    options,
+    ip,
+    `rm -rf ${shellQuote(guestNodeRoot)} && mkdir -p ${shellQuote(guestNodeRoot)}`
+  );
+  await runPipe(
+    'tar',
+    ['-C', options.guestNodeRoot, '-cf', '-', '.'],
+    'ssh',
+    [...sshBaseArgs(options, ip), `tar -C ${shellQuote(guestNodeRoot)} -xf -`]
+  );
+  return `${guestNodeRoot}/bin/node`;
 }
 
 function sleep(ms) {
@@ -680,6 +740,10 @@ async function main() {
       [options.dmg, resolveGuestSmokeScriptPath(), codexApiKeyFile.path],
       options.guestWorkdir
     );
+    if (options.guestNodeRoot && !options.guestNodeCommand) {
+      setStage('copy_guest_node_root');
+      options.guestNodeCommand = await copyHostNodeRootToGuest(options, ip);
+    }
     setStage(options.guestNodeCommand ? 'use_guest_node_command' : 'resolve_guest_node');
     if (!options.guestNodeCommand) {
       options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);

@@ -10,6 +10,7 @@ type TartSmokeOptions = {
   dmg: string;
   dryRun: boolean;
   guestNodeCommand: string;
+  guestNodeRoot: string;
   guestWorkdir: string;
   keepVm: boolean;
   noGraphics: boolean;
@@ -105,6 +106,30 @@ describe('scripts/opl-first-run-tart-smoke profile parsing', () => {
 
     expect(options.runtimeProfile).toBe('full');
     expect(options.guestNodeCommand).toBe('/opt/node/bin/node');
+  });
+
+  it('accepts a host Node root for deterministic clean VM harness setup', async () => {
+    const api = await loadTartSmokeTestApi();
+    const nodeRoot = makeTempRoot();
+    fs.mkdirSync(path.join(nodeRoot, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(nodeRoot, 'bin', 'node'), '#!/usr/bin/env bash\n', 'utf8');
+
+    const options = api.parseArgs([
+      '--dry-run',
+      '--source-vm',
+      'opl-clean-node',
+      '--dmg',
+      './missing-release.dmg',
+      '--smoke-profile',
+      'full-gate',
+      '--guest-node-root',
+      nodeRoot,
+    ]);
+
+    expect(options.guestNodeRoot).toBe(nodeRoot);
+    expect(api.buildDryRunPlan(options)).toMatchObject({
+      guest_node_root: nodeRoot,
+    });
   });
 
   it('rejects an unknown smoke profile before Tart is touched', async () => {

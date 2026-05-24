@@ -34,10 +34,15 @@ const requiredSkills = [
   'ui-ux-pro-max',
 ];
 const bundledModules = [
-  ['medautoscience', 'med-autoscience', path.join('modules', 'mas')],
-  ['medautogrant', 'med-autogrant', path.join('modules', 'mag')],
-  ['redcube', 'redcube-ai', path.join('modules', 'rca')],
-  ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent')],
+  ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
+  ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
+  ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
+  [
+    'oplmetaagent',
+    'opl-meta-agent',
+    path.join('modules', 'meta-agent'),
+    ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+  ],
 ] as const;
 
 function makeTempRoot() {
@@ -52,10 +57,17 @@ function writeExecutable(filePath: string) {
   fs.chmodSync(filePath, 0o755);
 }
 
-function writePackagedRuntimeModule(runtimeHome: string, moduleId: string, repoName: string, relativePath: string) {
+function writePackagedRuntimeModule(
+  runtimeHome: string,
+  moduleId: string,
+  repoName: string,
+  relativePath: string,
+  payloadPaths: readonly string[],
+) {
   const moduleRoot = path.join(runtimeHome, relativePath);
-  fs.mkdirSync(path.join(moduleRoot, 'agent'), { recursive: true });
-  fs.mkdirSync(path.join(moduleRoot, 'plugins'), { recursive: true });
+  for (const payloadPath of payloadPaths) {
+    fs.mkdirSync(path.join(moduleRoot, payloadPath), { recursive: true });
+  }
   fs.writeFileSync(
     path.join(moduleRoot, 'opl-runtime-module.json'),
     `${JSON.stringify({
@@ -86,8 +98,8 @@ function createFullRuntimeFixture(homeRoot: string) {
     'utf8'
   );
   fs.chmodSync(path.join(runtimeHome, 'bin', 'mineru-open-api'), 0o755);
-  for (const [moduleId, repoName, relativePath] of bundledModules) {
-    writePackagedRuntimeModule(runtimeHome, moduleId, repoName, relativePath);
+  for (const [moduleId, repoName, relativePath, payloadPaths] of bundledModules) {
+    writePackagedRuntimeModule(runtimeHome, moduleId, repoName, relativePath, payloadPaths);
   }
   for (const skillId of requiredSkills) {
     fs.mkdirSync(path.join(codexHome, 'skills', skillId), { recursive: true });
