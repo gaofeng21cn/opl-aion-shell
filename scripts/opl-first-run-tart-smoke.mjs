@@ -378,13 +378,21 @@ function runPipe(leftCommand, leftArgs, rightCommand, rightArgs) {
     left.once('error', (error) => failures.push(error));
     right.once('error', (error) => failures.push(error));
     left.once('close', (code, signal) => {
-      if (code !== 0) failures.push(new Error(`${leftCommand} ${leftArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
+      if (code !== 0)
+        failures.push(new Error(`${leftCommand} ${leftArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
     });
     right.once('close', (code, signal) => {
       if (runtimeState.currentChild === right) runtimeState.currentChild = null;
-      if (code !== 0) failures.push(new Error(`${rightCommand} ${rightArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
+      if (code !== 0)
+        failures.push(new Error(`${rightCommand} ${rightArgs.join(' ')} exited with ${code ?? `signal ${signal}`}`));
       if (failures.length > 0) {
-        reject(new Error([...failures.map((failure) => failure.message), stderr ? `stderr:\n${stderr}` : ''].filter(Boolean).join('\n')));
+        reject(
+          new Error(
+            [...failures.map((failure) => failure.message), stderr ? `stderr:\n${stderr}` : '']
+              .filter(Boolean)
+              .join('\n')
+          )
+        );
         return;
       }
       resolve('');
@@ -425,17 +433,11 @@ async function scpFromGuest(options, ip, sourceDir, targetDir) {
 async function copyHostNodeRootToGuest(options, ip) {
   if (!options.guestNodeRoot) return null;
   const guestNodeRoot = `${options.guestWorkdir}/host-node-${path.basename(options.guestNodeRoot)}`;
-  await ssh(
-    options,
-    ip,
-    `rm -rf ${shellQuote(guestNodeRoot)} && mkdir -p ${shellQuote(guestNodeRoot)}`
-  );
-  await runPipe(
-    'tar',
-    ['-C', options.guestNodeRoot, '-cf', '-', '.'],
-    'ssh',
-    [...sshBaseArgs(options, ip), `tar -C ${shellQuote(guestNodeRoot)} -xf -`]
-  );
+  await ssh(options, ip, `rm -rf ${shellQuote(guestNodeRoot)} && mkdir -p ${shellQuote(guestNodeRoot)}`);
+  await runPipe('tar', ['-C', options.guestNodeRoot, '-cf', '-', '.'], 'ssh', [
+    ...sshBaseArgs(options, ip),
+    `tar -C ${shellQuote(guestNodeRoot)} -xf -`,
+  ]);
   return `${guestNodeRoot}/bin/node`;
 }
 

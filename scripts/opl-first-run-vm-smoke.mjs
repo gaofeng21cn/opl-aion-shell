@@ -352,7 +352,9 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   if (marker.packaged_runtime !== true || marker.module_id !== moduleId || marker.repo_name !== repoName) {
     throw new Error(`OPL Full runtime module ${moduleId} has an invalid packaged marker: ${JSON.stringify(marker)}`);
   }
-  const missingPayloadPaths = requiredPayloadPaths.filter((relativePath) => !fs.existsSync(path.join(moduleRoot, relativePath)));
+  const missingPayloadPaths = requiredPayloadPaths.filter(
+    (relativePath) => !fs.existsSync(path.join(moduleRoot, relativePath))
+  );
   if (missingPayloadPaths.length > 0) {
     throw new Error(
       `OPL Full runtime module ${moduleId} is missing expected payload path(s): ${missingPayloadPaths.join(', ')} in ${moduleRoot}`
@@ -416,11 +418,12 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
     ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
     ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
-    ['oplmetaagent', 'opl-meta-agent', path.join('modules', 'meta-agent'), [
-      'agent',
-      'contracts',
-      path.join('runtime', 'authority_functions'),
-    ]],
+    [
+      'oplmetaagent',
+      'opl-meta-agent',
+      path.join('modules', 'meta-agent'),
+      ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+    ],
   ]) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }

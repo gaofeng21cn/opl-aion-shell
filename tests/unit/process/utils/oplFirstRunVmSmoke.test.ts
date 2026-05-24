@@ -62,7 +62,7 @@ function writePackagedRuntimeModule(
   moduleId: string,
   repoName: string,
   relativePath: string,
-  payloadPaths: readonly string[],
+  payloadPaths: readonly string[]
 ) {
   const moduleRoot = path.join(runtimeHome, relativePath);
   for (const payloadPath of payloadPaths) {

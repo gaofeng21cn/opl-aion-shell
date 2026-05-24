@@ -46,7 +46,8 @@ const isRuntimeTraySnapshot = (value: unknown): value is RuntimeTraySnapshot => 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 
-const asRuntimeItems = (value: unknown): RuntimeTrayItem[] => (Array.isArray(value) ? (value as RuntimeTrayItem[]) : []);
+const asRuntimeItems = (value: unknown): RuntimeTrayItem[] =>
+  Array.isArray(value) ? (value as RuntimeTrayItem[]) : [];
 
 const isRuntimeOperatorSummary = (value: unknown): value is RuntimeOperatorSummary =>
   isRecord(value) && value.surface_kind === 'opl_app_operator_drilldown_read_model';
@@ -381,7 +382,9 @@ const RuntimeTrayItemPage: React.FC = () => {
     setLoadingSnapshot(true);
     setSnapshotError(null);
     try {
-      const result = await ipcBridge.shell.runOplCommand.invoke({ args: ['runtime', 'app-operator-drilldown', '--json'] });
+      const result = await ipcBridge.shell.runOplCommand.invoke({
+        args: ['runtime', 'app-operator-drilldown', '--json'],
+      });
       if (result.exitCode !== 0) {
         throw new Error(result.stderr || result.stdout || t('common.runtimeTray.snapshotLoadFailed'));
       }

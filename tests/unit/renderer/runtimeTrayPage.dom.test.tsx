@@ -1078,9 +1078,7 @@ describe('RuntimeTrayItemPage', () => {
       )
     ).toBeInTheDocument();
     expect(screen.getByText(/Evidence Gate Receipts/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/^Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3$/)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^Evidence Gates: 4; Remaining Gates: 1; Verified Gate Receipts: 3$/)).toBeInTheDocument();
     expect(screen.getByText(/Legacy Cleanup/)).toBeInTheDocument();
     expect(screen.getByText(/Cleanup Plans: 3; Ready Plans: 3; Apply Ready: 2/)).toBeInTheDocument();
     expect(screen.getByText(/Provider Cadence Window/)).toBeInTheDocument();
@@ -1421,7 +1419,9 @@ describe('RuntimeTrayItemPage', () => {
     expect(screen.getAllByText(/route_target_kind=domain_action/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/can_execute_domain_action_directly=true/).length).toBeGreaterThanOrEqual(1);
     expect(
-      screen.getByText('Safe action is disabled because this projection does not route through the OPL CLI safe-action shell.')
+      screen.getByText(
+        'Safe action is disabled because this projection does not route through the OPL CLI safe-action shell.'
+      )
     ).toBeInTheDocument();
 
     const executeButton = screen.getByText('Execute').closest('button');

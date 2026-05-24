@@ -819,7 +819,7 @@ const AppOperatorDrilldown: React.FC<AppOperatorDrilldownProps> = ({ drilldown }
             ? t('common.runtimeTray.appDrilldown.invalidPayload')
             : error instanceof Error && error.message === OPL_CLI_ROUTE_ERROR
               ? t('common.runtimeTray.appDrilldown.safeActionRouteInvalid')
-            : t('common.runtimeTray.appDrilldown.actionExecutionFailed');
+              : t('common.runtimeTray.appDrilldown.actionExecutionFailed');
         Message.error(
           error instanceof Error &&
             error.message !== REFS_ONLY_PAYLOAD_ERROR &&
