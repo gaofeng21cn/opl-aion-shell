@@ -906,5 +906,28 @@
     "pendingCancel": "取消",
     "pendingTimeRemaining": "剩余时间：{{time}}"
   },
+  "runtime": {
+    "navLabel": "运行时",
+    "title": "运行时工作台",
+    "description": "从 One Person Lab Framework 持有的投影和引用展示 summary-first 运行时可视化。",
+    "sourceSurface": "来源面",
+    "state": "运行状态",
+    "stageGraph": "阶段图",
+    "routeGraph": "路由图",
+    "decisionMap": "决策图",
+    "timeline": "时间线",
+    "paperLensRefs": "研究论文视角引用",
+    "safeActions": "安全动作路由",
+    "ownerBoundary": "Owner 边界",
+    "refs": "证据引用",
+    "actionResult": "动作结果",
+    "actions": {
+      "loadFull": "加载完整详情",
+      "dryRun": "试运行",
+      "execute": "执行",
+      "dryRunComplete": "试运行完成",
+      "executeComplete": "动作已执行"
+    }
+  },
   "noExternalSources": "未发现外部技能源"
 }

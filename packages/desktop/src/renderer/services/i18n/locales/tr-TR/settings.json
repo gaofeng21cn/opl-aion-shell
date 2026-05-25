@@ -905,5 +905,28 @@
     "pendingCancel": "İptal",
     "pendingTimeRemaining": "Kalan süre: {{time}}"
   },
+  "runtime": {
+    "navLabel": "Runtime",
+    "title": "Runtime Workbench",
+    "description": "Framework-owned projections and refs üzerinden summary-first OPL runtime görselleştirmesi.",
+    "sourceSurface": "Kaynak yüzeyi",
+    "state": "Runtime durumu",
+    "stageGraph": "Stage graph",
+    "routeGraph": "Route graph",
+    "decisionMap": "Decision map",
+    "timeline": "Timeline",
+    "paperLensRefs": "Research paper lens refs",
+    "safeActions": "Safe action routes",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "Action result",
+    "actions": {
+      "loadFull": "Tüm ayrıntıyı yükle",
+      "dryRun": "Dry run",
+      "execute": "Çalıştır",
+      "dryRunComplete": "Dry run tamamlandı",
+      "executeComplete": "Action executed"
+    }
+  },
   "noExternalSources": "Harici beceri kaynağı bulunamadı"
 }

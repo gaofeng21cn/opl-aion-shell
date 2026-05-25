@@ -907,5 +907,28 @@
     "pendingCancel": "キャンセル",
     "pendingTimeRemaining": "残り時間：{{time}}"
   },
+  "runtime": {
+    "navLabel": "ランタイム",
+    "title": "ランタイムワークベンチ",
+    "description": "Framework-owned projections and refs から summary-first の OPL ランタイム可視化を表示します。",
+    "sourceSurface": "ソースサーフェス",
+    "state": "ランタイム状態",
+    "stageGraph": "ステージグラフ",
+    "routeGraph": "ルートグラフ",
+    "decisionMap": "決定マップ",
+    "timeline": "タイムライン",
+    "paperLensRefs": "研究論文レンズ refs",
+    "safeActions": "安全なアクションルート",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "アクション結果",
+    "actions": {
+      "loadFull": "詳細を読み込む",
+      "dryRun": "ドライラン",
+      "execute": "実行",
+      "dryRunComplete": "ドライラン完了",
+      "executeComplete": "アクションを実行しました"
+    }
+  },
   "noExternalSources": "外部スキルソースが見つかりません"
 }

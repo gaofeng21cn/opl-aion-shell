@@ -1,0 +1,232 @@
+.runtime-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.runtime-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.runtime-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 700;
+}
+
+.runtime-header p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  max-width: 760px;
+}
+
+.runtime-header__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.runtime-summary,
+.runtime-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.runtime-summary {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.runtime-summary > div,
+.runtime-card {
+  border: 1px solid var(--border-base);
+  background: var(--bg-1);
+  border-radius: 8px;
+}
+
+.runtime-summary > div {
+  min-height: 72px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.runtime-summary span,
+.runtime-node__meta,
+.runtime-action__meta {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runtime-summary strong {
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.runtime-grid--graphs {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.runtime-card {
+  padding: 14px;
+  min-width: 0;
+}
+
+.runtime-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 12px;
+}
+
+.runtime-card__header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.runtime-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  color: var(--text-secondary);
+}
+
+.runtime-node-list,
+.runtime-action-list,
+.runtime-ref-list,
+.runtime-edge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.runtime-node,
+.runtime-action {
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 10px;
+}
+
+.runtime-node__main,
+.runtime-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.runtime-node__main span,
+.runtime-action__title {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.runtime-node__meta,
+.runtime-action__meta,
+.runtime-edge {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  min-width: 0;
+}
+
+.runtime-action__body {
+  min-width: 0;
+}
+
+.runtime-action__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.runtime-ref-list {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.runtime-ref-list code,
+.runtime-node code,
+.runtime-action code,
+.runtime-edge code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  background: var(--fill-2);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runtime-edge {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runtime-error {
+  border: 1px solid var(--color-danger);
+  background: var(--bg-1);
+  color: var(--color-danger);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+
+.runtime-json-preview {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--fill-2);
+  color: var(--text-primary);
+  padding: 12px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+@media (max-width: 767px) {
+  .runtime-header {
+    flex-direction: column;
+  }
+
+  .runtime-header__actions,
+  .runtime-action {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .runtime-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -905,5 +905,28 @@
     "pendingCancel": "Cancel",
     "pendingTimeRemaining": "Time remaining: {{time}}"
   },
+  "runtime": {
+    "navLabel": "Runtime",
+    "title": "Runtime Workbench",
+    "description": "Summary-first OPL runtime visualization from framework-owned projections and refs.",
+    "sourceSurface": "Source surface",
+    "state": "Runtime state",
+    "stageGraph": "Stage graph",
+    "routeGraph": "Route graph",
+    "decisionMap": "Decision map",
+    "timeline": "Timeline",
+    "paperLensRefs": "Research paper lens refs",
+    "safeActions": "Safe action routes",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "Action result",
+    "actions": {
+      "loadFull": "Load full detail",
+      "dryRun": "Dry run",
+      "execute": "Execute",
+      "dryRunComplete": "Dry run complete",
+      "executeComplete": "Action executed"
+    }
+  },
   "noExternalSources": "No external skill sources discovered"
 }

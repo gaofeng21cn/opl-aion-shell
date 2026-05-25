@@ -907,5 +907,28 @@
     "skills": "Навыки",
     "tools": "Инструменты"
   },
-  "capabilities": "Возможности"
+  "capabilities": "Возможности",
+  "runtime": {
+    "navLabel": "Runtime",
+    "title": "Runtime Workbench",
+    "description": "Summary-first визуализация OPL runtime из framework-owned projections and refs.",
+    "sourceSurface": "Source surface",
+    "state": "Runtime state",
+    "stageGraph": "Stage graph",
+    "routeGraph": "Route graph",
+    "decisionMap": "Decision map",
+    "timeline": "Timeline",
+    "paperLensRefs": "Research paper lens refs",
+    "safeActions": "Safe action routes",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "Action result",
+    "actions": {
+      "loadFull": "Загрузить полные детали",
+      "dryRun": "Dry run",
+      "execute": "Выполнить",
+      "dryRunComplete": "Dry run завершен",
+      "executeComplete": "Action executed"
+    }
+  }
 }

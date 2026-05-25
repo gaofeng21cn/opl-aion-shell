@@ -11,6 +11,7 @@ import { initSystemSettingsBridge } from './systemSettingsBridge';
 import { initWindowControlsBridge } from './windowControlsBridge';
 import { initNotificationBridge } from './notificationBridge';
 import { initWebuiBridge } from './webuiBridge';
+import { initOplRuntimeBridge } from './oplRuntimeBridge';
 
 export type BridgeDependencies = Record<string, never>;
 
@@ -22,6 +23,7 @@ export function initAllBridges(_deps: BridgeDependencies = {}): void {
   initSystemSettingsBridge();
   initNotificationBridge();
   initWebuiBridge();
+  initOplRuntimeBridge();
 }
 
 export {
@@ -32,6 +34,7 @@ export {
   initUpdateBridge,
   initWindowControlsBridge,
   initWebuiBridge,
+  initOplRuntimeBridge,
 };
 export { registerWindowMaximizeListeners } from './windowControlsBridge';
 export const disposeAllTeamSessions = (): Promise<void> => Promise.resolve();

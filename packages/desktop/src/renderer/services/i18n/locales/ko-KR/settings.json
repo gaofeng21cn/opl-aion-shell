@@ -907,5 +907,28 @@
     "pendingCancel": "취소",
     "pendingTimeRemaining": "남은 시간: {{time}}"
   },
+  "runtime": {
+    "navLabel": "런타임",
+    "title": "런타임 워크벤치",
+    "description": "Framework-owned projections and refs에서 summary-first OPL 런타임 시각화를 표시합니다.",
+    "sourceSurface": "소스 표면",
+    "state": "런타임 상태",
+    "stageGraph": "스테이지 그래프",
+    "routeGraph": "라우트 그래프",
+    "decisionMap": "결정 맵",
+    "timeline": "타임라인",
+    "paperLensRefs": "연구 논문 렌즈 refs",
+    "safeActions": "안전 작업 라우트",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "작업 결과",
+    "actions": {
+      "loadFull": "전체 세부 정보 로드",
+      "dryRun": "드라이 런",
+      "execute": "실행",
+      "dryRunComplete": "드라이 런 완료",
+      "executeComplete": "작업 실행됨"
+    }
+  },
   "noExternalSources": "외부 스킬 소스를 찾을 수 없습니다"
 }

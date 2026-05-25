@@ -54,6 +54,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       icon: <Lightning theme='outline' size='16' />,
       path: 'capabilities',
     },
+    runtime: {
+      id: 'runtime',
+      label: t('settings.runtime.navLabel', { defaultValue: 'Runtime' }),
+      icon: <Lightning theme='outline' size='16' />,
+      path: 'runtime',
+    },
     display: {
       id: 'display',
       label: t('settings.display'),

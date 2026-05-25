@@ -4,6 +4,7 @@ import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import {
+  BranchOne,
   Cat,
   Communication,
   Computer,
@@ -29,6 +30,7 @@ export const BUILTIN_TAB_IDS = [
   'model',
   'assistants',
   'capabilities',
+  'runtime',
   'display',
   'webui',
   'pet',
@@ -99,6 +101,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
         label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
         icon: <Lightning />,
         path: 'capabilities',
+      },
+      runtime: {
+        id: 'runtime',
+        label: t('settings.runtime.navLabel', { defaultValue: 'Runtime' }),
+        icon: <BranchOne />,
+        path: 'runtime',
       },
       display: { id: 'display', label: t('settings.display'), icon: <Computer />, path: 'display' },
       webui: {

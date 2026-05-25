@@ -823,5 +823,28 @@
     "pendingCancel": "Скасувати",
     "pendingTimeRemaining": "Залишилося часу: {{time}}"
   },
+  "runtime": {
+    "navLabel": "Runtime",
+    "title": "Runtime Workbench",
+    "description": "Summary-first візуалізація OPL runtime з framework-owned projections and refs.",
+    "sourceSurface": "Source surface",
+    "state": "Runtime state",
+    "stageGraph": "Stage graph",
+    "routeGraph": "Route graph",
+    "decisionMap": "Decision map",
+    "timeline": "Timeline",
+    "paperLensRefs": "Research paper lens refs",
+    "safeActions": "Safe action routes",
+    "ownerBoundary": "Owner boundary",
+    "refs": "Evidence refs",
+    "actionResult": "Action result",
+    "actions": {
+      "loadFull": "Завантажити повні деталі",
+      "dryRun": "Dry run",
+      "execute": "Виконати",
+      "dryRunComplete": "Dry run завершено",
+      "executeComplete": "Action executed"
+    }
+  },
   "noExternalSources": "Зовнішні джерела навичок не знайдені"
 }

@@ -907,5 +907,28 @@
     "pendingCancel": "取消",
     "pendingTimeRemaining": "剩餘時間：{{time}}"
   },
+  "runtime": {
+    "navLabel": "執行階段",
+    "title": "執行階段工作台",
+    "description": "從 One Person Lab Framework 持有的投影和引用展示 summary-first 執行階段可視化。",
+    "sourceSurface": "來源面",
+    "state": "執行狀態",
+    "stageGraph": "階段圖",
+    "routeGraph": "路由圖",
+    "decisionMap": "決策圖",
+    "timeline": "時間線",
+    "paperLensRefs": "研究論文視角引用",
+    "safeActions": "安全動作路由",
+    "ownerBoundary": "Owner 邊界",
+    "refs": "證據引用",
+    "actionResult": "動作結果",
+    "actions": {
+      "loadFull": "載入完整詳情",
+      "dryRun": "試執行",
+      "execute": "執行",
+      "dryRunComplete": "試執行完成",
+      "executeComplete": "動作已執行"
+    }
+  },
   "noExternalSources": "未發現外部技能來源"
 }

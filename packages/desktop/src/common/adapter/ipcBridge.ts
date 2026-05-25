@@ -384,6 +384,32 @@ export const application = {
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
 };
 
+export type IOplRuntimeDetailLevel = 'summary' | 'full';
+
+export type IOplRuntimeActionRequest = {
+  actionId: string;
+  dryRun: boolean;
+  payloadRefsOnlyJson?: Record<string, unknown>;
+};
+
+export type IOplRuntimeCommandResult = {
+  surface: 'runtime_summary' | 'runtime_full' | 'runtime_action';
+  command: string;
+  stdout: string;
+  parsed: unknown;
+};
+
+// ---------------------------------------------------------------------------
+// OPL Runtime — narrow Electron-local CLI proxy for App/operator read models
+// ---------------------------------------------------------------------------
+
+export const oplRuntime = {
+  getDrilldown: bridge.buildProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
+    'opl-runtime.get-drilldown'
+  ),
+  executeAction: bridge.buildProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>('opl-runtime.execute-action'),
+};
+
 // ---------------------------------------------------------------------------
 // Update — stays IPC (Electron-native auto-updater)
 // ---------------------------------------------------------------------------
