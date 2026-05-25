@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "owner": "one-person-lab-app",
+  "purpose": "app_owned_product_profile",
+  "state": "active",
+  "machine_boundary": "App product defaults and user-facing session profile only; no runtime truth, provider implementation, domain truth, quality verdict, or artifact authority.",
+  "app_repo": "gaofeng21cn/one-person-lab-app",
+  "product": {
+    "id": "one_person_lab_app",
+    "display_name": "One Person Lab App",
+    "primary_surface": "desktop_workbench",
+    "supported_release_platforms": ["macos-arm64"]
+  },
+  "contract_refs": {
+    "active_shell": "contracts/app-shell-adapter.json",
+    "page_state": "contracts/app-page-state-matrix.json",
+    "first_run": "contracts/app-first-run-test-matrix.json",
+    "release_channel": "contracts/app-release-channel.json"
+  },
+  "default_session_profile": {
+    "executor": "codex_cli",
+    "model": "gpt-5.5",
+    "reasoning_effort": "xhigh",
+    "applies_after": "codex_openai_api_key_configured",
+    "authority": "app_session_default_only"
+  },
+  "codex": {
+    "default_model": "gpt-5.5",
+    "default_model_description": "System Codex default model when configured",
+    "default_reasoning_effort": "xhigh",
+    "default_visible_skills": [
+      "mas",
+      "mag",
+      "rca",
+      "superpowers",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ],
+    "skill_priority": [
+      "mas",
+      "mag",
+      "rca",
+      "superpowers",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "mineru-document-extractor",
+      "ui-ux-pro-max",
+      "morph-ppt"
+    ],
+    "session_context_lines": [
+      "## OPL App 默认会话规则",
+      "",
+      "你正在 One Person Lab App 的 Codex 会话中工作。App 是普通用户/开发者工作台，负责使用入口、显式激活、状态投影和共享上下文；它不是 runtime truth owner。",
+      "",
+      "三层产品模型：",
+      "- 使用 One Person Lab：面向普通用户和开发者的工作台入口。",
+      "- 管理 Foundry Agents：MAS/MAG/RCA 等领域智能体持有领域事实、质量结论、运行入口和产物 authority。",
+      "- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。",
+      "",
+      "默认路由：",
+      "- OPL App 是前端和工作台；新增 OPL executor adapter 不改变默认会话行为。没有用户或 stage 的显式 executor 选择时，默认仍使用 Codex CLI 会话语义。",
+      "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
+      "- 基金、标书、申请书：使用 MAG。",
+      "- PPT、演示、视觉交付物：使用 RCA。",
+      "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
+      "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
+    ]
+  },
+  "first_run": {
+    "readiness_layers": ["core", "domain_modules", "family_runtime_provider"],
+    "deferred_blockers": ["domain_modules", "family_runtime_provider", "recommended_skills"],
+    "core_ready_policy": {
+      "full_first_install_clean_machine": {
+        "missing_host_tools_allowed": ["command_line_tools", "homebrew", "node", "git"],
+        "initial_runtime_source": "bundled_runtime",
+        "core_ready_without_host_tools": true,
+        "must_not_block_core_ready": [
+          "repo_sync",
+          "module_reconcile",
+          "command_line_tools_install",
+          "companion_skills_install",
+          "ecosystem_module_updates"
+        ],
+        "post_core_ready_background_policy": {
+          "mode": "best_effort_non_blocking",
+          "continues_after_core_ready": true,
+          "managed_items": [
+            "repo_sync",
+            "module_reconcile",
+            "command_line_tools_install",
+            "companion_skills_install",
+            "ecosystem_module_updates"
+          ],
+          "user_confirmation_items": ["command_line_tools_install"]
+        }
+      },
+      "standard_package": {
+        "bootstrap_owner": "app_managed",
+        "maintenance_owner": "app_managed",
+        "user_first_screen_terminal_instruction_allowed": false,
+        "manual_host_tool_install_terminal_state_allowed": false,
+        "maintenance_resolution_policy": "app_or_cli_managed_best_effort_until_ready",
+        "forbidden_terminal_instruction_end_states": [
+          "install_homebrew_first",
+          "install_node_first",
+          "install_git_first"
+        ]
+      }
+    },
+    "background_maintenance": {
+      "items": [
+        "repo_sync",
+        "module_reconcile",
+        "command_line_tools_install",
+        "companion_skills_install",
+        "ecosystem_module_updates"
+      ],
+      "mode": "best_effort_after_core_ready",
+      "blocks_core_ready": false,
+      "continues_after_core_ready": true,
+      "resumption_surface": "Settings"
+    },
+    "command_line_tools": {
+      "auto_request_installer": true,
+      "installer_command": "xcode-select --install",
+      "system_installer_only": true,
+      "waits_for_user_confirmation": true,
+      "blocks_full_first_launch": false,
+      "messages": [
+        "One Person Lab uses Apple Command Line Tools for Git-backed updates and standard module maintenance on this Mac.",
+        "The macOS Command Line Tools installer has been opened. You can keep using One Person Lab while that Apple installer runs.",
+        "If module maintenance or Git-backed updates are still waiting afterward, One Person Lab will resume them from Settings."
+      ]
+    },
+    "updates": {
+      "standard_channel": {
+        "implementation_reference": "electron_autoUpdater_background_download_update_downloaded_restart_prompt",
+        "metadata_scope": ["latest-mac.yml", "latest-arm64-mac.yml"],
+        "download_policy": "background_download",
+        "apply_policy": "restart_when_ready",
+        "ready_prompt": "prompt_restart_after_download_ready",
+        "full_first_install_metadata_allowed": false,
+        "blocks_core_ready": false
+      }
+    }
+  },
+  "settings": {
+    "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
+    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
+    "developer_mode": {
+      "label_key": "settings.developerMode",
+      "description_key": "settings.developerModeDesc",
+      "hide_machine_status": true,
+      "state_keys": {
+        "unknown": "settings.developerModeDesc",
+        "off": "settings.developerModeStateOff",
+        "auto": "settings.developerModeStateAuto",
+        "on_limited": "settings.developerModeStateOnLimited",
+        "on_ready": "settings.developerModeStateOnReady"
+      }
+    }
+  },
+  "companion_payloads": {
+    "tools": ["officecli", "mineru-open-api"],
+    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
+    "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent"],
+    "management_authority": {
+      "officecli": "app_or_cli_managed",
+      "mineru": "app_or_cli_managed",
+      "opl-meta-agent": "app_or_cli_managed"
+    },
+    "recommended_codex_skills": [
+      "mas",
+      "mag",
+      "rca",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ]
+  },
+  "boundary": {
+    "app_owns": [
+      "desktop product profile",
+      "release assets",
+      "updater metadata",
+      "first-run UX checks",
+      "GUI page-state tests",
+      "user documentation"
+    ],
+    "app_consumes": [
+      "framework contracts",
+      "OPL CLI JSON outputs",
+      "runtime snapshots",
+      "provider receipts",
+      "domain-owned projections"
+    ],
+    "app_does_not_own": [
+      "runtime_truth",
+      "provider_implementation",
+      "domain_truth",
+      "domain_quality_verdict",
+      "domain_artifact_authority"
+    ]
+  }
+}

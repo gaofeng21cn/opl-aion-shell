@@ -15,6 +15,8 @@ import { ipcBridge } from '@/common';
 import { getSystemDir, ProcessEnv } from '@process/utils/initStorage';
 import { copyDirectoryRecursively, getConfigPath, getDataPath, resolveCliSafePath } from '@process/utils';
 
+export const OPL_APP_RELEASE_REPO = 'gaofeng21cn/one-person-lab-app';
+
 export function initApplicationBridgeCore(): void {
   // application.systemInfo is served by the backend via HTTP; updateSystemInfo
   // and getPath below remain buildProvider (true IPC) because they need

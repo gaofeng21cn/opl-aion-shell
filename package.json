@@ -1,7 +1,7 @@
 {
-  "name": "AionUi",
+  "name": "one-person-lab-aion-shell",
   "version": "2.1.1",
-  "description": "Transform your command-line AI agent into a modern, efficient AI Chat interface.",
+  "description": "One Person Lab desktop shell adapter based on AionUI.",
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
@@ -41,6 +41,10 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "i18n:types": "node scripts/generate-i18n-types.js",
+    "validate:packaged-runtime": "node scripts/validate-packaged-runtime.js",
+    "validate:opl-package": "node scripts/validate-packaged-runtime.js --scan-all",
+    "test:opl-first-run-vm": "node scripts/opl-first-run-vm-smoke.mjs",
+    "test:opl-first-run-vm:tart": "node scripts/opl-first-run-tart-smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

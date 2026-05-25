@@ -64,6 +64,8 @@ import {
   setCloseToTrayEnabled,
   setIsQuitting,
 } from './process/utils/tray';
+import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/backend/fullRuntime';
+import { buildOplHostToolEnv } from './process/backend/hostToolEnv';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
@@ -131,6 +133,12 @@ if (process.platform === 'darwin' || process.platform === 'linux') {
     }
   }
 }
+
+const oplRuntime = ensurePackagedOplFullRuntime({
+  isPackaged: app.isPackaged,
+  resourcesPath: process.resourcesPath,
+});
+applyOplFullRuntimeEnv(buildOplHostToolEnv({ runtimeEnv: oplRuntime?.env }));
 
 // Handle Squirrel startup events (Windows installer)
 if (electronSquirrelStartup) {

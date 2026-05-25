@@ -1,12 +1,12 @@
-appId: com.aionui.app
-productName: AionUi
-executableName: AionUi
-copyright: Copyright © 2024 AionUi
+appId: cn.onepersonlab.opl
+productName: One Person Lab
+executableName: One Person Lab
+copyright: Copyright © 2026 One Person Lab
 
 protocols:
-  - name: AionUi Protocol
+  - name: One Person Lab Protocol
     schemes:
-      - aionui
+      - opl
 
 asar:
   smartUnpack: true
@@ -114,13 +114,15 @@ extraResources:
     to: bundled-aioncore
   - from: resources/hub
     to: hub
+  - from: packaged-runtimes/opl-full-runtime
+    to: opl-full-runtime
 win:
   target:
     - nsis
     #    - msi
     - zip
   icon: resources/app.ico # Use the checked-in Windows icon resource for executable metadata/icon patching
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
 
 nsis:
   oneClick: false
@@ -129,7 +131,7 @@ nsis:
   createStartMenuShortcut: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   differentialPackage: false
 
 mac:
@@ -137,7 +139,7 @@ mac:
     - dmg
     - zip
   icon: resources/app.icns
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -170,19 +172,19 @@ linux:
   target:
     - deb
   icon: resources/app.png
-  artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
   category: Utility
-  maintainer: aionui
-  vendor: aionui
+  maintainer: One Person Lab
+  vendor: One Person Lab
   synopsis: ${description}
   description: ${description}
   desktop:
     entry:
-      Name: AionUi
+      Name: One Person Lab
       Comment: ${description}
-      Icon: aionui
+      Icon: opl
       Categories: Office;Utility;
-      MimeType: x-scheme-handler/aionui;
+      MimeType: x-scheme-handler/opl;
 
 npmRebuild: false
 buildDependenciesFromSource: false
@@ -221,7 +223,7 @@ electronDownload:
 
 publish:
   provider: github
-  owner: iOfficeAI
-  repo: AionUi
+  owner: gaofeng21cn
+  repo: one-person-lab-app
   publishAutoUpdate: true
   releaseType: release

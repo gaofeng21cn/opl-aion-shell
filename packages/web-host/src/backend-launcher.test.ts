@@ -134,6 +134,27 @@ describe('buildSpawnEnv', () => {
     expect(env.AIONUI_LOG_DIR).toBe('/l');
     expect(env.PATH).toBe(process.env.PATH); // inherits
   });
+
+  it('keeps AIONUI_* dirs authoritative while accepting OPL runtime env overrides', () => {
+    const env = buildSpawnEnv(
+      {
+        cacheDir: '/c',
+        workDir: '/w',
+        logDir: '/l',
+      },
+      {
+        PATH: ['/opt/opl/runtime/current/bin', '/opt/opl/runtime/current/node/bin'].join(':'),
+        OPL_FULL_RUNTIME_HOME: '/opt/opl/runtime/current',
+        AIONUI_CACHE_DIR: '/wrong-cache',
+      }
+    );
+
+    expect(env.OPL_FULL_RUNTIME_HOME).toBe('/opt/opl/runtime/current');
+    expect(env.PATH?.split(':')).toEqual(['/opt/opl/runtime/current/bin', '/opt/opl/runtime/current/node/bin']);
+    expect(env.AIONUI_CACHE_DIR).toBe('/c');
+    expect(env.AIONUI_WORK_DIR).toBe('/w');
+    expect(env.AIONUI_LOG_DIR).toBe('/l');
+  });
 });
 
 describe('findAvailablePort', () => {

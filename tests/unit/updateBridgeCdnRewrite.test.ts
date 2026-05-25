@@ -118,6 +118,24 @@ describe('updateBridge CDN URL rewriting', () => {
     vi.clearAllMocks();
   });
 
+  it('checks the One Person Lab App release repo by default', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => makeGitHubReleaseResponse(),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({});
+
+      expect(result.success).toBe(true);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('rewrites asset.url to the CDN path and keeps GitHub URL in fallbackUrl', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

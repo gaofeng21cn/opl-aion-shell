@@ -1,0 +1,1359 @@
+#!/usr/bin/env node
+import { execFileSync, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const DEFAULT_PROCESS_NAME = 'One Person Lab';
+const DEFAULT_LABELS = {
+  window: 'opl-first-run-window',
+  progress: 'opl-first-run-progress',
+  blockersList: 'opl-first-run-blockers-list',
+  installButton: 'opl-first-run-install-button',
+  codexApiKeyInput: 'opl-first-run-codex-api-key-input',
+  codexConfigureButton: 'opl-first-run-configure-codex-button',
+  retryButton: 'opl-first-run-retry-button',
+  environmentButton: 'opl-first-run-open-environment-button',
+  modulesButton: 'opl-first-run-open-modules-button',
+  readyEntry: 'opl-first-run-ready-entry',
+  guidEntry: 'opl-guid-entry',
+  settingsEnvironment: 'opl-settings-environment',
+};
+const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
+const RUNTIME_PROFILES = new Set(['full', 'standard']);
+
+function usage() {
+  process.stdout.write(`Usage:
+  node scripts/opl-first-run-vm-smoke.mjs --app "/Applications/One Person Lab.app"
+  node scripts/opl-first-run-vm-smoke.mjs --dmg ./dist/One-Person-Lab.dmg
+
+Options:
+  --app <path>           Existing packaged .app path.
+  --dmg <path>           Release DMG to mount and install into /Applications.
+  --install-dir <path>   Install target for --dmg. Default: /Applications.
+  --artifacts <path>     Artifact output directory. Default: ./artifacts/opl-first-run-<timestamp>.
+  --process-name <name>  macOS process name. Default: One Person Lab.
+  --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
+  --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
+  --cdp-port <n>         CDP port used by --settings-smoke. Default: 9230.
+  --runtime-profile <profile>
+                         First-run package profile to verify: full or standard. Default: full.
+                         The full profile verifies bundled runtime/module/skill equivalence.
+                         The standard profile verifies core launch readiness without requiring
+                         Full-only bundled modules.
+  --codex-api-key-file <path>
+                         File containing a test Codex API key. The key is read from disk,
+                         entered through the GUI wizard, and never passed as a CLI argument.
+  --require-codex-config-wizard
+                         Fail unless the Codex configuration wizard is seen and submitted.
+  --assert-clean         Fail if OPL state/log or app-local GUI state already exists before launch.
+  --help                 Show this message.
+`);
+}
+
+function parseArgs(argv) {
+  const options = {
+    app: null,
+    dmg: null,
+    installDir: '/Applications',
+    artifacts: null,
+    processName: DEFAULT_PROCESS_NAME,
+    timeoutMs: 180_000,
+    settingsSmoke: false,
+    cdpPort: 9230,
+    runtimeProfile: 'full',
+    codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
+    requireCodexConfigWizard: false,
+    assertClean: false,
+  };
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === '--help') {
+      usage();
+      process.exit(0);
+    }
+    if (arg === '--assert-clean') {
+      options.assertClean = true;
+      continue;
+    }
+    if (arg === '--require-codex-config-wizard') {
+      options.requireCodexConfigWizard = true;
+      continue;
+    }
+    if (arg === '--settings-smoke') {
+      options.settingsSmoke = true;
+      continue;
+    }
+    const value = argv[index + 1];
+    if (!value) throw new Error(`Missing value for ${arg}`);
+    index += 1;
+    if (arg === '--app') options.app = path.resolve(value);
+    else if (arg === '--dmg') options.dmg = path.resolve(value);
+    else if (arg === '--install-dir') options.installDir = path.resolve(value);
+    else if (arg === '--artifacts') options.artifacts = path.resolve(value);
+    else if (arg === '--process-name') options.processName = value;
+    else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
+    else if (arg === '--cdp-port') options.cdpPort = Number(value);
+    else if (arg === '--runtime-profile') options.runtimeProfile = value;
+    else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
+    else throw new Error(`Unsupported argument: ${arg}`);
+  }
+
+  if (options.app && options.dmg) throw new Error('Use only one of --app or --dmg.');
+  if (!options.app && !options.dmg) throw new Error('One of --app or --dmg is required.');
+  if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
+  if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
+    throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
+  }
+  if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
+    throw new Error('--runtime-profile must be one of: full, standard.');
+  }
+  if (!options.artifacts) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
+  }
+  return options;
+}
+
+function shouldVerifyFullFirstRunEquivalence(runtimeProfile) {
+  return runtimeProfile === 'full';
+}
+
+function readCodexApiKey(options) {
+  if (!options.codexApiKeyFile) return null;
+  const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
+  if (!key) throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
+  return key;
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    stdio: options.stdio ?? 'pipe',
+    env: options.env ?? process.env,
+    cwd: options.cwd ?? process.cwd(),
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      [
+        `${command} ${args.join(' ')} exited with ${result.status}`,
+        result.stdout ? `stdout:\n${result.stdout}` : '',
+        result.stderr ? `stderr:\n${result.stderr}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+  return result.stdout ?? '';
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function runtimeShellExecutable() {
+  const override = process.env.OPL_FIRST_RUN_SHELL?.trim();
+  if (override) return override;
+  if (fs.existsSync('/bin/zsh')) return '/bin/zsh';
+  if (fs.existsSync('/bin/bash')) return '/bin/bash';
+  return 'sh';
+}
+
+function assertMacOS() {
+  if (process.platform !== 'darwin') {
+    throw new Error('OPL GUI first-run smoke must run on macOS.');
+  }
+}
+
+function defaultFirstRunLogPath() {
+  return path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab', 'first-run.jsonl');
+}
+
+function defaultOplStatePath() {
+  return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'state');
+}
+
+function defaultOplRuntimeRoot() {
+  return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'runtime');
+}
+
+function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
+  return path.join(os.homedir(), 'Library', 'Application Support', processName);
+}
+
+function assertCleanFirstRunState(processName = DEFAULT_PROCESS_NAME) {
+  const existing = [defaultFirstRunLogPath(), defaultOplStatePath(), defaultAppSupportPath(processName)].filter(
+    (entry) => fs.existsSync(entry)
+  );
+  if (existing.length > 0) {
+    throw new Error(`Fresh VM assertion failed; existing OPL state/log/app-local state found:\n${existing.join('\n')}`);
+  }
+}
+
+function findAppBundle(root) {
+  const entries = fs.readdirSync(root, { withFileTypes: true });
+  const app = entries.find((entry) => entry.isDirectory() && entry.name.endsWith('.app'));
+  return app ? path.join(root, app.name) : null;
+}
+
+function mountDmg(dmgPath) {
+  const mountPoint = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-dmg-'));
+  run('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountPoint]);
+  return mountPoint;
+}
+
+function detachDmg(mountPoint) {
+  spawnSync('hdiutil', ['detach', mountPoint], { stdio: 'ignore' });
+  fs.rmSync(mountPoint, { recursive: true, force: true });
+}
+
+function installDmgApp(dmgPath, installDir) {
+  const mountPoint = mountDmg(dmgPath);
+  try {
+    const mountedApp = findAppBundle(mountPoint);
+    if (!mountedApp) throw new Error(`No .app bundle found in ${dmgPath}`);
+    const targetApp = path.join(installDir, path.basename(mountedApp));
+    fs.rmSync(targetApp, { recursive: true, force: true });
+    run('ditto', [mountedApp, targetApp]);
+    return targetApp;
+  } finally {
+    detachDmg(mountPoint);
+  }
+}
+
+function buildLaunchAppArgs(appPath, options) {
+  const args = ['--force-renderer-accessibility'];
+  if (options.settingsSmoke) {
+    args.push(`--aionui-cdp-port=${options.cdpPort}`);
+  }
+  return ['-n', appPath, '--args', ...args];
+}
+
+function launchApp(appPath, options) {
+  if (options.settingsSmoke) {
+    run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
+  }
+  run('open', buildLaunchAppArgs(appPath, options));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function realpathOrResolve(filePath) {
+  try {
+    return fs.realpathSync(filePath);
+  } catch (_) {
+    return path.resolve(filePath);
+  }
+}
+
+function isMainModule(moduleUrl, argvPath = process.argv[1]) {
+  if (!argvPath) return false;
+  return realpathOrResolve(fileURLToPath(moduleUrl)) === realpathOrResolve(argvPath);
+}
+
+function findLatestFullRuntimeHome(runtimeRoot = defaultOplRuntimeRoot()) {
+  if (!fs.existsSync(runtimeRoot)) return null;
+  const currentRuntime = path.join(runtimeRoot, 'current');
+  if (fs.existsSync(path.join(currentRuntime, 'bin', 'opl'))) {
+    return currentRuntime;
+  }
+
+  const pointerPath = path.join(runtimeRoot, 'current.json');
+  try {
+    const pointer = JSON.parse(fs.readFileSync(pointerPath, 'utf8'));
+    const pointerRuntime = typeof pointer?.runtime_home === 'string' ? pointer.runtime_home.trim() : '';
+    if (pointerRuntime && fs.existsSync(path.join(pointerRuntime, 'bin', 'opl'))) {
+      return pointerRuntime;
+    }
+  } catch (_) {
+    // Continue to legacy versioned runtime discovery below.
+  }
+
+  const candidates = fs
+    .readdirSync(runtimeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(runtimeRoot, entry.name))
+    .filter((runtimeHome) => fs.existsSync(path.join(runtimeHome, 'bin', 'opl')))
+    .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }));
+  return candidates[0] ?? null;
+}
+
+function resolvePythonBin(runtimeHome) {
+  const pythonRoot = path.join(runtimeHome, 'python');
+  if (!fs.existsSync(pythonRoot)) return null;
+  return (
+    fs
+      .readdirSync(pythonRoot)
+      .filter((entry) => entry.startsWith('cpython-'))
+      .map((entry) => path.join(pythonRoot, entry, 'bin'))
+      .filter((entry) => fs.existsSync(entry))
+      .sort()
+      .reverse()[0] ?? null
+  );
+}
+
+function buildFullRuntimeCommandPrefix(runtimeHome) {
+  if (!runtimeHome) return '';
+  const pythonBin = resolvePythonBin(runtimeHome);
+  const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
+  const pathEntries = [
+    path.join(runtimeHome, 'bin'),
+    path.join(runtimeHome, 'node', 'bin'),
+    path.join(runtimeHome, 'uv', 'bin'),
+    ...(pythonBin ? [pythonBin] : []),
+  ].join(path.delimiter);
+  return [
+    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
+    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(runtimeHome, 'skills'))}`,
+    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(runtimeHome, 'modules', 'meta-agent'))}`,
+    `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
+    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
+    `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
+  ]
+    .filter(Boolean)
+    .join(' && ');
+}
+
+function listStringValues(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
+}
+
+function hasOnlyDeferredFullFirstRunBlockers(blockers) {
+  return blockers.every((blocker) => DEFERRED_FULL_FIRST_RUN_BLOCKERS.has(blocker));
+}
+
+function isCoreFirstLaunchReady(initialize) {
+  if (initialize?.setup_flow?.ready_to_launch === true) return true;
+  const readiness = initialize?.readiness ?? {};
+  const blockers = listStringValues(initialize?.setup_flow?.blocking_items);
+  return (
+    readiness.launch_ready === true &&
+    readiness.core_ready !== false &&
+    readiness.domain_ready !== false &&
+    hasOnlyDeferredFullFirstRunBlockers(blockers)
+  );
+}
+
+function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths) {
+  const moduleRoot = path.join(runtimeHome, runtimeRelativePath);
+  const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
+  if (!fs.existsSync(markerPath)) {
+    throw new Error(`OPL Full runtime module ${moduleId} is missing packaged marker: ${markerPath}`);
+  }
+  const marker = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+  if (marker.packaged_runtime !== true || marker.module_id !== moduleId || marker.repo_name !== repoName) {
+    throw new Error(`OPL Full runtime module ${moduleId} has an invalid packaged marker: ${JSON.stringify(marker)}`);
+  }
+  const missingPayloadPaths = requiredPayloadPaths.filter(
+    (relativePath) => !fs.existsSync(path.join(moduleRoot, relativePath))
+  );
+  if (missingPayloadPaths.length > 0) {
+    throw new Error(
+      `OPL Full runtime module ${moduleId} is missing expected payload path(s): ${missingPayloadPaths.join(', ')} in ${moduleRoot}`
+    );
+  }
+}
+
+function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
+  const systemInitialize = JSON.parse(systemInitializeRaw);
+  const initialize = systemInitialize.system_initialize;
+  if (!isCoreFirstLaunchReady(initialize)) {
+    throw new Error(
+      `OPL first-run initialize did not report a launchable core state: ${JSON.stringify({
+        ready_to_launch: initialize?.setup_flow?.ready_to_launch ?? null,
+        blocking_items: initialize?.setup_flow?.blocking_items ?? [],
+        readiness: initialize?.readiness ?? null,
+      })}`
+    );
+  }
+  JSON.parse(modulesRaw);
+  const requiredSkills = [
+    'mas',
+    'mag',
+    'rca',
+    'opl-meta-agent',
+    'officecli',
+    'officecli-docx',
+    'officecli-pptx',
+    'officecli-xlsx',
+    'mineru-document-extractor',
+    'ui-ux-pro-max',
+  ];
+  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
+  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
+  for (const skillId of [
+    'officecli',
+    'officecli-docx',
+    'officecli-pptx',
+    'officecli-xlsx',
+    'mineru-document-extractor',
+    'ui-ux-pro-max',
+  ]) {
+    if (readySkills.get(skillId) !== 'ready') {
+      throw new Error(`OPL Full first-run skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`);
+    }
+  }
+  const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
+  for (const skillId of requiredSkills) {
+    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(
+        `OPL Full first-run skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+      );
+    }
+  }
+  const runtimeHome = findLatestFullRuntimeHome();
+  if (!runtimeHome) {
+    throw new Error('OPL Full runtime home was not found after first launch.');
+  }
+  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of [
+    ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
+    ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
+    ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
+    [
+      'oplmetaagent',
+      'opl-meta-agent',
+      path.join('modules', 'meta-agent'),
+      ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+    ],
+  ]) {
+    assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
+  }
+  const assertFullRuntimeToolCallable = (command, args) => {
+    const probe = spawnSync(
+      runtimeShellExecutable(),
+      [
+        '-lc',
+        [buildFullRuntimeCommandPrefix(runtimeHome), [command, ...args].map(shellQuote).join(' ')]
+          .filter(Boolean)
+          .join(' && '),
+      ],
+      {
+        encoding: 'utf8',
+      }
+    );
+    if (probe.status !== 0 || !probe.stdout.trim()) {
+      throw new Error(`${command} is not callable from the Full runtime PATH: ${probe.stderr || probe.stdout}`);
+    }
+  };
+  assertFullRuntimeToolCallable('officecli', ['--version']);
+  assertFullRuntimeToolCallable('mineru-open-api', ['version']);
+}
+
+function runOplJson(args) {
+  const runtimeHome = findLatestFullRuntimeHome();
+  const command = [
+    buildFullRuntimeCommandPrefix(runtimeHome),
+    'command -v opl >/dev/null',
+    ['opl', ...args].map(shellQuote).join(' '),
+  ]
+    .filter(Boolean)
+    .join(' && ');
+  const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
+    encoding: 'utf8',
+    env: { ...process.env, OPL_OUTPUT: 'json' },
+  });
+  if (result.status !== 0) {
+    throw new Error(`opl ${args.join(' ')} failed:\n${result.stderr || result.stdout}`);
+  }
+  return result.stdout;
+}
+
+function queryAccessibility(processName) {
+  const expectedLabels = [
+    DEFAULT_LABELS.window,
+    DEFAULT_LABELS.progress,
+    DEFAULT_LABELS.blockersList,
+    DEFAULT_LABELS.installButton,
+    DEFAULT_LABELS.codexApiKeyInput,
+    DEFAULT_LABELS.codexConfigureButton,
+    DEFAULT_LABELS.retryButton,
+    DEFAULT_LABELS.environmentButton,
+    DEFAULT_LABELS.modulesButton,
+    DEFAULT_LABELS.readyEntry,
+    DEFAULT_LABELS.guidEntry,
+  ];
+  const script = `
+const procName = ${JSON.stringify(processName)};
+const systemEvents = Application('System Events');
+const maxDepth = 16;
+const maxNodes = 1500;
+const expectedLabels = new Set(${JSON.stringify(expectedLabels)});
+const foundLabels = new Set();
+function tryRead(fn) {
+  try {
+    const value = fn();
+    if (value === undefined || value === null) return null;
+    return String(value);
+  } catch (_) {
+    return null;
+  }
+}
+function recordLabels(node) {
+  for (const value of [node.name, node.description, node.title, node.value, node.help]) {
+    if (expectedLabels.has(value)) foundLabels.add(value);
+  }
+}
+function hasExpectedLabels() {
+  for (const label of expectedLabels) {
+    if (!foundLabels.has(label)) return false;
+  }
+  return true;
+}
+function walk(element, depth, output) {
+  if (depth > maxDepth || output.length > maxNodes) return false;
+  const role = tryRead(() => element.role());
+  const node = {
+    role,
+    name: tryRead(() => element.name()),
+    description: tryRead(() => element.description()),
+    title: tryRead(() => element.title()),
+    value: tryRead(() => element.value()),
+    help: tryRead(() => element.help()),
+    position: tryRead(() => element.position()),
+    size: tryRead(() => element.size()),
+  };
+  output.push(node);
+  recordLabels(node);
+  if (hasExpectedLabels()) return true;
+  if (role === 'AXMenuBar' || role === 'AXMenu' || role === 'AXMenuBarItem') return false;
+  let children = [];
+  try {
+    children = element.uiElements();
+  } catch (_) {
+    children = [];
+  }
+  for (const child of children) {
+    if (walk(child, depth + 1, output)) return true;
+  }
+  return false;
+}
+const proc = systemEvents.processes.byName(procName);
+const output = [];
+const appNode = {
+  role: tryRead(() => proc.role()),
+  name: tryRead(() => proc.name()),
+  description: tryRead(() => proc.description()),
+  title: tryRead(() => proc.title()),
+  value: null,
+  help: null,
+};
+output.push(appNode);
+recordLabels(appNode);
+let windows = [];
+try {
+  windows = proc.windows();
+} catch (_) {
+  windows = [];
+}
+for (const window of windows) {
+  if (walk(window, 1, output)) break;
+}
+JSON.stringify(output);
+`;
+  const raw = execFileSync('osascript', ['-l', 'JavaScript', '-e', script], { encoding: 'utf8', timeout: 30_000 });
+  return JSON.parse(raw);
+}
+
+function treeContainsLabel(tree, label) {
+  return tree.some((node) =>
+    [node.name, node.description, node.title, node.value, node.help].some((value) => value === label)
+  );
+}
+
+function assertDoesNotContainSecret(label, content, secret) {
+  if (secret && content.includes(secret)) {
+    throw new Error(`${label} unexpectedly contains the Codex API key.`);
+  }
+}
+
+function writeTextArtifact(target, content, secret) {
+  assertDoesNotContainSecret(path.basename(target), content, secret);
+  fs.writeFileSync(target, content, 'utf8');
+}
+
+function writeJsonArtifact(target, value, secret) {
+  writeTextArtifact(target, `${JSON.stringify(value, null, 2)}\n`, secret);
+}
+
+function captureMacScreenArtifact(target) {
+  if (process.env.OPL_FIRST_RUN_ENABLE_MACOS_SCREENCAPTURE !== '1') {
+    fs.writeFileSync(
+      `${target}.skipped.txt`,
+      [
+        'Skipped macOS screencapture to avoid Screen & System Audio permission prompts in clean VM smoke.',
+        'Settings page screenshots are captured through CDP instead.',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    return { status: 'skipped', target };
+  }
+
+  const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
+  return { status: result.status === 0 ? 'captured' : 'skipped', target };
+}
+
+function submitCodexWizard(processName, apiKey) {
+  const script = `
+ObjC.import('stdlib');
+const procName = ${JSON.stringify(processName)};
+const inputLabel = ${JSON.stringify(DEFAULT_LABELS.codexApiKeyInput)};
+const buttonLabel = ${JSON.stringify(DEFAULT_LABELS.codexConfigureButton)};
+const apiKey = $.getenv('OPL_FIRST_RUN_CODEX_API_KEY');
+if (!apiKey) throw new Error('Missing OPL_FIRST_RUN_CODEX_API_KEY');
+const systemEvents = Application('System Events');
+const proc = systemEvents.processes.byName(procName);
+function tryRead(fn) {
+  try {
+    const value = fn();
+    if (value === undefined || value === null) return null;
+    return String(value);
+  } catch (_) {
+    return null;
+  }
+}
+function values(element) {
+  return [
+    tryRead(() => element.name()),
+    tryRead(() => element.description()),
+    tryRead(() => element.title()),
+    tryRead(() => element.value()),
+    tryRead(() => element.help()),
+  ];
+}
+function hasLabel(element, label) {
+  return values(element).some((value) => value === label);
+}
+function children(element) {
+  try {
+    return element.uiElements();
+  } catch (_) {
+    return [];
+  }
+}
+function find(element, predicate, depth = 0) {
+  if (depth > 16) return null;
+  if (predicate(element)) return element;
+  for (const child of children(element)) {
+    const found = find(child, predicate, depth + 1);
+    if (found) return found;
+  }
+  return null;
+}
+function roleOf(element) {
+  return tryRead(() => element.role());
+}
+function isTextInput(element) {
+  const role = roleOf(element);
+  return role === 'AXTextField' || role === 'AXTextArea' || role === 'AXComboBox';
+}
+function findInWindows(predicate) {
+  const windows = proc.windows();
+  for (const window of windows) {
+    const found = find(window, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+const labelledInput = findInWindows((element) => hasLabel(element, inputLabel));
+let input = labelledInput ? find(labelledInput, isTextInput) : null;
+if (!input) input = findInWindows(isTextInput);
+if (!input) throw new Error('Codex API key input was not found');
+try {
+  input.actions.byName('AXPress').perform();
+} catch (_) {}
+try {
+  input.focused = true;
+} catch (_) {}
+try {
+  input.value = apiKey;
+} catch (_) {}
+systemEvents.keystroke('a', { using: 'command down' });
+systemEvents.keyCode(51);
+systemEvents.keystroke(apiKey);
+delay(0.2);
+const button = findInWindows((element) => hasLabel(element, buttonLabel));
+if (!button) throw new Error('Codex configure button was not found');
+try {
+  button.actions.byName('AXPress').perform();
+} catch (_) {
+  button.click();
+}
+JSON.stringify({ status: 'submitted' });
+`;
+  execFileSync('osascript', ['-l', 'JavaScript', '-e', script], {
+    encoding: 'utf8',
+    timeout: 30_000,
+    env: { ...process.env, OPL_FIRST_RUN_CODEX_API_KEY: apiKey },
+  });
+}
+
+function readFirstRunEvents(filePath) {
+  if (!fs.existsSync(filePath)) return [];
+  return fs
+    .readFileSync(filePath, 'utf8')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (_) {
+        return null;
+      }
+    })
+    .filter(Boolean);
+}
+
+function describeFirstRunFailure(events) {
+  const failure = events.findLast?.((event) => event.event_type === 'gui_initialize_failed');
+  if (!failure) return null;
+  const message = failure.payload?.message || failure.payload?.status || 'unknown first-run failure';
+  return String(message);
+}
+
+function isFirstRunCompletionEvent(event) {
+  if (
+    !event ||
+    !['gui_preparation_completed', 'gui_preparation_completed_with_deferred_attention'].includes(event.event_type)
+  ) {
+    return false;
+  }
+  return event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared';
+}
+
+async function waitForFullFirstRunEquivalence(timeoutMs) {
+  const started = Date.now();
+  let lastError = null;
+  let lastSystemInitializeRaw = '';
+  let lastModulesRaw = '';
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+      lastModulesRaw = runOplJson(['modules']);
+      assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw);
+      return {
+        systemInitializeRaw: lastSystemInitializeRaw,
+        modulesRaw: lastModulesRaw,
+      };
+    } catch (error) {
+      lastError = error;
+      await sleep(2_000);
+    }
+  }
+  throw new Error(
+    [
+      'Timed out waiting for Full runtime modules and companion skills to materialize after core first launch.',
+      lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
+      lastModulesRaw ? `Last modules sample: ${lastModulesRaw.slice(0, 1200)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+}
+
+async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir) {
+  const started = Date.now();
+  let lastEvents = [];
+  let lastTree = [];
+  let sawCodexWizard = false;
+  let submittedCodexWizard = false;
+  let capturedCodexWizard = false;
+  let lastCodexSubmitAt = 0;
+  while (Date.now() - started < timeoutMs) {
+    lastEvents = readFirstRunEvents(filePath);
+    const completed = lastEvents.findLast?.((event) => isFirstRunCompletionEvent(event));
+    if (completed) return { events: lastEvents, sawCodexWizard, submittedCodexWizard };
+    try {
+      lastTree = queryAccessibility(processName);
+      const hasCodexWizard =
+        treeContainsLabel(lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+        treeContainsLabel(lastTree, DEFAULT_LABELS.codexConfigureButton);
+      if (hasCodexWizard) {
+        sawCodexWizard = true;
+        if (!capturedCodexWizard) {
+          const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
+          writeJsonArtifact(wizardTreePath, lastTree, codexApiKey);
+          captureMacScreenArtifact(path.join(artifactsDir, 'codex-config-wizard.png'));
+          capturedCodexWizard = true;
+        }
+        if (!submittedCodexWizard || Date.now() - lastCodexSubmitAt > 10_000) {
+          if (!codexApiKey) {
+            throw new Error(
+              'Codex configuration wizard is visible; provide --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.'
+            );
+          }
+          submitCodexWizard(processName, codexApiKey);
+          submittedCodexWizard = true;
+          lastCodexSubmitAt = Date.now();
+        }
+      }
+    } catch (error) {
+      if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
+    }
+    await sleep(1_000);
+  }
+
+  const failure = describeFirstRunFailure(lastEvents);
+  throw new Error(
+    [
+      `Timed out waiting for successful OPL first-run completion in ${filePath}.`,
+      failure ? `Last first-run failure: ${failure}` : '',
+      lastTree.length ? `Last accessibility sample: ${JSON.stringify(lastTree.slice(0, 12))}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+}
+
+async function waitForGuidEntry(processName, timeoutMs) {
+  const started = Date.now();
+  let lastTree = [];
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastTree = queryAccessibility(processName);
+      if (treeContainsLabel(lastTree, DEFAULT_LABELS.guidEntry)) {
+        return { tree: lastTree, labels: [DEFAULT_LABELS.guidEntry] };
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(2_000);
+  }
+  const detail = lastError instanceof Error ? lastError.message : JSON.stringify(lastTree.slice(0, 20));
+  throw new Error(
+    [
+      `Timed out waiting for OPL usable entry accessibility label in ${processName}.`,
+      'Grant Accessibility permission to the runner shell if System Events cannot read the app.',
+      detail,
+    ].join('\n')
+  );
+}
+
+function fetchJsonFromLocalhost(port, requestPath, timeoutMs = 2_000) {
+  return new Promise((resolve, reject) => {
+    const request = http.get(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path: requestPath,
+        timeout: timeoutMs,
+      },
+      (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          body += chunk;
+        });
+        response.on('end', () => {
+          if ((response.statusCode ?? 0) < 200 || (response.statusCode ?? 0) >= 300) {
+            reject(new Error(`CDP HTTP ${requestPath} returned ${response.statusCode}: ${body.slice(0, 300)}`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(body));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+    request.on('timeout', () => {
+      request.destroy(new Error(`Timed out reading CDP ${requestPath}`));
+    });
+    request.on('error', reject);
+  });
+}
+
+async function waitForCdpPageTarget(port, timeoutMs) {
+  const started = Date.now();
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      const targets = await fetchJsonFromLocalhost(port, '/json/list');
+      const pageTarget = targets.find((target) => target.type === 'page' && target.webSocketDebuggerUrl);
+      if (pageTarget) {
+        return pageTarget;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    `Timed out waiting for packaged app CDP target on port ${port}: ${lastError?.message ?? 'no target'}`
+  );
+}
+
+function waitForWebSocketOpen(socket) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Timed out opening CDP websocket')), 10_000);
+    socket.addEventListener(
+      'open',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+    socket.addEventListener(
+      'error',
+      () => {
+        clearTimeout(timer);
+        reject(new Error('Failed to open CDP websocket'));
+      },
+      { once: true }
+    );
+  });
+}
+
+async function openCdpClient(webSocketDebuggerUrl) {
+  if (typeof WebSocket === 'undefined') {
+    throw new Error('This Node.js runtime does not expose global WebSocket, which is required for CDP settings smoke.');
+  }
+  const socket = new WebSocket(webSocketDebuggerUrl);
+  const pending = new Map();
+  let nextId = 1;
+
+  socket.addEventListener('message', (event) => {
+    const raw = typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8');
+    const message = JSON.parse(raw);
+    if (!message.id || !pending.has(message.id)) {
+      return;
+    }
+    const callbacks = pending.get(message.id);
+    pending.delete(message.id);
+    if (message.error) {
+      callbacks.reject(new Error(`${message.error.message || 'CDP error'} ${message.error.data || ''}`.trim()));
+      return;
+    }
+    callbacks.resolve(message.result);
+  });
+
+  await waitForWebSocketOpen(socket);
+
+  return {
+    send(method, params = {}) {
+      const id = nextId++;
+      socket.send(JSON.stringify({ id, method, params }));
+      return new Promise((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+        setTimeout(() => {
+          if (!pending.has(id)) return;
+          pending.delete(id);
+          reject(new Error(`Timed out waiting for CDP response: ${method}`));
+        }, 15_000);
+      });
+    },
+    close() {
+      socket.close();
+    },
+  };
+}
+
+async function evaluateCdp(client, expression) {
+  const result = await client.send('Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  if (result.exceptionDetails) {
+    const detail =
+      result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'CDP evaluation failed';
+    throw new Error(detail);
+  }
+  return result.result?.value;
+}
+
+async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage) {
+  const started = Date.now();
+  let lastValue = null;
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastValue = await evaluateCdp(client, expression);
+      if (lastValue) return lastValue;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    [
+      failureMessage,
+      lastError ? `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastValue ? `Last value: ${JSON.stringify(lastValue).slice(0, 500)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+}
+
+const SETTINGS_PAGE_SMOKE_TARGETS = [
+  { id: 'overview', hash: '#/settings/overview', requiredTextAny: [['Refresh status', '刷新状态']] },
+  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Develop OPL Agent', '开发 OPL Agent']] },
+  { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
+  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
+  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
+  { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode']] },
+  { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
+];
+
+function cdpString(value) {
+  return JSON.stringify(value);
+}
+
+function pageReadinessExpression(target) {
+  return `(() => {
+    const text = document.body?.innerText || '';
+    const navItem = document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]');
+    const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
+    const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const firstRunWindowVisible = Boolean(document.querySelector('[data-testid="opl-first-run-window"]'));
+    const hashOk = window.location.hash.startsWith(${cdpString(target.hash)});
+    return hashOk && navItem && text.length > 80 && missingText.length === 0 && !appLoaderVisible && !firstRunWindowVisible
+      ? {
+          id: ${cdpString(target.id)},
+          hash: window.location.hash,
+          textLength: text.length,
+          requiredTextAny,
+        }
+      : false;
+  })()`;
+}
+
+async function captureSettingsPage(client, target, options, secret) {
+  await evaluateCdp(client, `window.location.hash = ${cdpString(target.hash)}`);
+  const pageState = await waitForCdpPredicate(
+    client,
+    pageReadinessExpression(target),
+    30_000,
+    `Settings page did not become ready: ${target.id}`
+  );
+  const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
+  fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+  const screenshot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  if (!screenshot?.data) {
+    throw new Error(`CDP screenshot capture returned no data for Settings page: ${target.id}`);
+  }
+  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+  return pageState;
+}
+
+async function exerciseOverviewRefresh(client) {
+  await evaluateCdp(
+    client,
+    `(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
+      if (!button) throw new Error('Overview Refresh status button was not found');
+      button.click();
+      return true;
+    })()`
+  );
+  return await waitForCdpPredicate(
+    client,
+    `(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
+      if (!button) return false;
+      return !button.className.includes('arco-btn-loading') && !button.getAttribute('aria-busy')
+        ? { refreshButtonReady: true, className: button.className }
+        : false;
+    })()`,
+    30_000,
+    'Overview Refresh status stayed loading after click'
+  );
+}
+
+function developerModeUiStateExpression(expectedChecked = null) {
+  const checkedPredicate = expectedChecked === null ? 'true' : `checked === ${expectedChecked ? 'true' : 'false'}`;
+  return `(() => {
+      const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      const text = document.body?.innerText || '';
+      if (!row || !sw || !text.includes('OPL Developer Mode')) return false;
+      if (sw.getAttribute('aria-busy') === 'true') return false;
+      const rowText = row.textContent || '';
+      const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
+      if (machineStatusPattern.test(rowText)) {
+        throw new Error(\`OPL Developer Mode row exposed machine status: \${rowText.slice(0, 220)}\`);
+      }
+      const checked = sw.getAttribute('aria-checked') === 'true';
+      return ${checkedPredicate}
+        ? {
+            developerModeVisible: true,
+            switchRole: sw.getAttribute('role'),
+            checked,
+            rowText,
+          }
+        : false;
+    })()`;
+}
+
+async function exerciseDeveloperModeSwitch(client) {
+  const initialState = await waitForCdpPredicate(
+    client,
+    developerModeUiStateExpression(),
+    30_000,
+    'System Settings did not expose the OPL Developer Mode switch'
+  );
+
+  if (initialState.checked) {
+    return { initialState, enabledState: initialState, toggled: false };
+  }
+
+  await evaluateCdp(
+    client,
+    `(() => {
+      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      if (!sw) throw new Error('OPL Developer Mode switch disappeared before enable');
+      sw.click();
+      return true;
+    })()`
+  );
+  const enabledState = await waitForCdpPredicate(
+    client,
+    developerModeUiStateExpression(true),
+    30_000,
+    'OPL Developer Mode switch did not enable'
+  );
+  return { initialState, enabledState, toggled: true };
+}
+
+async function runSettingsSmoke(options, secret) {
+  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  const results = [];
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
+      const pageState = await captureSettingsPage(client, pageTarget, options, secret);
+      const interactions = {};
+      if (pageTarget.id === 'overview') {
+        interactions.overviewRefresh = await exerciseOverviewRefresh(client);
+      }
+      if (pageTarget.id === 'system') {
+        interactions.developerMode = await exerciseDeveloperModeSwitch(client);
+      }
+      results.push({ ...pageState, interactions });
+    }
+  } finally {
+    client.close();
+  }
+  writeJsonArtifact(
+    path.join(options.artifacts, 'settings-smoke-summary.json'),
+    {
+      surface_id: 'opl_packaged_gui_settings_smoke',
+      status: 'passed',
+      cdp_port: options.cdpPort,
+      pages: results,
+    },
+    secret
+  );
+  return results;
+}
+
+function captureUnifiedLog(processName, target) {
+  const predicate = `process == "${processName.replace(/"/g, '\\"')}"`;
+  const result = spawnSync('log', ['show', '--last', '10m', '--style', 'compact', '--predicate', predicate], {
+    encoding: 'utf8',
+  });
+  fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
+}
+
+function writeOptionalTextArtifact(target, content, secret) {
+  try {
+    writeTextArtifact(target, content, secret);
+  } catch (error) {
+    const fallback = `${target}.write-error.txt`;
+    fs.writeFileSync(fallback, error instanceof Error ? error.message : String(error), 'utf8');
+  }
+}
+
+function copyTextFileIfExists(source, target, secret) {
+  if (!fs.existsSync(source)) return;
+  writeOptionalTextArtifact(target, fs.readFileSync(source, 'utf8'), secret);
+}
+
+function collectAppLogArtifacts(options, secret) {
+  const logDir = path.dirname(defaultFirstRunLogPath());
+  if (!fs.existsSync(logDir)) return;
+  const targetDir = path.join(options.artifacts, 'app-logs');
+  fs.mkdirSync(targetDir, { recursive: true });
+  for (const entry of fs.readdirSync(logDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const source = path.join(logDir, entry.name);
+    const target = path.join(targetDir, entry.name);
+    copyTextFileIfExists(source, target, secret);
+  }
+}
+
+function collectFileListing(root, target) {
+  if (!fs.existsSync(root)) {
+    fs.writeFileSync(target, `MISSING ${root}\n`, 'utf8');
+    return;
+  }
+  const result = spawnSync('/usr/bin/find', [root, '-maxdepth', '4', '-print'], {
+    encoding: 'utf8',
+  });
+  fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
+}
+
+function collectFailureArtifacts(options, codexApiKey) {
+  fs.mkdirSync(options.artifacts, { recursive: true });
+  try {
+    writeJsonArtifact(
+      path.join(options.artifacts, 'failure-accessibility-tree.json'),
+      queryAccessibility(options.processName),
+      codexApiKey
+    );
+  } catch (error) {
+    fs.writeFileSync(
+      path.join(options.artifacts, 'failure-accessibility-error.txt'),
+      error instanceof Error ? error.message : String(error),
+      'utf8'
+    );
+  }
+
+  const firstRunLog = defaultFirstRunLogPath();
+  copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey);
+  collectAppLogArtifacts(options, codexApiKey);
+  collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
+  collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));
+
+  for (const [name, args] of [
+    ['system-initialize.json', ['system', 'initialize', '--json']],
+    ['modules.json', ['modules']],
+  ]) {
+    try {
+      writeTextArtifact(path.join(options.artifacts, name), runOplJson(args), codexApiKey);
+    } catch (error) {
+      fs.writeFileSync(
+        path.join(options.artifacts, `${name}.error.txt`),
+        error instanceof Error ? error.message : String(error),
+        'utf8'
+      );
+    }
+  }
+
+  captureMacScreenArtifact(path.join(options.artifacts, 'failure-first-launch.png'));
+  const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
+  captureUnifiedLog(options.processName, unifiedLogPath);
+  if (fs.existsSync(unifiedLogPath)) {
+    assertDoesNotContainSecret('unified-log.txt', fs.readFileSync(unifiedLogPath, 'utf8'), codexApiKey);
+  }
+}
+
+async function main() {
+  assertMacOS();
+  const options = parseArgs(process.argv.slice(2));
+  const codexApiKey = readCodexApiKey(options);
+  try {
+    fs.mkdirSync(options.artifacts, { recursive: true });
+    if (options.assertClean) assertCleanFirstRunState(options.processName);
+
+    const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
+    if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
+
+    launchApp(appPath, options);
+    const firstRunLog = defaultFirstRunLogPath();
+    const firstRun = await waitForFirstRunCompletion(
+      firstRunLog,
+      options.processName,
+      options.timeoutMs,
+      codexApiKey,
+      options.artifacts
+    );
+    if (options.requireCodexConfigWizard && !firstRun.submittedCodexWizard) {
+      throw new Error('Expected Codex configuration wizard to appear and be submitted, but it was not observed.');
+    }
+
+    const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
+    writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), accessibility.tree, codexApiKey);
+
+    const settingsSmoke = options.settingsSmoke ? await runSettingsSmoke(options, codexApiKey) : [];
+
+    if (fs.existsSync(firstRunLog)) {
+      writeTextArtifact(
+        path.join(options.artifacts, 'first-run.jsonl'),
+        fs.readFileSync(firstRunLog, 'utf8'),
+        codexApiKey
+      );
+    }
+
+    if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
+      const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
+      writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
+      writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+    }
+    captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
+    const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
+    captureUnifiedLog(options.processName, unifiedLogPath);
+    assertDoesNotContainSecret(
+      'unified-log.txt',
+      fs.existsSync(unifiedLogPath) ? fs.readFileSync(unifiedLogPath, 'utf8') : '',
+      codexApiKey
+    );
+
+    const summary = {
+      surface_id: 'opl_packaged_gui_first_run_smoke',
+      status: 'passed',
+      app_path: appPath,
+      artifacts: options.artifacts,
+      runtime_profile: options.runtimeProfile,
+      codex_config_wizard_seen: firstRun.sawCodexWizard,
+      codex_config_wizard_submitted: firstRun.submittedCodexWizard,
+      codex_api_key_present: Boolean(codexApiKey),
+      labels: accessibility.labels,
+      settings_smoke: options.settingsSmoke
+        ? {
+            status: 'passed',
+            pages: settingsSmoke.map((page) => page.id),
+          }
+        : null,
+    };
+    writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
+    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+  } catch (error) {
+    collectFailureArtifacts(options, codexApiKey);
+    throw error;
+  }
+}
+
+export const __test =
+  process.env.NODE_ENV === 'test'
+    ? {
+        buildFullRuntimeCommandPrefix,
+        assertFullFirstRunEquivalence,
+        captureMacScreenArtifact,
+        findLatestFullRuntimeHome,
+        isFirstRunCompletionEvent,
+        isMainModule,
+        runtimeShellExecutable,
+        waitForFullFirstRunEquivalence,
+        runOplJson,
+        buildLaunchAppArgs,
+        SETTINGS_PAGE_SMOKE_TARGETS,
+        shouldVerifyFullFirstRunEquivalence,
+      }
+    : undefined;
+
+if (isMainModule(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    process.exitCode = 1;
+  });
+}

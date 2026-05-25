@@ -5,7 +5,7 @@ set -euo pipefail
 OUTPUT_DIR="${1:-release-assets}"
 ERRORS=0
 
-for f in latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml; do
+for f in latest-mac.yml latest-arm64-mac.yml; do
   if [ ! -f "$OUTPUT_DIR/$f" ]; then
     echo "FAIL: missing canonical metadata: $f"
     ERRORS=$((ERRORS + 1))
@@ -51,50 +51,25 @@ assert_metadata_points_to_existing_file() {
   echo "PASS: $metadata_name -> $ref_file"
 }
 
-assert_metadata_points_to_existing_file "latest.yml" "(win-x64|win32-x64|x64)"
-assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-x64|darwin-x64|x64)"
-assert_metadata_points_to_existing_file "latest-linux.yml" "(linux|AppImage|deb)"
-assert_metadata_points_to_existing_file "latest-linux-arm64.yml" "(arm64|aarch64)"
+assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
+assert_metadata_points_to_existing_file "latest-arm64-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
 
-for f in latest-win-arm64.yml latest-arm64-mac.yml; do
-  if [ ! -f "$OUTPUT_DIR/$f" ]; then
-    echo "FAIL: missing arch-specific updater metadata: $f"
-    ERRORS=$((ERRORS + 1))
-  else
-    echo "PASS: $f exists"
-  fi
-done
-
-for f in AionUi-1.0.0-win-x64.exe AionUi-1.0.0-win-arm64.exe AionUi-1.0.0-mac-x64.dmg AionUi-1.0.0-mac-arm64.dmg AionUi-1.0.0.deb AionUi-1.0.0-arm64.deb; do
-  if [ ! -f "$OUTPUT_DIR/$f" ]; then
-    echo "FAIL: missing distributable: $f"
-    ERRORS=$((ERRORS + 1))
-  else
-    echo "PASS: $f exists"
-  fi
-done
-
-# Web-CLI tarballs + checksums
-for plat in darwin-arm64 darwin-x86_64 linux-arm64 linux-x86_64 win-x86_64; do
-  tarball="aionui-web-1.0.0-${plat}.tar.gz"
-  for f in "$tarball" "${tarball}.sha256"; do
-    if [ ! -f "$OUTPUT_DIR/$f" ]; then
-      echo "FAIL: missing web-cli asset: $f"
-      ERRORS=$((ERRORS + 1))
-    else
-      echo "PASS: $f exists"
-    fi
-  done
-done
-
-if [ ! -f "$OUTPUT_DIR/install-web.sh" ]; then
-  echo "FAIL: missing install-web.sh"
+MAC_DMG_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name "*-mac-arm64.dmg" | wc -l | tr -d ' ')
+if [ "$MAC_DMG_COUNT" -eq 0 ]; then
+  echo "FAIL: missing macOS dmg distributable"
   ERRORS=$((ERRORS + 1))
 else
-  echo "PASS: install-web.sh exists"
+  echo "PASS: macOS dmg distributable present"
 fi
 
-echo ""
+MAC_ZIP_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name "*-mac-arm64.zip" | wc -l | tr -d ' ')
+if [ "$MAC_ZIP_COUNT" -eq 0 ]; then
+  echo "FAIL: missing macOS arm64 zip distributable"
+  ERRORS=$((ERRORS + 1))
+else
+  echo "PASS: macOS arm64 zip distributable present"
+fi
+
 if [ "$ERRORS" -gt 0 ]; then
   echo "FAILED: $ERRORS errors found"
   exit 1
