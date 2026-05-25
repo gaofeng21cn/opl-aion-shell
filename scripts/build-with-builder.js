@@ -23,6 +23,7 @@ const crypto = require('crypto');
 // "Device not configured" hdiutil errors (electron-builder#8415, actions/runner-images#12323).
 const DMG_RETRY_MAX = 3;
 const DMG_RETRY_DELAY_SEC = 30;
+const OPL_RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 // Incremental build: hash of source files to detect changes
 const INCREMENTAL_CACHE_FILE = 'out/.build-hash';
@@ -214,15 +215,25 @@ function formatExecError(error) {
   return [error?.message, error?.stdout?.toString?.(), error?.stderr?.toString?.()].filter(Boolean).join('\n').trim();
 }
 
+function buildOplReleaseVersionConfigArg() {
+  const version = process.env.OPL_RELEASE_VERSION?.trim();
+  if (!version) return '';
+  if (!OPL_RELEASE_VERSION_PATTERN.test(version)) {
+    throw new Error(`Invalid OPL_RELEASE_VERSION: ${version}`);
+  }
+  return `--config.extraMetadata.version=${version}`;
+}
+
 // Create DMG using electron-builder --prepackaged with .app path
 // This preserves DMG styling from electron-builder.yml (window size, icon positions, background)
 function createDmgWithPrepackaged(appDir, targetArch) {
   const appName = fs.readdirSync(appDir).find((f) => f.endsWith('.app'));
   if (!appName) throw new Error(`No .app found in ${appDir}`);
   const appPath = path.join(appDir, appName);
+  const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
 
   execSync(
-    `bunx electron-builder --config packages/desktop/electron-builder.yml --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never`,
+    `bunx electron-builder --config packages/desktop/electron-builder.yml --mac dmg --${targetArch} --prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}`.trim(),
     {
       stdio: 'inherit',
       shell: process.platform === 'win32',
@@ -387,6 +398,11 @@ if (forceBuild) console.log('⚡ --force: Force full rebuild');
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
 try {
+  const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
+  if (oplReleaseVersionConfigArg) {
+    console.log(`📌 Stamping OPL App release version: ${process.env.OPL_RELEASE_VERSION.trim()}`);
+  }
+
   // 1. Ensure package.json main entry is correct for electron-vite
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   if (packageJson.main !== './out/main/index.js') {
@@ -540,7 +556,8 @@ try {
     cleanupWindowsPackOutput();
   }
 
-  const builderCommand = `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg}`;
+  const builderCommand =
+    `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {

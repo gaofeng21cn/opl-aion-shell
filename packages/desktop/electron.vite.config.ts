@@ -13,6 +13,11 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 const rootPackageJson = JSON.parse(readFileSync(resolve(__dirname, '../../package.json'), 'utf-8')) as {
   version: string;
 };
+const injectedOplReleaseVersion = process.env.OPL_RELEASE_VERSION?.trim();
+if (injectedOplReleaseVersion && !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(injectedOplReleaseVersion)) {
+  throw new Error(`Invalid OPL_RELEASE_VERSION: ${injectedOplReleaseVersion}`);
+}
+const appReleaseVersion = injectedOplReleaseVersion || rootPackageJson.version;
 
 // Build builtin MCP servers after main process bundle so they survive out/main/ cleanup.
 function buildMcpServersPlugin() {
@@ -272,10 +277,9 @@ export default defineConfig(({ mode }) => {
         'process.env.env': JSON.stringify(process.env.env),
         'process.env.AIONUI_MULTI_INSTANCE': JSON.stringify(process.env.AIONUI_MULTI_INSTANCE ?? ''),
         'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN ?? ''),
-        // Inject the real AionUi version (root package.json) so renderer code
-        // can show it without importing packages/desktop/package.json, which is
-        // a workspace-internal placeholder frozen at "0.0.0".
-        __APP_VERSION__: JSON.stringify(rootPackageJson.version),
+        // OPL App releases stamp their product version through OPL_RELEASE_VERSION.
+        // Local/upstream AionUI builds keep showing the shell package version.
+        __APP_VERSION__: JSON.stringify(appReleaseVersion),
         global: 'globalThis',
       },
       optimizeDeps: {
