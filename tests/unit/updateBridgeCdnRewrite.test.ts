@@ -100,6 +100,45 @@ const makeGitHubReleaseResponse = () => [
   },
 ];
 
+const makeStableAndNightlyReleaseResponse = () => [
+  {
+    tag_name: 'v26.5.24',
+    name: 'v26.5.24',
+    body: 'stable release notes',
+    html_url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.5.24',
+    published_at: '2026-05-24T00:00:00Z',
+    prerelease: false,
+    draft: false,
+    assets: [
+      {
+        name: 'One-Person-Lab-26.5.24-mac-arm64.dmg',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.24/One-Person-Lab-26.5.24-mac-arm64.dmg',
+        size: 123,
+        content_type: 'application/x-apple-diskimage',
+      },
+    ],
+  },
+  {
+    tag_name: 'v26.5.27-nightly.20260527',
+    name: 'v26.5.27-nightly.20260527',
+    body: 'nightly release notes',
+    html_url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.5.27-nightly.20260527',
+    published_at: '2026-05-27T00:00:00Z',
+    prerelease: true,
+    draft: false,
+    assets: [
+      {
+        name: 'One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.dmg',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.27-nightly.20260527/One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.dmg',
+        size: 456,
+        content_type: 'application/x-apple-diskimage',
+      },
+    ],
+  },
+];
+
 const getCheckHandler = async () => {
   vi.resetModules();
   const { initUpdateBridge } = await import('@process/bridge/updateBridge');
@@ -178,6 +217,47 @@ describe('updateBridge CDN URL rewriting', () => {
       const asset = result.data?.latest?.assets?.[0];
       expect(asset?.url).toMatch(/^https:\/\/static\.aionui\.com\/releases\/1\.9\.22\//);
       expect(asset?.url).not.toMatch(/\/v1\.9\.22\//);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps prerelease releases out of stable update checks', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => makeStableAndNightlyReleaseResponse(),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({ includePrerelease: false });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.latest?.tagName).toBe('v26.5.24');
+      expect(result.data?.latest?.prerelease).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('selects the newest nightly release when prerelease updates are enabled', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => makeStableAndNightlyReleaseResponse(),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({ includePrerelease: true });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.latest?.tagName).toBe('v26.5.27-nightly.20260527');
+      expect(result.data?.latest?.prerelease).toBe(true);
+      expect(result.data?.latest?.recommendedAsset?.name).toBe(
+        'One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.dmg'
+      );
     } finally {
       vi.unstubAllGlobals();
     }
