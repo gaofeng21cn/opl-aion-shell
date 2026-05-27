@@ -48,6 +48,9 @@ Options:
                          entered through the GUI wizard, and never passed as a CLI argument.
   --require-codex-config-wizard
                          Fail unless the Codex configuration wizard is seen and submitted.
+                         Use this only for Full/runtime first-run flows that intentionally
+                         expose the wizard. Standard DMG smokes treat the wizard as an
+                         observed optional path.
   --assert-clean         Fail if OPL state/log or app-local GUI state already exists before launch.
   --help                 Show this message.
 `);
@@ -744,6 +747,10 @@ function existingStateGuidProbeTimeoutMs(options) {
   return Math.min(options.timeoutMs, 30_000);
 }
 
+function shouldWaitForFirstRunCompletion(options) {
+  return options.requireCodexConfigWizard === true || shouldVerifyFullFirstRunEquivalence(options.runtimeProfile);
+}
+
 async function waitForFullFirstRunEquivalence(timeoutMs) {
   const started = Date.now();
   let lastError = null;
@@ -1287,15 +1294,24 @@ function copyTextFileIfExists(source, target, secret) {
 }
 
 function collectAppLogArtifacts(options, secret) {
-  const logDir = path.dirname(defaultFirstRunLogPath());
-  if (!fs.existsSync(logDir)) return;
+  const logRoots = [
+    path.dirname(defaultFirstRunLogPath()),
+    path.join(os.homedir(), 'Library', 'Logs', 'AionUi'),
+    path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab'),
+  ];
+  const seen = new Set();
   const targetDir = path.join(options.artifacts, 'app-logs');
-  fs.mkdirSync(targetDir, { recursive: true });
-  for (const entry of fs.readdirSync(logDir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
-    const source = path.join(logDir, entry.name);
-    const target = path.join(targetDir, entry.name);
-    copyTextFileIfExists(source, target, secret);
+  for (const logDir of logRoots) {
+    if (seen.has(logDir) || !fs.existsSync(logDir)) continue;
+    seen.add(logDir);
+    fs.mkdirSync(targetDir, { recursive: true });
+    const safeRootName = path.basename(logDir).replace(/[^A-Za-z0-9_.-]/g, '_');
+    for (const entry of fs.readdirSync(logDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const source = path.join(logDir, entry.name);
+      const target = path.join(targetDir, `${safeRootName}-${entry.name}`);
+      copyTextFileIfExists(source, target, secret);
+    }
   }
 }
 
@@ -1330,6 +1346,10 @@ function collectFailureArtifacts(options, codexApiKey) {
   copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey);
   collectAppLogArtifacts(options, codexApiKey);
   collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
+  collectFileListing(
+    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi'),
+    path.join(options.artifacts, 'aionui-app-support-files.txt')
+  );
   collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));
 
   for (const [name, args] of [
@@ -1384,7 +1404,7 @@ async function main() {
         firstRun = null;
       }
     }
-    if (!firstRun) {
+    if (!firstRun && shouldWaitForFirstRunCompletion(options)) {
       firstRun = await waitForFirstRunCompletion(
         firstRunLog,
         options.processName,
@@ -1394,6 +1414,12 @@ async function main() {
         launchStartedAtMs
       );
     }
+    firstRun = firstRun ?? {
+      events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
+      sawCodexWizard: false,
+      submittedCodexWizard: false,
+      existingLaunchFallback: false,
+    };
     if (options.requireCodexConfigWizard && !firstRun.submittedCodexWizard) {
       throw new Error('Expected Codex configuration wizard to appear and be submitted, but it was not observed.');
     }
@@ -1436,6 +1462,10 @@ async function main() {
       app_path: appPath,
       artifacts: options.artifacts,
       runtime_profile: options.runtimeProfile,
+      gui_ready: guidEntry.cdpState ?? {
+        mode: guidEntry.mode,
+        labels: guidEntry.labels,
+      },
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
@@ -1470,6 +1500,7 @@ export const __test =
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,
         existingStateGuidProbeTimeoutMs,
+        shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,

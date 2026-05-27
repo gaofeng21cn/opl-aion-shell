@@ -68,6 +68,11 @@ Options:
                            First-run package profile to verify: full or standard. Default: full.
                            Use standard for the public macOS app DMG when Full-only bundled
                            module/skill equivalence is not expected.
+  --require-codex-config-wizard
+                           Fail unless the guest smoke sees and submits the Codex config wizard.
+                           Defaults to true for full and false for standard.
+  --no-require-codex-config-wizard
+                           Do not require the Codex config wizard even when runtime-profile is full.
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
@@ -99,6 +104,7 @@ function parseArgs(argv) {
     settingsSmoke: false,
     cdpPort: 9230,
     runtimeProfile: 'full',
+    requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     guestNodeRoot: '',
     guestNodeCommand: '',
@@ -127,6 +133,16 @@ function parseArgs(argv) {
     if (arg === '--settings-smoke') {
       options.settingsSmoke = true;
       explicit.add('settingsSmoke');
+      continue;
+    }
+    if (arg === '--require-codex-config-wizard') {
+      options.requireCodexConfigWizard = true;
+      explicit.add('requireCodexConfigWizard');
+      continue;
+    }
+    if (arg === '--no-require-codex-config-wizard') {
+      options.requireCodexConfigWizard = false;
+      explicit.add('requireCodexConfigWizard');
       continue;
     }
     if (arg === '--dry-run') {
@@ -218,6 +234,9 @@ function parseArgs(argv) {
   if (!['full', 'standard'].includes(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
   }
+  if (options.requireCodexConfigWizard === null) {
+    options.requireCodexConfigWizard = options.runtimeProfile === 'full';
+  }
 
   return options;
 }
@@ -236,6 +255,7 @@ function buildDryRunPlan(options) {
     settings_smoke: options.settingsSmoke,
     cdp_port: options.settingsSmoke ? options.cdpPort : null,
     runtime_profile: options.runtimeProfile,
+    require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
     no_graphics: options.noGraphics,
@@ -595,7 +615,7 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
     `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`,
-    '--require-codex-config-wizard',
+    options.requireCodexConfigWizard ? '--require-codex-config-wizard' : '',
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
@@ -659,7 +679,7 @@ function assertGuestSmokeSummary(options, guestSummary) {
       }`
     );
   }
-  if (!guestSummary.codex_config_wizard_submitted) {
+  if (options.requireCodexConfigWizard && !guestSummary.codex_config_wizard_submitted) {
     throw new Error('Guest smoke did not submit the Codex configuration wizard.');
   }
   if (!options.settingsSmoke) return;
@@ -682,6 +702,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     source_vm: options.sourceVm,
     display: options.display,
     runtime_profile: options.runtimeProfile,
+    require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
