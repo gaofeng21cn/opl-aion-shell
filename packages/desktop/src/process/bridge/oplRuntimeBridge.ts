@@ -44,6 +44,12 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   ownsDomainTruth: false,
   readsArtifactBody: false,
   readsMemoryBody: false,
+  primarySurfaces: [
+    'opl app state --profile fast --json',
+    'opl app state --profile full --json',
+    'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+  ],
+  diagnosticExceptionSurfaces: ['opl runtime app-operator-drilldown --detail full --json'],
   allowedSurfaces: [
     'opl app state --profile fast --json',
     'opl app state --profile full --json',
@@ -106,7 +112,7 @@ function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSp
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     };
   }
-  return buildAppStateCommand('fast');
+  throw new Error('OPL runtime drilldown is only available as an explicit full-detail diagnostic surface.');
 }
 
 function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {

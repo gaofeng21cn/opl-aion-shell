@@ -32,6 +32,12 @@ describe('OPL runtime bridge command whitelist', () => {
       ownsDomainTruth: false,
       readsArtifactBody: false,
       readsMemoryBody: false,
+      primarySurfaces: [
+        'opl app state --profile fast --json',
+        'opl app state --profile full --json',
+        'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+      ],
+      diagnosticExceptionSurfaces: ['opl runtime app-operator-drilldown --detail full --json'],
       allowedSurfaces: [
         'opl app state --profile fast --json',
         'opl app state --profile full --json',
@@ -72,6 +78,9 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'runtime_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     });
+    expect(() => __oplRuntimeBridgeTest.buildDrilldownCommand('summary')).toThrow(
+      /only available as an explicit full-detail diagnostic surface/
+    );
   });
 
   it('rejects unsafe action identifiers before spawning opl', () => {

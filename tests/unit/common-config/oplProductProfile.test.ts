@@ -10,6 +10,9 @@ import {
   getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
   getOplGuiDefaultCssThemeId,
+  getOplGuiLegacySettingsRouteRedirects,
+  getOplGuiSettingsVisibleTabs,
+  getOplRuntimeEnvironmentItems,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
@@ -51,6 +54,29 @@ describe('OPL generated product profile', () => {
     expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('codex');
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
+  });
+
+  it('exposes App-owned settings navigation and runtime environment profile slices', () => {
+    expect(getOplGuiSettingsVisibleTabs()).toEqual([
+      'overview',
+      'runtime',
+      'capabilities',
+      'access',
+      'appearance',
+      'system',
+      'about',
+    ]);
+    expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
+      model: 'runtime',
+      agent: 'runtime',
+      assistants: 'capabilities',
+      'skills-hub': 'capabilities',
+      tools: 'capabilities',
+      display: 'appearance',
+      webui: 'access',
+      pet: 'appearance',
+    });
+    expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'app']);
   });
 
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {
