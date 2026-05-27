@@ -199,6 +199,36 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain("exerciseRuntimeRefresh(client, '#/runtime')");
   });
 
+  it('terminates existing packaged app instances before launching a fresh smoke target', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+
+    expect(scriptSource).toContain('terminate_existing_app');
+    expect(scriptSource).toContain('OPL_FIRST_RUN_KEEP_EXISTING_APP');
+    expect(scriptSource).toContain('terminateExistingApp(options.processName)');
+    expect(scriptSource.indexOf('terminate_existing_app')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
+  });
+
+  it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
+    const expression = vmSmoke.visibleRuntimeRefreshButtonExpression();
+
+    expect(expression).toContain('findVisibleRuntimeRefreshButton');
+    expect(expression).toContain("candidate.closest('.arco-message, .arco-notification')");
+    expect(expression).toContain('getBoundingClientRect');
+    expect(expression).toContain("style.display !== 'none'");
+    expect(expression).toContain("style.visibility !== 'hidden'");
+  });
+
+  it('waits for the Runtime Status page before probing its refresh button', () => {
+    const expression = vmSmoke.runtimeStatusReadinessExpression();
+
+    expect(expression).toContain("window.location.hash.startsWith('#/runtime')");
+    expect(expression).toContain("window.location.hash = '#/runtime'");
+    expect(expression).toContain('OPL Runtime Status');
+    expect(expression).toContain('OPL 运行状态');
+    expect(expression).toContain('App\\/operator Drilldown');
+    expect(expression).toContain('运行状态摘要');
+  });
+
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

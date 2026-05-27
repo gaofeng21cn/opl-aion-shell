@@ -58,6 +58,7 @@ describe('ensurePackagedOplFullRuntime', () => {
       true
     );
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
+    expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));
     expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(expectedHome, 'modules', 'mag'));

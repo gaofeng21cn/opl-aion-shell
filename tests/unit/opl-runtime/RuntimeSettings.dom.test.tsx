@@ -155,6 +155,32 @@ describe('RuntimeSettings app state bridge usage', () => {
     });
   });
 
+  it('deduplicates Settings Runtime refresh while the initial App state read is still pending', async () => {
+    let resolveState: (value: typeof appStateResult) => void = () => {};
+    bridgeMocks.getAppStateInvoke.mockReturnValue(
+      new Promise((resolve) => {
+        resolveState = resolve;
+      })
+    );
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(1));
+    const button = screen.getByText('settings.oplEnvironmentPage.actions.refresh').closest('button');
+    expect(button).toBeTruthy();
+
+    fireEvent.click(button!);
+
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(1);
+    expect(button?.className).toContain('arco-btn-loading');
+
+    await act(async () => {
+      resolveState(appStateResult);
+    });
+
+    await waitFor(() => expect(button?.className).not.toContain('arco-btn-loading'));
+  });
+
   it('keeps the Runtime page refresh button idle during cached background revalidation', async () => {
     let resolveState: (value: typeof appStateResult) => void = () => {};
     bridgeMocks.getAppStateInvoke.mockReturnValue(

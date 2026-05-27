@@ -10,6 +10,7 @@ import type { OplAppStatePayload, OplAppStateProfile, OplAppStateRecord } from '
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
+const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
 
 export type OplAppStateCache = {
   payload: OplAppStatePayload;
@@ -65,6 +66,27 @@ function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undef
   return payload as OplAppStatePayload;
 }
 
+function loadAppStateFromBridge(profile: OplAppStateProfile): Promise<OplAppStatePayload | null> {
+  const inflight = inflightAppStateLoads.get(profile);
+  if (inflight) return inflight;
+
+  const request = ipcBridge.oplRuntime.getAppState.invoke({ profile }).then(payloadFromBridgeResult);
+  inflightAppStateLoads.set(profile, request);
+  void request.then(
+    () => {
+      if (inflightAppStateLoads.get(profile) === request) {
+        inflightAppStateLoads.delete(profile);
+      }
+    },
+    () => {
+      if (inflightAppStateLoads.get(profile) === request) {
+        inflightAppStateLoads.delete(profile);
+      }
+    }
+  );
+  return request;
+}
+
 function readCachedFastState(): OplAppStateCache | null {
   try {
     const raw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
@@ -117,7 +139,7 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
       }
       setError(null);
       try {
-        const nextPayload = payloadFromBridgeResult(await ipcBridge.oplRuntime.getAppState.invoke({ profile }));
+        const nextPayload = await loadAppStateFromBridge(profile);
         if (requestSeq.current !== requestId) return null;
         if (!nextPayload) {
           throw new Error('Invalid OPL App state payload');

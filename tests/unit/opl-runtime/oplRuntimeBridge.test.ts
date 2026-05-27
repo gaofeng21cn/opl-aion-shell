@@ -185,6 +185,40 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(new Set(entries).size).toBe(entries.length);
   });
 
+  it('injects Full runtime environment into first-run bridge commands when a packaged runtime is active', () => {
+    const homeDir = makeTempRoot('opl-full-runtime-bridge-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'hermes'), '#!/usr/bin/env bash\n', 'utf8');
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
+    expect(env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(runtimeHome, 'skills'));
+    expect(env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
+    expect(env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
+    expect(env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(runtimeHome, 'modules', 'mas'));
+    expect(env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(runtimeHome, 'modules', 'mag'));
+    expect(env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(runtimeHome, 'modules', 'rca'));
+    expect(env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(runtimeHome, 'modules', 'meta-agent'));
+    expect(env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
+    expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
+      path.join(runtimeHome, 'bin'),
+      path.join(runtimeHome, 'node', 'bin'),
+      path.join(runtimeHome, 'uv', 'bin'),
+    ]);
+  });
+
   it('sends Codex API keys only through stdin and keeps the command redacted', () => {
     expect(__oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: ' secret-key ' })).toEqual({
       surface: 'configure_codex',

@@ -251,6 +251,50 @@ function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): 
   };
 }
 
+function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv | null {
+  const runtimeHome = baseEnv.OPL_FULL_RUNTIME_HOME?.trim();
+  if (!runtimeHome) {
+    return null;
+  }
+
+  const pathEntries = normalizePathEntries([
+    path.join(runtimeHome, 'bin'),
+    path.join(runtimeHome, 'node', 'bin'),
+    path.join(runtimeHome, 'uv', 'bin'),
+    baseEnv.PATH,
+  ]);
+  const hermesBin = baseEnv.OPL_HERMES_BIN?.trim() || path.join(runtimeHome, 'bin', 'hermes');
+  return {
+    OPL_FULL_RUNTIME_HOME: runtimeHome,
+    OPL_PACKAGED_SKILLS_ROOT: baseEnv.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(runtimeHome, 'skills'),
+    OPL_CODEX_BIN: baseEnv.OPL_CODEX_BIN?.trim() || path.join(runtimeHome, 'bin', 'codex'),
+    OPL_FAMILY_RUNTIME_PROVIDER: baseEnv.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
+    OPL_MODULE_PATH_MEDAUTOSCIENCE:
+      baseEnv.OPL_MODULE_PATH_MEDAUTOSCIENCE?.trim() || path.join(runtimeHome, 'modules', 'mas'),
+    OPL_MODULE_PATH_MEDAUTOGRANT:
+      baseEnv.OPL_MODULE_PATH_MEDAUTOGRANT?.trim() || path.join(runtimeHome, 'modules', 'mag'),
+    OPL_MODULE_PATH_REDCUBE: baseEnv.OPL_MODULE_PATH_REDCUBE?.trim() || path.join(runtimeHome, 'modules', 'rca'),
+    OPL_MODULE_PATH_OPLMETAAGENT:
+      baseEnv.OPL_MODULE_PATH_OPLMETAAGENT?.trim() || path.join(runtimeHome, 'modules', 'meta-agent'),
+    ...(fs.existsSync(hermesBin) ? { OPL_HERMES_BIN: hermesBin } : {}),
+    PATH: pathEntries,
+  };
+}
+
+function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.ProcessEnv {
+  const standardEnv = buildStandardBootstrapEnv(input);
+  const fullRuntimeEnv = buildFullRuntimeBridgeEnv(standardEnv);
+  if (!fullRuntimeEnv) {
+    return standardEnv;
+  }
+
+  return {
+    ...standardEnv,
+    ...fullRuntimeEnv,
+    PATH: normalizePathEntries([fullRuntimeEnv.PATH, standardEnv.PATH]),
+  };
+}
+
 function resolvePackagedStandardInstaller(resourcesPath?: string): string | null {
   const resolvedResourcesPath = resourcesPath ?? (process as ProcessWithResourcesPath).resourcesPath ?? '';
   if (!resolvedResourcesPath) {
@@ -378,7 +422,7 @@ async function runPackagedStandardBootstrap(): Promise<void> {
   await runSpawnJsonCommand({
     ...bootstrap,
     surface: 'install_prep',
-    env: buildStandardBootstrapEnv(),
+    env: buildOplCommandEnv(),
     timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
     parseOutput: false,
     maxStdoutBytes: OPL_BOOTSTRAP_MAX_STDOUT_BYTES,
@@ -388,7 +432,7 @@ async function runPackagedStandardBootstrap(): Promise<void> {
 
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
   try {
-    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildStandardBootstrapEnv()));
+    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildOplCommandEnv()));
   } catch (error) {
     if (!isNoSuchOplCommandError(error) || !shouldAutoBootstrapOplCommand(spec)) {
       return commandFailureResult(
@@ -404,7 +448,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
 
   try {
     await runPackagedStandardBootstrap();
-    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildStandardBootstrapEnv()));
+    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildOplCommandEnv()));
   } catch (error) {
     return commandFailureResult(
       spec,
@@ -438,6 +482,8 @@ export const __oplRuntimeBridgeTest = {
   buildInitializeCommand,
   buildInstallPrepCommand,
   buildReconcileModulesCommand,
+  buildFullRuntimeBridgeEnv,
+  buildOplCommandEnv,
   buildStartupMaintenanceCommand,
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,

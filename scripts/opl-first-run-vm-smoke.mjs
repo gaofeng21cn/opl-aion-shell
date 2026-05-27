@@ -266,6 +266,15 @@ function launchApp(appPath, options) {
   run('open', buildLaunchAppArgs(appPath, options));
 }
 
+function terminateExistingApp(processName = DEFAULT_PROCESS_NAME) {
+  spawnSync('osascript', ['-e', `tell application ${JSON.stringify(processName)} to quit`], { stdio: 'ignore' });
+  spawnSync('/usr/bin/pkill', ['-x', processName], { stdio: 'ignore' });
+}
+
+function shouldTerminateExistingApp() {
+  return process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP !== '1';
+}
+
 function eventTimestampMs(event) {
   const timestamp = typeof event?.timestamp === 'string' ? Date.parse(event.timestamp) : NaN;
   return Number.isFinite(timestamp) ? timestamp : 0;
@@ -1377,6 +1386,44 @@ function pageReadinessExpression(target) {
   })()`;
 }
 
+function visibleRuntimeRefreshButtonExpression(labelPattern = 'Refresh|刷新') {
+  return `function findVisibleRuntimeRefreshButton(labelPattern) {
+    const matchesLabel = labelPattern instanceof RegExp
+      ? (value) => labelPattern.test(value)
+      : (value) => new RegExp(labelPattern).test(value);
+    return [...document.querySelectorAll('main button, [class*="settings"] button, [class*="runtime"] button, button')]
+      .filter((candidate) => {
+        const text = candidate.textContent || '';
+        if (!matchesLabel(text)) return false;
+        if (candidate.closest('.arco-message, .arco-notification')) return false;
+        const rect = candidate.getBoundingClientRect();
+        const style = window.getComputedStyle(candidate);
+        return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+      })[0] || null;
+  }`;
+}
+
+function runtimeStatusReadinessExpression() {
+  return `(() => {
+    if (!window.location.hash.startsWith('#/runtime')) {
+      window.location.hash = '#/runtime';
+      return false;
+    }
+    const text = document.body?.innerText || '';
+    const hashOk = window.location.hash.startsWith('#/runtime');
+    const titleOk = /OPL Runtime Status|OPL 运行状态/.test(text);
+    const summaryOk = /App\\/operator Drilldown|运行状态摘要/.test(text);
+    const loadingOnly = /加载中|Loading/.test(text) && !summaryOk;
+    return hashOk && titleOk && summaryOk && !loadingOnly
+      ? {
+          hash: window.location.hash,
+          titleReady: titleOk,
+          summaryReady: summaryOk,
+        }
+      : false;
+  })()`;
+}
+
 async function captureSettingsPage(client, target, options, secret) {
   await evaluateCdp(client, `window.location.hash = ${cdpString(target.hash)}`);
   const pageState = await waitForCdpPredicate(
@@ -1400,8 +1447,8 @@ async function waitForButtonIdle(client, labels, failureMessage) {
   return await waitForCdpPredicate(
     client,
     `(() => {
-      const button = [...document.querySelectorAll('button')]
-        .find((candidate) => new RegExp(${cdpString(labelPattern)}).test(candidate.textContent || ''));
+      ${visibleRuntimeRefreshButtonExpression()}
+      const button = findVisibleRuntimeRefreshButton(new RegExp(${cdpString(labelPattern)}));
       if (!button) return false;
       return !button.className.includes('arco-btn-loading') && !button.getAttribute('aria-busy')
         ? { buttonReady: true, className: button.className, text: button.textContent || '' }
@@ -1414,6 +1461,14 @@ async function waitForButtonIdle(client, labels, failureMessage) {
 
 async function exerciseRuntimeRefresh(client, targetHash) {
   await evaluateCdp(client, `window.location.hash = ${cdpString(targetHash)}`);
+  if (targetHash === '#/runtime') {
+    await waitForCdpPredicate(
+      client,
+      runtimeStatusReadinessExpression(),
+      30_000,
+      'Runtime status page did not become ready before refresh'
+    );
+  }
   await waitForButtonIdle(
     client,
     ['Refresh', '刷新'],
@@ -1422,8 +1477,8 @@ async function exerciseRuntimeRefresh(client, targetHash) {
   await evaluateCdp(
     client,
     `(() => {
-      const button = [...document.querySelectorAll('button')]
-        .find((candidate) => /Refresh|刷新/.test(candidate.textContent || ''));
+      ${visibleRuntimeRefreshButtonExpression()}
+      const button = findVisibleRuntimeRefreshButton(/Refresh|刷新/);
       if (!button) throw new Error('Runtime Refresh button was not found');
       button.click();
       return true;
@@ -1641,6 +1696,20 @@ async function main() {
     );
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
+    if (shouldTerminateExistingApp()) {
+      await runSmokePhase(
+        writeSmokeEvent,
+        'terminate_existing_app',
+        async () => {
+          terminateExistingApp(options.processName);
+          await sleep(2_000);
+        },
+        {
+          process_name: options.processName,
+          cdp_port: options.cdpPort,
+        }
+      );
+    }
     const launchStartedAtMs = Date.now() - 1_000;
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
       app_path: appPath,
@@ -1846,8 +1915,11 @@ export const __test =
         guidEntryNavigationExpression,
         runOplJson,
         buildLaunchAppArgs,
+        shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         developerModeStatusExpression,
+        visibleRuntimeRefreshButtonExpression,
+        runtimeStatusReadinessExpression,
         shouldVerifyFullFirstRunEquivalence,
       }
     : undefined;

@@ -17,6 +17,26 @@ describe('packaged first-run VM smoke helpers', () => {
     ]);
   });
 
+  it('terminates stale packaged app instances by default before launch', () => {
+    const previous = process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP;
+    try {
+      delete process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP;
+      expect(__test.shouldTerminateExistingApp()).toBe(true);
+
+      process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP = '1';
+      expect(__test.shouldTerminateExistingApp()).toBe(false);
+
+      process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP = '0';
+      expect(__test.shouldTerminateExistingApp()).toBe(true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP;
+      } else {
+        process.env.OPL_FIRST_RUN_KEEP_EXISTING_APP = previous;
+      }
+    }
+  });
+
   it('filters stale first-run events by timestamp', () => {
     expect(__test.eventTimestampMs({ timestamp: '2026-05-27T07:00:01.000Z' })).toBe(
       Date.parse('2026-05-27T07:00:01.000Z')
