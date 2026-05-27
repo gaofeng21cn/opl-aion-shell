@@ -853,7 +853,9 @@ async function waitForCoreFirstLaunchReady(options, codexApiKey) {
       'Timed out waiting for OPL core first-launch readiness from `opl system initialize --json`.',
       lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
       lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
-      wizardState.lastTree.length ? `Last accessibility sample: ${JSON.stringify(wizardState.lastTree.slice(0, 12))}` : '',
+      wizardState.lastTree.length
+        ? `Last accessibility sample: ${JSON.stringify(wizardState.lastTree.slice(0, 12))}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n')

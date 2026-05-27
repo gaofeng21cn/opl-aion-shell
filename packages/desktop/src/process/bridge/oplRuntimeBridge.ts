@@ -233,10 +233,7 @@ function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): 
 }
 
 function resolvePackagedStandardInstaller(resourcesPath?: string): string | null {
-  const resolvedResourcesPath =
-    resourcesPath ??
-    (process as ProcessWithResourcesPath).resourcesPath ??
-    '';
+  const resolvedResourcesPath = resourcesPath ?? (process as ProcessWithResourcesPath).resourcesPath ?? '';
   if (!resolvedResourcesPath) {
     return null;
   }
@@ -329,7 +326,10 @@ async function runSpawnJsonCommand(
   });
 }
 
-function buildOplSpawnCommand(spec: RuntimeCommandSpec, env = process.env): SpawnCommandSpec & {
+function buildOplSpawnCommand(
+  spec: RuntimeCommandSpec,
+  env = process.env
+): SpawnCommandSpec & {
   surface: IOplRuntimeCommandResult['surface'];
   env: NodeJS.ProcessEnv;
   stdin?: string;

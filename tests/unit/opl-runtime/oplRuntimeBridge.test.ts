@@ -141,9 +141,9 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(
       __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildReconcileModulesCommand())
     ).toBe(true);
-    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildAppStateCommand('fast'))).toBe(
-      false
-    );
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildAppStateCommand('fast'))
+    ).toBe(false);
   });
 
   it('runs the packaged App installer as the standard bootstrap carrier without enabling module or GUI install loops', () => {
@@ -174,6 +174,8 @@ describe('OPL runtime bridge command whitelist', () => {
 
     const env = __oplRuntimeBridgeTest.buildStandardBootstrapEnv({
       baseEnv: { HOME: homeDir, PATH: '/usr/bin:/bin' },
+      platform: 'darwin',
+      arch: 'arm64',
     });
 
     const entries = env.PATH?.split(path.delimiter) ?? [];
