@@ -10,11 +10,7 @@ import { configService } from '@/common/config/configService';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import FeedbackButton from '@/renderer/components/base/FeedbackButton';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
-import {
-  oplRecord,
-  oplString,
-  useOplAppState,
-} from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Alert, Button, Collapse, Form, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';

@@ -11,10 +11,7 @@ import {
 } from '@icon-park/react';
 import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
-import {
-  getOplGuiLegacySettingsRouteRedirects,
-  getOplGuiSettingsVisibleTabs,
-} from '@/common/config/oplProductProfile';
+import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 export const BUILTIN_TAB_IDS = getOplGuiSettingsVisibleTabs() as [
@@ -31,9 +28,10 @@ export type BuiltinSettingsTabId = (typeof BUILTIN_TAB_IDS)[number];
 
 export const SETTINGS_DEFAULT_ROUTE = '/settings/overview';
 
-export const SETTINGS_ROUTE_PATHS = Object.fromEntries(
-  BUILTIN_TAB_IDS.map((id) => [id, `/settings/${id}`])
-) as Record<BuiltinSettingsTabId, string>;
+export const SETTINGS_ROUTE_PATHS = Object.fromEntries(BUILTIN_TAB_IDS.map((id) => [id, `/settings/${id}`])) as Record<
+  BuiltinSettingsTabId,
+  string
+>;
 
 const legacyRedirectTargets = getOplGuiLegacySettingsRouteRedirects();
 
@@ -44,10 +42,7 @@ const redirectRouteFor = (legacyId: string, targetId: string): string => {
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  Object.entries(legacyRedirectTargets).map(([legacyId, targetId]) => [
-    legacyId,
-    redirectRouteFor(legacyId, targetId),
-  ])
+  Object.entries(legacyRedirectTargets).map(([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)])
 );
 
 export const LEGACY_SETTINGS_ANCHOR_REMAP = legacyRedirectTargets;

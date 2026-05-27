@@ -11,12 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplCodexSessionContext } from '@/common/config/oplProductProfile';
-import {
-  oplRecord,
-  oplRecordList,
-  oplString,
-  useOplAppState,
-} from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 type RuntimeModuleItem = Record<string, unknown>;
@@ -56,7 +51,9 @@ function moduleId(module: RuntimeModuleItem): string {
   return (
     oplString(module.module_id) ??
     oplString(module.id) ??
-    oplString(module.name)?.replace(/[^a-z0-9]/gi, '').toLowerCase() ??
+    oplString(module.name)
+      ?.replace(/[^a-z0-9]/gi, '')
+      .toLowerCase() ??
     ''
   );
 }
@@ -117,7 +114,8 @@ function modulePathSource(
       root: familyWorkspaceRoot,
     });
   }
-  if (source === 'sibling_workspace') return t('settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace');
+  if (source === 'sibling_workspace')
+    return t('settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace');
   if (source === 'env_override') return t('settings.oplEnvironmentPage.moduleVersion.pathSources.envOverride');
   if (source === 'managed_root') return t('settings.oplEnvironmentPage.moduleVersion.pathSources.managedRoot');
   if (source === 'missing') return t('settings.oplEnvironmentPage.moduleVersion.pathSources.missing');
@@ -161,13 +159,16 @@ const RuntimeSettings: React.FC = () => {
   const logsRoot = oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir);
   const modulesSourceMode = oplString(modulesSourcePayload.mode) ?? oplString(modulesPayload.source);
   const modulesSourceReason = oplString(modulesSourcePayload.reason);
-  const modulesRoot = oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
+  const modulesRoot =
+    oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
 
   const modules = useMemo(() => {
-    const byId = new Map(oplRecordList(modulesPayload.items ?? modulesPayload.modules).map((item) => {
-      const normalized = normalizeModule(item);
-      return [moduleId(normalized), normalized];
-    }));
+    const byId = new Map(
+      oplRecordList(modulesPayload.items ?? modulesPayload.modules).map((item) => {
+        const normalized = normalizeModule(item);
+        return [moduleId(normalized), normalized];
+      })
+    );
     return OPL_RUNTIME_MODULE_IDS.map((id) => normalizeModule({ ...byId.get(id), module_id: id }));
   }, [modulesPayload.items, modulesPayload.modules]);
 
@@ -177,7 +178,8 @@ const RuntimeSettings: React.FC = () => {
     total: modules.length,
   });
   const codexStatus = oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : 'unknown');
-  const temporalStatus = oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status) ?? 'unknown';
+  const temporalStatus =
+    oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status) ?? 'unknown';
   const workspaceStatus = workspaceRoot ? 'ready' : 'unknown';
   const appVersion = oplString(release.app_version) ?? oplString(release.version) ?? '-';
   const guiVersion = oplString(release.gui_shell_version) ?? oplString(release.gui_version) ?? '-';
@@ -314,7 +316,11 @@ const RuntimeSettings: React.FC = () => {
             >
               {t('settings.oplEnvironmentPage.actions.doctor')}
             </Button>
-            <Button icon={<UpdateRotation theme='outline' />} loading={appStateQuery.refreshing} onClick={refreshRuntime}>
+            <Button
+              icon={<UpdateRotation theme='outline' />}
+              loading={appStateQuery.refreshing}
+              onClick={refreshRuntime}
+            >
               {t('settings.oplEnvironmentPage.actions.refresh')}
             </Button>
             <Button
@@ -340,7 +346,9 @@ const RuntimeSettings: React.FC = () => {
                 })}
               </Typography.Text>
               {releaseRepo && (
-                <Typography.Text className='block text-12px text-t-secondary break-words'>{releaseRepo}</Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {releaseRepo}
+                </Typography.Text>
               )}
             </div>
             <Button icon={<UpdateRotation theme='outline' />} onClick={openUpdateModal}>
@@ -422,7 +430,9 @@ const RuntimeSettings: React.FC = () => {
                     </Typography.Text>
                     {oplString(module.repo_url) ? (
                       <Typography.Text className='block text-12px text-t-secondary break-all'>
-                        {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', { url: oplString(module.repo_url) ?? '' })}
+                        {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', {
+                          url: oplString(module.repo_url) ?? '',
+                        })}
                       </Typography.Text>
                     ) : null}
                   </div>

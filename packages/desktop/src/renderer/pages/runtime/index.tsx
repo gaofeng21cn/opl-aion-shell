@@ -10,12 +10,7 @@ import { Play, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
-import {
-  oplRecord,
-  oplRecordList,
-  oplString,
-  useOplAppState,
-} from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type RuntimeSnapshot = Record<string, unknown>;
 
@@ -249,10 +244,7 @@ function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot
   const firstAction = actions[0] ?? {};
   return {
     availability:
-      oplString(operator.availability) ??
-      oplString(appState.availability) ??
-      oplString(temporal.status) ??
-      'available',
+      oplString(operator.availability) ?? oplString(appState.availability) ?? oplString(temporal.status) ?? 'available',
     summary: oplRecord(operator.summary),
     attention_first_payload: {
       provider_health: {
@@ -318,7 +310,8 @@ const RuntimePage: React.FC = () => {
       const result = await ipcBridge.oplRuntime.getDrilldown.invoke({ detail: 'full' });
       if (requestSeq.current.full !== requestId) return;
       const parsed =
-        parseDrilldown(result.stdout) ?? compactDrilldown(record(record(parseBridgePayload(result)).app_operator_drilldown));
+        parseDrilldown(result.stdout) ??
+        compactDrilldown(record(record(parseBridgePayload(result)).app_operator_drilldown));
       setFullDetailDigest(parsed ? detailDigest(parsed) : null);
       if (options.showToast) {
         messageRef.current.success(tRef.current('common.runtime.detailFullLoaded'));

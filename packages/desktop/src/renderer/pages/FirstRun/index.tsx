@@ -44,11 +44,7 @@ function itemStatusColor(item: FirstRunChecklistItem | null): string {
   return 'gray';
 }
 
-function formatItemStatus(
-  item: FirstRunChecklistItem | null,
-  fallback: string,
-  t: (key: string) => string
-): string {
+function formatItemStatus(item: FirstRunChecklistItem | null, fallback: string, t: (key: string) => string): string {
   if (!item?.status) return fallback;
   const labelKey = STATUS_LABEL_KEYS[item.status];
   return labelKey ? t(labelKey) : fallback;

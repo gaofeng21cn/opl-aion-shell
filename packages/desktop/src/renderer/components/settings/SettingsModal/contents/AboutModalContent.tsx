@@ -33,7 +33,10 @@ type AppVersions = {
   releaseChannel: string;
 };
 
-function formatReleaseChannel(channel: string | undefined, t: (key: string, options?: Record<string, string>) => string) {
+function formatReleaseChannel(
+  channel: string | undefined,
+  t: (key: string, options?: Record<string, string>) => string
+) {
   const normalized = channel?.trim() || 'stable';
   return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
 }

@@ -5,10 +5,7 @@
  */
 
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import {
-  getOplDefaultExecutorAgentKey,
-  getOplDefaultHomeAssistants,
-} from '@/common/config/oplProductProfile';
+import { getOplDefaultExecutorAgentKey, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 import type { AvailableAgent } from './types';
 
 const OPL_FOUNDRY_ASSISTANT_PROFILES = [
@@ -21,7 +18,8 @@ const OPL_FOUNDRY_ASSISTANT_PROFILES = [
       'zh-CN': '医学研究',
       'zh-TW': '醫學研究',
     },
-    description: 'Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress.',
+    description:
+      'Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress.',
     description_i18n: {
       'en-US': 'Plan research tasks, organize evidence, and prepare manuscripts.',
       'zh-CN': '规划医学研究任务，整理证据，推进分析和论文准备。',
@@ -38,7 +36,8 @@ const OPL_FOUNDRY_ASSISTANT_PROFILES = [
       'zh-CN': '基金申请',
       'zh-TW': '基金申請',
     },
-    description: 'Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses.',
+    description:
+      'Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses.',
     description_i18n: {
       'en-US': 'Develop grant directions, proposals, critiques, and revision packages.',
       'zh-CN': '辅助基金方向设计、申请书撰写、评审意见回应和修改材料准备。',
@@ -161,7 +160,9 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
   const existingIds = new Set(existing.map((assistant) => normalizeAssistantId(assistant.id)));
   return [
     ...existing,
-    ...getOplFoundryAssistantProfiles().filter((assistant) => allowed.has(assistant.id) && !existingIds.has(assistant.id)),
+    ...getOplFoundryAssistantProfiles().filter(
+      (assistant) => allowed.has(assistant.id) && !existingIds.has(assistant.id)
+    ),
   ];
 }
 

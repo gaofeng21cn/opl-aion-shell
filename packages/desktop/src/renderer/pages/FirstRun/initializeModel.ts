@@ -61,15 +61,15 @@ export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
   const codexHealth = readString(codex, 'health_status');
 
   return Boolean(
-    selectedWorkspace
-      && workspaceExists !== false
-      && workspaceHealth !== 'missing'
-      && workspaceHealth !== 'blocking'
-      && codexInstalled === true
-      && codexConfigured === true
-      && codexVersionStatus !== 'incompatible'
-      && codexHealth !== 'missing'
-      && codexHealth !== 'blocking'
+    selectedWorkspace &&
+    workspaceExists !== false &&
+    workspaceHealth !== 'missing' &&
+    workspaceHealth !== 'blocking' &&
+    codexInstalled === true &&
+    codexConfigured === true &&
+    codexVersionStatus !== 'incompatible' &&
+    codexHealth !== 'missing' &&
+    codexHealth !== 'blocking'
   );
 }
 

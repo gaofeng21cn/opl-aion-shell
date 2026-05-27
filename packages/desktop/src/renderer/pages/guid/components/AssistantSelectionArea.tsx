@@ -328,47 +328,46 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
         className={`${styles.assistantCardScrollWrap} ${isScrollable ? styles.assistantCardScrollWrapScrollable : ''}`}
       >
         <div className={styles.assistantCardGrid}>
-          {foundryAssistants
-            .map((assistant) => {
-              const avatarValue = assistant.avatar?.trim();
-              const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
-              const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
-              const avatarImage = mappedAvatar || resolvedAvatar;
-              const isImageAvatar = Boolean(
-                avatarImage &&
-                (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|file:\/\/|data:|\/)/i.test(avatarImage))
-              );
-              const description =
-                assistant.description_i18n?.[localeKey] ||
-                assistant.description_i18n?.['en-US'] ||
-                assistant.description ||
-                '';
-              return (
-                <div
-                  key={assistant.id}
-                  data-testid={`preset-pill-${assistant.id}`}
-                  className={styles.assistantCard}
-                  onClick={() => {
-                    onSelectAssistant(`custom:${assistant.id}`);
-                    onFocusInput();
-                  }}
-                >
-                  <div className={styles.assistantCardAvatar}>
-                    {isImageAvatar ? (
-                      <img src={avatarImage} alt='' />
-                    ) : avatarValue ? (
-                      <span className={styles.assistantCardEmoji}>{avatarValue}</span>
-                    ) : (
-                      <Robot theme='outline' size={18} />
-                    )}
-                  </div>
-                  <div className={styles.assistantCardMeta}>
-                    <div className={styles.assistantCardName}>{assistant.name_i18n?.[localeKey] || assistant.name}</div>
-                    {description && <div className={styles.assistantCardDesc}>{description}</div>}
-                  </div>
+          {foundryAssistants.map((assistant) => {
+            const avatarValue = assistant.avatar?.trim();
+            const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
+            const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
+            const avatarImage = mappedAvatar || resolvedAvatar;
+            const isImageAvatar = Boolean(
+              avatarImage &&
+              (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|file:\/\/|data:|\/)/i.test(avatarImage))
+            );
+            const description =
+              assistant.description_i18n?.[localeKey] ||
+              assistant.description_i18n?.['en-US'] ||
+              assistant.description ||
+              '';
+            return (
+              <div
+                key={assistant.id}
+                data-testid={`preset-pill-${assistant.id}`}
+                className={styles.assistantCard}
+                onClick={() => {
+                  onSelectAssistant(`custom:${assistant.id}`);
+                  onFocusInput();
+                }}
+              >
+                <div className={styles.assistantCardAvatar}>
+                  {isImageAvatar ? (
+                    <img src={avatarImage} alt='' />
+                  ) : avatarValue ? (
+                    <span className={styles.assistantCardEmoji}>{avatarValue}</span>
+                  ) : (
+                    <Robot theme='outline' size={18} />
+                  )}
                 </div>
-              );
-            })}
+                <div className={styles.assistantCardMeta}>
+                  <div className={styles.assistantCardName}>{assistant.name_i18n?.[localeKey] || assistant.name}</div>
+                  {description && <div className={styles.assistantCardDesc}>{description}</div>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
       {modalTree}
