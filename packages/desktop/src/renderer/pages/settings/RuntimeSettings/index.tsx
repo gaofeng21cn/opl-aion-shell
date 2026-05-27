@@ -127,12 +127,13 @@ function SummaryStrip({
   cards: RuntimeSummaryCard[];
 }) {
   const { t } = useTranslation();
-  const visibleCards = cards.length > 0
-    ? cards
-    : [
-        { id: 'source-surface', label: t('settings.runtime.sourceSurface'), value: sourceSurface },
-        { id: 'state', label: t('settings.runtime.state'), value: state },
-      ];
+  const visibleCards =
+    cards.length > 0
+      ? cards
+      : [
+          { id: 'source-surface', label: t('settings.runtime.sourceSurface'), value: sourceSurface },
+          { id: 'state', label: t('settings.runtime.state'), value: state },
+        ];
   return (
     <section className='runtime-summary-strip'>
       <div className='runtime-summary-card runtime-summary-card--identity'>
@@ -180,9 +181,15 @@ function ActionQueue({ items }: { items: RuntimeActionQueueItem[] }) {
                 {item.priorityBucket && <Tag size='small'>{item.priorityBucket}</Tag>}
               </div>
               <div className='runtime-queue-item__counts'>
-                <span>{t('settings.runtime.safeActions')}: {item.safeActionRefCount}</span>
-                <span>{t('settings.runtime.blockers')}: {item.blockerRefCount}</span>
-                <span>{t('settings.runtime.paperLensRefs')}: {item.paperRouteLensRefCount}</span>
+                <span>
+                  {t('settings.runtime.safeActions')}: {item.safeActionRefCount}
+                </span>
+                <span>
+                  {t('settings.runtime.blockers')}: {item.blockerRefCount}
+                </span>
+                <span>
+                  {t('settings.runtime.paperLensRefs')}: {item.paperRouteLensRefCount}
+                </span>
               </div>
             </div>
           ))}
@@ -271,9 +278,15 @@ function TaskDrilldowns({ tasks }: { tasks: RuntimeTaskDrilldown[] }) {
                 ))}
               </div>
               <div className='runtime-queue-item__counts'>
-                <span>{t('settings.runtime.safeActions')}: {task.safeActionRefCount}</span>
-                <span>{t('settings.runtime.blockers')}: {task.blockerRefCount}</span>
-                <span>{t('settings.runtime.paperLensRefs')}: {task.paperRouteLensRefCount}</span>
+                <span>
+                  {t('settings.runtime.safeActions')}: {task.safeActionRefCount}
+                </span>
+                <span>
+                  {t('settings.runtime.blockers')}: {task.blockerRefCount}
+                </span>
+                <span>
+                  {t('settings.runtime.paperLensRefs')}: {task.paperRouteLensRefCount}
+                </span>
               </div>
             </div>
           ))}
