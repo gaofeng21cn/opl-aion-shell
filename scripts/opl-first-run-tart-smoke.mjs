@@ -28,7 +28,6 @@ const SMOKE_PROFILES = new Map([
       runtimeProfile: 'standard',
       settingsSmoke: true,
       display: '1920x1080px',
-      guestNodeCommand: 'node',
     },
   ],
 ]);
@@ -486,7 +485,8 @@ async function waitForSsh(options, ip, timeoutMs) {
       await sleep(2_000);
     }
   }
-  const lastMessage = lastError instanceof Error ? lastError.message : String(lastError ?? 'no ssh attempt error captured');
+  const lastMessage =
+    lastError instanceof Error ? lastError.message : String(lastError ?? 'no ssh attempt error captured');
   appendRuntimeLog(`ssh_wait_timeout guest=${options.guestUser}@${ip} last_error=${JSON.stringify(lastMessage)}`);
   throw new Error(`Timed out waiting for SSH to ${options.guestUser}@${ip}: ${lastMessage}`);
 }
