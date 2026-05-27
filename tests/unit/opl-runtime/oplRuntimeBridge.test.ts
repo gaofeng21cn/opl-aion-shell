@@ -10,18 +10,23 @@ describe('OPL runtime bridge command whitelist', () => {
       protocolOwner: 'one-person-lab',
       implementationRepo: 'opl-aion-shell',
       contractRef: 'one-person-lab-app/contracts/app-runtime-bridge.json',
+      guiProductContractRef: 'one-person-lab-app/contracts/app-gui-product-contract.json',
       ownsRuntimeTruth: false,
       ownsDomainTruth: false,
       readsArtifactBody: false,
       readsMemoryBody: false,
       allowedSurfaces: [
-        'opl runtime app-operator-drilldown --json',
+        'opl app state --profile fast --json',
+        'opl app state --profile full --json',
+        'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
         'opl runtime app-operator-drilldown --detail full --json',
-        'opl runtime action execute --action <id> [--payload refs-only-json] [--dry-run]',
       ],
       forbiddenTruthSources: [
         'direct_domain_repo_reads',
         'direct_runtime_state_file_reads',
+        'direct_opl_modules_page_aggregation',
+        'direct_opl_system_developer_supervisor_page_aggregation',
+        'direct_family_runtime_worker_status_page_aggregation',
         'domain_artifact_body_reads',
         'domain_memory_body_reads',
         'shell_private_runtime_status',
@@ -29,15 +34,28 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
-  it('builds only the declared summary and full drilldown commands', () => {
-    expect(__oplRuntimeBridgeTest.buildDrilldownCommand('summary')).toEqual({
-      surface: 'runtime_summary',
-      args: ['runtime', 'app-operator-drilldown', '--json'],
+  it('builds the declared App state summary and refresh commands', () => {
+    expect(__oplRuntimeBridgeTest.buildAppStateCommand('fast')).toEqual({
+      surface: 'app_state_fast',
+      args: ['app', 'state', '--profile', 'fast', '--json'],
     });
+    expect(__oplRuntimeBridgeTest.buildAppStateCommand('full')).toEqual({
+      surface: 'app_state_full',
+      args: ['app', 'state', '--profile', 'full', '--json'],
+    });
+  });
+
+  it('keeps full drilldown as an explicit diagnostic command only', () => {
     expect(__oplRuntimeBridgeTest.buildDrilldownCommand('full')).toEqual({
-      surface: 'runtime_full',
+      surface: 'runtime_diagnostic_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     });
+  });
+
+  it('does not allow raw runtime summary or action surfaces in the production bridge contract', () => {
+    const allowedSurfaces = __oplRuntimeBridgeTest.OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT.allowedSurfaces;
+    expect(allowedSurfaces).not.toContain('opl runtime app-operator-drilldown --json');
+    expect(allowedSurfaces.some((surface) => surface.startsWith('opl runtime action execute'))).toBe(false);
   });
 
   it('rejects unsafe action identifiers before spawning opl', () => {
@@ -55,16 +73,17 @@ describe('OPL runtime bridge command whitelist', () => {
         payloadRefsOnlyJson: { receipt_ref: 'receipt://one' },
       })
     ).toEqual({
-      surface: 'runtime_action',
+      surface: 'app_action',
       args: [
-        'runtime',
+        'app',
         'action',
         'execute',
         '--action',
         'stage-production:mas/analysis_campaign',
-        '--dry-run',
         '--payload',
         '{"receipt_ref":"receipt://one"}',
+        '--dry-run',
+        '--json',
       ],
     });
   });

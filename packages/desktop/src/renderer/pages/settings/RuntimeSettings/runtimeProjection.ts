@@ -20,6 +20,18 @@ import type {
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
+type ProjectionSource =
+  | {
+      kind: 'app_state';
+      appState: JsonRecord;
+      projection: JsonRecord;
+      workbench: JsonRecord;
+    }
+  | {
+      kind: 'legacy';
+      projection: JsonRecord;
+      workbench: JsonRecord;
+    };
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -49,8 +61,24 @@ function firstRecord(...values: unknown[]): JsonRecord | undefined {
   return values.find(isRecord);
 }
 
-function readProjection(root: unknown): JsonRecord {
-  if (!isRecord(root)) return {};
+function isOplAppState(value: JsonRecord): boolean {
+  return asString(value.schema_version) === 'opl_app_state.v1' || asString(value.schema) === 'opl_app_state.v1';
+}
+
+function readProjectionSource(root: unknown): ProjectionSource {
+  if (!isRecord(root)) {
+    return { kind: 'legacy', projection: {}, workbench: {} };
+  }
+  const appState = firstRecord(root.app_state);
+  if (appState && isOplAppState(appState)) {
+    const operator = firstRecord(appState.operator) ?? {};
+    return {
+      kind: 'app_state',
+      appState,
+      projection: operator,
+      workbench: firstRecord(operator.workbench, operator.runtime_workbench) ?? {},
+    };
+  }
   const traySnapshot = firstRecord(root.runtime_tray_snapshot);
   const drilldown = firstRecord(traySnapshot?.app_operator_drilldown, root.app_operator_drilldown);
   const visualization = firstRecord(
@@ -58,7 +86,8 @@ function readProjection(root: unknown): JsonRecord {
     drilldown?.runtime_visualization_projection,
     traySnapshot?.runtime_visualization_projection
   );
-  return visualization ?? drilldown ?? root;
+  const projection = visualization ?? drilldown ?? root;
+  return { kind: 'legacy', projection, workbench: readRuntimeWorkbench(projection) };
 }
 
 function readSummaryPairs(projection: JsonRecord): Array<{ label: string; value: string }> {
@@ -271,11 +300,20 @@ function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
   }));
 }
 
+function readAppStateGraph(operator: JsonRecord): { nodes: RuntimeGraphNode[]; edges: RuntimeGraphEdge[] } {
+  return readGraph(operator.dynamic_vertical_map ?? operator.graph, 'operator');
+}
+
+function readAppStateSafeActionRoutes(workbench: JsonRecord): RuntimeSafeActionRoute[] {
+  return readSafeActionRoutes(workbench.safe_action_routes);
+}
+
 export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationModel {
-  const projection = readProjection(root);
-  const rootRecord = isRecord(root) ? root : {};
-  const workbench = readRuntimeWorkbench(projection);
-  const unifiedGraph = readGraph(projection.graph, 'runtime');
+  const source = readProjectionSource(root);
+  const projection = source.projection;
+  const workbench = source.workbench;
+  const unifiedGraph =
+    source.kind === 'app_state' ? readAppStateGraph(projection) : readGraph(projection.graph, 'runtime');
   const stageGraph =
     unifiedGraph.nodes.length > 0
       ? {
@@ -316,11 +354,9 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
 
   return {
     sourceSurface:
-      asString(projection.surface_kind) ??
-      asString(projection.source_surface) ??
-      (projection === firstRecord(rootRecord.runtime_visualization_projection)
-        ? 'runtime_visualization_projection'
-        : 'app_operator_drilldown'),
+      source.kind === 'app_state'
+        ? (asString(source.appState.surface_kind) ?? 'opl_app_state.v1')
+        : (asString(projection.surface_kind) ?? asString(projection.source_surface) ?? 'legacy_app_operator_drilldown'),
     state: asString(projection.state) ?? asString(projection.runtime_state) ?? asString(projection.status) ?? 'unknown',
     summary: readSummaryPairs(projection),
     summaryCards: readSummaryCards(workbench),
@@ -338,7 +374,10 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
       'paper'
     ),
     ownerBoundary: readOwnerBoundary(projection),
-    safeActionRoutes: readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
+    safeActionRoutes:
+      source.kind === 'app_state'
+        ? readAppStateSafeActionRoutes(workbench)
+        : readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
     refs,
   };
 }

@@ -315,7 +315,7 @@ const RuntimeSettings: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await ipcBridge.oplRuntime.getDrilldown.invoke({ detail: 'summary' });
+      const result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
       setSummaryResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -328,7 +328,7 @@ const RuntimeSettings: React.FC = () => {
     setFullLoading(true);
     setError(null);
     try {
-      const result = await ipcBridge.oplRuntime.getDrilldown.invoke({ detail: 'full' });
+      const result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'full' });
       setFullResult(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -7,6 +7,7 @@
 import { spawn } from 'node:child_process';
 import { ipcBridge } from '@/common';
 import type {
+  IOplAppStateProfile,
   IOplRuntimeActionRequest,
   IOplRuntimeCommandResult,
   IOplRuntimeDetailLevel,
@@ -27,18 +28,23 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   protocolOwner: 'one-person-lab',
   implementationRepo: 'opl-aion-shell',
   contractRef: 'one-person-lab-app/contracts/app-runtime-bridge.json',
+  guiProductContractRef: 'one-person-lab-app/contracts/app-gui-product-contract.json',
   ownsRuntimeTruth: false,
   ownsDomainTruth: false,
   readsArtifactBody: false,
   readsMemoryBody: false,
   allowedSurfaces: [
-    'opl runtime app-operator-drilldown --json',
+    'opl app state --profile fast --json',
+    'opl app state --profile full --json',
+    'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --detail full --json',
-    'opl runtime action execute --action <id> [--payload refs-only-json] [--dry-run]',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
     'direct_runtime_state_file_reads',
+    'direct_opl_modules_page_aggregation',
+    'direct_opl_system_developer_supervisor_page_aggregation',
+    'direct_family_runtime_worker_status_page_aggregation',
     'domain_artifact_body_reads',
     'domain_memory_body_reads',
     'shell_private_runtime_status',
@@ -53,28 +59,33 @@ function assertActionId(actionId: string): string {
   return normalized;
 }
 
-function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSpec {
-  if (detail === 'full') {
-    return {
-      surface: 'runtime_full',
-      args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
-    };
-  }
+function buildAppStateCommand(profile: IOplAppStateProfile): RuntimeCommandSpec {
   return {
-    surface: 'runtime_summary',
-    args: ['runtime', 'app-operator-drilldown', '--json'],
+    surface: profile === 'full' ? 'app_state_full' : 'app_state_fast',
+    args: ['app', 'state', '--profile', profile, '--json'],
   };
 }
 
-function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {
-  const args = ['runtime', 'action', 'execute', '--action', assertActionId(request.actionId)];
-  if (request.dryRun) {
-    args.push('--dry-run');
+function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSpec {
+  if (detail === 'full') {
+    return {
+      surface: 'runtime_diagnostic_full',
+      args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+    };
   }
+  throw new Error('Unsupported OPL runtime diagnostic detail level');
+}
+
+function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {
+  const args = ['app', 'action', 'execute', '--action', assertActionId(request.actionId)];
   if (request.payloadRefsOnlyJson && Object.keys(request.payloadRefsOnlyJson).length > 0) {
     args.push('--payload', JSON.stringify(request.payloadRefsOnlyJson));
   }
-  return { surface: 'runtime_action', args };
+  if (request.dryRun) {
+    args.push('--dry-run');
+  }
+  args.push('--json');
+  return { surface: 'app_action', args };
 }
 
 function parseJson(stdout: string): unknown {
@@ -140,6 +151,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
 }
 
 export function initOplRuntimeBridge(): void {
+  ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
 }
@@ -148,6 +160,7 @@ export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
   buildActionCommand,
+  buildAppStateCommand,
   buildDrilldownCommand,
   parseJson,
 };

@@ -384,7 +384,8 @@ export const application = {
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
 };
 
-export type IOplRuntimeDetailLevel = 'summary' | 'full';
+export type IOplRuntimeDetailLevel = 'full';
+export type IOplAppStateProfile = 'fast' | 'full';
 
 export type IOplRuntimeActionRequest = {
   actionId: string;
@@ -393,7 +394,7 @@ export type IOplRuntimeActionRequest = {
 };
 
 export type IOplRuntimeCommandResult = {
-  surface: 'runtime_summary' | 'runtime_full' | 'runtime_action';
+  surface: 'app_state_fast' | 'app_state_full' | 'runtime_diagnostic_full' | 'app_action';
   command: string;
   stdout: string;
   parsed: unknown;
@@ -404,6 +405,9 @@ export type IOplRuntimeCommandResult = {
 // ---------------------------------------------------------------------------
 
 export const oplRuntime = {
+  getAppState: bridge.buildProvider<IOplRuntimeCommandResult, { profile: IOplAppStateProfile }>(
+    'opl-runtime.get-app-state'
+  ),
   getDrilldown: bridge.buildProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
     'opl-runtime.get-drilldown'
   ),
