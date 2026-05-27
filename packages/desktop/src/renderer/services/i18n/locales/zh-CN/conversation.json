@@ -3,6 +3,7 @@
     "title": "把研究、基金和汇报交给 One Person Lab 自动推进",
     "placeholder": "发消息、上传文件、打开文件夹或创建定时任务...",
     "oplPlaceholder": "把任务交给 OPL App：描述目标、上传资料、选择项目或安排定时任务...",
+    "codexDefaultStatus": "默认 Codex CLI：{{model}} · {{permission}}",
     "uploadFile": "上传文件",
     "linkFolder": "打开文件夹",
     "newConversation": "新会话",

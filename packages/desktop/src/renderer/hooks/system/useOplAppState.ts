@@ -51,6 +51,9 @@ export function getAppState(payload: OplAppStatePayload | null | undefined): Opl
 }
 
 function payloadFromBridgeResult(result: IOplRuntimeCommandResult | null | undefined): OplAppStatePayload | null {
+  if (result?.ok === false) {
+    throw new Error(result.error?.message || 'OPL App state command failed');
+  }
   if (!isOplRecord(result?.parsed)) return null;
   const parsed = result.parsed;
   const payload = isOplRecord(parsed.app_state) ? { app_state: parsed.app_state } : parsed;

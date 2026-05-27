@@ -111,6 +111,31 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(activated?.env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
   });
 
+  it('does not activate a stale installed Full runtime when the packaged App has no Full payload', () => {
+    const resourcesPath = makeTempRoot('opl-standard-resources');
+    const homeDir = makeTempRoot('opl-stale-runtime-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(
+      path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current.json'),
+      `${JSON.stringify({
+        runtime_version: '26.5.1',
+        runtime_home: runtimeHome,
+        manifest_sha256: 'stale-sha',
+      })}\n`,
+      'utf8'
+    );
+
+    expect(
+      ensurePackagedOplFullRuntime({
+        isPackaged: true,
+        resourcesPath,
+        homeDir,
+      })
+    ).toBeNull();
+  });
+
   it('returns an empty shell prefix when no runtime is active', () => {
     expect(buildOplFullRuntimeShellPrefix(null)).toBe('');
   });

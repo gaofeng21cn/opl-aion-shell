@@ -3,6 +3,7 @@
     "title": "Let One Person Lab move research, grants, and reports forward",
     "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
     "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it...",
+    "codexDefaultStatus": "Default Codex CLI: {{model}} · {{permission}}",
     "uploadFile": "Upload Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",

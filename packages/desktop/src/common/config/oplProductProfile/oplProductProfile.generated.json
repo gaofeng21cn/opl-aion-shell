@@ -311,6 +311,16 @@
         "full_first_install_metadata_allowed": false,
         "blocks_core_ready": false
       }
+    },
+    "beginner_presentation": {
+      "audience": "beginner_non_technical_users",
+      "presentation_mode": "simplified_first_run",
+      "primary_user_goal": "reach_guid_with_codex_ready",
+      "primary_steps": ["workspace_root", "codex_cli", "codex_config"],
+      "primary_progress_signal": "Core completed and total count",
+      "advanced_progress_disclosure": "collapsed_or_secondary",
+      "background_maintenance_presentation": "secondary_non_blocking",
+      "technical_detail_policy": "hidden_until_expanded_or_error"
     }
   },
   "settings": {

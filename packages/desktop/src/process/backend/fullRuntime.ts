@@ -234,7 +234,7 @@ export function ensurePackagedOplFullRuntime(
   const resourcesPath = input.resourcesPath ?? process.resourcesPath;
   const payload = resolvePayload(resourcesPath);
   if (!payload) {
-    return activateInstalledOplFullRuntime({ homeDir });
+    return null;
   }
 
   const runtimeHome = resolveRuntimeInstallRoot(homeDir);

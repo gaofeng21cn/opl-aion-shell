@@ -21,11 +21,14 @@ export const DEFAULT_CODEX_REASONING_EFFORT = getOplDefaultCodexReasoningEffort(
 export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFFORT
   ? `${DEFAULT_CODEX_MODEL_ID}/${DEFAULT_CODEX_REASONING_EFFORT}`
   : DEFAULT_CODEX_MODEL_ID;
+export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = DEFAULT_CODEX_REASONING_EFFORT
+  ? `${DEFAULT_CODEX_MODEL_ID}${DEFAULT_CODEX_REASONING_EFFORT}`
+  : DEFAULT_CODEX_MODEL_ID;
 
 export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; description: string }> = [
   {
     id: DEFAULT_CODEX_MODEL_ID,
-    label: DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
+    label: DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
     description: 'One Person Lab App default Codex model',
   },
 ];
@@ -75,8 +78,7 @@ export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null
   const currentModelId = selectDefaultCodexModelId(handshakeModels?.available_models);
   return {
     current_model_id: currentModelId,
-    current_model_label:
-      currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_WITH_REASONING_ID : currentModelId,
+    current_model_label: currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId,
     available_models: [],
   };
 }

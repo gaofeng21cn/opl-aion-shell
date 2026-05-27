@@ -411,6 +411,14 @@ export type IOplRuntimeCommandResult = {
   command: string;
   stdout: string;
   parsed: unknown;
+  ok?: boolean;
+  error?: {
+    message: string;
+    code?: string;
+    stderr?: string;
+    exitCode?: number | null;
+    timedOut?: boolean;
+  };
 };
 
 // ---------------------------------------------------------------------------

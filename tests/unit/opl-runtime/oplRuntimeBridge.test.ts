@@ -117,4 +117,29 @@ describe('OPL runtime bridge command whitelist', () => {
       /Codex API key is required/
     );
   });
+
+  it('returns structured command failures so renderer pages do not wait forever', () => {
+    expect(
+      __oplRuntimeBridgeTest.commandFailureResult(
+        { surface: 'app_state_fast', args: ['app', 'state', '--profile', 'fast', '--json'] },
+        'opl app state --profile fast --json',
+        'OPL runtime command failed (2): bad args',
+        {
+          stderr: 'bad args',
+          exitCode: 2,
+        }
+      )
+    ).toEqual({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '',
+      parsed: null,
+      ok: false,
+      error: {
+        message: 'OPL runtime command failed (2): bad args',
+        stderr: 'bad args',
+        exitCode: 2,
+      },
+    });
+  });
 });

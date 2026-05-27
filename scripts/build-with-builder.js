@@ -114,6 +114,48 @@ function viteBuildExists() {
   return fs.existsSync(path.join(mainDir, 'index.js')) && fs.existsSync(path.join(rendererDir, 'index.html'));
 }
 
+function cleanViteBundleOutput() {
+  const outDir = path.resolve(__dirname, '../out');
+  const targets = ['main', 'preload', 'renderer'];
+  const removed = [];
+  for (const target of targets) {
+    const targetPath = path.join(outDir, target);
+    if (!fs.existsSync(targetPath)) continue;
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    removed.push(`out/${target}`);
+  }
+  if (removed.length > 0) {
+    console.log(`🧹 Cleaned stale Vite bundle output: ${removed.join(', ')}`);
+  }
+}
+
+function validateRendererBundleOutput(outDir) {
+  const assetsDir = path.join(outDir, 'renderer', 'assets');
+  if (!fs.existsSync(assetsDir)) {
+    throw new Error('Missing renderer assets directory: out/renderer/assets');
+  }
+
+  let hasFirstRunImplementation = false;
+  const emptyFirstRunStubFiles = [];
+  for (const entry of fs.readdirSync(assetsDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.js')) continue;
+    const content = fs.readFileSync(path.join(assetsDir, entry.name), 'utf8');
+    if (/const \w+=FirstRun;export\{\w+ as default\}/.test(content)) {
+      emptyFirstRunStubFiles.push(entry.name);
+    }
+    if (content.includes('opl-first-run-window') || content.includes('settings.firstRun.title')) {
+      hasFirstRunImplementation = true;
+    }
+  }
+
+  if (emptyFirstRunStubFiles.length > 0) {
+    throw new Error(`Renderer first-run bundle is an empty stale stub: ${emptyFirstRunStubFiles.join(', ')}`);
+  }
+  if (!hasFirstRunImplementation) {
+    throw new Error('Renderer first-run implementation was not found in out/renderer/assets');
+  }
+}
+
 function shouldSkipViteBuild(skipViteFlag, forceFlag) {
   if (forceFlag) return false;
   if (skipViteFlag) return true;
@@ -415,6 +457,7 @@ try {
 
   if (!skipViteBuild) {
     // Run electron-vite to build all bundles (main + preload + renderer)
+    cleanViteBundleOutput();
     console.log(`📦 Building ${targetArch}...`);
     execSync(`bunx electron-vite build --config packages/desktop/electron.vite.config.ts`, {
       stdio: 'inherit',
@@ -460,6 +503,7 @@ try {
   if (!fs.existsSync(rendererIndex)) {
     throw new Error('Missing renderer entry: out/renderer/index.html');
   }
+  validateRendererBundleOutput(outDir);
 
   // If --pack-only, skip electron-builder distributable creation
   if (packOnly) {

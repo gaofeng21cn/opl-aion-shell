@@ -921,8 +921,8 @@
   },
   "noExternalSources": "未发现外部技能源",
   "firstRun": {
-    "title": "首次运行检查",
-    "description": "OPL 会优先检查核心启动路径。完整运行底座和智能体维护状态会继续显示在这里和设置中。",
+    "title": "准备 One Person Lab",
+    "description": "OPL 会先检查开始使用所需的几个关键项，其他工具会在后台继续准备。",
     "openRuntimeSettings": "运行设置",
     "enterGuid": "进入 OPL",
     "coreReady": "核心已就绪",
@@ -938,8 +938,20 @@
     "backgroundMaintenance": "后台维护",
     "noMaintenance": "暂无待维护项",
     "readiness": "就绪检查",
+    "technicalDetails": "技术详情",
     "lastAction": "上次操作结果",
     "noActionYet": "此窗口内尚未运行维护操作。",
+    "beginner": {
+      "title": "正在检查关键项",
+      "readyTitle": "可以开始使用",
+      "summaryChecking": "正在检查工作区、Codex 和 API 权限。",
+      "summaryPreparing": "关键项还在准备中，你可以在这里看到进度。",
+      "summaryNeedsAction": "还有一个设置项需要处理，完成后即可开始使用。",
+      "summaryReady": "开始使用所需的关键项已经就绪。",
+      "nextStep": "下一步",
+      "backgroundMaintenanceWithCount": "还有 {{count}} 个扩展项会在进入后继续准备。",
+      "backgroundReady": "后台准备已完成。"
+    },
     "items": {
       "workspaceRoot": "工作目录",
       "codex": "Codex CLI",
@@ -967,6 +979,7 @@
     },
     "codex": {
       "title": "Codex 默认配置",
+      "prompt": "请输入管理员提供的 Codex API Key，完成后即可开始使用 One Person Lab。",
       "defaults": "Provider {{provider}} 使用 {{baseUrl}}，默认模型 {{model}}，推理强度 {{reasoning}}。",
       "apiKeyPlaceholder": "输入 Codex API Key",
       "apiKeyRequired": "请输入 Codex API Key",

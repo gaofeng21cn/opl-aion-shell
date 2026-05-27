@@ -245,8 +245,16 @@ describe('FirstRun readiness page', () => {
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('aria-label', 'opl-first-run-window');
+    expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
+      'settings.firstRun.beginner.summaryReady'
+    );
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
     expect(screen.getByTestId('opl-first-run-progress')).toHaveAttribute('aria-label', 'opl-first-run-progress');
+    expect(screen.getByTestId('opl-first-run-primary-action')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
+      'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
+    );
+    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.noCoreBlockers');
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveAttribute(
       'aria-label',
@@ -323,6 +331,7 @@ describe('FirstRun readiness page', () => {
       'settings.firstRun.stage full_readiness_maintenance'
     );
     expect(screen.getByTestId('opl-first-run-core-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
     expect(screen.getByTestId('opl-first-run-full-readiness-progress')).toHaveTextContent(
       'settings.firstRun.fullReadinessProgress 4/6'
     );
@@ -352,6 +361,7 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
     fireEvent.click(screen.getByTestId('opl-first-run-open-environment-button'));
 
     await waitFor(() => expect(bridgeMocks.runStartupMaintenanceInvoke).toHaveBeenCalledTimes(1));

@@ -18,6 +18,7 @@ import {
 } from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
+  DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
   DEFAULT_CODEX_MODEL_ID,
   DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
   DEFAULT_CODEX_MODELS,
@@ -33,7 +34,9 @@ describe('OPL generated product profile', () => {
     expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-5.5');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('xhigh');
     expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.5/xhigh');
+    expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('gpt-5.5xhigh');
     expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.5');
+    expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('gpt-5.5xhigh');
     expect(DEFAULT_CODEX_MODELS).toHaveLength(1);
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).not.toEqual(
       expect.arrayContaining(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini'])

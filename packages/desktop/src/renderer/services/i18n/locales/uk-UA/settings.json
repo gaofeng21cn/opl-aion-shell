@@ -875,8 +875,8 @@
     "nightly": "Nightly"
   },
   "firstRun": {
-    "title": "First Run Readiness",
-    "description": "OPL checks only the core launch path first. Full runtime and domain maintenance stay visible here and in Settings.",
+    "title": "Prepare One Person Lab",
+    "description": "OPL checks the few things needed to start first. Extra tools keep preparing in the background.",
     "openRuntimeSettings": "Runtime settings",
     "enterGuid": "Start in OPL",
     "coreReady": "Core ready",
@@ -892,8 +892,20 @@
     "backgroundMaintenance": "Background maintenance",
     "noMaintenance": "No maintenance pending",
     "readiness": "Readiness checks",
+    "technicalDetails": "Technical details",
     "lastAction": "Last action result",
     "noActionYet": "No maintenance action has run in this window.",
+    "beginner": {
+      "title": "Checking the essentials",
+      "readyTitle": "Ready to start",
+      "summaryChecking": "Checking your workspace, Codex, and API access now.",
+      "summaryPreparing": "The essentials are still being prepared. You can watch the progress here.",
+      "summaryNeedsAction": "One setup item needs your attention before you can start.",
+      "summaryReady": "Everything needed to start is ready.",
+      "nextStep": "Next step",
+      "backgroundMaintenanceWithCount": "{{count}} extra item(s) will keep preparing after you start.",
+      "backgroundReady": "Background preparation is clear."
+    },
     "items": {
       "workspaceRoot": "Workspace root",
       "codex": "Codex CLI",
@@ -921,6 +933,7 @@
     },
     "codex": {
       "title": "Codex defaults",
+      "prompt": "Enter the Codex API key from your administrator to start using One Person Lab.",
       "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
       "apiKeyPlaceholder": "Enter Codex API key",
       "apiKeyRequired": "Codex API key is required",

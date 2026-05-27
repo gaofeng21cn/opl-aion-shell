@@ -20,6 +20,10 @@ const DEFAULT_LABELS = {
   readyEntry: 'opl-first-run-ready-entry',
   guidEntry: 'opl-guid-entry',
   settingsEnvironment: 'opl-settings-environment',
+  beginnerSummary: 'opl-first-run-beginner-summary',
+  primaryAction: 'opl-first-run-primary-action',
+  backgroundMaintenance: 'opl-first-run-background-maintenance-secondary',
+  technicalDetailsToggle: 'opl-first-run-technical-details-toggle',
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
@@ -483,6 +487,10 @@ function queryAccessibility(processName) {
     DEFAULT_LABELS.environmentButton,
     DEFAULT_LABELS.modulesButton,
     DEFAULT_LABELS.readyEntry,
+    DEFAULT_LABELS.beginnerSummary,
+    DEFAULT_LABELS.primaryAction,
+    DEFAULT_LABELS.backgroundMaintenance,
+    DEFAULT_LABELS.technicalDetailsToggle,
     DEFAULT_LABELS.guidEntry,
   ];
   const script = `
@@ -748,7 +756,7 @@ function existingStateGuidProbeTimeoutMs(options) {
 }
 
 function shouldWaitForFirstRunCompletion(options) {
-  return options.requireCodexConfigWizard === true || shouldVerifyFullFirstRunEquivalence(options.runtimeProfile);
+  return options.requireCodexConfigWizard === true;
 }
 
 function cdpProbeTimeoutMs(options) {

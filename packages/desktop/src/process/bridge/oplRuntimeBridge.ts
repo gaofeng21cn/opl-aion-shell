@@ -5,6 +5,8 @@
  */
 
 import { spawn } from 'node:child_process';
+import { accessSync, constants } from 'node:fs';
+import path from 'node:path';
 import { ipcBridge } from '@/common';
 import type {
   IOplConfigureCodexRequest,
@@ -23,6 +25,8 @@ type RuntimeCommandSpec = {
 
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
+const SYSTEM_PATH_ENTRIES =
+  process.platform === 'win32' ? [] : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   adapterId: 'aionui',
@@ -134,10 +138,54 @@ function parseJson(stdout: string): unknown {
   return JSON.parse(trimmed);
 }
 
+function isExecutable(filePath: string): boolean {
+  try {
+    accessSync(filePath, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveOplCommand(): string {
+  const candidates = [
+    process.env.OPL_CLI_BIN,
+    process.env.OPL_FULL_RUNTIME_HOME ? path.join(process.env.OPL_FULL_RUNTIME_HOME, 'bin', 'opl') : undefined,
+    ...String(process.env.PATH ?? '')
+      .split(path.delimiter)
+      .map((entry) => (entry ? path.join(entry, process.platform === 'win32' ? 'opl.cmd' : 'opl') : '')),
+    ...SYSTEM_PATH_ENTRIES.map((entry) => path.join(entry, 'opl')),
+  ];
+  for (const candidate of candidates) {
+    if (candidate && isExecutable(candidate)) return candidate;
+  }
+  return 'opl';
+}
+
+function commandFailureResult(
+  spec: RuntimeCommandSpec,
+  command: string,
+  message: string,
+  error: Partial<NonNullable<IOplRuntimeCommandResult['error']>> = {}
+): IOplRuntimeCommandResult {
+  return {
+    surface: spec.surface,
+    command,
+    stdout: '',
+    parsed: null,
+    ok: false,
+    error: {
+      message,
+      ...error,
+    },
+  };
+}
+
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
-  const command = spec.redactedCommand ?? ['opl', ...spec.args].join(' ');
-  return new Promise((resolve, reject) => {
-    const child = spawn('opl', spec.args, {
+  const oplCommand = resolveOplCommand();
+  const command = spec.redactedCommand ?? [oplCommand, ...spec.args].join(' ');
+  return new Promise((resolve) => {
+    const child = spawn(oplCommand, spec.args, {
       env: process.env,
       stdio: [spec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
@@ -147,7 +195,11 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
     const timer = setTimeout(() => {
       settled = true;
       child.kill('SIGTERM');
-      reject(new Error(`OPL runtime command timed out: ${command}`));
+      resolve(
+        commandFailureResult(spec, command, `OPL runtime command timed out: ${command}`, {
+          timedOut: true,
+        })
+      );
     }, OPL_COMMAND_TIMEOUT_MS);
 
     child.stdout.setEncoding('utf8');
@@ -156,7 +208,9 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
       stdout += chunk;
       if (Buffer.byteLength(stdout, 'utf8') > MAX_STDOUT_BYTES) {
         child.kill('SIGTERM');
-        reject(new Error(`OPL runtime command output exceeded ${MAX_STDOUT_BYTES} bytes`));
+        settled = true;
+        clearTimeout(timer);
+        resolve(commandFailureResult(spec, command, `OPL runtime command output exceeded ${MAX_STDOUT_BYTES} bytes`));
       }
     });
     child.stderr.on('data', (chunk: string) => {
@@ -169,14 +223,23 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      reject(error);
+      resolve(
+        commandFailureResult(spec, command, error.message, {
+          code: 'code' in error && typeof error.code === 'string' ? error.code : undefined,
+        })
+      );
     });
     child.on('close', (code) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || command}`));
+        resolve(
+          commandFailureResult(spec, command, `OPL runtime command failed (${code}): ${stderr.trim() || command}`, {
+            stderr: stderr.trim(),
+            exitCode: code,
+          })
+        );
         return;
       }
       try {
@@ -185,9 +248,15 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
           command,
           stdout,
           parsed: parseJson(stdout),
+          ok: true,
         });
       } catch (error) {
-        reject(error);
+        resolve(
+          commandFailureResult(spec, command, error instanceof Error ? error.message : String(error), {
+            stderr: stderr.trim(),
+            exitCode: code,
+          })
+        );
       }
     });
   });
@@ -215,5 +284,8 @@ export const __oplRuntimeBridgeTest = {
   buildInstallPrepCommand,
   buildReconcileModulesCommand,
   buildStartupMaintenanceCommand,
+  commandFailureResult,
   parseJson,
+  resolveOplCommand,
+  runOplCommand,
 };

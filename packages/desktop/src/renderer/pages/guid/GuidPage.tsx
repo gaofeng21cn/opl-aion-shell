@@ -23,7 +23,7 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { DEFAULT_CODEX_MODEL_WITH_REASONING_ID } from '@/common/types/codex/codexModels';
+import { DEFAULT_CODEX_MODEL_DISPLAY_LABEL } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS } from '@/common/types/codex/codexModes';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider, Dropdown, Menu, Message } from '@arco-design/web-react';
@@ -314,7 +314,7 @@ const GuidPage: React.FC = () => {
   const codexDefaultStatus = useMemo(
     () =>
       t('conversation.welcome.codexDefaultStatus', {
-        model: DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
+        model: DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
         permission: t(`agentMode.${CODEX_MODE_NATIVE_FULL_ACCESS}`, { defaultValue: 'Full Access' }),
       }),
     [t]

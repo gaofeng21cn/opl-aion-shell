@@ -524,7 +524,7 @@ export function getOplGuiSettingsVisibleTabs(): string[] {
 }
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
-  return { ...(OPL_PRODUCT_PROFILE.settings.legacy_route_redirects ?? {}) };
+  return { ...OPL_PRODUCT_PROFILE.settings.legacy_route_redirects };
 }
 
 export function getOplRuntimeEnvironmentItems(): string[] {
