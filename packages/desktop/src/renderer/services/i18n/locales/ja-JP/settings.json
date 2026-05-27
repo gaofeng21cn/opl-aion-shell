@@ -928,7 +928,11 @@
       "execute": "実行",
       "dryRunComplete": "ドライラン完了",
       "executeComplete": "アクションを実行しました"
-    }
+    },
+    "actionQueue": "Action queue",
+    "domainLaneMap": "Dynamic map",
+    "taskDrilldown": "Task drilldown",
+    "blockers": "Blockers"
   },
   "noExternalSources": "外部スキルソースが見つかりません"
 }

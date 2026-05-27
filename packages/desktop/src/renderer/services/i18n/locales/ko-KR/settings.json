@@ -928,7 +928,11 @@
       "execute": "실행",
       "dryRunComplete": "드라이 런 완료",
       "executeComplete": "작업 실행됨"
-    }
+    },
+    "actionQueue": "Action queue",
+    "domainLaneMap": "Dynamic map",
+    "taskDrilldown": "Task drilldown",
+    "blockers": "Blockers"
   },
   "noExternalSources": "외부 스킬 소스를 찾을 수 없습니다"
 }

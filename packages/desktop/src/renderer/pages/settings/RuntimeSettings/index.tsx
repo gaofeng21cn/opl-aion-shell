@@ -12,7 +12,15 @@ import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { normalizeRuntimeProjection } from './runtimeProjection';
-import type { RuntimeGraphEdge, RuntimeGraphNode, RuntimeSafeActionRoute } from './types';
+import type {
+  RuntimeActionQueueItem,
+  RuntimeDomainLane,
+  RuntimeGraphEdge,
+  RuntimeGraphNode,
+  RuntimeSafeActionRoute,
+  RuntimeSummaryCard,
+  RuntimeTaskDrilldown,
+} from './types';
 import './runtime.css';
 
 function GraphPanel({
@@ -106,6 +114,172 @@ function ActionRouteList({
         </div>
       ))}
     </div>
+  );
+}
+
+function SummaryStrip({
+  sourceSurface,
+  state,
+  cards,
+}: {
+  sourceSurface: string;
+  state: string;
+  cards: RuntimeSummaryCard[];
+}) {
+  const { t } = useTranslation();
+  const visibleCards = cards.length > 0
+    ? cards
+    : [
+        { id: 'source-surface', label: t('settings.runtime.sourceSurface'), value: sourceSurface },
+        { id: 'state', label: t('settings.runtime.state'), value: state },
+      ];
+  return (
+    <section className='runtime-summary-strip'>
+      <div className='runtime-summary-card runtime-summary-card--identity'>
+        <span>{t('settings.runtime.sourceSurface')}</span>
+        <strong>{sourceSurface}</strong>
+      </div>
+      <div className='runtime-summary-card runtime-summary-card--identity'>
+        <span>{t('settings.runtime.state')}</span>
+        <strong>{state}</strong>
+      </div>
+      {visibleCards.slice(0, 6).map((card) => (
+        <div key={card.id} className={`runtime-summary-card runtime-summary-card--${card.tone ?? 'neutral'}`}>
+          <span>{card.label}</span>
+          <strong>{card.value}</strong>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ActionQueue({ items }: { items: RuntimeActionQueueItem[] }) {
+  const { t } = useTranslation();
+  return (
+    <section className='runtime-card runtime-card--flow'>
+      <div className='runtime-card__header'>
+        <span className='runtime-card__icon'>
+          <Right />
+        </span>
+        <h3>{t('settings.runtime.actionQueue')}</h3>
+      </div>
+      {items.length === 0 ? (
+        <Empty className='py-20px' />
+      ) : (
+        <div className='runtime-action-queue'>
+          {items.map((item) => (
+            <div key={item.id} className='runtime-queue-item'>
+              <div className='runtime-queue-item__main'>
+                <div>
+                  <div className='runtime-queue-item__title'>{item.title}</div>
+                  <div className='runtime-queue-item__meta'>
+                    {item.domainLabel && <span>{item.domainLabel}</span>}
+                    {item.subtitle && <span>{item.subtitle}</span>}
+                  </div>
+                </div>
+                {item.priorityBucket && <Tag size='small'>{item.priorityBucket}</Tag>}
+              </div>
+              <div className='runtime-queue-item__counts'>
+                <span>{t('settings.runtime.safeActions')}: {item.safeActionRefCount}</span>
+                <span>{t('settings.runtime.blockers')}: {item.blockerRefCount}</span>
+                <span>{t('settings.runtime.paperLensRefs')}: {item.paperRouteLensRefCount}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DomainLaneMap({ lanes }: { lanes: RuntimeDomainLane[] }) {
+  const { t } = useTranslation();
+  return (
+    <section className='runtime-card runtime-card--flow'>
+      <div className='runtime-card__header'>
+        <span className='runtime-card__icon'>
+          <BranchOne />
+        </span>
+        <h3>{t('settings.runtime.domainLaneMap')}</h3>
+      </div>
+      {lanes.length === 0 ? (
+        <Empty className='py-20px' />
+      ) : (
+        <div className='runtime-lanes'>
+          {lanes.map((lane) => (
+            <div key={lane.domainId} className='runtime-lane'>
+              <div className='runtime-lane__header'>
+                <strong>{lane.label}</strong>
+                <span>{lane.activeTaskCount} active</span>
+              </div>
+              <div className='runtime-lane__tasks'>
+                {lane.tasks.map((task) => (
+                  <div key={task.taskId} className='runtime-lane-task'>
+                    <div className='runtime-lane-task__node'>
+                      <span>{task.label}</span>
+                      {task.state && <Tag size='small'>{task.state}</Tag>}
+                    </div>
+                    <div className='runtime-lane-task__path'>
+                      {task.activePathNodeIds.slice(0, 5).map((nodeId) => (
+                        <code key={nodeId}>{nodeId}</code>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TaskDrilldowns({ tasks }: { tasks: RuntimeTaskDrilldown[] }) {
+  const { t } = useTranslation();
+  return (
+    <section className='runtime-card runtime-card--flow'>
+      <div className='runtime-card__header'>
+        <span className='runtime-card__icon'>
+          <Lightning />
+        </span>
+        <h3>{t('settings.runtime.taskDrilldown')}</h3>
+      </div>
+      {tasks.length === 0 ? (
+        <Empty className='py-20px' />
+      ) : (
+        <div className='runtime-drilldowns'>
+          {tasks.map((task) => (
+            <div key={task.taskId} className='runtime-drilldown'>
+              <div className='runtime-drilldown__header'>
+                <div>
+                  <strong>{task.title}</strong>
+                  <div className='runtime-drilldown__meta'>
+                    {task.domainLabel && <span>{task.domainLabel}</span>}
+                    {task.activeStageId && <span>{task.activeStageId}</span>}
+                    <span>{task.stageAttemptIds.length} attempts</span>
+                  </div>
+                </div>
+                {task.state && <Tag size='small'>{task.state}</Tag>}
+              </div>
+              <div className='runtime-drilldown__path'>
+                {task.activePath.map((node) => (
+                  <div key={node.id} className='runtime-path-node'>
+                    <span>{node.label}</span>
+                    {node.state && <Tag size='small'>{node.state}</Tag>}
+                  </div>
+                ))}
+              </div>
+              <div className='runtime-queue-item__counts'>
+                <span>{t('settings.runtime.safeActions')}: {task.safeActionRefCount}</span>
+                <span>{t('settings.runtime.blockers')}: {task.blockerRefCount}</span>
+                <span>{t('settings.runtime.paperLensRefs')}: {task.paperRouteLensRefCount}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -203,22 +377,13 @@ const RuntimeSettings: React.FC = () => {
         {error && <div className='runtime-error'>{error}</div>}
 
         <Spin loading={loading && !summaryResult}>
-          <section className='runtime-summary'>
-            <div>
-              <span>{t('settings.runtime.sourceSurface')}</span>
-              <strong>{model.sourceSurface}</strong>
-            </div>
-            <div>
-              <span>{t('settings.runtime.state')}</span>
-              <strong>{model.state}</strong>
-            </div>
-            {model.summary.slice(0, 6).map((item) => (
-              <div key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </section>
+          <SummaryStrip sourceSurface={model.sourceSurface} state={model.state} cards={model.summaryCards} />
+
+          <ActionQueue items={model.actionQueue} />
+
+          <DomainLaneMap lanes={model.domainLaneMap} />
+
+          <TaskDrilldowns tasks={model.taskDrilldowns} />
 
           <div className='runtime-grid runtime-grid--graphs'>
             <GraphPanel

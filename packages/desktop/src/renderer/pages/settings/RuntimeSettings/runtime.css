@@ -34,24 +34,24 @@
   justify-content: flex-end;
 }
 
-.runtime-summary,
+.runtime-summary-strip,
 .runtime-grid {
   display: grid;
   gap: 12px;
 }
 
-.runtime-summary {
+.runtime-summary-strip {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
-.runtime-summary > div,
+.runtime-summary-card,
 .runtime-card {
   border: 1px solid var(--border-base);
   background: var(--bg-1);
   border-radius: 8px;
 }
 
-.runtime-summary > div {
+.runtime-summary-card {
   min-height: 72px;
   padding: 12px;
   display: flex;
@@ -59,7 +59,7 @@
   gap: 6px;
 }
 
-.runtime-summary span,
+.runtime-summary-card span,
 .runtime-node__meta,
 .runtime-action__meta {
   color: var(--text-tertiary);
@@ -67,7 +67,7 @@
   line-height: 18px;
 }
 
-.runtime-summary strong {
+.runtime-summary-card strong {
   color: var(--text-primary);
   font-size: 16px;
   line-height: 22px;
@@ -85,6 +85,12 @@
 .runtime-card {
   padding: 14px;
   min-width: 0;
+}
+
+.runtime-card--flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .runtime-card__header {
@@ -115,14 +121,21 @@
 .runtime-node-list,
 .runtime-action-list,
 .runtime-ref-list,
-.runtime-edge-list {
+.runtime-edge-list,
+.runtime-action-queue,
+.runtime-lanes,
+.runtime-lane__tasks,
+.runtime-drilldowns {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
 .runtime-node,
-.runtime-action {
+.runtime-action,
+.runtime-queue-item,
+.runtime-lane,
+.runtime-drilldown {
   border: 1px solid var(--border-base);
   border-radius: 8px;
   background: var(--bg-2);
@@ -130,7 +143,10 @@
 }
 
 .runtime-node__main,
-.runtime-action {
+.runtime-action,
+.runtime-queue-item__main,
+.runtime-lane__header,
+.runtime-drilldown__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -138,7 +154,10 @@
 }
 
 .runtime-node__main span,
-.runtime-action__title {
+.runtime-action__title,
+.runtime-queue-item__title,
+.runtime-lane__header strong,
+.runtime-drilldown__header strong {
   color: var(--text-primary);
   font-size: 14px;
   line-height: 20px;
@@ -148,13 +167,54 @@
 
 .runtime-node__meta,
 .runtime-action__meta,
-.runtime-edge {
+.runtime-edge,
+.runtime-queue-item__meta,
+.runtime-queue-item__counts,
+.runtime-drilldown__meta,
+.runtime-lane__header span {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
   min-width: 0;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.runtime-lane-task,
+.runtime-path-node {
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  padding: 8px;
+  min-width: 0;
+}
+
+.runtime-lane-task__node,
+.runtime-path-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.runtime-lane-task__node span,
+.runtime-path-node span {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.runtime-lane-task__path,
+.runtime-drilldown__path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .runtime-action__body {
@@ -176,7 +236,8 @@
 .runtime-ref-list code,
 .runtime-node code,
 .runtime-action code,
-.runtime-edge code {
+.runtime-edge code,
+.runtime-lane-task__path code {
   max-width: 100%;
   overflow-wrap: anywhere;
   color: var(--text-secondary);
@@ -220,12 +281,18 @@
   }
 
   .runtime-header__actions,
-  .runtime-action {
+  .runtime-action,
+  .runtime-queue-item__main,
+  .runtime-lane__header,
+  .runtime-drilldown__header {
     width: 100%;
     justify-content: flex-start;
   }
 
-  .runtime-action {
+  .runtime-action,
+  .runtime-queue-item__main,
+  .runtime-lane__header,
+  .runtime-drilldown__header {
     align-items: flex-start;
     flex-direction: column;
   }

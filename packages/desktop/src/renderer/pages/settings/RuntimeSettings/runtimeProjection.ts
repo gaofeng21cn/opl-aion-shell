@@ -5,9 +5,16 @@
  */
 
 import type {
+  RuntimeActionQueueItem,
+  RuntimeDomainLane,
   RuntimeGraphEdge,
   RuntimeGraphNode,
+  RuntimeLaneTask,
+  RuntimePerformancePolicy,
+  RuntimeRefreshPolicy,
   RuntimeSafeActionRoute,
+  RuntimeSummaryCard,
+  RuntimeTaskDrilldown,
   RuntimeTimelineItem,
   RuntimeVisualizationModel,
 } from './types';
@@ -20,6 +27,18 @@ function isRecord(value: unknown): value is JsonRecord {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function asBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(asString).filter((entry): entry is string => Boolean(entry)) : [];
 }
 
 function asRecordArray(value: unknown): JsonRecord[] {
@@ -163,9 +182,99 @@ function readSafeActionRoutes(value: unknown): RuntimeSafeActionRoute[] {
   });
 }
 
+function readRuntimeWorkbench(projection: JsonRecord): JsonRecord {
+  return firstRecord(projection.runtime_workbench) ?? {};
+}
+
+function readSummaryCards(workbench: JsonRecord): RuntimeSummaryCard[] {
+  return asRecordArray(workbench.summary_cards).map((entry, index) => ({
+    id: asString(entry.card_id) ?? asString(entry.id) ?? `summary-${index + 1}`,
+    label: asString(entry.label) ?? asString(entry.card_id) ?? `Summary ${index + 1}`,
+    value: String(entry.value ?? ''),
+    tone: asString(entry.tone),
+  }));
+}
+
+function readRefreshPolicy(workbench: JsonRecord): RuntimeRefreshPolicy | undefined {
+  const policy = firstRecord(workbench.refresh_policy);
+  if (!policy) return undefined;
+  return {
+    summaryPollIntervalSeconds: asNumber(policy.summary_poll_interval_seconds) ?? 10,
+    fullDetailAutoPoll: asBoolean(policy.full_detail_auto_poll) ?? false,
+    perTokenStreaming: asBoolean(policy.per_token_streaming) ?? false,
+  };
+}
+
+function readPerformancePolicy(workbench: JsonRecord): RuntimePerformancePolicy {
+  const policy = firstRecord(workbench.performance_policy);
+  if (!policy) return {};
+  return {
+    globalMapRenderer: asString(policy.global_map_renderer),
+    graphLayoutRecompute: asString(policy.graph_layout_recompute),
+  };
+}
+
+function readActionQueue(workbench: JsonRecord): RuntimeActionQueueItem[] {
+  const queue = firstRecord(workbench.action_queue);
+  return asRecordArray(queue?.items).map((entry, index) => ({
+    id: asString(entry.item_id) ?? asString(entry.id) ?? `queue-${index + 1}`,
+    taskId: asString(entry.task_id) ?? `task-${index + 1}`,
+    title: asString(entry.title) ?? asString(entry.task_id) ?? `Task ${index + 1}`,
+    subtitle: asString(entry.subtitle),
+    domainId: asString(entry.domain_id),
+    domainLabel: asString(entry.domain_label),
+    state: asString(entry.state),
+    priorityBucket: asString(entry.priority_bucket),
+    safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? 0,
+    blockerRefCount: asNumber(entry.blocker_ref_count) ?? 0,
+    paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
+  }));
+}
+
+function readLaneTask(entry: JsonRecord, index: number): RuntimeLaneTask {
+  return {
+    taskId: asString(entry.task_id) ?? `lane-task-${index + 1}`,
+    label: asString(entry.label) ?? asString(entry.title) ?? asString(entry.task_id) ?? `Task ${index + 1}`,
+    state: asString(entry.state),
+    priorityBucket: asString(entry.priority_bucket),
+    activeStageId: asString(entry.active_stage_id),
+    activePathNodeIds: asStringArray(entry.active_path_node_ids),
+    paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
+  };
+}
+
+function readDomainLaneMap(workbench: JsonRecord): RuntimeDomainLane[] {
+  const laneMap = firstRecord(workbench.domain_lane_map);
+  return asRecordArray(laneMap?.lanes).map((entry, index) => ({
+    domainId: asString(entry.domain_id) ?? `domain-${index + 1}`,
+    label: asString(entry.lane_label) ?? asString(entry.label) ?? asString(entry.domain_id) ?? `Domain ${index + 1}`,
+    activeTaskCount: asNumber(entry.active_task_count) ?? 0,
+    blockedTaskCount: asNumber(entry.blocked_task_count) ?? 0,
+    paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
+    tasks: asRecordArray(entry.tasks).map(readLaneTask),
+  }));
+}
+
+function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
+  return asRecordArray(workbench.task_drilldowns).map((entry, index) => ({
+    taskId: asString(entry.task_id) ?? `task-${index + 1}`,
+    title: asString(entry.title) ?? asString(entry.task_id) ?? `Task ${index + 1}`,
+    domainId: asString(entry.domain_id),
+    domainLabel: asString(entry.domain_label),
+    state: asString(entry.state),
+    activeStageId: asString(entry.active_stage_id),
+    stageAttemptIds: asStringArray(entry.stage_attempt_ids),
+    paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
+    safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? 0,
+    blockerRefCount: asNumber(entry.blocker_ref_count) ?? 0,
+    activePath: asRecordArray(entry.active_path).map((node, nodeIndex) => readNode(node, 'path', nodeIndex)),
+  }));
+}
+
 export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationModel {
   const projection = readProjection(root);
   const rootRecord = isRecord(root) ? root : {};
+  const workbench = readRuntimeWorkbench(projection);
   const unifiedGraph = readGraph(projection.graph, 'runtime');
   const stageGraph =
     unifiedGraph.nodes.length > 0
@@ -214,6 +323,12 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
         : 'app_operator_drilldown'),
     state: asString(projection.state) ?? asString(projection.runtime_state) ?? asString(projection.status) ?? 'unknown',
     summary: readSummaryPairs(projection),
+    summaryCards: readSummaryCards(workbench),
+    actionQueue: readActionQueue(workbench),
+    domainLaneMap: readDomainLaneMap(workbench),
+    taskDrilldowns: readTaskDrilldowns(workbench),
+    refreshPolicy: readRefreshPolicy(workbench),
+    performancePolicy: readPerformancePolicy(workbench),
     stageGraph,
     routeGraph,
     decisionMap,

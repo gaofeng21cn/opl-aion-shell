@@ -926,7 +926,11 @@
       "execute": "Çalıştır",
       "dryRunComplete": "Dry run tamamlandı",
       "executeComplete": "Action executed"
-    }
+    },
+    "actionQueue": "Action queue",
+    "domainLaneMap": "Dynamic map",
+    "taskDrilldown": "Task drilldown",
+    "blockers": "Blockers"
   },
   "noExternalSources": "Harici beceri kaynağı bulunamadı"
 }

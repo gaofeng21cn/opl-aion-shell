@@ -927,7 +927,11 @@
       "execute": "执行",
       "dryRunComplete": "试运行完成",
       "executeComplete": "动作已执行"
-    }
+    },
+    "actionQueue": "行动队列",
+    "domainLaneMap": "动态地图",
+    "taskDrilldown": "任务详情",
+    "blockers": "阻塞"
   },
   "noExternalSources": "未发现外部技能源"
 }

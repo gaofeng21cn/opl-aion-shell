@@ -114,6 +114,69 @@ describe('runtime visualization projection normalization', () => {
               },
             ],
           },
+          runtime_workbench: {
+            surface_kind: 'opl_app_runtime_workbench_visualization_model',
+            layout_model: 'vertical_summary_action_queue_lane_map_task_drilldown.v1',
+            refresh_policy: {
+              summary_poll_interval_seconds: 10,
+              full_detail_auto_poll: false,
+              per_token_streaming: false,
+            },
+            performance_policy: {
+              global_map_renderer: 'lightweight_dom_css_lane_map',
+              graph_layout_recompute: 'topology_changes_only',
+            },
+            summary_cards: [
+              { card_id: 'active_tasks', label: 'Active tasks', value: 1, tone: 'running' },
+              { card_id: 'needs_user', label: 'Needs user', value: 0, tone: 'attention' },
+            ],
+            action_queue: {
+              items: [
+                {
+                  item_id: 'task:dm-cvd',
+                  task_id: 'dm-cvd',
+                  domain_id: 'medautoscience',
+                  stage_id: 'write',
+                  priority_bucket: 'can_continue',
+                  title: 'DM-CVD write',
+                  subtitle: 'continue',
+                  safe_action_ref_count: 1,
+                  blocker_ref_count: 0,
+                  paper_route_lens_ref_count: 1,
+                },
+              ],
+            },
+            domain_lane_map: {
+              lanes: [
+                {
+                  domain_id: 'medautoscience',
+                  lane_label: 'MAS',
+                  active_task_count: 1,
+                  tasks: [
+                    {
+                      task_id: 'dm-cvd',
+                      label: 'DM-CVD write',
+                      state: 'running',
+                      active_stage_id: 'write',
+                      active_path_node_ids: ['stage_attempt:attempt-1'],
+                      paper_route_lens_ref_count: 1,
+                    },
+                  ],
+                },
+              ],
+            },
+            task_drilldowns: [
+              {
+                task_id: 'dm-cvd',
+                domain_id: 'medautoscience',
+                title: 'DM-CVD write',
+                state: 'running',
+                stage_attempt_ids: ['attempt-1'],
+                paper_route_lens_ref_count: 1,
+                active_path: [{ node_id: 'stage_attempt:attempt-1', label: 'write', state: 'completed' }],
+              },
+            ],
+          },
           visual_ref_groups: {
             typed_blocker_refs: [{ ref: 'mas://blockers/currentness.json', role: 'typed_blocker_ref' }],
           },
@@ -143,6 +206,39 @@ describe('runtime visualization projection normalization', () => {
     expect(model.researchPaperLensRefs[0]).toMatchObject({
       ref: 'mas://studies/dm-cvd/paper-route-lens/latest.json',
       kind: 'paper_route_lens_ref',
+    });
+    expect(model.refreshPolicy).toMatchObject({
+      summaryPollIntervalSeconds: 10,
+      fullDetailAutoPoll: false,
+      perTokenStreaming: false,
+    });
+    expect(model.performancePolicy.globalMapRenderer).toBe('lightweight_dom_css_lane_map');
+    expect(model.summaryCards[0]).toMatchObject({ id: 'active_tasks', value: '1', tone: 'running' });
+    expect(model.actionQueue[0]).toMatchObject({
+      taskId: 'dm-cvd',
+      domainId: 'medautoscience',
+      priorityBucket: 'can_continue',
+      safeActionRefCount: 1,
+      paperRouteLensRefCount: 1,
+    });
+    expect(model.domainLaneMap[0]).toMatchObject({
+      domainId: 'medautoscience',
+      label: 'MAS',
+      activeTaskCount: 1,
+    });
+    expect(model.domainLaneMap[0]?.tasks[0]).toMatchObject({
+      taskId: 'dm-cvd',
+      activeStageId: 'write',
+      paperRouteLensRefCount: 1,
+    });
+    expect(model.taskDrilldowns[0]).toMatchObject({
+      taskId: 'dm-cvd',
+      domainId: 'medautoscience',
+      paperRouteLensRefCount: 1,
+    });
+    expect(model.taskDrilldowns[0]?.activePath[0]).toMatchObject({
+      id: 'stage_attempt:attempt-1',
+      state: 'completed',
     });
     expect(model.refs[0]?.ref).toBe('mas://blockers/currentness.json');
   });

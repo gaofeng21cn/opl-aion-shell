@@ -928,7 +928,11 @@
       "execute": "執行",
       "dryRunComplete": "試執行完成",
       "executeComplete": "動作已執行"
-    }
+    },
+    "actionQueue": "Action queue",
+    "domainLaneMap": "Dynamic map",
+    "taskDrilldown": "Task drilldown",
+    "blockers": "Blockers"
   },
   "noExternalSources": "未發現外部技能來源"
 }

@@ -844,7 +844,11 @@
       "execute": "Виконати",
       "dryRunComplete": "Dry run завершено",
       "executeComplete": "Action executed"
-    }
+    },
+    "actionQueue": "Action queue",
+    "domainLaneMap": "Dynamic map",
+    "taskDrilldown": "Task drilldown",
+    "blockers": "Blockers"
   },
   "noExternalSources": "Зовнішні джерела навичок не знайдені"
 }
