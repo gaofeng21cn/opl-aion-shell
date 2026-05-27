@@ -36,16 +36,23 @@ jobs:
             # Fetch latest non-prerelease release tag
             TAG=$(gh release view --repo "${{ github.repository }}" --json tagName --jq '.tagName' 2>/dev/null || echo "")
             if [ -z "$TAG" ]; then
+              if [ "${{ github.event_name }}" = "schedule" ]; then
+                echo "::notice::No release exists for this repository; skipping scheduled Homebrew cask verification."
+                echo "skip=true" >> $GITHUB_OUTPUT
+                exit 0
+              fi
               echo "::error::Could not determine latest release tag"
               exit 1
             fi
             VERSION="${TAG#v}"
           fi
 
+          echo "skip=false" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Expected Homebrew cask version: $VERSION"
 
       - name: Verify cask version
+        if: steps.release.outputs.skip != 'true'
         id: verify
         run: |
           EXPECTED="${{ steps.release.outputs.version }}"
@@ -72,7 +79,7 @@ jobs:
           fi
 
       - name: Check for pending PR
-        if: steps.verify.outputs.status == 'mismatch'
+        if: steps.release.outputs.skip != 'true' && steps.verify.outputs.status == 'mismatch'
         id: check_pr
         env:
           GH_TOKEN: ${{ github.token }}
@@ -94,7 +101,7 @@ jobs:
           fi
 
       - name: Report result
-        if: always() && steps.release.outputs.version != ''
+        if: always() && steps.release.outputs.skip != 'true' && steps.release.outputs.version != ''
         run: |
           EXPECTED="${{ steps.release.outputs.version }}"
           STATUS="${{ steps.verify.outputs.status }}"
@@ -130,3 +137,8 @@ jobs:
             echo "::error::Failed to verify — could not fetch cask file from Homebrew repo"
             exit 1
           fi
+
+      - name: Report skipped schedule
+        if: steps.release.outputs.skip == 'true'
+        run: |
+          echo "No release exists for this repository; scheduled Homebrew cask verification was skipped."
