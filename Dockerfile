@@ -1,39 +1,41 @@
-FROM node:20-slim AS builder
+FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
-# Install bun
-RUN npm install -g bun
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g bun
 
-# Install all dependencies (including devDeps for build)
 COPY package.json bun.lock ./
+COPY packages/desktop/package.json ./packages/desktop/package.json
+COPY packages/shared-scripts/package.json ./packages/shared-scripts/package.json
+COPY packages/web-cli/package.json ./packages/web-cli/package.json
+COPY packages/web-host/package.json ./packages/web-host/package.json
 COPY patches/ ./patches/
-RUN bun install --ignore-scripts
 
-# Copy source
+RUN bun install --frozen-lockfile --ignore-scripts
+
 COPY . .
 
-# Build renderer (no Electron needed) and server bundle
-RUN bun run build:renderer:web
-RUN node scripts/build-server.mjs
+ENV NODE_ENV=production
+RUN bunx electron-vite build --config packages/desktop/electron.vite.config.ts
+RUN node scripts/pack-web-cli.js
 
-# ---- Runtime image ----
-FROM oven/bun:latest AS runtime
+FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
-# Copy only build artifacts and production deps
-COPY --from=builder /app/dist-server ./dist-server
-COPY --from=builder /app/out/renderer ./out/renderer
-COPY package.json bun.lock ./
-COPY patches/ ./patches/
-RUN bun install --production --ignore-scripts
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/dist-web-cli/staging/aionui-web ./aionui-web
 
 ENV PORT=3000
 ENV NODE_ENV=production
-ENV ALLOW_REMOTE=true
-ENV DATA_DIR=/data
+ENV AIONUI_ALLOW_REMOTE=1
+ENV AIONUI_DATA_DIR=/data
 
-# SQLite data volume — mount with: -v $(pwd)/data:/data
 VOLUME ["/data"]
 EXPOSE 3000
 
-CMD ["bun", "dist-server/server.mjs"]
+CMD ["./aionui-web/aionui-web", "start", "--remote", "--port", "3000"]
