@@ -11,6 +11,7 @@ import * as path from 'path';
 import os from 'os';
 import { getDevAppName } from '@/common/platform';
 import { applyGpuRecoveryFlags } from './gpuRecovery';
+import { resolveCdpPortStartupOverride } from './cdpPortOverride';
 
 // ============ Environment Separation ============
 // Set app name before any getPath() call so userData is isolated from production.
@@ -63,7 +64,7 @@ if (isWebUI || isResetPassword) {
 // so chrome-devtools-mcp and other CDP clients can connect to this Electron app.
 //
 // Default port: 9230 (avoids conflict with common CDP ports).
-// Override via AIONUI_CDP_PORT env variable. Set to "0" to disable.
+// Override via --aionui-cdp-port or AIONUI_CDP_PORT. Set to "0" to disable.
 //
 // Configuration file: userData/cdp.config.json
 // - enabled: boolean - whether CDP is enabled (default: true in dev mode, false in production)
@@ -244,27 +245,22 @@ export function saveCdpConfig(config: CdpConfig): void {
 }
 
 /**
- * Resolve CDP port from environment variable.
- * Returns null if explicitly disabled via env.
+ * Resolve CDP port from startup overrides.
+ * Returns null if explicitly disabled.
  */
-function resolveCdpPortFromEnv(): number | null | undefined {
-  const envVal = process.env.AIONUI_CDP_PORT;
-  if (envVal === '0' || envVal === 'false') return null;
-  if (envVal) {
-    const parsed = Number(envVal);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-  return undefined;
+function resolveCdpPortFromStartup(): number | null | undefined {
+  const override = resolveCdpPortStartupOverride();
+  if (override.enabled === false) return null;
+  return override.port;
 }
 
 /**
  * Determine if CDP should be enabled at startup.
- * Priority: env variable > config file > default (dev mode: true, production: false)
+ * Priority: CLI arg > env variable > config file > default (dev mode: true, production: false)
  */
 function shouldEnableCdp(config: CdpConfig): boolean {
-  const envVal = process.env.AIONUI_CDP_PORT;
-  if (envVal === '0' || envVal === 'false') return false;
-  if (envVal) return true;
+  const override = resolveCdpPortStartupOverride();
+  if (override.enabled !== undefined) return override.enabled;
 
   if (app.isPackaged) {
     return false;
@@ -279,13 +275,12 @@ function shouldEnableCdp(config: CdpConfig): boolean {
 
 /**
  * Determine preferred CDP port.
- * Priority: env variable > config file > default (9230)
+ * Priority: CLI arg > env variable > config file > default (9230)
  */
 function getPreferredPort(config: CdpConfig): number {
-  // Environment variable takes highest priority
-  const envPort = resolveCdpPortFromEnv();
-  if (envPort !== null && envPort !== undefined) {
-    return envPort;
+  const startupPort = resolveCdpPortFromStartup();
+  if (startupPort !== null && startupPort !== undefined) {
+    return startupPort;
   }
 
   // Config file setting

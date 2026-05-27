@@ -751,6 +751,57 @@ function shouldWaitForFirstRunCompletion(options) {
   return options.requireCodexConfigWizard === true || shouldVerifyFullFirstRunEquivalence(options.runtimeProfile);
 }
 
+function cdpProbeTimeoutMs(options) {
+  return Math.min(options.timeoutMs, 30_000);
+}
+
+function remainingGuidFallbackTimeoutMs(totalTimeoutMs, elapsedMs) {
+  return Math.max(0, totalTimeoutMs - elapsedMs);
+}
+
+function createSmokeEventWriter(artifactsDir, secret) {
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  const target = path.join(artifactsDir, 'smoke-events.jsonl');
+  return (phase, status, details = {}) => {
+    const event = {
+      timestamp: new Date().toISOString(),
+      phase,
+      status,
+      ...details,
+    };
+    const line = JSON.stringify(event);
+    assertDoesNotContainSecret('smoke-events.jsonl', line, secret);
+    fs.appendFileSync(target, `${line}\n`, 'utf8');
+    return event;
+  };
+}
+
+function writeSmokeEventSafely(writeSmokeEvent, phase, status, details = {}) {
+  try {
+    writeSmokeEvent(phase, status, details);
+  } catch (error) {
+    process.stderr.write(`[smoke-event] failed to write ${phase}/${status}: ${error.message || String(error)}\n`);
+  }
+}
+
+async function runSmokePhase(writeSmokeEvent, phase, operation, details = {}) {
+  const started = Date.now();
+  writeSmokeEventSafely(writeSmokeEvent, phase, 'started', details);
+  try {
+    const result = await operation();
+    writeSmokeEventSafely(writeSmokeEvent, phase, 'passed', {
+      duration_ms: Date.now() - started,
+    });
+    return result;
+  } catch (error) {
+    writeSmokeEventSafely(writeSmokeEvent, phase, 'failed', {
+      duration_ms: Date.now() - started,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
 async function waitForFullFirstRunEquivalence(timeoutMs) {
   const started = Date.now();
   let lastError = null;
@@ -908,7 +959,7 @@ function guidEntryNavigationExpression() {
 }
 
 async function waitForGuidEntryViaCdp(options) {
-  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   try {
     await client.send('Runtime.enable');
@@ -926,8 +977,16 @@ async function waitForGuidEntryViaCdp(options) {
 }
 
 async function waitForUsableGuidEntry(options) {
+  const started = Date.now();
   try {
+    writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'started', {
+      timeout_ms: cdpProbeTimeoutMs(options),
+      cdp_port: options.cdpPort,
+    });
     const cdp = await waitForGuidEntryViaCdp(options);
+    writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'passed', {
+      duration_ms: Date.now() - started,
+    });
     return {
       mode: 'cdp',
       labels: cdp.labels,
@@ -935,13 +994,32 @@ async function waitForUsableGuidEntry(options) {
       cdpState: cdp.state,
     };
   } catch (error) {
-    const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
-    return {
-      mode: 'accessibility_fallback',
-      labels: accessibility.labels,
-      tree: accessibility.tree,
-      cdpError: error instanceof Error ? error.message : String(error),
-    };
+    const elapsedMs = Date.now() - started;
+    const fallbackTimeoutMs = remainingGuidFallbackTimeoutMs(options.timeoutMs, elapsedMs);
+    writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'failed', {
+      duration_ms: elapsedMs,
+      fallback_timeout_ms: fallbackTimeoutMs,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    if (fallbackTimeoutMs <= 0) {
+      throw error;
+    }
+    return await runSmokePhase(
+      options.writeSmokeEvent,
+      'wait_guid_accessibility',
+      async () => {
+        const accessibility = await waitForGuidEntry(options.processName, fallbackTimeoutMs);
+        return {
+          mode: 'accessibility_fallback',
+          labels: accessibility.labels,
+          tree: accessibility.tree,
+          cdpError: error instanceof Error ? error.message : String(error),
+        };
+      },
+      {
+        timeout_ms: fallbackTimeoutMs,
+      }
+    );
   }
 }
 
@@ -1379,21 +1457,54 @@ async function main() {
   assertMacOS();
   const options = parseArgs(process.argv.slice(2));
   const codexApiKey = readCodexApiKey(options);
+  const writeSmokeEvent = createSmokeEventWriter(options.artifacts, codexApiKey);
   try {
     fs.mkdirSync(options.artifacts, { recursive: true });
-    if (options.assertClean) assertCleanFirstRunState(options.processName);
+    writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'started', {
+      runtime_profile: options.runtimeProfile,
+      settings_smoke: options.settingsSmoke,
+      cdp_port: options.cdpPort,
+      assert_clean: options.assertClean,
+    });
+    if (options.assertClean) {
+      await runSmokePhase(writeSmokeEvent, 'assert_clean_state', () => assertCleanFirstRunState(options.processName));
+    }
+    writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'passed');
 
-    const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
+    const appPath = await runSmokePhase(
+      writeSmokeEvent,
+      options.dmg ? 'install_dmg' : 'resolve_app',
+      () => (options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app),
+      {
+        dmg: options.dmg,
+        install_dir: options.installDir,
+      }
+    );
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
     const launchStartedAtMs = Date.now() - 1_000;
-    launchApp(appPath, options);
+    await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
+      app_path: appPath,
+      cdp_port: options.cdpPort,
+    });
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
     if (shouldProbeExistingGuidEntryBeforeFirstRun(options)) {
       try {
-        guidEntry = await waitForUsableGuidEntry({ ...options, timeoutMs: existingStateGuidProbeTimeoutMs(options) });
+        guidEntry = await runSmokePhase(
+          writeSmokeEvent,
+          'wait_guid_existing_state_probe',
+          () =>
+            waitForUsableGuidEntry({
+              ...options,
+              timeoutMs: existingStateGuidProbeTimeoutMs(options),
+              writeSmokeEvent,
+            }),
+          {
+            timeout_ms: existingStateGuidProbeTimeoutMs(options),
+          }
+        );
         firstRun = {
           events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
           sawCodexWizard: false,
@@ -1405,13 +1516,21 @@ async function main() {
       }
     }
     if (!firstRun && shouldWaitForFirstRunCompletion(options)) {
-      firstRun = await waitForFirstRunCompletion(
-        firstRunLog,
-        options.processName,
-        options.timeoutMs,
-        codexApiKey,
-        options.artifacts,
-        launchStartedAtMs
+      firstRun = await runSmokePhase(
+        writeSmokeEvent,
+        'wait_first_run_completion',
+        () =>
+          waitForFirstRunCompletion(
+            firstRunLog,
+            options.processName,
+            options.timeoutMs,
+            codexApiKey,
+            options.artifacts,
+            launchStartedAtMs
+          ),
+        {
+          timeout_ms: options.timeoutMs,
+        }
       );
     }
     firstRun = firstRun ?? {
@@ -1424,7 +1543,17 @@ async function main() {
       throw new Error('Expected Codex configuration wizard to appear and be submitted, but it was not observed.');
     }
 
-    guidEntry = guidEntry ?? (await waitForUsableGuidEntry(options));
+    guidEntry =
+      guidEntry ??
+      (await runSmokePhase(
+        writeSmokeEvent,
+        'wait_guid_entry',
+        () => waitForUsableGuidEntry({ ...options, writeSmokeEvent }),
+        {
+          timeout_ms: options.timeoutMs,
+          cdp_probe_timeout_ms: cdpProbeTimeoutMs(options),
+        }
+      ));
     if (guidEntry.tree.length > 0) {
       writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), guidEntry.tree, codexApiKey);
     }
@@ -1432,7 +1561,11 @@ async function main() {
       writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, codexApiKey);
     }
 
-    const settingsSmoke = options.settingsSmoke ? await runSettingsSmoke(options, codexApiKey) : [];
+    const settingsSmoke = options.settingsSmoke
+      ? await runSmokePhase(writeSmokeEvent, 'settings_smoke', () => runSettingsSmoke(options, codexApiKey), {
+          timeout_ms: options.timeoutMs,
+        })
+      : [];
 
     if (fs.existsSync(firstRunLog)) {
       writeTextArtifact(
@@ -1443,7 +1576,14 @@ async function main() {
     }
 
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
-      const { systemInitializeRaw, modulesRaw } = await waitForFullFirstRunEquivalence(options.timeoutMs);
+      const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
+        writeSmokeEvent,
+        'full_runtime_equivalence',
+        () => waitForFullFirstRunEquivalence(options.timeoutMs),
+        {
+          timeout_ms: options.timeoutMs,
+        }
+      );
       writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
       writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
     }
@@ -1480,8 +1620,16 @@ async function main() {
         : null,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
+    writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
+      runtime_profile: options.runtimeProfile,
+      guid_entry_probe: guidEntry.mode,
+      settings_smoke: summary.settings_smoke?.status ?? null,
+    });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
+    writeSmokeEventSafely(writeSmokeEvent, 'summary', 'failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     collectFailureArtifacts(options, codexApiKey);
     throw error;
   }
@@ -1499,7 +1647,10 @@ export const __test =
         runtimeShellExecutable,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,
+        cdpProbeTimeoutMs,
+        createSmokeEventWriter,
         existingStateGuidProbeTimeoutMs,
+        remainingGuidFallbackTimeoutMs,
         shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
         guidEntryReadinessExpression,

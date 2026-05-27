@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 process.env.NODE_ENV = 'test';
 const { __test } = await import('../../../scripts/opl-first-run-vm-smoke.mjs');
@@ -57,6 +60,38 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(false);
     expect(__test.existingStateGuidProbeTimeoutMs({ timeoutMs: 240_000 })).toBe(30_000);
     expect(__test.existingStateGuidProbeTimeoutMs({ timeoutMs: 5_000 })).toBe(5_000);
+  });
+
+  it('caps CDP probing and keeps Accessibility fallback inside the shared timeout budget', () => {
+    expect(__test.cdpProbeTimeoutMs({ timeoutMs: 240_000 })).toBe(30_000);
+    expect(__test.cdpProbeTimeoutMs({ timeoutMs: 5_000 })).toBe(5_000);
+    expect(__test.remainingGuidFallbackTimeoutMs(180_000, 30_000)).toBe(150_000);
+    expect(__test.remainingGuidFallbackTimeoutMs(180_000, 181_000)).toBe(0);
+  });
+
+  it('writes JSONL smoke events without leaking secrets', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-events-'));
+    try {
+      const writeSmokeEvent = __test.createSmokeEventWriter(artifacts, 'sk-test-secret');
+      writeSmokeEvent('wait_guid_cdp', 'started', { cdp_port: 9230 });
+      writeSmokeEvent('wait_guid_cdp', 'passed', { duration_ms: 12 });
+
+      const lines = fs.readFileSync(path.join(artifacts, 'smoke-events.jsonl'), 'utf8').trim().split(/\r?\n/);
+      expect(lines).toHaveLength(2);
+      expect(JSON.parse(lines[0])).toMatchObject({
+        phase: 'wait_guid_cdp',
+        status: 'started',
+        cdp_port: 9230,
+      });
+      expect(JSON.parse(lines[1])).toMatchObject({
+        phase: 'wait_guid_cdp',
+        status: 'passed',
+        duration_ms: 12,
+      });
+      expect(() => writeSmokeEvent('summary', 'failed', { error: 'sk-test-secret' })).toThrow(/Codex API key/);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('checks the usable Guid entry through DOM state rather than macOS accessibility only', () => {
