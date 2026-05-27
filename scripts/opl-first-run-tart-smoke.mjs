@@ -470,15 +470,25 @@ function waitForTartIp(vmName, timeoutMs) {
 
 async function waitForSsh(options, ip, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  let nextProgressLogAt = Date.now() + 30_000;
   while (Date.now() < deadline) {
     try {
       await runAsync('ssh', [...sshBaseArgs(options, ip), 'true']);
       return;
-    } catch (_) {
+    } catch (error) {
+      lastError = error;
+      if (Date.now() >= nextProgressLogAt) {
+        const remainingMs = Math.max(0, deadline - Date.now());
+        appendRuntimeLog(`waiting_for_ssh guest=${options.guestUser}@${ip} remaining_ms=${remainingMs}`);
+        nextProgressLogAt = Date.now() + 30_000;
+      }
       await sleep(2_000);
     }
   }
-  throw new Error(`Timed out waiting for SSH to ${options.guestUser}@${ip}`);
+  const lastMessage = lastError instanceof Error ? lastError.message : String(lastError ?? 'no ssh attempt error captured');
+  appendRuntimeLog(`ssh_wait_timeout guest=${options.guestUser}@${ip} last_error=${JSON.stringify(lastMessage)}`);
+  throw new Error(`Timed out waiting for SSH to ${options.guestUser}@${ip}: ${lastMessage}`);
 }
 
 function startVm(options, vmLogPath) {
