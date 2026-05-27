@@ -121,14 +121,18 @@ const FirstRun: React.FC = () => {
     setError(null);
     try {
       const result = await ipcBridge.oplRuntime.getInitialize.invoke();
+      const initializePayload = readInitializePayload(result.parsed);
       setInitializeResult(result);
+      if (initializePayload?.setup_flow?.ready_to_launch === true || initializePayload?.readiness?.launch_ready === true) {
+        navigate('/guid', { replace: true });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
     } finally {
       setInitializeLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   const checkFastAppState = useCallback(async () => {
     try {

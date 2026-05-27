@@ -259,7 +259,7 @@ describe('FirstRun readiness page', () => {
     expect(navigateMock).toHaveBeenCalledWith('/guid');
   });
 
-  it('loads initialize progress even when fast App state is still pending', async () => {
+  it('enters /guid when initialize confirms Core launch readiness while fast App state is still pending', async () => {
     let resolveFastState: ((value: typeof fastStateNeedsSetupResult) => void) | null = null;
     bridgeMocks.getAppStateInvoke.mockReturnValueOnce(
       new Promise((resolve) => {
@@ -272,7 +272,7 @@ describe('FirstRun readiness page', () => {
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
 
     resolveFastState?.(fastStateNeedsSetupResult);
   });
