@@ -210,5 +210,6 @@ dist-server/
 iterations/
 graphify-out/
 .graphify_python
+.codegraph/
 
 .snow/
