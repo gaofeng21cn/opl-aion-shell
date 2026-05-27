@@ -80,7 +80,7 @@ function createFullRuntimeEquivalenceFixture() {
     'mineru-document-extractor',
     'ui-ux-pro-max',
   ]) {
-    writeFile(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+    writeFile(path.join(runtimeHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
   }
   for (const moduleFixture of [
     {
@@ -321,6 +321,31 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).toThrow(/Codex configuration wizard/);
+  });
+
+  it('checks Full companion skills through packaged runtime payloads before Codex skill mirrors exist', () => {
+    const fixture = createFullRuntimeEquivalenceFixture();
+    try {
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).not.toThrow();
+
+      expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'officecli', 'SKILL.md'))).toBe(false);
+      expect(fs.existsSync(path.join(fixture.runtimeHome, 'skills', 'officecli', 'SKILL.md'))).toBe(true);
+      fs.rmSync(path.join(fixture.runtimeHome, 'skills', 'officecli'), { recursive: true, force: true });
+
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).toThrow(/companion skill officecli/);
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('checks Full domain skills through packaged plugin surfaces, not retired Codex skill mirrors', () => {

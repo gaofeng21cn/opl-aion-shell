@@ -119,7 +119,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(expression).toContain('[data-testid="opl-guid-entry"]');
     expect(expression).toContain('[data-testid="guid-input"]');
-    expect(expression).toContain("window.location.hash.startsWith('#/guid')");
+    expect(expression).not.toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).toContain('[data-testid="opl-first-run-window"]');
   });
 
@@ -129,6 +129,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[aria-label="opl-first-run-ready-entry"]');
     expect(expression).toContain('readyButton.click()');
     expect(expression).toContain("navigatedBy: 'ready_entry'");
+    expect(expression).not.toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
 

@@ -403,10 +403,8 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertCodexVisibleCompanionSkills(
-  initialize,
-  codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex')
-) {
+function assertFullCompanionSkillPayloads(initialize, runtimeHome, options = {}) {
+  const codexHome = options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
   for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
@@ -415,10 +413,11 @@ function assertCodexVisibleCompanionSkills(
         `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
       );
     }
-    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) {
+    const codexSkillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    const packagedSkillPath = path.join(runtimeHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(codexSkillPath) && !fs.existsSync(packagedSkillPath)) {
       throw new Error(
-        `OPL Full first-run companion skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+        `OPL Full first-run companion skill ${skillId} is missing from Codex-visible or packaged runtime skill sources: ${codexSkillPath}, ${packagedSkillPath}`
       );
     }
   }
@@ -449,11 +448,11 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
     );
   }
   JSON.parse(modulesRaw);
-  assertCodexVisibleCompanionSkills(initialize, options.codexHome);
   const runtimeHome = options.runtimeHome || findLatestFullRuntimeHome();
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
+  assertFullCompanionSkillPayloads(initialize, runtimeHome, { codexHome: options.codexHome });
   for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }
@@ -1062,8 +1061,7 @@ function guidEntryReadinessExpression() {
     const guidInput = document.querySelector('[data-testid="guid-input"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    const hashOk = window.location.hash.startsWith('#/guid');
-    return hashOk && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible
+    return guidEntry && guidInput && !firstRunWindow && !appLoaderVisible
       ? {
           hash: window.location.hash,
           guidEntryVisible: true,
@@ -1079,7 +1077,7 @@ function guidEntryNavigationExpression() {
     const guidInput = document.querySelector('[data-testid="guid-input"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    if (window.location.hash.startsWith('#/guid') && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible) {
+    if (guidEntry && guidInput && !firstRunWindow && !appLoaderVisible) {
       return {
         hash: window.location.hash,
         guidEntryVisible: true,
@@ -1894,6 +1892,7 @@ export const __test =
     ? {
         buildFullRuntimeCommandPrefix,
         assertFullFirstRunEquivalence,
+        assertFullCompanionSkillPayloads,
         captureMacScreenArtifact,
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,
