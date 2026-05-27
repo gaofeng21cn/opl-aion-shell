@@ -1628,6 +1628,7 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.moduleVersion.modulesRoot'
   | 'settings.oplEnvironmentPage.moduleVersion.pathSource'
   | 'settings.oplEnvironmentPage.moduleVersion.pathSources.envOverride'
+  | 'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
   | 'settings.oplEnvironmentPage.moduleVersion.pathSources.invalidCheckout'
   | 'settings.oplEnvironmentPage.moduleVersion.pathSources.managedRoot'
   | 'settings.oplEnvironmentPage.moduleVersion.pathSources.missing'

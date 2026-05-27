@@ -1191,8 +1191,20 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
 }
 
 const SETTINGS_PAGE_SMOKE_TARGETS = [
-  { id: 'overview', hash: '#/settings/overview', requiredTextAny: [['Refresh status', '刷新状态']] },
-  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Develop OPL Agent', '开发 OPL Agent']] },
+  {
+    id: 'overview',
+    hash: '#/settings/overview',
+    requiredTextAny: [
+      ['One Person Lab'],
+      ['Open Runtime Status', '打开运行状态'],
+      ['Open Runtime Settings', '打开运行设置'],
+    ],
+  },
+  {
+    id: 'runtime',
+    hash: '#/settings/runtime',
+    requiredTextAny: [['Runtime', '运行'], ['Codex CLI'], ['Temporal']],
+  },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
   { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
   { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
@@ -1242,29 +1254,44 @@ async function captureSettingsPage(client, target, options, secret) {
   return pageState;
 }
 
-async function exerciseOverviewRefresh(client) {
-  await evaluateCdp(
-    client,
-    `(() => {
-      const button = [...document.querySelectorAll('button')]
-        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
-      if (!button) throw new Error('Overview Refresh status button was not found');
-      button.click();
-      return true;
-    })()`
-  );
+async function waitForButtonIdle(client, labels, failureMessage) {
+  const labelPattern = labels.map((label) => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   return await waitForCdpPredicate(
     client,
     `(() => {
       const button = [...document.querySelectorAll('button')]
-        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
+        .find((candidate) => new RegExp(${cdpString(labelPattern)}).test(candidate.textContent || ''));
       if (!button) return false;
       return !button.className.includes('arco-btn-loading') && !button.getAttribute('aria-busy')
-        ? { refreshButtonReady: true, className: button.className }
+        ? { buttonReady: true, className: button.className, text: button.textContent || '' }
         : false;
     })()`,
     30_000,
-    'Overview Refresh status stayed loading after click'
+    failureMessage
+  );
+}
+
+async function exerciseRuntimeRefresh(client, targetHash) {
+  await evaluateCdp(client, `window.location.hash = ${cdpString(targetHash)}`);
+  await waitForButtonIdle(
+    client,
+    ['Refresh', '刷新'],
+    `Runtime refresh button stayed loading before click: ${targetHash}`
+  );
+  await evaluateCdp(
+    client,
+    `(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((candidate) => /Refresh|刷新/.test(candidate.textContent || ''));
+      if (!button) throw new Error('Runtime Refresh button was not found');
+      button.click();
+      return true;
+    })()`
+  );
+  return await waitForButtonIdle(
+    client,
+    ['Refresh', '刷新'],
+    `Runtime refresh button stayed loading after click: ${targetHash}`
   );
 }
 
@@ -1333,14 +1360,21 @@ async function runSettingsSmoke(options, secret) {
     for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
       const pageState = await captureSettingsPage(client, pageTarget, options, secret);
       const interactions = {};
-      if (pageTarget.id === 'overview') {
-        interactions.overviewRefresh = await exerciseOverviewRefresh(client);
+      if (pageTarget.id === 'runtime') {
+        interactions.settingsRuntimeRefresh = await exerciseRuntimeRefresh(client, '#/settings/runtime');
       }
       if (pageTarget.id === 'system') {
         interactions.developerMode = await exerciseDeveloperModeSwitch(client);
       }
       results.push({ ...pageState, interactions });
     }
+    results.push({
+      id: 'runtime-status',
+      hash: '#/runtime',
+      interactions: {
+        runtimeRefresh: await exerciseRuntimeRefresh(client, '#/runtime'),
+      },
+    });
   } finally {
     client.close();
   }

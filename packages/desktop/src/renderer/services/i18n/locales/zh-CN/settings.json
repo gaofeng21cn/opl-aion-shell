@@ -1152,6 +1152,7 @@
       "pathSource": "路径来源：{{source}}",
       "pathSources": {
         "managedRoot": "按 OPL 托管模块根目录解析",
+        "familyWorkspaceRoot": "来自本机 OPL 系列开发根目录：{{root}}",
         "siblingWorkspace": "检测到本机同级开发仓库",
         "envOverride": "由显式环境变量覆盖",
         "missing": "托管目录和开发目录都未找到",

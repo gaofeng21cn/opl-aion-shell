@@ -23,7 +23,12 @@ export type UseOplAppStateResult = {
   loading: boolean;
   refreshing: boolean;
   error: string | null;
-  load: (profile?: OplAppStateProfile, options?: { showRefreshing?: boolean }) => Promise<OplAppStatePayload | null>;
+  load: (profile?: OplAppStateProfile, options?: OplAppStateLoadOptions) => Promise<OplAppStatePayload | null>;
+};
+
+export type OplAppStateLoadOptions = {
+  showRefreshing?: boolean;
+  background?: boolean;
 };
 
 export function isOplRecord(value: unknown): value is OplAppStateRecord {
@@ -101,13 +106,13 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
   const load = useCallback(
     async (
       profile: OplAppStateProfile = initialProfile,
-      options: { showRefreshing?: boolean } = {}
+      options: OplAppStateLoadOptions = {}
     ): Promise<OplAppStatePayload | null> => {
       requestSeq.current += 1;
       const requestId = requestSeq.current;
-      if (options.showRefreshing || profile === 'full') {
+      if (options.showRefreshing) {
         setRefreshing(true);
-      } else {
+      } else if (!options.background) {
         setLoading(true);
       }
       setError(null);
@@ -136,7 +141,7 @@ export function useOplAppState(initialProfile: OplAppStateProfile = 'fast'): Use
   );
 
   useEffect(() => {
-    void load(initialProfile, { showRefreshing: initialHadCachedState.current });
+    void load(initialProfile, { background: initialHadCachedState.current });
   }, [initialProfile, load]);
 
   return {

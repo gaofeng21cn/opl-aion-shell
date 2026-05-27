@@ -1,7 +1,8 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import RuntimeSettings from '@/renderer/pages/settings/RuntimeSettings';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import RuntimePage from '@/renderer/pages/runtime';
+import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -13,20 +14,34 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
+      getInitialize: { invoke: vi.fn() },
+      runInstallPrep: { invoke: vi.fn() },
       getDrilldown: { invoke: bridgeMocks.getDrilldownInvoke },
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
+    },
+    shell: {
+      openFolderWith: { invoke: vi.fn() },
     },
   },
 }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, values?: Record<string, string>) => {
+      const renderedValues = Object.values(values ?? {})
+        .filter((value) => typeof value === 'string' && value.length > 0)
+        .join(' ');
+      return renderedValues ? `${key} ${renderedValues}` : key;
+    },
   }),
 }));
 
 vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid='settings-page-wrapper'>{children}</div>,
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 const appStateResult = {
@@ -46,11 +61,27 @@ const appStateResult = {
         },
       },
       provider: {
-        temporal: { status: 'ready', health_status: 'ready' },
+        temporal: { status: 'attention_needed', health_status: 'attention_needed' },
+      },
+      paths: {
+        family_workspace_root: {
+          selected_path: '/Users/example/workspace',
+        },
       },
       modules: {
         summary: { default_modules_count: 4, healthy_default_modules_count: 4 },
-        items: [],
+        source: {
+          mode: 'sibling_workspace',
+          modules_root: '/Users/example/workspace',
+        },
+        items: [
+          {
+            module_id: 'medautoscience',
+            display_name: 'Med Auto Science',
+            status: 'attention_needed',
+            path: '/Users/example/workspace/med-autoscience',
+          },
+        ],
       },
       actions: [],
     },
@@ -60,6 +91,7 @@ const appStateResult = {
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResult);
     bridgeMocks.getDrilldownInvoke.mockResolvedValue({
       surface: 'runtime_full',
@@ -69,31 +101,84 @@ describe('RuntimeSettings app state bridge usage', () => {
     });
   });
 
-  it('loads the fast OPL app state on initial render and refresh', async () => {
+  it('loads the fast OPL app state on initial render and full App state on explicit refresh', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText('common.refresh'));
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.actions.refresh'));
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
-    expect(bridgeMocks.getAppStateInvoke).toHaveBeenLastCalledWith({ profile: 'fast' });
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenLastCalledWith({ profile: 'full' });
     expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
   });
 
-  it('uses full operator drilldown only for explicit full detail loading', async () => {
+  it('renders runtime status and module path-source values through i18n aliases', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('settings.oplEnvironmentPage.status.attention_required attention_required').length
+      ).toBeGreaterThan(0)
+    );
+    expect(document.body.textContent).toContain(
+      'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
+    );
+    expect(screen.queryByText('settings.oplEnvironmentPage.status.attention_needed')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {
+    let resolveState: (value: typeof appStateResult) => void = () => {};
+    bridgeMocks.getAppStateInvoke.mockReturnValue(
+      new Promise((resolve) => {
+        resolveState = resolve;
+      })
+    );
+    localStorage.setItem(
+      'opl.appState.fast.v1',
+      JSON.stringify({
+        payload: appStateResult.parsed,
+        loadedAt: '09:00:00',
+      })
+    );
+
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    const button = screen.getByText('settings.oplEnvironmentPage.actions.refresh').closest('button');
+    expect(button?.className).not.toContain('arco-btn-loading');
+    expect(button?.getAttribute('aria-busy')).not.toBe('true');
 
-    fireEvent.click(screen.getByText('settings.runtime.actions.loadFull'));
+    await act(async () => {
+      resolveState(appStateResult);
+    });
+  });
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'full' }));
-    expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
+  it('keeps the Runtime page refresh button idle during cached background revalidation', async () => {
+    let resolveState: (value: typeof appStateResult) => void = () => {};
+    bridgeMocks.getAppStateInvoke.mockReturnValue(
+      new Promise((resolve) => {
+        resolveState = resolve;
+      })
+    );
+    localStorage.setItem(
+      'opl.appState.fast.v1',
+      JSON.stringify({
+        payload: appStateResult.parsed,
+        loadedAt: '09:00:00',
+      })
+    );
 
-    fireEvent.click(screen.getByText('settings.runtime.actions.loadDrilldown'));
+    render(<RuntimePage />);
 
-    await waitFor(() => expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'full' }));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    const button = screen.getByText('common.refresh').closest('button');
+    expect(button?.className).not.toContain('arco-btn-loading');
+    expect(button?.getAttribute('aria-busy')).not.toBe('true');
+
+    await act(async () => {
+      resolveState(appStateResult);
+    });
   });
 });

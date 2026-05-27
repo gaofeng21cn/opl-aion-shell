@@ -35,6 +35,24 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toContain('--aionui-cdp-port=9230');
   });
 
+  it('targets current OPL Settings pages instead of the retired overview refresh control', () => {
+    const overviewTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'overview');
+    const runtimeTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'runtime');
+
+    expect(overviewTarget?.requiredTextAny).toEqual(
+      expect.arrayContaining([
+        ['One Person Lab'],
+        ['Open Runtime Status', '打开运行状态'],
+        ['Open Runtime Settings', '打开运行设置'],
+      ])
+    );
+    expect(JSON.stringify(overviewTarget)).not.toContain('Refresh status');
+    expect(JSON.stringify(overviewTarget)).not.toContain('刷新状态');
+    expect(runtimeTarget?.requiredTextAny).toEqual(
+      expect.arrayContaining([['Runtime', '运行'], ['Codex CLI'], ['Temporal']])
+    );
+  });
+
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

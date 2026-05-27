@@ -1200,6 +1200,7 @@
       "pathSource": "Path source: {{source}}",
       "pathSources": {
         "managedRoot": "Resolved from the OPL-managed modules root",
+        "familyWorkspaceRoot": "From the local OPL family workspace root: {{root}}",
         "siblingWorkspace": "Detected a local sibling developer checkout",
         "envOverride": "Set by an explicit environment override",
         "missing": "No managed or developer checkout was found",

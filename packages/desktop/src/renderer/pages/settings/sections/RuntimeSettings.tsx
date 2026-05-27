@@ -25,9 +25,16 @@ const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
 
 const OPL_RUNTIME_MODULE_IDS = ['medautoscience', 'medautogrant', 'redcube', 'oplmetaagent'];
 
+function normalizeStatus(status: string | undefined | null): string | null {
+  if (!status) return null;
+  if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
+  return status;
+}
+
 function formatStatus(status: string | undefined | null, t: (key: string, options?: Record<string, string>) => string) {
-  if (!status) return t('settings.oplEnvironmentPage.status.unknown');
-  return t(`settings.oplEnvironmentPage.status.${status}`, { status });
+  const normalized = normalizeStatus(status);
+  if (!normalized) return t('settings.oplEnvironmentPage.status.unknown');
+  return t(`settings.oplEnvironmentPage.status.${normalized}`, { status: normalized });
 }
 
 function compactToolDetail(parts: Array<string | null | undefined>, fallback: string) {
@@ -308,6 +315,7 @@ const RuntimeSettings: React.FC = () => {
         <Card bordered className='rd-8px'>
           <Space wrap>
             <Button
+              key='runtime-action-doctor'
               type='primary'
               icon={<CheckOne theme='outline' />}
               onClick={() =>
@@ -317,6 +325,7 @@ const RuntimeSettings: React.FC = () => {
               {t('settings.oplEnvironmentPage.actions.doctor')}
             </Button>
             <Button
+              key='runtime-action-refresh'
               icon={<UpdateRotation theme='outline' />}
               loading={appStateQuery.refreshing}
               onClick={refreshRuntime}
@@ -324,6 +333,7 @@ const RuntimeSettings: React.FC = () => {
               {t('settings.oplEnvironmentPage.actions.refresh')}
             </Button>
             <Button
+              key='runtime-action-repair'
               icon={<Repair theme='outline' />}
               onClick={() =>
                 void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete'))
@@ -359,7 +369,7 @@ const RuntimeSettings: React.FC = () => {
 
         <div className='grid grid-cols-1 md:grid-cols-4 gap-14px'>
           {runtimeCards.map((card) => (
-            <Card key={card.key} bordered className='rd-8px'>
+            <Card key={`runtime-card-${card.key}`} bordered className='rd-8px'>
               <div className='flex flex-col gap-8px min-w-0'>
                 <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
                 <Tag color={card.tone}>{card.value}</Tag>
@@ -404,14 +414,15 @@ const RuntimeSettings: React.FC = () => {
             </Typography.Text>
           ) : null}
           <div className='flex flex-col divide-y divide-border-1'>
-            {modules.map((module) => {
+            {modules.map((module, moduleIndex) => {
               const status = moduleStatus(module);
               const pathValue = modulePath(module);
+              const id = moduleId(module) || `module-${moduleIndex + 1}`;
               return (
-                <div key={moduleId(module)} className='flex items-center justify-between gap-12px py-12px'>
+                <div key={`runtime-module-${id}`} className='flex items-center justify-between gap-12px py-12px'>
                   <div className='min-w-0'>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {oplString(module.label) ?? moduleId(module)}
+                      {oplString(module.label) ?? id}
                     </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {moduleVersionDetail(module, t)}
@@ -438,9 +449,13 @@ const RuntimeSettings: React.FC = () => {
                   </div>
                   <Space wrap size='mini'>
                     {oplString(module.recommended_action) && (
-                      <Tag color='orange'>{formatModuleAction(oplString(module.recommended_action) ?? '', t)}</Tag>
+                      <Tag key={`${id}-action`} color='orange'>
+                        {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
+                      </Tag>
                     )}
-                    <Tag color={isReadyStatus(status) ? 'green' : 'orange'}>{formatStatus(status, t)}</Tag>
+                    <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'green' : 'orange'}>
+                      {formatStatus(status, t)}
+                    </Tag>
                   </Space>
                 </div>
               );

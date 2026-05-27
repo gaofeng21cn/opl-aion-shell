@@ -45,6 +45,8 @@ const RUNTIME_VALUE_KEYS: Record<string, string> = {
   pending: 'settings.oplEnvironmentPage.status.pending',
   unknown: 'settings.oplEnvironmentPage.status.unknown',
   attention_required: 'common.runtime.values.attentionRequired',
+  attention_needed: 'common.runtime.values.attentionRequired',
+  needs_attention: 'common.runtime.values.attentionRequired',
   update: 'settings.oplEnvironmentPage.moduleActions.update',
   'provider-worker:temporal:restart': 'common.runtime.values.restartTemporalWorker',
 };
