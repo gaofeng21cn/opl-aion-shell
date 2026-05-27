@@ -23,6 +23,30 @@ const DEFAULT_LABELS = {
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
+const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
+  'officecli',
+  'officecli-docx',
+  'officecli-pptx',
+  'officecli-xlsx',
+  'mineru-document-extractor',
+  'ui-ux-pro-max',
+];
+const FULL_PLUGIN_ONLY_DOMAIN_SKILLS = [
+  ['mas', 'modules/mas', 'mas'],
+  ['mag', 'modules/mag', 'mag'],
+  ['rca', 'modules/rca', 'rca'],
+];
+const FULL_RUNTIME_MODULES = [
+  ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
+  ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
+  ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
+  [
+    'oplmetaagent',
+    'opl-meta-agent',
+    path.join('modules', 'meta-agent'),
+    ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+  ],
+];
 
 function usage() {
   process.stdout.write(`Usage:
@@ -366,7 +390,40 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
+function assertCodexVisibleCompanionSkills(
+  initialize,
+  codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex')
+) {
+  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
+  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
+  for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
+    if (readySkills.get(skillId) !== 'ready') {
+      throw new Error(
+        `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
+      );
+    }
+    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(
+        `OPL Full first-run companion skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+      );
+    }
+  }
+}
+
+function assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName = skillId) {
+  const pluginRoot = path.join(runtimeHome, runtimeRelativePath, 'plugins', pluginName);
+  const manifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
+  const skillPath = path.join(pluginRoot, 'skills', skillId, 'SKILL.md');
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`OPL Full runtime domain plugin ${skillId} is missing packaged plugin manifest: ${manifestPath}`);
+  }
+  if (!fs.existsSync(skillPath)) {
+    throw new Error(`OPL Full runtime domain plugin ${skillId} is missing packaged skill entry: ${skillPath}`);
+  }
+}
+
+function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options = {}) {
   const systemInitialize = JSON.parse(systemInitializeRaw);
   const initialize = systemInitialize.system_initialize;
   if (!isCoreFirstLaunchReady(initialize)) {
@@ -379,57 +436,16 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     );
   }
   JSON.parse(modulesRaw);
-  const requiredSkills = [
-    'mas',
-    'mag',
-    'rca',
-    'opl-meta-agent',
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'mineru-document-extractor',
-    'ui-ux-pro-max',
-  ];
-  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
-  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
-  for (const skillId of [
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'mineru-document-extractor',
-    'ui-ux-pro-max',
-  ]) {
-    if (readySkills.get(skillId) !== 'ready') {
-      throw new Error(`OPL Full first-run skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`);
-    }
-  }
-  const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-  for (const skillId of requiredSkills) {
-    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) {
-      throw new Error(
-        `OPL Full first-run skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
-      );
-    }
-  }
-  const runtimeHome = findLatestFullRuntimeHome();
+  assertCodexVisibleCompanionSkills(initialize, options.codexHome);
+  const runtimeHome = options.runtimeHome || findLatestFullRuntimeHome();
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
-  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of [
-    ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
-    ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
-    ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
-    [
-      'oplmetaagent',
-      'opl-meta-agent',
-      path.join('modules', 'meta-agent'),
-      ['agent', 'contracts', path.join('runtime', 'authority_functions')],
-    ],
-  ]) {
+  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
+  }
+  for (const [skillId, runtimeRelativePath, pluginName] of FULL_PLUGIN_ONLY_DOMAIN_SKILLS) {
+    assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName);
   }
   const assertFullRuntimeToolCallable = (command, args) => {
     const probe = spawnSync(
