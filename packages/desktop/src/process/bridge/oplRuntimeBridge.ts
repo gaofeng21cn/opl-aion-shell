@@ -20,6 +20,31 @@ type RuntimeCommandSpec = {
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
 
+const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
+  adapterId: 'aionui',
+  adapterRole: 'replaceable_gui_shell_adapter',
+  appContractOwner: 'one-person-lab-app',
+  protocolOwner: 'one-person-lab',
+  implementationRepo: 'opl-aion-shell',
+  contractRef: 'one-person-lab-app/contracts/app-runtime-bridge.json',
+  ownsRuntimeTruth: false,
+  ownsDomainTruth: false,
+  readsArtifactBody: false,
+  readsMemoryBody: false,
+  allowedSurfaces: [
+    'opl runtime app-operator-drilldown --json',
+    'opl runtime app-operator-drilldown --detail full --json',
+    'opl runtime action execute --action <id> [--payload refs-only-json] [--dry-run]',
+  ],
+  forbiddenTruthSources: [
+    'direct_domain_repo_reads',
+    'direct_runtime_state_file_reads',
+    'domain_artifact_body_reads',
+    'domain_memory_body_reads',
+    'shell_private_runtime_status',
+  ],
+} as const;
+
 function assertActionId(actionId: string): string {
   const normalized = actionId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
@@ -120,6 +145,7 @@ export function initOplRuntimeBridge(): void {
 }
 
 export const __oplRuntimeBridgeTest = {
+  OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
   buildActionCommand,
   buildDrilldownCommand,
