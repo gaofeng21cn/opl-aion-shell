@@ -2,6 +2,23 @@
 
 All contributors (human and AI) must follow [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. ([Chinese version](CONTRIBUTING.zh.md))
 
+## One Person Lab App Boundary
+
+This repository is the OPL-maintained AionUI shell implementation. It carries
+the concrete renderer, process, package metadata, tests, shell release hooks, and
+upstream AionUI intake work for the currently active One Person Lab App GUI.
+
+The source of truth for what the One Person Lab App GUI should be is
+`/Users/gaofeng/workspace/one-person-lab-app`. App-level GUI product decisions,
+page-state expectations, model-selection policy, onboarding behavior, screenshots,
+and release/user documentation belong in the App repo. Shell changes must follow
+that App-owned product truth.
+
+When upstream AionUI changes conflict with OPL App behavior, keep the upstream
+intake isolated in this shell repo and preserve the App repo's GUI requirements.
+Do not let upstream defaults, model lists, theme presets, or interaction patterns
+silently become OPL App authority.
+
 ## Code Conventions
 
 ### File & Directory Structure
