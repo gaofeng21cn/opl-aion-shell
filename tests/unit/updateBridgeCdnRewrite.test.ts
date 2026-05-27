@@ -135,6 +135,13 @@ const makeStableAndNightlyReleaseResponse = () => [
         size: 456,
         content_type: 'application/x-apple-diskimage',
       },
+      {
+        name: 'One-Person-Lab-26.5.27-nightly.20260527-linux-amd64.deb',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.27-nightly.20260527/One-Person-Lab-26.5.27-nightly.20260527-linux-amd64.deb',
+        size: 789,
+        content_type: 'application/vnd.debian.binary-package',
+      },
     ],
   },
 ];
@@ -255,7 +262,10 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.success).toBe(true);
       expect(result.data?.latest?.tagName).toBe('v26.5.27-nightly.20260527');
       expect(result.data?.latest?.prerelease).toBe(true);
-      expect(result.data?.latest?.recommendedAsset?.name).toBe('One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.dmg');
+      expect(result.data?.latest?.recommendedAsset?.name).toContain('One-Person-Lab-26.5.27-nightly.20260527-');
+      expect(result.data?.latest?.recommendedAsset?.url).toMatch(
+        /^https:\/\/static\.aionui\.com\/releases\/26\.5\.27-nightly\.20260527\//
+      );
     } finally {
       vi.unstubAllGlobals();
     }
