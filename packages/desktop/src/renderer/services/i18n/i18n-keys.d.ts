@@ -960,6 +960,8 @@ export type I18nKey =
   | 'preview.word.watch.loading'
   | 'preview.word.watch.startFailed'
   | 'settings.about'
+  | 'settings.aboutFrameworkVersion'
+  | 'settings.aboutShellVersion'
   | 'settings.aboutVersionBadge'
   | 'settings.access'
   | 'settings.addCustomAgent'

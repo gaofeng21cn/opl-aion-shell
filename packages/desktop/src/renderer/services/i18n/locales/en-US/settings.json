@@ -1151,6 +1151,8 @@
     }
   },
   "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "aboutShellVersion": "GUI shell {{version}}",
+  "aboutFrameworkVersion": "OPL Framework {{version}}",
   "appearancePage": {
     "visualTheme": "Interface Theme",
     "codexTheme": "Codex Theme",

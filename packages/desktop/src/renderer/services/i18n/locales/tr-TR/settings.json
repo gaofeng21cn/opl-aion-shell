@@ -1198,6 +1198,8 @@
     }
   },
   "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "aboutShellVersion": "GUI kabuğu {{version}}",
+  "aboutFrameworkVersion": "OPL Framework {{version}}",
   "appearancePage": {
     "visualTheme": "Interface Theme",
     "codexTheme": "Codex Theme",

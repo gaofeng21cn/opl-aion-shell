@@ -1152,6 +1152,8 @@
     }
   },
   "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "aboutShellVersion": "界面版本 {{version}}",
+  "aboutFrameworkVersion": "OPL Framework {{version}}",
   "appearancePage": {
     "visualTheme": "界面主题",
     "codexTheme": "Codex 主题",
