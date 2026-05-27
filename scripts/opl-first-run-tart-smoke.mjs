@@ -70,7 +70,8 @@ Options:
                            module/skill equivalence is not expected.
   --require-codex-config-wizard
                            Fail unless the guest smoke sees and submits the Codex config wizard.
-                           Defaults to true for full and false for standard.
+                           Defaults to false; Full gates still require Codex readiness through
+                           opl system initialize and Full runtime equivalence.
   --no-require-codex-config-wizard
                            Do not require the Codex config wizard even when runtime-profile is full.
   --codex-api-key-file <path>
@@ -234,9 +235,7 @@ function parseArgs(argv) {
   if (!['full', 'standard'].includes(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
   }
-  if (options.requireCodexConfigWizard === null) {
-    options.requireCodexConfigWizard = options.runtimeProfile === 'full';
-  }
+  if (options.requireCodexConfigWizard === null) options.requireCodexConfigWizard = false;
 
   return options;
 }

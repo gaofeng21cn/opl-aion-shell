@@ -2,6 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
+import { SWRConfig } from 'swr';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -93,6 +94,7 @@ describe('SystemModalContent OPL App state', () => {
             enabled: 'on',
             status: 'ready',
             effective_state: 'active_direct',
+            description: 'Developer mode from app state',
           },
           paths: {
             workspace_root: {
@@ -114,18 +116,58 @@ describe('SystemModalContent OPL App state', () => {
     });
   });
 
+  const renderWithFreshSWR = () =>
+    render(
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        <SystemModalContent />
+      </SWRConfig>
+    );
+
   it('renders Developer Mode and paths from fast OPL app state', async () => {
-    render(<SystemModalContent />);
+    renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
     expect(await screen.findByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
-    expect(screen.getByText('settings.developerModeStateOnReady')).toBeInTheDocument();
+    expect(screen.getByText('Developer mode from app state')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-developer-mode-row')).toHaveTextContent('Developer mode from app state');
+    expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('active_direct');
     expect(
       screen.getByText('one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system')
     ).toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();
+  });
+
+  it('does not expose machine Developer Mode states in the status pill', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: {
+        app_state: {
+          schema_version: 'opl_app_state.v1',
+          developer_mode: {
+            effective_state: 'blocked',
+            description: 'Developer mode from app state',
+          },
+          paths: {
+            workspace_root_path: '/Users/example/OPL Workspace',
+            logs_dir: '/Users/example/.opl/logs',
+          },
+          opl_agent_codex_context: {
+            contract_ref: 'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system',
+          },
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('settings.unavailable');
+    expect(screen.getByTestId('opl-developer-mode-row')).not.toHaveTextContent('blocked');
   });
 });

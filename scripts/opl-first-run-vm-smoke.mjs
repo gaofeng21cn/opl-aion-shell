@@ -27,6 +27,30 @@ const DEFAULT_LABELS = {
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
+const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
+  'officecli',
+  'officecli-docx',
+  'officecli-pptx',
+  'officecli-xlsx',
+  'mineru-document-extractor',
+  'ui-ux-pro-max',
+];
+const FULL_PLUGIN_ONLY_DOMAIN_SKILLS = [
+  ['mas', 'modules/mas', 'mas'],
+  ['mag', 'modules/mag', 'mag'],
+  ['rca', 'modules/rca', 'rca'],
+];
+const FULL_RUNTIME_MODULES = [
+  ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
+  ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
+  ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
+  [
+    'oplmetaagent',
+    'opl-meta-agent',
+    path.join('modules', 'meta-agent'),
+    ['agent', 'contracts', path.join('runtime', 'authority_functions')],
+  ],
+];
 
 function usage() {
   process.stdout.write(`Usage:
@@ -370,7 +394,40 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
+function assertCodexVisibleCompanionSkills(
+  initialize,
+  codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex')
+) {
+  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
+  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
+  for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
+    if (readySkills.get(skillId) !== 'ready') {
+      throw new Error(
+        `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
+      );
+    }
+    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(skillPath)) {
+      throw new Error(
+        `OPL Full first-run companion skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+      );
+    }
+  }
+}
+
+function assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName = skillId) {
+  const pluginRoot = path.join(runtimeHome, runtimeRelativePath, 'plugins', pluginName);
+  const manifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
+  const skillPath = path.join(pluginRoot, 'skills', skillId, 'SKILL.md');
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`OPL Full runtime domain plugin ${skillId} is missing packaged plugin manifest: ${manifestPath}`);
+  }
+  if (!fs.existsSync(skillPath)) {
+    throw new Error(`OPL Full runtime domain plugin ${skillId} is missing packaged skill entry: ${skillPath}`);
+  }
+}
+
+function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options = {}) {
   const systemInitialize = JSON.parse(systemInitializeRaw);
   const initialize = systemInitialize.system_initialize;
   if (!isCoreFirstLaunchReady(initialize)) {
@@ -383,57 +440,16 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw) {
     );
   }
   JSON.parse(modulesRaw);
-  const requiredSkills = [
-    'mas',
-    'mag',
-    'rca',
-    'opl-meta-agent',
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'mineru-document-extractor',
-    'ui-ux-pro-max',
-  ];
-  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
-  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
-  for (const skillId of [
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'mineru-document-extractor',
-    'ui-ux-pro-max',
-  ]) {
-    if (readySkills.get(skillId) !== 'ready') {
-      throw new Error(`OPL Full first-run skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`);
-    }
-  }
-  const codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-  for (const skillId of requiredSkills) {
-    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) {
-      throw new Error(
-        `OPL Full first-run skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
-      );
-    }
-  }
-  const runtimeHome = findLatestFullRuntimeHome();
+  assertCodexVisibleCompanionSkills(initialize, options.codexHome);
+  const runtimeHome = options.runtimeHome || findLatestFullRuntimeHome();
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
-  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of [
-    ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
-    ['medautogrant', 'med-autogrant', path.join('modules', 'mag'), ['agent', 'plugins']],
-    ['redcube', 'redcube-ai', path.join('modules', 'rca'), ['agent', 'plugins']],
-    [
-      'oplmetaagent',
-      'opl-meta-agent',
-      path.join('modules', 'meta-agent'),
-      ['agent', 'contracts', path.join('runtime', 'authority_functions')],
-    ],
-  ]) {
+  for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
+  }
+  for (const [skillId, runtimeRelativePath, pluginName] of FULL_PLUGIN_ONLY_DOMAIN_SKILLS) {
+    assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName);
   }
   const assertFullRuntimeToolCallable = (command, args) => {
     const probe = spawnSync(
@@ -756,7 +772,118 @@ function existingStateGuidProbeTimeoutMs(options) {
 }
 
 function shouldWaitForFirstRunCompletion(options) {
-  return options.requireCodexConfigWizard === true;
+  return process.env.OPL_FIRST_RUN_WAIT_FOR_LOG_COMPLETION === '1' && options.requireCodexConfigWizard === true;
+}
+
+function shouldWaitForCoreFirstLaunchReady(options) {
+  return (
+    options.requireCodexConfigWizard === true ||
+    options.assertClean === true ||
+    shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
+  );
+}
+
+function parseSystemInitialize(systemInitializeRaw) {
+  const payload = JSON.parse(systemInitializeRaw);
+  return payload.system_initialize ?? payload;
+}
+
+function summarizeCoreFirstLaunch(systemInitializeRaw) {
+  const initialize = parseSystemInitialize(systemInitializeRaw);
+  return {
+    source: 'opl system initialize --json',
+    status: isCoreFirstLaunchReady(initialize) ? 'ready' : 'not_ready',
+    ready_to_launch: initialize?.setup_flow?.ready_to_launch ?? null,
+    blocking_items: listStringValues(initialize?.setup_flow?.blocking_items),
+    readiness: initialize?.readiness ?? null,
+  };
+}
+
+function createCodexWizardState() {
+  return {
+    sawCodexWizard: false,
+    submittedCodexWizard: false,
+    capturedCodexWizard: false,
+    lastCodexSubmitAt: 0,
+    lastTree: [],
+  };
+}
+
+function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state) {
+  state.lastTree = queryAccessibility(processName);
+  const hasCodexWizard =
+    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexConfigureButton);
+  if (!hasCodexWizard) return state;
+
+  state.sawCodexWizard = true;
+  if (!state.capturedCodexWizard) {
+    const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
+    writeJsonArtifact(wizardTreePath, state.lastTree, codexApiKey);
+    captureMacScreenArtifact(path.join(artifactsDir, 'codex-config-wizard.png'));
+    state.capturedCodexWizard = true;
+  }
+  if (!state.submittedCodexWizard || Date.now() - state.lastCodexSubmitAt > 10_000) {
+    if (!codexApiKey) {
+      throw new Error(
+        'Codex configuration wizard is visible; provide --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.'
+      );
+    }
+    submitCodexWizard(processName, codexApiKey);
+    state.submittedCodexWizard = true;
+    state.lastCodexSubmitAt = Date.now();
+  }
+  return state;
+}
+
+function codexWizardResult(state) {
+  return {
+    sawCodexWizard: state.sawCodexWizard,
+    submittedCodexWizard: state.submittedCodexWizard,
+  };
+}
+
+async function waitForCoreFirstLaunchReady(options, codexApiKey) {
+  const started = Date.now();
+  let lastError = null;
+  let lastSystemInitializeRaw = '';
+  const wizardState = createCodexWizardState();
+  while (Date.now() - started < options.timeoutMs) {
+    try {
+      observeCodexConfigWizard(options.processName, codexApiKey, options.artifacts, wizardState);
+    } catch (error) {
+      if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
+    }
+    try {
+      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+      const initialize = parseSystemInitialize(lastSystemInitializeRaw);
+      if (isCoreFirstLaunchReady(initialize)) {
+        return {
+          systemInitializeRaw: lastSystemInitializeRaw,
+          initialize,
+          ...codexWizardResult(wizardState),
+        };
+      }
+      lastError = new Error(
+        `Core first-launch readiness is not ready: ${JSON.stringify(summarizeCoreFirstLaunch(lastSystemInitializeRaw))}`
+      );
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(2_000);
+  }
+  throw new Error(
+    [
+      'Timed out waiting for OPL core first-launch readiness from `opl system initialize --json`.',
+      lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
+      wizardState.lastTree.length
+        ? `Last accessibility sample: ${JSON.stringify(wizardState.lastTree.slice(0, 12))}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
 }
 
 function cdpProbeTimeoutMs(options) {
@@ -1203,11 +1330,11 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
   {
     id: 'runtime',
     hash: '#/settings/runtime',
-    requiredTextAny: [['Runtime', '运行'], ['Codex CLI'], ['Temporal']],
+    requiredTextAny: [['Runtime', '运行'], ['Codex CLI'], ['Temporal'], ['Foundry Modules', '智能体模块']],
   },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
-  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
-  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
+  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问'], ['WebUI', '远程连接']] },
+  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Theme', '主题'], ['Codex Theme', 'Codex 主题']] },
   { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode']] },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
 ];
@@ -1295,59 +1422,35 @@ async function exerciseRuntimeRefresh(client, targetHash) {
   );
 }
 
-function developerModeUiStateExpression(expectedChecked = null) {
-  const checkedPredicate = expectedChecked === null ? 'true' : `checked === ${expectedChecked ? 'true' : 'false'}`;
+function developerModeStatusExpression() {
   return `(() => {
       const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
-      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
+      const status = document.querySelector('[data-testid="opl-developer-mode-status"]');
       const text = document.body?.innerText || '';
-      if (!row || !sw || !text.includes('OPL Developer Mode')) return false;
-      if (sw.getAttribute('aria-busy') === 'true') return false;
+      if (!row || !status || !text.includes('OPL Developer Mode')) return false;
       const rowText = row.textContent || '';
       const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
       if (machineStatusPattern.test(rowText)) {
         throw new Error(\`OPL Developer Mode row exposed machine status: \${rowText.slice(0, 220)}\`);
       }
-      const checked = sw.getAttribute('aria-checked') === 'true';
-      return ${checkedPredicate}
+      const statusText = (status.textContent || '').trim();
+      return statusText.length > 0
         ? {
             developerModeVisible: true,
-            switchRole: sw.getAttribute('role'),
-            checked,
+            statusText,
             rowText,
           }
         : false;
     })()`;
 }
 
-async function exerciseDeveloperModeSwitch(client) {
-  const initialState = await waitForCdpPredicate(
+async function assertDeveloperModeStatus(client) {
+  return await waitForCdpPredicate(
     client,
-    developerModeUiStateExpression(),
+    developerModeStatusExpression(),
     30_000,
-    'System Settings did not expose the OPL Developer Mode switch'
+    'System Settings did not expose the OPL Developer Mode status'
   );
-
-  if (initialState.checked) {
-    return { initialState, enabledState: initialState, toggled: false };
-  }
-
-  await evaluateCdp(
-    client,
-    `(() => {
-      const sw = document.querySelector('[data-testid="opl-developer-mode-switch"]');
-      if (!sw) throw new Error('OPL Developer Mode switch disappeared before enable');
-      sw.click();
-      return true;
-    })()`
-  );
-  const enabledState = await waitForCdpPredicate(
-    client,
-    developerModeUiStateExpression(true),
-    30_000,
-    'OPL Developer Mode switch did not enable'
-  );
-  return { initialState, enabledState, toggled: true };
 }
 
 async function runSettingsSmoke(options, secret) {
@@ -1364,7 +1467,7 @@ async function runSettingsSmoke(options, secret) {
         interactions.settingsRuntimeRefresh = await exerciseRuntimeRefresh(client, '#/settings/runtime');
       }
       if (pageTarget.id === 'system') {
-        interactions.developerMode = await exerciseDeveloperModeSwitch(client);
+        interactions.developerMode = await assertDeveloperModeStatus(client);
       }
       results.push({ ...pageState, interactions });
     }
@@ -1532,6 +1635,7 @@ async function main() {
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
+    let coreFirstLaunch = null;
     if (shouldProbeExistingGuidEntryBeforeFirstRun(options)) {
       try {
         guidEntry = await runSmokePhase(
@@ -1557,6 +1661,14 @@ async function main() {
         firstRun = null;
       }
     }
+    if (!guidEntry && shouldWaitForCoreFirstLaunchReady(options)) {
+      coreFirstLaunch = await waitForCoreFirstLaunchReady(options, codexApiKey);
+      writeTextArtifact(
+        path.join(options.artifacts, 'system-initialize.json'),
+        coreFirstLaunch.systemInitializeRaw,
+        codexApiKey
+      );
+    }
     if (!firstRun && shouldWaitForFirstRunCompletion(options)) {
       firstRun = await runSmokePhase(
         writeSmokeEvent,
@@ -1574,6 +1686,17 @@ async function main() {
           timeout_ms: options.timeoutMs,
         }
       );
+    }
+    if (coreFirstLaunch) {
+      firstRun = {
+        ...(firstRun ?? {
+          events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
+          existingLaunchFallback: false,
+        }),
+        sawCodexWizard: Boolean(firstRun?.sawCodexWizard || coreFirstLaunch.sawCodexWizard),
+        submittedCodexWizard: Boolean(firstRun?.submittedCodexWizard || coreFirstLaunch.submittedCodexWizard),
+        coreFirstLaunchReady: true,
+      };
     }
     firstRun = firstRun ?? {
       events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
@@ -1644,6 +1767,12 @@ async function main() {
       app_path: appPath,
       artifacts: options.artifacts,
       runtime_profile: options.runtimeProfile,
+      core_first_launch: coreFirstLaunch
+        ? summarizeCoreFirstLaunch(coreFirstLaunch.systemInitializeRaw)
+        : {
+            source: 'existing_guid_entry_probe',
+            status: guidEntry ? 'ready' : 'not_checked',
+          },
       gui_ready: guidEntry.cdpState ?? {
         mode: guidEntry.mode,
         labels: guidEntry.labels,
@@ -1695,11 +1824,16 @@ export const __test =
         remainingGuidFallbackTimeoutMs,
         shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
+        shouldWaitForCoreFirstLaunchReady,
+        waitForCoreFirstLaunchReady,
+        summarizeCoreFirstLaunch,
+        parseSystemInitialize,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
         runOplJson,
         buildLaunchAppArgs,
         SETTINGS_PAGE_SMOKE_TARGETS,
+        developerModeStatusExpression,
         shouldVerifyFullFirstRunEquivalence,
       }
     : undefined;

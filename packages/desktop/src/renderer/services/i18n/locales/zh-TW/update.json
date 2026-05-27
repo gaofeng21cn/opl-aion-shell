@@ -29,14 +29,14 @@
     "hostNotAllowed": "Download host is not allowed: {{host}}",
     "redirectNoLocation": "Download redirect is missing Location",
     "tooManyRedirects": "Too many download redirects",
-    "githubApiFailed": "GitHub API request failed (status {{status}})",
-    "githubApiNotArray": "GitHub API response was not a release list",
-    "githubApiTimeout": "GitHub API request timed out after 30 seconds",
-    "downloadFailed": "Download request failed (status {{status}})",
-    "downloadNoBody": "Download response did not include a body",
-    "missingUrl": "Download URL is missing",
-    "checkReturnedNull": "Update check returned no result (development mode)",
-    "autoUpdateMetadataMissing": "Auto-update metadata is not bundled in this build; using the Release check instead.",
+    "githubApiFailed": "GitHub API 請求失敗（狀態碼 {{status}}）",
+    "githubApiNotArray": "GitHub API 回傳格式不是發布清單",
+    "githubApiTimeout": "GitHub API 請求逾時（30 秒）",
+    "downloadFailed": "下載請求失敗（狀態碼 {{status}}）",
+    "downloadNoBody": "下載回應沒有資料內容",
+    "missingUrl": "缺少下載地址",
+    "checkReturnedNull": "更新檢查沒有返回結果（開發模式）",
+    "autoUpdateMetadataMissing": "目前構建沒有自動更新元資料，已改用發布版本檢查。",
     "nightlyUsesManualCheck": "夜間版透過 GitHub Releases 檢查。"
   }
 }

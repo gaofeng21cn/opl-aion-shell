@@ -22,23 +22,6 @@ import DevSettings from './DevSettings';
 import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
 
-const DEVELOPER_MODE_STATUS_TIMEOUT_MS = 8_000;
-const DEVELOPER_MODE_CACHE_KEY = 'opl.developerModeState.v1';
-
-type DeveloperModeEnabled = 'auto' | 'on' | 'off';
-
-type DeveloperModeSwitchState = {
-  known: boolean;
-  enabled: DeveloperModeEnabled;
-  mode?: string;
-  status?: string;
-  effectiveState?: string;
-  allowedRoute?: string;
-  githubLogin?: string | null;
-  configSource?: string;
-  switching: boolean;
-};
-
 type PreferenceItem = {
   key: string;
   label: string;
@@ -47,185 +30,22 @@ type PreferenceItem = {
   testId?: string;
 };
 
-const DEFAULT_DEVELOPER_MODE_STATE: DeveloperModeSwitchState = {
-  known: true,
-  enabled: 'off',
-  status: 'disabled',
-  effectiveState: 'disabled',
-  allowedRoute: 'disabled',
-  switching: false,
-};
-
-function readCachedDeveloperModeSwitchState(): DeveloperModeSwitchState | null {
-  try {
-    const raw = localStorage.getItem(DEVELOPER_MODE_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = asRecord(JSON.parse(raw));
-    if (!parsed) return null;
-    return {
-      known: parsed.known === true,
-      enabled: normalizeDeveloperModeEnabled(parsed.enabled),
-      mode: typeof parsed.mode === 'string' ? parsed.mode : undefined,
-      status: typeof parsed.status === 'string' ? parsed.status : undefined,
-      effectiveState: typeof parsed.effectiveState === 'string' ? parsed.effectiveState : undefined,
-      allowedRoute: typeof parsed.allowedRoute === 'string' ? parsed.allowedRoute : undefined,
-      githubLogin: typeof parsed.githubLogin === 'string' ? parsed.githubLogin : null,
-      configSource: typeof parsed.configSource === 'string' ? parsed.configSource : undefined,
-      switching: false,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedDeveloperModeSwitchState(state: DeveloperModeSwitchState): void {
-  if (!state.known) return;
-  try {
-    localStorage.setItem(
-      DEVELOPER_MODE_CACHE_KEY,
-      JSON.stringify({
-        known: true,
-        enabled: state.enabled,
-        mode: state.mode,
-        status: state.status,
-        effectiveState: state.effectiveState,
-        allowedRoute: state.allowedRoute,
-        githubLogin: state.githubLogin ?? null,
-        configSource: state.configSource,
-      })
-    );
-  } catch {
-    // Ignore storage failures; the live OPL command remains authoritative.
-  }
-}
-
-function normalizeDeveloperModeSnapshot(snapshot: unknown): DeveloperModeSwitchState | null {
-  const parsed = asRecord(snapshot);
-  if (!parsed || parsed.known !== true) return null;
-  return {
-    known: true,
-    enabled: normalizeDeveloperModeEnabled(parsed.enabled),
-    mode: typeof parsed.mode === 'string' ? parsed.mode : undefined,
-    status: typeof parsed.status === 'string' ? parsed.status : undefined,
-    effectiveState: typeof parsed.effectiveState === 'string' ? parsed.effectiveState : undefined,
-    allowedRoute: typeof parsed.allowedRoute === 'string' ? parsed.allowedRoute : undefined,
-    githubLogin: typeof parsed.githubLogin === 'string' ? parsed.githubLogin : null,
-    configSource: typeof parsed.configSource === 'string' ? parsed.configSource : undefined,
-    switching: false,
-  };
-}
-
-function normalizeDeveloperModeFromAppState(appState: Record<string, unknown>): DeveloperModeSwitchState | null {
-  const developerMode = oplRecord(appState.developer_mode);
-  if (Object.keys(developerMode).length === 0) return null;
-  const githubIdentity = oplRecord(developerMode.github_identity);
-  return {
-    known: true,
-    enabled: normalizeDeveloperModeEnabled(developerMode.enabled),
-    mode: oplString(developerMode.mode) ?? undefined,
-    status: oplString(developerMode.status) ?? undefined,
-    effectiveState: oplString(developerMode.effective_state) ?? oplString(developerMode.effectiveState) ?? undefined,
-    allowedRoute: oplString(developerMode.allowed_route) ?? oplString(developerMode.allowedRoute) ?? undefined,
-    githubLogin: oplString(githubIdentity.login),
-    configSource: oplString(developerMode.config_source) ?? oplString(developerMode.configSource) ?? undefined,
-    switching: false,
-  };
-}
-
-function readDeveloperModeStatusTimeoutMs(): number {
-  const override = (globalThis as typeof globalThis & { __OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__?: number | string })
-    .__OPL_DEVELOPER_MODE_STATUS_TIMEOUT_MS__;
-  const parsed = Number(override ?? DEVELOPER_MODE_STATUS_TIMEOUT_MS);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEVELOPER_MODE_STATUS_TIMEOUT_MS;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-}
-
-function normalizeDeveloperModeEnabled(value: unknown): DeveloperModeEnabled {
-  return value === 'auto' || value === 'on' || value === 'off' ? value : 'off';
-}
-
 function oplPathString(value: unknown): string | null {
   return oplString(value) ?? oplString(oplRecord(value).selected_path);
 }
 
-function parseDeveloperModeSwitchState(stdout: string): DeveloperModeSwitchState | null {
-  try {
-    const payload = asRecord(JSON.parse(stdout));
-    const execution = asRecord(payload?.app_action_execution);
-    const result = asRecord(execution?.result);
-    const systemAction = asRecord(payload?.system_action) ?? asRecord(result?.system_action);
-    const supervisor = asRecord(systemAction?.developer_supervisor);
-    const developerMode = asRecord(systemAction?.developer_mode);
-    const requested = asRecord(systemAction?.requested);
-    if (!supervisor && !developerMode && !requested) return null;
+const USER_VISIBLE_DEVELOPER_MODE_STATES = new Set([
+  'active_direct',
+  'active_observe',
+  'inactive',
+  'auto',
+  'on',
+  'off',
+  'unknown',
+]);
 
-    const githubIdentity = asRecord(developerMode?.github_identity);
-    return {
-      known: true,
-      enabled: normalizeDeveloperModeEnabled(
-        supervisor?.enabled ?? developerMode?.enabled ?? requested?.developerSupervisorEnabled
-      ),
-      mode:
-        typeof supervisor?.mode === 'string'
-          ? supervisor.mode
-          : typeof developerMode?.mode === 'string'
-            ? developerMode.mode
-            : typeof requested?.developerSupervisorMode === 'string'
-              ? requested.developerSupervisorMode
-              : undefined,
-      status:
-        typeof developerMode?.status === 'string'
-          ? developerMode.status
-          : typeof systemAction?.status === 'string'
-            ? systemAction.status
-            : undefined,
-      effectiveState: typeof developerMode?.effective_state === 'string' ? developerMode.effective_state : undefined,
-      allowedRoute: typeof developerMode?.allowed_route === 'string' ? developerMode.allowed_route : undefined,
-      githubLogin: typeof githubIdentity?.login === 'string' ? githubIdentity.login : null,
-      configSource:
-        typeof supervisor?.source === 'string'
-          ? supervisor.source
-          : typeof developerMode?.config_source === 'string'
-            ? developerMode.config_source
-            : undefined,
-      switching: false,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getDeveloperModeDescriptionKey(developerMode: DeveloperModeSwitchState): string {
-  if (!developerMode.known) return 'settings.developerModeStateLoading';
-  if (developerMode.enabled === 'off') return 'settings.developerModeStateOff';
-  if (developerMode.enabled === 'auto') return 'settings.developerModeStateAuto';
-
-  const blocked =
-    developerMode.status === 'blocked' ||
-    developerMode.effectiveState === 'blocked' ||
-    developerMode.allowedRoute === 'blocked';
-  return blocked ? 'settings.developerModeStateOnLimited' : 'settings.developerModeStateOnReady';
-}
-
-function withDeveloperModeTimeout<T>(promise: Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new Error('OPL Developer Mode status timed out.'));
-    }, readDeveloperModeStatusTimeoutMs());
-    promise.then(
-      (value) => {
-        window.clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        window.clearTimeout(timer);
-        reject(error);
-      }
-    );
-  });
+function normalizeDeveloperModeState(state: string): string {
+  return USER_VISIBLE_DEVELOPER_MODE_STATES.has(state) ? state : 'unavailable';
 }
 
 /**
@@ -245,6 +65,21 @@ const SystemModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
   const initializingRef = useRef(true);
   const appStateQuery = useOplAppState('fast');
+  const appState = appStateQuery.appState;
+  const appPaths = oplRecord(appState.paths);
+  const appWorkspaceRoot =
+    oplString(appPaths.workspace_root_path) ??
+    oplPathString(appPaths.workspace_root) ??
+    oplPathString(appPaths.family_workspace_root);
+  const appLogsDir = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir);
+  const appDeveloperMode = oplRecord(appState.developer_mode);
+  const developerModeState =
+    oplString(appDeveloperMode.effective_state) ??
+    oplString(appDeveloperMode.enabled) ??
+    oplString(appDeveloperMode.status) ??
+    'unknown';
+  const developerModeDisplayState = normalizeDeveloperModeState(developerModeState);
+  const developerModeDescription = oplString(appDeveloperMode.description) ?? t('settings.oplDeveloperModeDesc');
 
   const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
     supported: false,
@@ -260,11 +95,6 @@ const SystemModalContent: React.FC = () => {
   const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
-  const [developerMode, setDeveloperMode] = useState<DeveloperModeSwitchState>(
-    () => readCachedDeveloperModeSwitchState() ?? DEFAULT_DEVELOPER_MODE_STATE
-  );
-
-  const developerModeDescription = t(getDeveloperModeDescriptionKey(developerMode));
 
   useEffect(() => {
     if (!isDesktop) {
@@ -301,21 +131,6 @@ const SystemModalContent: React.FC = () => {
     const ait = configService.get('acp.agentIdleTimeout');
     if (ait && ait > 0) setAgentIdleTimeout(ait);
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const parsed = normalizeDeveloperModeFromAppState(appStateQuery.appState);
-    if (parsed) {
-      writeCachedDeveloperModeSwitchState(parsed);
-      setDeveloperMode(parsed);
-    } else if (!appStateQuery.loading && !cancelled) {
-      setDeveloperMode((current) => (current.known ? current : DEFAULT_DEVELOPER_MODE_STATE));
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [appStateQuery.appState, appStateQuery.loading]);
 
   const handleCloseToTrayChange = useCallback((checked: boolean) => {
     setCloseToTray(checked);
@@ -441,52 +256,11 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleDeveloperModeChange = useCallback(
-    (checked: boolean) => {
-      const previous = developerMode;
-      const enabled: DeveloperModeEnabled = checked ? 'on' : 'off';
-      setDeveloperMode((current) => ({ ...current, enabled, switching: true }));
-
-      withDeveloperModeTimeout(
-        ipcBridge.oplRuntime.executeAction.invoke({
-          actionId: 'developer_supervisor',
-          dryRun: false,
-          payloadRefsOnlyJson: {
-            developerSupervisorEnabled: enabled,
-            developerSupervisorMode: 'developer_apply_safe',
-          },
-        })
-      )
-        .then((result) => {
-          const parsed = parseDeveloperModeSwitchState(result.stdout);
-          if (parsed) {
-            writeCachedDeveloperModeSwitchState(parsed);
-            setDeveloperMode(parsed);
-            void appStateQuery.load('fast', { showRefreshing: true });
-            return;
-          }
-
-          setDeveloperMode(previous);
-          Message.error(t('settings.developerModeUpdateFailed'));
-        })
-        .catch(() => {
-          setDeveloperMode(previous);
-          Message.error(t('settings.developerModeUpdateFailed'));
-        });
-    },
-    [appStateQuery.load, developerMode, t]
-  );
-
-  const paths = oplRecord(appStateQuery.appState.paths);
-  const oplAgentCodexContext = oplRecord(appStateQuery.appState.opl_agent_codex_context);
+  const oplAgentCodexContext = oplRecord(appState.opl_agent_codex_context);
   const systemInfo = {
-    cacheDir: oplString(paths.cache_root) ?? '',
-    workDir:
-      oplString(paths.workspace_root_path) ??
-      oplPathString(paths.workspace_root) ??
-      oplPathString(paths.family_workspace_root) ??
-      '',
-    logDir: oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir) ?? '',
+    cacheDir: oplString(appPaths.cache_root) ?? '',
+    workDir: appWorkspaceRoot ?? '',
+    logDir: appLogsDir ?? '',
   };
 
   const handleOpenLogDir = useCallback(() => {
@@ -517,20 +291,6 @@ const SystemModalContent: React.FC = () => {
       description: startOnBoot.supported ? t('settings.startOnBootDesc') : t('settings.startOnBootUnsupported'),
       component: (
         <Switch checked={startOnBoot.enabled} onChange={handleStartOnBootChange} disabled={!startOnBoot.supported} />
-      ),
-    },
-    {
-      key: 'developerMode',
-      label: t('settings.developerMode'),
-      description: developerModeDescription,
-      testId: 'opl-developer-mode-row',
-      component: (
-        <Switch
-          data-testid='opl-developer-mode-switch'
-          checked={developerMode.enabled !== 'off'}
-          loading={developerMode.switching || !developerMode.known}
-          onChange={handleDeveloperModeChange}
-        />
       ),
     },
     {
@@ -736,10 +496,26 @@ const SystemModalContent: React.FC = () => {
 
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
             <PreferenceRow
+              label={t('settings.oplDeveloperMode')}
+              description={developerModeDescription}
+              testId='opl-developer-mode-row'
+            >
+              <span
+                className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
+                data-testid='opl-developer-mode-status'
+              >
+                {developerModeDisplayState === 'unavailable'
+                  ? t('settings.unavailable')
+                  : t(`settings.oplDeveloperModeStates.${developerModeDisplayState}`, {
+                      defaultValue: developerModeDisplayState,
+                    })}
+              </span>
+            </PreferenceRow>
+            <PreferenceRow
               label={t('settings.oplAgentCodexContext')}
               description={t('settings.oplAgentCodexContextDesc')}
             >
-              <span className='text-12px text-t-secondary text-right max-w-360px truncate'>
+              <span className='text-12px text-t-secondary text-right max-w-260px truncate'>
                 {oplString(oplAgentCodexContext.contract_ref) ?? t('settings.unavailable')}
               </span>
             </PreferenceRow>

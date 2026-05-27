@@ -111,4 +111,80 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("navigatedBy: 'ready_entry'");
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
+
+  it('smokes the current OPL App-owned settings routes', () => {
+    const targetHashes = __test.SETTINGS_PAGE_SMOKE_TARGETS.map((target) => target.hash);
+
+    expect(targetHashes).toEqual([
+      '#/settings/overview',
+      '#/settings/runtime',
+      '#/settings/capabilities',
+      '#/settings/access',
+      '#/settings/appearance',
+      '#/settings/system',
+      '#/settings/about',
+    ]);
+    expect(targetHashes).not.toContain('#/settings/model');
+    expect(targetHashes).not.toContain('#/settings/agent');
+    expect(targetHashes).not.toContain('#/settings/display');
+    expect(targetHashes).not.toContain('#/settings/webui');
+  });
+
+  it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {
+    const expression = __test.developerModeStatusExpression();
+
+    expect(expression).toContain('[data-testid="opl-developer-mode-row"]');
+    expect(expression).toContain('[data-testid="opl-developer-mode-status"]');
+    expect(expression).toContain('OPL Developer Mode row exposed machine status');
+    expect(expression).not.toContain('opl-developer-mode-switch');
+    expect(expression).not.toContain('.click()');
+  });
+
+  it('summarizes live system initialize readiness as the first-run proof source', () => {
+    const summary = __test.summarizeCoreFirstLaunch(
+      JSON.stringify({
+        system_initialize: {
+          setup_flow: {
+            ready_to_launch: true,
+            blocking_items: [],
+          },
+          readiness: {
+            launch_ready: true,
+            core_ready: true,
+          },
+        },
+      })
+    );
+
+    expect(summary).toEqual({
+      source: 'opl system initialize --json',
+      status: 'ready',
+      ready_to_launch: true,
+      blocking_items: [],
+      readiness: {
+        launch_ready: true,
+        core_ready: true,
+      },
+    });
+  });
+
+  it('allows deferred Full readiness blockers after Core launch is ready', () => {
+    const summary = __test.summarizeCoreFirstLaunch(
+      JSON.stringify({
+        system_initialize: {
+          setup_flow: {
+            blocking_items: ['domain_modules', 'family_runtime_provider', 'recommended_skills'],
+          },
+          readiness: {
+            launch_ready: true,
+            core_ready: true,
+            domain_ready: true,
+          },
+        },
+      })
+    );
+
+    expect(summary.status).toBe('ready');
+    expect(summary.blocking_items).toEqual(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
+  });
 });
