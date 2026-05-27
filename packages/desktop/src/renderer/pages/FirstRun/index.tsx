@@ -1,4 +1,4 @@
-import { Button, Empty, Input, Message, Progress, Spin, Tag } from '@arco-design/web-react';
+import { Button, Empty, Input, Message, Progress, Tag } from '@arco-design/web-react';
 import { CheckOne, Config, Data, Right, SettingTwo, Tool, Workbench } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -87,7 +87,7 @@ const FirstRun: React.FC = () => {
   const [initializeResult, setInitializeResult] = useState<FirstRunCommandResult>(null);
   const [actionResult, setActionResult] = useState<FirstRunCommandResult>(null);
   const [apiKey, setApiKey] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [initializeLoading, setInitializeLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<MaintenanceAction | 'configure_codex' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,9 +108,16 @@ const FirstRun: React.FC = () => {
     initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown');
   const nextVisibleStep = findNextVisibleStep(initialize);
   const codexProfile = initialize?.codex_default_profile;
+  const coreStatusColor = initializeLoading && !initializeResult ? 'blue' : readyToLaunch ? 'green' : 'red';
+  const coreStatusLabel =
+    initializeLoading && !initializeResult
+      ? t('settings.firstRun.status.initializing')
+      : readyToLaunch
+        ? t('settings.firstRun.ready')
+        : t('settings.firstRun.needsSetup');
 
   const refreshInitialize = useCallback(async () => {
-    setLoading(true);
+    setInitializeLoading(true);
     setError(null);
     try {
       const result = await ipcBridge.oplRuntime.getInitialize.invoke();
@@ -119,24 +126,20 @@ const FirstRun: React.FC = () => {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
     } finally {
-      setLoading(false);
+      setInitializeLoading(false);
     }
   }, []);
 
-  const loadFirstRunState = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const checkFastAppState = useCallback(async () => {
     try {
       const appState = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
       if (isCoreLaunchReadyFromAppState(appState.parsed)) {
         navigate('/guid', { replace: true });
-        return;
       }
     } catch {
-      // Initialize state renders the actionable setup detail when fast App state is unavailable.
+      // Initialize state is the user-visible source of setup progress.
     }
-    await refreshInitialize();
-  }, [navigate, refreshInitialize]);
+  }, [navigate]);
 
   const runMaintenanceAction = useCallback(
     async (action: MaintenanceAction) => {
@@ -188,8 +191,9 @@ const FirstRun: React.FC = () => {
 
   useEffect(() => {
     document.title = 'One Person Lab App';
-    void loadFirstRunState();
-  }, [loadFirstRunState]);
+    void refreshInitialize();
+    void checkFastAppState();
+  }, [checkFastAppState, refreshInitialize]);
 
   const itemLabels: Record<FirstRunItemId, string> = {
     workspace_root: t('settings.firstRun.items.workspaceRoot'),
@@ -231,47 +235,46 @@ const FirstRun: React.FC = () => {
 
         {error && <div className={styles.firstRunError}>{error}</div>}
 
-        <Spin loading={loading && !initializeResult}>
-          <section
-            className={styles.firstRunSummary}
-            data-testid='opl-first-run-progress'
-            aria-label='opl-first-run-progress'
-          >
-            <div className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <div className={styles.firstRunCardTitle}>
-                  <span className={styles.firstRunCardIcon}>
-                    <CheckOne />
-                  </span>
-                  <h2>{t('settings.firstRun.coreReady')}</h2>
-                </div>
-                <Tag color={readyToLaunch ? 'green' : 'red'}>
-                  {readyToLaunch ? t('settings.firstRun.ready') : t('settings.firstRun.needsSetup')}
-                </Tag>
-              </div>
-              <Progress percent={progressPercent} size='small' />
-              <div className={styles.firstRunProgressDetails}>
+        <section
+          className={styles.firstRunStatusPanel}
+          data-testid='opl-first-run-progress'
+          aria-label='opl-first-run-progress'
+        >
+          <div className={styles.firstRunStatusMain}>
+            <div className={styles.firstRunStatusHeading}>
+              <span className={styles.firstRunCardIcon}>
+                <CheckOne />
+              </span>
+              <div>
+                <h2>{t('settings.firstRun.coreReady')}</h2>
                 <p data-testid='opl-first-run-stage'>{t('settings.firstRun.stage', { phase: currentPhase })}</p>
-                <p data-testid='opl-first-run-core-progress'>
-                  {t('settings.firstRun.coreProgress', { progress: progressText })}
-                </p>
-                <p data-testid='opl-first-run-full-readiness-progress'>
-                  {t('settings.firstRun.fullReadinessProgress', { progress: fullReadinessProgressText })}
-                </p>
-                <p data-testid='opl-first-run-maintenance-progress'>
-                  {t('settings.firstRun.maintenanceProgress', { progress: maintenanceProgressText })}
-                </p>
               </div>
+              <Tag color={coreStatusColor}>{coreStatusLabel}</Tag>
             </div>
+            <div className={styles.firstRunProgressHero}>
+              <div className={styles.firstRunProgressPercent}>{progressPercent}%</div>
+              <Progress percent={progressPercent} />
+            </div>
+            <div className={styles.firstRunProgressDetails}>
+              <p data-testid='opl-first-run-core-progress'>
+                {t('settings.firstRun.coreProgress', { progress: progressText })}
+              </p>
+              <p data-testid='opl-first-run-full-readiness-progress'>
+                {t('settings.firstRun.fullReadinessProgress', { progress: fullReadinessProgressText })}
+              </p>
+              <p data-testid='opl-first-run-maintenance-progress'>
+                {t('settings.firstRun.maintenanceProgress', { progress: maintenanceProgressText })}
+              </p>
+            </div>
+          </div>
 
-            <div className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <div className={styles.firstRunCardTitle}>
-                  <span className={styles.firstRunCardIcon}>
-                    <Data />
-                  </span>
-                  <h2>{t('settings.firstRun.blockers')}</h2>
-                </div>
+          <div className={styles.firstRunStatusSide}>
+            <div className={styles.firstRunSignal}>
+              <div className={styles.firstRunSignalTitle}>
+                <span className={styles.firstRunCardIcon}>
+                  <Data />
+                </span>
+                <h3>{t('settings.firstRun.blockers')}</h3>
                 <Tag color={blockingItems.length > 0 ? 'red' : 'green'}>{blockingItems.length}</Tag>
               </div>
               <p data-testid='opl-first-run-blockers-list' aria-label='opl-first-run-blockers-list'>
@@ -281,148 +284,145 @@ const FirstRun: React.FC = () => {
                 {nextVisibleStep ?? t('settings.firstRun.noNextStep')}
               </p>
             </div>
-
-            <div className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <div className={styles.firstRunCardTitle}>
-                  <span className={styles.firstRunCardIcon}>
-                    <Tool />
-                  </span>
-                  <h2>{t('settings.firstRun.backgroundMaintenance')}</h2>
-                </div>
+            <div className={styles.firstRunSignal}>
+              <div className={styles.firstRunSignalTitle}>
+                <span className={styles.firstRunCardIcon}>
+                  <Tool />
+                </span>
+                <h3>{t('settings.firstRun.backgroundMaintenance')}</h3>
                 <Tag color={maintenanceItems.length > 0 ? 'orange' : 'green'}>{maintenanceItems.length}</Tag>
               </div>
               <p>{maintenanceItems.length > 0 ? maintenanceItems.join(', ') : t('settings.firstRun.noMaintenance')}</p>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className={styles.firstRunGrid}>
-            <div className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <div className={styles.firstRunCardTitle}>
-                  <span className={styles.firstRunCardIcon}>
-                    <Workbench />
-                  </span>
-                  <h2>{t('settings.firstRun.readiness')}</h2>
-                </div>
-                <Button
-                  size='small'
-                  loading={loading}
-                  onClick={() => void refreshInitialize()}
-                  data-testid='opl-first-run-retry-button'
-                  aria-label='opl-first-run-retry-button'
-                >
-                  {t('common.refresh')}
-                </Button>
-              </div>
-              <div className={styles.firstRunList}>
-                {FIRST_RUN_ITEM_IDS.map((itemId) => (
-                  <ReadinessItem
-                    key={itemId}
-                    item={findChecklistItem(initialize, itemId)}
-                    fallbackLabel={itemLabels[itemId]}
-                    fallbackSummary={t('settings.firstRun.status.pending')}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <div className={styles.firstRunCardTitle}>
-                  <span className={styles.firstRunCardIcon}>
-                    <Config />
-                  </span>
-                  <h2>{t('settings.firstRun.codex.title')}</h2>
-                </div>
-                <Tag color={codexConfigBlocked ? 'red' : 'green'}>
-                  {codexConfigBlocked ? t('settings.firstRun.needsSetup') : t('settings.firstRun.ready')}
-                </Tag>
-              </div>
-
-              <div className={styles.firstRunApiKey}>
-                <p>
-                  {t('settings.firstRun.codex.defaults', {
-                    provider: codexProfile?.model_provider ?? 'gflab',
-                    baseUrl: codexProfile?.base_url ?? 'https://gflabtoken.cn/v1',
-                    model: codexProfile?.model ?? 'gpt-5.5',
-                    reasoning: codexProfile?.model_reasoning_effort ?? 'xhigh',
-                  })}
-                </p>
-                {codexConfigBlocked && (
-                  <div className={styles.firstRunApiKeyControls}>
-                    <Input.Password
-                      value={apiKey}
-                      onChange={setApiKey}
-                      placeholder={t('settings.firstRun.codex.apiKeyPlaceholder')}
-                      data-testid='opl-first-run-codex-api-key-input'
-                      aria-label='opl-first-run-codex-api-key-input'
-                    />
-                    <Button
-                      type='primary'
-                      loading={actionLoading === 'configure_codex'}
-                      onClick={() => void configureCodex()}
-                      data-testid='opl-first-run-configure-codex-button'
-                      aria-label='opl-first-run-configure-codex-button'
-                    >
-                      {t('settings.firstRun.codex.configure')}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          <section className={styles.firstRunCard}>
+        <section className={styles.firstRunGrid}>
+          <div className={styles.firstRunCard}>
             <div className={styles.firstRunCardHeader}>
               <div className={styles.firstRunCardTitle}>
                 <span className={styles.firstRunCardIcon}>
-                  <Tool />
+                  <Workbench />
                 </span>
-                <h2>{t('settings.firstRun.maintenance.title')}</h2>
+                <h2>{t('settings.firstRun.readiness')}</h2>
               </div>
-            </div>
-            <p>{t('settings.firstRun.maintenance.description')}</p>
-            <div className={styles.firstRunSectionActions}>
               <Button
-                loading={actionLoading === 'install_prep'}
-                onClick={() => void runMaintenanceAction('install_prep')}
-                data-testid='opl-first-run-install-button'
-                aria-label='opl-first-run-install-button'
+                size='small'
+                loading={initializeLoading}
+                onClick={() => void refreshInitialize()}
+                data-testid='opl-first-run-retry-button'
+                aria-label='opl-first-run-retry-button'
               >
-                {t('settings.firstRun.maintenance.installPrep')}
-              </Button>
-              <Button
-                loading={actionLoading === 'startup_maintenance'}
-                onClick={() => void runMaintenanceAction('startup_maintenance')}
-                data-testid='opl-first-run-open-environment-button'
-                aria-label='opl-first-run-open-environment-button'
-              >
-                {t('settings.firstRun.maintenance.startupMaintenance')}
-              </Button>
-              <Button
-                loading={actionLoading === 'reconcile_modules'}
-                onClick={() => void runMaintenanceAction('reconcile_modules')}
-                data-testid='opl-first-run-open-modules-button'
-                aria-label='opl-first-run-open-modules-button'
-              >
-                {t('settings.firstRun.maintenance.reconcileModules')}
+                {t('common.refresh')}
               </Button>
             </div>
-          </section>
+            <div className={styles.firstRunList}>
+              {FIRST_RUN_ITEM_IDS.map((itemId) => (
+                <ReadinessItem
+                  key={itemId}
+                  item={findChecklistItem(initialize, itemId)}
+                  fallbackLabel={itemLabels[itemId]}
+                  fallbackSummary={t('settings.firstRun.status.pending')}
+                />
+              ))}
+            </div>
+          </div>
 
-          {actionResult ? (
-            <section className={styles.firstRunCard}>
-              <div className={styles.firstRunCardHeader}>
-                <h2>{t('settings.firstRun.lastAction')}</h2>
-                <Tag>{actionResult.surface}</Tag>
+          <div className={styles.firstRunCard}>
+            <div className={styles.firstRunCardHeader}>
+              <div className={styles.firstRunCardTitle}>
+                <span className={styles.firstRunCardIcon}>
+                  <Config />
+                </span>
+                <h2>{t('settings.firstRun.codex.title')}</h2>
               </div>
-              <pre className={styles.firstRunResult}>{resultPreview(actionResult)}</pre>
-            </section>
-          ) : (
-            <Empty className='py-20px' description={t('settings.firstRun.noActionYet')} />
-          )}
-        </Spin>
+              <Tag color={codexConfigBlocked ? 'red' : 'green'}>
+                {codexConfigBlocked ? t('settings.firstRun.needsSetup') : t('settings.firstRun.ready')}
+              </Tag>
+            </div>
+
+            <div className={styles.firstRunApiKey}>
+              <p>
+                {t('settings.firstRun.codex.defaults', {
+                  provider: codexProfile?.model_provider ?? 'gflab',
+                  baseUrl: codexProfile?.base_url ?? 'https://gflabtoken.cn/v1',
+                  model: codexProfile?.model ?? 'gpt-5.5',
+                  reasoning: codexProfile?.model_reasoning_effort ?? 'xhigh',
+                })}
+              </p>
+              {codexConfigBlocked && (
+                <div className={styles.firstRunApiKeyControls}>
+                  <Input.Password
+                    value={apiKey}
+                    onChange={setApiKey}
+                    placeholder={t('settings.firstRun.codex.apiKeyPlaceholder')}
+                    data-testid='opl-first-run-codex-api-key-input'
+                    aria-label='opl-first-run-codex-api-key-input'
+                  />
+                  <Button
+                    type='primary'
+                    loading={actionLoading === 'configure_codex'}
+                    onClick={() => void configureCodex()}
+                    data-testid='opl-first-run-configure-codex-button'
+                    aria-label='opl-first-run-configure-codex-button'
+                  >
+                    {t('settings.firstRun.codex.configure')}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.firstRunCard}>
+          <div className={styles.firstRunCardHeader}>
+            <div className={styles.firstRunCardTitle}>
+              <span className={styles.firstRunCardIcon}>
+                <Tool />
+              </span>
+              <h2>{t('settings.firstRun.maintenance.title')}</h2>
+            </div>
+          </div>
+          <p>{t('settings.firstRun.maintenance.description')}</p>
+          <div className={styles.firstRunSectionActions}>
+            <Button
+              loading={actionLoading === 'install_prep'}
+              onClick={() => void runMaintenanceAction('install_prep')}
+              data-testid='opl-first-run-install-button'
+              aria-label='opl-first-run-install-button'
+            >
+              {t('settings.firstRun.maintenance.installPrep')}
+            </Button>
+            <Button
+              loading={actionLoading === 'startup_maintenance'}
+              onClick={() => void runMaintenanceAction('startup_maintenance')}
+              data-testid='opl-first-run-open-environment-button'
+              aria-label='opl-first-run-open-environment-button'
+            >
+              {t('settings.firstRun.maintenance.startupMaintenance')}
+            </Button>
+            <Button
+              loading={actionLoading === 'reconcile_modules'}
+              onClick={() => void runMaintenanceAction('reconcile_modules')}
+              data-testid='opl-first-run-open-modules-button'
+              aria-label='opl-first-run-open-modules-button'
+            >
+              {t('settings.firstRun.maintenance.reconcileModules')}
+            </Button>
+          </div>
+        </section>
+
+        {actionResult ? (
+          <section className={styles.firstRunCard}>
+            <div className={styles.firstRunCardHeader}>
+              <h2>{t('settings.firstRun.lastAction')}</h2>
+              <Tag>{actionResult.surface}</Tag>
+            </div>
+            <pre className={styles.firstRunResult}>{resultPreview(actionResult)}</pre>
+          </section>
+        ) : (
+          <Empty className='py-20px' description={t('settings.firstRun.noActionYet')} />
+        )}
       </div>
     </main>
   );

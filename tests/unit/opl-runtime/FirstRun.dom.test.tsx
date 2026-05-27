@@ -42,7 +42,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string>) => {
       if (!values) return key;
-      return Object.entries(values).reduce((text, [name, value]) => `${text} ${value}`, key);
+      return Object.entries(values).reduce((text, [_name, value]) => `${text} ${value}`, key);
     },
   }),
 }));
@@ -228,13 +228,13 @@ describe('FirstRun readiness page', () => {
     });
   });
 
-  it('uses fast App state to enter /guid immediately when Core launch requirements are ready', async () => {
+  it('uses fast App state to enter /guid while still starting the initialize progress read', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(fastStateReadyResult);
 
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
     expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
   });
 
@@ -257,6 +257,24 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByTestId('opl-first-run-ready-entry'));
 
     expect(navigateMock).toHaveBeenCalledWith('/guid');
+  });
+
+  it('loads initialize progress even when fast App state is still pending', async () => {
+    let resolveFastState: ((value: typeof fastStateNeedsSetupResult) => void) | null = null;
+    bridgeMocks.getAppStateInvoke.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFastState = resolve;
+      })
+    );
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(initializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    resolveFastState?.(fastStateNeedsSetupResult);
   });
 
   it('summarizes initialize progress by stage, readiness layers, and next action', async () => {

@@ -44,12 +44,6 @@
   gap: 8px;
 }
 
-.firstRunSummary {
-  display: grid;
-  grid-template-columns: minmax(240px, 1.1fr) minmax(180px, 0.7fr) minmax(220px, 1fr);
-  gap: 12px;
-}
-
 .firstRunCard {
   min-width: 0;
   border: 1px solid var(--border-base);
@@ -72,6 +66,87 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 20px;
+}
+
+.firstRunStatusPanel {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.35fr) minmax(260px, 0.75fr);
+  gap: 12px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  padding: 16px;
+}
+
+.firstRunStatusMain,
+.firstRunStatusSide {
+  min-width: 0;
+}
+
+.firstRunStatusMain {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.firstRunStatusHeading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.firstRunStatusHeading h2,
+.firstRunSignalTitle h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.firstRunStatusHeading p,
+.firstRunSignal p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunProgressHero {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.firstRunProgressPercent {
+  color: var(--text-primary);
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 700;
+}
+
+.firstRunStatusSide {
+  display: grid;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.firstRunSignal {
+  min-width: 0;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 12px;
+}
+
+.firstRunSignalTitle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .firstRunCardHeader {
@@ -206,7 +281,7 @@
   }
 
   .firstRunHeader,
-  .firstRunSummary,
+  .firstRunStatusPanel,
   .firstRunGrid,
   .firstRunApiKeyControls {
     grid-template-columns: 1fr;
