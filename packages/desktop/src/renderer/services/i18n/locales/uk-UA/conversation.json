@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "Привіт, які плани на сьогодні?",
+    "title": "Доручіть One Person Lab дослідження, гранти та звіти",
+    "codexDefaultStatus": "Codex CLI за замовчуванням: {{model}} · {{permission}}",
     "placeholder": "Надішліть повідомлення, завантажте файли, відкрийте папку або створіть заплановане завдання...",
     "uploadFile": "Завантажити файли",
     "linkFolder": "Відкрити папку",
@@ -13,10 +14,10 @@
     "clearWorkspace": "Видалити проєкт",
     "openFolder": "Відкрити папку",
     "none": "Немає",
-    "quickActionsTitle": "Що вміє AionUi?",
+    "quickActionsTitle": "Що вміє One Person Lab App?",
     "quickActionFeedback": "Є відгуки або пропозиції?",
     "quickActionStar": "Подобається? Поставте нам зірку!",
-    "skillsMarket": "Маркет навичок AionUi",
+    "skillsMarket": "Маркет навичок One Person Lab App",
     "skillsMarketDesc": "Шукайте та активуйте навички спільноти за запитом. Налаштуйте один раз — доступно для всіх агентів.",
     "skillsMarketDetails": "Докладніше >>"
   },

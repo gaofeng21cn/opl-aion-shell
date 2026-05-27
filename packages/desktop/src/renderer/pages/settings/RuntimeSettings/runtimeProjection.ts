@@ -20,18 +20,6 @@ import type {
 } from './types';
 
 type JsonRecord = Record<string, unknown>;
-type ProjectionSource =
-  | {
-      kind: 'app_state';
-      appState: JsonRecord;
-      projection: JsonRecord;
-      workbench: JsonRecord;
-    }
-  | {
-      kind: 'legacy';
-      projection: JsonRecord;
-      workbench: JsonRecord;
-    };
 
 function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -61,24 +49,8 @@ function firstRecord(...values: unknown[]): JsonRecord | undefined {
   return values.find(isRecord);
 }
 
-function isOplAppState(value: JsonRecord): boolean {
-  return asString(value.schema_version) === 'opl_app_state.v1' || asString(value.schema) === 'opl_app_state.v1';
-}
-
-function readProjectionSource(root: unknown): ProjectionSource {
-  if (!isRecord(root)) {
-    return { kind: 'legacy', projection: {}, workbench: {} };
-  }
-  const appState = firstRecord(root.app_state);
-  if (appState && isOplAppState(appState)) {
-    const operator = firstRecord(appState.operator) ?? {};
-    return {
-      kind: 'app_state',
-      appState,
-      projection: operator,
-      workbench: firstRecord(operator.workbench, operator.runtime_workbench) ?? {},
-    };
-  }
+function readProjection(root: unknown): JsonRecord {
+  if (!isRecord(root)) return {};
   const traySnapshot = firstRecord(root.runtime_tray_snapshot);
   const drilldown = firstRecord(traySnapshot?.app_operator_drilldown, root.app_operator_drilldown);
   const visualization = firstRecord(
@@ -86,8 +58,13 @@ function readProjectionSource(root: unknown): ProjectionSource {
     drilldown?.runtime_visualization_projection,
     traySnapshot?.runtime_visualization_projection
   );
-  const projection = visualization ?? drilldown ?? root;
-  return { kind: 'legacy', projection, workbench: readRuntimeWorkbench(projection) };
+  return visualization ?? drilldown ?? root;
+}
+
+function readAppState(root: unknown): JsonRecord | undefined {
+  if (!isRecord(root)) return undefined;
+  const appState = firstRecord(root.app_state, root);
+  return asString(appState?.schema_version) === 'opl_app_state.v1' ? appState : undefined;
 }
 
 function readSummaryPairs(projection: JsonRecord): Array<{ label: string; value: string }> {
@@ -300,20 +277,159 @@ function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
   }));
 }
 
-function readAppStateGraph(operator: JsonRecord): { nodes: RuntimeGraphNode[]; edges: RuntimeGraphEdge[] } {
-  return readGraph(operator.dynamic_vertical_map ?? operator.graph, 'operator');
+function statusTone(status: string | undefined): string {
+  if (!status) return 'neutral';
+  return ['ready', 'healthy', 'ok', 'installed', 'enabled'].includes(status) ? 'ready' : 'attention';
 }
 
-function readAppStateSafeActionRoutes(workbench: JsonRecord): RuntimeSafeActionRoute[] {
-  return readSafeActionRoutes(workbench.safe_action_routes);
+function normalizeAppStateSummaryCards(appState: JsonRecord): RuntimeSummaryCard[] {
+  const core = firstRecord(appState.core);
+  const codex = firstRecord(core?.codex);
+  const provider = firstRecord(appState.provider);
+  const temporal = firstRecord(provider?.temporal);
+  const modules = firstRecord(appState.modules);
+  const moduleSummary = firstRecord(modules?.summary);
+  const codexVersion = asString(codex?.parsed_version) ?? asString(codex?.version) ?? 'missing';
+  const codexModel = asString(codex?.default_model);
+  const codexReasoning = asString(codex?.default_reasoning_effort);
+  const codexStatus = asString(codex?.status) ?? (codexVersion === 'missing' ? 'missing' : 'ready');
+  const temporalStatus = asString(temporal?.status) ?? asString(temporal?.health_status) ?? 'unknown';
+  const defaultModuleCount = asNumber(moduleSummary?.default_modules_count);
+  const healthyDefaultModuleCount = asNumber(moduleSummary?.healthy_default_modules_count);
+
+  return [
+    {
+      id: 'codex',
+      label: 'Codex CLI',
+      value: [codexVersion, [codexModel, codexReasoning].filter(Boolean).join(' ')].filter(Boolean).join(' / '),
+      tone: statusTone(codexStatus),
+    },
+    {
+      id: 'temporal',
+      label: 'Temporal',
+      value: temporalStatus,
+      tone: statusTone(temporalStatus),
+    },
+    {
+      id: 'modules',
+      label: 'Runtime modules',
+      value:
+        defaultModuleCount === undefined || healthyDefaultModuleCount === undefined
+          ? 'unknown'
+          : `${healthyDefaultModuleCount}/${defaultModuleCount}`,
+      tone:
+        defaultModuleCount !== undefined && healthyDefaultModuleCount === defaultModuleCount ? 'ready' : 'attention',
+    },
+  ];
+}
+
+function normalizeAppStateDomainLaneMap(appState: JsonRecord): RuntimeDomainLane[] {
+  const modules = firstRecord(appState.modules);
+  return asRecordArray(modules?.items).map((entry, index) => {
+    const domainId = asString(entry.module_id) ?? asString(entry.id) ?? `module-${index + 1}`;
+    const healthStatus = asString(entry.health_status) ?? asString(entry.status);
+    const label = asString(entry.label) ?? domainId;
+    return {
+      domainId,
+      label,
+      activeTaskCount: 1,
+      blockedTaskCount: healthStatus && statusTone(healthStatus) !== 'ready' ? 1 : 0,
+      paperRouteLensRefCount: 0,
+      tasks: [
+        {
+          taskId: domainId,
+          label,
+          state: healthStatus,
+          activePathNodeIds: [] as string[],
+          paperRouteLensRefCount: 0,
+        },
+      ],
+    };
+  });
+}
+
+function normalizeAppStateActions(appState: JsonRecord): RuntimeSafeActionRoute[] {
+  return asRecordArray(appState.actions).map((entry, index) => {
+    const id = asString(entry.action_id) ?? asString(entry.id) ?? `action-${index + 1}`;
+    const payload = firstRecord(entry.payload_refs_only_json, entry.payload_refs, entry.payload);
+    return {
+      id,
+      label: asString(entry.label) ?? id,
+      owner: asString(entry.owner) ?? asString(entry.authority_owner),
+      route: asString(entry.delegated_surface) ?? asString(entry.route) ?? asString(entry.command),
+      payloadRefsOnlyJson: payload,
+      dryRunRequired: entry.dry_run_required !== false,
+    };
+  });
+}
+
+function normalizeAppStateRefs(appState: JsonRecord): RuntimeGraphNode[] {
+  const modules = firstRecord(appState.modules);
+  return asRecordArray(modules?.items).flatMap((entry, index) => {
+    const moduleId = asString(entry.module_id) ?? asString(entry.id) ?? `module-${index + 1}`;
+    const label = asString(entry.label) ?? moduleId;
+    const refs: RuntimeGraphNode[] = [];
+    const checkoutPath = asString(entry.checkout_path);
+    if (checkoutPath) {
+      refs.push({
+        id: `${moduleId}:checkout_path`,
+        label: `${label} checkout`,
+        kind: 'module_checkout',
+        state: asString(entry.health_status) ?? asString(entry.status),
+        domainId: moduleId,
+        ref: checkoutPath,
+      });
+    }
+    const managedCheckoutPath = asString(entry.managed_checkout_path);
+    if (managedCheckoutPath && managedCheckoutPath !== checkoutPath) {
+      refs.push({
+        id: `${moduleId}:managed_checkout_path`,
+        label: `${label} managed checkout`,
+        kind: 'module_checkout',
+        state: asString(entry.health_status) ?? asString(entry.status),
+        domainId: moduleId,
+        ref: managedCheckoutPath,
+      });
+    }
+    return refs;
+  });
+}
+
+function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualizationModel {
+  const operator = firstRecord(appState.operator);
+  return {
+    sourceSurface: asString(appState.surface_kind) ?? 'opl_app_state',
+    state: asString(operator?.status) ?? asString(appState.status) ?? 'unknown',
+    summary: asString(operator?.summary)
+      ? [{ label: 'operator_summary', value: asString(operator?.summary) ?? '' }]
+      : [],
+    summaryCards: normalizeAppStateSummaryCards(appState),
+    actionQueue: [],
+    domainLaneMap: normalizeAppStateDomainLaneMap(appState),
+    taskDrilldowns: [],
+    refreshPolicy: undefined,
+    performancePolicy: {},
+    stageGraph: { nodes: [], edges: [] },
+    routeGraph: { nodes: [], edges: [] },
+    decisionMap: [],
+    timeline: [],
+    researchPaperLensRefs: [],
+    ownerBoundary: [],
+    safeActionRoutes: normalizeAppStateActions(appState),
+    refs: normalizeAppStateRefs(appState),
+  };
 }
 
 export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationModel {
-  const source = readProjectionSource(root);
-  const projection = source.projection;
-  const workbench = source.workbench;
-  const unifiedGraph =
-    source.kind === 'app_state' ? readAppStateGraph(projection) : readGraph(projection.graph, 'runtime');
+  const appState = readAppState(root);
+  if (appState) {
+    return normalizeAppStateProjection(appState);
+  }
+
+  const projection = readProjection(root);
+  const rootRecord = isRecord(root) ? root : {};
+  const workbench = readRuntimeWorkbench(projection);
+  const unifiedGraph = readGraph(projection.graph, 'runtime');
   const stageGraph =
     unifiedGraph.nodes.length > 0
       ? {
@@ -354,9 +470,11 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
 
   return {
     sourceSurface:
-      source.kind === 'app_state'
-        ? (asString(source.appState.surface_kind) ?? 'opl_app_state.v1')
-        : (asString(projection.surface_kind) ?? asString(projection.source_surface) ?? 'legacy_app_operator_drilldown'),
+      asString(projection.surface_kind) ??
+      asString(projection.source_surface) ??
+      (projection === firstRecord(rootRecord.runtime_visualization_projection)
+        ? 'runtime_visualization_projection'
+        : 'app_operator_drilldown'),
     state: asString(projection.state) ?? asString(projection.runtime_state) ?? asString(projection.status) ?? 'unknown',
     summary: readSummaryPairs(projection),
     summaryCards: readSummaryCards(workbench),
@@ -374,10 +492,7 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
       'paper'
     ),
     ownerBoundary: readOwnerBoundary(projection),
-    safeActionRoutes:
-      source.kind === 'app_state'
-        ? readAppStateSafeActionRoutes(workbench)
-        : readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
+    safeActionRoutes: readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
     refs,
   };
 }

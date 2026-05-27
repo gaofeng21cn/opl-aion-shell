@@ -9,7 +9,7 @@ import { ipcBridge } from '@/common';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
+import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/types/codex/codexModes';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/common/utils/presetAssistantResources';
@@ -39,6 +39,9 @@ async function resolvePreferredMode(backend: string): Promise<string | undefined
   if (modeOptions.length === 0) {
     return undefined;
   }
+  if (backend === 'codex') {
+    return CODEX_MODE_NATIVE_FULL_ACCESS;
+  }
 
   let preference: ModePreference | undefined;
 
@@ -64,6 +67,13 @@ async function resolvePreferredMode(backend: string): Promise<string | undefined
 }
 
 async function resolvePreferredAcpModelId(backend: string): Promise<string | undefined> {
+  if (backend === 'codex') {
+    const agents = await getAgents();
+    const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
+    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    return buildCodexDefaultModelInfo(handshakeModels).current_model_id ?? undefined;
+  }
+
   const acpConfig = configService.get('acp.config');
   const backendConfig = acpConfig?.[backend as string] as { preferredModelId?: string } | undefined;
   const preferredModelId = backendConfig?.preferredModelId;
@@ -78,10 +88,6 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   const handshakeModelId = handshakeModels?.current_model_id;
   if (typeof handshakeModelId === 'string' && handshakeModelId.trim().length > 0) {
     return handshakeModelId;
-  }
-
-  if (backend === 'codex' && DEFAULT_CODEX_MODELS.length > 0) {
-    return DEFAULT_CODEX_MODELS[0]?.id;
   }
 
   return undefined;

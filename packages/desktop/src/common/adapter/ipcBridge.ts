@@ -384,7 +384,7 @@ export const application = {
   devToolsStateChanged: bridge.buildEmitter<{ isOpen: boolean }>('app.devtools-state-changed'),
 };
 
-export type IOplRuntimeDetailLevel = 'full';
+export type IOplRuntimeDetailLevel = 'summary' | 'full';
 export type IOplAppStateProfile = 'fast' | 'full';
 
 export type IOplRuntimeActionRequest = {
@@ -393,8 +393,21 @@ export type IOplRuntimeActionRequest = {
   payloadRefsOnlyJson?: Record<string, unknown>;
 };
 
+export type IOplConfigureCodexRequest = {
+  apiKey: string;
+};
+
 export type IOplRuntimeCommandResult = {
-  surface: 'app_state_fast' | 'app_state_full' | 'runtime_diagnostic_full' | 'app_action';
+  surface:
+    | 'app_state_fast'
+    | 'app_state_full'
+    | 'runtime_full'
+    | 'app_action'
+    | 'system_initialize'
+    | 'install_prep'
+    | 'configure_codex'
+    | 'startup_maintenance'
+    | 'reconcile_modules';
   command: string;
   stdout: string;
   parsed: unknown;
@@ -408,6 +421,13 @@ export const oplRuntime = {
   getAppState: bridge.buildProvider<IOplRuntimeCommandResult, { profile: IOplAppStateProfile }>(
     'opl-runtime.get-app-state'
   ),
+  getInitialize: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-initialize'),
+  runInstallPrep: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-install-prep'),
+  configureCodex: bridge.buildProvider<IOplRuntimeCommandResult, IOplConfigureCodexRequest>(
+    'opl-runtime.configure-codex'
+  ),
+  runStartupMaintenance: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-startup-maintenance'),
+  runReconcileModules: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-reconcile-modules'),
   getDrilldown: bridge.buildProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
     'opl-runtime.get-drilldown'
   ),

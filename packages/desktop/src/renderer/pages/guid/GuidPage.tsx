@@ -10,12 +10,9 @@ import { resolveLocaleKey } from '@/common/utils';
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { openExternalUrl, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
-import AgentPillBar from './components/AgentPillBar';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
-import { AgentPillBarSkeleton } from './components/GuidSkeleton';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
-import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
 import QuickActionButtons from './components/QuickActionButtons';
 import FeedbackReportModal from '@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal';
@@ -26,6 +23,8 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
+import { DEFAULT_CODEX_MODEL_WITH_REASONING_ID } from '@/common/types/codex/codexModels';
+import { CODEX_MODE_NATIVE_FULL_ACCESS } from '@/common/types/codex/codexModes';
 import { Button, ConfigProvider, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Down, Left, Robot, Write } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -46,6 +45,10 @@ const GuidPage: React.FC = () => {
 
   const localeKey = resolveLocaleKey(i18n.language);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+  useEffect(() => {
+    document.title = 'One Person Lab App';
+  }, []);
 
   // Open external link
   const openLink = useCallback(async (url: string) => {
@@ -259,23 +262,6 @@ const GuidPage: React.FC = () => {
     [mention, guidInput.input, send.sendMessageHandler]
   );
 
-  const handleSelectAgentFromPillBar = useCallback(
-    (key: string) => {
-      agentSelection.setSelectedAgentKey(key);
-      mention.setMentionOpen(false);
-      mention.setMentionQuery(null);
-      mention.setMentionSelectorOpen(false);
-      mention.setMentionActiveIndex(0);
-    },
-    [
-      agentSelection.setSelectedAgentKey,
-      mention.setMentionOpen,
-      mention.setMentionQuery,
-      mention.setMentionSelectorOpen,
-      mention.setMentionActiveIndex,
-    ]
-  );
-
   const handleSelectAssistant = useCallback(
     (assistantId: string) => {
       agentSelection.setSelectedAgentKey(assistantId);
@@ -320,6 +306,14 @@ const GuidPage: React.FC = () => {
     if (i18nName) return i18nName;
     return mention.selectedAgentLabel || t('conversation.welcome.title');
   }, [agentSelection.is_presetAgent, selectedAssistantRecord, localeKey, mention.selectedAgentLabel, t]);
+  const codexDefaultStatus = useMemo(
+    () =>
+      t('conversation.welcome.codexDefaultStatus', {
+        model: DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
+        permission: t(`agentMode.${CODEX_MODE_NATIVE_FULL_ACCESS}`, { defaultValue: 'Full Access' }),
+      }),
+    [t]
+  );
   const selectedAssistantDescription = useMemo(() => {
     return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
   }, [selectedAssistantRecord, localeKey]);
@@ -427,7 +421,8 @@ const GuidPage: React.FC = () => {
 
   const currentPresetAgentType = selectedAssistantRecord?.preset_agent_type || 'gemini';
   // Mirrors AssistantEditDrawer's Main Agent options — detected execution
-  // engines from AgentPillBar's data source, so avatars resolve the same way.
+  // engines from the shared agent-selection data source, so avatars resolve
+  // the same way in the preset assistant header.
   const agentSwitcherItems = useMemo(() => {
     if (!agentSelection.availableAgents) return [];
     return agentSelection.availableAgents
@@ -525,18 +520,9 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  // Build the model selector node
-  const modelSelectorNode = (
-    <GuidModelSelector
-      isGeminiMode={isGeminiMode}
-      modelList={modelSelection.modelList}
-      current_model={modelSelection.current_model}
-      setCurrentModel={modelSelection.setCurrentModel}
-      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
-      selectedAcpModel={agentSelection.selectedAcpModel}
-      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
-    />
-  );
+  // The App-owned home contract keeps model selection out of the first screen.
+  // Defaults still resolve through modelSelection / ACP handshake for send.
+  const modelSelectorNode: React.ReactNode = null;
 
   // Build the action row
   const actionRowNode = (
@@ -575,7 +561,12 @@ const GuidPage: React.FC = () => {
 
   return (
     <ConfigProvider getPopupContainer={() => guidContainerRef.current || document.body}>
-      <div ref={guidContainerRef} className={styles.guidContainer}>
+      <div
+        ref={guidContainerRef}
+        className={styles.guidContainer}
+        data-testid='opl-guid-entry'
+        aria-label='opl-guid-entry'
+      >
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
             {agentSelection.is_presetAgent ? (
@@ -682,7 +673,10 @@ const GuidPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+              <div className='text-center'>
+                <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+                <p className='mt-8px mb-0 text-12px text-3'>{codexDefaultStatus}</p>
+              </div>
             )}
           </div>
 
@@ -719,16 +713,6 @@ const GuidPage: React.FC = () => {
                 />
               ) : null}
             </div>
-          ) : agentSelection.availableAgents === undefined ? (
-            <AgentPillBarSkeleton />
-          ) : agentSelection.availableAgents.length > 0 ? (
-            <AgentPillBar
-              availableAgents={agentSelection.availableAgents}
-              selectedAgentKey={agentSelection.selectedAgentKey}
-              getAgentKey={agentSelection.getAgentKey}
-              onSelectAgent={handleSelectAgentFromPillBar}
-              suppressSelectionAnimation={resetAssistantRequested}
-            />
           ) : null}
 
           <GuidInputCard
@@ -738,7 +722,7 @@ const GuidPage: React.FC = () => {
             onPaste={guidInput.onPaste}
             onFocus={guidInput.handleTextareaFocus}
             onBlur={guidInput.handleTextareaBlur}
-            placeholder={`${mention.selectedAgentLabel}, ${typewriterPlaceholder || t('conversation.welcome.placeholder')}`}
+            placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')}
             isInputActive={guidInput.isInputFocused}
             isFileDragging={guidInput.isFileDragging}
             activeBorderColor={activeBorderColor}

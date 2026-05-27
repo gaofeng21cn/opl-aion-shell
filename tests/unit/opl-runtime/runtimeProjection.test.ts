@@ -1,121 +1,93 @@
 import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
 import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
 
 describe('runtime visualization projection normalization', () => {
-  it('uses opl_app_state.v1 operator, workbench, provider, and action sections as the default source', () => {
-    const contractFixturePath = process.env.OPL_APP_CONTRACT_FIXTURE;
-    const payload = contractFixturePath
-      ? JSON.parse(fs.readFileSync(contractFixturePath, 'utf8'))
-      : {
-          app_state: {
-            schema_version: 'opl_app_state.v1',
-            surface_kind: 'opl_app_state.v1',
-            meta: { profile: 'fast' },
-            operator: {
-              status: 'ready',
-              summary: {
-                stage_attempt_count: 2,
-                active_task_count: 1,
-              },
-              workbench: {
-                summary_cards: [
-                  { card_id: 'active_tasks', label: 'Active tasks', value: 1, tone: 'running' },
-                  { card_id: 'provider', label: 'Provider', value: 'ready', tone: 'ready' },
-                ],
-                action_queue: {
-                  items: [
-                    {
-                      item_id: 'task:dm-cvd',
-                      task_id: 'dm-cvd',
-                      domain_id: 'medautoscience',
-                      title: 'DM-CVD write',
-                      state: 'running',
-                      safe_action_ref_count: 1,
-                      blocker_ref_count: 0,
-                      paper_route_lens_ref_count: 1,
-                    },
-                  ],
-                },
-                domain_lane_map: {
-                  lanes: [
-                    {
-                      domain_id: 'medautoscience',
-                      lane_label: 'MAS',
-                      active_task_count: 1,
-                      blocked_task_count: 0,
-                      tasks: [
-                        {
-                          task_id: 'dm-cvd',
-                          label: 'DM-CVD write',
-                          state: 'running',
-                          active_stage_id: 'write',
-                          active_path_node_ids: ['stage_attempt:attempt-1'],
-                          paper_route_lens_ref_count: 1,
-                        },
-                      ],
-                    },
-                  ],
-                },
-                task_drilldowns: [
-                  {
-                    task_id: 'dm-cvd',
-                    domain_id: 'medautoscience',
-                    title: 'DM-CVD write',
-                    state: 'running',
-                    stage_attempt_ids: ['attempt-1'],
-                    safe_action_ref_count: 1,
-                    blocker_ref_count: 0,
-                    paper_route_lens_ref_count: 1,
-                    active_path: [{ node_id: 'stage_attempt:attempt-1', label: 'write', state: 'completed' }],
-                  },
-                ],
-                safe_action_routes: [
-                  {
-                    action_id: 'stage-production:mas/analysis_campaign',
-                    label: 'Run analysis',
-                    owner: 'opl',
-                    route: 'opl app action execute --action stage-production:mas/analysis_campaign',
-                    payload_refs_only_json: { receipt_ref: 'receipt://one' },
-                  },
-                ],
-              },
-              dynamic_vertical_map: {
-                nodes: [{ node_id: 'stage_attempt:attempt-1', node_kind: 'stage_attempt', label: 'Write' }],
-                edges: [
-                  { from_node_id: 'stage_attempt:attempt-1', to_node_id: 'safe_action:continue', edge_kind: 'next' },
-                ],
-              },
-            },
-            actions: [
-              {
-                action_id: 'provider_scheduler_status',
-                label: 'Provider status must not be rendered unless OPL workbench exposes it',
-                owner: 'opl',
-              },
-            ],
+  it('normalizes OPL app state as the summary-first runtime model', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        surface_kind: 'opl_app_state',
+        meta: {
+          profile: 'fast',
+          read_policy: 'bounded_local_read_no_network_no_repair',
+        },
+        core: {
+          codex: {
+            parsed_version: '0.125.0',
+            default_model: 'gpt-5.5',
+            default_reasoning_effort: 'xhigh',
           },
-        };
-    const model = normalizeRuntimeProjection(payload);
+        },
+        provider: {
+          temporal: {
+            status: 'ready',
+            health_status: 'ready',
+            degraded_reason: null,
+          },
+        },
+        modules: {
+          summary: {
+            default_modules_count: 4,
+            healthy_default_modules_count: 4,
+          },
+          items: [
+            {
+              module_id: 'medautoscience',
+              label: 'Med Auto Science',
+              health_status: 'ready',
+              checkout_path: '/Users/example/workspace/med-autoscience',
+              git: { short_sha: 'abc1234' },
+            },
+          ],
+        },
+        assistants: {
+          items: [
+            {
+              assistant_id: 'oplmetaagent',
+              label: 'OPL Meta Agent',
+              launch_hint: 'direct_click',
+            },
+          ],
+        },
+        operator: {
+          status: 'ready',
+          summary: 'OPL runtime provider is ready.',
+        },
+        actions: [
+          {
+            action_id: 'provider_scheduler_status',
+            label: 'Read Temporal scheduler status',
+            delegated_surface: 'opl family-runtime scheduler status --provider temporal',
+          },
+        ],
+      },
+    });
 
-    expect(model.sourceSurface).toBe('opl_app_state.v1');
-    expect(model.state).toMatch(/ready|attention_needed/);
-    expect(model.summary.length).toBeGreaterThan(0);
-    expect(model.summaryCards[0]).toMatchObject({ id: expect.any(String), value: expect.any(String) });
-    expect(model.actionQueue[0]).toMatchObject({
-      taskId: expect.any(String),
-      safeActionRefCount: 1,
+    expect(model.sourceSurface).toBe('opl_app_state');
+    expect(model.state).toBe('ready');
+    expect(model.summaryCards).toContainEqual({
+      id: 'codex',
+      label: 'Codex CLI',
+      value: '0.125.0 / gpt-5.5 xhigh',
+      tone: 'ready',
     });
-    expect(model.domainLaneMap[0]?.tasks[0]).toMatchObject({
-      taskId: expect.any(String),
-      activeStageId: expect.any(String),
+    expect(model.summaryCards).toContainEqual({
+      id: 'temporal',
+      label: 'Temporal',
+      value: 'ready',
+      tone: 'ready',
     });
-    expect(model.taskDrilldowns[0]?.activePath[0]).toMatchObject({
-      id: expect.any(String),
+    expect(model.domainLaneMap[0]).toMatchObject({
+      domainId: 'medautoscience',
+      label: 'Med Auto Science',
+      activeTaskCount: 1,
     });
-    expect(model.stageGraph.nodes.length + model.routeGraph.nodes.length).toBeGreaterThan(0);
-    expect(model.summaryCards.find((card) => card.id === 'provider-temporal')).toBeUndefined();
-    expect(model.safeActionRoutes[0]?.route).toMatch(/^opl app action execute --action /);
+    expect(model.safeActionRoutes[0]).toMatchObject({
+      id: 'provider_scheduler_status',
+      label: 'Read Temporal scheduler status',
+      route: 'opl family-runtime scheduler status --provider temporal',
+    });
+    expect(model.refs.map((ref) => ref.ref)).toContain('/Users/example/workspace/med-autoscience');
   });
 
   it('prefers runtime_visualization_projection and preserves refs-only graph data', () => {
@@ -359,7 +331,7 @@ describe('runtime visualization projection normalization', () => {
     expect(model.refs[0]?.ref).toBe('mas://blockers/currentness.json');
   });
 
-  it('adapts legacy runtime_tray_snapshot.app_operator_drilldown only through the legacy path', () => {
+  it('falls back to runtime_tray_snapshot.app_operator_drilldown', () => {
     const model = normalizeRuntimeProjection({
       runtime_tray_snapshot: {
         app_operator_drilldown: {

@@ -5,7 +5,8 @@
  */
 
 import { ipcBridge } from '@/common';
-import { DEFAULT_CODEX_MODELS } from '@/common/types/codex/codexModels';
+import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
+import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/types/codex/codexModes';
 import type { IProvider } from '@/common/config/storage';
 import { configService } from '@/common/config/configService';
@@ -89,6 +90,7 @@ export type GuidAgentSelectionResult = {
  */
 function resolveDefaultMode(backend: string | undefined, agents: AgentMetadata[] | undefined): string {
   if (!backend) return 'default';
+  if (backend === 'codex') return CODEX_MODE_NATIVE_FULL_ACCESS;
 
   const matched = agents?.find((a) => (a.backend ?? a.agent_type) === backend);
   const handshakeModes = matched?.handshake?.available_modes as AcpSessionModes | undefined;
@@ -103,6 +105,8 @@ function resolveDefaultMode(backend: string | undefined, agents: AgentMetadata[]
 
   return 'default';
 }
+
+const OPL_DEFAULT_AGENT_KEY = getOplDefaultExecutorAgentKey();
 
 type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
@@ -126,9 +130,9 @@ export const useGuidAgentSelection = ({
   preselectAgentKey,
   locationKey,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>('aionrs');
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(OPL_DEFAULT_AGENT_KEY);
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
-  const [selectedMode, _setSelectedMode] = useState<string>('default');
+  const [selectedMode, _setSelectedMode] = useState<string>(CODEX_MODE_NATIVE_FULL_ACCESS);
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
   // Guard: only run the initial restore once; user selections are never overwritten
@@ -161,7 +165,7 @@ export const useGuidAgentSelection = ({
     _setSelectedAcpModel((prev) => {
       const newModelId = typeof model_id === 'function' ? model_id(prev) : model_id;
       const agentKey = selectedAgentRef.current;
-      if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
+      if (agentKey && agentKey !== 'codex' && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
         void savePreferredModelId(agentKey, newModelId);
       }
       return newModelId;
@@ -238,6 +242,17 @@ export const useGuidAgentSelection = ({
     if (byId) return byId;
     return availableAgents?.find((a) => a.backend === key || a.agent_type === key);
   };
+
+  const getDefaultAgentKey = useCallback(
+    (agents: AvailableAgent[] | undefined): string => {
+      const defaultAgent = agents?.find((agent) => getAgentKey(agent) === OPL_DEFAULT_AGENT_KEY);
+      if (defaultAgent) return getAgentKey(defaultAgent);
+
+      const firstCliAgent = agents?.find((agent) => !agent.is_preset);
+      return firstCliAgent ? getAgentKey(firstCliAgent) : OPL_DEFAULT_AGENT_KEY;
+    },
+    [getAgentKey]
+  );
 
   // Derived state: collapse row-scoped rows to a stable slot key so shared
   // config namespaces (acp.config / mode preferences) are not fragmented
@@ -322,14 +337,13 @@ export const useGuidAgentSelection = ({
 
     if (resetAssistant) {
       resetHandledRef.current = true;
-      const firstCliAgent = availableAgents.find((a) => !a.is_preset);
-      const fallbackKey = firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
+      const fallbackKey = getDefaultAgentKey(availableAgents);
       _setSelectedAgentKey(fallbackKey);
       configService.set('guid.lastSelectedAgent', fallbackKey).catch((error) => {
         console.error('Failed to save reset agent key:', error);
       });
     }
-  }, [availableAgents, resetAssistant, preselectAgentKey, locationKey]);
+  }, [availableAgents, resetAssistant, preselectAgentKey, locationKey, getDefaultAgentKey]);
 
   // Load last selected agent when no explicit reset was requested.
   useEffect(() => {
@@ -361,11 +375,7 @@ export const useGuidAgentSelection = ({
           }
         }
 
-        // No saved preference or stale key — default to first detected engine
-        const firstAgent = availableAgents[0];
-        if (firstAgent) {
-          _setSelectedAgentKey(getAgentKey(firstAgent));
-        }
+        _setSelectedAgentKey(getDefaultAgentKey(availableAgents));
       } catch (error) {
         console.error('Failed to load last selected agent:', error);
       }
@@ -376,7 +386,7 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [availableAgents, resetAssistant, preselectAgentKey, locationKey]);
+  }, [availableAgents, resetAssistant, preselectAgentKey, locationKey, getDefaultAgentKey]);
 
   const currentEffectiveAgentInfo = useMemo(() => {
     if (!is_presetAgent) {
@@ -391,10 +401,19 @@ export const useGuidAgentSelection = ({
     return getEffectiveAgentType(selectedAgentInfo);
   }, [is_presetAgent, selectedAgent, selectedAgentInfo, getEffectiveAgentType, isMainAgentAvailable]);
 
-  // Reset selected ACP model when agent changes: prefer saved preference, fallback to handshake default
+  // Reset selected ACP model when agent changes: App-owned Codex policy wins,
+  // other ACP agents still honor saved preferences before handshake defaults.
   useEffect(() => {
     // For preset agents, resolve to the actual backend type for config lookup
     const backend = is_presetAgent ? currentEffectiveAgentInfo.agent_type : selectedAgent;
+
+    const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
+    const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
+    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    if (backend === 'codex') {
+      _setSelectedAcpModel(buildCodexDefaultModelInfo(handshakeModels).current_model_id);
+      return;
+    }
 
     const config = configService.get('acp.config');
     const preferred = (config?.[backend as string] as Record<string, unknown>)?.preferredModelId as string | undefined;
@@ -403,9 +422,6 @@ export const useGuidAgentSelection = ({
       return;
     }
 
-    const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
-    const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
     _setSelectedAcpModel(handshakeModels?.current_model_id ?? null);
   }, [selectedAgentKey, availableAgentsData, is_presetAgent, currentEffectiveAgentInfo.agent_type]);
 
@@ -442,7 +458,7 @@ export const useGuidAgentSelection = ({
 
         // 1. Use preferredMode if valid
         const normalizedPreferred = configKey === 'codex' ? normalizeCodexMode(preferred) : preferred;
-        if (normalizedPreferred) {
+        if (normalizedPreferred && configKey !== 'codex') {
           const modes = getAgentModes(configKey);
           if (modes.some((m) => m.value === normalizedPreferred)) {
             _setSelectedMode(normalizedPreferred);
@@ -451,7 +467,9 @@ export const useGuidAgentSelection = ({
         }
 
         // 2. Fallback: legacy yoloMode
-        if (yoloMode) {
+        if (configKey === 'codex') {
+          _setSelectedMode(CODEX_MODE_NATIVE_FULL_ACCESS);
+        } else if (yoloMode) {
           const yoloValues: Record<string, string> = {
             claude: 'bypassPermissions',
             gemini: 'yolo',
@@ -483,6 +501,10 @@ export const useGuidAgentSelection = ({
     const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
     const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
     const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    if (backend === 'codex') {
+      return buildCodexDefaultModelInfo(handshakeModels);
+    }
+
     if (
       handshakeModels &&
       Array.isArray(handshakeModels.available_models) &&
@@ -491,25 +513,13 @@ export const useGuidAgentSelection = ({
       return handshakeModels;
     }
 
-    // Fallback: when the backend has not yet observed a session for codex
-    // (e.g., first launch before any warmup), use the hardcoded default list
-    // so the Guid page shows a model selector immediately.
-    if (backend === 'codex' && DEFAULT_CODEX_MODELS.length > 0) {
-      return {
-        current_model_id: DEFAULT_CODEX_MODELS[0].id,
-        current_model_label: DEFAULT_CODEX_MODELS[0].label,
-        available_models: DEFAULT_CODEX_MODELS.map((m) => ({ id: m.id, label: m.label })),
-      } satisfies AcpModelInfo;
-    }
-
     return null;
   }, [selectedAgentKey, is_presetAgent, currentEffectiveAgentInfo.agent_type, availableAgentsData]);
 
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
-    const firstCliAgent = availableAgents?.find((a) => !a.is_preset);
-    return firstCliAgent ? getAgentKey(firstCliAgent) : 'aionrs';
-  }, [availableAgents]);
+    return getDefaultAgentKey(availableAgents);
+  }, [availableAgents, getDefaultAgentKey]);
 
   return {
     selectedAgentKey,

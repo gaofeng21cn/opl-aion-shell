@@ -302,12 +302,13 @@ const ChatConversation: React.FC<{
     );
   }, [t]);
 
-  // For ACP/Codex conversations, use AcpModelSelector that can show/switch models.
-  // For other conversations, show disabled model selector.
+  // Codex follows the App-owned default profile; other ACP agents can still
+  // expose their own model selector.
   const modelSelector = useMemo(() => {
     if (!conversation || isAionrsConversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; current_model_id?: string };
+      if (extra.backend === 'codex') return undefined;
       return (
         <AcpModelSelector
           conversation_id={conversation.id}

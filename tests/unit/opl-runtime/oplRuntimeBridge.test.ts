@@ -20,6 +20,11 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app state --profile full --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
         'opl runtime app-operator-drilldown --detail full --json',
+        'opl system initialize --json',
+        'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
+        'opl system configure-codex --api-key-stdin --json',
+        'opl system startup-maintenance --json',
+        'opl system reconcile-modules --json',
       ],
       forbiddenTruthSources: [
         'direct_domain_repo_reads',
@@ -34,7 +39,7 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
-  it('builds the declared App state summary and refresh commands', () => {
+  it('builds fast and full App state commands', () => {
     expect(__oplRuntimeBridgeTest.buildAppStateCommand('fast')).toEqual({
       surface: 'app_state_fast',
       args: ['app', 'state', '--profile', 'fast', '--json'],
@@ -45,17 +50,11 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
-  it('keeps full drilldown as an explicit diagnostic command only', () => {
+  it('builds only the declared full drilldown exception command', () => {
     expect(__oplRuntimeBridgeTest.buildDrilldownCommand('full')).toEqual({
-      surface: 'runtime_diagnostic_full',
+      surface: 'runtime_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     });
-  });
-
-  it('does not allow raw runtime summary or action surfaces in the production bridge contract', () => {
-    const allowedSurfaces = __oplRuntimeBridgeTest.OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT.allowedSurfaces;
-    expect(allowedSurfaces).not.toContain('opl runtime app-operator-drilldown --json');
-    expect(allowedSurfaces.some((surface) => surface.startsWith('opl runtime action execute'))).toBe(false);
   });
 
   it('rejects unsafe action identifiers before spawning opl', () => {
@@ -65,7 +64,7 @@ describe('OPL runtime bridge command whitelist', () => {
     );
   });
 
-  it('keeps action execution on the refs-only action route surface', () => {
+  it('keeps action execution on the App action boundary', () => {
     expect(
       __oplRuntimeBridgeTest.buildActionCommand({
         actionId: 'stage-production:mas/analysis_campaign',
@@ -80,11 +79,42 @@ describe('OPL runtime bridge command whitelist', () => {
         'execute',
         '--action',
         'stage-production:mas/analysis_campaign',
+        '--dry-run',
         '--payload',
         '{"receipt_ref":"receipt://one"}',
-        '--dry-run',
         '--json',
       ],
     });
+  });
+
+  it('builds the first-run command surface without allowing arbitrary shell commands', () => {
+    expect(__oplRuntimeBridgeTest.buildInitializeCommand()).toEqual({
+      surface: 'system_initialize',
+      args: ['system', 'initialize', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
+      surface: 'install_prep',
+      args: ['install', '--skip-gui-open', '--skip-modules', '--skip-native-helper-repair', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand()).toEqual({
+      surface: 'startup_maintenance',
+      args: ['system', 'startup-maintenance', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildReconcileModulesCommand()).toEqual({
+      surface: 'reconcile_modules',
+      args: ['system', 'reconcile-modules', '--json'],
+    });
+  });
+
+  it('sends Codex API keys only through stdin and keeps the command redacted', () => {
+    expect(__oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: ' secret-key ' })).toEqual({
+      surface: 'configure_codex',
+      args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
+      stdin: 'secret-key\n',
+      redactedCommand: 'opl system configure-codex --api-key-stdin --json',
+    });
+    expect(() => __oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: '   ' })).toThrow(
+      /Codex API key is required/
+    );
   });
 });

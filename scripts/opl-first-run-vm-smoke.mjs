@@ -37,7 +37,7 @@ Options:
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
-  --cdp-port <n>         CDP port used by --settings-smoke. Default: 9230.
+  --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
   --runtime-profile <profile>
                          First-run package profile to verify: full or standard. Default: full.
                          The full profile verifies bundled runtime/module/skill equivalence.
@@ -226,17 +226,18 @@ function installDmgApp(dmgPath, installDir) {
 
 function buildLaunchAppArgs(appPath, options) {
   const args = ['--force-renderer-accessibility'];
-  if (options.settingsSmoke) {
-    args.push(`--aionui-cdp-port=${options.cdpPort}`);
-  }
+  args.push(`--aionui-cdp-port=${options.cdpPort}`);
   return ['-n', appPath, '--args', ...args];
 }
 
 function launchApp(appPath, options) {
-  if (options.settingsSmoke) {
-    run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
-  }
+  run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
   run('open', buildLaunchAppArgs(appPath, options));
+}
+
+function eventTimestampMs(event) {
+  const timestamp = typeof event?.timestamp === 'string' ? Date.parse(event.timestamp) : NaN;
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
 function sleep(ms) {
@@ -697,7 +698,7 @@ JSON.stringify({ status: 'submitted' });
   });
 }
 
-function readFirstRunEvents(filePath) {
+function readFirstRunEvents(filePath, sinceMs = 0) {
   if (!fs.existsSync(filePath)) return [];
   return fs
     .readFileSync(filePath, 'utf8')
@@ -710,7 +711,8 @@ function readFirstRunEvents(filePath) {
         return null;
       }
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((event) => eventTimestampMs(event) >= sinceMs);
 }
 
 function describeFirstRunFailure(events) {
@@ -723,11 +725,23 @@ function describeFirstRunFailure(events) {
 function isFirstRunCompletionEvent(event) {
   if (
     !event ||
-    !['gui_preparation_completed', 'gui_preparation_completed_with_deferred_attention'].includes(event.event_type)
+    ![
+      'gui_preparation_completed',
+      'gui_preparation_completed_with_deferred_attention',
+      'gui_preparation_skipped',
+    ].includes(event.event_type)
   ) {
     return false;
   }
   return event.payload?.status === 'prepared' || event.payload?.status === 'already-prepared';
+}
+
+function shouldProbeExistingGuidEntryBeforeFirstRun(options) {
+  return options.assertClean !== true && options.requireCodexConfigWizard !== true;
+}
+
+function existingStateGuidProbeTimeoutMs(options) {
+  return Math.min(options.timeoutMs, 30_000);
 }
 
 async function waitForFullFirstRunEquivalence(timeoutMs) {
@@ -761,7 +775,7 @@ async function waitForFullFirstRunEquivalence(timeoutMs) {
   );
 }
 
-async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir) {
+async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codexApiKey, artifactsDir, sinceMs = 0) {
   const started = Date.now();
   let lastEvents = [];
   let lastTree = [];
@@ -770,7 +784,7 @@ async function waitForFirstRunCompletion(filePath, processName, timeoutMs, codex
   let capturedCodexWizard = false;
   let lastCodexSubmitAt = 0;
   while (Date.now() - started < timeoutMs) {
-    lastEvents = readFirstRunEvents(filePath);
+    lastEvents = readFirstRunEvents(filePath, sinceMs);
     const completed = lastEvents.findLast?.((event) => isFirstRunCompletionEvent(event));
     if (completed) return { events: lastEvents, sawCodexWizard, submittedCodexWizard };
     try {
@@ -838,6 +852,90 @@ async function waitForGuidEntry(processName, timeoutMs) {
       detail,
     ].join('\n')
   );
+}
+
+function guidEntryReadinessExpression() {
+  return `(() => {
+    const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
+    const guidInput = document.querySelector('[data-testid="guid-input"]');
+    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const hashOk = window.location.hash.startsWith('#/guid');
+    return hashOk && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible
+      ? {
+          hash: window.location.hash,
+          guidEntryVisible: true,
+          guidInputVisible: true,
+        }
+      : false;
+  })()`;
+}
+
+function guidEntryNavigationExpression() {
+  return `(() => {
+    const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
+    const guidInput = document.querySelector('[data-testid="guid-input"]');
+    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    if (window.location.hash.startsWith('#/guid') && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible) {
+      return {
+        hash: window.location.hash,
+        guidEntryVisible: true,
+        guidInputVisible: true,
+        navigatedBy: 'ready_entry',
+      };
+    }
+    const readyAnchor = document.querySelector('[aria-label="opl-first-run-ready-entry"], [data-testid="opl-first-run-ready-entry"]');
+    const readyButton = readyAnchor?.closest('button') || readyAnchor;
+    const disabled =
+      !readyButton ||
+      readyButton.disabled === true ||
+      readyButton.getAttribute('disabled') !== null ||
+      readyButton.getAttribute('aria-disabled') === 'true' ||
+      readyButton.className.includes('disabled');
+    if (readyButton && firstRunWindow && !appLoaderVisible && !disabled) {
+      readyButton.click();
+    }
+    return false;
+  })()`;
+}
+
+async function waitForGuidEntryViaCdp(options) {
+  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    const state = await waitForCdpPredicate(
+      client,
+      guidEntryNavigationExpression(),
+      options.timeoutMs,
+      'OPL Guid entry did not become ready in the packaged app'
+    );
+    return { state, labels: [DEFAULT_LABELS.guidEntry] };
+  } finally {
+    client.close();
+  }
+}
+
+async function waitForUsableGuidEntry(options) {
+  try {
+    const cdp = await waitForGuidEntryViaCdp(options);
+    return {
+      mode: 'cdp',
+      labels: cdp.labels,
+      tree: [],
+      cdpState: cdp.state,
+    };
+  } catch (error) {
+    const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
+    return {
+      mode: 'accessibility_fallback',
+      labels: accessibility.labels,
+      tree: accessibility.tree,
+      cdpError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function fetchJsonFromLocalhost(port, requestPath, timeoutMs = 2_000) {
@@ -1268,21 +1366,45 @@ async function main() {
     const appPath = options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app;
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
 
+    const launchStartedAtMs = Date.now() - 1_000;
     launchApp(appPath, options);
     const firstRunLog = defaultFirstRunLogPath();
-    const firstRun = await waitForFirstRunCompletion(
-      firstRunLog,
-      options.processName,
-      options.timeoutMs,
-      codexApiKey,
-      options.artifacts
-    );
+    let firstRun = null;
+    let guidEntry = null;
+    if (shouldProbeExistingGuidEntryBeforeFirstRun(options)) {
+      try {
+        guidEntry = await waitForUsableGuidEntry({ ...options, timeoutMs: existingStateGuidProbeTimeoutMs(options) });
+        firstRun = {
+          events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
+          sawCodexWizard: false,
+          submittedCodexWizard: false,
+          existingLaunchFallback: true,
+        };
+      } catch (_) {
+        firstRun = null;
+      }
+    }
+    if (!firstRun) {
+      firstRun = await waitForFirstRunCompletion(
+        firstRunLog,
+        options.processName,
+        options.timeoutMs,
+        codexApiKey,
+        options.artifacts,
+        launchStartedAtMs
+      );
+    }
     if (options.requireCodexConfigWizard && !firstRun.submittedCodexWizard) {
       throw new Error('Expected Codex configuration wizard to appear and be submitted, but it was not observed.');
     }
 
-    const accessibility = await waitForGuidEntry(options.processName, options.timeoutMs);
-    writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), accessibility.tree, codexApiKey);
+    guidEntry = guidEntry ?? (await waitForUsableGuidEntry(options));
+    if (guidEntry.tree.length > 0) {
+      writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), guidEntry.tree, codexApiKey);
+    }
+    if (guidEntry.cdpState) {
+      writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, codexApiKey);
+    }
 
     const settingsSmoke = options.settingsSmoke ? await runSettingsSmoke(options, codexApiKey) : [];
 
@@ -1317,7 +1439,9 @@ async function main() {
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
-      labels: accessibility.labels,
+      existing_launch_fallback: firstRun.existingLaunchFallback === true,
+      guid_entry_probe: guidEntry.mode,
+      labels: guidEntry.labels,
       settings_smoke: options.settingsSmoke
         ? {
             status: 'passed',
@@ -1343,7 +1467,12 @@ export const __test =
         isFirstRunCompletionEvent,
         isMainModule,
         runtimeShellExecutable,
+        eventTimestampMs,
+        shouldProbeExistingGuidEntryBeforeFirstRun,
+        existingStateGuidProbeTimeoutMs,
         waitForFullFirstRunEquivalence,
+        guidEntryReadinessExpression,
+        guidEntryNavigationExpression,
         runOplJson,
         buildLaunchAppArgs,
         SETTINGS_PAGE_SMOKE_TARGETS,

@@ -6,18 +6,20 @@
 
 import { configService } from '@/common/config/configService';
 import type { ICssTheme } from '@/common/config/storage';
-import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext.tsx';
-import { resolveCssByActiveTheme, setExtensionThemesCache } from '@renderer/utils/theme/themeCssSync';
+import {
+  normalizeOplActiveThemeId,
+  resolveCssByActiveTheme,
+  setExtensionThemesCache,
+} from '@renderer/utils/theme/themeCssSync';
 import { Button, Message, Modal } from '@arco-design/web-react';
-import { EditTwo, Plus, CheckOne } from '@icon-park/react';
+import { EditTwo, CheckOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal.tsx';
 import { PRESET_THEMES, DEFAULT_THEME_ID } from './presets.ts';
 import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils.ts';
-import { resolveExtensionAssetUrl } from '@renderer/utils/platform.ts';
 
 interface ThemePreviewPalette {
   appBg: string;
@@ -275,33 +277,23 @@ const CssThemeSettings: React.FC = () => {
         // 对预设主题也应用背景图 CSS 处理 / Apply background CSS processing to preset themes as well
         const normalizedPresets = PRESET_THEMES.map((theme) => ensureBackgroundCss(theme));
 
-        // 加载扩展主题 / Load extension-contributed themes
-        let extensionThemes: ICssTheme[] = [];
-        try {
-          const loadedExtensionThemes = await ipcBridge.extensions.getThemes.invoke();
-          // Normalize extension asset URLs for current runtime (Electron/WebUI)
-          extensionThemes = loadedExtensionThemes.map((theme) => ({
-            ...theme,
-            cover: resolveExtensionAssetUrl(theme.cover),
-          }));
-          // Update cache so themeCssSync can resolve extension themes without async IPC
-          setExtensionThemesCache(extensionThemes);
-        } catch {
-          // Extensions not available (e.g., WebUI mode or not initialized yet)
-        }
+        setExtensionThemesCache([]);
 
         // 合并预设主题、扩展主题和用户主题，按 ID 去重（先出现的优先）
         // Merge preset, extension, and user themes; deduplicate by ID (first occurrence wins)
         const seenIds = new Set<string>();
         const allThemes: ICssTheme[] = [];
-        for (const theme of [...normalizedPresets, ...extensionThemes, ...normalized.filter((t) => !t.is_preset)]) {
+        for (const theme of normalizedPresets) {
           if (!theme?.id || seenIds.has(theme.id)) continue;
           seenIds.add(theme.id);
           allThemes.push(theme);
         }
 
-        const resolvedActiveId = activeId || DEFAULT_THEME_ID;
+        const resolvedActiveId = normalizeOplActiveThemeId(activeId || DEFAULT_THEME_ID);
         const activeTheme = allThemes.find((theme) => theme.id === resolvedActiveId);
+        if (activeId !== resolvedActiveId) {
+          await configService.set('css.activeThemeId', resolvedActiveId);
+        }
 
         // 如果激活主题不存在（扩展被移除等），回退到默认主题
         // If active theme no longer exists (extension removed etc.), fall back to default
@@ -312,10 +304,7 @@ const CssThemeSettings: React.FC = () => {
           await configService.set('css.activeThemeId', effectiveActiveId);
         }
 
-        const expectedCss = resolveCssByActiveTheme(
-          effectiveActiveId,
-          normalized.filter((theme) => !theme.is_preset)
-        );
+        const expectedCss = resolveCssByActiveTheme(effectiveActiveId, []);
 
         setThemes(allThemes);
         setActiveThemeId(effectiveActiveId);
@@ -377,10 +366,7 @@ const CssThemeSettings: React.FC = () => {
   const handleSelectTheme = useCallback(
     async (theme: ICssTheme) => {
       try {
-        const normalizedCss = resolveCssByActiveTheme(
-          theme.id,
-          themes.filter((item) => !item.is_preset)
-        );
+        const normalizedCss = resolveCssByActiveTheme(theme.id, []);
         // Use queued, best-effort write function
         await applyThemeCss(normalizedCss, theme.id);
         Message.success(t('settings.cssTheme.applied', { name: theme.name }));
@@ -391,14 +377,6 @@ const CssThemeSettings: React.FC = () => {
     },
     [applyThemeCss, themes, t]
   );
-
-  /**
-   * 打开添加主题弹窗 / Open add theme modal
-   */
-  const handleAddTheme = useCallback(() => {
-    setEditingTheme(null);
-    setModalVisible(true);
-  }, []);
 
   /**
    * 打开编辑主题弹窗 / Open edit theme modal
@@ -492,15 +470,6 @@ const CssThemeSettings: React.FC = () => {
       {/* 标题栏 / Header */}
       <div className='flex items-start md:items-center justify-between gap-8px flex-wrap'>
         <span className='text-14px text-t-secondary leading-22px'>{t('settings.cssTheme.selectOrCustomize')}</span>
-        <Button
-          type='outline'
-          size='small'
-          className='rd-18px h-34px px-14px !m-0'
-          icon={<Plus theme='outline' size='14' />}
-          onClick={handleAddTheme}
-        >
-          {t('settings.cssTheme.addManually')}
-        </Button>
       </div>
 
       {/* 主题卡片列表 / Theme card list */}
@@ -538,7 +507,7 @@ const CssThemeSettings: React.FC = () => {
               <div className='absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between p-8px'>
                 <span className='text-13px text-white truncate flex-1'>{theme.name}</span>
                 {/* 编辑按钮 / Edit button */}
-                {hoveredThemeId === theme.id && (
+                {hoveredThemeId === theme.id && !theme.is_preset && (
                   <div
                     className='p-4px rounded-6px bg-white/20 cursor-pointer hover:bg-white/40 transition-colors ml-8px'
                     onClick={(e) => handleEditTheme(theme, e)}

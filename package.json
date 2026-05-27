@@ -1,12 +1,12 @@
 {
   "name": "one-person-lab-aion-shell",
   "version": "2.1.1",
-  "description": "One Person Lab desktop shell adapter based on AionUI.",
+  "description": "One Person Lab App desktop shell adapter.",
   "keywords": [],
   "license": "Apache-2.0",
   "author": {
-    "name": "AionUi",
-    "email": "service@aionui.com"
+    "name": "One Person Lab",
+    "email": "support@onepersonlab.dev"
   },
   "workspaces": [
     "packages/*"
@@ -263,5 +263,5 @@
   "patchedDependencies": {
     "7zip-bin@5.2.0": "patches/7zip-bin@5.2.0.patch"
   },
-  "productName": "AionUi"
+  "productName": "One Person Lab"
 }

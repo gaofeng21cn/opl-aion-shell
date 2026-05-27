@@ -312,7 +312,7 @@ const sanitizeFileName = (name: string): string => {
   // Keep only base name and trim weird whitespace.
   const base = path.basename(name).trim();
   // Avoid empty names.
-  return base || `AionUi-update-${Date.now()}`;
+  return base || `One-Person-Lab-update-${Date.now()}`;
 };
 
 const ensureUniquePath = (target: string): string => {

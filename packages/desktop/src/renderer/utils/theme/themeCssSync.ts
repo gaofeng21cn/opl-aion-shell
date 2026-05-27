@@ -3,7 +3,8 @@ import {
   BACKGROUND_BLOCK_START,
   injectBackgroundCssBlock,
 } from '@renderer/pages/settings/DisplaySettings/backgroundUtils';
-import { DEFAULT_THEME_ID, PRESET_THEMES } from '@renderer/pages/settings/DisplaySettings/presets';
+import { CODEX_THEME_ID, DEFAULT_THEME_ID, PRESET_THEMES } from '@renderer/pages/settings/DisplaySettings/presets';
+import { getOplGuiDefaultCssThemeId, shouldDefaultCodexCssTheme } from '@/common/config/oplProductProfile';
 
 export const CSS_SYNC_RECENT_UPDATE_WINDOW_MS = 2000;
 
@@ -21,6 +22,16 @@ export const setExtensionThemesCache = (themes: ICssTheme[]): void => {
 
 /** Get the current extension themes cache */
 export const getExtensionThemesCache = (): ICssTheme[] => extensionThemesCache;
+
+export const OPL_LEGACY_CODEX_THEME_ID = 'glittering-input-field';
+
+export function normalizeOplActiveThemeId(activeThemeId: string | undefined | null): string {
+  if (!activeThemeId) return getOplGuiDefaultCssThemeId();
+  if (activeThemeId === OPL_LEGACY_CODEX_THEME_ID) {
+    return shouldDefaultCodexCssTheme() ? CODEX_THEME_ID : getOplGuiDefaultCssThemeId();
+  }
+  return activeThemeId;
+}
 
 type ComputeCssSyncDecisionParams = {
   savedCss: string;
@@ -54,7 +65,7 @@ export const resolveCssByActiveTheme = (activeThemeId: string, userThemes: ICssT
     ...extensionThemesCache.map(ensureBackgroundCss),
     ...(userThemes || []).map(ensureBackgroundCss),
   ];
-  const resolvedId = activeThemeId || DEFAULT_THEME_ID;
+  const resolvedId = normalizeOplActiveThemeId(activeThemeId || DEFAULT_THEME_ID);
   const match = allThemes.find((theme) => theme.id === resolvedId);
   if (match) return match.css || '';
   // Theme not found (e.g., extension removed) → fall back to default theme
@@ -73,7 +84,16 @@ export const computeCssSyncDecision = ({
   now = Date.now(),
 }: ComputeCssSyncDecisionParams): ComputeCssSyncDecisionResult => {
   const normalizedSavedCss = savedCss || '';
-  const expectedCss = resolveCssByActiveTheme(activeThemeId || '', savedThemes || []);
+  const normalizedActiveThemeId = normalizeOplActiveThemeId(activeThemeId);
+  const expectedCss = resolveCssByActiveTheme(normalizedActiveThemeId, savedThemes || []);
+
+  if (!activeThemeId && normalizedActiveThemeId) {
+    return {
+      shouldSkipApply: false,
+      shouldHealStorage: true,
+      effectiveCss: expectedCss,
+    };
+  }
 
   if (Boolean(activeThemeId) && normalizedSavedCss !== expectedCss) {
     return {

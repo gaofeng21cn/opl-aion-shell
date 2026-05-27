@@ -22,11 +22,10 @@ import styles from '../index.module.css';
 import type { AvailableAgent, EffectiveAgentInfo } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { Message } from '@arco-design/web-react';
-import { Plus, Robot } from '@icon-park/react';
+import { Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 
 type AssistantSelectionAreaProps = {
   is_presetAgent: boolean;
@@ -64,7 +63,6 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   onRegisterOpenDetails,
 }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [agentMessage, agentMessageContext] = Message.useMessage({ maxCount: 10 });
 
   const avatarImageMap: Record<string, string> = useMemo(
@@ -330,11 +328,6 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
         <div className={styles.assistantCardGrid}>
           {assistants
             .filter((a) => a.enabled !== false)
-            .toSorted((a, b) => {
-              if (a.id === 'cowork') return -1;
-              if (b.id === 'cowork') return 1;
-              return 0;
-            })
             .map((assistant) => {
               const avatarValue = assistant.avatar?.trim();
               const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
@@ -372,13 +365,6 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
                 </div>
               );
             })}
-          <div
-            data-testid='btn-add-preset'
-            className={styles.assistantCardAdd}
-            onClick={() => navigate('/settings/assistants')}
-          >
-            <Plus theme='outline' size={20} />
-          </div>
         </div>
       </div>
       {modalTree}

@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { readOplString, useOplAppState } from '@/renderer/hooks/opl/useOplAppState';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import FeedbackReportModal from './FeedbackReportModal';
 
@@ -28,6 +29,11 @@ const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const isElectron = isElectronDesktop();
+  const { appState } = useOplAppState('fast');
+  const release = appState?.release;
+  const appVersion = readOplString(release, 'version') ?? __APP_VERSION__;
+  const frameworkVersion = readOplString(release, 'framework_version') ?? readOplString(release, 'version') ?? '-';
+  const releaseChannel = readOplString(release, 'channel') ?? 'stable';
 
   const [includePrerelease, setIncludePrerelease] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -59,17 +65,17 @@ const AboutModalContent: React.FC = () => {
   const linkItems: LinkItem[] = [
     {
       title: t('settings.helpDocumentation'),
-      url: 'https://github.com/iOfficeAI/AionUi/wiki',
+      url: 'https://github.com/gaofeng21cn/one-person-lab-app',
       icon: <Right theme='outline' size='16' />,
     },
     {
       title: t('settings.updateLog'),
-      url: 'https://github.com/iOfficeAI/AionUi/releases',
+      url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases',
       icon: <Right theme='outline' size='16' />,
     },
     {
       title: t('settings.feedback'),
-      url: 'https://github.com/iOfficeAI/AionUi/issues',
+      url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues',
       icon: <Right theme='outline' size='16' />,
     },
     {
@@ -84,7 +90,7 @@ const AboutModalContent: React.FC = () => {
     },
     {
       title: t('settings.officialWebsite'),
-      url: 'https://www.aionui.com',
+      url: 'https://github.com/gaofeng21cn/one-person-lab-app',
       icon: <Right theme='outline' size='16' />,
     },
   ];
@@ -102,25 +108,42 @@ const AboutModalContent: React.FC = () => {
           {/* App Info Section */}
           <div className='flex flex-col items-center pb-24px'>
             <Typography.Title heading={3} className='text-24px font-bold text-t-primary mb-8px'>
-              AionUi
+              One Person Lab App
             </Typography.Title>
             <Typography.Text className='text-14px text-t-secondary mb-12px text-center'>
               {t('settings.appDescription')}
             </Typography.Text>
             <div className='flex items-center justify-center gap-8px mb-16px'>
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                v{__APP_VERSION__}
+                {t('settings.appVersion')}: v{appVersion}
               </span>
               <div
                 className='text-t-primary cursor-pointer hover:text-t-secondary transition-colors p-4px'
                 onClick={() =>
-                  openLink('https://github.com/iOfficeAI/AionUi').catch((error) =>
+                  openLink('https://github.com/gaofeng21cn/one-person-lab-app').catch((error) =>
                     console.error('Failed to open link:', error)
                   )
                 }
               >
                 <Github theme='outline' size='20' />
               </div>
+            </div>
+            <div className='w-full max-w-360px mb-16px space-y-6px'>
+              {[
+                [t('settings.guiShellVersion'), `v${__APP_VERSION__}`],
+                [t('settings.oplFrameworkVersion'), `v${frameworkVersion}`],
+                [
+                  t('settings.releaseChannel'),
+                  releaseChannel === 'preview' || releaseChannel === 'nightly'
+                    ? t('settings.releaseChannels.nightly')
+                    : t('settings.releaseChannels.stable'),
+                ],
+              ].map(([label, value]) => (
+                <div key={label} className='flex items-center justify-between gap-12px text-13px'>
+                  <span className='text-t-secondary'>{label}</span>
+                  <span className='text-t-primary font-500 text-right'>{value}</span>
+                </div>
+              ))}
             </div>
 
             {/* Check Update Section */}

@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "안녕하세요, 오늘의 계획은 무엇인가요?",
+    "title": "연구, 연구비, 보고를 One Person Lab이 자동으로 진행합니다",
+    "codexDefaultStatus": "기본 Codex CLI: {{model}} · {{permission}}",
     "placeholder": "메시지 전송, 파일 업로드, 폴더 열기 또는 예약 작업 만들기...",
     "uploadFile": "파일 업로드",
     "linkFolder": "폴더 열기",
@@ -13,10 +14,10 @@
     "clearWorkspace": "프로젝트 제거",
     "openFolder": "폴더 열기",
     "none": "없음",
-    "quickActionsTitle": "AionUi로 무엇을 할 수 있나요?",
+    "quickActionsTitle": "One Person Lab App로 무엇을 할 수 있나요?",
     "quickActionFeedback": "피드백이나 제안이 있으신가요?",
     "quickActionStar": "마음에 드시나요? 별을 주세요!",
-    "skillsMarket": "AionUi Skills Market",
+    "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "커뮤니티 Skills를 필요에 따라 검색하고 활성화. 한 번 설정하면 모든 Agent에서 사용 가능.",
     "skillsMarketDetails": "자세히 >>"
   },

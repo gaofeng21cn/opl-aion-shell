@@ -7,7 +7,9 @@
 import { ipcBridge } from '@/common';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { configService } from '@/common/config/configService';
+import { getOplGuiDefaultCssThemeId } from '@/common/config/oplProductProfile';
 import type { ICssTheme } from '@/common/config/storage';
+import appLogo from '@renderer/assets/logos/brand/app.png';
 import PwaPullToRefresh from '@/renderer/components/layout/PwaPullToRefresh';
 import Titlebar from '@/renderer/components/layout/Titlebar';
 import { Layout as ArcoLayout } from '@arco-design/web-react';
@@ -24,7 +26,11 @@ import { processCustomCss } from '@renderer/utils/theme/customCssProcessor';
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
 import { isElectronDesktop } from '@renderer/utils/platform';
-import { computeCssSyncDecision, resolveCssByActiveTheme } from '@renderer/utils/theme/themeCssSync';
+import {
+  computeCssSyncDecision,
+  normalizeOplActiveThemeId,
+  resolveCssByActiveTheme,
+} from '@renderer/utils/theme/themeCssSync';
 import '@renderer/styles/layout.css';
 
 const useDebug = () => {
@@ -133,14 +139,25 @@ const Layout: React.FC<{
 
       let effectiveCss = decision.effectiveCss;
 
-      // If the active theme resolved to empty CSS and there IS a saved activeThemeId
-      // (but it no longer matches any known theme), fall back to default and persist.
-      if (!effectiveCss && activeThemeId && activeThemeId !== 'default-theme') {
-        const defaultCss = resolveCssByActiveTheme('default-theme', (savedThemes || []) as ICssTheme[]);
+      const normalizedActiveThemeId = normalizeOplActiveThemeId(activeThemeId);
+      const fallbackThemeId = getOplGuiDefaultCssThemeId();
+      if (activeThemeId !== normalizedActiveThemeId) {
+        const normalizedCss = resolveCssByActiveTheme(normalizedActiveThemeId, (savedThemes || []) as ICssTheme[]);
+        effectiveCss = normalizedCss;
+        await Promise.all([
+          configService.set('css.activeThemeId', normalizedActiveThemeId),
+          configService.set('customCss', effectiveCss),
+        ]).catch((error) => {
+          console.warn('Failed to persist theme normalization:', error);
+        });
+      } else if (!effectiveCss && activeThemeId && activeThemeId !== fallbackThemeId) {
+        // If the active theme resolved to empty CSS and there IS a saved activeThemeId
+        // (but it no longer matches any known theme), fall back to default and persist.
+        const defaultCss = resolveCssByActiveTheme(fallbackThemeId, (savedThemes || []) as ICssTheme[]);
         effectiveCss = defaultCss;
         // Persist the fallback so Layout doesn't keep retrying
         await Promise.all([
-          configService.set('css.activeThemeId', 'default-theme'),
+          configService.set('css.activeThemeId', fallbackThemeId),
           configService.set('customCss', effectiveCss),
         ]).catch((error) => {
           console.warn('Failed to persist theme fallback:', error);
@@ -447,35 +464,14 @@ const Layout: React.FC<{
                 )}
               >
                 <div
-                  className={classNames('bg-black shrink-0 size-32px relative rd-0.5rem', {
+                  className={classNames('shrink-0 size-32px relative rd-0.5rem overflow-hidden', {
                     '!size-24px': collapsed,
                   })}
                   onClick={onClick}
                 >
-                  <svg
-                    className={classNames('w-5.5 h-5.5 absolute inset-0 m-auto', {
-                      'scale-140': !collapsed,
-                    })}
-                    viewBox='0 0 80 80'
-                    fill='none'
-                  >
-                    <path
-                      key='logo-path-1'
-                      d='M40 20 Q38 22 25 40 Q23 42 26 42 L30 42 Q32 40 40 30 Q48 40 50 42 L54 42 Q57 42 55 40 Q42 22 40 20'
-                      fill='white'
-                    ></path>
-                    <circle key='logo-circle' cx='40' cy='46' r='3' fill='white'></circle>
-                    <path
-                      key='logo-path-2'
-                      d='M18 50 Q40 70 62 50'
-                      stroke='white'
-                      strokeWidth='3.5'
-                      fill='none'
-                      strokeLinecap='round'
-                    ></path>
-                  </svg>
+                  <img src={appLogo} alt='' className='size-full block' aria-hidden='true' />
                 </div>
-                <div className='text-16px text-t-primary collapsed-hidden font-semibold'>AionUi</div>
+                <div className='text-16px text-t-primary collapsed-hidden font-semibold'>One Person Lab App</div>
                 {isMobile && !collapsed && (
                   <button
                     type='button'

@@ -7,8 +7,9 @@
 import { spawn } from 'node:child_process';
 import { ipcBridge } from '@/common';
 import type {
-  IOplAppStateProfile,
+  IOplConfigureCodexRequest,
   IOplRuntimeActionRequest,
+  IOplAppStateProfile,
   IOplRuntimeCommandResult,
   IOplRuntimeDetailLevel,
 } from '@/common/adapter/ipcBridge';
@@ -16,6 +17,8 @@ import type {
 type RuntimeCommandSpec = {
   args: string[];
   surface: IOplRuntimeCommandResult['surface'];
+  stdin?: string;
+  redactedCommand?: string;
 };
 
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
@@ -38,6 +41,11 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app state --profile full --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --detail full --json',
+    'opl system initialize --json',
+    'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
+    'opl system configure-codex --api-key-stdin --json',
+    'opl system startup-maintenance --json',
+    'opl system reconcile-modules --json',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
@@ -69,23 +77,55 @@ function buildAppStateCommand(profile: IOplAppStateProfile): RuntimeCommandSpec 
 function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSpec {
   if (detail === 'full') {
     return {
-      surface: 'runtime_diagnostic_full',
+      surface: 'runtime_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     };
   }
-  throw new Error('Unsupported OPL runtime diagnostic detail level');
+  return buildAppStateCommand('fast');
 }
 
 function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {
   const args = ['app', 'action', 'execute', '--action', assertActionId(request.actionId)];
-  if (request.payloadRefsOnlyJson && Object.keys(request.payloadRefsOnlyJson).length > 0) {
-    args.push('--payload', JSON.stringify(request.payloadRefsOnlyJson));
-  }
   if (request.dryRun) {
     args.push('--dry-run');
   }
+  if (request.payloadRefsOnlyJson && Object.keys(request.payloadRefsOnlyJson).length > 0) {
+    args.push('--payload', JSON.stringify(request.payloadRefsOnlyJson));
+  }
   args.push('--json');
   return { surface: 'app_action', args };
+}
+
+function buildInitializeCommand(): RuntimeCommandSpec {
+  return { surface: 'system_initialize', args: ['system', 'initialize', '--json'] };
+}
+
+function buildInstallPrepCommand(): RuntimeCommandSpec {
+  return {
+    surface: 'install_prep',
+    args: ['install', '--skip-gui-open', '--skip-modules', '--skip-native-helper-repair', '--json'],
+  };
+}
+
+function buildConfigureCodexCommand(request: IOplConfigureCodexRequest): RuntimeCommandSpec {
+  const apiKey = request.apiKey.trim();
+  if (!apiKey) {
+    throw new Error('Codex API key is required.');
+  }
+  return {
+    surface: 'configure_codex',
+    args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
+    stdin: `${apiKey}\n`,
+    redactedCommand: 'opl system configure-codex --api-key-stdin --json',
+  };
+}
+
+function buildStartupMaintenanceCommand(): RuntimeCommandSpec {
+  return { surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] };
+}
+
+function buildReconcileModulesCommand(): RuntimeCommandSpec {
+  return { surface: 'reconcile_modules', args: ['system', 'reconcile-modules', '--json'] };
 }
 
 function parseJson(stdout: string): unknown {
@@ -95,11 +135,11 @@ function parseJson(stdout: string): unknown {
 }
 
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
-  const command = ['opl', ...spec.args].join(' ');
+  const command = spec.redactedCommand ?? ['opl', ...spec.args].join(' ');
   return new Promise((resolve, reject) => {
     const child = spawn('opl', spec.args, {
       env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [spec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
@@ -122,6 +162,9 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk;
     });
+    if (spec.stdin && child.stdin) {
+      child.stdin.end(spec.stdin);
+    }
     child.on('error', (error) => {
       if (settled) return;
       settled = true;
@@ -152,6 +195,11 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
 
 export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
+  ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
+  ipcBridge.oplRuntime.runInstallPrep.provider(() => runOplCommand(buildInstallPrepCommand()));
+  ipcBridge.oplRuntime.configureCodex.provider((request) => runOplCommand(buildConfigureCodexCommand(request)));
+  ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
+  ipcBridge.oplRuntime.runReconcileModules.provider(() => runOplCommand(buildReconcileModulesCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
 }
@@ -161,6 +209,11 @@ export const __oplRuntimeBridgeTest = {
   assertActionId,
   buildActionCommand,
   buildAppStateCommand,
+  buildConfigureCodexCommand,
   buildDrilldownCommand,
+  buildInitializeCommand,
+  buildInstallPrepCommand,
+  buildReconcileModulesCommand,
+  buildStartupMaintenanceCommand,
   parseJson,
 };

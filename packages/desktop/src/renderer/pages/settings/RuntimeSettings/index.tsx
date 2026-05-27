@@ -337,6 +337,19 @@ const RuntimeSettings: React.FC = () => {
     }
   }, []);
 
+  const loadDrilldown = useCallback(async () => {
+    setFullLoading(true);
+    setError(null);
+    try {
+      const result = await ipcBridge.oplRuntime.getDrilldown.invoke({ detail: 'full' });
+      setFullResult(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFullLoading(false);
+    }
+  }, []);
+
   const runAction = useCallback(
     async (route: RuntimeSafeActionRoute, dryRun: boolean) => {
       setBusyAction(`${route.id}:${dryRun ? 'dry' : 'execute'}`);
@@ -383,6 +396,9 @@ const RuntimeSettings: React.FC = () => {
             </Button>
             <Button type='primary' loading={fullLoading} onClick={() => void loadFull()}>
               {t('settings.runtime.actions.loadFull')}
+            </Button>
+            <Button loading={fullLoading} onClick={() => void loadDrilldown()}>
+              {t('settings.runtime.actions.loadDrilldown')}
             </Button>
           </div>
         </header>

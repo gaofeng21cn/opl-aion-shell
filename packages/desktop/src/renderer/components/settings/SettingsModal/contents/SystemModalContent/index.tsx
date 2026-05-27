@@ -10,6 +10,7 @@ import { configService } from '@/common/config/configService';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import FeedbackButton from '@/renderer/components/base/FeedbackButton';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
+import { readOplRecord, readOplString, useOplAppState } from '@/renderer/hooks/opl/useOplAppState';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Alert, Button, Collapse, Form, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
@@ -37,6 +38,19 @@ const SystemModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const initializingRef = useRef(true);
+  const { appState, mutate: refreshAppState } = useOplAppState('fast');
+  const appPaths = appState?.paths;
+  const appWorkspaceRoot =
+    readOplString(appPaths, 'workspace_root_path') ??
+    readOplString(readOplRecord(appPaths, 'workspace_root'), 'selected_path');
+  const appLogsDir = readOplString(appPaths, 'logs_dir');
+  const appDeveloperMode = appState?.developer_mode;
+  const developerModeState =
+    readOplString(appDeveloperMode, 'effective_state') ??
+    readOplString(appDeveloperMode, 'enabled') ??
+    readOplString(appDeveloperMode, 'status') ??
+    'unknown';
+  const developerModeDescription = readOplString(appDeveloperMode, 'description') ?? t('settings.oplDeveloperModeDesc');
 
   const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
     supported: false,
@@ -213,28 +227,27 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  // Get system directory info
+  // Keep Electron systemInfo only for the legacy update payload shape; visible OPL paths come from app_state.paths.
   const { data: systemInfo } = useSWR('system.dir.info', () => ipcBridge.application.systemInfo.invoke());
 
   const handleOpenLogDir = useCallback(() => {
-    if (!systemInfo?.logDir) return;
-    void ipcBridge.shell.openFolderWith
-      .invoke({ folder_path: systemInfo.logDir, tool: 'explorer' })
-      .catch((caughtError) => {
-        console.error('[SystemModalContent] Failed to open log directory:', caughtError);
-      });
-  }, [systemInfo?.logDir]);
+    const logDir = appLogsDir ?? systemInfo?.logDir;
+    if (!logDir) return;
+    void ipcBridge.shell.openFolderWith.invoke({ folder_path: logDir, tool: 'explorer' }).catch((caughtError) => {
+      console.error('[SystemModalContent] Failed to open log directory:', caughtError);
+    });
+  }, [appLogsDir, systemInfo?.logDir]);
 
   // Initialize form data
   useEffect(() => {
-    if (systemInfo) {
+    if (appWorkspaceRoot) {
       initializingRef.current = true;
-      form.setFieldsValue({ workDir: systemInfo.workDir });
+      form.setFieldsValue({ workDir: appWorkspaceRoot });
       requestAnimationFrame(() => {
         initializingRef.current = false;
       });
     }
-  }, [systemInfo, form]);
+  }, [appWorkspaceRoot, form]);
 
   const preferenceItems = [
     { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
@@ -327,22 +340,23 @@ const SystemModalContent: React.FC = () => {
 
   const handleValuesChange = useCallback(
     async (_changedValue: unknown, allValues: Record<string, string>) => {
-      if (initializingRef.current || savingRef.current || !systemInfo) return;
+      if (initializingRef.current || savingRef.current || !appWorkspaceRoot) return;
       const { workDir } = allValues;
-      const needsRestart = workDir !== systemInfo.workDir;
+      const needsRestart = workDir !== appWorkspaceRoot;
       if (!needsRestart) return;
 
       savingRef.current = true;
       setError(null);
       try {
         await saveDirConfigValidate({ workDir });
-        // Pass systemInfo.cacheDir as-is: cacheDir is no longer user-editable
-        // (removed from UI), but the backend IPC interface still expects it.
-        // Passing the current value ensures existing custom paths are preserved.
-        await ipcBridge.application.updateSystemInfo.invoke({ cacheDir: systemInfo.cacheDir, workDir });
-        await ipcBridge.application.restart.invoke();
+        await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: 'workspace_root_set',
+          dryRun: false,
+          payloadRefsOnlyJson: { path: workDir },
+        });
+        await refreshAppState();
       } catch (caughtError: unknown) {
-        form.setFieldValue('workDir', systemInfo.workDir);
+        form.setFieldValue('workDir', appWorkspaceRoot);
         if (caughtError) {
           setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
         }
@@ -350,7 +364,7 @@ const SystemModalContent: React.FC = () => {
         savingRef.current = false;
       }
     },
-    [systemInfo, form, saveDirConfigValidate]
+    [appWorkspaceRoot, form, refreshAppState, saveDirConfigValidate]
   );
 
   return (
@@ -412,8 +426,10 @@ const SystemModalContent: React.FC = () => {
               <div>
                 <Form.Item label={t('settings.logDir')}>
                   <div className='aion-dir-input h-[32px] flex items-center rounded-8px border border-solid border-transparent pl-14px bg-[var(--fill-0)] '>
-                    <Tooltip content={systemInfo?.logDir || ''} position='top'>
-                      <div className='flex-1 min-w-0 text-13px text-t-primary truncate'>{systemInfo?.logDir || ''}</div>
+                    <Tooltip content={appLogsDir || systemInfo?.logDir || ''} position='top'>
+                      <div className='flex-1 min-w-0 text-13px text-t-primary truncate'>
+                        {appLogsDir || systemInfo?.logDir || ''}
+                      </div>
                     </Tooltip>
                     <Button
                       type='text'
@@ -440,6 +456,24 @@ const SystemModalContent: React.FC = () => {
                 />
               )}
             </Form>
+          </div>
+
+          <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
+            <PreferenceRow label={t('settings.oplDeveloperMode')} description={developerModeDescription}>
+              <span className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'>
+                {t(`settings.oplDeveloperModeStates.${developerModeState}`, {
+                  defaultValue: developerModeState,
+                })}
+              </span>
+            </PreferenceRow>
+            <PreferenceRow
+              label={t('settings.oplAgentCodexContext')}
+              description={t('settings.oplAgentCodexContextDesc')}
+            >
+              <span className='text-12px text-t-secondary text-right max-w-260px truncate'>
+                {readOplString(appState?.opl_agent_codex_context, 'contract_ref') ?? t('settings.unavailable')}
+              </span>
+            </PreferenceRow>
           </div>
 
           {/* Developer settings: DevTools + CDP (only visible in dev mode) */}

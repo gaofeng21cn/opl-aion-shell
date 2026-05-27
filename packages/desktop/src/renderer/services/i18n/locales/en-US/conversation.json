@@ -1,7 +1,8 @@
 {
   "welcome": {
-    "title": "Hi, what's your plan for today?",
-    "placeholder": "Send a message, upload files, open a folder, or create a scheduled task...",
+    "title": "Let One Person Lab advance research, grants, and reporting",
+    "codexDefaultStatus": "Default Codex CLI: {{model}} · {{permission}}",
+    "placeholder": "Hand work to OPL App: describe the goal, upload materials, choose a project, or schedule a task...",
     "uploadFile": "Upload Files",
     "linkFolder": "Open Folder",
     "newConversation": "New Chat",
@@ -13,10 +14,10 @@
     "clearWorkspace": "Remove project",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "What can AionUi do?",
+    "quickActionsTitle": "What can One Person Lab App do?",
     "quickActionFeedback": "Got feedback or suggestions?",
     "quickActionStar": "Like us? Give us a star!",
-    "skillsMarket": "AionUi Skills Market",
+    "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "Search and activate community Skills on demand. Configure once, available for all agents.",
     "skillsMarketDetails": "View More >>"
   },

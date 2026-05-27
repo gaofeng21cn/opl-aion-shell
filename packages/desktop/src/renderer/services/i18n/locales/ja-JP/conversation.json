@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "Hi、今日の予定は何ですか？",
+    "title": "One Person Lab に研究、助成金、報告を自動で進めさせる",
+    "codexDefaultStatus": "デフォルト Codex CLI: {{model}} · {{permission}}",
     "placeholder": "メッセージの送信、ファイルの追加、フォルダーの追加、またはスケジュールタスクの作成...",
     "uploadFile": "ファイルを追加",
     "linkFolder": "フォルダを追加",
@@ -13,10 +14,10 @@
     "clearWorkspace": "プロジェクトを解除",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "AionUi で何ができる？",
+    "quickActionsTitle": "One Person Lab App で何ができる？",
     "quickActionFeedback": "フィードバックや提案は？",
     "quickActionStar": "気に入った？スターをください！",
-    "skillsMarket": "AionUi Skills Market",
+    "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "コミュニティ Skills をオンデマンドで検索・有効化。一度設定すれば、すべてのAgentで利用可能。",
     "skillsMarketDetails": "詳細 >>"
   },

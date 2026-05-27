@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
@@ -73,6 +74,7 @@ const AcpModelSelector: React.FC<{
     if (!backend || !agentsData?.length) return null;
     const matched = agentsData.find((a) => (a.backend ?? a.agent_type) === backend);
     const info = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    if (backend === 'codex') return buildCodexDefaultModelInfo(info);
     if (!info || !Array.isArray(info.available_models) || info.available_models.length === 0) return null;
     return info;
   }, [agentsData, backend]);
@@ -81,10 +83,6 @@ const AcpModelSelector: React.FC<{
     (backendKey: string, options?: { preserveInitialModel?: boolean }) => {
       const source = handshakeModelInfo;
       if (!source || source.available_models.length === 0) return false;
-
-      if (backendKey === 'codex') {
-        console.log('[AcpModelSelector][codex] Loaded fallback model info:', source);
-      }
 
       const effectiveModelId =
         options?.preserveInitialModel && initialModelId ? initialModelId : (source.current_model_id ?? null);
@@ -112,9 +110,6 @@ const AcpModelSelector: React.FC<{
 
       if (result?.model_info) {
         const info = result.model_info;
-        if (backend === 'codex') {
-          console.log('[AcpModelSelector][codex] Initial model info:', info);
-        }
         if (info.available_models?.length > 0) {
           if (
             options?.preserveInitialModel &&
@@ -200,9 +195,6 @@ const AcpModelSelector: React.FC<{
       if (message.conversation_id !== conversation_id) return;
       if (message.type === 'acp_model_info' && message.data) {
         const incoming = message.data as AcpModelInfo;
-        if (backend === 'codex') {
-          console.log('[AcpModelSelector][codex] Stream model info:', incoming);
-        }
         // Preserve pre-selected model from Guid page until user manually switches.
         // The agent emits its default model during start (before re-apply), which
         // would otherwise overwrite the user's Guid page selection.
@@ -301,7 +293,7 @@ const AcpModelSelector: React.FC<{
   }
 
   // State 2: Has model info but cannot switch — read-only display
-  const canSwitch = model_info.available_models.length > 0;
+  const canSwitch = backend !== 'codex' && model_info.available_models.length > 0;
   if (!canSwitch) {
     return (
       <Tooltip content={tooltipContent} position='top'>

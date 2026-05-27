@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "Merhaba, bugünkü planın nedir?",
+    "title": "Araştırma, fon ve raporları One Person Lab otomatik ilerletsin",
+    "codexDefaultStatus": "Varsayılan Codex CLI: {{model}} · {{permission}}",
     "placeholder": "Mesaj gönder, dosya yükle veya klasör aç...",
     "uploadFile": "Dosya Yükle",
     "linkFolder": "Klasör Aç",
@@ -13,10 +14,10 @@
     "clearWorkspace": "Projeyi kaldır",
     "openFolder": "Klasör Aç",
     "none": "Hiçbiri",
-    "quickActionsTitle": "AionUi neler yapabilir?",
+    "quickActionsTitle": "One Person Lab App neler yapabilir?",
     "quickActionFeedback": "Geri bildirim veya öneriniz mi var?",
     "quickActionStar": "Bizi beğendiniz mi? Yıldız verin!",
-    "skillsMarket": "AionUi Skills Market",
+    "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "Topluluk Skills'lerini ihtiyaç duyduğunuzda arayın ve etkinleştirin. Bir kez yapılandırın, tüm Agent'larda kullanılabilir.",
     "skillsMarketDetails": "Ayrıntılar >>"
   },

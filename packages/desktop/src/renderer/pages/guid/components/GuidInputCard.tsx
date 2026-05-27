@@ -106,13 +106,10 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
               borderColor: 'rgb(var(--primary-3))',
               borderWidth: '1px',
             }
-          : {
-              boxShadow: isInputActive ? activeShadow : 'none',
-            }),
+          : {}),
       }}
       {...dragHandlers}
     >
-      {/* inner white card — narrower than outer wrap */}
       <div
         className={`${styles.guidInputInner} p-12px flex flex-col bg-dialog-fill-0`}
         style={{

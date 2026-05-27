@@ -7,6 +7,8 @@
   "yolo": "Авто (YOLO)",
   "yoloNoSandbox": "Полный автомат (без песочницы)",
   "auto": "Автоматически",
+  "read-only": "Только чтение",
+  "full-access": "Полный доступ",
   "dontAsk": "Не спрашивать",
   "bypass": "Обход (YOLO)",
   "bypassPermissions": "Авто (YOLO)",

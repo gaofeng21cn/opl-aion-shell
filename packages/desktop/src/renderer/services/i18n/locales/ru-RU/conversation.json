@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "Привет! Каковы ваши планы на сегодня?",
+    "title": "Поручите One Person Lab исследования, гранты и отчеты",
+    "codexDefaultStatus": "Codex CLI по умолчанию: {{model}} · {{permission}}",
     "placeholder": "Отправьте сообщение, загрузите файлы, откройте папку или создайте запланированную задачу...",
     "uploadFile": "Загрузить файлы",
     "linkFolder": "Открыть папку",
@@ -13,10 +14,10 @@
     "clearWorkspace": "Удалить проект",
     "openFolder": "Открыть папку",
     "none": "Нет",
-    "quickActionsTitle": "Что умеет AionUi?",
+    "quickActionsTitle": "Что умеет One Person Lab App?",
     "quickActionFeedback": "Есть отзывы или предложения?",
     "quickActionStar": "Нравится? Поставьте нам звезду!",
-    "skillsMarket": "Маркет навыков AionUi",
+    "skillsMarket": "Маркет навыков One Person Lab App",
     "skillsMarketDesc": "Находите и активируйте навыки сообщества по запросу. Настройте один раз — доступно для всех агентов.",
     "skillsMarketDetails": "Подробнее >>"
   },

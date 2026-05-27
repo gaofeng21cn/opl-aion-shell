@@ -19,6 +19,12 @@ intake isolated in this shell repo and preserve the App repo's GUI requirements.
 Do not let upstream defaults, model lists, theme presets, or interaction patterns
 silently become OPL App authority.
 
+Treat this repository as a replaceable implementation carrier. If a future shell
+candidate is introduced, it must be declared and gated from the App repo under
+`shells/<candidate>`; GUI product authority, page-state expectations,
+model-selection policy, onboarding policy, screenshots, and release/user docs
+do not move into the shell repository.
+
 ## Code Conventions
 
 ### File & Directory Structure

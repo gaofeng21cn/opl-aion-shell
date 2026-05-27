@@ -1,0 +1,79 @@
+import { describe, expect, it } from 'vitest';
+
+process.env.NODE_ENV = 'test';
+const { __test } = await import('../../../scripts/opl-first-run-vm-smoke.mjs');
+
+describe('packaged first-run VM smoke helpers', () => {
+  it('launches packaged apps with CDP and renderer accessibility enabled', () => {
+    expect(__test.buildLaunchAppArgs('/Applications/One Person Lab.app', { cdpPort: 9239 })).toEqual([
+      '-n',
+      '/Applications/One Person Lab.app',
+      '--args',
+      '--force-renderer-accessibility',
+      '--aionui-cdp-port=9239',
+    ]);
+  });
+
+  it('filters stale first-run events by timestamp', () => {
+    expect(__test.eventTimestampMs({ timestamp: '2026-05-27T07:00:01.000Z' })).toBe(
+      Date.parse('2026-05-27T07:00:01.000Z')
+    );
+    expect(__test.eventTimestampMs({ timestamp: 'not-a-date' })).toBe(0);
+  });
+
+  it('accepts already-prepared first-run events from the current launch', () => {
+    expect(
+      __test.isFirstRunCompletionEvent({
+        event_type: 'gui_preparation_skipped',
+        payload: { status: 'already-prepared' },
+      })
+    ).toBe(true);
+    expect(
+      __test.isFirstRunCompletionEvent({
+        event_type: 'gui_preparation_skipped',
+        payload: { status: 'blocked' },
+      })
+    ).toBe(false);
+  });
+
+  it('uses the existing-install Guid probe only outside clean first-run gates', () => {
+    expect(
+      __test.shouldProbeExistingGuidEntryBeforeFirstRun({
+        assertClean: false,
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(true);
+    expect(
+      __test.shouldProbeExistingGuidEntryBeforeFirstRun({
+        assertClean: true,
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(false);
+    expect(
+      __test.shouldProbeExistingGuidEntryBeforeFirstRun({
+        assertClean: false,
+        requireCodexConfigWizard: true,
+      })
+    ).toBe(false);
+    expect(__test.existingStateGuidProbeTimeoutMs({ timeoutMs: 240_000 })).toBe(30_000);
+    expect(__test.existingStateGuidProbeTimeoutMs({ timeoutMs: 5_000 })).toBe(5_000);
+  });
+
+  it('checks the usable Guid entry through DOM state rather than macOS accessibility only', () => {
+    const expression = __test.guidEntryReadinessExpression();
+
+    expect(expression).toContain('[data-testid="opl-guid-entry"]');
+    expect(expression).toContain('[data-testid="guid-input"]');
+    expect(expression).toContain("window.location.hash.startsWith('#/guid')");
+    expect(expression).toContain('[data-testid="opl-first-run-window"]');
+  });
+
+  it('navigates through the ready entry button instead of forcing the /guid route', () => {
+    const expression = __test.guidEntryNavigationExpression();
+
+    expect(expression).toContain('[aria-label="opl-first-run-ready-entry"]');
+    expect(expression).toContain('readyButton.click()');
+    expect(expression).toContain("navigatedBy: 'ready_entry'");
+    expect(expression).not.toContain("window.location.hash = '#/guid'");
+  });
+});

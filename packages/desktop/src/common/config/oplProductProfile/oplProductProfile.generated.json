@@ -15,14 +15,106 @@
     "active_shell": "contracts/app-shell-adapter.json",
     "page_state": "contracts/app-page-state-matrix.json",
     "first_run": "contracts/app-first-run-test-matrix.json",
-    "release_channel": "contracts/app-release-channel.json"
+    "release_channel": "contracts/app-release-channel.json",
+    "gui_product": "contracts/app-gui-product-contract.json"
   },
   "default_session_profile": {
+    "provider": "gflab",
+    "base_url": "https://gflabtoken.cn/v1",
     "executor": "codex_cli",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
     "applies_after": "codex_openai_api_key_configured",
     "authority": "app_session_default_only"
+  },
+  "gui": {
+    "authority": "app_repo_owned_product_truth",
+    "implementation_carrier": "opl-aion-shell",
+    "appearance": {
+      "default_css_theme_id": "codex",
+      "default_css_theme_name": "Codex",
+      "codex_theme_default_enabled": true
+    },
+    "home": {
+      "primary_input_surface": "single_card",
+      "nested_input_card_frames_allowed": false,
+      "codex_model_selector_visible": false,
+      "codex_model_list_visible": false,
+      "codex_model_policy": "auto_latest_frontier_from_codex_capabilities_or_app_default",
+      "codex_default_model": "gpt-5.5",
+      "codex_default_reasoning_effort": "xhigh",
+      "codex_default_permission_mode": "full-access",
+      "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
+    },
+    "default_assistants": [
+      {
+        "id": "mas",
+        "display_name": "Med Auto Science",
+        "short_name": "MAS",
+        "role": "research_and_paper_agent",
+        "home_entry_policy": "visible_click_to_start",
+        "avatar": "MAS",
+        "description_i18n": {
+          "zh-CN": "推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。",
+          "en-US": "Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress."
+        },
+        "prompts_i18n": {
+          "zh-CN": ["整理当前课题的研究进度和下一步计划", "帮我推进论文写作和质量检查"],
+          "en-US": ["Organize this study's progress and next plan", "Advance manuscript writing and quality checks"]
+        }
+      },
+      {
+        "id": "mag",
+        "display_name": "Med Auto Grant",
+        "short_name": "MAG",
+        "role": "grant_authoring_agent",
+        "home_entry_policy": "visible_click_to_start",
+        "avatar": "MAG",
+        "description_i18n": {
+          "zh-CN": "推进基金选题、标书结构、申请书撰写、预算说明和评审意见回应。",
+          "en-US": "Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses."
+        },
+        "prompts_i18n": {
+          "zh-CN": ["把这个基金想法整理成申请书框架", "检查这份标书还缺哪些关键材料"],
+          "en-US": [
+            "Turn this grant idea into an application outline",
+            "Check what key materials this proposal still needs"
+          ]
+        }
+      },
+      {
+        "id": "rca",
+        "display_name": "RedCube AI",
+        "short_name": "RCA",
+        "role": "presentation_and_visual_deliverable_agent",
+        "home_entry_policy": "visible_click_to_start",
+        "avatar": "RCA",
+        "description_i18n": {
+          "zh-CN": "推进 PPT、汇报、图表、视觉交付物和演示材料制作。",
+          "en-US": "Advance slide decks, reports, figures, visual deliverables, and presentation materials."
+        },
+        "prompts_i18n": {
+          "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
+          "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
+        }
+      },
+      {
+        "id": "oma",
+        "display_name": "OPL Meta Agent",
+        "short_name": "OMA",
+        "role": "opl_agent_design_and_testing_agent",
+        "home_entry_policy": "visible_click_to_start",
+        "avatar": "OMA",
+        "description_i18n": {
+          "zh-CN": "设计、测试和改进 OPL Agent，梳理能力边界、合同和验证流程。",
+          "en-US": "Design, test, and improve OPL Agents, including capability boundaries, contracts, and verification flows."
+        },
+        "prompts_i18n": {
+          "zh-CN": ["帮我设计一个新的 OPL Agent", "评估这个智能体的合同和测试是否完整"],
+          "en-US": ["Help me design a new OPL Agent", "Evaluate whether this agent's contract and tests are complete"]
+        }
+      }
+    ]
   },
   "codex": {
     "default_model": "gpt-5.5",
@@ -73,8 +165,44 @@
     ]
   },
   "first_run": {
-    "readiness_layers": ["core", "domain_modules", "family_runtime_provider"],
-    "deferred_blockers": ["domain_modules", "family_runtime_provider", "recommended_skills"],
+    "readiness_layers": ["core"],
+    "ready_to_launch_gate": {
+      "id": "ready_to_launch",
+      "ui_order": "before_guid",
+      "required_core_items": ["workspace_root", "codex_cli", "codex_config"],
+      "must_not_require": [
+        "domain_modules",
+        "family_runtime_provider",
+        "recommended_skills",
+        "native_helpers",
+        "repo_sync",
+        "command_line_tools_install",
+        "ecosystem_module_updates"
+      ]
+    },
+    "full_readiness_layers": [
+      "core",
+      "domain_modules",
+      "family_runtime_provider",
+      "recommended_skills",
+      "native_helpers",
+      "repo_sync",
+      "command_line_tools_install",
+      "ecosystem_module_updates"
+    ],
+    "deferred_blockers": [
+      "domain_modules",
+      "family_runtime_provider",
+      "recommended_skills",
+      "native_helpers",
+      "repo_sync",
+      "command_line_tools_install",
+      "ecosystem_module_updates"
+    ],
+    "runtime_provider": {
+      "full_readiness_provider": "temporal",
+      "ready_to_launch_blocking": false
+    },
     "core_ready_policy": {
       "full_first_install_clean_machine": {
         "missing_host_tools_allowed": ["command_line_tools", "homebrew", "node", "git"],
@@ -84,6 +212,7 @@
           "repo_sync",
           "module_reconcile",
           "command_line_tools_install",
+          "native_helpers",
           "companion_skills_install",
           "ecosystem_module_updates"
         ],
@@ -94,6 +223,7 @@
             "repo_sync",
             "module_reconcile",
             "command_line_tools_install",
+            "native_helpers",
             "companion_skills_install",
             "ecosystem_module_updates"
           ],
@@ -118,6 +248,7 @@
         "repo_sync",
         "module_reconcile",
         "command_line_tools_install",
+        "native_helpers",
         "companion_skills_install",
         "ecosystem_module_updates"
       ],

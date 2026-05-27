@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
 import { useAgents } from '@/renderer/hooks/agent/useAgents';
+import { resolveOplHomeAssistants } from '../utils/oplHomeAssistants';
 import { useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 
@@ -74,7 +75,7 @@ export const useCustomAgentsLoader = ({
       return [] as Assistant[];
     }
   });
-  const assistants = assistantList ?? [];
+  const assistants = useMemo(() => resolveOplHomeAssistants(assistantList ?? []), [assistantList]);
 
   // Execution-engine rows come from the shared agents cache — every subscriber
   // (guid / conversation / settings / channels / MCP flows) reads through the

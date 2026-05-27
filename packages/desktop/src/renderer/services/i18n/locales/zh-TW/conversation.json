@@ -1,6 +1,7 @@
 {
   "welcome": {
-    "title": "Hi，今天有什麼安排？",
+    "title": "把研究、基金和彙報交給 One Person Lab 自動推進",
+    "codexDefaultStatus": "預設 Codex CLI：{{model}} · {{permission}}",
     "placeholder": "發送訊息、上傳檔案、開啟資料夾或建立定時任務...",
     "uploadFile": "上傳檔案",
     "linkFolder": "開啟資料夾",
@@ -13,10 +14,10 @@
     "clearWorkspace": "移除專案",
     "openFolder": "Open Folder",
     "none": "None",
-    "quickActionsTitle": "AionUi 能做什麼？",
+    "quickActionsTitle": "One Person Lab App 能做什麼？",
     "quickActionFeedback": "想吐槽或提建議?",
     "quickActionStar": "喜歡我們？點個星吧",
-    "skillsMarket": "AionUi Skills Market",
+    "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "按需搜尋並啟用社區 Skills，一次設定，所有Agent通用。",
     "skillsMarketDetails": "詳情 >>"
   },
