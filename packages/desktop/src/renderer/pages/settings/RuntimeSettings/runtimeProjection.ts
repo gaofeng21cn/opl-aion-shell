@@ -82,8 +82,10 @@ function readNode(record: JsonRecord, fallbackPrefix: string, index: number): Ru
 }
 
 function readEdge(record: JsonRecord): RuntimeGraphEdge | null {
-  const from = asString(record.from) ?? asString(record.from_node_id) ?? asString(record.source) ?? asString(record.source_id);
-  const to = asString(record.to) ?? asString(record.to_node_id) ?? asString(record.target) ?? asString(record.target_id);
+  const from =
+    asString(record.from) ?? asString(record.from_node_id) ?? asString(record.source) ?? asString(record.source_id);
+  const to =
+    asString(record.to) ?? asString(record.to_node_id) ?? asString(record.target) ?? asString(record.target_id);
   if (!from || !to) return null;
   return {
     id: asString(record.id) ?? asString(record.edge_id),
@@ -103,9 +105,9 @@ function readGraph(value: unknown, fallbackPrefix: string): { nodes: RuntimeGrap
   const nodes = asRecordArray(value.nodes ?? value.stages ?? value.routes ?? value.decisions).map((entry, index) =>
     readNode(entry, fallbackPrefix, index)
   );
-  const edges = asRecordArray(value.edges ?? value.links).map(readEdge).filter((edge): edge is RuntimeGraphEdge =>
-    Boolean(edge)
-  );
+  const edges = asRecordArray(value.edges ?? value.links)
+    .map(readEdge)
+    .filter((edge): edge is RuntimeGraphEdge => Boolean(edge));
   return { nodes, edges };
 }
 
@@ -124,7 +126,8 @@ function readTimeline(value: unknown): RuntimeTimelineItem[] {
         `#${index + 1}`,
       kind,
       state: asString(entry.state) ?? asString(entry.status) ?? asString(entry.current_control_state),
-      timestamp: asString(entry.timestamp) ?? asString(entry.time) ?? asString(entry.created_at) ?? asString(entry.updated_at),
+      timestamp:
+        asString(entry.timestamp) ?? asString(entry.time) ?? asString(entry.created_at) ?? asString(entry.updated_at),
       domainId: asString(entry.domain_id),
       stageId: asString(entry.stage_id),
       stageAttemptId: asString(entry.stage_attempt_id),
@@ -164,34 +167,33 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
   const projection = readProjection(root);
   const rootRecord = isRecord(root) ? root : {};
   const unifiedGraph = readGraph(projection.graph, 'runtime');
-  const stageGraph = unifiedGraph.nodes.length > 0
-    ? {
-        nodes: unifiedGraph.nodes.filter((node) =>
-          ['stage_attempt', 'stage_evidence'].includes(node.kind ?? '')
-        ),
-        edges: unifiedGraph.edges.filter((edge) =>
-          ['attempt_has_stage_evidence'].includes(edge.kind ?? '')
-        ),
-      }
-    : readGraph(projection.stage_graph ?? projection.stages, 'stage');
-  const routeGraph = unifiedGraph.nodes.length > 0
-    ? {
-        nodes: unifiedGraph.nodes.filter((node) =>
-          ['route_graph', 'owner_receipt', 'typed_blocker', 'safe_action'].includes(node.kind ?? '')
-        ),
-        edges: unifiedGraph.edges.filter((edge) =>
-          [
-            'attempt_has_route_graph',
-            'attempt_observed_owner_receipt',
-            'attempt_observed_typed_blocker',
-            'attempt_has_safe_action_route',
-          ].includes(edge.kind ?? '')
-        ),
-      }
-    : readGraph(projection.route_graph ?? projection.routes, 'route');
-  const decisionMap = unifiedGraph.nodes.length > 0
-    ? unifiedGraph.nodes.filter((node) => node.kind === 'decision_map')
-    : readGraph(projection.decision_map ?? projection.decisions, 'decision').nodes;
+  const stageGraph =
+    unifiedGraph.nodes.length > 0
+      ? {
+          nodes: unifiedGraph.nodes.filter((node) => ['stage_attempt', 'stage_evidence'].includes(node.kind ?? '')),
+          edges: unifiedGraph.edges.filter((edge) => ['attempt_has_stage_evidence'].includes(edge.kind ?? '')),
+        }
+      : readGraph(projection.stage_graph ?? projection.stages, 'stage');
+  const routeGraph =
+    unifiedGraph.nodes.length > 0
+      ? {
+          nodes: unifiedGraph.nodes.filter((node) =>
+            ['route_graph', 'owner_receipt', 'typed_blocker', 'safe_action'].includes(node.kind ?? '')
+          ),
+          edges: unifiedGraph.edges.filter((edge) =>
+            [
+              'attempt_has_route_graph',
+              'attempt_observed_owner_receipt',
+              'attempt_observed_typed_blocker',
+              'attempt_has_safe_action_route',
+            ].includes(edge.kind ?? '')
+          ),
+        }
+      : readGraph(projection.route_graph ?? projection.routes, 'route');
+  const decisionMap =
+    unifiedGraph.nodes.length > 0
+      ? unifiedGraph.nodes.filter((node) => node.kind === 'decision_map')
+      : readGraph(projection.decision_map ?? projection.decisions, 'decision').nodes;
   const researchLens = firstRecord(projection.research_lens);
   const visualRefGroups = firstRecord(projection.visual_ref_groups);
   const refs = [
@@ -221,9 +223,7 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
       'paper'
     ),
     ownerBoundary: readOwnerBoundary(projection),
-    safeActionRoutes: readSafeActionRoutes(
-      projection.safe_action_routes ?? visualRefGroups?.safe_action_refs
-    ),
+    safeActionRoutes: readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
     refs,
   };
 }

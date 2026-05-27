@@ -91,11 +91,7 @@ function ActionRouteList({
             </div>
           </div>
           <div className='runtime-action__controls'>
-            <Button
-              size='small'
-              loading={busyAction === `${route.id}:dry`}
-              onClick={() => onRun(route, true)}
-            >
+            <Button size='small' loading={busyAction === `${route.id}:dry`} onClick={() => onRun(route, true)}>
               {t('settings.runtime.actions.dryRun')}
             </Button>
             <Button
@@ -154,32 +150,33 @@ const RuntimeSettings: React.FC = () => {
     }
   }, []);
 
-  const runAction = useCallback(async (route: RuntimeSafeActionRoute, dryRun: boolean) => {
-    setBusyAction(`${route.id}:${dryRun ? 'dry' : 'execute'}`);
-    setError(null);
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: route.id,
-        dryRun,
-        payloadRefsOnlyJson: route.payloadRefsOnlyJson,
-      });
-      setActionResult(result);
-      Message.success(
-        dryRun
-          ? t('settings.runtime.actions.dryRunComplete')
-          : t('settings.runtime.actions.executeComplete')
-      );
-      if (!dryRun) {
-        void refreshSummary();
+  const runAction = useCallback(
+    async (route: RuntimeSafeActionRoute, dryRun: boolean) => {
+      setBusyAction(`${route.id}:${dryRun ? 'dry' : 'execute'}`);
+      setError(null);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: route.id,
+          dryRun,
+          payloadRefsOnlyJson: route.payloadRefsOnlyJson,
+        });
+        setActionResult(result);
+        Message.success(
+          dryRun ? t('settings.runtime.actions.dryRunComplete') : t('settings.runtime.actions.executeComplete')
+        );
+        if (!dryRun) {
+          void refreshSummary();
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+        Message.error(message);
+      } finally {
+        setBusyAction(null);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
-      Message.error(message);
-    } finally {
-      setBusyAction(null);
-    }
-  }, [refreshSummary, t]);
+    },
+    [refreshSummary, t]
+  );
 
   useEffect(() => {
     void refreshSummary();
@@ -236,11 +233,7 @@ const RuntimeSettings: React.FC = () => {
               edges={model.routeGraph.edges}
               icon={<BranchOne />}
             />
-            <GraphPanel
-              title={t('settings.runtime.decisionMap')}
-              nodes={model.decisionMap}
-              icon={<Lightning />}
-            />
+            <GraphPanel title={t('settings.runtime.decisionMap')} nodes={model.decisionMap} icon={<Lightning />} />
           </div>
 
           <div className='runtime-grid'>
