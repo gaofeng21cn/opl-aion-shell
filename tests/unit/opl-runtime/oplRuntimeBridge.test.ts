@@ -1,5 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { afterEach, describe, expect, it } from 'vitest';
 import { __oplRuntimeBridgeTest } from '@/process/bridge/oplRuntimeBridge';
+
+const tmpRoots: string[] = [];
+
+function makeTempRoot(name: string): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
+  tmpRoots.push(root);
+  return root;
+}
+
+afterEach(() => {
+  for (const root of tmpRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 describe('OPL runtime bridge command whitelist', () => {
   it('declares the shell bridge as a replaceable adapter for the App-owned runtime bridge contract', () => {
@@ -104,6 +121,66 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'reconcile_modules',
       args: ['system', 'reconcile-modules', '--json'],
     });
+  });
+
+  it('limits App-managed bootstrap to first-run and maintenance command surfaces', () => {
+    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildInitializeCommand())).toBe(
+      true
+    );
+    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildInstallPrepCommand())).toBe(
+      true
+    );
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(
+        __oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: 'secret' })
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand())
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildReconcileModulesCommand())
+    ).toBe(true);
+    expect(__oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildAppStateCommand('fast'))).toBe(
+      false
+    );
+  });
+
+  it('runs the packaged App installer as the standard bootstrap carrier without enabling module or GUI install loops', () => {
+    expect(__oplRuntimeBridgeTest.buildStandardBootstrapCommand('/opt/One Person Lab/opl-install.sh')).toEqual({
+      command: '/bin/bash',
+      args: [
+        '/opt/One Person Lab/opl-install.sh',
+        '--complete',
+        '--skip-modules',
+        '--skip-gui-open',
+        '--skip-native-helper-repair',
+        '--no-online-runtime',
+      ],
+      redactedCommand:
+        '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+    });
+  });
+
+  it('adds the managed OPL checkout and managed Node toolchain to PATH after standard bootstrap', () => {
+    const homeDir = makeTempRoot('opl-standard-bootstrap-home');
+    const installDir = path.join(homeDir, '.opl', 'one-person-lab');
+    const nodeBin = path.join(homeDir, '.opl', 'toolchain', 'node-v22.21.1-darwin-arm64', 'bin');
+    fs.mkdirSync(path.join(installDir, 'bin'), { recursive: true });
+    fs.mkdirSync(nodeBin, { recursive: true });
+    fs.writeFileSync(path.join(installDir, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(path.join(nodeBin, 'node'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(path.join(nodeBin, 'npm'), '#!/usr/bin/env bash\n', 'utf8');
+
+    const env = __oplRuntimeBridgeTest.buildStandardBootstrapEnv({
+      baseEnv: { HOME: homeDir, PATH: '/usr/bin:/bin' },
+    });
+
+    const entries = env.PATH?.split(path.delimiter) ?? [];
+    expect(entries.slice(0, 2)).toEqual([path.join(installDir, 'bin'), nodeBin]);
+    expect(entries).toContain('/usr/bin');
+    expect(entries).toContain('/bin');
+    expect(new Set(entries).size).toBe(entries.length);
   });
 
   it('sends Codex API keys only through stdin and keeps the command redacted', () => {

@@ -754,6 +754,7 @@ function shouldWaitForFirstRunCompletion(options) {
 function shouldWaitForCoreFirstLaunchReady(options) {
   return (
     options.requireCodexConfigWizard === true ||
+    options.assertClean === true ||
     shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
   );
 }

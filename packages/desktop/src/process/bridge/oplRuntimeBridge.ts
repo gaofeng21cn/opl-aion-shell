@@ -5,6 +5,9 @@
  */
 
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { ipcBridge } from '@/common';
 import type {
   IOplConfigureCodexRequest,
@@ -22,7 +25,12 @@ type RuntimeCommandSpec = {
 };
 
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
+const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
+const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
+const MANAGED_NODE_VERSION = 'v22.21.1';
+const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
+let standardBootstrapCompleted = false;
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   adapterId: 'aionui',
@@ -58,6 +66,23 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'shell_private_runtime_status',
   ],
 } as const;
+
+type ProcessWithResourcesPath = NodeJS.Process & {
+  resourcesPath?: string;
+};
+
+type SpawnCommandSpec = {
+  command: string;
+  args: string[];
+  redactedCommand: string;
+};
+
+type BuildStandardBootstrapEnvInput = {
+  baseEnv?: NodeJS.ProcessEnv;
+  homeDir?: string;
+  platform?: NodeJS.Platform;
+  arch?: string;
+};
 
 function assertActionId(actionId: string): string {
   const normalized = actionId.trim();
@@ -134,12 +159,123 @@ function parseJson(stdout: string): unknown {
   return JSON.parse(trimmed);
 }
 
-async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
-  const command = spec.redactedCommand ?? ['opl', ...spec.args].join(' ');
+function isNoSuchOplCommandError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    ('code' in error ? (error as NodeJS.ErrnoException).code === 'ENOENT' : false) &&
+    'path' in error &&
+    (error as NodeJS.ErrnoException & { path?: unknown }).path === 'opl'
+  );
+}
+
+function shouldAutoBootstrapOplCommand(spec: RuntimeCommandSpec): boolean {
+  return ['system_initialize', 'install_prep', 'configure_codex', 'startup_maintenance', 'reconcile_modules'].includes(
+    spec.surface
+  );
+}
+
+function resolveHomeDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.HOME?.trim() || os.homedir();
+}
+
+function resolveManagedNodeBin(input: BuildStandardBootstrapEnvInput): string | null {
+  const platform = input.platform ?? process.platform;
+  if (platform !== 'darwin') {
+    return null;
+  }
+  const arch = input.arch ?? process.arch;
+  const nodeArch = arch === 'arm64' ? 'arm64' : arch === 'x64' ? 'x64' : null;
+  if (!nodeArch) {
+    return null;
+  }
+  const homeDir = input.homeDir ?? resolveHomeDir(input.baseEnv);
+  const nodeBin = path.join(homeDir, '.opl', 'toolchain', `node-${MANAGED_NODE_VERSION}-darwin-${nodeArch}`, 'bin');
+  return fs.existsSync(path.join(nodeBin, 'node')) && fs.existsSync(path.join(nodeBin, 'npm')) ? nodeBin : null;
+}
+
+function normalizePathEntries(entries: Array<string | undefined | null>): string {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const entry of entries) {
+    if (!entry) continue;
+    for (const part of entry.split(path.delimiter)) {
+      const trimmed = part.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      normalized.push(trimmed);
+    }
+  }
+  return normalized.join(path.delimiter);
+}
+
+function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.ProcessEnv {
+  const baseEnv = input.baseEnv ?? process.env;
+  const homeDir = input.homeDir ?? resolveHomeDir(baseEnv);
+  const managedOplBin = path.join(homeDir, '.opl', 'one-person-lab', 'bin');
+  const managedNodeBin = resolveManagedNodeBin({ ...input, baseEnv, homeDir });
+  return {
+    ...baseEnv,
+    HOME: homeDir,
+    PATH: normalizePathEntries([
+      fs.existsSync(path.join(managedOplBin, 'opl')) ? managedOplBin : null,
+      managedNodeBin,
+      path.join(homeDir, '.npm-global', 'bin'),
+      path.join(homeDir, '.local', 'bin'),
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      '/usr/sbin',
+      '/sbin',
+      baseEnv.PATH,
+    ]),
+  };
+}
+
+function resolvePackagedStandardInstaller(resourcesPath?: string): string | null {
+  const resolvedResourcesPath =
+    resourcesPath ??
+    (process as ProcessWithResourcesPath).resourcesPath ??
+    '';
+  if (!resolvedResourcesPath) {
+    return null;
+  }
+  const installerPath = path.join(resolvedResourcesPath, STANDARD_BOOTSTRAP_RESOURCE);
+  return fs.existsSync(installerPath) && fs.statSync(installerPath).isFile() ? installerPath : null;
+}
+
+function buildStandardBootstrapCommand(installerPath: string): SpawnCommandSpec {
+  return {
+    command: '/bin/bash',
+    args: [
+      installerPath,
+      '--complete',
+      '--skip-modules',
+      '--skip-gui-open',
+      '--skip-native-helper-repair',
+      '--no-online-runtime',
+    ],
+    redactedCommand:
+      '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+  };
+}
+
+async function runSpawnJsonCommand(
+  commandSpec: SpawnCommandSpec & {
+    surface: IOplRuntimeCommandResult['surface'];
+    env?: NodeJS.ProcessEnv;
+    stdin?: string;
+    timeoutMs?: number;
+    parseOutput?: boolean;
+    maxStdoutBytes?: number;
+  }
+): Promise<IOplRuntimeCommandResult> {
+  const displayCommand = commandSpec.redactedCommand;
+  const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
   return new Promise((resolve, reject) => {
-    const child = spawn('opl', spec.args, {
-      env: process.env,
-      stdio: [spec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    const child = spawn(commandSpec.command, commandSpec.args, {
+      env: commandSpec.env ?? process.env,
+      stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
     let stderr = '';
@@ -147,23 +283,23 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
     const timer = setTimeout(() => {
       settled = true;
       child.kill('SIGTERM');
-      reject(new Error(`OPL runtime command timed out: ${command}`));
-    }, OPL_COMMAND_TIMEOUT_MS);
+      reject(new Error(`OPL runtime command timed out: ${displayCommand}`));
+    }, commandSpec.timeoutMs ?? OPL_COMMAND_TIMEOUT_MS);
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
     child.stdout.on('data', (chunk: string) => {
       stdout += chunk;
-      if (Buffer.byteLength(stdout, 'utf8') > MAX_STDOUT_BYTES) {
+      if (Buffer.byteLength(stdout, 'utf8') > maxStdoutBytes) {
         child.kill('SIGTERM');
-        reject(new Error(`OPL runtime command output exceeded ${MAX_STDOUT_BYTES} bytes`));
+        reject(new Error(`OPL runtime command output exceeded ${maxStdoutBytes} bytes`));
       }
     });
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk;
     });
-    if (spec.stdin && child.stdin) {
-      child.stdin.end(spec.stdin);
+    if (commandSpec.stdin && child.stdin) {
+      child.stdin.end(commandSpec.stdin);
     }
     child.on('error', (error) => {
       if (settled) return;
@@ -176,21 +312,69 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
       settled = true;
       clearTimeout(timer);
       if (code !== 0) {
-        reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || command}`));
+        reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
         return;
       }
       try {
         resolve({
-          surface: spec.surface,
-          command,
+          surface: commandSpec.surface,
+          command: displayCommand,
           stdout,
-          parsed: parseJson(stdout),
+          parsed: commandSpec.parseOutput === false ? null : parseJson(stdout),
         });
       } catch (error) {
         reject(error);
       }
     });
   });
+}
+
+function buildOplSpawnCommand(spec: RuntimeCommandSpec, env = process.env): SpawnCommandSpec & {
+  surface: IOplRuntimeCommandResult['surface'];
+  env: NodeJS.ProcessEnv;
+  stdin?: string;
+} {
+  return {
+    surface: spec.surface,
+    command: 'opl',
+    args: spec.args,
+    stdin: spec.stdin,
+    env,
+    redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
+  };
+}
+
+async function runPackagedStandardBootstrap(): Promise<void> {
+  if (standardBootstrapCompleted) {
+    return;
+  }
+  const installerPath = resolvePackagedStandardInstaller();
+  if (!installerPath) {
+    throw new Error('Packaged OPL installer is missing; cannot run App-managed standard bootstrap.');
+  }
+  const bootstrap = buildStandardBootstrapCommand(installerPath);
+  await runSpawnJsonCommand({
+    ...bootstrap,
+    surface: 'install_prep',
+    env: buildStandardBootstrapEnv(),
+    timeoutMs: OPL_BOOTSTRAP_TIMEOUT_MS,
+    parseOutput: false,
+    maxStdoutBytes: OPL_BOOTSTRAP_MAX_STDOUT_BYTES,
+  });
+  standardBootstrapCompleted = true;
+}
+
+async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
+  try {
+    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildStandardBootstrapEnv()));
+  } catch (error) {
+    if (!isNoSuchOplCommandError(error) || !shouldAutoBootstrapOplCommand(spec)) {
+      throw error;
+    }
+  }
+
+  await runPackagedStandardBootstrap();
+  return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildStandardBootstrapEnv()));
 }
 
 export function initOplRuntimeBridge(): void {
@@ -215,5 +399,8 @@ export const __oplRuntimeBridgeTest = {
   buildInstallPrepCommand,
   buildReconcileModulesCommand,
   buildStartupMaintenanceCommand,
+  buildStandardBootstrapCommand,
+  buildStandardBootstrapEnv,
   parseJson,
+  shouldAutoBootstrapOplCommand,
 };

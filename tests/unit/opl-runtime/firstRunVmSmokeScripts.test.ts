@@ -24,7 +24,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtimeProfile: 'standard',
         requireCodexConfigWizard: false,
       })
-    ).toBe(false);
+    ).toBe(true);
     expect(
       vmSmoke.shouldWaitForCoreFirstLaunchReady({
         assertClean: false,
