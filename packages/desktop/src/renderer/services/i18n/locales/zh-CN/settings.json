@@ -965,14 +965,30 @@
     "coreReady": "Core ready",
     "ready": "Ready",
     "needsSetup": "Needs setup",
+    "stage": "当前阶段：{{phase}}",
     "coreProgress": "Core checks {{progress}} complete",
+    "fullReadinessProgress": "完整就绪度已完成 {{progress}}",
+    "maintenanceProgress": "维护和可选项已完成 {{progress}}",
     "blockers": "Core blockers",
     "noCoreBlockers": "No core blockers. You can start using OPL.",
+    "noNextStep": "当前没有阻塞性的下一步。",
     "backgroundMaintenance": "Background maintenance",
     "noMaintenance": "No maintenance pending",
     "readiness": "Readiness checks",
+    "technicalDetails": "技术详情",
     "lastAction": "Last action result",
     "noActionYet": "No maintenance action has run in this window.",
+    "beginner": {
+      "title": "正在检查关键项",
+      "readyTitle": "可以开始使用",
+      "summaryChecking": "正在检查工作区、Codex 和 API 权限。",
+      "summaryPreparing": "关键项还在准备中，你可以在这里看到进度。",
+      "summaryNeedsAction": "还有一个设置项需要处理，完成后即可开始使用。",
+      "summaryReady": "开始使用所需的关键项已经就绪。",
+      "nextStep": "下一步",
+      "backgroundMaintenanceWithCount": "还有 {{count}} 个扩展项会在进入后继续准备。",
+      "backgroundReady": "后台准备已完成。"
+    },
     "items": {
       "workspaceRoot": "Workspace root",
       "codex": "Codex CLI",
@@ -983,13 +999,24 @@
     },
     "status": {
       "pending": "Waiting for initialize state",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "ready": "就绪",
+      "installed": "已安装",
+      "detected": "已检测",
+      "configured": "已配置",
+      "disabled": "已关闭",
+      "missing": "缺失",
+      "initializing": "初始化中",
+      "attentionNeeded": "需要处理",
+      "blocking": "阻塞",
+      "failed": "失败"
     },
     "actions": {
       "completed": "Action completed"
     },
     "codex": {
       "title": "Codex defaults",
+      "prompt": "请输入管理员提供的 Codex API Key，完成后即可开始使用 One Person Lab。",
       "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
       "apiKeyPlaceholder": "Enter Codex API key",
       "apiKeyRequired": "Codex API key is required",

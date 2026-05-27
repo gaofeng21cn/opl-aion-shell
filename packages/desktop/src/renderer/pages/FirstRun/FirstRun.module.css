@@ -37,19 +37,6 @@
   color: var(--text-secondary);
 }
 
-.firstRunHeaderActions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.firstRunSummary {
-  display: grid;
-  grid-template-columns: minmax(240px, 1.1fr) minmax(180px, 0.7fr) minmax(220px, 1fr);
-  gap: 12px;
-}
-
 .firstRunCard {
   min-width: 0;
   border: 1px solid var(--border-base);
@@ -72,6 +59,168 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 20px;
+}
+
+.firstRunHeroPanel {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(240px, 320px);
+  gap: 14px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  padding: 18px;
+}
+
+.firstRunHeroMain,
+.firstRunBackground {
+  min-width: 0;
+}
+
+.firstRunHeroMain {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.firstRunStatusHeading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.firstRunStatusHeading h2,
+.firstRunSignalTitle h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.firstRunStatusHeading p,
+.firstRunSignal p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunMutedLine {
+  color: var(--text-tertiary) !important;
+}
+
+.firstRunProgressHero {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+}
+
+.firstRunProgressPercent {
+  color: var(--text-primary);
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 700;
+}
+
+.firstRunProgressStack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.firstRunProgressStack p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.firstRunSimpleSteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.firstRunSimpleStep,
+.firstRunBackground,
+.firstRunStatusStrip {
+  min-width: 0;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 12px;
+}
+
+.firstRunSimpleStep {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.firstRunHeroActions,
+.firstRunSectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.firstRunStatusStrip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.firstRunStatusStrip p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunStripLabel {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.firstRunHeroIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--primary);
+}
+
+.firstRunDetailsCollapse {
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  overflow: hidden;
+}
+
+.firstRunDetailsCollapse :global(.arco-collapse-item-header) {
+  background: var(--bg-1);
+}
+
+.firstRunDetailsCollapse :global(.arco-collapse-item-content-box) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.firstRunSignalTitle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .firstRunCardHeader {
@@ -148,16 +297,32 @@
   font-family: var(--font-mono);
 }
 
-.firstRunSectionActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .firstRunApiKey {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 12px;
+}
+
+.firstRunApiKey p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.firstRunProgressDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.firstRunProgressDetails p {
+  margin: 0;
 }
 
 .firstRunApiKeyControls {
@@ -195,17 +360,15 @@
   }
 
   .firstRunHeader,
-  .firstRunSummary,
+  .firstRunHeroPanel,
   .firstRunGrid,
-  .firstRunApiKeyControls {
+  .firstRunApiKeyControls,
+  .firstRunSimpleSteps,
+  .firstRunStatusStrip {
     grid-template-columns: 1fr;
   }
 
   .firstRunHeader {
     flex-direction: column;
-  }
-
-  .firstRunHeaderActions {
-    justify-content: flex-start;
   }
 }

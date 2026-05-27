@@ -964,14 +964,30 @@
     "coreReady": "Core ready",
     "ready": "Ready",
     "needsSetup": "Needs setup",
+    "stage": "Current stage: {{phase}}",
     "coreProgress": "Core checks {{progress}} complete",
+    "fullReadinessProgress": "Full readiness {{progress}} complete",
+    "maintenanceProgress": "Maintenance and optional items {{progress}} complete",
     "blockers": "Core blockers",
     "noCoreBlockers": "No core blockers. You can start using OPL.",
+    "noNextStep": "No blocking next step.",
     "backgroundMaintenance": "Background maintenance",
     "noMaintenance": "No maintenance pending",
     "readiness": "Readiness checks",
+    "technicalDetails": "Technical details",
     "lastAction": "Last action result",
     "noActionYet": "No maintenance action has run in this window.",
+    "beginner": {
+      "title": "Checking the essentials",
+      "readyTitle": "Ready to start",
+      "summaryChecking": "Checking your workspace, Codex, and API access now.",
+      "summaryPreparing": "The essentials are still being prepared. You can watch the progress here.",
+      "summaryNeedsAction": "One setup item needs your attention before you can start.",
+      "summaryReady": "Everything needed to start is ready.",
+      "nextStep": "Next step",
+      "backgroundMaintenanceWithCount": "{{count}} extra item(s) will keep preparing after you start.",
+      "backgroundReady": "Background preparation is clear."
+    },
     "items": {
       "workspaceRoot": "Workspace root",
       "codex": "Codex CLI",
@@ -982,13 +998,24 @@
     },
     "status": {
       "pending": "Waiting for initialize state",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "installed": "Installed",
+      "detected": "Detected",
+      "configured": "Configured",
+      "disabled": "Disabled",
+      "missing": "Missing",
+      "initializing": "Initializing",
+      "attentionNeeded": "Needs attention",
+      "blocking": "Blocked",
+      "failed": "Failed"
     },
     "actions": {
       "completed": "Action completed"
     },
     "codex": {
       "title": "Codex defaults",
+      "prompt": "Enter the Codex API key from your administrator to start using One Person Lab.",
       "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
       "apiKeyPlaceholder": "Enter Codex API key",
       "apiKeyRequired": "Codex API key is required",
