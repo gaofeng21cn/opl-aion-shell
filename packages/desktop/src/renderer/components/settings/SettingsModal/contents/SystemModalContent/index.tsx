@@ -459,8 +459,15 @@ const SystemModalContent: React.FC = () => {
           </div>
 
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <PreferenceRow label={t('settings.oplDeveloperMode')} description={developerModeDescription}>
-              <span className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'>
+            <PreferenceRow
+              label={t('settings.oplDeveloperMode')}
+              description={developerModeDescription}
+              testId='opl-developer-mode-row'
+            >
+              <span
+                className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
+                data-testid='opl-developer-mode-status'
+              >
                 {t(`settings.oplDeveloperModeStates.${developerModeState}`, {
                   defaultValue: developerModeState,
                 })}

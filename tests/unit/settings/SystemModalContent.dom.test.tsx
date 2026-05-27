@@ -118,6 +118,8 @@ describe('SystemModalContent OPL App state', () => {
     expect(await screen.findByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
     expect(screen.getByText('Developer mode from app state')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-developer-mode-row')).toHaveTextContent('Developer mode from app state');
+    expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('active_direct');
     expect(
       screen.getByText('one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system')
     ).toBeInTheDocument();

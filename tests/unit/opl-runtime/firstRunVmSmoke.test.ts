@@ -131,6 +131,16 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/appearance');
   });
 
+  it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {
+    const expression = __test.developerModeStatusExpression();
+
+    expect(expression).toContain('[data-testid="opl-developer-mode-row"]');
+    expect(expression).toContain('[data-testid="opl-developer-mode-status"]');
+    expect(expression).toContain('OPL Developer Mode row exposed machine status');
+    expect(expression).not.toContain('opl-developer-mode-switch');
+    expect(expression).not.toContain('.click()');
+  });
+
   it('summarizes live system initialize readiness as the first-run proof source', () => {
     const summary = __test.summarizeCoreFirstLaunch(
       JSON.stringify({
