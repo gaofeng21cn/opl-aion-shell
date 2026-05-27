@@ -79,7 +79,7 @@ const SystemModalContent: React.FC = () => {
     oplString(appDeveloperMode.status) ??
     'unknown';
   const developerModeDisplayState = normalizeDeveloperModeState(developerModeState);
-  const developerModeDescription = oplString(appDeveloperMode.description) ?? t('settings.oplDeveloperModeDesc');
+  const developerModeDescription = t('settings.oplDeveloperModeDesc');
 
   const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
     supported: false,

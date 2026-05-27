@@ -186,6 +186,9 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(runtimeTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([['Runtime', '运行'], ['Codex CLI'], ['Temporal'], ['Foundry Modules', '智能体模块']])
     );
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'system')?.requiredTextAny).toEqual(
+      expect.arrayContaining([['OPL Developer Mode', 'OPL 开发者模式']])
+    );
   });
 
   it('keeps runtime refresh checks in packaged Settings and Runtime smokes', () => {

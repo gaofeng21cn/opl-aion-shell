@@ -1333,9 +1333,23 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     requiredTextAny: [['Runtime', '运行'], ['Codex CLI'], ['Temporal'], ['Foundry Modules', '智能体模块']],
   },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
-  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问'], ['WebUI', '远程连接']] },
-  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Theme', '主题'], ['Codex Theme', 'Codex 主题']] },
-  { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode']] },
+  {
+    id: 'access',
+    hash: '#/settings/access',
+    requiredTextAny: [
+      ['Access', '访问'],
+      ['WebUI', '远程连接'],
+    ],
+  },
+  {
+    id: 'appearance',
+    hash: '#/settings/appearance',
+    requiredTextAny: [
+      ['Theme', '主题'],
+      ['Codex Theme', 'Codex 主题'],
+    ],
+  },
+  { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode', 'OPL 开发者模式']] },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
 ];
 
@@ -1427,7 +1441,7 @@ function developerModeStatusExpression() {
       const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
       const status = document.querySelector('[data-testid="opl-developer-mode-status"]');
       const text = document.body?.innerText || '';
-      if (!row || !status || !text.includes('OPL Developer Mode')) return false;
+      if (!row || !status || !/OPL Developer Mode|OPL 开发者模式/.test(text)) return false;
       const rowText = row.textContent || '';
       const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
       if (machineStatusPattern.test(rowText)) {

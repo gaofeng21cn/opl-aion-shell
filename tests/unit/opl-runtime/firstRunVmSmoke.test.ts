@@ -135,6 +135,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(expression).toContain('[data-testid="opl-developer-mode-row"]');
     expect(expression).toContain('[data-testid="opl-developer-mode-status"]');
+    expect(expression).toContain('OPL 开发者模式');
     expect(expression).toContain('OPL Developer Mode row exposed machine status');
     expect(expression).not.toContain('opl-developer-mode-switch');
     expect(expression).not.toContain('.click()');
