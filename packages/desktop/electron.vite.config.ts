@@ -18,6 +18,7 @@ if (injectedOplReleaseVersion && !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(
   throw new Error(`Invalid OPL_RELEASE_VERSION: ${injectedOplReleaseVersion}`);
 }
 const appReleaseVersion = injectedOplReleaseVersion || rootPackageJson.version;
+const shellVersion = rootPackageJson.version;
 
 // Build builtin MCP servers after main process bundle so they survive out/main/ cleanup.
 function buildMcpServersPlugin() {
@@ -280,6 +281,8 @@ export default defineConfig(({ mode }) => {
         // OPL App releases stamp their product version through OPL_RELEASE_VERSION.
         // Local/upstream AionUI builds keep showing the shell package version.
         __APP_VERSION__: JSON.stringify(appReleaseVersion),
+        __SHELL_VERSION__: JSON.stringify(shellVersion),
+        __OPL_RELEASE_VERSION__: JSON.stringify(injectedOplReleaseVersion || ''),
         global: 'globalThis',
       },
       optimizeDeps: {

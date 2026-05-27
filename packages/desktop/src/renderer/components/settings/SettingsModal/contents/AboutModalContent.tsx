@@ -26,11 +26,12 @@ const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
 const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
 
 type AppVersions = {
-  oplVersion: string;
+  appVersion: string;
   guiVersion: string;
   frameworkVersion: string;
   releaseRepo: string;
   releaseChannel: string;
+  latestStableVersion: string;
 };
 
 function formatReleaseChannel(
@@ -60,8 +61,8 @@ const AboutModalContent: React.FC = () => {
   const release = oplRecord(appStateQuery.appState.release);
   const appVersions: AppVersions | null = appStateQuery.payload
     ? {
-        oplVersion: oplString(release.app_version) ?? oplString(release.version) ?? '-',
-        guiVersion: oplString(release.gui_shell_version) ?? oplString(release.gui_version) ?? '-',
+        appVersion: __OPL_RELEASE_VERSION__ || __APP_VERSION__,
+        guiVersion: __SHELL_VERSION__,
         frameworkVersion:
           oplString(release.opl_framework_version) ??
           oplString(release.framework_version) ??
@@ -69,6 +70,7 @@ const AboutModalContent: React.FC = () => {
           '-',
         releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
         releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
+        latestStableVersion: oplString(release.app_version) ?? oplString(release.version) ?? '',
       }
     : null;
 
@@ -147,7 +149,7 @@ const AboutModalContent: React.FC = () => {
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
                 {appVersions
                   ? t('settings.aboutVersionBadge', {
-                      version: appVersions.oplVersion,
+                      version: appVersions.appVersion,
                       channel: formatReleaseChannel(appVersions.releaseChannel, t),
                     })
                   : t('common.loading')}
@@ -169,6 +171,11 @@ const AboutModalContent: React.FC = () => {
                 <Typography.Text>
                   {t('settings.aboutFrameworkVersion', { version: appVersions.frameworkVersion })}
                 </Typography.Text>
+                {appVersions.latestStableVersion && appVersions.latestStableVersion !== appVersions.appVersion && (
+                  <Typography.Text>
+                    {t('settings.aboutLatestStableVersion', { version: appVersions.latestStableVersion })}
+                  </Typography.Text>
+                )}
               </div>
             )}
 

@@ -21,6 +21,9 @@ describe('OPL release version stamping', () => {
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');
     expect(viteConfig).toContain('const appReleaseVersion = injectedOplReleaseVersion || rootPackageJson.version;');
+    expect(viteConfig).toContain('const shellVersion = rootPackageJson.version;');
     expect(viteConfig).toContain('__APP_VERSION__: JSON.stringify(appReleaseVersion)');
+    expect(viteConfig).toContain('__SHELL_VERSION__: JSON.stringify(shellVersion)');
+    expect(viteConfig).toContain('__OPL_RELEASE_VERSION__: JSON.stringify(injectedOplReleaseVersion ||');
   });
 });

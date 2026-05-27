@@ -292,7 +292,7 @@ const RuntimePage: React.FC = () => {
 
   const refreshAppState = useCallback(
     async (showToast = false) => {
-      const nextPayload = await appStateQuery.load('full', { showRefreshing: true });
+      const nextPayload = await appStateQuery.load('fast', { showRefreshing: true });
       if (showToast) {
         if (nextPayload) {
           messageRef.current.success(tRef.current('common.refreshSuccess'));

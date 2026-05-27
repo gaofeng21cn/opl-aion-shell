@@ -1112,6 +1112,7 @@
     "title": "Runtime",
     "description": "Check Codex CLI, workspace, logs, and OPL Foundry module readiness.",
     "versionDetail": "OPL {{oplVersion}} · GUI {{guiVersion}} · {{channel}}",
+    "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {
       "stable": "Stable",
       "latest": "Latest",
@@ -1216,6 +1217,7 @@
   "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
   "aboutShellVersion": "GUI 셸 {{version}}",
   "aboutFrameworkVersion": "OPL Framework {{version}}",
+  "aboutLatestStableVersion": "Latest Stable on GitHub {{version}}",
   "appearancePage": {
     "visualTheme": "Interface Theme",
     "codexTheme": "Codex Theme",

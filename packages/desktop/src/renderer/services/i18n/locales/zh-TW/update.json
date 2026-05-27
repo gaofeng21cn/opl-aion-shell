@@ -22,7 +22,7 @@
   "showInFolder": "在資料夾中顯示",
   "openFile": "開啟檔案",
   "errorTitle": "更新失敗",
-  "manualCheckFailedWithReleaseLink": "Could not read GitHub Releases: {{error}}. You can still open Releases to review Stable and Nightly builds.",
+  "manualCheckFailedWithReleaseLink": "未能讀取 GitHub 發布資訊：{{error}}。你仍可以打開發布頁面查看穩定版和夜間版。",
   "errors": {
     "invalidUrl": "Invalid download URL",
     "httpsOnly": "Only HTTPS download URLs are allowed",
@@ -37,6 +37,6 @@
     "missingUrl": "Download URL is missing",
     "checkReturnedNull": "Update check returned no result (development mode)",
     "autoUpdateMetadataMissing": "Auto-update metadata is not bundled in this build; using the Release check instead.",
-    "nightlyUsesManualCheck": "Nightly builds are checked through GitHub Releases."
+    "nightlyUsesManualCheck": "夜間版透過 GitHub Releases 檢查。"
   }
 }

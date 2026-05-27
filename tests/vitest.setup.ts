@@ -37,3 +37,7 @@ const windowControlsMock = {
 if (typeof window !== 'undefined') {
   (window as any).electronAPI = (global as any).electronAPI;
 }
+
+(globalThis as any).__APP_VERSION__ = '26.5.27';
+(globalThis as any).__SHELL_VERSION__ = '2.1.1';
+(globalThis as any).__OPL_RELEASE_VERSION__ = '26.5.27';

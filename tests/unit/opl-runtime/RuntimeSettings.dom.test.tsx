@@ -101,7 +101,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     });
   });
 
-  it('loads the fast OPL app state on initial render and full App state on explicit refresh', async () => {
+  it('loads the fast OPL app state on initial render and fast App state on page refresh', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
@@ -110,7 +110,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.actions.refresh'));
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
-    expect(bridgeMocks.getAppStateInvoke).toHaveBeenLastCalledWith({ profile: 'full' });
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenLastCalledWith({ profile: 'fast' });
     expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
   });
 

@@ -48,6 +48,10 @@ if (typeof window !== 'undefined') {
   (window as unknown as { electronAPI: ElectronAPI }).electronAPI = global.electronAPI;
 }
 
+(globalThis as any).__APP_VERSION__ = '26.5.27';
+(globalThis as any).__SHELL_VERSION__ = '2.1.1';
+(globalThis as any).__OPL_RELEASE_VERSION__ = '26.5.27';
+
 // Mock ResizeObserver for Virtuoso
 class ResizeObserverMock {
   observe() {}

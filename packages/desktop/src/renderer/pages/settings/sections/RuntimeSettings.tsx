@@ -54,6 +54,10 @@ function formatReleaseChannel(
   return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
 }
 
+function localAppVersion(): string {
+  return __OPL_RELEASE_VERSION__ || __APP_VERSION__;
+}
+
 function moduleId(module: RuntimeModuleItem): string {
   return (
     oplString(module.module_id) ??
@@ -188,10 +192,11 @@ const RuntimeSettings: React.FC = () => {
   const temporalStatus =
     oplString(temporal.health_status) ?? oplString(temporal.status) ?? oplString(temporal.worker_status) ?? 'unknown';
   const workspaceStatus = workspaceRoot ? 'ready' : 'unknown';
-  const appVersion = oplString(release.app_version) ?? oplString(release.version) ?? '-';
-  const guiVersion = oplString(release.gui_shell_version) ?? oplString(release.gui_version) ?? '-';
+  const appVersion = localAppVersion();
+  const guiVersion = __SHELL_VERSION__;
   const releaseChannel = oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
+  const latestStableVersion = oplString(release.app_version) ?? oplString(release.version);
   const runtimeCards = useMemo(
     () => [
       {
@@ -264,7 +269,7 @@ const RuntimeSettings: React.FC = () => {
   );
 
   const refreshRuntime = useCallback(() => {
-    void appStateQuery.load('full', { showRefreshing: true }).then((payload) => {
+    void appStateQuery.load('fast', { showRefreshing: true }).then((payload) => {
       if (payload) messageRef.current.success(t('common.refreshSuccess'));
       else messageRef.current.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
     });
@@ -279,7 +284,7 @@ const RuntimeSettings: React.FC = () => {
             : await ipcBridge.oplRuntime.runInstallPrep.invoke();
         if (bridgeResultSucceeded(result)) {
           message.success(successText);
-          await appStateQuery.load('full', { showRefreshing: true });
+          await appStateQuery.load('fast', { showRefreshing: true });
         } else {
           message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
         }
@@ -355,6 +360,11 @@ const RuntimeSettings: React.FC = () => {
                   channel: formatReleaseChannel(releaseChannel, t),
                 })}
               </Typography.Text>
+              {latestStableVersion && latestStableVersion !== appVersion ? (
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.runtimePage.latestStableDetail', { version: latestStableVersion })}
+                </Typography.Text>
+              ) : null}
               {releaseRepo && (
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {releaseRepo}

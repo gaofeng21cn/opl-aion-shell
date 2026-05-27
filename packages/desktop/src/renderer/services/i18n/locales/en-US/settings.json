@@ -1062,7 +1062,8 @@
   "runtimePage": {
     "title": "Runtime",
     "description": "Check Codex CLI, workspace, logs, and OPL Foundry module readiness.",
-    "versionDetail": "OPL {{oplVersion}} · GUI {{guiVersion}} · {{channel}}",
+    "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
+    "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {
       "stable": "Stable",
       "latest": "Latest",
@@ -1164,9 +1165,10 @@
       "description": "Read-only OPL App default context injected into new Codex CLI sessions. The source is the OPL App product profile."
     }
   },
-  "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "aboutVersionBadge": "App v{{version}} · {{channel}}",
   "aboutShellVersion": "GUI shell {{version}}",
   "aboutFrameworkVersion": "OPL Framework {{version}}",
+  "aboutLatestStableVersion": "Latest Stable on GitHub {{version}}",
   "appearancePage": {
     "visualTheme": "Interface Theme",
     "codexTheme": "Codex Theme",

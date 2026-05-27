@@ -592,8 +592,8 @@
   "contactMe": "联系我",
   "officialWebsite": "官网",
   "checkForUpdates": "检查更新",
-  "includePrereleaseUpdates": "接收 Nightly 版本",
-  "includeNightlyUpdates": "接收 Nightly 版本",
+  "includePrereleaseUpdates": "接收夜间版",
+  "includeNightlyUpdates": "接收夜间版",
   "saveModelConfigFailed": "保存模型配置失败",
   "healthCheck": "健康检测",
   "clearStatus": "清除状态",
@@ -1063,7 +1063,8 @@
   "runtimePage": {
     "title": "运行",
     "description": "检查 Codex CLI、工作目录、日志目录和 OPL 智能体模块就绪状态。",
-    "versionDetail": "OPL {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
+    "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
+    "latestStableDetail": "GitHub 最新稳定版：{{version}}",
     "releaseChannels": {
       "stable": "稳定版",
       "latest": "最新版",
@@ -1165,9 +1166,10 @@
       "description": "新建 Codex CLI 会话时注入的 OPL App 默认上下文。这里是只读展示，来源是 OPL App 产品规则。"
     }
   },
-  "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "aboutVersionBadge": "应用 v{{version}} · {{channel}}",
   "aboutShellVersion": "界面版本 {{version}}",
-  "aboutFrameworkVersion": "OPL Framework {{version}}",
+  "aboutFrameworkVersion": "OPL 框架 {{version}}",
+  "aboutLatestStableVersion": "GitHub 最新稳定版 {{version}}",
   "appearancePage": {
     "visualTheme": "界面主题",
     "codexTheme": "Codex 主题",

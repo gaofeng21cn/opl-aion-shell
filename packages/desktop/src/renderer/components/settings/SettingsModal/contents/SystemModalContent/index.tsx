@@ -462,7 +462,7 @@ const SystemModalContent: React.FC = () => {
           if (parsed) {
             writeCachedDeveloperModeSwitchState(parsed);
             setDeveloperMode(parsed);
-            void appStateQuery.load('full', { showRefreshing: true });
+            void appStateQuery.load('fast', { showRefreshing: true });
             return;
           }
 
@@ -628,7 +628,7 @@ const SystemModalContent: React.FC = () => {
           dryRun: false,
           payloadRefsOnlyJson: { path: workDir },
         });
-        await appStateQuery.load('full', { showRefreshing: true });
+        await appStateQuery.load('fast', { showRefreshing: true });
         message.success(t('settings.oplEnvironmentPage.messages.workspaceRootSaved'));
       } catch (caughtError: unknown) {
         form.setFieldValue('workDir', systemInfo.workDir);

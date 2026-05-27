@@ -12,7 +12,6 @@ import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/update/updateTypes';
 import { useTranslation } from 'react-i18next';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 
@@ -43,9 +42,7 @@ const UpdateModal: React.FC = () => {
   // Whether electron-updater auto-update is available (determined automatically, not user-controllable)
   const [autoUpdateAvailable, setAutoUpdateAvailable] = useState(false);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
-  const appStateQuery = useOplAppState('fast');
-  const release = oplRecord(appStateQuery.appState.release);
-  const appStateVersion = oplString(release.app_version) ?? oplString(release.version) ?? '';
+  const appStateVersion = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
   const appStateVersionRef = useRef(appStateVersion);
 
   useEffect(() => {

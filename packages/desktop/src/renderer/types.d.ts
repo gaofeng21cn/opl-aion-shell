@@ -19,3 +19,7 @@ declare module '*?raw' {
 }
 
 declare module 'unocss';
+
+declare const __APP_VERSION__: string;
+declare const __SHELL_VERSION__: string;
+declare const __OPL_RELEASE_VERSION__: string;
