@@ -13,10 +13,24 @@ describe('OPL first-run VM smoke scripts', () => {
       vmSmoke.shouldWaitForFirstRunCompletion({ runtimeProfile: 'standard', requireCodexConfigWizard: false })
     ).toBe(false);
     expect(vmSmoke.shouldWaitForFirstRunCompletion({ runtimeProfile: 'full', requireCodexConfigWizard: false })).toBe(
-      true
+      false
     );
     expect(
       vmSmoke.shouldWaitForFirstRunCompletion({ runtimeProfile: 'standard', requireCodexConfigWizard: true })
+    ).toBe(false);
+    expect(
+      vmSmoke.shouldWaitForCoreFirstLaunchReady({
+        assertClean: true,
+        runtimeProfile: 'standard',
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(false);
+    expect(
+      vmSmoke.shouldWaitForCoreFirstLaunchReady({
+        assertClean: false,
+        runtimeProfile: 'full',
+        requireCodexConfigWizard: false,
+      })
     ).toBe(true);
   });
 
@@ -66,7 +80,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
   });
 
-  it('requires the Codex config wizard for full VM smokes by default', () => {
+  it('does not require the Codex config wizard for full VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
       'clean-vm',
@@ -74,6 +88,38 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/One-Person-Lab-Full.dmg',
       '--runtime-profile',
       'full',
+      '--dry-run',
+    ]);
+    expect(options.requireCodexConfigWizard).toBe(false);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab-Full.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).not.toContain('--require-codex-config-wizard');
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+      })
+    ).not.toThrow();
+  });
+
+  it('can still explicitly require the Codex config wizard for targeted wizard smokes', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab-Full.dmg',
+      '--runtime-profile',
+      'full',
+      '--require-codex-config-wizard',
       '--dry-run',
     ]);
     expect(options.requireCodexConfigWizard).toBe(true);

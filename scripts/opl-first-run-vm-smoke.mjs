@@ -748,7 +748,115 @@ function existingStateGuidProbeTimeoutMs(options) {
 }
 
 function shouldWaitForFirstRunCompletion(options) {
-  return options.requireCodexConfigWizard === true || shouldVerifyFullFirstRunEquivalence(options.runtimeProfile);
+  return process.env.OPL_FIRST_RUN_WAIT_FOR_LOG_COMPLETION === '1' && options.requireCodexConfigWizard === true;
+}
+
+function shouldWaitForCoreFirstLaunchReady(options) {
+  return (
+    options.requireCodexConfigWizard === true ||
+    shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
+  );
+}
+
+function parseSystemInitialize(systemInitializeRaw) {
+  const payload = JSON.parse(systemInitializeRaw);
+  return payload.system_initialize ?? payload;
+}
+
+function summarizeCoreFirstLaunch(systemInitializeRaw) {
+  const initialize = parseSystemInitialize(systemInitializeRaw);
+  return {
+    source: 'opl system initialize --json',
+    status: isCoreFirstLaunchReady(initialize) ? 'ready' : 'not_ready',
+    ready_to_launch: initialize?.setup_flow?.ready_to_launch ?? null,
+    blocking_items: listStringValues(initialize?.setup_flow?.blocking_items),
+    readiness: initialize?.readiness ?? null,
+  };
+}
+
+function createCodexWizardState() {
+  return {
+    sawCodexWizard: false,
+    submittedCodexWizard: false,
+    capturedCodexWizard: false,
+    lastCodexSubmitAt: 0,
+    lastTree: [],
+  };
+}
+
+function observeCodexConfigWizard(processName, codexApiKey, artifactsDir, state) {
+  state.lastTree = queryAccessibility(processName);
+  const hasCodexWizard =
+    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexApiKeyInput) &&
+    treeContainsLabel(state.lastTree, DEFAULT_LABELS.codexConfigureButton);
+  if (!hasCodexWizard) return state;
+
+  state.sawCodexWizard = true;
+  if (!state.capturedCodexWizard) {
+    const wizardTreePath = path.join(artifactsDir, 'codex-config-wizard-accessibility-tree.json');
+    writeJsonArtifact(wizardTreePath, state.lastTree, codexApiKey);
+    captureMacScreenArtifact(path.join(artifactsDir, 'codex-config-wizard.png'));
+    state.capturedCodexWizard = true;
+  }
+  if (!state.submittedCodexWizard || Date.now() - state.lastCodexSubmitAt > 10_000) {
+    if (!codexApiKey) {
+      throw new Error(
+        'Codex configuration wizard is visible; provide --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.'
+      );
+    }
+    submitCodexWizard(processName, codexApiKey);
+    state.submittedCodexWizard = true;
+    state.lastCodexSubmitAt = Date.now();
+  }
+  return state;
+}
+
+function codexWizardResult(state) {
+  return {
+    sawCodexWizard: state.sawCodexWizard,
+    submittedCodexWizard: state.submittedCodexWizard,
+  };
+}
+
+async function waitForCoreFirstLaunchReady(options, codexApiKey) {
+  const started = Date.now();
+  let lastError = null;
+  let lastSystemInitializeRaw = '';
+  const wizardState = createCodexWizardState();
+  while (Date.now() - started < options.timeoutMs) {
+    try {
+      observeCodexConfigWizard(options.processName, codexApiKey, options.artifacts, wizardState);
+    } catch (error) {
+      if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
+    }
+    try {
+      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+      const initialize = parseSystemInitialize(lastSystemInitializeRaw);
+      if (isCoreFirstLaunchReady(initialize)) {
+        return {
+          systemInitializeRaw: lastSystemInitializeRaw,
+          initialize,
+          ...codexWizardResult(wizardState),
+        };
+      }
+      lastError = new Error(
+        `Core first-launch readiness is not ready: ${JSON.stringify(summarizeCoreFirstLaunch(lastSystemInitializeRaw))}`
+      );
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(2_000);
+  }
+  throw new Error(
+    [
+      'Timed out waiting for OPL core first-launch readiness from `opl system initialize --json`.',
+      lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
+      wizardState.lastTree.length ? `Last accessibility sample: ${JSON.stringify(wizardState.lastTree.slice(0, 12))}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
 }
 
 function cdpProbeTimeoutMs(options) {
@@ -1490,6 +1598,7 @@ async function main() {
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
+    let coreFirstLaunch = null;
     if (shouldProbeExistingGuidEntryBeforeFirstRun(options)) {
       try {
         guidEntry = await runSmokePhase(
@@ -1515,6 +1624,14 @@ async function main() {
         firstRun = null;
       }
     }
+    if (!guidEntry && shouldWaitForCoreFirstLaunchReady(options)) {
+      coreFirstLaunch = await waitForCoreFirstLaunchReady(options, codexApiKey);
+      writeTextArtifact(
+        path.join(options.artifacts, 'system-initialize.json'),
+        coreFirstLaunch.systemInitializeRaw,
+        codexApiKey
+      );
+    }
     if (!firstRun && shouldWaitForFirstRunCompletion(options)) {
       firstRun = await runSmokePhase(
         writeSmokeEvent,
@@ -1532,6 +1649,17 @@ async function main() {
           timeout_ms: options.timeoutMs,
         }
       );
+    }
+    if (coreFirstLaunch) {
+      firstRun = {
+        ...(firstRun ?? {
+          events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
+          existingLaunchFallback: false,
+        }),
+        sawCodexWizard: Boolean(firstRun?.sawCodexWizard || coreFirstLaunch.sawCodexWizard),
+        submittedCodexWizard: Boolean(firstRun?.submittedCodexWizard || coreFirstLaunch.submittedCodexWizard),
+        coreFirstLaunchReady: true,
+      };
     }
     firstRun = firstRun ?? {
       events: readFirstRunEvents(firstRunLog, launchStartedAtMs),
@@ -1602,6 +1730,12 @@ async function main() {
       app_path: appPath,
       artifacts: options.artifacts,
       runtime_profile: options.runtimeProfile,
+      core_first_launch: coreFirstLaunch
+        ? summarizeCoreFirstLaunch(coreFirstLaunch.systemInitializeRaw)
+        : {
+            source: 'existing_guid_entry_probe',
+            status: guidEntry ? 'ready' : 'not_checked',
+          },
       gui_ready: guidEntry.cdpState ?? {
         mode: guidEntry.mode,
         labels: guidEntry.labels,
@@ -1653,6 +1787,10 @@ export const __test =
         remainingGuidFallbackTimeoutMs,
         shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
+        shouldWaitForCoreFirstLaunchReady,
+        waitForCoreFirstLaunchReady,
+        summarizeCoreFirstLaunch,
+        parseSystemInitialize,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
         runOplJson,

@@ -111,4 +111,52 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("navigatedBy: 'ready_entry'");
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
+
+  it('summarizes live system initialize readiness as the first-run proof source', () => {
+    const summary = __test.summarizeCoreFirstLaunch(
+      JSON.stringify({
+        system_initialize: {
+          setup_flow: {
+            ready_to_launch: true,
+            blocking_items: [],
+          },
+          readiness: {
+            launch_ready: true,
+            core_ready: true,
+          },
+        },
+      })
+    );
+
+    expect(summary).toEqual({
+      source: 'opl system initialize --json',
+      status: 'ready',
+      ready_to_launch: true,
+      blocking_items: [],
+      readiness: {
+        launch_ready: true,
+        core_ready: true,
+      },
+    });
+  });
+
+  it('allows deferred Full readiness blockers after Core launch is ready', () => {
+    const summary = __test.summarizeCoreFirstLaunch(
+      JSON.stringify({
+        system_initialize: {
+          setup_flow: {
+            blocking_items: ['domain_modules', 'family_runtime_provider', 'recommended_skills'],
+          },
+          readiness: {
+            launch_ready: true,
+            core_ready: true,
+            domain_ready: true,
+          },
+        },
+      })
+    );
+
+    expect(summary.status).toBe('ready');
+    expect(summary.blocking_items).toEqual(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
+  });
 });
