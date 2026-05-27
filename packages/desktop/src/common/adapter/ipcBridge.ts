@@ -447,8 +447,8 @@ export const update = {
 
 export const autoUpdate = {
   check: bridge.buildProvider<
-    IBridgeResponse<{ updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } }>,
-    { includePrerelease?: boolean }
+    IBridgeResponse<{ checked?: boolean; updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } }>,
+    { channel?: 'stable' | 'nightly'; includeNightly?: boolean; includePrerelease?: boolean }
   >('auto-update.check'),
   download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
   quitAndInstall: bridge.buildProvider<void, void>('auto-update.quit-and-install'),

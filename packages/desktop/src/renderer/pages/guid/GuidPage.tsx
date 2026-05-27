@@ -25,6 +25,7 @@ import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { DEFAULT_CODEX_MODEL_WITH_REASONING_ID } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS } from '@/common/types/codex/codexModes';
+import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider, Dropdown, Menu, Message } from '@arco-design/web-react';
 import { Down, Left, Robot, Write } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -280,7 +281,11 @@ const GuidPage: React.FC = () => {
   );
 
   // Typewriter placeholder
-  const typewriterPlaceholder = useTypewriterPlaceholder(t('conversation.welcome.placeholder'));
+  const defaultPlaceholder = t('conversation.welcome.placeholder');
+  const oplPlaceholder = t('conversation.welcome.oplPlaceholder');
+  const typewriterPlaceholder = useTypewriterPlaceholder(
+    agentSelection.is_presetAgent ? defaultPlaceholder : oplPlaceholder
+  );
   const selectedAssistantRecord = useMemo(() => {
     if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return undefined;
     const selectedId = agentSelection.selectedAgentInfo.custom_agent_id;
@@ -314,6 +319,8 @@ const GuidPage: React.FC = () => {
       }),
     [t]
   );
+  const shouldRenderAgentTabs =
+    agentSelection.availableAgents !== undefined && shouldShowOplHomeAgentTabs(agentSelection.availableAgents);
   const selectedAssistantDescription = useMemo(() => {
     return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
   }, [selectedAssistantRecord, localeKey]);
@@ -419,7 +426,7 @@ const GuidPage: React.FC = () => {
     return () => observer.disconnect();
   }, [agentSelection.is_presetAgent, selectedAssistantDescription]);
 
-  const currentPresetAgentType = selectedAssistantRecord?.preset_agent_type || 'gemini';
+  const currentPresetAgentType = selectedAssistantRecord?.preset_agent_type || 'codex';
   // Mirrors AssistantEditDrawer's Main Agent options — detected execution
   // engines from the shared agent-selection data source, so avatars resolve
   // the same way in the preset assistant header.
@@ -722,7 +729,11 @@ const GuidPage: React.FC = () => {
             onPaste={guidInput.onPaste}
             onFocus={guidInput.handleTextareaFocus}
             onBlur={guidInput.handleTextareaBlur}
-            placeholder={typewriterPlaceholder || t('conversation.welcome.placeholder')}
+            placeholder={
+              agentSelection.is_presetAgent
+                ? `${mention.selectedAgentLabel}, ${typewriterPlaceholder || defaultPlaceholder}`
+                : typewriterPlaceholder || oplPlaceholder
+            }
             isInputActive={guidInput.isInputFocused}
             isFileDragging={guidInput.isFileDragging}
             activeBorderColor={activeBorderColor}

@@ -151,14 +151,24 @@
   "autoPreviewOfficeFiles": "自动预览新建 Office 文件",
   "autoPreviewOfficeFilesDesc": "自动打开当前项目中新创建的 Word、Excel 和 PowerPoint 文件，并忽略 Office 临时锁定文件。",
   "startOnBoot": "开机启动",
-  "startOnBootDesc": "登录 macOS 或 Windows 后自动启动 One Person Lab App。",
+  "startOnBootDesc": "登录 macOS 或 Windows 后自动启动 One Person Lab。",
   "startOnBootUnsupported": "仅在打包后的 macOS 和 Windows 客户端中可用。",
   "startOnBootUpdateFailed": "更新开机启动设置失败",
   "closeToTray": "关闭到托盘",
+  "developerMode": "OPL 开发者模式",
+  "developerModeDesc": "控制 OPL 是否可通过系统 supervisor 执行开发者操作。",
+  "developerModeStateOff": "开发者操作已关闭。",
+  "developerModeStateLoading": "正在读取开发者模式状态。",
+  "developerModeStateAuto": "OPL 会在本地环境就绪时自动启用开发者操作。",
+  "developerModeStateOnLimited": "开发者模式已开启，但特权路由当前受限。",
+  "developerModeStateOnReady": "开发者模式已开启，可执行受监督的开发者操作。",
+  "developerModeUpdateFailed": "更新 OPL 开发者模式失败",
+  "oplAgentCodexContext": "OPL Agent Codex 上下文",
+  "oplAgentCodexContextDesc": "当前 App 使用的 OPL GUI 产品合同与 Codex 上下文来源。",
   "hardwareAcceleration": "硬件加速",
   "hardwareAccelerationDesc": "使用 GPU 渲染界面。如果启动时崩溃或画面异常，请关闭。",
   "hardwareAccelerationAutoDisabled": "因 GPU 反复崩溃已自动关闭。",
-  "hardwareAccelerationRestartConfirm": "重启 One Person Lab App 以应用新的硬件加速设置？",
+  "hardwareAccelerationRestartConfirm": "重启 One Person Lab 以应用新的硬件加速设置？",
   "hardwareAccelerationUpdateFailed": "更新硬件加速设置失败",
   "notification": "通知",
   "cronNotificationEnabled": "定时任务完成通知",
@@ -235,6 +245,7 @@
   "baseUrlAutoFix": "base_url 自动修复为：{{base_url}}",
   "updateConfirm": "确认修改",
   "restartConfirm": "修改后将重启应用，是否继续？",
+  "workspaceRootChangeConfirm": "更新 OPL 工作目录后会重新读取运行状态，是否继续？",
   "theme": "主题",
   "fontSize": "缩放",
   "fontSizeDescription": "调整应用的整体缩放比例（Zoom），让界面元素更符合阅读习惯。",
@@ -252,7 +263,7 @@
   "installed": "已安装",
   "builtin": "内置",
   "channels": "频道",
-  "webui.description": "把 One Person Lab App 当作\"7*24小时的远程助手\"，随时随地用远程设备安排任务。",
+  "webui.description": "把 One Person Lab 当作\"7*24小时的远程助手\"，随时随地用远程设备安排任务。",
   "webui.steps": "步骤 1. 打开 WebUI 开关;  步骤 2. 复制访问地址;  步骤 3.远程浏览器打开",
   "webui.configuration": "WebUI 配置",
   "webui.enable": "启用 WebUI",
@@ -330,13 +341,13 @@
   "webui.passwordHint": "首次启动时密码会显示在控制台，如需重置请使用「修改密码」功能",
   "webui.checkConsoleForPassword": "请查看应用控制台获取初始密码",
   "webui.browserNotSupported": "浏览器端无法访问 WebUI 设置",
-  "webui.browserNotSupportedDesc": "出于安全考虑，WebUI 设置只能在桌面应用中管理。请在 One Person Lab App 桌面应用中打开设置面板进行配置。",
+  "webui.browserNotSupportedDesc": "出于安全考虑，WebUI 设置只能在桌面应用中管理。请在 One Person Lab 桌面应用中打开设置面板进行配置。",
   "webui.passwordHidden": "******",
   "webui.passwordOnlyFirstTime": "密码仅在首次启动时显示，之后将被隐藏",
   "webui.resetPasswordWarning": "请保管好重置之后的密码！",
-  "webui.featureRemoteDesc": "启用 WebUI 后，你可以通过手机或远程浏览器访问 One Person Lab App。",
+  "webui.featureRemoteDesc": "启用 WebUI 后，你可以通过手机或远程浏览器访问 One Person Lab。",
   "webui.featureChannelsTitle": "Messaging Control",
-  "webui.featureChannelsDesc": "连接 Telegram、Lark、钉钉、微信，在即时通讯软件中与 One Person Lab App 交互。",
+  "webui.featureChannelsDesc": "连接 Telegram、Lark、钉钉、微信，在即时通讯软件中与 One Person Lab 交互。",
   "webui.goToChannels": "前往 Channels",
   "assistant.telegramConfig": "Telegram 机器人配置",
   "assistant.botToken": "Bot Token",
@@ -467,7 +478,7 @@
   "mcpImportSuccess": "导入成功",
   "mcpImportFailed": "导入失败",
   "mcpJsonInvalid": "无效的 JSON 格式",
-  "mcpImportDescription": "One Person Lab App会自动获取的您在CLI Agent中已安装的MCP，并一键导入",
+  "mcpImportDescription": "One Person Lab会自动获取的您在CLI Agent中已安装的MCP，并一键导入",
   "mcpStepSelectAgent": "选择Agent",
   "mcpStepFetchTools": "获取mcp",
   "mcpStepImportSuccess": "导入成功",
@@ -524,7 +535,8 @@
   "needHelpTooltip": "如需帮助，请查看",
   "googleCloudProjectPlaceholder": "请输入 Google Cloud Project ID",
   "noAvailableModels": "暂无可用模型",
-  "appDescription": "One Person Lab 的本地自动化工作台",
+  "appName": "One Person Lab",
+  "appDescription": "One Person Lab App 是面向 OPL Agents、运行时配置和受发布管理更新的 macOS 工作台。",
   "helpDocumentation": "帮助文档",
   "updateLog": "更新日志",
   "feedback": "意见反馈",
@@ -580,7 +592,8 @@
   "contactMe": "联系我",
   "officialWebsite": "官网",
   "checkForUpdates": "检查更新",
-  "includePrereleaseUpdates": "包含 Nightly 版本",
+  "includePrereleaseUpdates": "接收 Nightly 版本",
+  "includeNightlyUpdates": "接收 Nightly 版本",
   "saveModelConfigFailed": "保存模型配置失败",
   "healthCheck": "健康检测",
   "clearStatus": "清除状态",
@@ -906,102 +919,183 @@
     "pendingCancel": "取消",
     "pendingTimeRemaining": "剩余时间：{{time}}"
   },
-  "runtime": {
-    "navLabel": "运行时",
-    "title": "运行时工作台",
-    "description": "从 One Person Lab Framework 持有的投影和引用展示 summary-first 运行时可视化。",
-    "sourceSurface": "来源面",
-    "state": "运行状态",
-    "stageGraph": "阶段图",
-    "routeGraph": "路由图",
-    "decisionMap": "决策图",
-    "timeline": "时间线",
-    "paperLensRefs": "研究论文视角引用",
-    "safeActions": "安全动作路由",
-    "ownerBoundary": "Owner 边界",
-    "refs": "证据引用",
-    "actionResult": "动作结果",
-    "actions": {
-      "loadFull": "刷新完整状态",
-      "loadDrilldown": "加载运行详情",
-      "dryRun": "试运行",
-      "execute": "执行",
-      "dryRunComplete": "试运行完成",
-      "executeComplete": "动作已执行"
-    },
-    "actionQueue": "行动队列",
-    "domainLaneMap": "动态地图",
-    "taskDrilldown": "任务详情",
-    "blockers": "阻塞"
-  },
   "noExternalSources": "未发现外部技能源",
-  "unavailable": "不可用",
-  "oplDeveloperMode": "OPL 开发者模式",
-  "oplDeveloperModeDesc": "来自 OPL App 状态的开发者模式实际状态。",
-  "oplAgentCodexContext": "OPL Agent Codex 上下文",
-  "oplAgentCodexContextDesc": "OPL 启动 Codex 任务时使用的 App 持有会话上下文。",
-  "oplDeveloperModeStates": {
-    "active_direct": "已开启",
-    "active_observe": "仅观察",
-    "inactive": "已关闭",
-    "auto": "自动",
-    "on": "已开启",
-    "off": "已关闭",
-    "unknown": "未知"
-  },
-  "appVersion": "App 版本",
-  "guiShellVersion": "GUI Shell 版本",
-  "oplFrameworkVersion": "OPL Framework 版本",
-  "releaseChannel": "发布通道",
-  "releaseChannels": {
-    "stable": "Stable",
-    "nightly": "Nightly"
-  },
-  "firstRun": {
-    "title": "First Run Readiness",
-    "description": "OPL checks only the core launch path first. Full runtime and domain maintenance stay visible here and in Settings.",
-    "openRuntimeSettings": "Runtime settings",
-    "enterGuid": "Start in OPL",
-    "coreReady": "Core ready",
-    "ready": "Ready",
-    "needsSetup": "Needs setup",
-    "coreProgress": "Core checks {{progress}} complete",
-    "blockers": "Core blockers",
-    "noCoreBlockers": "No core blockers. You can start using OPL.",
-    "backgroundMaintenance": "Background maintenance",
-    "noMaintenance": "No maintenance pending",
-    "readiness": "Readiness checks",
-    "lastAction": "Last action result",
-    "noActionYet": "No maintenance action has run in this window.",
-    "items": {
-      "workspaceRoot": "Workspace root",
-      "codex": "Codex CLI",
-      "codexConfig": "Codex API configuration",
-      "domainModules": "Domain modules",
-      "familyRuntimeProvider": "Family runtime provider",
-      "recommendedSkills": "Recommended skills"
-    },
-    "status": {
-      "pending": "Waiting for initialize state",
-      "unknown": "Unknown"
-    },
-    "actions": {
-      "completed": "Action completed"
+  "oplFirstLaunch": {
+    "wizardTitle": "准备 One Person Lab",
+    "preparing": "正在准备本地 OPL 运行时...",
+    "complete": "One Person Lab 已就绪",
+    "setupNeeded": "启动前还需要完成额外设置。",
+    "failed": "OPL 首次运行准备失败。",
+    "readyEntry": "可以开始使用 One Person Lab。",
+    "logPath": "首次运行日志：{{path}}",
+    "progress": {
+      "workingOn": "{{step}}（{{current}}/{{total}}）",
+      "steps": {
+        "checkingEnvironment": "检查环境",
+        "configureCodex": "配置 Codex",
+        "installingModules": "安装模块",
+        "reviewingStatus": "检查状态",
+        "complete": "完成"
+      }
     },
     "codex": {
-      "title": "Codex defaults",
-      "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
-      "apiKeyPlaceholder": "Enter Codex API key",
-      "apiKeyRequired": "Codex API key is required",
-      "configure": "Configure Codex",
-      "configured": "Codex configured"
+      "prompt": "请输入 Codex API Key。OPL 会写入本机 provider 配置，且不会把密钥写入日志。",
+      "providerEndpoint": "服务端点",
+      "initialModelProfile": "初始模型配置",
+      "apiKeyPlaceholder": "Codex API Key",
+      "apiKeyRequired": "请输入 Codex API Key。",
+      "configure": "配置 Codex"
     },
-    "maintenance": {
-      "title": "Maintenance actions",
-      "description": "These actions can run after Core is usable. They update clean managed surfaces and keep progress retryable.",
-      "installPrep": "Prepare install",
-      "startupMaintenance": "Run startup maintenance",
-      "reconcileModules": "Reconcile modules"
+    "actions": {
+      "retry": "重试",
+      "install": "继续设置",
+      "openEnvironment": "打开环境设置",
+      "openModules": "打开模块设置"
+    },
+    "blockers": {
+      "workspace_root": "工作区根目录需要处理。",
+      "codex": "Codex CLI 未就绪。",
+      "codex_config": "缺少 Codex API 配置。",
+      "family_runtime_provider": "运行底座未就绪。",
+      "domain_modules": "默认领域模块未就绪。",
+      "recommended_skills": "推荐配套能力需要处理。"
     }
+  },
+  "overview": "概览",
+  "runtime": "运行",
+  "access": "访问",
+  "appearance": "外观",
+  "groupOverview": "概览",
+  "groupRuntime": "运行",
+  "overviewPage": {
+    "title": "One Person Lab",
+    "description": "管理 OPL App 在 shell 升级后也必须保留的默认产品面。",
+    "codexTitle": "Codex CLI",
+    "codexDescription": "首页默认且唯一可见的执行入口。",
+    "workspaceTitle": "工作目录",
+    "workspaceDescription": "选择 OPL 运行任务使用的工作目录。",
+    "modulesTitle": "内置智能体",
+    "modulesDescription": "MAS、MAG、RCA 是默认内置智能体入口。",
+    "accessTitle": "访问",
+    "accessDescription": "配置桌面和远程访问入口。",
+    "maintenanceTitle": "运行维护",
+    "maintenanceDescription": "打开运行状态页、修复本地 OPL 环境，或管理内置智能体能力。",
+    "actions": {
+      "openRuntimeStatus": "打开运行状态",
+      "openRuntimeSettings": "打开运行设置",
+      "openFoundryAgents": "打开内置智能体"
+    }
+  },
+  "runtimePage": {
+    "title": "运行",
+    "description": "检查 Codex CLI、工作目录、日志目录和 OPL 智能体模块就绪状态。",
+    "versionDetail": "OPL {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
+    "releaseChannels": {
+      "stable": "稳定版",
+      "latest": "最新版",
+      "nightly": "夜间版",
+      "beta": "测试版",
+      "dev": "开发版"
+    }
+  },
+  "oplEnvironmentPage": {
+    "workspaceRootTitle": "工作目录",
+    "workspaceRootMissing": "尚未选择工作目录",
+    "modulesTitle": "智能体模块",
+    "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
+    "actions": {
+      "doctor": "运行诊断",
+      "refresh": "刷新",
+      "repair": "修复 OPL",
+      "chooseWorkspaceRoot": "选择工作目录",
+      "startTemporal": "启动 Temporal",
+      "restartTemporalWorker": "重启 Temporal 后台执行器"
+    },
+    "messages": {
+      "commandFailed": "OPL 命令执行失败",
+      "doctorComplete": "OPL 诊断完成",
+      "repairComplete": "OPL 修复完成",
+      "workspaceRootSaved": "工作目录已保存",
+      "loadModulesFailed": "暂时无法读取运行模块详情。",
+      "backgroundRuntimeCheck": "正在后台补充检查 Codex 和工作目录状态。"
+    },
+    "status": {
+      "unknown": "未知",
+      "ready": "就绪",
+      "compatible": "兼容",
+      "installed": "已安装",
+      "notInstalled": "未安装",
+      "missing": "缺失",
+      "blocking": "阻塞",
+      "failed": "失败",
+      "warning": "警告",
+      "degraded": "降级",
+      "pending": "等待中",
+      "ok": "正常",
+      "worker_source_stale": "后台执行器需重启",
+      "attention_required": "需要处理"
+    },
+    "items": {
+      "module": {
+        "latest": "由 OPL 运行时管理"
+      }
+    },
+    "temporal": {
+      "workerSourceStaleDetail": "后台执行器需重启"
+    },
+    "installOrigins": {
+      "managed_root": "来自 OPL 托管目录",
+      "sibling_workspace": "来自本机同级开发仓库",
+      "env_override": "来自环境变量覆盖",
+      "missing": "未找到 checkout",
+      "invalid_checkout": "checkout 无效",
+      "unknown": "来源未知"
+    },
+    "moduleActions": {
+      "update": "可更新",
+      "install": "可安装",
+      "reinstall": "可重装",
+      "remove": "可移除"
+    },
+    "gitSyncStatus": {
+      "current": "已是最新",
+      "behind": "有更新",
+      "ahead": "本地领先",
+      "diverged": "分叉",
+      "unknown": "同步状态未知"
+    },
+    "moduleVersion": {
+      "managedScope": "OPL 托管模块",
+      "developerScope": "本机开发目录",
+      "scopeDescription": "这里显示的是 OPL App 当前使用的运行时模块。普通模式使用 OPL 托管目录；开发者模式或显式覆盖生效时才会切到本机开发目录。",
+      "gitRevision": "版本 {{revision}}",
+      "behind": "落后 {{count}} 次提交",
+      "behindAvailable": "远端有可用更新（{{count}} 次提交）",
+      "ahead": "领先 {{count}} 次提交",
+      "modulesRoot": "模块根目录：{{path}}",
+      "checkoutPath": "当前使用路径：{{path}}",
+      "repoUrl": "上游仓库：{{url}}",
+      "pathSource": "路径来源：{{source}}",
+      "pathSources": {
+        "managedRoot": "按 OPL 托管模块根目录解析",
+        "siblingWorkspace": "检测到本机同级开发仓库",
+        "envOverride": "由显式环境变量覆盖",
+        "missing": "托管目录和开发目录都未找到",
+        "invalidCheckout": "检测到路径但不是有效 git checkout",
+        "unknown": "模块发现结果未声明来源"
+      }
+    },
+    "codexContext": {
+      "title": "OPL Agent Codex 上下文",
+      "description": "新建 Codex CLI 会话时注入的 OPL App 默认上下文。这里是只读展示，来源是 OPL App 产品规则。"
+    }
+  },
+  "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "appearancePage": {
+    "visualTheme": "界面主题",
+    "codexTheme": "Codex 主题",
+    "defaultTheme": "默认主题",
+    "themeSaved": "外观主题已更新",
+    "themeSaveFailed": "外观主题更新失败"
   }
 }

@@ -9,6 +9,9 @@ import { blurActiveElement } from '@renderer/utils/ui/focus';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { useAllCronJobs } from '@renderer/pages/cron/useCronJobs';
 import { useTeamCreatedRedirect } from '@renderer/pages/team/hooks/useTeamCreatedRedirect';
+import { Tooltip } from '@arco-design/web-react';
+import { ActivitySource } from '@icon-park/react';
+import { useTranslation } from 'react-i18next';
 import { SiderToolbar, SiderSearchEntry, SiderScheduledEntry } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import CronJobSiderSection from './CronJobSiderSection';
@@ -35,6 +38,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
   const { theme, setTheme } = useThemeContext();
   const [isBatchMode, setIsBatchMode] = useState(false);
   const { jobs: cronJobs } = useAllCronJobs();
+  const { t } = useTranslation();
   useTeamCreatedRedirect();
   const isSettings = pathname.startsWith('/settings');
   const lastNonSettingsPathRef = useRef('/guid');
@@ -69,7 +73,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
         console.error('Navigation failed:', error);
       });
     } else {
-      Promise.resolve(navigate('/settings/model')).catch((error) => {
+      Promise.resolve(navigate('/settings/overview')).catch((error) => {
         console.error('Navigation failed:', error);
       });
     }
@@ -91,6 +95,19 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
     closePreview();
     setIsBatchMode(false);
     Promise.resolve(navigate('/scheduled')).catch((error) => {
+      console.error('Navigation failed:', error);
+    });
+    if (onSessionClick) {
+      onSessionClick();
+    }
+  };
+
+  const handleRuntimeClick = () => {
+    cleanupSiderTooltips();
+    blurActiveElement();
+    closePreview();
+    setIsBatchMode(false);
+    Promise.resolve(navigate('/runtime')).catch((error) => {
       console.error('Navigation failed:', error);
     });
     if (onSessionClick) {
@@ -186,6 +203,32 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
               siderTooltipProps={siderTooltipProps}
               onClick={handleScheduledClick}
             />
+            <Tooltip {...siderTooltipProps} content={t('common.runtime.sidebarEntry')} position='right'>
+              <div
+                className={classNames(
+                  'box-border group h-34px w-full flex items-center justify-start gap-8px pl-10px pr-8px rd-0.5rem cursor-pointer shrink-0 transition-all text-t-primary',
+                  isMobile && 'sider-action-btn-mobile',
+                  pathname === '/runtime' ? 'bg-fill-3' : 'hover:bg-fill-3 active:bg-fill-4',
+                  collapsed && 'justify-center px-0'
+                )}
+                onClick={handleRuntimeClick}
+              >
+                <span className='size-22px flex items-center justify-center shrink-0 text-t-primary'>
+                  <ActivitySource
+                    theme='outline'
+                    size={collapsed ? '20' : '16'}
+                    fill='currentColor'
+                    className='block leading-none'
+                    style={{ lineHeight: 0 }}
+                  />
+                </span>
+                {!collapsed && (
+                  <span className='collapsed-hidden text-t-primary text-14px font-[500] leading-24px'>
+                    {t('common.runtime.sidebarEntry')}
+                  </span>
+                )}
+              </div>
+            </Tooltip>
             {/* Divider between fixed top nav and scrollable content area */}
             <div
               className={classNames(

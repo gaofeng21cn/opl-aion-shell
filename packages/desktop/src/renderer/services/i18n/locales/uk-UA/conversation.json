@@ -19,7 +19,8 @@
     "quickActionStar": "Подобається? Поставте нам зірку!",
     "skillsMarket": "Маркет навичок One Person Lab App",
     "skillsMarketDesc": "Шукайте та активуйте навички спільноти за запитом. Налаштуйте один раз — доступно для всіх агентів.",
-    "skillsMarketDetails": "Докладніше >>"
+    "skillsMarketDetails": "Докладніше >>",
+    "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it..."
   },
   "history": {
     "recents": "Недавні",
@@ -214,7 +215,8 @@
       "permissionDenied": "Доступ до мікрофона відхилено",
       "recordingUnsupported": "Запис у реальному часі не підтримується. Будь ласка, завантажте аудіофайл",
       "transcriptionFailed": "Не вдалося транскрибувати аудіо",
-      "genericError": "Помилка голосового введення. Спробуйте ще раз"
+      "genericError": "Помилка голосового введення. Спробуйте ще раз",
+      "emptyTranscript": "No speech was detected"
     }
   },
   "sideQuestion": {

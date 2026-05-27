@@ -151,14 +151,24 @@
   "autoPreviewOfficeFiles": "Auto Preview New Office Files",
   "autoPreviewOfficeFilesDesc": "Automatically open newly created Word, Excel, and PowerPoint files in the current project. Office temporary lock files are ignored.",
   "startOnBoot": "Start on Boot",
-  "startOnBootDesc": "Launch One Person Lab App automatically when you sign in to macOS or Windows.",
+  "startOnBootDesc": "Launch One Person Lab automatically when you sign in to macOS or Windows.",
   "startOnBootUnsupported": "Available only in packaged macOS and Windows apps.",
   "startOnBootUpdateFailed": "Failed to update start on boot setting",
   "closeToTray": "Close to Tray",
+  "developerMode": "OPL Developer Mode",
+  "developerModeDesc": "Control whether OPL can perform developer actions through the system supervisor.",
+  "developerModeStateOff": "Developer actions are off.",
+  "developerModeStateLoading": "Reading Developer Mode status.",
+  "developerModeStateAuto": "OPL will enable developer actions only when the local environment is ready.",
+  "developerModeStateOnLimited": "Developer Mode is on, but privileged routes are currently limited.",
+  "developerModeStateOnReady": "Developer Mode is on and ready for supervised developer actions.",
+  "developerModeUpdateFailed": "Failed to update OPL Developer Mode",
+  "oplAgentCodexContext": "OPL Agent Codex Context",
+  "oplAgentCodexContextDesc": "The OPL GUI product contract and Codex context source currently used by this App.",
   "hardwareAcceleration": "Hardware Acceleration",
   "hardwareAccelerationDesc": "Use the GPU to render the UI. Disable if the app crashes on launch or graphics flicker.",
   "hardwareAccelerationAutoDisabled": "Disabled automatically after repeated GPU crashes.",
-  "hardwareAccelerationRestartConfirm": "Restart One Person Lab App to apply the new hardware acceleration setting?",
+  "hardwareAccelerationRestartConfirm": "Restart One Person Lab to apply the new hardware acceleration setting?",
   "hardwareAccelerationUpdateFailed": "Failed to update hardware acceleration setting",
   "notification": "Notifications",
   "cronNotificationEnabled": "Scheduled Task Completion",
@@ -235,6 +245,7 @@
   "baseUrlAutoFix": "base_url auto fix to: {{base_url}}",
   "updateConfirm": "Confirm Changes",
   "restartConfirm": "Changes will restart the application. Continue?",
+  "workspaceRootChangeConfirm": "Update the OPL workspace root and reload runtime state?",
   "theme": "Theme",
   "fontSize": "Scale",
   "fontSizeDescription": "Adjust the UI zoom level so the entire interface matches your preferred size.",
@@ -252,7 +263,7 @@
   "installed": "Installed",
   "builtin": "Built-in",
   "channels": "Channels",
-  "webui.description": "Use One Person Lab App as your \"24/7 Remote Assistant\" - arrange tasks from any remote device, anytime, anywhere.",
+  "webui.description": "Use One Person Lab as your \"24/7 Remote Assistant\" - arrange tasks from any remote device, anytime, anywhere.",
   "webui.steps": "Step 1. Turn on WebUI; Step 2. Copy the access URL; Step 3. Open in remote browser",
   "webui.configuration": "WebUI Configuration",
   "webui.enable": "Enable WebUI",
@@ -330,13 +341,13 @@
   "webui.passwordHint": "Password is shown in console on first startup. Use \"Change Password\" to reset",
   "webui.checkConsoleForPassword": "Check application console for initial password",
   "webui.browserNotSupported": "WebUI settings not available in browser",
-  "webui.browserNotSupportedDesc": "For security reasons, WebUI settings can only be managed in the desktop application. Please open the settings panel in One Person Lab App desktop app to configure.",
+  "webui.browserNotSupportedDesc": "For security reasons, WebUI settings can only be managed in the desktop application. Please open the settings panel in One Person Lab desktop app to configure.",
   "webui.passwordHidden": "******",
   "webui.passwordOnlyFirstTime": "Password is only shown on first startup and will be hidden afterwards",
   "webui.resetPasswordWarning": "Please keep the reset password safe!",
-  "webui.featureRemoteDesc": "Enable WebUI so your phone or remote browser can access One Person Lab App.",
+  "webui.featureRemoteDesc": "Enable WebUI so your phone or remote browser can access One Person Lab.",
   "webui.featureChannelsTitle": "Messaging Control",
-  "webui.featureChannelsDesc": "Connect Telegram, Lark, DingTalk, and WeChat to interact with One Person Lab App from IM apps.",
+  "webui.featureChannelsDesc": "Connect Telegram, Lark, DingTalk, and WeChat to interact with One Person Lab from IM apps.",
   "webui.goToChannels": "Go to Channels",
   "assistant.telegramConfig": "Telegram Bot Configuration",
   "assistant.botToken": "Bot Token",
@@ -404,7 +415,7 @@
   "channels.comingSoonDesc": "Support for {{channel}} is coming soon",
   "channels.notConfigured": "Not configured",
   "channels.configured": "Configured",
-  "channels.guide": "Connect Telegram, Lark, DingTalk and more to control your always-on One Person Lab App AI agent from any chat app.",
+  "channels.guide": "Connect Telegram, Lark, DingTalk and more to control your always-on One Person Lab AI agent from any chat app.",
   "channels.selectFirst": "Select a channel and configure credentials.",
   "channels.enableAfterConfig": "Enable the channel and start chatting with your AI agent.",
   "channels.extension.requiredField": "Please fill required field: {{field}}",
@@ -467,7 +478,7 @@
   "mcpImportSuccess": "Import successful",
   "mcpImportFailed": "Import failed",
   "mcpJsonInvalid": "Invalid JSON format",
-  "mcpImportDescription": "One Person Lab App will automatically retrieve the MCP installed in your CLI Agent and import it with one click",
+  "mcpImportDescription": "One Person Lab will automatically retrieve the MCP installed in your CLI Agent and import it with one click",
   "mcpStepSelectAgent": "Select Agent",
   "mcpStepFetchTools": "Fetch mcp",
   "mcpStepImportSuccess": "Import Success",
@@ -524,7 +535,8 @@
   "needHelpTooltip": "If you need help, please check",
   "googleCloudProjectPlaceholder": "Enter your Google Cloud Project ID",
   "noAvailableModels": "No available models",
-  "appDescription": "Local automation workspace for One Person Lab",
+  "appName": "One Person Lab",
+  "appDescription": "One Person Lab App is the macOS workbench for OPL agents, runtime setup, and release-managed updates.",
   "helpDocumentation": "Help Documentation",
   "updateLog": "Update Log",
   "feedback": "Feedback",
@@ -580,7 +592,8 @@
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
   "checkForUpdates": "Check for updates",
-  "includePrereleaseUpdates": "Include Nightly builds",
+  "includePrereleaseUpdates": "Receive Nightly builds",
+  "includeNightlyUpdates": "Receive Nightly builds",
   "saveModelConfigFailed": "Failed to save model configuration",
   "healthCheck": "Health Check",
   "clearStatus": "Clear status",
@@ -905,102 +918,183 @@
     "pendingCancel": "Cancel",
     "pendingTimeRemaining": "Time remaining: {{time}}"
   },
-  "runtime": {
-    "navLabel": "Runtime",
-    "title": "Runtime Workbench",
-    "description": "Summary-first OPL runtime visualization from framework-owned projections and refs.",
-    "sourceSurface": "Source surface",
-    "state": "Runtime state",
-    "stageGraph": "Stage graph",
-    "routeGraph": "Route graph",
-    "decisionMap": "Decision map",
-    "timeline": "Timeline",
-    "paperLensRefs": "Research paper lens refs",
-    "safeActions": "Safe action routes",
-    "ownerBoundary": "Owner boundary",
-    "refs": "Evidence refs",
-    "actionResult": "Action result",
-    "actions": {
-      "loadFull": "Refresh full state",
-      "loadDrilldown": "Load runtime detail",
-      "dryRun": "Dry run",
-      "execute": "Execute",
-      "dryRunComplete": "Dry run complete",
-      "executeComplete": "Action executed"
-    },
-    "actionQueue": "Action queue",
-    "domainLaneMap": "Dynamic map",
-    "taskDrilldown": "Task drilldown",
-    "blockers": "Blockers"
-  },
   "noExternalSources": "No external skill sources discovered",
-  "unavailable": "Unavailable",
-  "oplDeveloperMode": "OPL Developer Mode",
-  "oplDeveloperModeDesc": "Effective Developer Mode state from OPL App state.",
-  "oplAgentCodexContext": "OPL Agent Codex context",
-  "oplAgentCodexContextDesc": "App-owned Codex session context used when OPL starts a Codex task.",
-  "oplDeveloperModeStates": {
-    "active_direct": "On",
-    "active_observe": "Observe only",
-    "inactive": "Off",
-    "auto": "Auto",
-    "on": "On",
-    "off": "Off",
-    "unknown": "Unknown"
-  },
-  "appVersion": "App version",
-  "guiShellVersion": "GUI shell version",
-  "oplFrameworkVersion": "OPL Framework version",
-  "releaseChannel": "Release channel",
-  "releaseChannels": {
-    "stable": "Stable",
-    "nightly": "Nightly"
-  },
-  "firstRun": {
-    "title": "First Run Readiness",
-    "description": "OPL checks only the core launch path first. Full runtime and domain maintenance stay visible here and in Settings.",
-    "openRuntimeSettings": "Runtime settings",
-    "enterGuid": "Start in OPL",
-    "coreReady": "Core ready",
-    "ready": "Ready",
-    "needsSetup": "Needs setup",
-    "coreProgress": "Core checks {{progress}} complete",
-    "blockers": "Core blockers",
-    "noCoreBlockers": "No core blockers. You can start using OPL.",
-    "backgroundMaintenance": "Background maintenance",
-    "noMaintenance": "No maintenance pending",
-    "readiness": "Readiness checks",
-    "lastAction": "Last action result",
-    "noActionYet": "No maintenance action has run in this window.",
-    "items": {
-      "workspaceRoot": "Workspace root",
-      "codex": "Codex CLI",
-      "codexConfig": "Codex API configuration",
-      "domainModules": "Domain modules",
-      "familyRuntimeProvider": "Family runtime provider",
-      "recommendedSkills": "Recommended skills"
-    },
-    "status": {
-      "pending": "Waiting for initialize state",
-      "unknown": "Unknown"
-    },
-    "actions": {
-      "completed": "Action completed"
+  "oplFirstLaunch": {
+    "wizardTitle": "Prepare One Person Lab",
+    "preparing": "Preparing the local OPL runtime...",
+    "complete": "One Person Lab is ready",
+    "setupNeeded": "Additional setup is required before launch.",
+    "failed": "OPL first-run preparation failed.",
+    "readyEntry": "Ready to start using One Person Lab.",
+    "logPath": "First-run log: {{path}}",
+    "progress": {
+      "workingOn": "{{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "Checking environment",
+        "configureCodex": "Configuring Codex",
+        "installingModules": "Installing modules",
+        "reviewingStatus": "Reviewing status",
+        "complete": "Complete"
+      }
     },
     "codex": {
-      "title": "Codex defaults",
-      "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
-      "apiKeyPlaceholder": "Enter Codex API key",
-      "apiKeyRequired": "Codex API key is required",
-      "configure": "Configure Codex",
-      "configured": "Codex configured"
+      "prompt": "Enter your Codex API key. OPL will write the local provider configuration without logging the secret.",
+      "providerEndpoint": "Provider endpoint",
+      "initialModelProfile": "Initial model profile",
+      "apiKeyPlaceholder": "Codex API key",
+      "apiKeyRequired": "Enter a Codex API key.",
+      "configure": "Configure Codex"
     },
-    "maintenance": {
-      "title": "Maintenance actions",
-      "description": "These actions can run after Core is usable. They update clean managed surfaces and keep progress retryable.",
-      "installPrep": "Prepare install",
-      "startupMaintenance": "Run startup maintenance",
-      "reconcileModules": "Reconcile modules"
+    "actions": {
+      "retry": "Retry",
+      "install": "Continue Setup",
+      "openEnvironment": "Open Environment",
+      "openModules": "Open Modules"
+    },
+    "blockers": {
+      "workspace_root": "Workspace root needs attention.",
+      "codex": "Codex CLI is not ready.",
+      "codex_config": "Codex API configuration is missing.",
+      "family_runtime_provider": "Family runtime provider is not ready.",
+      "domain_modules": "Default domain modules are not ready.",
+      "recommended_skills": "Recommended companion skills need attention."
     }
+  },
+  "overview": "Overview",
+  "runtime": "Runtime",
+  "access": "Access",
+  "appearance": "Appearance",
+  "groupOverview": "Overview",
+  "groupRuntime": "Runtime",
+  "overviewPage": {
+    "title": "One Person Lab",
+    "description": "Manage the OPL App defaults that should survive shell upgrades.",
+    "codexTitle": "Codex CLI",
+    "codexDescription": "The default and only visible home agent backend.",
+    "workspaceTitle": "Workspace Root",
+    "workspaceDescription": "Choose the OPL workspace directory used by runtime tasks.",
+    "modulesTitle": "Foundry Agents",
+    "modulesDescription": "MAS, MAG, and RCA are the default OPL Foundry entries.",
+    "accessTitle": "Access",
+    "accessDescription": "Configure desktop and remote access surfaces.",
+    "maintenanceTitle": "Runtime Maintenance",
+    "maintenanceDescription": "Open the runtime status page, repair the local OPL environment, or manage Foundry Agent capabilities.",
+    "actions": {
+      "openRuntimeStatus": "Open Runtime Status",
+      "openRuntimeSettings": "Open Runtime Settings",
+      "openFoundryAgents": "Open Foundry Agents"
+    }
+  },
+  "runtimePage": {
+    "title": "Runtime",
+    "description": "Check Codex CLI, workspace, logs, and OPL Foundry module readiness.",
+    "versionDetail": "OPL {{oplVersion}} · GUI {{guiVersion}} · {{channel}}",
+    "releaseChannels": {
+      "stable": "Stable",
+      "latest": "Latest",
+      "nightly": "Nightly",
+      "beta": "Beta",
+      "dev": "Developer"
+    }
+  },
+  "oplEnvironmentPage": {
+    "workspaceRootTitle": "Workspace Root",
+    "workspaceRootMissing": "No workspace root has been selected",
+    "modulesTitle": "Foundry Modules",
+    "modulesReadyCount": "{{ready}} / {{total}} ready",
+    "actions": {
+      "doctor": "Run Doctor",
+      "refresh": "Refresh",
+      "repair": "Repair OPL",
+      "chooseWorkspaceRoot": "Choose Workspace",
+      "startTemporal": "Start Temporal",
+      "restartTemporalWorker": "Restart Temporal worker"
+    },
+    "messages": {
+      "commandFailed": "OPL command failed",
+      "doctorComplete": "OPL doctor completed",
+      "repairComplete": "OPL repair completed",
+      "workspaceRootSaved": "Workspace root saved",
+      "loadModulesFailed": "Runtime module details are not available yet.",
+      "backgroundRuntimeCheck": "Checking Codex and workspace details in the background."
+    },
+    "status": {
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "compatible": "Compatible",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "missing": "Missing",
+      "blocking": "Blocked",
+      "failed": "Failed",
+      "warning": "Warning",
+      "degraded": "Degraded",
+      "pending": "Pending",
+      "ok": "OK",
+      "worker_source_stale": "Worker restart needed",
+      "attention_required": "Needs attention"
+    },
+    "items": {
+      "module": {
+        "latest": "Managed by OPL family runtime"
+      }
+    },
+    "temporal": {
+      "workerSourceStaleDetail": "Worker restart needed"
+    },
+    "installOrigins": {
+      "managed_root": "From OPL-managed directory",
+      "sibling_workspace": "From local sibling developer checkout",
+      "env_override": "From environment override",
+      "missing": "Checkout not found",
+      "invalid_checkout": "Invalid checkout",
+      "unknown": "Unknown origin"
+    },
+    "moduleActions": {
+      "update": "Update available",
+      "install": "Install available",
+      "reinstall": "Reinstall available",
+      "remove": "Remove available"
+    },
+    "gitSyncStatus": {
+      "current": "Current",
+      "behind": "Updates available",
+      "ahead": "Local commits ahead",
+      "diverged": "Diverged",
+      "unknown": "Sync unknown"
+    },
+    "moduleVersion": {
+      "managedScope": "OPL-managed module",
+      "developerScope": "Local developer checkout",
+      "scopeDescription": "This list shows the runtime modules currently used by OPL App. Normal mode uses the OPL-managed directory; Developer Mode or an explicit override switches to local developer checkouts.",
+      "gitRevision": "Revision {{revision}}",
+      "behind": "{{count}} commits behind",
+      "behindAvailable": "Remote update available ({{count}} commits)",
+      "ahead": "{{count}} commits ahead",
+      "modulesRoot": "Modules root: {{path}}",
+      "checkoutPath": "Current path: {{path}}",
+      "repoUrl": "Upstream repo: {{url}}",
+      "pathSource": "Path source: {{source}}",
+      "pathSources": {
+        "managedRoot": "Resolved from the OPL-managed modules root",
+        "siblingWorkspace": "Detected a local sibling developer checkout",
+        "envOverride": "Set by an explicit environment override",
+        "missing": "No managed or developer checkout was found",
+        "invalidCheckout": "Path exists but is not a valid git checkout",
+        "unknown": "Module discovery did not declare an origin"
+      }
+    },
+    "codexContext": {
+      "title": "OPL Agent Codex Context",
+      "description": "Read-only OPL App default context injected into new Codex CLI sessions. The source is the OPL App product profile."
+    }
+  },
+  "aboutVersionBadge": "OPL v{{version}} · {{channel}}",
+  "appearancePage": {
+    "visualTheme": "Interface Theme",
+    "codexTheme": "Codex Theme",
+    "defaultTheme": "Default Theme",
+    "themeSaved": "Appearance theme updated",
+    "themeSaveFailed": "Failed to update appearance theme"
   }
 }

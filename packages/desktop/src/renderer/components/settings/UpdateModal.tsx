@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Button, Progress, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
 import { ipcBridge } from '@/common';
@@ -12,10 +12,22 @@ import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
 import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/update/updateTypes';
 import { useTranslation } from 'react-i18next';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 
 type UpdateInfo = UpdateReleaseInfo;
+type UpdateChannel = 'stable' | 'nightly';
+
+const OPL_APP_RELEASES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
+const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
+const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
+
+const readUpdateChannelPreference = (): UpdateChannel => {
+  const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
+  const legacySaved = localStorage.getItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY);
+  return (saved ?? legacySaved) === 'true' ? 'nightly' : 'stable';
+};
 
 const UpdateModal: React.FC = () => {
   const { t } = useTranslation();
@@ -31,6 +43,14 @@ const UpdateModal: React.FC = () => {
   // Whether electron-updater auto-update is available (determined automatically, not user-controllable)
   const [autoUpdateAvailable, setAutoUpdateAvailable] = useState(false);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
+  const appStateQuery = useOplAppState('fast');
+  const release = oplRecord(appStateQuery.appState.release);
+  const appStateVersion = oplString(release.app_version) ?? oplString(release.version) ?? '';
+  const appStateVersionRef = useRef(appStateVersion);
+
+  useEffect(() => {
+    appStateVersionRef.current = appStateVersion;
+  }, [appStateVersion]);
 
   const resetState = () => {
     setStatus('checking');
@@ -45,7 +65,6 @@ const UpdateModal: React.FC = () => {
     setAutoUpdateInfo(null);
   };
 
-  const includePrerelease = useMemo(() => localStorage.getItem('update.includePrerelease') === 'true', [visible]);
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
 
   const openReleasePage = () => {
@@ -56,32 +75,46 @@ const UpdateModal: React.FC = () => {
   };
 
   const checkForUpdates = async () => {
+    const channel = readUpdateChannelPreference();
     setStatus('checking');
+    setReleasePageUrl(OPL_APP_RELEASES_URL);
+    const fallbackCurrentVersion = appStateVersionRef.current;
+    if (fallbackCurrentVersion) {
+      setCurrentVersion(fallbackCurrentVersion);
+    }
     try {
       // Try auto-update (electron-updater) first
       let autoUpdateOk = false;
-      try {
-        const res = await ipcBridge.autoUpdate.check.invoke({ includePrerelease });
-        if (res?.success && res.data?.updateInfo) {
-          autoUpdateOk = true;
-          setAutoUpdateInfo({
-            version: res.data.updateInfo.version,
-            releaseNotes: res.data.updateInfo.releaseNotes,
-          });
-        } else if (res?.msg) {
-          console.warn('Auto-update check failed, using manual mode:', res.msg);
+      let autoUpdateChecked = false;
+      if (channel === 'stable') {
+        try {
+          const res = await ipcBridge.autoUpdate.check.invoke({ channel });
+          autoUpdateChecked = Boolean(res?.success && res.data?.checked);
+          if (res?.success && res.data?.updateInfo) {
+            autoUpdateOk = true;
+            setAutoUpdateInfo({
+              version: res.data.updateInfo.version,
+              releaseNotes: res.data.updateInfo.releaseNotes,
+            });
+          } else if (res?.msg) {
+            console.warn('Auto-update check failed, using manual mode:', res.msg);
+          }
+        } catch (err) {
+          console.warn('Auto-update check error, using manual mode:', err);
         }
-      } catch (err) {
-        console.warn('Auto-update check error, using manual mode:', err);
       }
       setAutoUpdateAvailable(autoUpdateOk);
 
       // Always run manual check for version info and release notes
-      const res = await ipcBridge.update.check.invoke({ includePrerelease });
+      const res = await ipcBridge.update.check.invoke({ channel });
       if (!res?.success) {
+        if (channel === 'stable' && autoUpdateChecked) {
+          setStatus(autoUpdateOk ? 'available' : 'upToDate');
+          return;
+        }
         throw new Error(res?.msg || t('update.checkFailed'));
       }
-      setCurrentVersion(res.data?.currentVersion || '');
+      setCurrentVersion(res.data?.currentVersion || fallbackCurrentVersion);
 
       if (autoUpdateOk) {
         // Auto-update available — use manual check data for display only
@@ -110,7 +143,7 @@ const UpdateModal: React.FC = () => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Update check failed:', err);
-      setErrorMsg(msg);
+      setErrorMsg(t('update.manualCheckFailedWithReleaseLink', { error: msg }));
       setStatus('error');
     }
   };

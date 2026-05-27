@@ -21,5 +21,22 @@
   "autoUpdateMode": "自動更新モード",
   "showInFolder": "フォルダーで表示",
   "openFile": "ファイルを開く",
-  "errorTitle": "更新に失敗しました"
+  "errorTitle": "更新に失敗しました",
+  "manualCheckFailedWithReleaseLink": "Could not read GitHub Releases: {{error}}. You can still open Releases to review Stable and Nightly builds.",
+  "errors": {
+    "invalidUrl": "Invalid download URL",
+    "httpsOnly": "Only HTTPS download URLs are allowed",
+    "hostNotAllowed": "Download host is not allowed: {{host}}",
+    "redirectNoLocation": "Download redirect is missing Location",
+    "tooManyRedirects": "Too many download redirects",
+    "githubApiFailed": "GitHub API request failed (status {{status}})",
+    "githubApiNotArray": "GitHub API response was not a release list",
+    "githubApiTimeout": "GitHub API request timed out after 30 seconds",
+    "downloadFailed": "Download request failed (status {{status}})",
+    "downloadNoBody": "Download response did not include a body",
+    "missingUrl": "Download URL is missing",
+    "checkReturnedNull": "Update check returned no result (development mode)",
+    "autoUpdateMetadataMissing": "Auto-update metadata is not bundled in this build; using the Release check instead.",
+    "nightlyUsesManualCheck": "Nightly builds are checked through GitHub Releases."
+  }
 }

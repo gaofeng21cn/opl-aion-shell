@@ -19,7 +19,8 @@
     "quickActionStar": "마음에 드시나요? 별을 주세요!",
     "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "커뮤니티 Skills를 필요에 따라 검색하고 활성화. 한 번 설정하면 모든 Agent에서 사용 가능.",
-    "skillsMarketDetails": "자세히 >>"
+    "skillsMarketDetails": "자세히 >>",
+    "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it..."
   },
   "history": {
     "recents": "최근",

@@ -30,10 +30,14 @@ export interface UpdateReleaseInfo {
 export interface UpdateCheckResult {
   currentVersion: string;
   updateAvailable: boolean;
+  channel?: 'stable' | 'nightly';
   latest?: UpdateReleaseInfo;
 }
 
 export interface UpdateCheckRequest {
+  channel?: 'stable' | 'nightly';
+  includeNightly?: boolean;
+  /** @deprecated Use channel or includeNightly. Kept to migrate older renderer preferences. */
   includePrerelease?: boolean;
   /** Defaults to iOfficeAI/AionUi when omitted */
   repo?: string;

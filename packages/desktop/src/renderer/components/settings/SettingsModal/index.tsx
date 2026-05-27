@@ -24,7 +24,7 @@ import SystemModalContent from './contents/SystemModalContent';
 import ToolsModalContent from './contents/ToolsModalContent';
 import WebuiModalContent from './contents/WebuiModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
-import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/components/SettingsSider';
+import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
 
 // ==================== 常量定义 / Constants ====================
 

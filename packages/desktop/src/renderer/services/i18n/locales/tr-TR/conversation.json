@@ -19,7 +19,8 @@
     "quickActionStar": "Bizi beğendiniz mi? Yıldız verin!",
     "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "Topluluk Skills'lerini ihtiyaç duyduğunuzda arayın ve etkinleştirin. Bir kez yapılandırın, tüm Agent'larda kullanılabilir.",
-    "skillsMarketDetails": "Ayrıntılar >>"
+    "skillsMarketDetails": "Ayrıntılar >>",
+    "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it..."
   },
   "history": {
     "recents": "Son",

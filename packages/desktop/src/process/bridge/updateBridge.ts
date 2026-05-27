@@ -50,7 +50,9 @@ type GitHubReleaseApi = {
 
 /** Parameters for auto-update check via electron-updater */
 interface AutoUpdateCheckParams {
-  /** Whether to include prerelease/dev builds in update check */
+  channel?: 'stable' | 'nightly';
+  includeNightly?: boolean;
+  /** @deprecated Use channel or includeNightly. */
   includePrerelease?: boolean;
 }
 
@@ -523,7 +525,8 @@ export function initUpdateBridge(): void {
     async (params): Promise<{ success: boolean; data?: UpdateCheckResult; msg?: string }> => {
       try {
         const repo = resolveRepo(params?.repo);
-        const includePrerelease = Boolean(params?.includePrerelease);
+        const includePrerelease =
+          params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
         const currentVersion = app.getVersion();
 
         // EN: Versioning note
@@ -564,6 +567,7 @@ export function initUpdateBridge(): void {
           data: {
             currentVersion,
             updateAvailable,
+            channel: includePrerelease ? 'nightly' : 'stable',
             latest,
           },
         };
@@ -616,12 +620,13 @@ export function initUpdateBridge(): void {
       params: AutoUpdateCheckParams
     ): Promise<{
       success: boolean;
-      data?: { updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } };
+      data?: { checked?: boolean; updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } };
       msg?: string;
     }> => {
       try {
         // Set prerelease preference before checking
-        const includePrerelease = Boolean(params?.includePrerelease);
+        const includePrerelease =
+          params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
         autoUpdaterService.setAllowPrerelease(includePrerelease);
 
         const result = await autoUpdaterService.checkForUpdates();
@@ -631,6 +636,7 @@ export function initUpdateBridge(): void {
           return {
             success: true,
             data: {
+              checked: true,
               updateInfo: {
                 version: result.updateInfo.version,
                 releaseDate: result.updateInfo.releaseDate,
@@ -640,7 +646,7 @@ export function initUpdateBridge(): void {
             },
           };
         }
-        return { success: result.success, msg: result.error };
+        return { success: result.success, data: { checked: true }, msg: result.error };
       } catch (err: unknown) {
         return { success: false, msg: err instanceof Error ? err.message : String(err) };
       }

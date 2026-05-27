@@ -26,6 +26,7 @@ import { Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
+import { filterOplFoundryAssistants } from '../oplGuidProfile';
 
 type AssistantSelectionAreaProps = {
   is_presetAgent: boolean;
@@ -249,8 +250,9 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
     return () => observer.disconnect();
   }, [assistants]);
 
-  // Render only if the backend catalog has at least one assistant.
-  if (!assistants || assistants.length === 0) return null;
+  const foundryAssistants = useMemo(() => filterOplFoundryAssistants(assistants), [assistants]);
+
+  if ((!assistants || assistants.length === 0) && foundryAssistants.length === 0) return null;
 
   if (is_presetAgent && selectedAgentInfo) {
     // Selected Assistant View
@@ -326,8 +328,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
         className={`${styles.assistantCardScrollWrap} ${isScrollable ? styles.assistantCardScrollWrapScrollable : ''}`}
       >
         <div className={styles.assistantCardGrid}>
-          {assistants
-            .filter((a) => a.enabled !== false)
+          {foundryAssistants
             .map((assistant) => {
               const avatarValue = assistant.avatar?.trim();
               const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
@@ -347,7 +348,10 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
                   key={assistant.id}
                   data-testid={`preset-pill-${assistant.id}`}
                   className={styles.assistantCard}
-                  onClick={() => onSelectAssistant(`custom:${assistant.id}`)}
+                  onClick={() => {
+                    onSelectAssistant(`custom:${assistant.id}`);
+                    onFocusInput();
+                  }}
                 >
                   <div className={styles.assistantCardAvatar}>
                     {isImageAvatar ? (

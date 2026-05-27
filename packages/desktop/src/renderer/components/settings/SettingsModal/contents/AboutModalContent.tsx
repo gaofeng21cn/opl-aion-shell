@@ -10,42 +10,69 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { readOplString, useOplAppState } from '@/renderer/hooks/opl/useOplAppState';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import FeedbackReportModal from './FeedbackReportModal';
-
-// __APP_VERSION__ is injected by electron.vite.config.ts `define:` from the
-// repo-root package.json. The previous `import packageJson from
-// '../../../../../../package.json'` resolved to packages/desktop/package.json
-// which is a workspace placeholder permanently pinned at "0.0.0".
-declare const __APP_VERSION__: string;
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type LinkItem =
   | { title: string; url: string; icon: React.ReactNode; onClick?: never }
   | { title: string; onClick: () => void; icon: React.ReactNode; url?: never };
+
+const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
+const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
+const OPL_APP_LATEST_RELEASE_URL = `${OPL_APP_REPO_URL}/releases/latest`;
+const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
+const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
+const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
+
+type AppVersions = {
+  oplVersion: string;
+  guiVersion: string;
+  frameworkVersion: string;
+  releaseRepo: string;
+  releaseChannel: string;
+};
+
+function formatReleaseChannel(channel: string | undefined, t: (key: string, options?: Record<string, string>) => string) {
+  const normalized = channel?.trim() || 'stable';
+  return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
+}
 
 const AboutModalContent: React.FC = () => {
   const { t } = useTranslation();
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const isElectron = isElectronDesktop();
-  const { appState } = useOplAppState('fast');
-  const release = appState?.release;
-  const appVersion = readOplString(release, 'version') ?? __APP_VERSION__;
-  const frameworkVersion = readOplString(release, 'framework_version') ?? readOplString(release, 'version') ?? '-';
-  const releaseChannel = readOplString(release, 'channel') ?? 'stable';
 
-  const [includePrerelease, setIncludePrerelease] = useState(false);
+  const [includeNightly, setIncludeNightly] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const appStateQuery = useOplAppState('fast');
 
   useEffect(() => {
-    const saved = localStorage.getItem('update.includePrerelease');
-    setIncludePrerelease(saved === 'true');
+    const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
+    const legacySaved = localStorage.getItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY);
+    setIncludeNightly((saved ?? legacySaved) === 'true');
   }, []);
 
-  const handlePrereleaseChange = (val: boolean) => {
-    setIncludePrerelease(val);
-    localStorage.setItem('update.includePrerelease', String(val));
+  const release = oplRecord(appStateQuery.appState.release);
+  const appVersions: AppVersions | null = appStateQuery.payload
+    ? {
+        oplVersion: oplString(release.app_version) ?? oplString(release.version) ?? '-',
+        guiVersion: oplString(release.gui_shell_version) ?? oplString(release.gui_version) ?? '-',
+        frameworkVersion:
+          oplString(release.opl_framework_version) ??
+          oplString(release.framework_version) ??
+          oplString(release.framework) ??
+          '-',
+        releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
+        releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
+      }
+    : null;
+
+  const handleNightlyChange = (val: boolean) => {
+    setIncludeNightly(val);
+    localStorage.setItem(UPDATE_INCLUDE_NIGHTLY_KEY, String(val));
+    localStorage.setItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY, String(val));
   };
 
   const openLink = async (url: string) => {
@@ -65,17 +92,17 @@ const AboutModalContent: React.FC = () => {
   const linkItems: LinkItem[] = [
     {
       title: t('settings.helpDocumentation'),
-      url: 'https://github.com/gaofeng21cn/one-person-lab-app',
+      url: OPL_FRAMEWORK_URL,
       icon: <Right theme='outline' size='16' />,
     },
     {
       title: t('settings.updateLog'),
-      url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases',
+      url: OPL_APP_RELEASES_URL,
       icon: <Right theme='outline' size='16' />,
     },
     {
       title: t('settings.feedback'),
-      url: 'https://github.com/gaofeng21cn/one-person-lab-app/issues',
+      url: `${OPL_APP_REPO_URL}/issues`,
       icon: <Right theme='outline' size='16' />,
     },
     {
@@ -85,12 +112,12 @@ const AboutModalContent: React.FC = () => {
     },
     {
       title: t('settings.contactMe'),
-      url: 'https://x.com/WailiVery',
+      url: `${OPL_APP_REPO_URL}/issues/new`,
       icon: <Right theme='outline' size='16' />,
     },
     {
       title: t('settings.officialWebsite'),
-      url: 'https://github.com/gaofeng21cn/one-person-lab-app',
+      url: OPL_APP_LATEST_RELEASE_URL,
       icon: <Right theme='outline' size='16' />,
     },
   ];
@@ -108,43 +135,39 @@ const AboutModalContent: React.FC = () => {
           {/* App Info Section */}
           <div className='flex flex-col items-center pb-24px'>
             <Typography.Title heading={3} className='text-24px font-bold text-t-primary mb-8px'>
-              One Person Lab App
+              {t('settings.appName')}
             </Typography.Title>
             <Typography.Text className='text-14px text-t-secondary mb-12px text-center'>
               {t('settings.appDescription')}
             </Typography.Text>
             <div className='flex items-center justify-center gap-8px mb-16px'>
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                {t('settings.appVersion')}: v{appVersion}
+                {appVersions
+                  ? t('settings.aboutVersionBadge', {
+                      version: appVersions.oplVersion,
+                      channel: formatReleaseChannel(appVersions.releaseChannel, t),
+                    })
+                  : t('common.loading')}
               </span>
               <div
                 className='text-t-primary cursor-pointer hover:text-t-secondary transition-colors p-4px'
                 onClick={() =>
-                  openLink('https://github.com/gaofeng21cn/one-person-lab-app').catch((error) =>
-                    console.error('Failed to open link:', error)
-                  )
+                  openLink(OPL_APP_REPO_URL).catch((error) => console.error('Failed to open link:', error))
                 }
               >
                 <Github theme='outline' size='20' />
               </div>
             </div>
-            <div className='w-full max-w-360px mb-16px space-y-6px'>
-              {[
-                [t('settings.guiShellVersion'), `v${__APP_VERSION__}`],
-                [t('settings.oplFrameworkVersion'), `v${frameworkVersion}`],
-                [
-                  t('settings.releaseChannel'),
-                  releaseChannel === 'preview' || releaseChannel === 'nightly'
-                    ? t('settings.releaseChannels.nightly')
-                    : t('settings.releaseChannels.stable'),
-                ],
-              ].map(([label, value]) => (
-                <div key={label} className='flex items-center justify-between gap-12px text-13px'>
-                  <span className='text-t-secondary'>{label}</span>
-                  <span className='text-t-primary font-500 text-right'>{value}</span>
-                </div>
-              ))}
-            </div>
+            {appVersions && (
+              <div className='flex flex-col items-center gap-4px mb-16px text-12px text-t-secondary'>
+                <Typography.Text>
+                  {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
+                </Typography.Text>
+                <Typography.Text>
+                  {t('settings.aboutFrameworkVersion', { version: appVersions.frameworkVersion })}
+                </Typography.Text>
+              </div>
+            )}
 
             {/* Check Update Section */}
             {isElectron && (
@@ -154,9 +177,9 @@ const AboutModalContent: React.FC = () => {
                 </Button>
                 <div className='flex items-center justify-between w-full'>
                   <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.includePrereleaseUpdates')}
+                    {t('settings.includeNightlyUpdates')}
                   </Typography.Text>
-                  <Switch size='small' checked={includePrerelease} onChange={handlePrereleaseChange} />
+                  <Switch size='small' checked={includeNightly} onChange={handleNightlyChange} />
                 </div>
               </div>
             )}

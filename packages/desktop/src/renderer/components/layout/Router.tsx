@@ -6,16 +6,14 @@ import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 const Conversation = React.lazy(() => import('@renderer/pages/conversation'));
 const FirstRun = React.lazy(() => import('@renderer/pages/FirstRun'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
-const AgentSettings = React.lazy(() => import('@renderer/pages/settings/AgentSettings'));
-const AssistantSettings = React.lazy(() => import('@renderer/pages/settings/AssistantSettings'));
+const OverviewSettings = React.lazy(() => import('@renderer/pages/settings/sections/OverviewSettings'));
+const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/sections/RuntimeSettings'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
-const DisplaySettings = React.lazy(() => import('@renderer/pages/settings/DisplaySettings'));
-const ModeSettings = React.lazy(() => import('@renderer/pages/settings/ModeSettings'));
-const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/RuntimeSettings'));
+const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
+const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
-const WebuiSettings = React.lazy(() => import('@renderer/pages/settings/WebuiSettings'));
-const PetSettings = React.lazy(() => import('@renderer/pages/settings/PetSettings'));
 const ExtensionSettingsPage = React.lazy(() => import('@renderer/pages/settings/ExtensionSettingsPage'));
+const RuntimePage = React.lazy(() => import('@renderer/pages/runtime'));
 const LoginPage = React.lazy(() => import('@renderer/pages/login'));
 const ComponentsShowcase = React.lazy(() => import('@renderer/pages/TestShowcase'));
 const ScheduledTasksPage = React.lazy(() => import('@renderer/pages/cron/ScheduledTasksPage'));
@@ -61,21 +59,25 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
             path='/team/:id'
             element={TEAM_MODE_ENABLED ? withRouteFallback(TeamIndex) : <Navigate to='/guid' replace />}
           />
-          <Route path='/settings/model' element={withRouteFallback(ModeSettings)} />
-          <Route path='/settings/assistants' element={withRouteFallback(AssistantSettings)} />
-          <Route path='/settings/agent' element={withRouteFallback(AgentSettings)} />
-          <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
+          <Route path='/settings/overview' element={withRouteFallback(OverviewSettings)} />
           <Route path='/settings/runtime' element={withRouteFallback(RuntimeSettings)} />
-          {/* Legacy routes — redirect to the merged /settings/capabilities page */}
+          <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
+          <Route path='/settings/access' element={withRouteFallback(AccessSettings)} />
+          <Route path='/settings/appearance' element={withRouteFallback(AppearanceSettings)} />
+          <Route path='/settings/model' element={<Navigate to='/settings/runtime' replace />} />
+          <Route path='/settings/agent' element={<Navigate to='/settings/runtime' replace />} />
+          <Route path='/settings/assistants' element={<Navigate to='/settings/capabilities' replace />} />
           <Route path='/settings/skills-hub' element={<Navigate to='/settings/capabilities?tab=skills' replace />} />
           <Route path='/settings/tools' element={<Navigate to='/settings/capabilities?tab=tools' replace />} />
-          <Route path='/settings/display' element={withRouteFallback(DisplaySettings)} />
-          <Route path='/settings/webui' element={withRouteFallback(WebuiSettings)} />
-          <Route path='/settings/pet' element={withRouteFallback(PetSettings)} />
+          <Route path='/settings/display' element={<Navigate to='/settings/appearance' replace />} />
+          <Route path='/settings/webui' element={<Navigate to='/settings/access' replace />} />
+          <Route path='/settings/pet' element={<Navigate to='/settings/appearance' replace />} />
           <Route path='/settings/system' element={withRouteFallback(SystemSettings)} />
           <Route path='/settings/about' element={withRouteFallback(SystemSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
-          <Route path='/settings' element={<Navigate to='/settings/model' replace />} />
+          <Route path='/settings' element={<Navigate to='/settings/overview' replace />} />
+          <Route path='/runtime' element={withRouteFallback(RuntimePage)} />
+          <Route path='/runtime/item' element={withRouteFallback(RuntimePage)} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />
           <Route path='/scheduled' element={withRouteFallback(ScheduledTasksPage)} />
           <Route path='/scheduled/:job_id' element={withRouteFallback(TaskDetailPage)} />

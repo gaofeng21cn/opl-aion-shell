@@ -1,7 +1,7 @@
 {
   "modalTitle": "软件更新",
   "checking": "正在检查更新...",
-  "checkFailed": "检查更新失败",
+  "checkFailed": "检查更新未完成",
   "upToDateTitle": "已是最新版本",
   "currentVersion": "当前版本：{{version}}",
   "availableTitle": "发现新版本",
@@ -12,8 +12,8 @@
   "downloadStartFailed": "启动下载失败",
   "downloadFailed": "下载失败",
   "noCompatibleAsset": "未找到适用于当前平台的安装包",
-  "noCompatibleAssetManual": "当前系统架构没有匹配的安装包，请前往 Release 页面手动下载对应版本。",
-  "goToRelease": "前往 Release",
+  "noCompatibleAssetManual": "当前系统架构没有匹配的安装包，请前往发布页面手动下载对应版本。",
+  "goToRelease": "前往发布页面",
   "downloadCompleteTitle": "下载完成",
   "readyToInstall": "准备安装",
   "readyToInstallDesc": "更新已下载完成，点击下方按钮重启应用并安装更新。",
@@ -21,5 +21,22 @@
   "autoUpdateMode": "自动更新模式",
   "showInFolder": "在文件夹中显示",
   "openFile": "打开文件",
-  "errorTitle": "更新失败"
+  "manualCheckFailedWithReleaseLink": "未能读取 GitHub 发布信息：{{error}}。你仍可以打开发布页面查看 Stable 和 Nightly 版本。",
+  "errorTitle": "更新未完成",
+  "errors": {
+    "invalidUrl": "下载地址无效",
+    "httpsOnly": "只允许使用 HTTPS 下载地址",
+    "hostNotAllowed": "下载域名不在允许列表：{{host}}",
+    "redirectNoLocation": "下载重定向缺少 Location 信息",
+    "tooManyRedirects": "下载重定向次数过多",
+    "githubApiFailed": "GitHub API 请求失败（状态码 {{status}}）",
+    "githubApiNotArray": "GitHub API 返回格式不正确",
+    "githubApiTimeout": "GitHub API 请求超时（30 秒）",
+    "downloadFailed": "下载请求失败（状态码 {{status}}）",
+    "downloadNoBody": "下载响应没有数据内容",
+    "missingUrl": "缺少下载地址",
+    "checkReturnedNull": "更新检查没有返回结果（开发模式）",
+    "autoUpdateMetadataMissing": "当前构建没有自动更新元数据，已改用发布版本检查。",
+    "nightlyUsesManualCheck": "Nightly 版本通过 GitHub Releases 检查。"
+  }
 }

@@ -34,6 +34,9 @@
     "downloadFailed": "Загрузка не удалась ({{status}})",
     "downloadNoBody": "Ответ загрузки не содержит данные",
     "missingUrl": "Отсутствует URL",
-    "checkReturnedNull": "Проверка обновлений не вернула результат (режим разработки)"
-  }
+    "checkReturnedNull": "Проверка обновлений не вернула результат (режим разработки)",
+    "autoUpdateMetadataMissing": "Auto-update metadata is not bundled in this build; using the Release check instead.",
+    "nightlyUsesManualCheck": "Nightly builds are checked through GitHub Releases."
+  },
+  "manualCheckFailedWithReleaseLink": "Could not read GitHub Releases: {{error}}. You can still open Releases to review Stable and Nightly builds."
 }

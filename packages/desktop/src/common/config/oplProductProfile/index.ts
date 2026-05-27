@@ -7,6 +7,14 @@
 import generatedProfile from './oplProductProfile.generated.json';
 
 export type OplCodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export const OPL_CODEX_CSS_THEME_ID = 'codex';
+export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
+export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
+export type OplVisibleCssThemeId = (typeof OPL_VISIBLE_CSS_THEME_IDS)[number];
+
+export function isOplVisibleCssThemeId(value: unknown): value is OplVisibleCssThemeId {
+  return typeof value === 'string' && OPL_VISIBLE_CSS_THEME_IDS.includes(value as OplVisibleCssThemeId);
+}
 
 export type OplHomeAssistant = {
   id: string;
@@ -81,6 +89,9 @@ type AppProductProfile = {
     };
   };
   settings: {
+    visible_tabs: string[];
+    environment_items: string[];
+    legacy_route_redirects?: Record<string, string>;
     developer_mode: {
       hide_machine_status: boolean;
       state_keys: Record<string, string>;
@@ -242,6 +253,24 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(settings) || !isRecord(developerMode) || !isRecord(boundary)) {
     throw new Error('Invalid OPL product profile: missing settings or boundary section');
   }
+  const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
+  const expectedTabs = ['overview', 'runtime', 'capabilities', 'access', 'appearance', 'system', 'about'];
+  if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
+    throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
+  }
+  const environmentItems = readStringArray(settings, 'environment_items', 'settings');
+  const legacySettingsRouteRedirects = isRecord(settings.legacy_route_redirects)
+    ? readStringRecord(settings.legacy_route_redirects, 'settings.legacy_route_redirects')
+    : {
+        model: 'runtime',
+        agent: 'runtime',
+        assistants: 'capabilities',
+        'skills-hub': 'capabilities',
+        tools: 'capabilities',
+        display: 'appearance',
+        webui: 'access',
+        pet: 'appearance',
+      };
   if (defaultSession.executor !== 'codex_cli') {
     throw new Error('Invalid OPL product profile: default_session_profile.executor must be codex_cli');
   }
@@ -404,6 +433,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       },
     },
     settings: {
+      visible_tabs: visibleSettingsTabs,
+      environment_items: environmentItems,
+      legacy_route_redirects: legacySettingsRouteRedirects,
       developer_mode: {
         hide_machine_status: developerMode.hide_machine_status === true,
         state_keys: readStringRecord(developerMode.state_keys, 'settings.developer_mode.state_keys'),
@@ -485,4 +517,16 @@ export function getOplReadyToLaunchNonBlockingItems(): string[] {
 
 export function getOplCommandLineToolsInstallMessage(): string {
   return OPL_PRODUCT_PROFILE.first_run.command_line_tools.messages.join('\n');
+}
+
+export function getOplGuiSettingsVisibleTabs(): string[] {
+  return [...OPL_PRODUCT_PROFILE.settings.visible_tabs];
+}
+
+export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
+  return { ...(OPL_PRODUCT_PROFILE.settings.legacy_route_redirects ?? {}) };
+}
+
+export function getOplRuntimeEnvironmentItems(): string[] {
+  return [...OPL_PRODUCT_PROFILE.settings.environment_items];
 }

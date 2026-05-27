@@ -27,11 +27,11 @@ describe('OPL theme CSS sync', () => {
   it('keeps the Codex preset resource aligned with the App theme instead of legacy AionUI themes', () => {
     const cssPath = path.join(
       process.cwd(),
-      'packages/desktop/src/renderer/pages/settings/DisplaySettings/presets/glittering-input-field.css'
+      'packages/desktop/src/renderer/pages/settings/DisplaySettings/presets/opl-codex.css'
     );
     const css = fs.readFileSync(cssPath, 'utf8');
 
-    expect(css).toContain('Codex Theme - One Person Lab App');
+    expect(css).toContain('One Person Lab Codex Theme');
     expect(css).toContain('--opl-codex-sidebar-bg');
     expect(css).toContain('SF Pro Text');
     expect(css).toContain('border: 0 !important');

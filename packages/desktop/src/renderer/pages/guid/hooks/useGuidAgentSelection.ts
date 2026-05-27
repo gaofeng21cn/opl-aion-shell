@@ -26,6 +26,7 @@ import { savePreferredMode, savePreferredModelId, getAgentKey as getAgentKeyUtil
 import { usePresetAssistantResolver } from './usePresetAssistantResolver';
 import { useAgentAvailability } from './useAgentAvailability';
 import { useCustomAgentsLoader } from './useCustomAgentsLoader';
+import { resolveOplDefaultAgentKey, withOplFoundryAssistantDefaults } from '../oplGuidProfile';
 
 export type GuidAgentSelectionResult = {
   selectedAgentKey: string;
@@ -106,8 +107,6 @@ function resolveDefaultMode(backend: string | undefined, agents: AgentMetadata[]
   return 'default';
 }
 
-const OPL_DEFAULT_AGENT_KEY = getOplDefaultExecutorAgentKey();
-
 type UseGuidAgentSelectionOptions = {
   modelList: IProvider[];
   isGoogleAuth: boolean;
@@ -130,7 +129,7 @@ export const useGuidAgentSelection = ({
   preselectAgentKey,
   locationKey,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
-  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(OPL_DEFAULT_AGENT_KEY);
+  const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(resolveOplDefaultAgentKey(undefined));
   const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [selectedMode, _setSelectedMode] = useState<string>(CODEX_MODE_NATIVE_FULL_ACCESS);
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
@@ -190,6 +189,7 @@ export const useGuidAgentSelection = ({
   const { assistants, customAgents, customAgentAvatarMap, refreshCustomAgents } = useCustomAgentsLoader({
     availableCustomAgentIds,
   });
+  const oplAssistants = useMemo(() => withOplFoundryAssistantDefaults(assistants), [assistants]);
 
   const {
     resolvePresetRulesAndSkills,
@@ -197,7 +197,7 @@ export const useGuidAgentSelection = ({
     resolvePresetAgentType,
     resolveEnabledSkills,
     resolveDisabledBuiltinSkills,
-  } = usePresetAssistantResolver({ assistants, localeKey });
+  } = usePresetAssistantResolver({ assistants: oplAssistants, localeKey });
 
   const { isMainAgentAvailable, getEffectiveAgentType } = useAgentAvailability({
     modelList,
@@ -220,11 +220,11 @@ export const useGuidAgentSelection = ({
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
       const assistantId = key.slice(7);
-      const assistant = assistants.find((a) => a.id === assistantId);
+      const assistant = oplAssistants.find((a) => a.id === assistantId);
       if (assistant) {
         return {
-          agent_type: assistant.preset_agent_type || 'gemini',
-          backend: assistant.preset_agent_type || 'gemini',
+          agent_type: assistant.preset_agent_type || getOplDefaultExecutorAgentKey(),
+          backend: assistant.preset_agent_type || getOplDefaultExecutorAgentKey(),
           name: assistant.name,
           id: assistant.id,
           custom_agent_id: assistant.id,
@@ -245,11 +245,12 @@ export const useGuidAgentSelection = ({
 
   const getDefaultAgentKey = useCallback(
     (agents: AvailableAgent[] | undefined): string => {
-      const defaultAgent = agents?.find((agent) => getAgentKey(agent) === OPL_DEFAULT_AGENT_KEY);
+      const oplDefaultKey = resolveOplDefaultAgentKey(agents);
+      const defaultAgent = agents?.find((agent) => getAgentKey(agent) === oplDefaultKey);
       if (defaultAgent) return getAgentKey(defaultAgent);
 
       const firstCliAgent = agents?.find((agent) => !agent.is_preset);
-      return firstCliAgent ? getAgentKey(firstCliAgent) : OPL_DEFAULT_AGENT_KEY;
+      return firstCliAgent ? getAgentKey(firstCliAgent) : oplDefaultKey;
     },
     [getAgentKey]
   );
@@ -266,7 +267,7 @@ export const useGuidAgentSelection = ({
   })();
   const selectedAgentInfo = useMemo(() => {
     return findAgentByKey(selectedAgentKey);
-  }, [selectedAgentKey, availableAgents, assistants]);
+  }, [selectedAgentKey, availableAgents, oplAssistants]);
   const is_presetAgent = Boolean(selectedAgentInfo?.is_preset);
 
   // --- SWR: Fetch detected execution engines (shared cache) ---
@@ -529,7 +530,7 @@ export const useGuidAgentSelection = ({
     selectedAgentInfo,
     is_presetAgent,
     availableAgents,
-    assistants,
+    assistants: oplAssistants,
     customAgents,
     selectedMode,
     setSelectedMode,

@@ -19,7 +19,8 @@
     "quickActionStar": "Нравится? Поставьте нам звезду!",
     "skillsMarket": "Маркет навыков One Person Lab App",
     "skillsMarketDesc": "Находите и активируйте навыки сообщества по запросу. Настройте один раз — доступно для всех агентов.",
-    "skillsMarketDetails": "Подробнее >>"
+    "skillsMarketDetails": "Подробнее >>",
+    "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it..."
   },
   "history": {
     "recents": "Недавние",

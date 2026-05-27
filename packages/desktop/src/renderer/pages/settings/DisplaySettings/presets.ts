@@ -10,7 +10,7 @@ import { defaultThemeCover } from './themeCovers.ts';
 
 // Theme CSS loaded as raw strings via Vite ?raw imports
 import defaultCss from './presets/default.css?raw';
-import glitteringInputFieldCss from './presets/glittering-input-field.css?raw';
+import oplCodexCss from './presets/opl-codex.css?raw';
 
 /**
  * 默认主题 ID / Default theme ID
@@ -28,7 +28,7 @@ export const PRESET_THEMES: ICssTheme[] = [
     id: CODEX_THEME_ID,
     name: 'Codex',
     is_preset: true,
-    css: glitteringInputFieldCss,
+    css: oplCodexCss,
     created_at: Date.now(),
     updated_at: Date.now(),
   },

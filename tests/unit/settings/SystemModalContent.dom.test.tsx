@@ -90,11 +90,15 @@ describe('SystemModalContent OPL App state', () => {
         app_state: {
           schema_version: 'opl_app_state.v1',
           developer_mode: {
+            enabled: 'on',
+            status: 'ready',
             effective_state: 'active_direct',
-            description: 'Developer mode from app state',
           },
           paths: {
-            workspace_root_path: '/Users/example/OPL Workspace',
+            workspace_root: {
+              selected_path: '/Users/example/OPL Workspace',
+              source: 'state',
+            },
             logs_dir: '/Users/example/.opl/logs',
           },
           opl_agent_codex_context: {
@@ -117,7 +121,7 @@ describe('SystemModalContent OPL App state', () => {
 
     expect(await screen.findByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
-    expect(screen.getByText('Developer mode from app state')).toBeInTheDocument();
+    expect(screen.getByText('settings.developerModeStateOnReady')).toBeInTheDocument();
     expect(
       screen.getByText('one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system')
     ).toBeInTheDocument();

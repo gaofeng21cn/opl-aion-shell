@@ -19,7 +19,8 @@
     "quickActionStar": "気に入った？スターをください！",
     "skillsMarket": "OPL Skills Market",
     "skillsMarketDesc": "コミュニティ Skills をオンデマンドで検索・有効化。一度設定すれば、すべてのAgentで利用可能。",
-    "skillsMarketDetails": "詳細 >>"
+    "skillsMarketDetails": "詳細 >>",
+    "oplPlaceholder": "Hand the task to OPL App: describe the goal, add files, choose a project, or schedule it..."
   },
   "history": {
     "recents": "最近",
