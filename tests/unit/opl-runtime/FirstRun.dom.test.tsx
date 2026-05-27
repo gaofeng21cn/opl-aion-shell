@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import FirstRun from '@/renderer/pages/FirstRun';
 
 const bridgeMocks = vi.hoisted(() => ({
+  getAppStateInvoke: vi.fn(),
   getInitializeInvoke: vi.fn(),
   runInstallPrepInvoke: vi.fn(),
   configureCodexInvoke: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@arco-design/web-react', async () => {
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
+      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
       getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
       runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
@@ -134,6 +136,47 @@ const initializeResult = {
   },
 };
 
+const fastStateReadyResult = {
+  surface: 'app_state_fast',
+  command: 'opl app state --profile fast --json',
+  stdout: '{}',
+  parsed: {
+    app_state: {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          api_key_present: true,
+          version_status: 'compatible',
+        },
+      },
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/workspace',
+          exists: true,
+          health_status: 'ready',
+        },
+      },
+    },
+  },
+};
+
+const fastStateNeedsSetupResult = {
+  ...fastStateReadyResult,
+  parsed: {
+    app_state: {
+      ...fastStateReadyResult.parsed.app_state,
+      core: {
+        codex: {
+          installed: true,
+          api_key_present: false,
+          version_status: 'compatible',
+        },
+      },
+    },
+  },
+};
+
 const blockedInitializeResult = {
   ...initializeResult,
   parsed: {
@@ -169,6 +212,7 @@ const blockedInitializeResult = {
 describe('FirstRun readiness page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    bridgeMocks.getAppStateInvoke.mockResolvedValue(fastStateNeedsSetupResult);
     bridgeMocks.getInitializeInvoke.mockResolvedValue(initializeResult);
     bridgeMocks.runStartupMaintenanceInvoke.mockResolvedValue({
       surface: 'startup_maintenance',
@@ -184,9 +228,20 @@ describe('FirstRun readiness page', () => {
     });
   });
 
+  it('uses fast App state to enter /guid immediately when Core launch requirements are ready', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(fastStateReadyResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
+  });
+
   it('loads initialize state and lets users enter /guid only after Core is ready', async () => {
     render(<FirstRun />);
 
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('aria-label', 'opl-first-run-window');

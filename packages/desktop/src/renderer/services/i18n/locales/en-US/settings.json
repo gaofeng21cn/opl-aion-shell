@@ -919,6 +919,63 @@
     "pendingTimeRemaining": "Time remaining: {{time}}"
   },
   "noExternalSources": "No external skill sources discovered",
+  "firstRun": {
+    "title": "First Run Readiness",
+    "description": "OPL checks only the core launch path first. Full runtime and domain maintenance stay visible here and in Settings.",
+    "openRuntimeSettings": "Runtime settings",
+    "enterGuid": "Start in OPL",
+    "coreReady": "Core ready",
+    "ready": "Ready",
+    "needsSetup": "Needs setup",
+    "coreProgress": "Core checks {{progress}} complete",
+    "blockers": "Core blockers",
+    "noCoreBlockers": "No core blockers. You can start using OPL.",
+    "backgroundMaintenance": "Background maintenance",
+    "noMaintenance": "No maintenance pending",
+    "readiness": "Readiness checks",
+    "lastAction": "Last action result",
+    "noActionYet": "No maintenance action has run in this window.",
+    "items": {
+      "workspaceRoot": "Workspace root",
+      "codex": "Codex CLI",
+      "codexConfig": "Codex API configuration",
+      "domainModules": "Domain modules",
+      "familyRuntimeProvider": "Family runtime provider",
+      "recommendedSkills": "Recommended skills"
+    },
+    "status": {
+      "pending": "Waiting for initialize state",
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "installed": "Installed",
+      "detected": "Detected",
+      "configured": "Configured",
+      "disabled": "Disabled",
+      "missing": "Missing",
+      "initializing": "Initializing",
+      "attentionNeeded": "Needs attention",
+      "blocking": "Blocked",
+      "failed": "Failed"
+    },
+    "actions": {
+      "completed": "Action completed"
+    },
+    "codex": {
+      "title": "Codex defaults",
+      "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
+      "apiKeyPlaceholder": "Enter Codex API key",
+      "apiKeyRequired": "Codex API key is required",
+      "configure": "Configure Codex",
+      "configured": "Codex configured"
+    },
+    "maintenance": {
+      "title": "Maintenance actions",
+      "description": "These actions can run after Core is usable. They update clean managed surfaces and keep progress retryable.",
+      "installPrep": "Prepare install",
+      "startupMaintenance": "Run startup maintenance",
+      "reconcileModules": "Reconcile modules"
+    }
+  },
   "oplFirstLaunch": {
     "wizardTitle": "Prepare One Person Lab",
     "preparing": "Preparing the local OPL runtime...",

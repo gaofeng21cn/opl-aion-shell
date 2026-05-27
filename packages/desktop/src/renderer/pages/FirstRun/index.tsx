@@ -10,6 +10,7 @@ import {
   findChecklistItem,
   formatProgressText,
   hasCodexConfigBlocker,
+  isCoreLaunchReadyFromAppState,
   readInitializePayload,
   type FirstRunItemId,
 } from './initializeModel';
@@ -19,6 +20,18 @@ import styles from './FirstRun.module.css';
 type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
 
 const STATUS_READY = new Set(['ready', 'installed', 'detected', 'configured', 'disabled']);
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  ready: 'settings.firstRun.status.ready',
+  installed: 'settings.firstRun.status.installed',
+  detected: 'settings.firstRun.status.detected',
+  configured: 'settings.firstRun.status.configured',
+  disabled: 'settings.firstRun.status.disabled',
+  missing: 'settings.firstRun.status.missing',
+  initializing: 'settings.firstRun.status.initializing',
+  attention_needed: 'settings.firstRun.status.attentionNeeded',
+  blocking: 'settings.firstRun.status.blocking',
+  failed: 'settings.firstRun.status.failed',
+};
 
 function itemStatusColor(item: FirstRunChecklistItem | null): string {
   if (!item) return 'gray';
@@ -28,8 +41,14 @@ function itemStatusColor(item: FirstRunChecklistItem | null): string {
   return 'gray';
 }
 
-function formatItemStatus(item: FirstRunChecklistItem | null, fallback: string): string {
-  return item?.status?.replaceAll('_', ' ') ?? fallback;
+function formatItemStatus(
+  item: FirstRunChecklistItem | null,
+  fallback: string,
+  t: (key: string) => string
+): string {
+  if (!item?.status) return fallback;
+  const labelKey = STATUS_LABEL_KEYS[item.status];
+  return labelKey ? t(labelKey) : fallback;
 }
 
 function resultPreview(result: FirstRunCommandResult): string {
@@ -57,7 +76,7 @@ function ReadinessItem({
         {item?.action_command_ref && <code className={styles.firstRunCommand}>{item.action_command_ref}</code>}
       </div>
       <Tag size='small' color={itemStatusColor(item)}>
-        {formatItemStatus(item, t('settings.firstRun.status.unknown'))}
+        {formatItemStatus(item, t('settings.firstRun.status.unknown'), t)}
       </Tag>
     </div>
   );
@@ -99,6 +118,21 @@ const FirstRun: React.FC = () => {
       setLoading(false);
     }
   }, []);
+
+  const loadFirstRunState = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const appState = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+      if (isCoreLaunchReadyFromAppState(appState.parsed)) {
+        navigate('/guid', { replace: true });
+        return;
+      }
+    } catch {
+      // Initialize state renders the actionable setup detail when fast App state is unavailable.
+    }
+    await refreshInitialize();
+  }, [navigate, refreshInitialize]);
 
   const runMaintenanceAction = useCallback(
     async (action: MaintenanceAction) => {
@@ -149,8 +183,9 @@ const FirstRun: React.FC = () => {
   }, [apiKey, refreshInitialize, t]);
 
   useEffect(() => {
-    void refreshInitialize();
-  }, [refreshInitialize]);
+    document.title = 'One Person Lab App';
+    void loadFirstRunState();
+  }, [loadFirstRunState]);
 
   const itemLabels: Record<FirstRunItemId, string> = {
     workspace_root: t('settings.firstRun.items.workspaceRoot'),

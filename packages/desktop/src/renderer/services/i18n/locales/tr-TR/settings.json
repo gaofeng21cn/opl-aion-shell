@@ -982,7 +982,17 @@
     },
     "status": {
       "pending": "Waiting for initialize state",
-      "unknown": "Unknown"
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "installed": "Installed",
+      "detected": "Detected",
+      "configured": "Configured",
+      "disabled": "Disabled",
+      "missing": "Missing",
+      "initializing": "Initializing",
+      "attentionNeeded": "Needs attention",
+      "blocking": "Blocked",
+      "failed": "Failed"
     },
     "actions": {
       "completed": "Action completed"

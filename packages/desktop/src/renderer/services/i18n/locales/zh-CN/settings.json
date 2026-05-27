@@ -920,6 +920,63 @@
     "pendingTimeRemaining": "剩余时间：{{time}}"
   },
   "noExternalSources": "未发现外部技能源",
+  "firstRun": {
+    "title": "首次运行检查",
+    "description": "OPL 会优先检查核心启动路径。完整运行底座和智能体维护状态会继续显示在这里和设置中。",
+    "openRuntimeSettings": "运行设置",
+    "enterGuid": "进入 OPL",
+    "coreReady": "核心已就绪",
+    "ready": "就绪",
+    "needsSetup": "需要设置",
+    "coreProgress": "核心检查已完成 {{progress}}",
+    "blockers": "核心阻塞项",
+    "noCoreBlockers": "没有核心阻塞项，可以开始使用 OPL。",
+    "backgroundMaintenance": "后台维护",
+    "noMaintenance": "暂无待维护项",
+    "readiness": "就绪检查",
+    "lastAction": "上次操作结果",
+    "noActionYet": "此窗口内尚未运行维护操作。",
+    "items": {
+      "workspaceRoot": "工作目录",
+      "codex": "Codex CLI",
+      "codexConfig": "Codex API 配置",
+      "domainModules": "智能体模块",
+      "familyRuntimeProvider": "运行底座",
+      "recommendedSkills": "推荐能力"
+    },
+    "status": {
+      "pending": "等待初始化状态",
+      "unknown": "未知",
+      "ready": "就绪",
+      "installed": "已安装",
+      "detected": "已检测",
+      "configured": "已配置",
+      "disabled": "已关闭",
+      "missing": "缺失",
+      "initializing": "初始化中",
+      "attentionNeeded": "需要处理",
+      "blocking": "阻塞",
+      "failed": "失败"
+    },
+    "actions": {
+      "completed": "操作已完成"
+    },
+    "codex": {
+      "title": "Codex 默认配置",
+      "defaults": "Provider {{provider}} 使用 {{baseUrl}}，默认模型 {{model}}，推理强度 {{reasoning}}。",
+      "apiKeyPlaceholder": "输入 Codex API Key",
+      "apiKeyRequired": "请输入 Codex API Key",
+      "configure": "配置 Codex",
+      "configured": "Codex 已配置"
+    },
+    "maintenance": {
+      "title": "维护操作",
+      "description": "这些操作可以在核心可用后继续运行，用于更新干净的托管运行面，并保持进度可重试。",
+      "installPrep": "准备安装",
+      "startupMaintenance": "运行启动维护",
+      "reconcileModules": "同步模块"
+    }
+  },
   "oplFirstLaunch": {
     "wizardTitle": "准备 One Person Lab",
     "preparing": "正在准备本地 OPL 运行时...",

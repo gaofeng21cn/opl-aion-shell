@@ -23,6 +23,56 @@ export function readInitializePayload(parsed: unknown): FirstRunInitialize | nul
   return isRecord(raw) ? (raw as FirstRunInitialize) : null;
 }
 
+function readRecord(record: unknown, key: string): JsonRecord | null {
+  if (!isRecord(record)) return null;
+  const value = record[key];
+  return isRecord(value) ? value : null;
+}
+
+function readString(record: unknown, key: string): string | null {
+  if (!isRecord(record)) return null;
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readBoolean(record: unknown, key: string): boolean | null {
+  if (!isRecord(record)) return null;
+  const value = record[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+function readAppStatePayload(parsed: unknown): JsonRecord | null {
+  if (!isRecord(parsed)) return null;
+  const appState = readRecord(parsed, 'app_state') ?? parsed;
+  return readString(appState, 'schema_version') === 'opl_app_state.v1' ? appState : null;
+}
+
+export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
+  const appState = readAppStatePayload(parsed);
+  const codex = readRecord(readRecord(appState, 'core'), 'codex');
+  const paths = readRecord(appState, 'paths');
+  const workspaceRoot = readRecord(paths, 'workspace_root');
+  const selectedWorkspace = readString(workspaceRoot, 'selected_path') ?? readString(paths, 'workspace_root_path');
+  const workspaceExists = readBoolean(workspaceRoot, 'exists');
+  const workspaceHealth = readString(workspaceRoot, 'health_status');
+  const codexInstalled = readBoolean(codex, 'installed');
+  const codexConfigured = readBoolean(codex, 'api_key_present');
+  const codexVersionStatus = readString(codex, 'version_status');
+  const codexHealth = readString(codex, 'health_status');
+
+  return Boolean(
+    selectedWorkspace
+      && workspaceExists !== false
+      && workspaceHealth !== 'missing'
+      && workspaceHealth !== 'blocking'
+      && codexInstalled === true
+      && codexConfigured === true
+      && codexVersionStatus !== 'incompatible'
+      && codexHealth !== 'missing'
+      && codexHealth !== 'blocking'
+  );
+}
+
 export function findChecklistItem(
   initialize: FirstRunInitialize | null,
   itemId: FirstRunItemId
