@@ -14,6 +14,14 @@ function writeFile(filePath: string, content: string, mode?: number) {
   if (mode) fs.chmodSync(filePath, mode);
 }
 
+function writeRuntimeToolShim(runtimeHome: string, command: string, output: string) {
+  if (process.platform === 'win32') {
+    writeFile(path.join(runtimeHome, 'bin', `${command}.cmd`), `@echo off\r\necho ${output}\r\n`, 0o755);
+    return;
+  }
+  writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
+}
+
 function createReadySystemInitialize() {
   return JSON.stringify({
     system_initialize: {
@@ -117,12 +125,8 @@ function createFullRuntimeEquivalenceFixture() {
   ]) {
     writeDomainPlugin(runtimeHome, pluginFixture);
   }
-  writeFile(path.join(runtimeHome, 'bin', 'officecli'), '#!/usr/bin/env bash\necho "officecli 1.0.0"\n', 0o755);
-  writeFile(
-    path.join(runtimeHome, 'bin', 'mineru-open-api'),
-    '#!/usr/bin/env bash\necho "mineru-open-api version 1.0.0"\n',
-    0o755
-  );
+  writeRuntimeToolShim(runtimeHome, 'officecli', 'officecli 1.0.0');
+  writeRuntimeToolShim(runtimeHome, 'mineru-open-api', 'mineru-open-api version 1.0.0');
   return { root, codexHome, runtimeHome };
 }
 

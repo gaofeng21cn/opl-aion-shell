@@ -26,4 +26,11 @@ describe('OPL release version stamping', () => {
     expect(viteConfig).toContain('__SHELL_VERSION__: JSON.stringify(shellVersion)');
     expect(viteConfig).toContain('__OPL_RELEASE_VERSION__: JSON.stringify(injectedOplReleaseVersion ||');
   });
+
+  it('sets a PR build-test release version so electron-builder artifact names can expand', () => {
+    const prChecks = readRepoFile('.github/workflows/pr-checks.yml');
+
+    expect(prChecks).toContain("OPL_RELEASE_VERSION: '26.5.27-pr'");
+    expect(prChecks.match(/OPL_RELEASE_VERSION: '26\.5\.27-pr'/g)?.length).toBe(3);
+  });
 });
