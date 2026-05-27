@@ -88,6 +88,20 @@ export function formatProgressText(initialize: FirstRunInitialize | null): strin
   return `${ready}/${total}`;
 }
 
+export function formatFullReadinessProgressText(initialize: FirstRunInitialize | null): string {
+  const progress = initialize?.setup_flow?.progress;
+  const ready = progress?.ready_full_readiness_count ?? 0;
+  const total = progress?.total_full_readiness_count ?? 0;
+  return `${ready}/${total}`;
+}
+
+export function formatMaintenanceProgressText(initialize: FirstRunInitialize | null): string {
+  const progress = initialize?.setup_flow?.progress;
+  const ready = progress?.ready_optional_count ?? 0;
+  const total = progress?.total_optional_count ?? 0;
+  return `${ready}/${total}`;
+}
+
 export function coreProgressPercent(initialize: FirstRunInitialize | null): number {
   const progress = initialize?.setup_flow?.progress;
   const ready = progress?.ready_required_count ?? progress?.required_completed_count ?? 0;
@@ -99,4 +113,11 @@ export function coreProgressPercent(initialize: FirstRunInitialize | null): numb
 export function hasCodexConfigBlocker(initialize: FirstRunInitialize | null): boolean {
   const item = findChecklistItem(initialize, 'codex_config');
   return item?.blocking === true;
+}
+
+export function findNextVisibleStep(initialize: FirstRunInitialize | null): string | null {
+  const blockingItem = initialize?.checklist?.find((item) => item.blocking && item.next_visible_step);
+  if (blockingItem?.next_visible_step) return blockingItem.next_visible_step;
+  const actionableItem = initialize?.checklist?.find((item) => item.next_visible_step);
+  return actionableItem?.next_visible_step ?? null;
 }

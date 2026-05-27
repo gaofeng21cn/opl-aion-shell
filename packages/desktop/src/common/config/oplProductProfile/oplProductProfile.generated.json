@@ -203,6 +203,38 @@
       "full_readiness_provider": "temporal",
       "ready_to_launch_blocking": false
     },
+    "progress_model": {
+      "source_command": "opl system initialize --json",
+      "source_path": "system_initialize.setup_flow",
+      "renderer_truth_policy": "render_only_no_shell_private_progress_truth",
+      "required_setup_flow_fields": ["phase", "ready_to_launch", "progress", "blocking_items", "maintenance_items"],
+      "required_progress_fields": [
+        "ready_required_count",
+        "total_required_count",
+        "ready_full_readiness_count",
+        "total_full_readiness_count",
+        "ready_optional_count",
+        "total_optional_count"
+      ],
+      "required_checklist_fields": [
+        "item_id",
+        "label",
+        "status",
+        "readiness_layer",
+        "blocking",
+        "severity",
+        "next_visible_step",
+        "detail_summary"
+      ],
+      "required_visible_elements": [
+        "current initialization phase",
+        "Core completed and total count",
+        "Full readiness completed and total count",
+        "background maintenance completed and total count",
+        "blocking item list",
+        "next visible step"
+      ]
+    },
     "core_ready_policy": {
       "full_first_install_clean_machine": {
         "missing_host_tools_allowed": ["command_line_tools", "homebrew", "node", "git"],

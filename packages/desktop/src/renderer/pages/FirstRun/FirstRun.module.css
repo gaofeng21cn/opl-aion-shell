@@ -148,6 +148,17 @@
   font-family: var(--font-mono);
 }
 
+.firstRunProgressDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.firstRunProgressDetails p {
+  margin: 0;
+}
+
 .firstRunSectionActions {
   display: flex;
   flex-wrap: wrap;

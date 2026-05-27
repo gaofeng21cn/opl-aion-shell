@@ -8,6 +8,9 @@ import {
   coreProgressPercent,
   FIRST_RUN_ITEM_IDS,
   findChecklistItem,
+  findNextVisibleStep,
+  formatFullReadinessProgressText,
+  formatMaintenanceProgressText,
   formatProgressText,
   hasCodexConfigBlocker,
   isCoreLaunchReadyFromAppState,
@@ -100,9 +103,14 @@ const FirstRun: React.FC = () => {
     initialize?.setup_flow?.ready_to_launch === true || initialize?.readiness?.launch_ready === true;
   const codexConfigBlocked = hasCodexConfigBlocker(initialize);
   const progressText = formatProgressText(initialize);
+  const fullReadinessProgressText = formatFullReadinessProgressText(initialize);
+  const maintenanceProgressText = formatMaintenanceProgressText(initialize);
   const progressPercent = coreProgressPercent(initialize);
   const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   const maintenanceItems = initialize?.setup_flow?.maintenance_items ?? [];
+  const currentPhase =
+    initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown');
+  const nextVisibleStep = findNextVisibleStep(initialize);
   const codexProfile = initialize?.codex_default_profile;
 
   const refreshInitialize = useCallback(async () => {
@@ -246,7 +254,18 @@ const FirstRun: React.FC = () => {
                 </Tag>
               </div>
               <Progress percent={progressPercent} size='small' />
-              <p>{t('settings.firstRun.coreProgress', { progress: progressText })}</p>
+              <div className={styles.firstRunProgressDetails}>
+                <p data-testid='opl-first-run-stage'>{t('settings.firstRun.stage', { phase: currentPhase })}</p>
+                <p data-testid='opl-first-run-core-progress'>
+                  {t('settings.firstRun.coreProgress', { progress: progressText })}
+                </p>
+                <p data-testid='opl-first-run-full-readiness-progress'>
+                  {t('settings.firstRun.fullReadinessProgress', { progress: fullReadinessProgressText })}
+                </p>
+                <p data-testid='opl-first-run-maintenance-progress'>
+                  {t('settings.firstRun.maintenanceProgress', { progress: maintenanceProgressText })}
+                </p>
+              </div>
             </div>
 
             <div className={styles.firstRunCard}>
@@ -261,6 +280,9 @@ const FirstRun: React.FC = () => {
               </div>
               <p data-testid='opl-first-run-blockers-list' aria-label='opl-first-run-blockers-list'>
                 {blockingItems.length > 0 ? blockingItems.join(', ') : t('settings.firstRun.noCoreBlockers')}
+              </p>
+              <p data-testid='opl-first-run-next-step' aria-label='opl-first-run-next-step'>
+                {nextVisibleStep ?? t('settings.firstRun.noNextStep')}
               </p>
             </div>
 

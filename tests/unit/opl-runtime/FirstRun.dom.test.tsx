@@ -259,6 +259,62 @@ describe('FirstRun readiness page', () => {
     expect(navigateMock).toHaveBeenCalledWith('/guid');
   });
 
+  it('summarizes initialize progress by stage, readiness layers, and next action', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
+      ...initializeResult,
+      parsed: {
+        system_initialize: {
+          ...initializeResult.parsed.system_initialize,
+          setup_flow: {
+            ready_to_launch: true,
+            phase: 'full_readiness_maintenance',
+            progress: {
+              ready_required_count: 3,
+              total_required_count: 3,
+              ready_full_readiness_count: 4,
+              total_full_readiness_count: 6,
+              ready_optional_count: 1,
+              total_optional_count: 3,
+            },
+            blocking_items: ['family_runtime_provider'],
+            maintenance_items: ['domain_modules', 'recommended_skills'],
+          },
+          checklist: initializeResult.parsed.system_initialize.checklist.map((item) =>
+            item.item_id === 'family_runtime_provider'
+              ? {
+                  ...item,
+                  blocking: true,
+                  severity: 'blocking',
+                  next_visible_step: 'Start the family runtime provider.',
+                }
+              : item.item_id === 'domain_modules'
+                ? {
+                    ...item,
+                    next_visible_step: 'Run startup maintenance.',
+                  }
+                : item
+          ),
+        },
+      },
+    });
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('opl-first-run-stage')).toHaveTextContent(
+      'settings.firstRun.stage full_readiness_maintenance'
+    );
+    expect(screen.getByTestId('opl-first-run-core-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
+    expect(screen.getByTestId('opl-first-run-full-readiness-progress')).toHaveTextContent(
+      'settings.firstRun.fullReadinessProgress 4/6'
+    );
+    expect(screen.getByTestId('opl-first-run-maintenance-progress')).toHaveTextContent(
+      'settings.firstRun.maintenanceProgress 1/3'
+    );
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('Start the family runtime provider.');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('family_runtime_provider');
+  });
+
   it('configures Codex through the narrow bridge when the Codex config blocks Core readiness', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult).mockResolvedValue(initializeResult);
 
