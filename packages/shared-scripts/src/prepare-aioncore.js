@@ -16,6 +16,9 @@ const path = require('path');
 
 const GITHUB_OWNER = 'iOfficeAI';
 const GITHUB_REPO = 'AionCore';
+const DEFAULT_DOWNLOAD_ATTEMPTS = 4;
+const DEFAULT_DOWNLOAD_RETRY_DELAY_MS = 5000;
+const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,6 +52,24 @@ function writeJson(filePath, payload) {
 
 function getBinaryName(platform) {
   return platform === 'win32' ? 'aioncore.exe' : 'aioncore';
+}
+
+function parsePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function sleepSync(ms) {
+  if (!ms) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function getDownloadAttempts() {
+  return parsePositiveInteger(process.env.AIONUI_AIONCORE_DOWNLOAD_ATTEMPTS, DEFAULT_DOWNLOAD_ATTEMPTS);
+}
+
+function getDownloadRetryDelayMs() {
+  return parsePositiveInteger(process.env.AIONUI_AIONCORE_DOWNLOAD_RETRY_DELAY_MS, DEFAULT_DOWNLOAD_RETRY_DELAY_MS);
 }
 
 // ---------------------------------------------------------------------------
@@ -112,20 +133,69 @@ function getDownloadUrl(assetName, tag) {
   return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${tag}/${assetName}`;
 }
 
-function downloadFile(url, outputPath) {
-  console.log(`  Downloading aioncore from ${url}`);
-  if (process.platform === 'win32') {
+function runDownloadOnce(url, outputPath, options = {}) {
+  const platform = options.platform || process.platform;
+  const execFile = options.execFileSync || execFileSync;
+  const timeout = options.timeout || 120000;
+
+  if (platform === 'win32') {
     const ps = `$ProgressPreference='SilentlyContinue'; Invoke-WebRequest -Uri '${url}' -OutFile '${outputPath.replace(/'/g, "''")}'`;
-    execFileSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], {
-      timeout: 120000,
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], {
+      timeout,
     });
     return;
   }
+
   try {
-    execFileSync('curl', ['-L', '--fail', '--silent', '--show-error', '-o', outputPath, url], { timeout: 120000 });
-  } catch {
-    execFileSync('wget', ['-q', '-O', outputPath, url], { timeout: 120000 });
+    execFile('curl', ['-L', '--fail', '--silent', '--show-error', '-o', outputPath, url], { timeout });
+  } catch (curlError) {
+    try {
+      execFile('wget', ['-q', '-O', outputPath, url], { timeout });
+    } catch (wgetError) {
+      const error = new Error(`curl failed: ${curlError.message}; wget failed: ${wgetError.message}`);
+      error.cause = wgetError;
+      throw error;
+    }
   }
+}
+
+function removePartialDownload(outputPath) {
+  try {
+    fs.rmSync(outputPath, { force: true });
+  } catch {}
+}
+
+function downloadFile(url, outputPath, options = {}) {
+  const attempts = parsePositiveInteger(options.attempts, getDownloadAttempts());
+  const baseDelayMs = parsePositiveInteger(options.retryDelayMs, getDownloadRetryDelayMs());
+  const sleep = options.sleep || sleepSync;
+  const logger = options.logger || console;
+  let lastError = null;
+
+  logger.log(`  Downloading aioncore from ${url}`);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        logger.log(`  Retry aioncore download (${attempt}/${attempts})`);
+      }
+      runDownloadOnce(url, outputPath, options);
+      return;
+    } catch (error) {
+      lastError = error;
+      removePartialDownload(outputPath);
+      if (attempt >= attempts) {
+        break;
+      }
+
+      const delayMs = Math.min(baseDelayMs * attempt, MAX_DOWNLOAD_RETRY_DELAY_MS);
+      logger.warn(`  Aioncore download attempt ${attempt}/${attempts} failed: ${error.message}`);
+      logger.warn(`  Waiting ${delayMs}ms before retrying aioncore download`);
+      sleep(delayMs);
+    }
+  }
+
+  throw new Error(`aioncore download failed after ${attempts} attempts: ${lastError?.message || 'unknown error'}`);
 }
 
 function extractArchive(archivePath, outputDir, platform) {
@@ -270,4 +340,11 @@ function prepareAioncore(options) {
   throw new Error(`aioncore binary not found for ${runtimeKey} (tag: ${tag})`);
 }
 
-module.exports = { prepareAioncore };
+module.exports = {
+  prepareAioncore,
+  __test__: {
+    downloadFile,
+    runDownloadOnce,
+    parsePositiveInteger,
+  },
+};
