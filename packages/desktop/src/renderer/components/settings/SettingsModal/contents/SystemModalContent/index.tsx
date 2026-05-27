@@ -23,6 +23,20 @@ import DevSettings from './DevSettings';
 import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
 
+const USER_VISIBLE_DEVELOPER_MODE_STATES = new Set([
+  'active_direct',
+  'active_observe',
+  'inactive',
+  'auto',
+  'on',
+  'off',
+  'unknown',
+]);
+
+function normalizeDeveloperModeState(state: string): string {
+  return USER_VISIBLE_DEVELOPER_MODE_STATES.has(state) ? state : 'unavailable';
+}
+
 /**
  * System settings content component
  *
@@ -50,6 +64,7 @@ const SystemModalContent: React.FC = () => {
     readOplString(appDeveloperMode, 'enabled') ??
     readOplString(appDeveloperMode, 'status') ??
     'unknown';
+  const developerModeDisplayState = normalizeDeveloperModeState(developerModeState);
   const developerModeDescription = readOplString(appDeveloperMode, 'description') ?? t('settings.oplDeveloperModeDesc');
 
   const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
@@ -468,9 +483,11 @@ const SystemModalContent: React.FC = () => {
                 className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
                 data-testid='opl-developer-mode-status'
               >
-                {t(`settings.oplDeveloperModeStates.${developerModeState}`, {
-                  defaultValue: developerModeState,
-                })}
+                {developerModeDisplayState === 'unavailable'
+                  ? t('settings.unavailable')
+                  : t(`settings.oplDeveloperModeStates.${developerModeDisplayState}`, {
+                      defaultValue: developerModeDisplayState,
+                    })}
               </span>
             </PreferenceRow>
             <PreferenceRow
