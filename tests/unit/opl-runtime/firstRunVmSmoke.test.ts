@@ -112,6 +112,25 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
 
+  it('smokes only settings routes that exist in the packaged router', () => {
+    const targetHashes = __test.SETTINGS_PAGE_SMOKE_TARGETS.map((target) => target.hash);
+
+    expect(targetHashes).toEqual([
+      '#/settings/model',
+      '#/settings/agent',
+      '#/settings/assistants',
+      '#/settings/capabilities',
+      '#/settings/runtime',
+      '#/settings/display',
+      '#/settings/webui',
+      '#/settings/system',
+      '#/settings/about',
+    ]);
+    expect(targetHashes).not.toContain('#/settings/overview');
+    expect(targetHashes).not.toContain('#/settings/access');
+    expect(targetHashes).not.toContain('#/settings/appearance');
+  });
+
   it('summarizes live system initialize readiness as the first-run proof source', () => {
     const summary = __test.summarizeCoreFirstLaunch(
       JSON.stringify({

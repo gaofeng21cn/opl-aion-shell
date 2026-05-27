@@ -1294,11 +1294,13 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
 }
 
 const SETTINGS_PAGE_SMOKE_TARGETS = [
-  { id: 'overview', hash: '#/settings/overview', requiredTextAny: [['Refresh status', '刷新状态']] },
-  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Develop OPL Agent', '开发 OPL Agent']] },
+  { id: 'model', hash: '#/settings/model', requiredTextAny: [['Model', '模型']] },
+  { id: 'agent', hash: '#/settings/agent', requiredTextAny: [['Agents']] },
+  { id: 'assistants', hash: '#/settings/assistants', requiredTextAny: [['Assistants', '助手']] },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
-  { id: 'access', hash: '#/settings/access', requiredTextAny: [['Access', '访问']] },
-  { id: 'appearance', hash: '#/settings/appearance', requiredTextAny: [['Appearance', '外观']] },
+  { id: 'runtime', hash: '#/settings/runtime', requiredTextAny: [['Runtime Workbench', '运行时工作台']] },
+  { id: 'display', hash: '#/settings/display', requiredTextAny: [['Theme', '主题']] },
+  { id: 'webui', hash: '#/settings/webui', requiredTextAny: [['Remote', '远程连接']] },
   { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode']] },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
 ];
@@ -1343,32 +1345,6 @@ async function captureSettingsPage(client, target, options, secret) {
   }
   fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
   return pageState;
-}
-
-async function exerciseOverviewRefresh(client) {
-  await evaluateCdp(
-    client,
-    `(() => {
-      const button = [...document.querySelectorAll('button')]
-        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
-      if (!button) throw new Error('Overview Refresh status button was not found');
-      button.click();
-      return true;
-    })()`
-  );
-  return await waitForCdpPredicate(
-    client,
-    `(() => {
-      const button = [...document.querySelectorAll('button')]
-        .find((candidate) => /Refresh status|刷新状态/.test(candidate.textContent || ''));
-      if (!button) return false;
-      return !button.className.includes('arco-btn-loading') && !button.getAttribute('aria-busy')
-        ? { refreshButtonReady: true, className: button.className }
-        : false;
-    })()`,
-    30_000,
-    'Overview Refresh status stayed loading after click'
-  );
 }
 
 function developerModeUiStateExpression(expectedChecked = null) {
@@ -1436,9 +1412,6 @@ async function runSettingsSmoke(options, secret) {
     for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
       const pageState = await captureSettingsPage(client, pageTarget, options, secret);
       const interactions = {};
-      if (pageTarget.id === 'overview') {
-        interactions.overviewRefresh = await exerciseOverviewRefresh(client);
-      }
       if (pageTarget.id === 'system') {
         interactions.developerMode = await exerciseDeveloperModeSwitch(client);
       }
