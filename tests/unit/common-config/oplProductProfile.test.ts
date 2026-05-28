@@ -115,9 +115,9 @@ describe('OPL generated product profile', () => {
       'mag',
       'rca',
     ]);
-    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')).toBe(
-      true
-    );
+    expect(
+      OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
+    ).toBe(true);
     expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
     expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
