@@ -52,6 +52,32 @@
         "selection_persists_into_conversation": true,
         "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
       },
+      "home_purpose_entries": [
+        {
+          "id": "research",
+          "primary_label": "科研",
+          "target_assistant_id": "mas",
+          "target_assistant_short_name": "MAS",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        },
+        {
+          "id": "grant",
+          "primary_label": "基金",
+          "target_assistant_id": "mag",
+          "target_assistant_short_name": "MAG",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        },
+        {
+          "id": "ppt",
+          "primary_label": "PPT",
+          "target_assistant_id": "rca",
+          "target_assistant_short_name": "RCA",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        }
+      ],
       "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
     },
     "default_assistants": [
@@ -60,9 +86,10 @@
         "display_name": "Med Auto Science",
         "short_name": "MAS",
         "home_purpose_label": "科研",
+        "home_entry_display_policy": "purpose_first",
         "role": "research_and_paper_agent",
-        "home_entry_policy": "visible_click_to_start",
-        "avatar": "科研",
+        "home_entry_policy": "purpose_entry_target",
+        "avatar": "MAS",
         "description_i18n": {
           "zh-CN": "推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。",
           "en-US": "Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress."
@@ -77,9 +104,10 @@
         "display_name": "Med Auto Grant",
         "short_name": "MAG",
         "home_purpose_label": "基金",
+        "home_entry_display_policy": "purpose_first",
         "role": "grant_authoring_agent",
-        "home_entry_policy": "visible_click_to_start",
-        "avatar": "基金",
+        "home_entry_policy": "purpose_entry_target",
+        "avatar": "MAG",
         "description_i18n": {
           "zh-CN": "推进基金选题、标书结构、申请书撰写、预算说明和评审意见回应。",
           "en-US": "Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses."
@@ -97,9 +125,10 @@
         "display_name": "RedCube AI",
         "short_name": "RCA",
         "home_purpose_label": "PPT",
+        "home_entry_display_policy": "purpose_first",
         "role": "presentation_and_visual_deliverable_agent",
-        "home_entry_policy": "visible_click_to_start",
-        "avatar": "PPT",
+        "home_entry_policy": "purpose_entry_target",
+        "avatar": "RCA",
         "description_i18n": {
           "zh-CN": "推进 PPT、汇报、图表、视觉交付物和演示材料制作。",
           "en-US": "Advance slide decks, reports, figures, visual deliverables, and presentation materials."

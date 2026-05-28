@@ -105,7 +105,21 @@ describe('OPL generated product profile', () => {
       'RedCube AI',
     ]);
     expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', 'PPT']);
-    expect(assistants.every((assistant) => assistant.home_entry_policy === 'visible_click_to_start')).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
+      'research',
+      'grant',
+      'ppt',
+    ]);
+    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.target_assistant_id)).toEqual([
+      'mas',
+      'mag',
+      'rca',
+    ]);
+    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')).toBe(
+      true
+    );
+    expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
+    expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
     expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);

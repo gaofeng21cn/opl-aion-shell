@@ -21,11 +21,21 @@ export type OplHomeAssistant = {
   display_name: string;
   short_name: string;
   home_purpose_label: string;
+  home_entry_display_policy: 'purpose_first';
   role: string;
-  home_entry_policy: 'visible_click_to_start';
+  home_entry_policy: 'purpose_entry_target';
   avatar: string;
   description_i18n: Record<string, string>;
   prompts_i18n: Record<string, string[]>;
+};
+
+export type OplHomePurposeEntry = {
+  id: string;
+  primary_label: string;
+  target_assistant_id: string;
+  target_assistant_short_name: string;
+  display_policy: 'purpose_first';
+  home_entry_policy: 'visible_click_to_start';
 };
 
 export type OplNonDefaultAssistant = {
@@ -78,6 +88,7 @@ type AppProductProfile = {
         selection_persists_into_conversation: true;
         frontier_model_preference_order: string[];
       };
+      home_purpose_entries: OplHomePurposeEntry[];
       retired_codex_models_must_not_be_exposed: string[];
     };
     default_assistants: OplHomeAssistant[];
@@ -183,6 +194,49 @@ function readStringArrayRecord(value: unknown, context: string): Record<string, 
   );
 }
 
+function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurposeEntry[] {
+  const value = guiHome.home_purpose_entries;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Invalid OPL product profile: gui.home.home_purpose_entries must be a non-empty array');
+  }
+
+  const entries = value.map((entry, index): OplHomePurposeEntry => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: gui.home.home_purpose_entries[${index}] must be an object`);
+    }
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    const primaryLabel = typeof entry.primary_label === 'string' ? entry.primary_label.trim() : '';
+    const targetAssistantId = typeof entry.target_assistant_id === 'string' ? entry.target_assistant_id.trim() : '';
+    const targetAssistantShortName =
+      typeof entry.target_assistant_short_name === 'string' ? entry.target_assistant_short_name.trim() : '';
+    if (!id || !primaryLabel || !targetAssistantId || !targetAssistantShortName) {
+      throw new Error(`Invalid OPL product profile: gui.home.home_purpose_entries[${index}] has blank fields`);
+    }
+    if (entry.display_policy !== 'purpose_first' || entry.home_entry_policy !== 'visible_click_to_start') {
+      throw new Error(`Invalid OPL product profile: purpose entry ${id} must be visible purpose-first`);
+    }
+    return {
+      id,
+      primary_label: primaryLabel,
+      target_assistant_id: targetAssistantId,
+      target_assistant_short_name: targetAssistantShortName,
+      display_policy: 'purpose_first',
+      home_entry_policy: 'visible_click_to_start',
+    };
+  });
+
+  if (entries.map((entry) => entry.id).join(',') !== ['research', 'grant', 'ppt'].join(',')) {
+    throw new Error('Invalid OPL product profile: purpose entries must be research, grant, and ppt');
+  }
+  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', 'PPT'].join(',')) {
+    throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
+  }
+  if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca'].join(',')) {
+    throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, and RCA');
+  }
+  return entries;
+}
+
 function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssistant[] {
   const value = gui.default_assistants;
   if (!Array.isArray(value) || value.length === 0) {
@@ -202,8 +256,8 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
     if (!id || !displayName || !shortName || !homePurposeLabel || !role || !avatar) {
       throw new Error(`Invalid OPL product profile: gui.default_assistants[${index}] has blank identity fields`);
     }
-    if (entry.home_entry_policy !== 'visible_click_to_start') {
-      throw new Error(`Invalid OPL product profile: default assistant ${id} must be visible click-to-start`);
+    if (entry.home_entry_display_policy !== 'purpose_first' || entry.home_entry_policy !== 'purpose_entry_target') {
+      throw new Error(`Invalid OPL product profile: default assistant ${id} must target a purpose-first home entry`);
     }
     const descriptionI18n = readStringRecord(entry.description_i18n, `gui.default_assistants.${id}.description_i18n`);
     const promptsI18n = readStringArrayRecord(entry.prompts_i18n, `gui.default_assistants.${id}.prompts_i18n`);
@@ -217,8 +271,9 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
       display_name: displayName,
       short_name: shortName,
       home_purpose_label: homePurposeLabel,
+      home_entry_display_policy: 'purpose_first',
       role,
-      home_entry_policy: 'visible_click_to_start',
+      home_entry_policy: 'purpose_entry_target',
       avatar,
       description_i18n: descriptionI18n,
       prompts_i18n: promptsI18n,
@@ -431,6 +486,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: GUI home Codex model policy must allow auto frontier selection');
   }
   readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
+  const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
   const nonDefaultAssistants = readNonDefaultAssistants(gui);
@@ -498,6 +554,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
             'gui.home.codex_auto_model_selection'
           ),
         },
+        home_purpose_entries: homePurposeEntries,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
       default_assistants: defaultHomeAssistants,
