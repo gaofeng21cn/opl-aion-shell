@@ -37,13 +37,7 @@ vi.mock('@/renderer/components/agent/AgentModeSelector', () => ({
 }));
 
 vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
-  default: ({
-    open,
-    entries,
-  }: {
-    open: boolean;
-    entries: Array<{ key: string; label: string; meta?: string }>;
-  }) =>
+  default: ({ open, entries }: { open: boolean; entries: Array<{ key: string; label: string; meta?: string }> }) =>
     open ? (
       <div data-testid='mobile-action-sheet'>
         {entries.map((entry) => (
@@ -58,13 +52,7 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
 }));
 
 vi.mock('@/renderer/components/chat/SendBox', () => ({
-  default: ({
-    rightTools,
-    onMobilePlusClick,
-  }: {
-    rightTools?: React.ReactNode;
-    onMobilePlusClick?: () => void;
-  }) => (
+  default: ({ rightTools, onMobilePlusClick }: { rightTools?: React.ReactNode; onMobilePlusClick?: () => void }) => (
     <div data-testid='sendbox'>
       {rightTools ? <div data-testid='sendbox-right-tools'>{rightTools}</div> : null}
       {onMobilePlusClick ? (

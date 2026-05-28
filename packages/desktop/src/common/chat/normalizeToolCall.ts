@@ -172,7 +172,9 @@ const getRawOutputText = (rawOutput: AcpRawOutputCompat | undefined): string | u
   );
   if (aggregate !== undefined) return aggregate;
 
-  return joinOutputStreams(getNonEmptyText(rawOutput.stdout) ?? '', getNonEmptyText(rawOutput.stderr) ?? '') || undefined;
+  return (
+    joinOutputStreams(getNonEmptyText(rawOutput.stdout) ?? '', getNonEmptyText(rawOutput.stderr) ?? '') || undefined
+  );
 };
 
 type AcpToolCallUpdateCompat = IMessageAcpToolCall['content']['update'] & {

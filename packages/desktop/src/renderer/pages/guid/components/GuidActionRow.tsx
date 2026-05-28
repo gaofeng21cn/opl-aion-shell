@@ -129,8 +129,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
   const isWebUI = !isElectronDesktop();
 
-  const isSkillChecked = (skill: GuidSkillMenuItem) =>
-    isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills)
+  const isSkillChecked = (skill: GuidSkillMenuItem) => isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
 
   const activeSkillCount = allSkills.filter(isSkillChecked).length;
 

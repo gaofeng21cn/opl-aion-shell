@@ -231,8 +231,8 @@ export const useAcpModelInfo = ({
 
   const canSwitch = Boolean(
     model_info &&
-      model_info.available_models.length > 0 &&
-      !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
+    model_info.available_models.length > 0 &&
+    !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
   );
 
   return { model_info, canSwitch, selectModel };

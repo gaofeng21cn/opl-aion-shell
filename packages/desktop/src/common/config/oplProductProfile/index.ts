@@ -663,11 +663,15 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (missingPrioritySkills.length > 0) {
     throw new Error('Invalid OPL product profile: skill_priority must include default skills');
   }
-  const missingPackagedVisibleSkills = defaultVisibleSkills.filter((skill) => !defaultPackagedCodexSkillIds.includes(skill));
+  const missingPackagedVisibleSkills = defaultVisibleSkills.filter(
+    (skill) => !defaultPackagedCodexSkillIds.includes(skill)
+  );
   if (missingPackagedVisibleSkills.length > 0) {
     throw new Error('Invalid OPL product profile: default visible skills must be packaged');
   }
-  const hiddenDefaultPackagedSkills = defaultPackagedCodexSkillIds.filter((skill) => !defaultVisibleSkills.includes(skill));
+  const hiddenDefaultPackagedSkills = defaultPackagedCodexSkillIds.filter(
+    (skill) => !defaultVisibleSkills.includes(skill)
+  );
   if (hiddenDefaultPackagedSkills.length > 0) {
     throw new Error('Invalid OPL product profile: default packaged skills must be default visible');
   }
