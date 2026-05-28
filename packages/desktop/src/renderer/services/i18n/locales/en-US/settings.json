@@ -915,5 +915,291 @@
     "pendingTimeout": "Approval request expired (5 minutes). Please try again.",
     "pendingCancel": "Cancel",
     "pendingTimeRemaining": "Time remaining: {{time}}"
+  },
+  "addSkillsTitle": "Add Skills",
+  "developerMode": "OPL Developer Mode",
+  "developerModeDesc": "Control whether OPL can perform developer actions through the system supervisor.",
+  "developerModeStateOff": "Developer actions are off.",
+  "developerModeStateLoading": "Reading Developer Mode status.",
+  "developerModeStateAuto": "OPL will enable developer actions only when the local environment is ready.",
+  "developerModeStateOnLimited": "Developer Mode is on, but privileged routes are currently limited.",
+  "developerModeStateOnReady": "Developer Mode is on and ready for supervised developer actions.",
+  "developerModeUpdateFailed": "Failed to update OPL Developer Mode",
+  "unavailable": "Unavailable",
+  "oplDeveloperMode": "OPL Developer Mode",
+  "oplDeveloperModeDesc": "Effective Developer Mode state from OPL App state.",
+  "oplAgentCodexContext": "OPL Agent Codex Context",
+  "oplAgentCodexContextDesc": "The OPL GUI product contract and Codex context source currently used by this App.",
+  "oplDeveloperModeStates": {
+    "active_direct": "On",
+    "active_observe": "Observe only",
+    "inactive": "Off",
+    "auto": "Auto",
+    "on": "On",
+    "off": "Off",
+    "unknown": "Unknown"
+  },
+  "workspaceRootChangeConfirm": "Update the OPL workspace root and reload runtime state?",
+  "skillsAdded": "{{addedCount}} skills added and selected{{skippedCountText}}",
+  "skippedCount": "{{count}} skipped",
+  "allSkillsExist": "All found skills already exist",
+  "noExternalSources": "No external skill sources discovered",
+  "firstRun": {
+    "title": "Prepare One Person Lab",
+    "description": "OPL checks the few things needed to start first. Extra tools keep preparing in the background.",
+    "openRuntimeSettings": "Runtime settings",
+    "enterGuid": "Start in OPL",
+    "coreReady": "Core ready",
+    "ready": "Ready",
+    "needsSetup": "Needs setup",
+    "stage": "Current stage: {{phase}}",
+    "coreProgress": "Core checks {{progress}} complete",
+    "fullReadinessProgress": "Full readiness {{progress}} complete",
+    "maintenanceProgress": "Maintenance and optional items {{progress}} complete",
+    "blockers": "Core blockers",
+    "noCoreBlockers": "No core blockers. You can start using OPL.",
+    "noNextStep": "No blocking next step.",
+    "backgroundMaintenance": "Background maintenance",
+    "noMaintenance": "No maintenance pending",
+    "readiness": "Readiness checks",
+    "technicalDetails": "Technical details",
+    "lastAction": "Last action result",
+    "noActionYet": "No maintenance action has run in this window.",
+    "beginner": {
+      "title": "Checking the essentials",
+      "readyTitle": "Ready to start",
+      "summaryChecking": "Checking your workspace, Codex, and API access now.",
+      "summaryPreparing": "The essentials are still being prepared. You can watch the progress here.",
+      "summaryNeedsAction": "One setup item needs your attention before you can start.",
+      "summaryReady": "Everything needed to start is ready.",
+      "nextStep": "Next step",
+      "backgroundMaintenanceWithCount": "{{count}} extra item(s) will keep preparing after you start.",
+      "backgroundReady": "Background preparation is clear."
+    },
+    "items": {
+      "workspaceRoot": "Workspace root",
+      "codex": "Codex CLI",
+      "codexConfig": "Codex API configuration",
+      "domainModules": "Domain modules",
+      "familyRuntimeProvider": "Family runtime provider",
+      "recommendedSkills": "Recommended skills"
+    },
+    "status": {
+      "pending": "Waiting for initialize state",
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "installed": "Installed",
+      "detected": "Detected",
+      "configured": "Configured",
+      "disabled": "Disabled",
+      "missing": "Missing",
+      "initializing": "Initializing",
+      "attentionNeeded": "Needs attention",
+      "blocking": "Blocked",
+      "failed": "Failed"
+    },
+    "actions": {
+      "completed": "Action completed"
+    },
+    "codex": {
+      "title": "Codex defaults",
+      "prompt": "Enter the Codex API key from your administrator to start using One Person Lab.",
+      "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
+      "apiKeyPlaceholder": "Enter Codex API key",
+      "apiKeyRequired": "Codex API key is required",
+      "configure": "Configure Codex",
+      "configured": "Codex configured"
+    },
+    "maintenance": {
+      "title": "Maintenance actions",
+      "description": "These actions can run after Core is usable. They update clean managed surfaces and keep progress retryable.",
+      "installPrep": "Prepare install",
+      "startupMaintenance": "Run startup maintenance",
+      "reconcileModules": "Reconcile modules"
+    },
+    "error": {
+      "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
+      "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
+      "codexConfig": "Codex API access is not configured yet. Enter the API key to continue."
+    }
+  },
+  "oplFirstLaunch": {
+    "wizardTitle": "Prepare One Person Lab",
+    "preparing": "Preparing the local OPL runtime...",
+    "complete": "One Person Lab is ready",
+    "setupNeeded": "Additional setup is required before launch.",
+    "failed": "OPL first-run preparation failed.",
+    "readyEntry": "Ready to start using One Person Lab.",
+    "logPath": "First-run log: {{path}}",
+    "progress": {
+      "workingOn": "{{step}} ({{current}}/{{total}})",
+      "steps": {
+        "checkingEnvironment": "Checking environment",
+        "configureCodex": "Configuring Codex",
+        "installingModules": "Installing modules",
+        "reviewingStatus": "Reviewing status",
+        "complete": "Complete"
+      }
+    },
+    "codex": {
+      "prompt": "Enter your Codex API key. OPL will write the local provider configuration without logging the secret.",
+      "providerEndpoint": "Provider endpoint",
+      "initialModelProfile": "Initial model profile",
+      "apiKeyPlaceholder": "Codex API key",
+      "apiKeyRequired": "Enter a Codex API key.",
+      "configure": "Configure Codex"
+    },
+    "actions": {
+      "retry": "Retry",
+      "install": "Continue Setup",
+      "openEnvironment": "Open Environment",
+      "openModules": "Open Modules"
+    },
+    "blockers": {
+      "workspace_root": "Workspace root needs attention.",
+      "codex": "Codex CLI is not ready.",
+      "codex_config": "Codex API configuration is missing.",
+      "family_runtime_provider": "Family runtime provider is not ready.",
+      "domain_modules": "Default domain modules are not ready.",
+      "recommended_skills": "Recommended companion skills need attention."
+    }
+  },
+  "overview": "Overview",
+  "runtime": "Runtime",
+  "access": "Access",
+  "appearance": "Appearance",
+  "groupOverview": "Overview",
+  "groupRuntime": "Runtime",
+  "overviewPage": {
+    "title": "One Person Lab",
+    "description": "Manage the OPL App defaults that should survive shell upgrades.",
+    "codexTitle": "Codex CLI",
+    "codexDescription": "The default and only visible home agent backend.",
+    "workspaceTitle": "Workspace Root",
+    "workspaceDescription": "Choose the OPL workspace directory used by runtime tasks.",
+    "modulesTitle": "Foundry Agents",
+    "modulesDescription": "MAS, MAG, and RCA are the default OPL Foundry entries.",
+    "accessTitle": "Access",
+    "accessDescription": "Configure desktop and remote access surfaces.",
+    "maintenanceTitle": "Runtime Maintenance",
+    "maintenanceDescription": "Open the runtime status page, repair the local OPL environment, or manage Foundry Agent capabilities.",
+    "actions": {
+      "openRuntimeStatus": "Open Runtime Status",
+      "openRuntimeSettings": "Open Runtime Settings",
+      "openFoundryAgents": "Open Foundry Agents"
+    }
+  },
+  "runtimePage": {
+    "title": "Runtime",
+    "description": "Check Codex CLI, workspace, logs, and OPL Foundry module readiness.",
+    "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
+    "latestStableDetail": "Latest Stable on GitHub: {{version}}",
+    "releaseChannels": {
+      "stable": "Stable",
+      "latest": "Latest",
+      "nightly": "Nightly",
+      "beta": "Beta",
+      "dev": "Developer"
+    }
+  },
+  "oplEnvironmentPage": {
+    "workspaceRootTitle": "Workspace Root",
+    "workspaceRootMissing": "No workspace root has been selected",
+    "modulesTitle": "Foundry Modules",
+    "modulesReadyCount": "{{ready}} / {{total}} ready",
+    "actions": {
+      "doctor": "Run Doctor",
+      "refresh": "Refresh",
+      "repair": "Repair OPL",
+      "chooseWorkspaceRoot": "Choose Workspace",
+      "startTemporal": "Start Temporal",
+      "restartTemporalWorker": "Restart Temporal worker"
+    },
+    "messages": {
+      "commandFailed": "OPL command failed",
+      "doctorComplete": "OPL doctor completed",
+      "repairComplete": "OPL repair completed",
+      "workspaceRootSaved": "Workspace root saved",
+      "loadModulesFailed": "Runtime module details are not available yet.",
+      "backgroundRuntimeCheck": "Checking Codex and workspace details in the background."
+    },
+    "status": {
+      "unknown": "Unknown",
+      "ready": "Ready",
+      "compatible": "Compatible",
+      "installed": "Installed",
+      "notInstalled": "Not installed",
+      "missing": "Missing",
+      "blocking": "Blocked",
+      "failed": "Failed",
+      "warning": "Warning",
+      "degraded": "Degraded",
+      "pending": "Pending",
+      "ok": "OK",
+      "worker_source_stale": "Worker restart needed",
+      "attention_required": "Needs attention"
+    },
+    "items": {
+      "module": {
+        "latest": "Managed by OPL family runtime"
+      }
+    },
+    "temporal": {
+      "workerSourceStaleDetail": "Worker restart needed"
+    },
+    "installOrigins": {
+      "managed_root": "From OPL-managed directory",
+      "sibling_workspace": "From local sibling developer checkout",
+      "env_override": "From environment override",
+      "missing": "Checkout not found",
+      "invalid_checkout": "Invalid checkout",
+      "unknown": "Unknown origin"
+    },
+    "moduleActions": {
+      "update": "Update available",
+      "install": "Install available",
+      "reinstall": "Reinstall available",
+      "remove": "Remove available"
+    },
+    "gitSyncStatus": {
+      "current": "Current",
+      "behind": "Updates available",
+      "ahead": "Local commits ahead",
+      "diverged": "Diverged",
+      "unknown": "Sync unknown"
+    },
+    "moduleVersion": {
+      "managedScope": "OPL-managed module",
+      "developerScope": "Local developer checkout",
+      "scopeDescription": "This list shows the runtime modules currently used by OPL App. Normal mode uses the OPL-managed directory; Developer Mode or an explicit override switches to local developer checkouts.",
+      "gitRevision": "Revision {{revision}}",
+      "behind": "{{count}} commits behind",
+      "behindAvailable": "Remote update available ({{count}} commits)",
+      "ahead": "{{count}} commits ahead",
+      "modulesRoot": "Modules root: {{path}}",
+      "checkoutPath": "Current path: {{path}}",
+      "repoUrl": "Upstream repo: {{url}}",
+      "pathSource": "Path source: {{source}}",
+      "pathSources": {
+        "managedRoot": "Resolved from the OPL-managed modules root",
+        "familyWorkspaceRoot": "From the local OPL family workspace root: {{root}}",
+        "siblingWorkspace": "Detected a local sibling developer checkout",
+        "envOverride": "Set by an explicit environment override",
+        "missing": "No managed or developer checkout was found",
+        "invalidCheckout": "Path exists but is not a valid git checkout",
+        "unknown": "Module discovery did not declare an origin"
+      }
+    },
+    "codexContext": {
+      "title": "OPL Agent Codex Context",
+      "description": "Read-only OPL App default context injected into new Codex CLI sessions. The source is the OPL App product profile."
+    }
+  },
+  "appearancePage": {
+    "visualTheme": "Interface Theme",
+    "codexTheme": "Codex Theme",
+    "defaultTheme": "Default Theme",
+    "themeSaved": "Appearance theme updated",
+    "themeSaveFailed": "Failed to update appearance theme"
   }
 }

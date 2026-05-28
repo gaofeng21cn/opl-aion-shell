@@ -8,6 +8,11 @@ import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { iconColors } from '@/renderer/styles/colors';
+import {
+  isOplCodexCliFixedExecutor,
+  shouldShowOplCodexModelAutoOption,
+  shouldShowOplCodexModelList,
+} from '@/common/config/oplProductProfile';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import { Brain, Down } from '@icon-park/react';
 import React from 'react';
@@ -34,6 +39,10 @@ const AcpModelSelector: React.FC<{
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const { model_info, canSwitch, selectModel } = useAcpModelInfo({ conversation_id, backend, initialModelId });
+  const hideCodexModelList =
+    backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
+  const showCodexAutoOption =
+    backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
 
   const defaultModelLabel = t('common.defaultModel');
   const rawDisplayLabel =
@@ -42,9 +51,14 @@ const AcpModelSelector: React.FC<{
     model_info?.current_model_label ||
     model_info?.current_model_id ||
     '';
+  const selectedModelValue = model_info?.current_model_id;
+  const selectedModelLabel =
+    hideCodexModelList && rawDisplayLabel
+      ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
+      : rawDisplayLabel;
   const display_label = getModelDisplayLabel({
-    selected_value: model_info?.current_model_id,
-    selectedLabel: rawDisplayLabel,
+    selected_value: selectedModelValue,
+    selectedLabel: selectedModelLabel,
     defaultModelLabel,
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
@@ -88,6 +102,24 @@ const AcpModelSelector: React.FC<{
     );
   }
 
+  if (hideCodexModelList) {
+    return (
+      <Tooltip content={tooltipContent} position='top'>
+        <Button
+          className='sendbox-model-btn header-model-btn agent-mode-compact-pill'
+          shape='round'
+          size='small'
+          style={{ cursor: 'default' }}
+        >
+          <span className='flex items-center gap-6px min-w-0 leading-none'>
+            {renderLogo()}
+            <MarqueePillLabel>{display_label}</MarqueePillLabel>
+          </span>
+        </Button>
+      </Tooltip>
+    );
+  }
+
   return (
     <Dropdown
       trigger='click'
@@ -95,7 +127,14 @@ const AcpModelSelector: React.FC<{
       // Desktop: leave default container so click events reach Menu.Item normally.
       {...(isMobileHeaderCompact ? { getPopupContainer: () => document.body } : {})}
       droplist={
-        <Menu>
+        <Menu selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}>
+          {showCodexAutoOption && (
+            <Menu.Item key='__auto' className='bg-2!'>
+              <div className='flex items-center gap-8px w-full'>
+                <span>{t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}</span>
+              </div>
+            </Menu.Item>
+          )}
           {model_info.available_models.map((model) => (
             <Menu.Item
               key={model.id}
