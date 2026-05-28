@@ -77,6 +77,7 @@ type MentionSelectorBadgeProps = {
   mentionMenu: React.ReactNode;
   onResetQuery: () => void;
   onClear?: () => void;
+  dropdownEnabled?: boolean;
 };
 
 export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
@@ -87,29 +88,40 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
   mentionMenu,
   onResetQuery,
   onClear,
+  dropdownEnabled = true,
 }) => {
   const { t } = useTranslation();
 
   if (!visible) return null;
 
+  const badge = (
+    <div
+      className={`flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px select-none ${dropdownEnabled ? 'cursor-pointer' : ''}`}
+    >
+      <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
+      {dropdownEnabled ? <Down theme='outline' size={12} /> : null}
+    </div>
+  );
+
   return (
     <div className='flex items-center gap-8px mb-8px'>
-      <Dropdown
-        trigger='click'
-        popupVisible={open}
-        onVisibleChange={(v) => {
-          onOpenChange(v);
-          if (v) {
-            onResetQuery();
-          }
-        }}
-        droplist={mentionMenu}
-      >
-        <div className='flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px cursor-pointer select-none'>
-          <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
-          <Down theme='outline' size={12} />
-        </div>
-      </Dropdown>
+      {dropdownEnabled ? (
+        <Dropdown
+          trigger='click'
+          popupVisible={open}
+          onVisibleChange={(v) => {
+            onOpenChange(v);
+            if (v) {
+              onResetQuery();
+            }
+          }}
+          droplist={mentionMenu}
+        >
+          {badge}
+        </Dropdown>
+      ) : (
+        badge
+      )}
       {onClear ? (
         <Button
           type='secondary'

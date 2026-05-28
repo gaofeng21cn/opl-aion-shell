@@ -190,7 +190,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
     selectMentionAgent: vi.fn(),
     mentionMenuRef: { current: null },
     mentionMatchRegex: /(?:^|\s)@([^\s@]*)$/,
-    selectedAgentLabel: '科研',
+    selectedAgentLabel: 'MAS',
     mentionMenuSelectedKey: 'custom:mas',
   }),
 }));
@@ -229,14 +229,25 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportMod
 }));
 
 describe('GuidPage selected purpose assistant surface', () => {
-  it('keeps the default hero and shows the selected purpose as a compact @ tag', () => {
+  it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', () => {
     render(<GuidPage />);
 
-    expect(screen.getByText('@科研')).toBeInTheDocument();
-    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('科研');
+    expect(screen.getByText('@MAS')).toBeInTheDocument();
+    expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
+    expect(screen.queryByText('gpt-5.5xhigh')).not.toBeInTheDocument();
+  });
+
+  it('does not open an execution-agent dropdown from the selected built-in assistant badge', async () => {
+    render(<GuidPage />);
+    mocks.setMentionSelectorVisible.mockClear();
+
+    await userEvent.click(screen.getByText('@MAS'));
+
+    expect(mocks.setMentionSelectorVisible).not.toHaveBeenCalled();
+    expect(screen.queryByText('Codex')).not.toBeInTheDocument();
   });
 
   it('lets the user clear the selected purpose and return to the default agent', async () => {

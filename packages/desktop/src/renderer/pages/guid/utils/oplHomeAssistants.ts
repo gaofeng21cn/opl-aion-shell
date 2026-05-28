@@ -1,7 +1,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
+import { getOplDefaultExecutorAgentKey, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 
-const DEFAULT_PRESET_AGENT_TYPE = 'codex';
+const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
 const OPL_HOME_PURPOSE_PRESENTATION: Record<
   string,
   { name: string; name_i18n: Record<string, string>; avatar: string }
@@ -87,7 +87,7 @@ const mergeAssistantWithProfile = (
   merged.description = profile.description_i18n['zh-CN'] || profile.description_i18n['en-US'] || '';
   merged.description_i18n = { ...profile.description_i18n };
   merged.avatar = presentation.avatar;
-  merged.preset_agent_type = existing.preset_agent_type || DEFAULT_PRESET_AGENT_TYPE;
+  merged.preset_agent_type = DEFAULT_PRESET_AGENT_TYPE;
   merged.prompts = [...prompts];
   merged.prompts_i18n = Object.fromEntries(
     Object.entries(profile.prompts_i18n).map(([locale, values]) => [locale, [...values]])

@@ -12,16 +12,20 @@ import {
   getOplGuiDefaultCssThemeId,
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsVisibleTabs,
+  getOplHomeModelStatusLabel,
   getOplRuntimeEnvironmentItems,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
   getOplSkillPriority,
+  isOplCodexCliFixedExecutor,
   OPL_PRODUCT_PROFILE,
   shouldDefaultCodexCssTheme,
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
   shouldShowOplCodexModelSelector,
+  shouldShowOplHomeExecutorSelector,
+  shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
@@ -50,25 +54,31 @@ describe('OPL generated product profile', () => {
     );
   });
 
-  it('keeps App-owned GUI defaults for theme, home model policy, and Codex permissions', () => {
+  it('keeps App-owned GUI defaults for theme, fixed Codex executor, and hidden home controls', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
     expect(getOplGuiDefaultCssThemeId()).toBe('codex');
     expect(shouldDefaultCodexCssTheme()).toBe(true);
     expect(normalizeOplActiveThemeId('')).toBe('codex');
     expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('codex');
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
-    expect(shouldShowOplCodexModelSelector()).toBe(true);
-    expect(shouldShowOplCodexModelList()).toBe(true);
-    expect(shouldShowOplCodexModelAutoOption()).toBe(true);
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe(
-      'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore'
+    expect(isOplCodexCliFixedExecutor()).toBe(true);
+    expect(shouldShowOplHomeExecutorSelector()).toBe(false);
+    expect(shouldShowOplHomePermissionModeSelector()).toBe(false);
+    expect(shouldShowOplCodexModelSelector()).toBe(false);
+    expect(shouldShowOplCodexModelList()).toBe(false);
+    expect(shouldShowOplCodexModelAutoOption()).toBe(false);
+    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('自动');
+    expect(getOplHomeModelStatusLabel('en-US')).toBe('Auto');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_auto_model_hidden_on_home');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('codex_cli_auto');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
+      'technical_details_or_connected_state_only'
     );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('auto_latest_available_frontier');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
-      'auto_latest_available_codex_frontier'
+      'codex_cli_auto_latest_available_frontier'
     );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(false);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(false);
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
   });
 
@@ -220,7 +230,8 @@ describe('OPL generated product profile', () => {
     const context = getOplCodexSessionContext();
 
     expect(context).toContain('OPL App 默认会话规则');
-    expect(context).toContain('默认仍使用 Codex CLI 会话语义');
+    expect(context).toContain('Codex CLI 是固定执行器');
+    expect(context).toContain('普通用户主路径不选择 executor');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
   });

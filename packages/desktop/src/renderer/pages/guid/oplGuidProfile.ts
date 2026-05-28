@@ -175,7 +175,7 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
       description_i18n: profile.description_i18n,
       avatar: profile.avatar,
       sort_order: profile.sort_order,
-      preset_agent_type: profile.preset_agent_type,
+      preset_agent_type: getOplDefaultExecutorAgentKey(),
       prompts: profile.prompts,
       prompts_i18n: profile.prompts_i18n,
     };

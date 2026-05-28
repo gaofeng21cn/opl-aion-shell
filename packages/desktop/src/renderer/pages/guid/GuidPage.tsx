@@ -5,10 +5,14 @@
  */
 
 import { ipcBridge } from '@/common';
+import {
+  shouldShowOplCodexModelSelector,
+  shouldShowOplHomePermissionModeSelector,
+} from '@/common/config/oplProductProfile';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
-import { openExternalUrl, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { openExternalUrl } from '@/renderer/utils/platform';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
@@ -24,13 +28,11 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
-import { Button, ConfigProvider, Message } from '@arco-design/web-react';
+import { Button, ConfigProvider } from '@arco-design/web-react';
 import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { mutate as swrMutate } from 'swr';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
 import styles from './index.module.css';
 
 const GuidPage: React.FC = () => {
@@ -127,12 +129,8 @@ const GuidPage: React.FC = () => {
 
   const selectedAssistantLabel = useMemo(() => {
     if (!selectedAssistantRecord) return undefined;
-    return (
-      selectedAssistantRecord.name_i18n?.[localeKey] ||
-      selectedAssistantRecord.name_i18n?.['en-US'] ||
-      selectedAssistantRecord.name
-    );
-  }, [localeKey, selectedAssistantRecord]);
+    return selectedAssistantRecord.avatar || selectedAssistantRecord.name;
+  }, [selectedAssistantRecord]);
 
   const mention = useGuidMention({
     availableAgents: agentSelection.availableAgents,
@@ -404,35 +402,6 @@ const GuidPage: React.FC = () => {
     return () => observer.disconnect();
   }, [agentSelection.is_presetAgent, selectedAssistantDescription]);
 
-  const currentPresetAgentType = selectedAssistantRecord?.preset_agent_type || 'codex';
-  // Mirrors AssistantEditDrawer's Main Agent options — detected execution
-  // engines from the shared agent-selection data source, so avatars resolve
-  // the same way in the preset assistant header.
-  const agentSwitcherItems = useMemo(() => {
-    if (!agentSelection.availableAgents) return [];
-    return agentSelection.availableAgents
-      .filter((a) => !a.is_preset && a.agent_type !== 'remote')
-      .map((a) => {
-        const key = a.backend || a.agent_type;
-        const extensionAvatar = a.isExtension ? resolveExtensionAssetUrl(a.avatar) : undefined;
-        const logo =
-          extensionAvatar ||
-          resolveAgentLogo({
-            icon: a.icon,
-            backend: a.backend || a.agent_type,
-            custom_agent_id: a.custom_agent_id,
-            isExtension: a.isExtension,
-          });
-        return {
-          key,
-          label: a.name,
-          logo,
-          isCurrent: key === currentPresetAgentType,
-          isExtension: a.isExtension,
-        };
-      });
-  }, [agentSelection.availableAgents, currentPresetAgentType]);
-
   const effectiveAgentRecord = useMemo(() => {
     return agentSelection.availableAgents?.find(
       (agent) =>
@@ -449,38 +418,6 @@ const GuidPage: React.FC = () => {
         isExtension: effectiveAgentRecord?.isExtension,
       }),
     [effectiveAgentRecord, agentSelection.currentEffectiveAgentInfo.agent_type]
-  );
-  const handlePresetAgentTypeSwitch = useCallback(
-    async (nextType: string) => {
-      // Only preset assistants (is_preset=true) expose `custom_agent_id` here, so this id is
-      // always backed by the `/api/assistants` store. ACP custom agents are a separate store
-      // (`ipcBridge.acpConversation.updateCustomAgent`) and do not carry `preset_agent_type`.
-      // See commit 13858579d on main for the legacy single-store fix that this split already covers.
-      const assistantId = agentSelection.selectedAgentInfo?.custom_agent_id;
-      if (!assistantId || nextType === currentPresetAgentType) return;
-      try {
-        // Optimistically patch the shared `assistants.list` SWR cache so the hero
-        // avatar/logo reflect the new preset_agent_type on the same frame as the
-        // click. Without this, downstream memos (selectedAssistantRecord →
-        // currentEffectiveAgentInfo → effectiveAgentLogo) lag a network roundtrip
-        // behind the user action.
-        await swrMutate(
-          'assistants.list',
-          (prev: Assistant[] | undefined) =>
-            prev?.map((a) => (a.id === assistantId ? { ...a, preset_agent_type: nextType } : a)),
-          { revalidate: false }
-        );
-        await ipcBridge.assistants.update.invoke({ id: assistantId, preset_agent_type: nextType });
-        await Promise.all([swrMutate('assistants.list'), agentSelection.refreshCustomAgents()]);
-        const agent_name =
-          agentSelection.availableAgents?.find((a) => (a.backend || a.agent_type) === nextType)?.name || nextType;
-        Message.success(t('guid.switchedToAgent', { agent: agent_name }));
-      } catch (error) {
-        console.error('[GuidPage] Failed to switch preset agent type:', error);
-        Message.error(t('common.failed', { defaultValue: 'Failed' }));
-      }
-    },
-    [agentSelection, currentPresetAgentType, t]
   );
 
   // Resolve the effective agent type once — covers both direct selection and preset assistants
@@ -505,7 +442,7 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  const modelSelectorNode: React.ReactNode = (
+  const modelSelectorNode: React.ReactNode = shouldShowOplCodexModelSelector() ? (
     <GuidModelSelector
       isGeminiMode={isGeminiMode}
       modelList={modelSelection.modelList}
@@ -515,7 +452,7 @@ const GuidPage: React.FC = () => {
       selectedAcpModel={agentSelection.selectedAcpModel}
       setSelectedAcpModel={agentSelection.setSelectedAcpModel}
     />
-  );
+  ) : null;
 
   // Build the action row
   const actionRowNode = (
@@ -533,10 +470,8 @@ const GuidPage: React.FC = () => {
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey)}
       agentLogo={effectiveAgentLogo}
-      agentSwitcherItems={agentSwitcherItems}
-      onAgentSwitch={(key) => {
-        handlePresetAgentTypeSwitch(key).catch((err) => console.error('Failed to switch agent type:', err));
-      }}
+      agentSwitcherItems={[]}
+      showModeSelector={shouldShowOplHomePermissionModeSelector()}
       allSkills={allSkills}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
       enabledSkills={guidEnabledSkills ?? []}
@@ -629,6 +564,7 @@ const GuidPage: React.FC = () => {
                 agentLabel={mention.selectedAgentLabel}
                 mentionMenu={mentionDropdownNode}
                 onResetQuery={() => mention.setMentionQuery(null)}
+                dropdownEnabled={false}
                 onClear={() => {
                   agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
                   mention.setMentionSelectorVisible(false);

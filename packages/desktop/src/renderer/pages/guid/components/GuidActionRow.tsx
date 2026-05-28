@@ -47,6 +47,7 @@ type GuidActionRowProps = {
   agentSwitcherItems?: AgentSwitcherItem[];
   onAgentSwitch?: (key: string) => void;
   hidePresetTag?: boolean;
+  showModeSelector?: boolean;
 
   // Skills management
   allSkills: Array<{ name: string; description: string; isAuto: boolean }>;
@@ -82,6 +83,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   enabledSkills,
   onToggleSkill,
   hidePresetTag = false,
+  showModeSelector = true,
   loading,
   isButtonDisabled,
   speechInputNode,
@@ -90,7 +92,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const { t } = useTranslation();
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
-  const showModeSwitch = supportsModeSwitch(modeBackend);
+  const showModeSwitch = showModeSelector && supportsModeSwitch(modeBackend);
   const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0);
 
   // Browser file picker ref (WebUI only)

@@ -74,17 +74,23 @@ type AppProductProfile = {
     home: {
       primary_input_surface: 'single_card';
       nested_input_card_frames_allowed: false;
-      codex_model_selector_visible: true;
-      codex_model_list_visible: true;
-      codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore';
-      codex_model_auto_option_visible: true;
+      codex_cli_fixed_executor: true;
+      home_executor_selector_visible: false;
+      codex_model_selector_visible: false;
+      codex_model_list_visible: false;
+      codex_model_policy: 'codex_cli_auto_model_hidden_on_home';
+      codex_model_auto_option_visible: false;
       codex_default_model: string;
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
+      permission_mode_selector_visible: false;
+      codex_home_model_status_label: string;
+      codex_home_model_status_label_en: string;
+      codex_precise_model_display_policy: 'technical_details_or_connected_state_only';
       codex_auto_model_selection: {
-        strategy: 'auto_latest_available_codex_frontier';
-        user_can_override_model: true;
-        user_can_restore_auto: true;
+        strategy: 'codex_cli_auto_latest_available_frontier';
+        user_can_override_model: false;
+        user_can_restore_auto: false;
         selection_persists_into_conversation: true;
         frontier_model_preference_order: string[];
       };
@@ -461,29 +467,40 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (
     guiHome.primary_input_surface !== 'single_card' ||
     guiHome.nested_input_card_frames_allowed !== false ||
-    guiHome.codex_model_selector_visible !== true ||
-    guiHome.codex_model_list_visible !== true ||
-    guiHome.codex_model_policy !== 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore' ||
-    guiHome.codex_model_auto_option_visible !== true
+    guiHome.codex_cli_fixed_executor !== true ||
+    guiHome.home_executor_selector_visible !== false ||
+    guiHome.codex_model_selector_visible !== false ||
+    guiHome.codex_model_list_visible !== false ||
+    guiHome.codex_model_policy !== 'codex_cli_auto_model_hidden_on_home' ||
+    guiHome.codex_model_auto_option_visible !== false ||
+    guiHome.permission_mode_selector_visible !== false ||
+    guiHome.codex_precise_model_display_policy !== 'technical_details_or_connected_state_only'
   ) {
-    throw new Error('Invalid OPL product profile: GUI home contract must expose Codex auto-latest model selection');
+    throw new Error('Invalid OPL product profile: GUI home contract must hide executor and model selection');
   }
   if (
-    guiHome.codex_default_model !== 'auto_latest_available_frontier' ||
+    guiHome.codex_default_model !== 'codex_cli_auto' ||
     guiHome.codex_default_reasoning_effort !== codexReasoningEffort ||
     guiHome.codex_default_permission_mode !== 'full-access'
   ) {
-    throw new Error('Invalid OPL product profile: GUI home Codex defaults must use auto frontier selection');
+    throw new Error('Invalid OPL product profile: GUI home Codex defaults must use Codex CLI auto selection');
+  }
+  const homeModelStatusLabel =
+    typeof guiHome.codex_home_model_status_label === 'string' ? guiHome.codex_home_model_status_label.trim() : '';
+  const homeModelStatusLabelEn =
+    typeof guiHome.codex_home_model_status_label_en === 'string' ? guiHome.codex_home_model_status_label_en.trim() : '';
+  if (homeModelStatusLabel !== '自动' || homeModelStatusLabelEn !== 'Auto') {
+    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be automatic');
   }
   const autoModelSelection = guiHome.codex_auto_model_selection;
   if (
     !isRecord(autoModelSelection) ||
-    autoModelSelection.strategy !== 'auto_latest_available_codex_frontier' ||
-    autoModelSelection.user_can_override_model !== true ||
-    autoModelSelection.user_can_restore_auto !== true ||
+    autoModelSelection.strategy !== 'codex_cli_auto_latest_available_frontier' ||
+    autoModelSelection.user_can_override_model !== false ||
+    autoModelSelection.user_can_restore_auto !== false ||
     autoModelSelection.selection_persists_into_conversation !== true
   ) {
-    throw new Error('Invalid OPL product profile: GUI home Codex model policy must allow auto frontier selection');
+    throw new Error('Invalid OPL product profile: GUI home Codex model policy must stay automatic');
   }
   readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
   const homePurposeEntries = readHomePurposeEntries(guiHome);
@@ -536,17 +553,23 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       home: {
         primary_input_surface: 'single_card',
         nested_input_card_frames_allowed: false,
-        codex_model_selector_visible: true,
-        codex_model_list_visible: true,
-        codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore',
-        codex_model_auto_option_visible: true,
-        codex_default_model: 'auto_latest_available_frontier',
+        codex_cli_fixed_executor: true,
+        home_executor_selector_visible: false,
+        codex_model_selector_visible: false,
+        codex_model_list_visible: false,
+        codex_model_policy: 'codex_cli_auto_model_hidden_on_home',
+        codex_model_auto_option_visible: false,
+        codex_default_model: 'codex_cli_auto',
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
+        permission_mode_selector_visible: false,
+        codex_home_model_status_label: homeModelStatusLabel,
+        codex_home_model_status_label_en: homeModelStatusLabelEn,
+        codex_precise_model_display_policy: 'technical_details_or_connected_state_only',
         codex_auto_model_selection: {
-          strategy: 'auto_latest_available_codex_frontier',
-          user_can_override_model: true,
-          user_can_restore_auto: true,
+          strategy: 'codex_cli_auto_latest_available_frontier',
+          user_can_override_model: false,
+          user_can_restore_auto: false,
           selection_persists_into_conversation: true,
           frontier_model_preference_order: readStringArray(
             autoModelSelection,
@@ -642,6 +665,24 @@ export function shouldShowOplCodexModelList(): boolean {
 
 export function shouldShowOplCodexModelAutoOption(): boolean {
   return OPL_PRODUCT_PROFILE.gui.home.codex_model_auto_option_visible;
+}
+
+export function isOplCodexCliFixedExecutor(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.codex_cli_fixed_executor;
+}
+
+export function shouldShowOplHomeExecutorSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.home_executor_selector_visible;
+}
+
+export function shouldShowOplHomePermissionModeSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.permission_mode_selector_visible;
+}
+
+export function getOplHomeModelStatusLabel(localeKey: 'zh-CN' | 'en-US' = 'zh-CN'): string {
+  return localeKey === 'en-US'
+    ? OPL_PRODUCT_PROFILE.gui.home.codex_home_model_status_label_en
+    : OPL_PRODUCT_PROFILE.gui.home.codex_home_model_status_label;
 }
 
 export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
