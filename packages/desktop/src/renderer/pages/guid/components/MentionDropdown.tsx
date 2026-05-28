@@ -6,7 +6,8 @@
 
 import type { MentionOption } from '../types';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { Dropdown, Menu } from '@arco-design/web-react';
+import { Button, Dropdown, Menu } from '@arco-design/web-react';
+import { IconClose } from '@arco-design/web-react/icon';
 import { Down, Robot } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -75,6 +76,7 @@ type MentionSelectorBadgeProps = {
   agentLabel: string;
   mentionMenu: React.ReactNode;
   onResetQuery: () => void;
+  onClear?: () => void;
 };
 
 export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
@@ -84,7 +86,10 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
   agentLabel,
   mentionMenu,
   onResetQuery,
+  onClear,
 }) => {
+  const { t } = useTranslation();
+
   if (!visible) return null;
 
   return (
@@ -105,6 +110,21 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
           <Down theme='outline' size={12} />
         </div>
       </Dropdown>
+      {onClear ? (
+        <Button
+          type='secondary'
+          shape='circle'
+          size='mini'
+          className='inline-flex items-center justify-center w-22px h-22px rd-50% b-none bg-fill-2 text-3 cursor-pointer p-0'
+          onClick={(event) => {
+            event.stopPropagation();
+            onClear();
+          }}
+          aria-label={t('common.clear')}
+        >
+          <IconClose style={{ fontSize: 12, color: 'var(--color-text-3)' }} />
+        </Button>
+      ) : null}
     </div>
   );
 };

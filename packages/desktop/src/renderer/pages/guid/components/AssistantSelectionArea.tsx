@@ -22,9 +22,7 @@ import styles from '../index.module.css';
 import type { AvailableAgent, EffectiveAgentInfo } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { Message } from '@arco-design/web-react';
-import { Robot } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
 import { filterOplFoundryAssistants } from '../oplGuidProfile';
 
@@ -329,19 +327,12 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
       >
         <div className={styles.assistantCardGrid}>
           {foundryAssistants.map((assistant) => {
-            const avatarValue = assistant.avatar?.trim();
-            const mappedAvatar = avatarValue ? CUSTOM_AVATAR_IMAGE_MAP[avatarValue] : undefined;
-            const resolvedAvatar = avatarValue ? resolveExtensionAssetUrl(avatarValue) : undefined;
-            const avatarImage = mappedAvatar || resolvedAvatar;
-            const isImageAvatar = Boolean(
-              avatarImage &&
-              (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|file:\/\/|data:|\/)/i.test(avatarImage))
-            );
             const description =
               assistant.description_i18n?.[localeKey] ||
               assistant.description_i18n?.['en-US'] ||
               assistant.description ||
               '';
+            const label = assistant.name_i18n?.[localeKey] || assistant.name;
             return (
               <div
                 key={assistant.id}
@@ -352,17 +343,8 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
                   onFocusInput();
                 }}
               >
-                <div className={styles.assistantCardAvatar}>
-                  {isImageAvatar ? (
-                    <img src={avatarImage} alt='' />
-                  ) : avatarValue ? (
-                    <span className={styles.assistantCardEmoji}>{avatarValue}</span>
-                  ) : (
-                    <Robot theme='outline' size={18} />
-                  )}
-                </div>
                 <div className={styles.assistantCardMeta}>
-                  <div className={styles.assistantCardName}>{assistant.name_i18n?.[localeKey] || assistant.name}</div>
+                  <div className={styles.assistantCardName}>@{label}</div>
                   {description && <div className={styles.assistantCardDesc}>{description}</div>}
                 </div>
               </div>

@@ -440,6 +440,7 @@ export type I18nKey =
   | 'conversation.skills.loaded'
   | 'conversation.thinking.complete'
   | 'conversation.thinking.label'
+  | 'conversation.welcome.autoModel'
   | 'conversation.welcome.clearWorkspace'
   | 'conversation.welcome.codexDefaultStatus'
   | 'conversation.welcome.currentWorkspace'

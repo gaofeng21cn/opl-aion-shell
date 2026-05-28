@@ -269,6 +269,20 @@ const AcpModelSelector: React.FC<{
     defaultModelLabel,
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
+  const codexAutoModelInfo = backend === 'codex' && model_info ? buildCodexDefaultModelInfo(model_info) : null;
+  const codexAutoModelId = codexAutoModelInfo?.current_model_id || null;
+  const codexAutoDisplayLabel = getModelDisplayLabel({
+    selected_value: codexAutoModelId,
+    selectedLabel: codexAutoModelInfo?.current_model_label || codexAutoModelId || '',
+    defaultModelLabel,
+    fallbackLabel: t('conversation.welcome.useCliModel'),
+  });
+  const isCodexAutoModel =
+    backend === 'codex' && !initialModelId && Boolean(codexAutoModelId) && model_info?.current_model_id === codexAutoModelId;
+  const buttonLabel =
+    isCodexAutoModel && model_info?.current_model_id
+      ? t('conversation.welcome.autoModel', { model: codexAutoDisplayLabel })
+      : display_label;
   const tooltipContent = display_label;
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
@@ -293,7 +307,7 @@ const AcpModelSelector: React.FC<{
   }
 
   // State 2: Has model info but cannot switch — read-only display
-  const canSwitch = backend !== 'codex' && model_info.available_models.length > 0;
+  const canSwitch = model_info.available_models.length > 0;
   if (!canSwitch) {
     return (
       <Tooltip content={tooltipContent} position='top'>
@@ -305,7 +319,7 @@ const AcpModelSelector: React.FC<{
         >
           <span className='flex items-center gap-6px min-w-0 leading-none'>
             {renderLogo()}
-            <MarqueePillLabel>{display_label}</MarqueePillLabel>
+            <MarqueePillLabel>{buttonLabel}</MarqueePillLabel>
           </span>
         </Button>
       </Tooltip>
@@ -317,7 +331,22 @@ const AcpModelSelector: React.FC<{
     <Dropdown
       trigger='click'
       droplist={
-        <Menu>
+        <Menu
+          selectedKeys={isCodexAutoModel ? ['__auto'] : model_info.current_model_id ? [model_info.current_model_id] : []}
+        >
+          {backend === 'codex' ? (
+            <Menu.Item
+              key='__auto'
+              className={isCodexAutoModel ? 'bg-2!' : ''}
+              onClick={() => {
+                if (codexAutoModelId) handleSelectModel(codexAutoModelId);
+              }}
+            >
+              <div className='flex items-center gap-8px w-full'>
+                <span>{t('conversation.welcome.autoModel', { model: codexAutoDisplayLabel })}</span>
+              </div>
+            </Menu.Item>
+          ) : null}
           {model_info.available_models.map((model) => (
             <Menu.Item
               key={model.id}
@@ -335,7 +364,7 @@ const AcpModelSelector: React.FC<{
       <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
         <span className='flex items-center gap-6px min-w-0 leading-none'>
           {renderLogo()}
-          <MarqueePillLabel>{display_label}</MarqueePillLabel>
+          <MarqueePillLabel>{buttonLabel}</MarqueePillLabel>
         </span>
       </Button>
     </Dropdown>

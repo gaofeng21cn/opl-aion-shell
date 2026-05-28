@@ -302,13 +302,12 @@ const ChatConversation: React.FC<{
     );
   }, [t]);
 
-  // Codex follows the App-owned default profile; other ACP agents can still
-  // expose their own model selector.
+  // ACP conversations expose the same model selector surface; Codex resolves
+  // its default through the App-owned auto-latest policy.
   const modelSelector = useMemo(() => {
     if (!conversation || isAionrsConversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; current_model_id?: string };
-      if (extra.backend === 'codex') return undefined;
       return (
         <AcpModelSelector
           conversation_id={conversation.id}

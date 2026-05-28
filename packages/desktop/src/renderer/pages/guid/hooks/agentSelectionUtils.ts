@@ -23,11 +23,16 @@ export async function savePreferredMode(agentKey: string, mode: string): Promise
   }
 }
 
-/** Save preferred model ID to the agent's acp.config key */
-export async function savePreferredModelId(agentKey: string, model_id: string): Promise<void> {
+/** Save preferred model ID to the agent's acp.config key. Null clears the override and returns to auto. */
+export async function savePreferredModelId(agentKey: string, model_id: string | null): Promise<void> {
   try {
     const config = configService.get('acp.config');
     const backendConfig = config?.[agentKey as string] || {};
+    if (model_id === null) {
+      const { preferredModelId: _preferredModelId, ...rest } = backendConfig;
+      await configService.set('acp.config', { ...config, [agentKey]: rest });
+      return;
+    }
     await configService.set('acp.config', { ...config, [agentKey]: { ...backendConfig, preferredModelId: model_id } });
   } catch {
     /* silent */

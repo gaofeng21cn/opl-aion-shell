@@ -38,12 +38,20 @@
     "home": {
       "primary_input_surface": "single_card",
       "nested_input_card_frames_allowed": false,
-      "codex_model_selector_visible": false,
-      "codex_model_list_visible": false,
-      "codex_model_policy": "auto_latest_frontier_from_codex_capabilities_or_app_default",
-      "codex_default_model": "gpt-5.5",
+      "codex_model_selector_visible": true,
+      "codex_model_list_visible": true,
+      "codex_model_policy": "auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore",
+      "codex_model_auto_option_visible": true,
+      "codex_default_model": "auto_latest_available_frontier",
       "codex_default_reasoning_effort": "xhigh",
       "codex_default_permission_mode": "full-access",
+      "codex_auto_model_selection": {
+        "strategy": "auto_latest_available_codex_frontier",
+        "user_can_override_model": true,
+        "user_can_restore_auto": true,
+        "selection_persists_into_conversation": true,
+        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
+      },
       "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
     },
     "default_assistants": [
@@ -51,9 +59,10 @@
         "id": "mas",
         "display_name": "Med Auto Science",
         "short_name": "MAS",
+        "home_purpose_label": "科研",
         "role": "research_and_paper_agent",
         "home_entry_policy": "visible_click_to_start",
-        "avatar": "MAS",
+        "avatar": "科研",
         "description_i18n": {
           "zh-CN": "推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。",
           "en-US": "Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress."
@@ -67,9 +76,10 @@
         "id": "mag",
         "display_name": "Med Auto Grant",
         "short_name": "MAG",
+        "home_purpose_label": "基金",
         "role": "grant_authoring_agent",
         "home_entry_policy": "visible_click_to_start",
-        "avatar": "MAG",
+        "avatar": "基金",
         "description_i18n": {
           "zh-CN": "推进基金选题、标书结构、申请书撰写、预算说明和评审意见回应。",
           "en-US": "Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses."
@@ -86,9 +96,10 @@
         "id": "rca",
         "display_name": "RedCube AI",
         "short_name": "RCA",
+        "home_purpose_label": "PPT",
         "role": "presentation_and_visual_deliverable_agent",
         "home_entry_policy": "visible_click_to_start",
-        "avatar": "RCA",
+        "avatar": "PPT",
         "description_i18n": {
           "zh-CN": "推进 PPT、汇报、图表、视觉交付物和演示材料制作。",
           "en-US": "Advance slide decks, reports, figures, visual deliverables, and presentation materials."
@@ -97,13 +108,16 @@
           "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
           "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
         }
-      },
+      }
+    ],
+    "non_default_assistants": [
       {
         "id": "oma",
         "display_name": "OPL Meta Agent",
         "short_name": "OMA",
         "role": "opl_agent_design_and_testing_agent",
-        "home_entry_policy": "visible_click_to_start",
+        "home_entry_policy": "explicit_or_settings_only",
+        "home_default_visible": false,
         "avatar": "OMA",
         "description_i18n": {
           "zh-CN": "设计、测试和改进 OPL Agent，梳理能力边界、合同和验证流程。",

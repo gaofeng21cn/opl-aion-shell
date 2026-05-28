@@ -17,7 +17,11 @@ import {
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
   getOplSkillPriority,
+  OPL_PRODUCT_PROFILE,
   shouldDefaultCodexCssTheme,
+  shouldShowOplCodexModelAutoOption,
+  shouldShowOplCodexModelList,
+  shouldShowOplCodexModelSelector,
 } from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
@@ -53,6 +57,18 @@ describe('OPL generated product profile', () => {
     expect(normalizeOplActiveThemeId('')).toBe('codex');
     expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('codex');
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
+    expect(shouldShowOplCodexModelSelector()).toBe(true);
+    expect(shouldShowOplCodexModelList()).toBe(true);
+    expect(shouldShowOplCodexModelAutoOption()).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe(
+      'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore'
+    );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('auto_latest_available_frontier');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
+      'auto_latest_available_codex_frontier'
+    );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
   });
 
@@ -82,18 +98,22 @@ describe('OPL generated product profile', () => {
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {
     const assistants = getOplDefaultHomeAssistants();
 
-    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
     expect(assistants.map((assistant) => assistant.display_name)).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL Meta Agent',
     ]);
+    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', 'PPT']);
     expect(assistants.every((assistant) => assistant.home_entry_policy === 'visible_click_to_start')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
+    expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(false);
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
-    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {
@@ -115,7 +135,7 @@ describe('OPL generated product profile', () => {
     ).toEqual({
       current_model_id: 'gpt-5.6',
       current_model_label: 'gpt-5.6',
-      available_models: [],
+      available_models: [{ id: 'gpt-5.6', label: 'gpt-5.6' }],
     });
   });
 

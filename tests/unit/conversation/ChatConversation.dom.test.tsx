@@ -111,11 +111,12 @@ const acpConversation = (backend: string): TChatConversation =>
   }) as TChatConversation;
 
 describe('ChatConversation Codex model surface', () => {
-  it('hides the model selector for the App-owned Codex default executor', () => {
+  it('keeps the model selector available for Codex ACP conversations', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
 
     expect(screen.getByTestId('acp-chat')).toBeInTheDocument();
-    expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
+    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
+    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'gpt-5.5');
   });
 
   it('keeps the model selector for non-Codex ACP agents', () => {

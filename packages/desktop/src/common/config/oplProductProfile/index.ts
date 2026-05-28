@@ -20,8 +20,21 @@ export type OplHomeAssistant = {
   id: string;
   display_name: string;
   short_name: string;
+  home_purpose_label: string;
   role: string;
   home_entry_policy: 'visible_click_to_start';
+  avatar: string;
+  description_i18n: Record<string, string>;
+  prompts_i18n: Record<string, string[]>;
+};
+
+export type OplNonDefaultAssistant = {
+  id: string;
+  display_name: string;
+  short_name: string;
+  role: string;
+  home_entry_policy: 'explicit_or_settings_only';
+  home_default_visible: false;
   avatar: string;
   description_i18n: Record<string, string>;
   prompts_i18n: Record<string, string[]>;
@@ -51,15 +64,24 @@ type AppProductProfile = {
     home: {
       primary_input_surface: 'single_card';
       nested_input_card_frames_allowed: false;
-      codex_model_selector_visible: false;
-      codex_model_list_visible: false;
-      codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_or_app_default';
+      codex_model_selector_visible: true;
+      codex_model_list_visible: true;
+      codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore';
+      codex_model_auto_option_visible: true;
       codex_default_model: string;
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
+      codex_auto_model_selection: {
+        strategy: 'auto_latest_available_codex_frontier';
+        user_can_override_model: true;
+        user_can_restore_auto: true;
+        selection_persists_into_conversation: true;
+        frontier_model_preference_order: string[];
+      };
       retired_codex_models_must_not_be_exposed: string[];
     };
     default_assistants: OplHomeAssistant[];
+    non_default_assistants: OplNonDefaultAssistant[];
   };
   codex: {
     default_model: string;
@@ -174,9 +196,10 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
     const id = typeof entry.id === 'string' ? entry.id.trim() : '';
     const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
     const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
+    const homePurposeLabel = typeof entry.home_purpose_label === 'string' ? entry.home_purpose_label.trim() : '';
     const role = typeof entry.role === 'string' ? entry.role.trim() : '';
     const avatar = typeof entry.avatar === 'string' ? entry.avatar.trim() : '';
-    if (!id || !displayName || !shortName || !role || !avatar) {
+    if (!id || !displayName || !shortName || !homePurposeLabel || !role || !avatar) {
       throw new Error(`Invalid OPL product profile: gui.default_assistants[${index}] has blank identity fields`);
     }
     if (entry.home_entry_policy !== 'visible_click_to_start') {
@@ -193,6 +216,7 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
       id,
       display_name: displayName,
       short_name: shortName,
+      home_purpose_label: homePurposeLabel,
       role,
       home_entry_policy: 'visible_click_to_start',
       avatar,
@@ -205,13 +229,61 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
   if (new Set(ids).size !== ids.length) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must not contain duplicate ids');
   }
-  for (const required of ['mas', 'mag', 'rca', 'oma']) {
+  for (const required of ['mas', 'mag', 'rca']) {
     if (!ids.includes(required)) {
       throw new Error(`Invalid OPL product profile: gui.default_assistants must include ${required}`);
     }
   }
+  if (ids.includes('oma')) {
+    throw new Error('Invalid OPL product profile: gui.default_assistants must not include oma');
+  }
   if (ids.includes('mds')) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must not include mds');
+  }
+  const purposeLabels = assistants.map((assistant) => assistant.home_purpose_label);
+  if (purposeLabels.join(',') !== ['科研', '基金', 'PPT'].join(',')) {
+    throw new Error('Invalid OPL product profile: gui.default_assistants must expose purpose-first labels');
+  }
+  return assistants;
+}
+
+function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAssistant[] {
+  const value = gui.non_default_assistants;
+  if (!Array.isArray(value)) {
+    throw new Error('Invalid OPL product profile: gui.non_default_assistants must be an array');
+  }
+
+  const assistants = value.map((entry, index): OplNonDefaultAssistant => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: gui.non_default_assistants[${index}] must be an object`);
+    }
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
+    const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
+    const role = typeof entry.role === 'string' ? entry.role.trim() : '';
+    const avatar = typeof entry.avatar === 'string' ? entry.avatar.trim() : '';
+    if (!id || !displayName || !shortName || !role || !avatar) {
+      throw new Error(`Invalid OPL product profile: gui.non_default_assistants[${index}] has blank identity fields`);
+    }
+    if (entry.home_entry_policy !== 'explicit_or_settings_only' || entry.home_default_visible !== false) {
+      throw new Error(`Invalid OPL product profile: non-default assistant ${id} must be settings-only`);
+    }
+    return {
+      id,
+      display_name: displayName,
+      short_name: shortName,
+      role,
+      home_entry_policy: 'explicit_or_settings_only',
+      home_default_visible: false,
+      avatar,
+      description_i18n: readStringRecord(entry.description_i18n, `gui.non_default_assistants.${id}.description_i18n`),
+      prompts_i18n: readStringArrayRecord(entry.prompts_i18n, `gui.non_default_assistants.${id}.prompts_i18n`),
+    };
+  });
+
+  const ids = assistants.map((assistant) => assistant.id);
+  if (!ids.includes('oma')) {
+    throw new Error('Invalid OPL product profile: gui.non_default_assistants must include oma');
   }
   return assistants;
 }
@@ -334,21 +406,34 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (
     guiHome.primary_input_surface !== 'single_card' ||
     guiHome.nested_input_card_frames_allowed !== false ||
-    guiHome.codex_model_selector_visible !== false ||
-    guiHome.codex_model_list_visible !== false ||
-    guiHome.codex_model_policy !== 'auto_latest_frontier_from_codex_capabilities_or_app_default'
+    guiHome.codex_model_selector_visible !== true ||
+    guiHome.codex_model_list_visible !== true ||
+    guiHome.codex_model_policy !== 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore' ||
+    guiHome.codex_model_auto_option_visible !== true
   ) {
-    throw new Error('Invalid OPL product profile: GUI home contract must hide Codex model selection');
+    throw new Error('Invalid OPL product profile: GUI home contract must expose Codex auto-latest model selection');
   }
   if (
-    guiHome.codex_default_model !== codexModel ||
+    guiHome.codex_default_model !== 'auto_latest_available_frontier' ||
     guiHome.codex_default_reasoning_effort !== codexReasoningEffort ||
     guiHome.codex_default_permission_mode !== 'full-access'
   ) {
-    throw new Error('Invalid OPL product profile: GUI home Codex defaults must match App Codex defaults');
+    throw new Error('Invalid OPL product profile: GUI home Codex defaults must use auto frontier selection');
   }
+  const autoModelSelection = guiHome.codex_auto_model_selection;
+  if (
+    !isRecord(autoModelSelection) ||
+    autoModelSelection.strategy !== 'auto_latest_available_codex_frontier' ||
+    autoModelSelection.user_can_override_model !== true ||
+    autoModelSelection.user_can_restore_auto !== true ||
+    autoModelSelection.selection_persists_into_conversation !== true
+  ) {
+    throw new Error('Invalid OPL product profile: GUI home Codex model policy must allow auto frontier selection');
+  }
+  readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
+  const nonDefaultAssistants = readNonDefaultAssistants(gui);
 
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
@@ -395,15 +480,28 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       home: {
         primary_input_surface: 'single_card',
         nested_input_card_frames_allowed: false,
-        codex_model_selector_visible: false,
-        codex_model_list_visible: false,
-        codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_or_app_default',
-        codex_default_model: codexModel,
+        codex_model_selector_visible: true,
+        codex_model_list_visible: true,
+        codex_model_policy: 'auto_latest_frontier_from_codex_capabilities_user_selectable_with_auto_restore',
+        codex_model_auto_option_visible: true,
+        codex_default_model: 'auto_latest_available_frontier',
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
+        codex_auto_model_selection: {
+          strategy: 'auto_latest_available_codex_frontier',
+          user_can_override_model: true,
+          user_can_restore_auto: true,
+          selection_persists_into_conversation: true,
+          frontier_model_preference_order: readStringArray(
+            autoModelSelection,
+            'frontier_model_preference_order',
+            'gui.home.codex_auto_model_selection'
+          ),
+        },
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
       default_assistants: defaultHomeAssistants,
+      non_default_assistants: nonDefaultAssistants,
     },
     codex: {
       default_model: codexModel,
@@ -475,6 +573,18 @@ export function getOplCodexDefaultPermissionMode(): string {
 
 export function getOplRetiredCodexModels(): string[] {
   return [...OPL_PRODUCT_PROFILE.gui.home.retired_codex_models_must_not_be_exposed];
+}
+
+export function shouldShowOplCodexModelSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.codex_model_selector_visible;
+}
+
+export function shouldShowOplCodexModelList(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.codex_model_list_visible;
+}
+
+export function shouldShowOplCodexModelAutoOption(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.codex_model_auto_option_visible;
 }
 
 export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
