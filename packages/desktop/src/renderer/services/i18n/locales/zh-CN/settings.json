@@ -604,8 +604,8 @@
   "contactMe": "联系我",
   "officialWebsite": "官网",
   "checkForUpdates": "检查更新",
-  "includePrereleaseUpdates": "接收夜间版",
-  "includeNightlyUpdates": "接收夜间版",
+  "includePrereleaseUpdates": "接收 Nightly 更新",
+  "includeNightlyUpdates": "接收 Nightly 更新",
   "saveModelConfigFailed": "保存模型配置失败",
   "healthCheck": "健康检测",
   "clearStatus": "清除状态",
@@ -1004,6 +1004,11 @@
       "installPrep": "准备安装",
       "startupMaintenance": "运行启动维护",
       "reconcileModules": "同步模块"
+    },
+    "error": {
+      "general": "OPL 暂时无法完成启动检查。打开技术详情可以重试或查看诊断信息。",
+      "blocked": "还有一个设置项需要处理。按下方下一步完成后，可在技术详情中重试。",
+      "codexConfig": "Codex API 访问还未配置。请输入 API Key 后继续。"
     }
   },
   "oplFirstLaunch": {
@@ -1080,7 +1085,7 @@
     "releaseChannels": {
       "stable": "稳定版",
       "latest": "最新版",
-      "nightly": "夜间版",
+      "nightly": "Nightly",
       "beta": "测试版",
       "dev": "开发版"
     }
@@ -1181,6 +1186,7 @@
   "aboutVersionBadge": "应用 v{{version}} · {{channel}}",
   "aboutShellVersion": "界面版本 {{version}}",
   "aboutFrameworkVersion": "OPL 框架 {{version}}",
+  "aboutFrameworkRevision": "OPL 框架 {{revision}}",
   "aboutLatestStableVersion": "GitHub 最新稳定版 {{version}}",
   "appearancePage": {
     "visualTheme": "界面主题",

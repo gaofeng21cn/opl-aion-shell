@@ -132,6 +132,39 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
 
+  it('checks the beginner first-run layout before the ready-entry navigation click', () => {
+    const expression = __test.firstRunBeginnerUxExpression();
+    const navigationExpression = __test.guidEntryNavigationExpression();
+
+    expect(expression).toContain('[data-testid="opl-first-run-window"]');
+    expect(expression).toContain('[data-testid="opl-first-run-progress"]');
+    expect(expression).toContain('[data-testid="opl-first-run-beginner-primary"]');
+    expect(expression).toContain('[data-testid="opl-first-run-beginner-summary"]');
+    expect(expression).toContain('[data-testid="opl-first-run-primary-action"]');
+    expect(expression).toContain('[data-testid="opl-first-run-technical-details-toggle"]');
+    expect(expression).toContain('technicalDetailsCollapsed');
+    expect(expression).toContain('settings\\.firstRun\\.stage');
+    expect(expression).toContain('full_readiness');
+    expect(expression).toContain('action_command_ref');
+    expect(expression).toContain('opl system initialize');
+    expect(expression).toContain('runtime command failed');
+    expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
+  });
+
+  it('does not require folded technical action labels during first-run accessibility fallback', () => {
+    const labels = __test.firstRunAccessibilityExpectedLabels();
+
+    expect(labels).toContain('opl-first-run-ready-entry');
+    expect(labels).toContain('opl-first-run-beginner-summary');
+    expect(labels).toContain('opl-first-run-primary-action');
+    expect(labels).toContain('opl-first-run-technical-details-toggle');
+    expect(labels).toContain('opl-guid-entry');
+    expect(labels).not.toContain('opl-first-run-install-button');
+    expect(labels).not.toContain('opl-first-run-open-environment-button');
+    expect(labels).not.toContain('opl-first-run-open-modules-button');
+    expect(labels).not.toContain('opl-first-run-retry-button');
+  });
+
   it('smokes the current OPL App-owned settings routes', () => {
     const targetHashes = __test.SETTINGS_PAGE_SMOKE_TARGETS.map((target) => target.hash);
 

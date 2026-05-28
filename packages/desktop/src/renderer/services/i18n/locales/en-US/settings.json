@@ -604,8 +604,8 @@
   "contactMe": "Contact Me",
   "officialWebsite": "Official Website",
   "checkForUpdates": "Check for updates",
-  "includePrereleaseUpdates": "Receive Nightly builds",
-  "includeNightlyUpdates": "Receive Nightly builds",
+  "includePrereleaseUpdates": "Receive Nightly updates",
+  "includeNightlyUpdates": "Receive Nightly updates",
   "saveModelConfigFailed": "Failed to save model configuration",
   "healthCheck": "Health Check",
   "clearStatus": "Clear status",
@@ -1003,6 +1003,11 @@
       "installPrep": "Prepare install",
       "startupMaintenance": "Run startup maintenance",
       "reconcileModules": "Reconcile modules"
+    },
+    "error": {
+      "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
+      "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
+      "codexConfig": "Codex API access is not configured yet. Enter the API key to continue."
     }
   },
   "oplFirstLaunch": {
@@ -1180,6 +1185,7 @@
   "aboutVersionBadge": "App v{{version}} · {{channel}}",
   "aboutShellVersion": "GUI shell {{version}}",
   "aboutFrameworkVersion": "OPL Framework {{version}}",
+  "aboutFrameworkRevision": "OPL Framework {{revision}}",
   "aboutLatestStableVersion": "Latest Stable on GitHub {{version}}",
   "appearancePage": {
     "visualTheme": "Interface Theme",

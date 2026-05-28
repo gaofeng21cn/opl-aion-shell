@@ -11,6 +11,7 @@ const DEFAULT_LABELS = {
   window: 'opl-first-run-window',
   progress: 'opl-first-run-progress',
   blockersList: 'opl-first-run-blockers-list',
+  beginnerPrimary: 'opl-first-run-beginner-primary',
   installButton: 'opl-first-run-install-button',
   codexApiKeyInput: 'opl-first-run-codex-api-key-input',
   codexConfigureButton: 'opl-first-run-configure-codex-button',
@@ -500,17 +501,13 @@ function runOplJson(args) {
   return result.stdout;
 }
 
-function queryAccessibility(processName) {
-  const expectedLabels = [
+function firstRunAccessibilityExpectedLabels() {
+  return [
     DEFAULT_LABELS.window,
     DEFAULT_LABELS.progress,
     DEFAULT_LABELS.blockersList,
-    DEFAULT_LABELS.installButton,
     DEFAULT_LABELS.codexApiKeyInput,
     DEFAULT_LABELS.codexConfigureButton,
-    DEFAULT_LABELS.retryButton,
-    DEFAULT_LABELS.environmentButton,
-    DEFAULT_LABELS.modulesButton,
     DEFAULT_LABELS.readyEntry,
     DEFAULT_LABELS.beginnerSummary,
     DEFAULT_LABELS.primaryAction,
@@ -518,6 +515,10 @@ function queryAccessibility(processName) {
     DEFAULT_LABELS.technicalDetailsToggle,
     DEFAULT_LABELS.guidEntry,
   ];
+}
+
+function queryAccessibility(processName) {
+  const expectedLabels = firstRunAccessibilityExpectedLabels();
   const script = `
 const procName = ${JSON.stringify(processName)};
 const systemEvents = Application('System Events');
@@ -1102,32 +1103,104 @@ function guidEntryNavigationExpression() {
   })()`;
 }
 
-async function waitForGuidEntryViaCdp(options) {
+function firstRunBeginnerUxExpression() {
+  return `(() => {
+    const windowNode = document.querySelector('[data-testid="opl-first-run-window"]');
+    const progressNode = document.querySelector('[data-testid="opl-first-run-progress"]');
+    const primaryNode = document.querySelector('[data-testid="opl-first-run-beginner-primary"]');
+    const summaryNode = document.querySelector('[data-testid="opl-first-run-beginner-summary"]');
+    const actionNode = document.querySelector('[data-testid="opl-first-run-primary-action"]');
+    const detailsNode = document.querySelector('[data-testid="opl-first-run-technical-details-toggle"]');
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const primaryText = primaryNode?.innerText || '';
+    const bodyText = document.body?.innerText || '';
+    const deniedPatterns = [
+      /settings\\.firstRun\\.stage/,
+      /full_readiness/,
+      /setup_flow/,
+      /overall_state/,
+      /action_command_ref/,
+      /opl system initialize/,
+      /runtime command failed/i,
+      /\\{\\s*"/,
+    ];
+    const leakedPrimaryText = deniedPatterns
+      .map((pattern) => pattern.exec(primaryText)?.[0])
+      .filter(Boolean);
+    const detailsExpanded =
+      detailsNode?.getAttribute('aria-expanded') === 'true' ||
+      detailsNode?.querySelector('[aria-expanded="true"]') ||
+      /settings\\.firstRun\\.maintenance\\.title|Maintenance actions|维护操作/.test(bodyText);
+    return windowNode && progressNode && primaryNode && summaryNode && actionNode && detailsNode && !appLoaderVisible
+      && visible(windowNode)
+      && visible(progressNode)
+      && visible(primaryNode)
+      && visible(summaryNode)
+      && visible(actionNode)
+      && visible(detailsNode)
+      && summaryNode.textContent.trim().length > 0
+      && leakedPrimaryText.length === 0
+      && !detailsExpanded
+      ? {
+          hash: window.location.hash,
+          beginnerPrimaryVisible: true,
+          summaryText: summaryNode.textContent.trim(),
+          primaryTextLength: primaryText.length,
+          technicalDetailsCollapsed: true,
+        }
+      : false;
+  })()`;
+}
+
+async function captureCdpScreenshot(client, target) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const screenshot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+  if (!screenshot?.data) {
+    throw new Error(`CDP screenshot capture returned no data: ${target}`);
+  }
+  fs.writeFileSync(target, Buffer.from(screenshot.data, 'base64'));
+}
+
+async function waitForGuidEntryViaCdp(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   try {
     await client.send('Runtime.enable');
     await client.send('Page.enable');
+    const firstRunBeginnerUx = await waitForCdpPredicate(
+      client,
+      firstRunBeginnerUxExpression(),
+      options.timeoutMs,
+      'OPL first-run beginner screen did not expose the simplified primary layout'
+    );
+    writeJsonArtifact(path.join(options.artifacts, 'first-run-beginner-ux.json'), firstRunBeginnerUx, secret);
+    await captureCdpScreenshot(client, path.join(options.artifacts, 'first-run-beginner.png'));
     const state = await waitForCdpPredicate(
       client,
       guidEntryNavigationExpression(),
       options.timeoutMs,
       'OPL Guid entry did not become ready in the packaged app'
     );
-    return { state, labels: [DEFAULT_LABELS.guidEntry] };
+    return { state, firstRunBeginnerUx, labels: [DEFAULT_LABELS.guidEntry] };
   } finally {
     client.close();
   }
 }
 
-async function waitForUsableGuidEntry(options) {
+async function waitForUsableGuidEntry(options, secret) {
   const started = Date.now();
   try {
     writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'started', {
       timeout_ms: cdpProbeTimeoutMs(options),
       cdp_port: options.cdpPort,
     });
-    const cdp = await waitForGuidEntryViaCdp(options);
+    const cdp = await waitForGuidEntryViaCdp(options, secret);
     writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'passed', {
       duration_ms: Date.now() - started,
     });
@@ -1136,6 +1209,7 @@ async function waitForUsableGuidEntry(options) {
       labels: cdp.labels,
       tree: [],
       cdpState: cdp.state,
+      firstRunBeginnerUx: cdp.firstRunBeginnerUx,
     };
   } catch (error) {
     const elapsedMs = Date.now() - started;
@@ -1433,12 +1507,7 @@ async function captureSettingsPage(client, target, options, secret) {
     `Settings page did not become ready: ${target.id}`
   );
   const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
-  fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
-  const screenshot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
-  if (!screenshot?.data) {
-    throw new Error(`CDP screenshot capture returned no data for Settings page: ${target.id}`);
-  }
-  fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, 'base64'));
+  await captureCdpScreenshot(client, screenshotPath);
   return pageState;
 }
 
@@ -1796,7 +1865,7 @@ async function main() {
       (await runSmokePhase(
         writeSmokeEvent,
         'wait_guid_entry',
-        () => waitForUsableGuidEntry({ ...options, writeSmokeEvent }),
+        () => waitForUsableGuidEntry({ ...options, writeSmokeEvent }, codexApiKey),
         {
           timeout_ms: options.timeoutMs,
           cdp_probe_timeout_ms: cdpProbeTimeoutMs(options),
@@ -1860,6 +1929,7 @@ async function main() {
         mode: guidEntry.mode,
         labels: guidEntry.labels,
       },
+      first_run_beginner_ux: guidEntry.firstRunBeginnerUx ?? null,
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
@@ -1913,6 +1983,8 @@ export const __test =
         parseSystemInitialize,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
+        firstRunBeginnerUxExpression,
+        firstRunAccessibilityExpectedLabels,
         runOplJson,
         buildLaunchAppArgs,
         shouldTerminateExistingApp,

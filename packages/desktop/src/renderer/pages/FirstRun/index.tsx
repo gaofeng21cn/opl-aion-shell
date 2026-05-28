@@ -56,6 +56,18 @@ function resultPreview(result: FirstRunCommandResult): string {
   return JSON.stringify(result.parsed ?? {}, null, 2);
 }
 
+function formatFirstRunError(
+  error: string | null,
+  codexConfigBlocked: boolean,
+  hasBlockingItems: boolean,
+  t: (key: string) => string
+): string | null {
+  if (!error) return null;
+  if (codexConfigBlocked) return t('settings.firstRun.error.codexConfig');
+  if (hasBlockingItems) return t('settings.firstRun.error.blocked');
+  return t('settings.firstRun.error.general');
+}
+
 function assertBridgeResultOk(result: Exclude<FirstRunCommandResult, null>): void {
   if (result.ok === false) {
     throw new Error(result.error?.message || 'OPL runtime command failed');
@@ -114,6 +126,7 @@ const FirstRun: React.FC = () => {
   const hasBlockingItems = blockingItems.length > 0;
   const currentPhase =
     initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown');
+  const userFacingError = formatFirstRunError(error, codexConfigBlocked, hasBlockingItems, t);
   const nextVisibleStep = findNextVisibleStep(initialize);
   const codexProfile = initialize?.codex_default_profile;
   const coreStatusColor = initializeLoading && !initializeResult ? 'blue' : readyToLaunch ? 'green' : 'red';
@@ -228,6 +241,10 @@ const FirstRun: React.FC = () => {
     item: findChecklistItem(initialize, itemId),
     label: itemLabels[itemId],
   }));
+  const primaryBlockerLabels = blockingItems.map((itemId) => {
+    const checklistItem = initialize?.checklist?.find((item) => item.item_id === itemId);
+    return checklistItem?.label ?? itemLabels[itemId as FirstRunItemId] ?? itemId;
+  });
   const beginnerSummary = initializeLoading
     ? t('settings.firstRun.beginner.summaryChecking')
     : readyToLaunch
@@ -246,14 +263,18 @@ const FirstRun: React.FC = () => {
           </div>
         </header>
 
-        {error && <div className={styles.firstRunError}>{error}</div>}
+        {userFacingError && (
+          <div className={styles.firstRunError} data-testid='opl-first-run-user-error'>
+            {userFacingError}
+          </div>
+        )}
 
         <section
           className={styles.firstRunHeroPanel}
           data-testid='opl-first-run-progress'
           aria-label='opl-first-run-progress'
         >
-          <div className={styles.firstRunHeroMain}>
+          <div className={styles.firstRunHeroMain} data-testid='opl-first-run-beginner-primary'>
             <div className={styles.firstRunStatusHeading}>
               <span className={styles.firstRunHeroIcon}>
                 <CheckOne />
@@ -263,9 +284,6 @@ const FirstRun: React.FC = () => {
                   {readyToLaunch ? t('settings.firstRun.beginner.readyTitle') : t('settings.firstRun.beginner.title')}
                 </h2>
                 <p data-testid='opl-first-run-beginner-summary'>{beginnerSummary}</p>
-                <p className={styles.firstRunMutedLine} data-testid='opl-first-run-stage'>
-                  {t('settings.firstRun.stage', { phase: currentPhase })}
-                </p>
               </div>
               <Tag color={coreStatusColor}>{coreStatusLabel}</Tag>
             </div>
@@ -335,29 +353,15 @@ const FirstRun: React.FC = () => {
               >
                 <span data-testid='opl-first-run-ready-entry'>{t('settings.firstRun.enterGuid')}</span>
               </Button>
-              <Button
-                icon={<SettingTwo />}
-                onClick={() => navigate('/settings/runtime')}
-                data-testid='opl-settings-environment'
-                aria-label='opl-settings-environment'
-              >
-                {t('settings.firstRun.openRuntimeSettings')}
-              </Button>
-              <Button
-                loading={initializeLoading}
-                onClick={() => void refreshInitialize()}
-                data-testid='opl-first-run-retry-button'
-                aria-label='opl-first-run-retry-button'
-              >
-                {t('common.refresh')}
-              </Button>
             </div>
 
             <div className={styles.firstRunStatusStrip}>
               <div>
                 <div className={styles.firstRunStripLabel}>{t('settings.firstRun.blockers')}</div>
                 <p data-testid='opl-first-run-blockers-list' aria-label='opl-first-run-blockers-list'>
-                  {hasBlockingItems ? blockingItems.join(', ') : t('settings.firstRun.noCoreBlockers')}
+                  {primaryBlockerLabels.length > 0
+                    ? primaryBlockerLabels.join(', ')
+                    : t('settings.firstRun.noCoreBlockers')}
                 </p>
               </div>
               <div>
@@ -398,6 +402,34 @@ const FirstRun: React.FC = () => {
           data-testid='opl-first-run-technical-details-toggle'
         >
           <Collapse.Item name='technical-details' header={t('settings.firstRun.technicalDetails')}>
+            <section className={styles.firstRunDiagnostics} data-testid='opl-first-run-primary-troubleshooting'>
+              <div className={styles.firstRunDiagnosticLine} data-testid='opl-first-run-stage'>
+                <span>{t('settings.firstRun.stage', { phase: currentPhase })}</span>
+              </div>
+              {error && (
+                <div className={styles.firstRunTechnicalError} data-testid='opl-first-run-technical-error'>
+                  {error}
+                </div>
+              )}
+              <div className={styles.firstRunSectionActions}>
+                <Button
+                  icon={<SettingTwo />}
+                  onClick={() => navigate('/settings/runtime')}
+                  data-testid='opl-settings-environment'
+                  aria-label='opl-settings-environment'
+                >
+                  {t('settings.firstRun.openRuntimeSettings')}
+                </Button>
+                <Button
+                  loading={initializeLoading}
+                  onClick={() => void refreshInitialize()}
+                  data-testid='opl-first-run-retry-button'
+                  aria-label='opl-first-run-retry-button'
+                >
+                  {t('common.refresh')}
+                </Button>
+              </div>
+            </section>
             <section className={styles.firstRunGrid}>
               <div className={styles.firstRunCard}>
                 <div className={styles.firstRunCardHeader}>
