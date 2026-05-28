@@ -113,11 +113,6 @@ const LoginPage: React.FC = () => {
   const supportedLanguages = useMemo<{ code: string; label: string }[]>(
     () => [
       { code: 'zh-CN', label: '简体中文' },
-      { code: 'zh-TW', label: '繁體中文' },
-      { code: 'ja-JP', label: '日本語' },
-      { code: 'ko-KR', label: '한국어' },
-      { code: 'tr-TR', label: 'Türkçe' },
-      { code: 'uk-UA', label: 'Українська' },
       { code: 'en-US', label: 'English' },
     ],
     []

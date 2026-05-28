@@ -321,7 +321,7 @@ const UpdateModal: React.FC = () => {
     switch (status) {
       case 'checking':
         return (
-          <div className='flex flex-col items-center justify-center py-48px'>
+          <div className='flex flex-col items-center justify-center w-full min-h-224px px-32px py-32px'>
             <div className='w-48px h-48px mb-20px relative'>
               <div className='absolute inset-0 border-3 border-fill-3 rounded-full' />
               <div className='absolute inset-0 border-3 border-primary border-t-transparent rounded-full animate-spin' />
@@ -501,7 +501,7 @@ const UpdateModal: React.FC = () => {
       }}
       footer={{ render: () => null }}
       contentStyle={{
-        height: status === 'available' ? '420px' : 'auto',
+        height: status === 'available' ? '420px' : '224px',
         padding: 0,
         overflow: 'hidden',
       }}

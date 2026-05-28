@@ -686,7 +686,7 @@ useEffect(() => {
 
 - 英文（en-US）：`src/renderer/services/i18n/locales/en-US/settings.json:3-40`
 - 中文（zh-CN）：`src/renderer/services/i18n/locales/zh-CN/settings.json:3-40`
-- 其他语言：tr-TR, uk-UA, ru-RU, ko-KR, ja-JP, zh-TW
+- 当前仅保留中英双语版本。
 
 **E2E 测试使用**：
 
@@ -1495,7 +1495,7 @@ normalizeTestId('skill<test>'); // → 'skill-test-'
 
 - `src/renderer/services/i18n/locales/en-US/settings.json`（英文）
 - `src/renderer/services/i18n/locales/zh-CN/settings.json`（中文）
-- 其他语言：tr-TR, uk-UA, ru-RU, ko-KR, ja-JP, zh-TW
+- 当前仅保留中英双语版本。
 
 ---
 
