@@ -16,6 +16,19 @@ The shell bridge uses the App/runtime contract surfaces as its primary path:
 
 Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visualization_projection` parsing is kept as an isolated adapter for historical full-detail payloads and tests. New GUI work should not add top-level `runtime_visualization_projection` fallback to the main renderer path.
 
+## Codex Conversation Output
+
+Codex ACP tool-call output must render like native Codex output. The shell
+normalizes `raw_output` from `aggregated_output`, `formatted_output`, `stdout`,
+and `stderr` fields, preserving newline-bearing command output in the tool-call
+body. This belongs in the ACP normalization layer, not in a Codex CLI setting,
+CSS text-collapse workaround, or post-render string heuristic.
+
+If stdout and stderr are both present, the normalizer joins them with exactly
+one separating newline unless stdout already ends with `\n`. Regression coverage
+belongs beside `normalizeToolCall`, because every renderer path that consumes a
+normalized tool call should receive the same output text.
+
 ## Product Profile
 
 The generated product profile under `packages/desktop/src/common/config/oplProductProfile/` is App-owned input copied into the shell. Shell code may consume that profile for defaults such as visible settings tabs, home assistants, Codex model policy, and session context. It must not redefine those defaults from upstream AionUI UI state.
