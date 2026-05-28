@@ -54,7 +54,6 @@ export type OplAssistantSkillProfile = {
   assistant_id: string;
   required_skills: string[];
   optional_skills: string[];
-  hidden_home_skill_names: string[];
   required_skill_policy: 'checked_locked';
   optional_skill_policy: 'unchecked_user_selectable';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
@@ -403,11 +402,6 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
       assistant_id: assistantId,
       required_skills: readStringArray(entry, 'required_skills', `gui.assistant_skill_profiles.${assistantId}`),
       optional_skills: readStringArray(entry, 'optional_skills', `gui.assistant_skill_profiles.${assistantId}`),
-      hidden_home_skill_names: readStringArray(
-        entry,
-        'hidden_home_skill_names',
-        `gui.assistant_skill_profiles.${assistantId}`
-      ),
       required_skill_policy: 'checked_locked',
       optional_skill_policy: 'unchecked_user_selectable',
       skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
@@ -421,12 +415,8 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
     if (profile.required_skills.join(',') !== profile.assistant_id) {
       throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must require its matching skill`);
     }
-    for (const hiddenSkill of ['aionui-skills', 'aionui-webui-setup', 'cron', 'skill-creator']) {
-      if (!profile.hidden_home_skill_names.includes(hiddenSkill)) {
-        throw new Error(
-          `Invalid OPL product profile: assistant ${profile.assistant_id} must hide ${hiddenSkill} on home`
-        );
-      }
+    if ('hidden_home_skill_names' in profile) {
+      throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must not carry UI hiding policy`);
     }
   }
   return profiles;
@@ -636,17 +626,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
-  const defaultHomeAssistants = readDefaultHomeAssistants(gui);
-  const assistantSkillProfiles = readAssistantSkillProfiles(gui);
-  for (const profile of assistantSkillProfiles) {
-    if (profile.optional_skills.includes('morph-ppt')) {
-      throw new Error(
-        `Invalid OPL product profile: assistant ${profile.assistant_id} must not expose retired morph-ppt`
-      );
-    }
-  }
-  const nonDefaultAssistants = readNonDefaultAssistants(gui);
-
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
   const defaultPackagedCodexSkillIds = readStringArray(
@@ -675,6 +654,25 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (hiddenDefaultPackagedSkills.length > 0) {
     throw new Error('Invalid OPL product profile: default packaged skills must be default visible');
   }
+  const defaultHomeAssistants = readDefaultHomeAssistants(gui);
+  const assistantSkillProfiles = readAssistantSkillProfiles(gui);
+  const defaultPackagedSkillSet = new Set(defaultPackagedCodexSkillIds);
+  for (const profile of assistantSkillProfiles) {
+    const unpackagedProfileSkills = [...profile.required_skills, ...profile.optional_skills].filter(
+      (skill) => !defaultPackagedSkillSet.has(skill)
+    );
+    if (unpackagedProfileSkills.length > 0) {
+      throw new Error(
+        `Invalid OPL product profile: assistant ${profile.assistant_id} references unpackaged skills: ${unpackagedProfileSkills.join(', ')}`
+      );
+    }
+    if (profile.optional_skills.includes('morph-ppt')) {
+      throw new Error(
+        `Invalid OPL product profile: assistant ${profile.assistant_id} must not expose retired morph-ppt`
+      );
+    }
+  }
+  const nonDefaultAssistants = readNonDefaultAssistants(gui);
   if (
     !defaultPackagedCodexSkillIds.includes('superpowers') ||
     !packagedNotDefaultVisibleCodexSkillIds.includes('opl-meta-agent')
@@ -895,7 +893,6 @@ export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
     ...profile,
     required_skills: [...profile.required_skills],
     optional_skills: [...profile.optional_skills],
-    hidden_home_skill_names: [...profile.hidden_home_skill_names],
   }));
 }
 
@@ -910,7 +907,6 @@ export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSk
     ...profile,
     required_skills: [...profile.required_skills],
     optional_skills: [...profile.optional_skills],
-    hidden_home_skill_names: [...profile.hidden_home_skill_names],
   };
 }
 
@@ -925,6 +921,10 @@ export function getOplBuiltinAssistantRouteReceiptPolicy(): OplBuiltinAssistantR
 
 export function getOplDefaultCodexSkills(): string[] {
   return [...OPL_PRODUCT_PROFILE.codex.default_visible_skills];
+}
+
+export function getOplDefaultPackagedCodexSkills(): string[] {
+  return [...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids];
 }
 
 export function getOplSkillPriority(): string[] {

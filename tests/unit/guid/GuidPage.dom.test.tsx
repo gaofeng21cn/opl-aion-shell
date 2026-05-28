@@ -58,7 +58,12 @@ vi.mock('@/common', () => ({
       listBuiltinAutoSkills: {
         invoke: vi.fn().mockResolvedValue([{ name: 'aionui-skills', description: 'Upstream AionUI auto skill' }]),
       },
-      listAvailableSkills: { invoke: vi.fn().mockResolvedValue([]) },
+      listAvailableSkills: {
+        invoke: vi.fn().mockResolvedValue([
+          { name: 'mas', description: 'MAS skill' },
+          { name: 'officecli-docx', description: 'Word documents' },
+        ]),
+      },
     },
     dialog: {
       showOpen: { invoke: vi.fn().mockResolvedValue([]) },
@@ -269,15 +274,18 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(mocks.setMentionSelectorVisible).toHaveBeenCalledWith(false);
   });
 
-  it('keeps upstream builtin-auto skills disabled on the OPL home path by default', async () => {
+  it('loads only App-packaged available skills on the OPL home path', async () => {
     render(<GuidPage />);
 
     await screen.findByText('@MAS');
 
+    const { ipcBridge } = await import('@/common');
+    expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).not.toHaveBeenCalled();
+    expect(ipcBridge.fs.listAvailableSkills.invoke).toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidDisabledBuiltinSkills: ['aionui-skills'],
+          guidDisabledBuiltinSkills: [],
         })
       )
     );

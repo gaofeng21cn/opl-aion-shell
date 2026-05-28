@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import {
   getOplAssistantSkillProfile,
+  getOplDefaultPackagedCodexSkills,
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
@@ -65,31 +66,26 @@ const GuidPage: React.FC = () => {
   }, []);
 
   // --- Skills state ---
-  // All available skills (builtin auto-injected + user-imported custom) merged
-  // into one catalog for the action-row menu. OPL keeps upstream auto-injected
-  // builtins out of the default conversation context; users can explicitly
-  // enable them per conversation from the menu.
+  // Home skill choices are bounded by the App product packaged skill set.
+  // Upstream AionUI builtin-auto skills are shell candidates, not home catalog
+  // policy.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
-  const [defaultDisabledBuiltinSkills, setDefaultDisabledBuiltinSkills] = useState<string[]>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
-    Promise.all([ipcBridge.fs.listBuiltinAutoSkills.invoke(), ipcBridge.fs.listAvailableSkills.invoke()])
-      .then(([autoSkills, availableSkills]) => {
-        const autoNames = new Set(autoSkills.map((s) => s.name));
-        const merged: Array<{ name: string; description: string; isAuto: boolean }> = [
-          ...autoSkills.map((s) => ({ name: s.name, description: s.description, isAuto: true })),
-          ...availableSkills
-            .filter((s) => !autoNames.has(s.name))
-            .map((s) => ({ name: s.name, description: s.description, isAuto: false })),
-        ];
-        setAllSkills(merged);
-        setDefaultDisabledBuiltinSkills([...autoNames]);
+    const packagedSkillNames = new Set(getOplDefaultPackagedCodexSkills());
+    ipcBridge.fs.listAvailableSkills
+      .invoke()
+      .then((availableSkills) => {
+        setAllSkills(
+          availableSkills
+            .filter((skill) => packagedSkillNames.has(skill.name))
+            .map((skill) => ({ name: skill.name, description: skill.description, isAuto: false }))
+        );
       })
       .catch(() => {
         setAllSkills([]);
-        setDefaultDisabledBuiltinSkills([]);
       });
   }, []);
 
@@ -330,26 +326,16 @@ const GuidPage: React.FC = () => {
   );
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
-    const disabledBuiltinSkills = defaultDisabledBuiltinSkills.length > 0 ? defaultDisabledBuiltinSkills : undefined;
     if (agentSelection.is_presetAgent && selectedAssistantRecord) {
-      setGuidDisabledBuiltinSkills(
-        selectedAssistantRecord.disabled_builtin_skills?.length
-          ? selectedAssistantRecord.disabled_builtin_skills
-          : disabledBuiltinSkills
-      );
+      setGuidDisabledBuiltinSkills([]);
       setGuidEnabledSkills(
         mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
       );
     } else {
-      setGuidDisabledBuiltinSkills(disabledBuiltinSkills);
+      setGuidDisabledBuiltinSkills(undefined);
       setGuidEnabledSkills(undefined);
     }
-  }, [
-    agentSelection.is_presetAgent,
-    defaultDisabledBuiltinSkills,
-    selectedAssistantRecord,
-    selectedAssistantRequiredSkills,
-  ]);
+  }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
 
   const heroTitle = useMemo(() => {
     return t('conversation.welcome.title');

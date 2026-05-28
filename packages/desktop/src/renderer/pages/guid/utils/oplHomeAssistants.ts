@@ -101,7 +101,7 @@ const mergeAssistantWithProfile = (
   );
   merged.enabled_skills = Array.from(new Set([...requiredSkills, ...(existing.enabled_skills || [])]));
   merged.custom_skill_names = existing.custom_skill_names || [];
-  merged.disabled_builtin_skills = existing.disabled_builtin_skills || [];
+  merged.disabled_builtin_skills = [];
   merged.context_i18n = existing.context_i18n || {};
   merged.models = existing.models || [];
   return merged;

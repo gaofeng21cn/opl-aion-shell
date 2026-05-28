@@ -165,7 +165,13 @@ describe('OPL generated product profile', () => {
     expect(
       profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
     ).toBe(true);
-    expect(profiles.every((profile) => profile.hidden_home_skill_names.includes('aionui-skills'))).toBe(true);
+    const packagedSkillIds = new Set(OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids);
+    expect(
+      profiles.every((profile) =>
+        [...profile.required_skills, ...profile.optional_skills].every((skill) => packagedSkillIds.has(skill))
+      )
+    ).toBe(true);
+    expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
 
     profiles[0].required_skills.push('caller-local-skill');
     expect(getOplAssistantSkillProfile('mas')?.required_skills).toEqual(['mas']);

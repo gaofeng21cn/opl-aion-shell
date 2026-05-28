@@ -78,14 +78,13 @@ describe('OPL home assistants', () => {
     expect(resolved.find((item) => item.id === 'mag')?.enabled_skills).toEqual(['mag', 'officecli-docx']);
   });
 
-  it('builds an assistant-scoped skill menu with locked required skills and hidden internals removed', () => {
+  it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {
     const magProfile = getOplAssistantSkillProfile('mag');
     const menuItems = buildAssistantScopedSkillMenuItems(
       [
         { name: 'mag', description: 'Grant skill', isAuto: false },
         { name: 'officecli-docx', description: 'Word documents', isAuto: false },
         { name: 'mineru-document-extractor', description: 'Extract documents', isAuto: false },
-        { name: 'aionui-skills', description: 'Internal AionUI skill', isAuto: true },
       ],
       magProfile
     );
@@ -98,7 +97,6 @@ describe('OPL home assistants', () => {
     ]);
     expect(menuItems.find((item) => item.name === 'mag')).toMatchObject({ required: true, locked: true });
     expect(menuItems.find((item) => item.name === 'officecli-docx')).toMatchObject({ required: false, locked: false });
-    expect(menuItems.map((item) => item.name)).not.toContain('aionui-skills');
     expect(isGuidSkillChecked(menuItems[0], [], [])).toBe(true);
     expect(isGuidSkillChecked(menuItems[1], ['officecli-docx'], [])).toBe(true);
     expect(mergeRequiredSkills(['mag'], ['officecli-docx', 'mag'])).toEqual(['mag', 'officecli-docx']);

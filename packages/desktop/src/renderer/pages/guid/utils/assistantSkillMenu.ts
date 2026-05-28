@@ -31,20 +31,17 @@ export function buildAssistantScopedSkillMenuItems(
 
   const catalog = new Map(allSkills.map((skill) => [skill.name, skill]));
   const required = new Set(skillProfile.required_skills);
-  const hidden = new Set(skillProfile.hidden_home_skill_names);
-  return unique([...skillProfile.required_skills, ...skillProfile.optional_skills])
-    .filter((skillName) => !hidden.has(skillName))
-    .map((skillName) => {
-      const catalogItem = catalog.get(skillName);
-      const isRequired = required.has(skillName);
-      return {
-        name: skillName,
-        description: catalogItem?.description ?? '',
-        isAuto: false,
-        required: isRequired,
-        locked: isRequired,
-      };
-    });
+  return unique([...skillProfile.required_skills, ...skillProfile.optional_skills]).map((skillName) => {
+    const catalogItem = catalog.get(skillName);
+    const isRequired = required.has(skillName);
+    return {
+      name: skillName,
+      description: catalogItem?.description ?? '',
+      isAuto: false,
+      required: isRequired,
+      locked: isRequired,
+    };
+  });
 }
 
 export function isGuidSkillChecked(
