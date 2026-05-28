@@ -66,9 +66,10 @@ const AboutModalContent: React.FC = () => {
         frameworkRevision:
           oplString(release.opl_framework_revision) ??
           oplString(release.framework_revision) ??
-          oplString(release.opl_framework_version) ??
-          oplString(release.framework_version) ??
-          oplString(release.framework) ??
+          oplString(release.opl_framework_commit) ??
+          oplString(release.framework_commit) ??
+          oplString(release.opl_framework_date) ??
+          oplString(release.framework_date) ??
           '-',
         releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
         releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',

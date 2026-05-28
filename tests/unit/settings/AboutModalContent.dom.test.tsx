@@ -79,6 +79,30 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
   });
 
+  it('does not fall back to the legacy framework version when revision is missing', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: {
+        app_state: {
+          release: {
+            app_version: '26.4.27',
+            channel: 'stable',
+            opl_framework_version: '0.1.0',
+          },
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    expect(await screen.findByText('OPL 框架 -')).toBeInTheDocument();
+    expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
+  });
+
   it('keeps Nightly as a proper noun inside a complete settings label', async () => {
     renderWithFreshSWR();
 

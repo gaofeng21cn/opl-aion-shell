@@ -55,14 +55,16 @@ vi.mock('@/renderer/components/base/AionModal', () => ({
   default: ({
     visible,
     children,
+    style,
     contentStyle,
   }: {
     visible: boolean;
     children: React.ReactNode;
+    style?: { height?: string | number; width?: string | number };
     contentStyle?: { height?: string | number };
   }) =>
     visible ? (
-      <div data-testid='aion-modal' data-content-height={contentStyle?.height}>
+      <div data-testid='aion-modal' data-modal-width={style?.width} data-content-height={contentStyle?.height}>
         {children}
       </div>
     ) : null,
@@ -89,9 +91,10 @@ describe('UpdateModal checking layout', () => {
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
 
     const modal = await screen.findByTestId('aion-modal');
+    expect(modal).toHaveAttribute('data-modal-width', '400px');
     expect(modal).toHaveAttribute('data-content-height', '224px');
 
     await waitFor(() => expect(screen.getByText('正在检查更新')).toBeInTheDocument());
-    expect(screen.getByText('正在检查更新').parentElement).toHaveClass('min-h-224px');
+    expect(screen.getByText('正在检查更新').parentElement).toHaveClass('min-h-224px', 'h-full', 'box-border');
   });
 });
