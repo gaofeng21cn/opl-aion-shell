@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
@@ -9,6 +9,11 @@ import GuidPage from '@/renderer/pages/guid/GuidPage';
 const mocks = vi.hoisted(() => ({
   setSelectedAgentKey: vi.fn(),
   setMentionSelectorVisible: vi.fn(),
+  useGuidSend: vi.fn(() => ({
+    handleSend: vi.fn().mockResolvedValue(undefined),
+    sendMessageHandler: vi.fn(),
+    isButtonDisabled: true,
+  })),
 }));
 
 const selectedAssistant: Assistant = {
@@ -196,11 +201,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidSend', () => ({
-  useGuidSend: () => ({
-    handleSend: vi.fn().mockResolvedValue(undefined),
-    sendMessageHandler: vi.fn(),
-    isButtonDisabled: true,
-  }),
+  useGuidSend: mocks.useGuidSend,
 }));
 
 vi.mock('@/renderer/pages/guid/hooks/useTypewriterPlaceholder', () => ({
@@ -229,7 +230,7 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportMod
 }));
 
 describe('GuidPage selected purpose assistant surface', () => {
-  it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', () => {
+  it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', async () => {
     render(<GuidPage />);
 
     expect(screen.getByText('@MAS')).toBeInTheDocument();
@@ -238,6 +239,9 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.5xhigh')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
+    });
   });
 
   it('does not open an execution-agent dropdown from the selected built-in assistant badge', async () => {

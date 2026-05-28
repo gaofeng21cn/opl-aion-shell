@@ -12,6 +12,7 @@ import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, Lightning, Plus, Shield, UploadOne } from '@icon-park/react';
@@ -50,7 +51,7 @@ type GuidActionRowProps = {
   showModeSelector?: boolean;
 
   // Skills management
-  allSkills: Array<{ name: string; description: string; isAuto: boolean }>;
+  allSkills: GuidSkillMenuItem[];
   disabledBuiltinSkills: string[];
   enabledSkills: string[];
   onToggleSkill: (name: string, isAuto: boolean) => void;
@@ -125,11 +126,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
   const isWebUI = !isElectronDesktop();
 
-  const builtinAutoSkills = allSkills.filter((s) => s.isAuto);
-  const activeSkillCount = builtinAutoSkills.length - disabledBuiltinSkills.length;
-
-  const isSkillChecked = (skill: { name: string; isAuto: boolean }) =>
-    skill.isAuto ? !disabledBuiltinSkills.includes(skill.name) : enabledSkills.includes(skill.name);
+  const activeSkillCount = allSkills.filter((skill) =>
+    isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills)
+  ).length;
 
   const menuContent = (
     <Menu
@@ -198,13 +197,17 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
               key={`skill-${skill.name}`}
               onClick={(e) => {
                 e.stopPropagation();
+                if (skill.locked) return;
                 onToggleSkill(skill.name, skill.isAuto);
               }}
             >
               <Checkbox
-                checked={isSkillChecked(skill)}
+                checked={isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills)}
+                disabled={skill.locked}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                onChange={() => onToggleSkill(skill.name, skill.isAuto)}
+                onChange={() => {
+                  if (!skill.locked) onToggleSkill(skill.name, skill.isAuto);
+                }}
               >
                 <span className='text-13px'>{skill.name}</span>
               </Checkbox>

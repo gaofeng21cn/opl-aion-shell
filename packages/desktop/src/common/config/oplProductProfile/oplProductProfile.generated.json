@@ -48,6 +48,9 @@
       "codex_default_reasoning_effort": "xhigh",
       "codex_default_permission_mode": "full-access",
       "permission_mode_selector_visible": false,
+      "conversation_backend_selector_visible": false,
+      "conversation_model_selector_visible": false,
+      "conversation_permission_mode_selector_visible": false,
       "codex_home_model_status_label": "自动",
       "codex_home_model_status_label_en": "Auto",
       "codex_precise_model_display_policy": "technical_details_or_connected_state_only",
@@ -85,6 +88,15 @@
         }
       ],
       "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
+    },
+    "builtin_assistant_route_receipt_policy": {
+      "scope": "home_purpose_entry_to_conversation",
+      "required_for_assistants": ["mas", "mag", "rca"],
+      "route_kind": "builtin_capability",
+      "executor": "codex_cli",
+      "source": "opl_app_home",
+      "required_fields": ["route_kind", "executor", "assistant_id", "assistant_short_name", "source"],
+      "must_not_depend_on_visible_backend_selection": true
     },
     "default_assistants": [
       {
@@ -143,6 +155,35 @@
           "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
           "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
         }
+      }
+    ],
+    "assistant_skill_profiles": [
+      {
+        "assistant_id": "mas",
+        "required_skills": ["mas"],
+        "optional_skills": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
+        "hidden_home_skill_names": ["aionui-skills", "aionui-webui-setup", "cron", "skill-creator"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
+      },
+      {
+        "assistant_id": "mag",
+        "required_skills": ["mag"],
+        "optional_skills": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
+        "hidden_home_skill_names": ["aionui-skills", "aionui-webui-setup", "cron", "skill-creator"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
+      },
+      {
+        "assistant_id": "rca",
+        "required_skills": ["rca"],
+        "optional_skills": ["officecli-pptx", "morph-ppt", "ui-ux-pro-max"],
+        "hidden_home_skill_names": ["aionui-skills", "aionui-webui-setup", "cron", "skill-creator"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
       }
     ],
     "non_default_assistants": [

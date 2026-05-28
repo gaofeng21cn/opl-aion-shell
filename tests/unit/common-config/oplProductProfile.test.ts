@@ -3,6 +3,9 @@ import {
   getOplCodexSessionContext,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
+  getOplAssistantSkillProfile,
+  getOplAssistantSkillProfiles,
+  getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
   getOplDefaultCodexModel,
@@ -138,6 +141,50 @@ describe('OPL generated product profile', () => {
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
     expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
+  });
+
+  it('exposes assistant-scoped home skill profiles from the App contract', () => {
+    const profiles = getOplAssistantSkillProfiles();
+
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca']);
+    expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
+      mas: ['mas'],
+      mag: ['mag'],
+      rca: ['rca'],
+    });
+    expect(getOplAssistantSkillProfile('builtin-mag')?.required_skills).toEqual(['mag']);
+    expect(getOplAssistantSkillProfile('rca')?.optional_skills).toEqual([
+      'officecli-pptx',
+      'morph-ppt',
+      'ui-ux-pro-max',
+    ]);
+    expect(profiles.every((profile) => profile.required_skill_policy === 'checked_locked')).toBe(true);
+    expect(
+      profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
+    ).toBe(true);
+    expect(profiles.every((profile) => profile.hidden_home_skill_names.includes('aionui-skills'))).toBe(true);
+
+    profiles[0].required_skills.push('caller-local-skill');
+    expect(getOplAssistantSkillProfile('mas')?.required_skills).toEqual(['mas']);
+  });
+
+  it('exposes the built-in assistant route receipt policy', () => {
+    const policy = getOplBuiltinAssistantRouteReceiptPolicy();
+
+    expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca']);
+    expect(policy.route_kind).toBe('builtin_capability');
+    expect(policy.executor).toBe('codex_cli');
+    expect(policy.source).toBe('opl_app_home');
+    expect(policy.required_fields).toEqual([
+      'route_kind',
+      'executor',
+      'assistant_id',
+      'assistant_short_name',
+      'source',
+    ]);
+
+    policy.required_for_assistants.push('caller-local-assistant');
+    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual(['mas', 'mag', 'rca']);
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {

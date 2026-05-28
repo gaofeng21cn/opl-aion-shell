@@ -251,76 +251,46 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   const foundryAssistants = useMemo(() => filterOplFoundryAssistants(assistants), [assistants]);
 
   if ((!assistants || assistants.length === 0) && foundryAssistants.length === 0) return null;
-
-  if (is_presetAgent && selectedAgentInfo) {
-    // Selected Assistant View
-    return (
-      <div className='mt-20px w-full'>
-        <div className='flex flex-col w-full animate-fade-in'>
-          {/* Main Agent Fallback Notice */}
-          {currentEffectiveAgentInfo.isFallback && (
-            <div
-              className='mb-12px px-12px py-8px rd-8px text-12px flex items-center gap-8px'
-              style={{
-                background: 'rgb(var(--warning-1))',
-                border: '1px solid rgb(var(--warning-3))',
-                color: 'rgb(var(--warning-6))',
-              }}
-            >
-              <span>
-                {t('guid.agentFallbackNotice', {
-                  original:
-                    currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() +
-                    currentEffectiveAgentInfo.originalType.slice(1),
-                  fallback:
-                    currentEffectiveAgentInfo.agent_type.charAt(0).toUpperCase() +
-                    currentEffectiveAgentInfo.agent_type.slice(1),
-                  defaultValue: `${currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + currentEffectiveAgentInfo.originalType.slice(1)} is unavailable, using ${currentEffectiveAgentInfo.agent_type.charAt(0).toUpperCase() + currentEffectiveAgentInfo.agent_type.slice(1)} instead.`,
-                })}
-              </span>
-            </div>
-          )}
-          {/* Prompts Section */}
-          {(() => {
-            const agent = assistants.find((a) => a.id === selectedAgentInfo.custom_agent_id);
-            const prompts = agent?.prompts_i18n?.[localeKey] || agent?.prompts_i18n?.['en-US'] || agent?.prompts;
-            if (prompts && prompts.length > 0) {
-              return (
-                <div className='mt-16px'>
-                  <div className={styles.assistantPromptHint}>
-                    {t('guid.promptExamplesHint', { defaultValue: 'Try these example prompts:' })}
-                  </div>
-                  <div className='flex flex-wrap gap-8px mt-12px'>
-                    {prompts.map((prompt: string, index: number) => (
-                      <div
-                        key={index}
-                        className={`${styles.assistantPromptChip} px-12px py-6px text-2 text-13px rd-16px cursor-pointer transition-colors shadow-sm`}
-                        onClick={() => {
-                          onSetInput(prompt);
-                          onFocusInput();
-                        }}
-                      >
-                        {prompt}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </div>
-        {modalTree}
-      </div>
-    );
-  }
+  const selectedAssistantId = selectedAgentInfo?.custom_agent_id?.replace(/^builtin-/, '');
+  const selectedAssistant = selectedAssistantId
+    ? assistants.find((assistant) => resolveAssistantCandidateIds(selectedAssistantId).includes(assistant.id))
+    : undefined;
+  const selectedAssistantPrompts =
+    selectedAssistant?.prompts_i18n?.[localeKey] ||
+    selectedAssistant?.prompts_i18n?.['en-US'] ||
+    selectedAssistant?.prompts ||
+    [];
 
   // Assistant List View
   return (
-    <div className='mt-32px w-full'>
-      <div className={`${styles.assistantPromptHint} text-center mb-12px`}>
-        {t('guid.selectAssistantHint', { defaultValue: 'Select an assistant to start a task' })}
-      </div>
+    <div className='mt-24px w-full'>
+      {currentEffectiveAgentInfo.isFallback ? (
+        <div
+          className='mb-12px px-12px py-8px rd-8px text-12px flex items-center gap-8px'
+          style={{
+            background: 'rgb(var(--warning-1))',
+            border: '1px solid rgb(var(--warning-3))',
+            color: 'rgb(var(--warning-6))',
+          }}
+        >
+          <span>
+            {t('guid.agentFallbackNotice', {
+              original:
+                currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() +
+                currentEffectiveAgentInfo.originalType.slice(1),
+              fallback:
+                currentEffectiveAgentInfo.agent_type.charAt(0).toUpperCase() +
+                currentEffectiveAgentInfo.agent_type.slice(1),
+              defaultValue: `${currentEffectiveAgentInfo.originalType.charAt(0).toUpperCase() + currentEffectiveAgentInfo.originalType.slice(1)} is unavailable, using ${currentEffectiveAgentInfo.agent_type.charAt(0).toUpperCase() + currentEffectiveAgentInfo.agent_type.slice(1)} instead.`,
+            })}
+          </span>
+        </div>
+      ) : null}
+      {!is_presetAgent ? (
+        <div className={`${styles.assistantPromptHint} text-center mb-12px`}>
+          {t('guid.selectAssistantHint', { defaultValue: 'Select an assistant to start a task' })}
+        </div>
+      ) : null}
       <div
         ref={scrollWrapRef}
         className={`${styles.assistantCardScrollWrap} ${isScrollable ? styles.assistantCardScrollWrapScrollable : ''}`}
@@ -337,7 +307,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
               <div
                 key={assistant.id}
                 data-testid={`preset-pill-${assistant.id}`}
-                className={styles.assistantCard}
+                className={`${styles.assistantCard} ${selectedAssistantId === assistant.id ? styles.assistantCardSelected : ''}`}
                 onClick={() => {
                   onSelectAssistant(`custom:${assistant.id}`);
                   onFocusInput();
@@ -352,6 +322,27 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
           })}
         </div>
       </div>
+      {selectedAssistantPrompts.length > 0 ? (
+        <div className='mt-16px'>
+          <div className={styles.assistantPromptHint}>
+            {t('guid.promptExamplesHint', { defaultValue: 'Try these example prompts:' })}
+          </div>
+          <div className='flex flex-wrap gap-8px mt-12px'>
+            {selectedAssistantPrompts.map((prompt: string, index: number) => (
+              <div
+                key={index}
+                className={`${styles.assistantPromptChip} px-12px py-6px text-2 text-13px rd-16px cursor-pointer transition-colors shadow-sm`}
+                onClick={() => {
+                  onSetInput(prompt);
+                  onFocusInput();
+                }}
+              >
+                {prompt}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {modalTree}
     </div>
   );

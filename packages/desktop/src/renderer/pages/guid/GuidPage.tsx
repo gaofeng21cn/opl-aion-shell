@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import {
+  getOplAssistantSkillProfile,
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
@@ -26,6 +27,7 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider } from '@arco-design/web-react';
@@ -34,6 +36,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
+
+const EMPTY_GUID_SKILLS: string[] = [];
 
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -131,6 +135,15 @@ const GuidPage: React.FC = () => {
     if (!selectedAssistantRecord) return undefined;
     return selectedAssistantRecord.avatar || selectedAssistantRecord.name;
   }, [selectedAssistantRecord]);
+  const selectedAssistantSkillProfile = useMemo(() => {
+    if (!selectedAssistantRecord) return undefined;
+    return getOplAssistantSkillProfile(selectedAssistantRecord.id);
+  }, [selectedAssistantRecord]);
+  const selectedAssistantRequiredSkills = selectedAssistantSkillProfile?.required_skills ?? EMPTY_GUID_SKILLS;
+  const effectiveGuidEnabledSkills = useMemo(() => {
+    if (selectedAssistantRequiredSkills.length === 0 && !guidEnabledSkills?.length) return undefined;
+    return mergeRequiredSkills(selectedAssistantRequiredSkills, guidEnabledSkills ?? []);
+  }, [guidEnabledSkills, selectedAssistantRequiredSkills]);
 
   const mention = useGuidMention({
     availableAgents: agentSelection.availableAgents,
@@ -170,7 +183,7 @@ const GuidPage: React.FC = () => {
     resolveEnabledSkills: agentSelection.resolveEnabledSkills,
     resolveDisabledBuiltinSkills: agentSelection.resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
-    guidEnabledSkills,
+    guidEnabledSkills: effectiveGuidEnabledSkills,
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
     isGoogleAuth: modelSelection.isGoogleAuth,
 
@@ -304,18 +317,24 @@ const GuidPage: React.FC = () => {
   const defaultPlaceholder = t('conversation.welcome.placeholder');
   const oplPlaceholder = t('conversation.welcome.oplPlaceholder');
   const typewriterPlaceholder = useTypewriterPlaceholder(
-    agentSelection.is_presetAgent ? defaultPlaceholder : oplPlaceholder
+    agentSelection.is_presetAgent && selectedAssistantRecord
+      ? selectedAssistantRecord.description_i18n?.[localeKey] ||
+          selectedAssistantRecord.description ||
+          defaultPlaceholder
+      : oplPlaceholder
   );
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
     if (agentSelection.is_presetAgent && selectedAssistantRecord) {
       setGuidDisabledBuiltinSkills(selectedAssistantRecord.disabled_builtin_skills ?? []);
-      setGuidEnabledSkills(selectedAssistantRecord.enabled_skills ?? []);
+      setGuidEnabledSkills(
+        mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
+      );
     } else {
       setGuidDisabledBuiltinSkills(undefined);
       setGuidEnabledSkills(undefined);
     }
-  }, [agentSelection.is_presetAgent, selectedAssistantRecord]);
+  }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
 
   const heroTitle = useMemo(() => {
     return t('conversation.welcome.title');
@@ -472,9 +491,9 @@ const GuidPage: React.FC = () => {
       agentLogo={effectiveAgentLogo}
       agentSwitcherItems={[]}
       showModeSelector={shouldShowOplHomePermissionModeSelector()}
-      allSkills={allSkills}
+      allSkills={buildAssistantScopedSkillMenuItems(allSkills, selectedAssistantSkillProfile)}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
-      enabledSkills={guidEnabledSkills ?? []}
+      enabledSkills={effectiveGuidEnabledSkills ?? []}
       onToggleSkill={handleToggleSkill}
       hidePresetTag
       loading={guidInput.loading}

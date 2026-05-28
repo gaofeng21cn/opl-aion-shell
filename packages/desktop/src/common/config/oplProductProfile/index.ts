@@ -50,6 +50,26 @@ export type OplNonDefaultAssistant = {
   prompts_i18n: Record<string, string[]>;
 };
 
+export type OplAssistantSkillProfile = {
+  assistant_id: string;
+  required_skills: string[];
+  optional_skills: string[];
+  hidden_home_skill_names: string[];
+  required_skill_policy: 'checked_locked';
+  optional_skill_policy: 'unchecked_user_selectable';
+  skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
+};
+
+export type OplBuiltinAssistantRouteReceiptPolicy = {
+  scope: 'home_purpose_entry_to_conversation';
+  required_for_assistants: string[];
+  route_kind: 'builtin_capability';
+  executor: 'codex_cli';
+  source: 'opl_app_home';
+  required_fields: string[];
+  must_not_depend_on_visible_backend_selection: true;
+};
+
 type AppProductProfile = {
   schema_version: 1;
   owner: 'one-person-lab-app';
@@ -97,7 +117,9 @@ type AppProductProfile = {
       home_purpose_entries: OplHomePurposeEntry[];
       retired_codex_models_must_not_be_exposed: string[];
     };
+    builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
     default_assistants: OplHomeAssistant[];
+    assistant_skill_profiles: OplAssistantSkillProfile[];
     non_default_assistants: OplNonDefaultAssistant[];
   };
   codex: {
@@ -349,6 +371,97 @@ function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAs
   return assistants;
 }
 
+function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantSkillProfile[] {
+  const value = gui.assistant_skill_profiles;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Invalid OPL product profile: gui.assistant_skill_profiles must be a non-empty array');
+  }
+
+  const profiles = value.map((entry, index): OplAssistantSkillProfile => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: gui.assistant_skill_profiles[${index}] must be an object`);
+    }
+    const assistantId = typeof entry.assistant_id === 'string' ? entry.assistant_id.trim() : '';
+    if (!assistantId) {
+      throw new Error(`Invalid OPL product profile: gui.assistant_skill_profiles[${index}] must have assistant_id`);
+    }
+    if (
+      entry.required_skill_policy !== 'checked_locked' ||
+      entry.optional_skill_policy !== 'unchecked_user_selectable' ||
+      entry.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible'
+    ) {
+      throw new Error(`Invalid OPL product profile: assistant skill profile ${assistantId} has unsupported policy`);
+    }
+    return {
+      assistant_id: assistantId,
+      required_skills: readStringArray(entry, 'required_skills', `gui.assistant_skill_profiles.${assistantId}`),
+      optional_skills: readStringArray(entry, 'optional_skills', `gui.assistant_skill_profiles.${assistantId}`),
+      hidden_home_skill_names: readStringArray(
+        entry,
+        'hidden_home_skill_names',
+        `gui.assistant_skill_profiles.${assistantId}`
+      ),
+      required_skill_policy: 'checked_locked',
+      optional_skill_policy: 'unchecked_user_selectable',
+      skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
+    };
+  });
+
+  if (profiles.map((profile) => profile.assistant_id).join(',') !== ['mas', 'mag', 'rca'].join(',')) {
+    throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, and RCA');
+  }
+  for (const profile of profiles) {
+    if (profile.required_skills.join(',') !== profile.assistant_id) {
+      throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must require its matching skill`);
+    }
+    for (const hiddenSkill of ['aionui-skills', 'aionui-webui-setup', 'cron', 'skill-creator']) {
+      if (!profile.hidden_home_skill_names.includes(hiddenSkill)) {
+        throw new Error(
+          `Invalid OPL product profile: assistant ${profile.assistant_id} must hide ${hiddenSkill} on home`
+        );
+      }
+    }
+  }
+  return profiles;
+}
+
+function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): OplBuiltinAssistantRouteReceiptPolicy {
+  const value = gui.builtin_assistant_route_receipt_policy;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: gui.builtin_assistant_route_receipt_policy must be an object');
+  }
+  const requiredForAssistants = readStringArray(
+    value,
+    'required_for_assistants',
+    'gui.builtin_assistant_route_receipt_policy'
+  );
+  const requiredFields = readStringArray(value, 'required_fields', 'gui.builtin_assistant_route_receipt_policy');
+  if (
+    requiredForAssistants.join(',') !== ['mas', 'mag', 'rca'].join(',') ||
+    value.scope !== 'home_purpose_entry_to_conversation' ||
+    value.route_kind !== 'builtin_capability' ||
+    value.executor !== 'codex_cli' ||
+    value.source !== 'opl_app_home' ||
+    value.must_not_depend_on_visible_backend_selection !== true
+  ) {
+    throw new Error('Invalid OPL product profile: built-in assistant route receipt policy is unsupported');
+  }
+  for (const requiredField of ['route_kind', 'executor', 'assistant_id', 'assistant_short_name', 'source']) {
+    if (!requiredFields.includes(requiredField)) {
+      throw new Error(`Invalid OPL product profile: route receipt policy must include ${requiredField}`);
+    }
+  }
+  return {
+    scope: 'home_purpose_entry_to_conversation',
+    required_for_assistants: requiredForAssistants,
+    route_kind: 'builtin_capability',
+    executor: 'codex_cli',
+    source: 'opl_app_home',
+    required_fields: requiredFields,
+    must_not_depend_on_visible_backend_selection: true,
+  };
+}
+
 function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: root must be an object');
@@ -505,7 +618,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
+  const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
+  const assistantSkillProfiles = readAssistantSkillProfiles(gui);
   const nonDefaultAssistants = readNonDefaultAssistants(gui);
 
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
@@ -580,7 +695,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         home_purpose_entries: homePurposeEntries,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
+      builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
       default_assistants: defaultHomeAssistants,
+      assistant_skill_profiles: assistantSkillProfiles,
       non_default_assistants: nonDefaultAssistants,
     },
     codex: {
@@ -693,6 +810,39 @@ export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
       Object.entries(assistant.prompts_i18n).map(([locale, prompts]) => [locale, [...prompts]])
     ),
   }));
+}
+
+export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
+  return OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.map((profile) => ({
+    ...profile,
+    required_skills: [...profile.required_skills],
+    optional_skills: [...profile.optional_skills],
+    hidden_home_skill_names: [...profile.hidden_home_skill_names],
+  }));
+}
+
+export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSkillProfile | undefined {
+  const normalizedId = assistantId
+    .replace(/^builtin-/, '')
+    .trim()
+    .toLowerCase();
+  const profile = OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.find((entry) => entry.assistant_id === normalizedId);
+  if (!profile) return undefined;
+  return {
+    ...profile,
+    required_skills: [...profile.required_skills],
+    optional_skills: [...profile.optional_skills],
+    hidden_home_skill_names: [...profile.hidden_home_skill_names],
+  };
+}
+
+export function getOplBuiltinAssistantRouteReceiptPolicy(): OplBuiltinAssistantRouteReceiptPolicy {
+  const policy = OPL_PRODUCT_PROFILE.gui.builtin_assistant_route_receipt_policy;
+  return {
+    ...policy,
+    required_for_assistants: [...policy.required_for_assistants],
+    required_fields: [...policy.required_fields],
+  };
 }
 
 export function getOplDefaultCodexSkills(): string[] {

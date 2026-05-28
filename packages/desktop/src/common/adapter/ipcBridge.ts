@@ -1323,6 +1323,13 @@ export interface ICreateConversationParams {
     /** Transient: auto-inject skills the user opted out of on the Guid page.
      *  Consumed by backend create handler and stripped before persistence. */
     exclude_auto_inject_skills?: string[];
+    opl_assistant_route?: {
+      route_kind: string;
+      executor: string;
+      assistant_id: string;
+      assistant_short_name: string;
+      source: string;
+    };
     preset_context?: string;
     preset_assistant_id?: string;
     session_mode?: string;

@@ -5,7 +5,11 @@
  */
 
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { getOplDefaultExecutorAgentKey, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
+import {
+  getOplAssistantSkillProfile,
+  getOplDefaultExecutorAgentKey,
+  getOplDefaultHomeAssistants,
+} from '@/common/config/oplProductProfile';
 import { OPL_HOME_PURPOSE_ASSISTANT_IDS, resolveOplHomePurposePresentation } from './utils/oplHomeAssistants';
 import type { AvailableAgent } from './types';
 
@@ -111,6 +115,7 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
         appAssistant?.short_name ?? profile.name,
         appAssistant?.avatar ?? profile.avatar
       );
+      const skillProfile = getOplAssistantSkillProfile(profile.id);
       return {
         ...profile,
         name: presentation.name,
@@ -124,6 +129,7 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
           ...appAssistant?.description_i18n,
         },
         avatar: presentation.avatar,
+        enabled_skills: skillProfile?.required_skills ?? [],
       };
     })
     .map((profile, index) => ({
@@ -137,7 +143,7 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
       enabled: true,
       sort_order: index,
       preset_agent_type: getOplDefaultExecutorAgentKey(),
-      enabled_skills: [] as string[],
+      enabled_skills: profile.enabled_skills,
       custom_skill_names: [] as string[],
       disabled_builtin_skills: [] as string[],
       context_i18n: {},
@@ -176,6 +182,12 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
       avatar: profile.avatar,
       sort_order: profile.sort_order,
       preset_agent_type: getOplDefaultExecutorAgentKey(),
+      enabled_skills: Array.from(
+        new Set([
+          ...(getOplAssistantSkillProfile(assistantId)?.required_skills ?? []),
+          ...(assistant.enabled_skills || []),
+        ])
+      ),
       prompts: profile.prompts,
       prompts_i18n: profile.prompts_i18n,
     };

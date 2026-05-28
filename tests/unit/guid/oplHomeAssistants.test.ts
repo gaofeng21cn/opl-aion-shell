@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { filterOplFoundryAssistants, withOplFoundryAssistantDefaults } from '@/renderer/pages/guid/oplGuidProfile';
+import {
+  buildAssistantScopedSkillMenuItems,
+  isGuidSkillChecked,
+  mergeRequiredSkills,
+} from '@/renderer/pages/guid/utils/assistantSkillMenu';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import { getOplAssistantSkillProfile } from '@/common/config/oplProductProfile';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -41,6 +47,11 @@ describe('OPL home assistants', () => {
     expect(resolved.map((item) => item.name)).not.toEqual(
       expect.arrayContaining(['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Meta Agent'])
     );
+    expect(Object.fromEntries(resolved.map((item) => [item.id, item.enabled_skills]))).toEqual({
+      mas: ['mas'],
+      mag: ['mag'],
+      rca: ['rca'],
+    });
   });
 
   it('does not re-add OMA when merging shell defaults for the Guid page', () => {
@@ -52,5 +63,44 @@ describe('OPL home assistants', () => {
     expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', 'PPT']);
     expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual(['Research', 'Grants', 'PPT']);
     expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca']);
+    expect(resolved.map((item) => item.enabled_skills)).toEqual([['mas'], ['mag'], ['rca']]);
+  });
+
+  it('keeps caller-added assistant skills while forcing the required profile skill', () => {
+    const resolved = resolveOplHomeAssistants([
+      assistant({
+        id: 'mag',
+        name: 'Custom MAG',
+        enabled_skills: ['officecli-docx'],
+      }),
+    ]);
+
+    expect(resolved.find((item) => item.id === 'mag')?.enabled_skills).toEqual(['mag', 'officecli-docx']);
+  });
+
+  it('builds an assistant-scoped skill menu with locked required skills and hidden internals removed', () => {
+    const magProfile = getOplAssistantSkillProfile('mag');
+    const menuItems = buildAssistantScopedSkillMenuItems(
+      [
+        { name: 'mag', description: 'Grant skill', isAuto: false },
+        { name: 'officecli-docx', description: 'Word documents', isAuto: false },
+        { name: 'mineru-document-extractor', description: 'Extract documents', isAuto: false },
+        { name: 'aionui-skills', description: 'Internal AionUI skill', isAuto: true },
+      ],
+      magProfile
+    );
+
+    expect(menuItems.map((item) => item.name)).toEqual([
+      'mag',
+      'officecli-docx',
+      'officecli-xlsx',
+      'mineru-document-extractor',
+    ]);
+    expect(menuItems.find((item) => item.name === 'mag')).toMatchObject({ required: true, locked: true });
+    expect(menuItems.find((item) => item.name === 'officecli-docx')).toMatchObject({ required: false, locked: false });
+    expect(menuItems.map((item) => item.name)).not.toContain('aionui-skills');
+    expect(isGuidSkillChecked(menuItems[0], [], [])).toBe(true);
+    expect(isGuidSkillChecked(menuItems[1], ['officecli-docx'], [])).toBe(true);
+    expect(mergeRequiredSkills(['mag'], ['officecli-docx', 'mag'])).toEqual(['mag', 'officecli-docx']);
   });
 });

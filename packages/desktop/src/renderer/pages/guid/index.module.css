@@ -821,12 +821,25 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
 }
 
+.assistantCardSelected {
+  border-color: var(--color-primary-6);
+  background: var(--color-primary-light-1);
+}
+
+.assistantCardSelected:hover {
+  border-color: var(--color-primary-6);
+}
+
 :global([data-theme='dark']) .assistantCard {
   background: #262626;
 }
 
 :global([data-theme='dark']) .assistantCard:hover {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+:global([data-theme='dark']) .assistantCardSelected {
+  background: color-mix(in srgb, var(--color-primary-6) 18%, #262626);
 }
 
 .assistantCardAvatar {

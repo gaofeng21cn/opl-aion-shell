@@ -1,5 +1,9 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { getOplDefaultExecutorAgentKey, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
+import {
+  getOplAssistantSkillProfile,
+  getOplDefaultExecutorAgentKey,
+  getOplDefaultHomeAssistants,
+} from '@/common/config/oplProductProfile';
 
 const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
 const OPL_HOME_PURPOSE_PRESENTATION: Record<
@@ -47,6 +51,7 @@ const buildAssistantFromProfile = (
 ): Assistant => {
   const prompts = profile.prompts_i18n['zh-CN'] || profile.prompts_i18n['en-US'] || [];
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);
+  const skillProfile = getOplAssistantSkillProfile(profile.id);
   return {
     id: profile.id,
     source: 'builtin',
@@ -58,7 +63,7 @@ const buildAssistantFromProfile = (
     enabled: true,
     sort_order: sortOrder,
     preset_agent_type: DEFAULT_PRESET_AGENT_TYPE,
-    enabled_skills: [],
+    enabled_skills: skillProfile?.required_skills ?? [],
     custom_skill_names: [],
     disabled_builtin_skills: [],
     context: '',
@@ -78,6 +83,8 @@ const mergeAssistantWithProfile = (
 ): Assistant => {
   const prompts = profile.prompts_i18n['zh-CN'] || profile.prompts_i18n['en-US'] || [];
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);
+  const skillProfile = getOplAssistantSkillProfile(profile.id);
+  const requiredSkills = skillProfile?.required_skills ?? [];
   const merged = Object.assign({}, existing);
   merged.id = profile.id;
   merged.enabled = existing.enabled !== false;
@@ -92,7 +99,7 @@ const mergeAssistantWithProfile = (
   merged.prompts_i18n = Object.fromEntries(
     Object.entries(profile.prompts_i18n).map(([locale, values]) => [locale, [...values]])
   );
-  merged.enabled_skills = existing.enabled_skills || [];
+  merged.enabled_skills = Array.from(new Set([...requiredSkills, ...(existing.enabled_skills || [])]));
   merged.custom_skill_names = existing.custom_skill_names || [];
   merged.disabled_builtin_skills = existing.disabled_builtin_skills || [];
   merged.context_i18n = existing.context_i18n || {};
