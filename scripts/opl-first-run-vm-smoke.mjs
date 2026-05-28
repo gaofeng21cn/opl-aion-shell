@@ -1061,14 +1061,18 @@ function guidEntryReadinessExpression() {
   return `(() => {
     const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
     const guidInput = document.querySelector('[data-testid="guid-input"]');
+    const guidSendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     const hashOk = window.location.hash.startsWith('#/guid');
-    return hashOk && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible
+    return hashOk && guidEntry && guidInput && guidSendButton && !firstRunWindow && !appLoaderVisible
       ? {
           hash: window.location.hash,
           guidEntryVisible: true,
           guidInputVisible: true,
+          guidSendButtonVisible: true,
+          hasGuidInput: true,
+          hasGuidSendButton: true,
         }
       : false;
   })()`;
@@ -1078,13 +1082,17 @@ function guidEntryNavigationExpression() {
   return `(() => {
     const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
     const guidInput = document.querySelector('[data-testid="guid-input"]');
+    const guidSendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    if (window.location.hash.startsWith('#/guid') && guidEntry && guidInput && !firstRunWindow && !appLoaderVisible) {
+    if (window.location.hash.startsWith('#/guid') && guidEntry && guidInput && guidSendButton && !firstRunWindow && !appLoaderVisible) {
       return {
         hash: window.location.hash,
         guidEntryVisible: true,
         guidInputVisible: true,
+        guidSendButtonVisible: true,
+        hasGuidInput: true,
+        hasGuidSendButton: true,
         navigatedBy: 'ready_entry',
       };
     }
