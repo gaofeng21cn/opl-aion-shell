@@ -104,6 +104,9 @@ type AppProductProfile = {
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
       permission_mode_selector_visible: false;
+      conversation_backend_selector_visible: false;
+      conversation_model_selector_visible: false;
+      conversation_permission_mode_selector_visible: false;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
       codex_precise_model_display_policy: 'technical_details_or_connected_state_only';
@@ -128,6 +131,10 @@ type AppProductProfile = {
     default_visible_skills: string[];
     skill_priority: string[];
     session_context_lines: string[];
+  };
+  companion_payloads: {
+    recommended_codex_skills: string[];
+    packaged_not_default_visible_codex_skills: string[];
   };
   first_run: {
     readiness_layers: string[];
@@ -483,6 +490,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const gui = value.gui;
   const codex = value.codex;
   const firstRun = value.first_run;
+  const companionPayloads = value.companion_payloads;
   const commandLineTools = isRecord(firstRun) ? firstRun.command_line_tools : null;
   const settings = value.settings;
   const developerMode = isRecord(settings) ? settings.developer_mode : null;
@@ -492,6 +500,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     !isRecord(gui) ||
     !isRecord(codex) ||
     !isRecord(firstRun) ||
+    !isRecord(companionPayloads) ||
     !isRecord(commandLineTools)
   ) {
     throw new Error('Invalid OPL product profile: missing default session, codex, or first-run section');
@@ -587,6 +596,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.codex_model_policy !== 'codex_cli_auto_model_hidden_on_home' ||
     guiHome.codex_model_auto_option_visible !== false ||
     guiHome.permission_mode_selector_visible !== false ||
+    guiHome.conversation_backend_selector_visible !== false ||
+    guiHome.conversation_model_selector_visible !== false ||
+    guiHome.conversation_permission_mode_selector_visible !== false ||
     guiHome.codex_precise_model_display_policy !== 'technical_details_or_connected_state_only'
   ) {
     throw new Error('Invalid OPL product profile: GUI home contract must hide executor and model selection');
@@ -621,13 +633,43 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
   const assistantSkillProfiles = readAssistantSkillProfiles(gui);
+  for (const profile of assistantSkillProfiles) {
+    if (profile.optional_skills.includes('morph-ppt')) {
+      throw new Error(
+        `Invalid OPL product profile: assistant ${profile.assistant_id} must not expose retired morph-ppt`
+      );
+    }
+  }
   const nonDefaultAssistants = readNonDefaultAssistants(gui);
 
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
+  const recommendedCodexSkills = readStringArray(companionPayloads, 'recommended_codex_skills', 'companion_payloads');
+  const packagedNotDefaultVisibleCodexSkills = readStringArray(
+    companionPayloads,
+    'packaged_not_default_visible_codex_skills',
+    'companion_payloads'
+  );
   const missingPrioritySkills = defaultVisibleSkills.filter((skill) => !skillPriority.includes(skill));
-  if (missingPrioritySkills.length > 0 || !skillPriority.includes('morph-ppt')) {
-    throw new Error('Invalid OPL product profile: skill_priority must include default skills and morph-ppt');
+  if (missingPrioritySkills.length > 0) {
+    throw new Error('Invalid OPL product profile: skill_priority must include default skills');
+  }
+  const missingPackagedVisibleSkills = defaultVisibleSkills.filter((skill) => !recommendedCodexSkills.includes(skill));
+  if (missingPackagedVisibleSkills.length > 0) {
+    throw new Error('Invalid OPL product profile: default visible skills must be packaged');
+  }
+  if (
+    !recommendedCodexSkills.includes('superpowers') ||
+    !packagedNotDefaultVisibleCodexSkills.includes('opl-meta-agent')
+  ) {
+    throw new Error('Invalid OPL product profile: superpowers and explicit OMA package policy must be declared');
+  }
+  if (
+    skillPriority.includes('morph-ppt') ||
+    recommendedCodexSkills.includes('morph-ppt') ||
+    packagedNotDefaultVisibleCodexSkills.includes('morph-ppt')
+  ) {
+    throw new Error('Invalid OPL product profile: morph-ppt must not be part of App skill wiring');
   }
 
   const appDoesNotOwn = readStringArray(boundary, 'app_does_not_own', 'boundary');
@@ -678,6 +720,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
         permission_mode_selector_visible: false,
+        conversation_backend_selector_visible: false,
+        conversation_model_selector_visible: false,
+        conversation_permission_mode_selector_visible: false,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
         codex_precise_model_display_policy: 'technical_details_or_connected_state_only',
@@ -706,6 +751,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       default_visible_skills: defaultVisibleSkills,
       skill_priority: skillPriority,
       session_context_lines: readStringArray(codex, 'session_context_lines', 'codex', { allowBlank: true }),
+    },
+    companion_payloads: {
+      recommended_codex_skills: recommendedCodexSkills,
+      packaged_not_default_visible_codex_skills: packagedNotDefaultVisibleCodexSkills,
     },
     first_run: {
       readiness_layers: ['core'],
@@ -794,6 +843,18 @@ export function shouldShowOplHomeExecutorSelector(): boolean {
 
 export function shouldShowOplHomePermissionModeSelector(): boolean {
   return OPL_PRODUCT_PROFILE.gui.home.permission_mode_selector_visible;
+}
+
+export function shouldShowOplConversationBackendSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.conversation_backend_selector_visible;
+}
+
+export function shouldShowOplConversationModelSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.conversation_model_selector_visible;
+}
+
+export function shouldShowOplConversationPermissionModeSelector(): boolean {
+  return OPL_PRODUCT_PROFILE.gui.home.conversation_permission_mode_selector_visible;
 }
 
 export function getOplHomeModelStatusLabel(localeKey: 'zh-CN' | 'en-US' = 'zh-CN'): string {

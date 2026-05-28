@@ -31,6 +31,7 @@ import AionrsModelSelector from '../platforms/aionrs/AionrsModelSelector';
 import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import { usePreviewContext } from '../Preview';
 import StarOfficeMonitorCard from '../platforms/openclaw/StarOfficeMonitorCard.tsx';
+import { isOplCodexCliFixedExecutor, shouldShowOplConversationModelSelector } from '@/common/config/oplProductProfile';
 // import SkillRuleGenerator from './components/SkillRuleGenerator'; // Temporarily hidden
 
 /** Check whether a specific skill is mounted on the conversation. */
@@ -303,11 +304,15 @@ const ChatConversation: React.FC<{
   }, [t]);
 
   // ACP conversations expose the same model selector surface; Codex resolves
-  // its default through the App-owned auto-latest policy.
+  // its default through the App-owned auto-latest policy and hides the selector
+  // on the ordinary OPL App path.
   const modelSelector = useMemo(() => {
     if (!conversation || isAionrsConversation) return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; current_model_id?: string };
+      if (extra.backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplConversationModelSelector()) {
+        return undefined;
+      }
       return (
         <AcpModelSelector
           conversation_id={conversation.id}
@@ -315,6 +320,9 @@ const ChatConversation: React.FC<{
           initialModelId={extra.current_model_id}
         />
       );
+    }
+    if (conversation.type === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplConversationModelSelector()) {
+      return undefined;
     }
     return <GoogleModelSelector disabled={true} />;
   }, [conversation, isAionrsConversation]);

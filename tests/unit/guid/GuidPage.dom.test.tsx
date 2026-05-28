@@ -55,7 +55,9 @@ const selectedAgentInfo: AvailableAgent = {
 vi.mock('@/common', () => ({
   ipcBridge: {
     fs: {
-      listBuiltinAutoSkills: { invoke: vi.fn().mockResolvedValue([]) },
+      listBuiltinAutoSkills: {
+        invoke: vi.fn().mockResolvedValue([{ name: 'aionui-skills', description: 'Upstream AionUI auto skill' }]),
+      },
       listAvailableSkills: { invoke: vi.fn().mockResolvedValue([]) },
     },
     dialog: {
@@ -230,6 +232,10 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportMod
 }));
 
 describe('GuidPage selected purpose assistant surface', () => {
+  beforeEach(() => {
+    mocks.useGuidSend.mockClear();
+  });
+
   it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', async () => {
     render(<GuidPage />);
 
@@ -261,5 +267,19 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('codex');
     expect(mocks.setMentionSelectorVisible).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps upstream builtin-auto skills disabled on the OPL home path by default', async () => {
+    render(<GuidPage />);
+
+    await screen.findByText('@MAS');
+
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          guidDisabledBuiltinSkills: ['aionui-skills'],
+        })
+      )
+    );
   });
 });

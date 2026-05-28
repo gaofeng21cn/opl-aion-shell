@@ -6,6 +6,11 @@
 
 import { ipcBridge } from '@/common';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import {
+  isOplCodexCliFixedExecutor,
+  shouldShowOplCodexModelAutoOption,
+  shouldShowOplCodexModelList,
+} from '@/common/config/oplProductProfile';
 import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
@@ -289,6 +294,8 @@ const AcpModelSelector: React.FC<{
   const tooltipContent = display_label;
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
+  const hideCodexModelList = backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
+  const showCodexAutoOption = backend !== 'codex' || shouldShowOplCodexModelAutoOption();
 
   // State 1: No model info — show disabled "Use CLI model" button
   if (!model_info) {
@@ -310,7 +317,7 @@ const AcpModelSelector: React.FC<{
   }
 
   // State 2: Has model info but cannot switch — read-only display
-  const canSwitch = model_info.available_models.length > 0;
+  const canSwitch = model_info.available_models.length > 0 && !hideCodexModelList;
   if (!canSwitch) {
     return (
       <Tooltip content={tooltipContent} position='top'>
@@ -339,7 +346,7 @@ const AcpModelSelector: React.FC<{
             isCodexAutoModel ? ['__auto'] : model_info.current_model_id ? [model_info.current_model_id] : []
           }
         >
-          {backend === 'codex' ? (
+          {backend === 'codex' && showCodexAutoOption ? (
             <Menu.Item
               key='__auto'
               className={isCodexAutoModel ? 'bg-2!' : ''}

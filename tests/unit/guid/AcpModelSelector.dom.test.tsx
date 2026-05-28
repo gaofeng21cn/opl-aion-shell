@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
@@ -64,34 +64,14 @@ describe('AcpModelSelector Codex model switching', () => {
     ];
   });
 
-  it('uses auto latest Codex as the default and still exposes selectable models', async () => {
+  it('uses auto latest Codex as a read-only status on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
     const autoButton = await screen.findByRole('button', { name: /Auto \(gpt-5\.6 Codex\)/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByText('gpt-5.5')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('menuitem', { name: 'gpt-5.5' }));
-
-    await waitFor(() => {
-      expect(mocks.setModel).toHaveBeenCalledWith({
-        conversation_id: 'codex-conversation',
-        model_id: 'gpt-5.5',
-      });
-    });
-
-    expect(screen.getByRole('button', { name: /gpt-5\.5/ })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: /gpt-5\.5/ }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Auto (gpt-5.6 Codex)' }));
-
-    await waitFor(() => {
-      expect(mocks.setModel).toHaveBeenLastCalledWith({
-        conversation_id: 'codex-conversation',
-        model_id: 'gpt-5.6-codex',
-      });
-    });
+    expect(screen.queryByRole('menuitem', { name: 'gpt-5.5' })).not.toBeInTheDocument();
+    expect(mocks.setModel).not.toHaveBeenCalled();
   });
 });

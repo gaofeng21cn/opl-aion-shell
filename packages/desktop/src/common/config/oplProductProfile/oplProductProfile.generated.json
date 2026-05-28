@@ -15,6 +15,7 @@
     "active_shell": "contracts/app-shell-adapter.json",
     "page_state": "contracts/app-page-state-matrix.json",
     "first_run": "contracts/app-first-run-test-matrix.json",
+    "install_exposure": "contracts/app-install-exposure-policy.json",
     "release_channel": "contracts/app-release-channel.json",
     "gui_product": "contracts/app-gui-product-contract.json"
   },
@@ -179,7 +180,7 @@
       {
         "assistant_id": "rca",
         "required_skills": ["rca"],
-        "optional_skills": ["officecli-pptx", "morph-ppt", "ui-ux-pro-max"],
+        "optional_skills": ["officecli-pptx", "ui-ux-pro-max"],
         "hidden_home_skill_names": ["aionui-skills", "aionui-webui-setup", "cron", "skill-creator"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -232,8 +233,7 @@
       "officecli-pptx",
       "officecli-xlsx",
       "mineru-document-extractor",
-      "ui-ux-pro-max",
-      "morph-ppt"
+      "ui-ux-pro-max"
     ],
     "session_context_lines": [
       "## OPL App 默认会话规则",
@@ -431,6 +431,14 @@
     }
   },
   "companion_payloads": {
+    "install_exposure_policy_ref": "contracts/app-install-exposure-policy.json",
+    "public_abi": {
+      "primary_semantic_entry": "skill",
+      "preferred_app_distribution": "plugin_packaged_skill",
+      "plugin_must_not_create_second_semantics": true,
+      "cli_and_app_share_skill_semantics": true
+    },
+    "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
     "tools": ["officecli", "mineru-open-api"],
     "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
     "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent"],
@@ -443,12 +451,51 @@
       "mas",
       "mag",
       "rca",
+      "superpowers",
       "officecli",
       "officecli-docx",
       "officecli-pptx",
       "officecli-xlsx",
       "mineru-document-extractor",
       "ui-ux-pro-max"
+    ],
+    "packaged_not_default_visible_codex_skills": ["opl-meta-agent"],
+    "companion_skill_sync_default_ids": [
+      "superpowers",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ],
+    "domain_plugin_skill_ids": ["mas", "mag", "rca"],
+    "domain_plugin_skills_must_not_be_companion_mirrors": true,
+    "domain_exposure": [
+      {
+        "domain_id": "mas",
+        "codex_visible_entry": "mas",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "mag",
+        "codex_visible_entry": "mag",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "rca",
+        "codex_visible_entry": "rca",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "oma",
+        "codex_visible_entry": "opl-meta-agent",
+        "preferred_app_distribution": "opl_generated_skill_surface",
+        "direct_skill_semantics_required": true
+      }
     ]
   },
   "boundary": {

@@ -27,6 +27,9 @@ import {
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
   shouldShowOplCodexModelSelector,
+  shouldShowOplConversationBackendSelector,
+  shouldShowOplConversationModelSelector,
+  shouldShowOplConversationPermissionModeSelector,
   shouldShowOplHomeExecutorSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
@@ -67,6 +70,9 @@ describe('OPL generated product profile', () => {
     expect(isOplCodexCliFixedExecutor()).toBe(true);
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
     expect(shouldShowOplHomePermissionModeSelector()).toBe(false);
+    expect(shouldShowOplConversationBackendSelector()).toBe(false);
+    expect(shouldShowOplConversationModelSelector()).toBe(false);
+    expect(shouldShowOplConversationPermissionModeSelector()).toBe(false);
     expect(shouldShowOplCodexModelSelector()).toBe(false);
     expect(shouldShowOplCodexModelList()).toBe(false);
     expect(shouldShowOplCodexModelAutoOption()).toBe(false);
@@ -153,11 +159,8 @@ describe('OPL generated product profile', () => {
       rca: ['rca'],
     });
     expect(getOplAssistantSkillProfile('builtin-mag')?.required_skills).toEqual(['mag']);
-    expect(getOplAssistantSkillProfile('rca')?.optional_skills).toEqual([
-      'officecli-pptx',
-      'morph-ppt',
-      'ui-ux-pro-max',
-    ]);
+    expect(getOplAssistantSkillProfile('rca')?.optional_skills).toEqual(['officecli-pptx', 'ui-ux-pro-max']);
+    expect(profiles.every((profile) => !profile.optional_skills.includes('morph-ppt'))).toBe(true);
     expect(profiles.every((profile) => profile.required_skill_policy === 'checked_locked')).toBe(true);
     expect(
       profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
@@ -229,7 +232,7 @@ describe('OPL generated product profile', () => {
     ]);
   });
 
-  it('keeps display priority aligned with default skills and the morph-ppt companion route', () => {
+  it('keeps display priority aligned with default skills without retired morph-ppt wiring', () => {
     const skillPriority = getOplSkillPriority();
 
     expect(skillPriority).toEqual([
@@ -243,9 +246,9 @@ describe('OPL generated product profile', () => {
       'officecli-xlsx',
       'mineru-document-extractor',
       'ui-ux-pro-max',
-      'morph-ppt',
     ]);
     expect(skillPriority).toEqual(expect.arrayContaining(getOplDefaultCodexSkills()));
+    expect(skillPriority).not.toContain('morph-ppt');
   });
 
   it('exposes first-run deferred blockers and Command Line Tools copy from the generated profile', () => {

@@ -66,10 +66,11 @@ const GuidPage: React.FC = () => {
 
   // --- Skills state ---
   // All available skills (builtin auto-injected + user-imported custom) merged
-  // into one catalog for the action-row menu. Auto-injected skills default to
-  // checked; the rest are opt-in per conversation (or pre-checked when the
-  // active assistant declares them in `enabled_skills`).
+  // into one catalog for the action-row menu. OPL keeps upstream auto-injected
+  // builtins out of the default conversation context; users can explicitly
+  // enable them per conversation from the menu.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
+  const [defaultDisabledBuiltinSkills, setDefaultDisabledBuiltinSkills] = useState<string[]>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
 
@@ -84,8 +85,12 @@ const GuidPage: React.FC = () => {
             .map((s) => ({ name: s.name, description: s.description, isAuto: false })),
         ];
         setAllSkills(merged);
+        setDefaultDisabledBuiltinSkills([...autoNames]);
       })
-      .catch(() => setAllSkills([]));
+      .catch(() => {
+        setAllSkills([]);
+        setDefaultDisabledBuiltinSkills([]);
+      });
   }, []);
 
   const handleToggleSkill = useCallback((skillName: string, isAuto: boolean) => {
@@ -325,16 +330,26 @@ const GuidPage: React.FC = () => {
   );
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
+    const disabledBuiltinSkills = defaultDisabledBuiltinSkills.length > 0 ? defaultDisabledBuiltinSkills : undefined;
     if (agentSelection.is_presetAgent && selectedAssistantRecord) {
-      setGuidDisabledBuiltinSkills(selectedAssistantRecord.disabled_builtin_skills ?? []);
+      setGuidDisabledBuiltinSkills(
+        selectedAssistantRecord.disabled_builtin_skills?.length
+          ? selectedAssistantRecord.disabled_builtin_skills
+          : disabledBuiltinSkills
+      );
       setGuidEnabledSkills(
         mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
       );
     } else {
-      setGuidDisabledBuiltinSkills(undefined);
+      setGuidDisabledBuiltinSkills(disabledBuiltinSkills);
       setGuidEnabledSkills(undefined);
     }
-  }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
+  }, [
+    agentSelection.is_presetAgent,
+    defaultDisabledBuiltinSkills,
+    selectedAssistantRecord,
+    selectedAssistantRequiredSkills,
+  ]);
 
   const heroTitle = useMemo(() => {
     return t('conversation.welcome.title');

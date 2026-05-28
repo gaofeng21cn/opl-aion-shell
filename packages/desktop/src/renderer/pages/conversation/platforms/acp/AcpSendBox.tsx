@@ -1,6 +1,10 @@
 import { ipcBridge } from '@/common';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
+import {
+  isOplCodexCliFixedExecutor,
+  shouldShowOplConversationPermissionModeSelector,
+} from '@/common/config/oplProductProfile';
 import { uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
@@ -96,8 +100,11 @@ const AcpSendBox: React.FC<{
   } = messageState;
   const { t } = useTranslation();
   const teamPermission = useTeamPermission();
-  // In team mode, all agents show the permission mode selector (members don't propagate)
-  const showModeSelector = true;
+  const showModeSelector = teamPermission
+    ? true
+    : backend === 'codex' && isOplCodexCliFixedExecutor()
+      ? shouldShowOplConversationPermissionModeSelector()
+      : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
   const { checkAndUpdateTitle } = useAutoTitle();
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
