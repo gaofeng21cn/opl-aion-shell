@@ -62,10 +62,10 @@ describe('OPL generated product profile', () => {
 
   it('keeps App-owned GUI defaults for theme, fixed Codex executor, and hidden home controls', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
-    expect(getOplGuiDefaultCssThemeId()).toBe('codex');
-    expect(shouldDefaultCodexCssTheme()).toBe(true);
-    expect(normalizeOplActiveThemeId('')).toBe('codex');
-    expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('codex');
+    expect(getOplGuiDefaultCssThemeId()).toBe('default-theme');
+    expect(shouldDefaultCodexCssTheme()).toBe(false);
+    expect(normalizeOplActiveThemeId('')).toBe('default-theme');
+    expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('default-theme');
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
     expect(isOplCodexCliFixedExecutor()).toBe(true);
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
@@ -223,10 +223,16 @@ describe('OPL generated product profile', () => {
       'mag',
       'rca',
       'superpowers',
+      'cron',
       'officecli',
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
+      'officecli-academic-paper',
+      'officecli-data-dashboard',
+      'officecli-financial-model',
+      'officecli-pitch-deck',
+      'pdf',
       'mineru-document-extractor',
       'ui-ux-pro-max',
     ]);
@@ -240,10 +246,16 @@ describe('OPL generated product profile', () => {
       'mag',
       'rca',
       'superpowers',
+      'cron',
       'officecli',
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
+      'officecli-academic-paper',
+      'officecli-data-dashboard',
+      'officecli-financial-model',
+      'officecli-pitch-deck',
+      'pdf',
       'mineru-document-extractor',
       'ui-ux-pro-max',
     ]);
