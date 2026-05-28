@@ -189,10 +189,7 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
     };
   });
   const existingIds = new Set(existing.map((assistant) => normalizeAssistantId(assistant.id)));
-  return [
-    ...existing,
-    ...defaults.filter((assistant) => !existingIds.has(assistant.id)),
-  ];
+  return [...existing, ...defaults.filter((assistant) => !existingIds.has(assistant.id))];
 }
 
 export function filterOplFoundryAssistants(assistants: Assistant[] | undefined): Assistant[] {

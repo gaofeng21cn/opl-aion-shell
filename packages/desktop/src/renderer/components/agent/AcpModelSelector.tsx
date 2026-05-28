@@ -278,7 +278,10 @@ const AcpModelSelector: React.FC<{
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
   const isCodexAutoModel =
-    backend === 'codex' && !initialModelId && Boolean(codexAutoModelId) && model_info?.current_model_id === codexAutoModelId;
+    backend === 'codex' &&
+    !initialModelId &&
+    Boolean(codexAutoModelId) &&
+    model_info?.current_model_id === codexAutoModelId;
   const buttonLabel =
     isCodexAutoModel && model_info?.current_model_id
       ? t('conversation.welcome.autoModel', { model: codexAutoDisplayLabel })
@@ -332,7 +335,9 @@ const AcpModelSelector: React.FC<{
       trigger='click'
       droplist={
         <Menu
-          selectedKeys={isCodexAutoModel ? ['__auto'] : model_info.current_model_id ? [model_info.current_model_id] : []}
+          selectedKeys={
+            isCodexAutoModel ? ['__auto'] : model_info.current_model_id ? [model_info.current_model_id] : []
+          }
         >
           {backend === 'codex' ? (
             <Menu.Item

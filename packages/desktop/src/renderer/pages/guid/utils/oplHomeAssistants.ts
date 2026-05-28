@@ -2,33 +2,37 @@ import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 
 const DEFAULT_PRESET_AGENT_TYPE = 'codex';
-const OPL_HOME_PURPOSE_PRESENTATION: Record<string, { name: string; name_i18n: Record<string, string>; avatar: string }> =
-  {
-    mas: {
-      name: 'Research',
-      name_i18n: { 'zh-CN': '科研', 'en-US': 'Research' },
-      avatar: 'MAS',
-    },
-    mag: {
-      name: 'Grants',
-      name_i18n: { 'zh-CN': '基金', 'en-US': 'Grants' },
-      avatar: 'MAG',
-    },
-    rca: {
-      name: 'PPT',
-      name_i18n: { 'zh-CN': 'PPT', 'en-US': 'PPT' },
-      avatar: 'RCA',
-    },
-  };
+const OPL_HOME_PURPOSE_PRESENTATION: Record<
+  string,
+  { name: string; name_i18n: Record<string, string>; avatar: string }
+> = {
+  mas: {
+    name: 'Research',
+    name_i18n: { 'zh-CN': '科研', 'en-US': 'Research' },
+    avatar: 'MAS',
+  },
+  mag: {
+    name: 'Grants',
+    name_i18n: { 'zh-CN': '基金', 'en-US': 'Grants' },
+    avatar: 'MAG',
+  },
+  rca: {
+    name: 'PPT',
+    name_i18n: { 'zh-CN': 'PPT', 'en-US': 'PPT' },
+    avatar: 'RCA',
+  },
+};
 
 export const OPL_HOME_PURPOSE_ASSISTANT_IDS = Object.keys(OPL_HOME_PURPOSE_PRESENTATION);
 
 export function resolveOplHomePurposePresentation(id: string, fallbackName: string, fallbackAvatar: string) {
-  return OPL_HOME_PURPOSE_PRESENTATION[id] ?? {
-    name: fallbackName,
-    name_i18n: { 'zh-CN': fallbackName, 'en-US': fallbackName },
-    avatar: fallbackAvatar,
-  };
+  return (
+    OPL_HOME_PURPOSE_PRESENTATION[id] ?? {
+      name: fallbackName,
+      name_i18n: { 'zh-CN': fallbackName, 'en-US': fallbackName },
+      avatar: fallbackAvatar,
+    }
+  );
 }
 
 const normalizeAssistantId = (id: string): string =>

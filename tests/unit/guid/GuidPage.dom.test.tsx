@@ -208,13 +208,7 @@ vi.mock('@/renderer/pages/guid/hooks/useTypewriterPlaceholder', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
-  default: ({
-    mentionSelectorBadge,
-    placeholder,
-  }: {
-    mentionSelectorBadge: React.ReactNode;
-    placeholder: string;
-  }) => (
+  default: ({ mentionSelectorBadge, placeholder }: { mentionSelectorBadge: React.ReactNode; placeholder: string }) => (
     <div data-testid='guid-input-card'>
       {mentionSelectorBadge}
       <div data-testid='guid-placeholder'>{placeholder}</div>
