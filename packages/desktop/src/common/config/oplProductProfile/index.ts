@@ -87,9 +87,9 @@ type AppProductProfile = {
     authority: 'app_repo_owned_product_truth';
     implementation_carrier: 'opl-aion-shell';
     appearance: {
-      default_css_theme_id: 'codex';
+      default_css_theme_id: 'default-theme';
       default_css_theme_name: string;
-      codex_theme_default_enabled: true;
+      codex_theme_default_enabled: false;
     };
     home: {
       primary_input_surface: 'single_card';
@@ -133,8 +133,8 @@ type AppProductProfile = {
     session_context_lines: string[];
   };
   companion_payloads: {
-    recommended_codex_skills: string[];
-    packaged_not_default_visible_codex_skills: string[];
+    default_packaged_codex_skill_ids: string[];
+    packaged_not_default_visible_codex_skill_ids: string[];
   };
   first_run: {
     readiness_layers: string[];
@@ -588,8 +588,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (gui.authority !== 'app_repo_owned_product_truth' || gui.implementation_carrier !== 'opl-aion-shell') {
     throw new Error('Invalid OPL product profile: GUI authority must come from the App repo');
   }
-  if (guiAppearance.default_css_theme_id !== 'codex' || guiAppearance.codex_theme_default_enabled !== true) {
-    throw new Error('Invalid OPL product profile: GUI appearance must default to the Codex theme');
+  if (guiAppearance.default_css_theme_id !== 'default-theme' || guiAppearance.codex_theme_default_enabled !== false) {
+    throw new Error('Invalid OPL product profile: GUI appearance must default to the default theme');
   }
   if (
     guiHome.primary_input_surface !== 'single_card' ||
@@ -649,30 +649,38 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
 
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
-  const recommendedCodexSkills = readStringArray(companionPayloads, 'recommended_codex_skills', 'companion_payloads');
-  const packagedNotDefaultVisibleCodexSkills = readStringArray(
+  const defaultPackagedCodexSkillIds = readStringArray(
     companionPayloads,
-    'packaged_not_default_visible_codex_skills',
+    'default_packaged_codex_skill_ids',
+    'companion_payloads'
+  );
+  const packagedNotDefaultVisibleCodexSkillIds = readStringArray(
+    companionPayloads,
+    'packaged_not_default_visible_codex_skill_ids',
     'companion_payloads'
   );
   const missingPrioritySkills = defaultVisibleSkills.filter((skill) => !skillPriority.includes(skill));
   if (missingPrioritySkills.length > 0) {
     throw new Error('Invalid OPL product profile: skill_priority must include default skills');
   }
-  const missingPackagedVisibleSkills = defaultVisibleSkills.filter((skill) => !recommendedCodexSkills.includes(skill));
+  const missingPackagedVisibleSkills = defaultVisibleSkills.filter((skill) => !defaultPackagedCodexSkillIds.includes(skill));
   if (missingPackagedVisibleSkills.length > 0) {
     throw new Error('Invalid OPL product profile: default visible skills must be packaged');
   }
+  const hiddenDefaultPackagedSkills = defaultPackagedCodexSkillIds.filter((skill) => !defaultVisibleSkills.includes(skill));
+  if (hiddenDefaultPackagedSkills.length > 0) {
+    throw new Error('Invalid OPL product profile: default packaged skills must be default visible');
+  }
   if (
-    !recommendedCodexSkills.includes('superpowers') ||
-    !packagedNotDefaultVisibleCodexSkills.includes('opl-meta-agent')
+    !defaultPackagedCodexSkillIds.includes('superpowers') ||
+    !packagedNotDefaultVisibleCodexSkillIds.includes('opl-meta-agent')
   ) {
     throw new Error('Invalid OPL product profile: superpowers and explicit OMA package policy must be declared');
   }
   if (
     skillPriority.includes('morph-ppt') ||
-    recommendedCodexSkills.includes('morph-ppt') ||
-    packagedNotDefaultVisibleCodexSkills.includes('morph-ppt')
+    defaultPackagedCodexSkillIds.includes('morph-ppt') ||
+    packagedNotDefaultVisibleCodexSkillIds.includes('morph-ppt')
   ) {
     throw new Error('Invalid OPL product profile: morph-ppt must not be part of App skill wiring');
   }
@@ -707,10 +715,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       authority: 'app_repo_owned_product_truth',
       implementation_carrier: 'opl-aion-shell',
       appearance: {
-        default_css_theme_id: 'codex',
+        default_css_theme_id: 'default-theme',
         default_css_theme_name:
-          typeof guiAppearance.default_css_theme_name === 'string' ? guiAppearance.default_css_theme_name : 'Codex',
-        codex_theme_default_enabled: true,
+          typeof guiAppearance.default_css_theme_name === 'string' ? guiAppearance.default_css_theme_name : 'Default',
+        codex_theme_default_enabled: false,
       },
       home: {
         primary_input_surface: 'single_card',
@@ -758,8 +766,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       session_context_lines: readStringArray(codex, 'session_context_lines', 'codex', { allowBlank: true }),
     },
     companion_payloads: {
-      recommended_codex_skills: recommendedCodexSkills,
-      packaged_not_default_visible_codex_skills: packagedNotDefaultVisibleCodexSkills,
+      default_packaged_codex_skill_ids: defaultPackagedCodexSkillIds,
+      packaged_not_default_visible_codex_skill_ids: packagedNotDefaultVisibleCodexSkillIds,
     },
     first_run: {
       readiness_layers: ['core'],

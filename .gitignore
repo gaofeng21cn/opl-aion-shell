@@ -133,7 +133,10 @@ Thumbs.db
 # Build and output directories
 dist/
 build/
+build-artifacts/
 out/
+release-assets/
+tmp/
 
 # Keep extension example dist (pre-built distributable assets)
 !examples/**/dist/
@@ -175,6 +178,7 @@ desdoc/
 kanban/
 
 # E2E test artifacts (Playwright)
+artifacts/
 tests/e2e/screenshots/
 tests/e2e/results/
 tests/e2e/report/
