@@ -7,24 +7,27 @@
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/styles/colors';
-import { isElectronDesktop, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
+import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
+import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Info, LinkCloud, Puzzle, Toolkit } from '@icon-park/react';
+import { Computer, Earth, Info, Lightning, Puzzle, SwitchThemes, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AboutModalContent from './contents/AboutModalContent';
-import AgentModalContent from './contents/AgentModalContent';
+import DisplayModalContent from './contents/DisplayModalContent';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
-import ModelModalContent from './contents/ModelModalContent';
 import SystemModalContent from './contents/SystemModalContent';
 import ToolsModalContent from './contents/ToolsModalContent';
 import WebuiModalContent from './contents/WebuiModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
+import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
+import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
+import SkillsHubSettings from '@/renderer/pages/settings/SkillsHubSettings';
 
 // ==================== 常量定义 / Constants ====================
 
@@ -50,12 +53,58 @@ const MODAL_HEIGHT = {
 /** Resize 事件防抖延迟（ms）/ Resize event debounce delay (ms) */
 const RESIZE_DEBOUNCE_DELAY = 150;
 
+const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
+  overview: 'settings.overview',
+  runtime: 'settings.runtime',
+  capabilities: 'settings.capabilities',
+  access: 'settings.access',
+  appearance: 'settings.appearance',
+  system: 'settings.system',
+  about: 'settings.about',
+};
+
+const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
+  overview: 'Overview',
+  runtime: 'Runtime',
+  capabilities: 'Capabilities',
+  access: 'Access',
+  appearance: 'Appearance',
+};
+
+const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
+  overview: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
+  runtime: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
+  capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
+  access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
+  appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
+  system: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
+  about: <Info theme='outline' size='20' fill={iconColors.secondary} />,
+};
+
+const normalizeOplSettingsTab = (tab: SettingTab): string => {
+  const legacyRedirects = getOplGuiLegacySettingsRouteRedirects();
+  return legacyRedirects[tab] ?? tab;
+};
+
 // ==================== 类型定义 / Type Definitions ====================
 
 /**
  * 内置设置标签页类型 / Built-in settings tab type
  */
-export type BuiltinSettingTab = 'model' | 'agent' | 'tools' | 'webui' | 'system' | 'about';
+export type BuiltinSettingTab =
+  | 'overview'
+  | 'runtime'
+  | 'capabilities'
+  | 'access'
+  | 'appearance'
+  | 'system'
+  | 'about'
+  | 'model'
+  | 'agent'
+  | 'tools'
+  | 'webui'
+  | 'display'
+  | 'pet';
 
 /**
  * 设置标签页类型（内置 + 扩展）/ Settings tab type (built-in + extension)
@@ -117,8 +166,8 @@ export const SubModal: React.FC<SubModalProps> = ({ visible, onCancel, title, ch
 /**
  * 主设置弹窗组件 / Main settings modal component
  *
- * 提供应用的全局设置界面，包括 Gemini、模型、工具、系统和关于等多个标签页
- * Provides global settings interface with multiple tabs including Gemini, Model, Tools, System and About
+ * 提供 One Person Lab App 普通设置界面，并把上游旧设置入口映射到 App-owned 设置页
+ * Provides the ordinary One Person Lab App settings surface and redirects legacy upstream tabs to App-owned pages.
  *
  * @features
  * - 响应式设计，移动端使用下拉菜单，桌面端使用侧边栏 / Responsive design with dropdown on mobile and sidebar on desktop
@@ -132,9 +181,9 @@ export const SubModal: React.FC<SubModalProps> = ({ visible, onCancel, title, ch
  * openSettings('system');
  * ```
  */
-const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaultTab = 'model' }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaultTab = 'runtime' }) => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<SettingTab>(defaultTab);
+  const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeOplSettingsTab(defaultTab));
   const [isMobile, setIsMobile] = useState(false);
   const resizeTimerRef = useRef<number | undefined>(undefined);
   const extensionTabs = useExtensionSettingsTabs();
@@ -169,9 +218,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
     };
   }, [handleResize]);
 
-  // 检测是否在 Electron 桌面环境 / Check if running in Electron desktop environment
-  const isDesktop = isElectronDesktop();
-
   const { resolveExtTabName } = useExtI18n();
 
   // Extension tab lookup map for renderContent
@@ -184,40 +230,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   }, [extensionTabs]);
 
   // 菜单项配置 / Menu items configuration
-  // Modal 模式下内置 Tab 子集（不含 display、agent）
   const menuItems = useMemo((): Array<{ key: SettingTab; label: string; icon: React.ReactNode }> => {
     type MenuItem = { key: string; label: string; icon: React.ReactNode };
 
-    // Modal built-in tabs (subset — no display/agent route pages)
-    const builtinItems: MenuItem[] = [
-      {
-        key: 'model',
-        label: t('settings.model'),
-        icon: <LinkCloud theme='outline' size='20' fill={iconColors.secondary} />,
-      },
-      {
-        key: 'tools',
-        label: t('settings.tools'),
-        icon: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-      },
-    ];
-
-    if (isDesktop) {
-      builtinItems.push({
-        key: 'webui',
-        label: t('settings.webui'),
-        icon: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
-      });
-    }
-
-    builtinItems.push(
-      {
-        key: 'system',
-        label: t('settings.system'),
-        icon: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
-      },
-      { key: 'about', label: t('settings.about'), icon: <Info theme='outline' size='20' fill={iconColors.secondary} /> }
-    );
+    const builtinItems: MenuItem[] = getOplGuiSettingsVisibleTabs().map((key) => ({
+      key,
+      label: t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
+        defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
+      }),
+      icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
+    }));
 
     // Extension tabs — position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
@@ -274,7 +296,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
     }
 
     return builtinItems;
-  }, [t, isDesktop, extensionTabs, resolveExtTabName]);
+  }, [t, extensionTabs, resolveExtTabName]);
+
+  useEffect(() => {
+    setActiveTab(normalizeOplSettingsTab(defaultTab));
+  }, [defaultTab, visible]);
 
   // Track which extension tabs have been visited (lazy mount + keep-alive)
   const [mountedExtTabs, setMountedExtTabs] = useState<Set<string>>(new Set());
@@ -300,14 +326,27 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   // Render built-in tab content (conditional)
   const renderBuiltinContent = () => {
     switch (activeTab) {
+      case 'overview':
+        return <OverviewSettings withWrapper={false} />;
+      case 'runtime':
       case 'model':
-        return <ModelModalContent />;
       case 'agent':
-        return <AgentModalContent />;
+        return <RuntimeSettings withWrapper={false} />;
+      case 'capabilities':
       case 'tools':
-        return <ToolsModalContent />;
+        return (
+          <div className='flex flex-col gap-24px'>
+            <SkillsHubSettings withWrapper={false} />
+            <ToolsModalContent />
+          </div>
+        );
+      case 'access':
       case 'webui':
         return <WebuiModalContent />;
+      case 'appearance':
+      case 'display':
+      case 'pet':
+        return <DisplayModalContent />;
       case 'system':
         return <SystemModalContent />;
       case 'about':
@@ -338,7 +377,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
    * @param tab - 目标标签页 / Target tab
    */
   const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab);
+    setActiveTab(normalizeOplSettingsTab(tab));
   }, []);
 
   // 移动端菜单（Tabs切换）/ Mobile menu (Tabs)
@@ -372,7 +411,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
                 'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
               }
             )}
-            onClick={() => setActiveTab(item.key)}
+            onClick={() => setActiveTab(normalizeOplSettingsTab(item.key))}
           >
             <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
             <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>

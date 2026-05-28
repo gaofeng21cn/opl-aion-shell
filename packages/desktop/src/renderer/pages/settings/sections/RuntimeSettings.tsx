@@ -25,6 +25,10 @@ const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
 
 const OPL_RUNTIME_MODULE_IDS = ['medautoscience', 'medautogrant', 'redcube', 'oplmetaagent'];
 
+type RuntimeSettingsProps = {
+  withWrapper?: boolean;
+};
+
 function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
@@ -142,7 +146,7 @@ function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefin
   return Boolean(result?.parsed || result?.stdout);
 }
 
-const RuntimeSettings: React.FC = () => {
+const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const messageRef = useRef(message);
@@ -306,8 +310,8 @@ const RuntimeSettings: React.FC = () => {
 
   const codexSessionContext = useMemo(() => getOplCodexSessionContext(), []);
 
-  return (
-    <SettingsPageWrapper contentClassName='max-w-1080px'>
+  const content = (
+    <>
       {contextHolder}
       <div className='flex flex-col gap-16px'>
         <div>
@@ -487,8 +491,10 @@ const RuntimeSettings: React.FC = () => {
           </div>
         </Card>
       </div>
-    </SettingsPageWrapper>
+    </>
   );
+
+  return withWrapper ? <SettingsPageWrapper contentClassName='max-w-1080px'>{content}</SettingsPageWrapper> : content;
 };
 
 export default RuntimeSettings;

@@ -159,7 +159,7 @@ type AppProductProfile = {
   settings: {
     visible_tabs: string[];
     environment_items: string[];
-    legacy_route_redirects?: Record<string, string>;
+    legacy_route_redirects: Record<string, string>;
     developer_mode: {
       hide_machine_status: boolean;
       state_keys: Record<string, string>;
@@ -514,18 +514,23 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');
-  const legacySettingsRouteRedirects = isRecord(settings.legacy_route_redirects)
-    ? readStringRecord(settings.legacy_route_redirects, 'settings.legacy_route_redirects')
-    : {
-        model: 'runtime',
-        agent: 'runtime',
-        assistants: 'capabilities',
-        'skills-hub': 'capabilities',
-        tools: 'capabilities',
-        display: 'appearance',
-        webui: 'access',
-        pet: 'appearance',
-      };
+  const legacySettingsRouteRedirects = readStringRecord(
+    settings.legacy_route_redirects,
+    'settings.legacy_route_redirects'
+  );
+  const expectedLegacySettingsRouteRedirects: Record<string, string> = {
+    model: 'runtime',
+    agent: 'runtime',
+    assistants: 'capabilities',
+    'skills-hub': 'capabilities',
+    tools: 'capabilities',
+    display: 'appearance',
+    webui: 'access',
+    pet: 'appearance',
+  };
+  if (JSON.stringify(legacySettingsRouteRedirects) !== JSON.stringify(expectedLegacySettingsRouteRedirects)) {
+    throw new Error('Invalid OPL product profile: GUI legacy settings redirects must match OPL App');
+  }
   if (defaultSession.executor !== 'codex_cli') {
     throw new Error('Invalid OPL product profile: default_session_profile.executor must be codex_cli');
   }

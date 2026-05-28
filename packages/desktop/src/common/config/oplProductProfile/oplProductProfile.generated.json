@@ -416,6 +416,16 @@
   },
   "settings": {
     "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
+    "legacy_route_redirects": {
+      "model": "runtime",
+      "agent": "runtime",
+      "assistants": "capabilities",
+      "skills-hub": "capabilities",
+      "tools": "capabilities",
+      "display": "appearance",
+      "webui": "access",
+      "pet": "appearance"
+    },
     "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
     "developer_mode": {
       "label_key": "settings.developerMode",
