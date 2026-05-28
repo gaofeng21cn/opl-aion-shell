@@ -76,7 +76,12 @@ import {
   toBackendAgent,
 } from './teamMapper';
 import { fromBackendCompareResult, type RawCompareResult } from './fileSnapshotMapper';
-import { absoluteToRelativePath, fromBackendWorkspaceList } from './workspaceMapper';
+import {
+  absoluteToRelativePath,
+  fromBackendWorkspaceFlatFiles,
+  fromBackendWorkspaceList,
+  type RawWorkspaceFlatFile,
+} from './workspaceMapper';
 
 // ---------------------------------------------------------------------------
 // Shell — routed to POST /api/shell/*
@@ -141,19 +146,19 @@ export const conversation = {
       const { model: _rawModel, ...rest } = p.conversation as TChatConversation & {
         model?: TProviderWithModel;
       };
-      const conversation: Record<string, unknown> = { ...rest };
+      const clonedConversation: Record<string, unknown> = { ...rest };
       if (isAionrs) {
         const model = toApiModelOptional(_rawModel);
-        if (model) conversation.model = model;
+        if (model) clonedConversation.model = model;
       }
       return {
-        conversation,
+        conversation: clonedConversation,
       };
     }),
     fromApiConversation
   ),
   get: withResponseMap(
-    httpGet<TChatConversation, { id: string }>((p) => `/api/conversations/${p.id}`),
+    httpGet<TChatConversation, { id: string }>((p) => `/api/conversations/${p.id}`, { silentStatuses: [404] }),
     fromApiConversation
   ),
   getAssociateConversation: withResponseMap(
@@ -494,7 +499,10 @@ export const dialog = {
 
 export const fs = {
   getFilesByDir: httpPost<Array<IDirOrFile>, { dir: string; root: string }>('/api/fs/dir'),
-  listWorkspaceFiles: httpPost<Array<IWorkspaceFlatFile>, { root: string }>('/api/fs/list'),
+  listWorkspaceFiles: withResponseMap(
+    httpPost<Array<RawWorkspaceFlatFile>, { root: string }>('/api/fs/list'),
+    fromBackendWorkspaceFlatFiles
+  ),
   getImageBase64: httpPost<string | null, { path: string; workspace?: string }>('/api/fs/image-base64'),
   fetchRemoteImage: httpPost<string, { url: string }>('/api/fs/fetch-remote-image'),
   readFile: httpPost<string | null, { path: string; workspace?: string }>('/api/fs/read'),
@@ -814,6 +822,33 @@ export const acpConversation = {
 // ---------------------------------------------------------------------------
 
 export const mcpService = {
+  listServers: httpGet<IMcpServer[], void>('/api/mcp/servers'),
+  createServer: httpPost<
+    IMcpServer,
+    Omit<IMcpServer, 'id' | 'created_at' | 'updated_at' | 'status' | 'last_connected' | 'tools'>
+  >('/api/mcp/servers', (server) => ({
+    name: server.name,
+    description: server.description,
+    transport: server.transport,
+    original_json: server.original_json,
+    builtin: server.builtin,
+  })),
+  updateServer: httpPut<
+    IMcpServer,
+    { id: string; data: Partial<Pick<IMcpServer, 'name' | 'description' | 'transport' | 'original_json'>> }
+  >(
+    (p) => `/api/mcp/servers/${p.id}`,
+    (p) => p.data
+  ),
+  deleteServer: httpDelete<void, string>((id) => `/api/mcp/servers/${id}`),
+  toggleServer: httpPost<IMcpServer, string>(
+    (id) => `/api/mcp/servers/${id}/toggle`,
+    () => undefined
+  ),
+  batchImportServers: httpPost<
+    IMcpServer[],
+    { servers: Array<Partial<IMcpServer> & Pick<IMcpServer, 'name' | 'transport'>> }
+  >('/api/mcp/servers/import'),
   getAgentMcpConfigs: httpGet<
     Array<{ source: string; servers: IMcpServer[] }>,
     Array<{ agent_type: string; backend?: string; name: string; cli_path?: string }>
@@ -921,11 +956,15 @@ export type PaginatedResult<T> = {
 export const database = {
   getConversationMessages: httpGet<
     PaginatedResult<import('@/common/chat/chatLib').TMessage>,
-    { conversation_id: string; page?: number; page_size?: number; order?: string }
+    { conversation_id: string; page?: number; page_size?: number; order?: string; content_mode?: 'compact' | 'full' }
   >(
     (p) =>
-      `/api/conversations/${p.conversation_id}/messages?page=${p.page ?? 1}&page_size=${p.page_size ?? 50}${p.order ? `&order=${p.order}` : ''}`
+      `/api/conversations/${p.conversation_id}/messages?page=${p.page ?? 1}&page_size=${p.page_size ?? 50}${p.order ? `&order=${p.order}` : ''}${p.content_mode ? `&content_mode=${p.content_mode}` : ''}`
   ),
+  getConversationMessage: httpGet<
+    import('@/common/chat/chatLib').TMessage,
+    { conversation_id: string; message_id: string }
+  >((p) => `/api/conversations/${p.conversation_id}/messages/${encodeURIComponent(p.message_id)}`),
   getUserConversations: withResponseMap(
     httpGet<PaginatedResult<import('@/common/config/storage').TChatConversation>, { cursor?: string; limit?: number }>(
       (p) => {

@@ -5,17 +5,26 @@ import {
   isOplCodexCliFixedExecutor,
   shouldShowOplConversationPermissionModeSelector,
 } from '@/common/config/oplProductProfile';
-import { uuid } from '@/common/utils';
+import { parseError, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
-import SendBox from '@/renderer/components/chat/sendbox';
+import MobileActionSheet, {
+  type MobileActionSheetEntry,
+  type MobileActionSheetOption,
+  useAttachEntry,
+} from '@/renderer/components/chat/MobileActionSheet';
+import SendBox from '@/renderer/components/chat/SendBox';
 import ThoughtDisplay from '@/renderer/components/chat/ThoughtDisplay';
 import FileAttachButton from '@/renderer/components/media/FileAttachButton';
 import FilePreview from '@/renderer/components/media/FilePreview';
 import HorizontalFileList from '@/renderer/components/media/HorizontalFileList';
+import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
+import { useAgentModesForBackend } from '@/renderer/hooks/agent/useAgentModesForBackend';
 import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/chat/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/chat/useSendBoxFiles';
+import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { useLatestRef } from '@/renderer/hooks/ui/useLatestRef';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';
@@ -25,6 +34,7 @@ import {
   type ConversationCommandQueueItem,
 } from '@/renderer/pages/conversation/platforms/useConversationCommandQueue';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
+import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
@@ -32,8 +42,8 @@ import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
 import { Message, Tag } from '@arco-design/web-react';
-import { Shield } from '@icon-park/react';
-import React, { useCallback, useEffect } from 'react';
+import { Brain, MagicHat, Shield } from '@icon-park/react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAcpInitialMessage } from './useAcpInitialMessage';
 import type { UseAcpMessageReturn } from './useAcpMessage';
@@ -100,21 +110,62 @@ const AcpSendBox: React.FC<{
   } = messageState;
   const { t } = useTranslation();
   const teamPermission = useTeamPermission();
-  const showModeSelector = teamPermission
-    ? true
-    : backend === 'codex' && isOplCodexCliFixedExecutor()
-      ? shouldShowOplConversationPermissionModeSelector()
-      : true;
+  const showModeSelector =
+    backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
   const { checkAndUpdateTitle } = useAutoTitle();
   const { atPath, uploadFile, setAtPath, setUploadFile, content, setContent } = useSendBoxDraft(conversation_id);
+  const layout = useLayoutContext();
+  const isMobile = Boolean(layout?.isMobile);
+  const conversationContext = useConversationContextSafe();
+  const loadedSkills = conversationContext?.loadedSkills ?? [];
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
+
+  // Drive the mobile sheet's model entry off the same source AcpModelSelector uses
+  const { model_info, canSwitch: canSwitchModel, selectModel } = useAcpModelInfo({ conversation_id, backend });
+  const availableAgentModes = useAgentModesForBackend(backend);
+
+  // Mirror AgentModeSelector's getMode sync so the sheet shows the live mode label.
+  useEffect(() => {
+    if (!conversation_id) return;
+    let cancelled = false;
+    void ipcBridge.acpConversation.getMode
+      .invoke({ conversation_id })
+      .then((result) => {
+        if (cancelled || !result) return;
+        if (result.initialized !== false) {
+          setCurrentMode(result.mode);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation_id]);
+
+  const handleSheetModeChange = useCallback(
+    async (mode: string) => {
+      if (mode === currentMode) return;
+      try {
+        await ipcBridge.acpConversation.setMode.invoke({ conversation_id, mode });
+        setCurrentMode(mode);
+        if (isLeaderInTeam) teamPermission?.propagateMode?.(mode);
+        Message.success('Mode switched');
+      } catch (error) {
+        console.error('[AcpSendBox] Failed to switch mode via sheet:', error);
+        Message.error('Switch failed');
+      }
+    },
+    [conversation_id, currentMode, isLeaderInTeam, teamPermission]
+  );
 
   // In team mode, warmup the agent then fetch slash commands
   useEffect(() => {
     if (!teamPermission) return;
     void teamPermission
       .warmupSession()
-      .then(() => ipcBridge.conversation.warmup.invoke({ conversation_id }))
+      .then(() => warmupConversation(conversation_id))
       .then(() => {
         fetchSlashCommands();
       })
@@ -209,7 +260,7 @@ const AcpSendBox: React.FC<{
         });
         emitter.emit('chat.history.refresh');
       } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
+        const errorMsg = parseError(error) ?? t('common.unknownError');
 
         // Archived conversation (e.g. legacy Gemini). Backend signals this
         // via HTTP 410 + code='CONVERSATION_ARCHIVED' — identified by code,
@@ -245,6 +296,22 @@ Please check your local CLI tool authentication status`,
           };
 
           ipcBridge.acpConversation.responseStream.emit(errorMessage);
+        } else {
+          addOrUpdateMessageRef.current(
+            {
+              id: uuid(),
+              msg_id: uuid(),
+              type: 'tips',
+              position: 'center',
+              conversation_id,
+              created_at: Date.now(),
+              content: {
+                content: t('acp.send.failed', { error: errorMsg }),
+                type: 'error',
+              },
+            },
+            true
+          );
         }
 
         setAiProcessing(false);
@@ -322,6 +389,112 @@ Please check your local CLI tool authentication status`,
     onFilesSelected: appendSelectedFiles,
   });
 
+  const { entries: attachEntries, hiddenFileInput: attachHiddenInput } = useAttachEntry({
+    openFileSelector,
+    onLocalFilesAdded: handleFilesAdded,
+  });
+
+  const sheetEntries = useMemo<MobileActionSheetEntry[]>(() => {
+    if (!isMobile) return [];
+
+    const modeOptions: MobileActionSheetOption[] = showModeSelector
+      ? availableAgentModes.map((mode) => ({
+          key: mode.value,
+          label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
+          description: mode.description,
+          active: currentMode === mode.value,
+        }))
+      : [];
+
+    const modelOptions: MobileActionSheetOption[] = canSwitchModel
+      ? (model_info?.available_models ?? []).map((model) => ({
+          key: model.id,
+          label: model.label || model.id,
+          active: model_info?.current_model_id === model.id,
+        }))
+      : [];
+
+    const currentModelLabel =
+      model_info?.current_model_label || model_info?.current_model_id || t('conversation.welcome.useCliModel');
+    const currentModeLabel =
+      modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
+
+    const entries: MobileActionSheetEntry[] = [];
+
+    // Model entry: only when the agent exposes a switchable list. Otherwise
+    // (Codex with no list, no info) skip — exposing a no-op row would be noise.
+    if (modelOptions.length > 0) {
+      entries.push({
+        key: 'model',
+        icon: <Brain theme='outline' size='16' />,
+        label: t('common.model', { defaultValue: 'Model' }),
+        meta: currentModelLabel,
+        submenu: {
+          title: t('common.model', { defaultValue: 'Model' }),
+          options: modelOptions,
+          onSelect: (id) => selectModel(id),
+        },
+      });
+    }
+
+    if (modeOptions.length > 0) {
+      entries.push({
+        key: 'permission',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('agentMode.permission', { defaultValue: 'Permission' }),
+        meta: currentModeLabel,
+        submenu: {
+          title: t('agentMode.permission', { defaultValue: 'Permission' }),
+          options: modeOptions,
+          onSelect: (key) => void handleSheetModeChange(key),
+        },
+      });
+    }
+
+    attachEntries.forEach((entry, idx) => {
+      entries.push({
+        ...entry,
+        dividerBefore: idx === 0 ? entries.length > 0 : false,
+      });
+    });
+
+    if (loadedSkills.length > 0) {
+      const skillOptions: MobileActionSheetOption[] = loadedSkills.map((name) => ({
+        key: name,
+        label: `/${name}`,
+      }));
+      entries.push({
+        key: 'skills',
+        icon: <MagicHat theme='outline' size='16' />,
+        label: t('common.skills', { defaultValue: 'Skills' }),
+        variant: 'muted',
+        submenu: {
+          title: t('common.skills', { defaultValue: 'Skills' }),
+          selectable: false,
+          options: skillOptions,
+          onSelect: (name) => {
+            setContent(`/${name} `);
+          },
+        },
+      });
+    }
+
+    return entries;
+  }, [
+    attachEntries,
+    availableAgentModes,
+    canSwitchModel,
+    currentMode,
+    handleSheetModeChange,
+    isMobile,
+    loadedSkills,
+    model_info,
+    selectModel,
+    setContent,
+    showModeSelector,
+    t,
+  ]);
+
   useAddEventListener('acp.selected.file', setAtPath);
   useAddEventListener('acp.selected.file.append', (selectedItems: Array<string | FileOrFolderItem>) => {
     const merged = mergeFileSelectionItems(atPathRef.current, selectedItems);
@@ -363,6 +536,7 @@ Please check your local CLI tool authentication status`,
       <ThoughtDisplay running={aiProcessing && !hasThinkingMessage} onStop={handleStop} />
 
       <SendBox
+        onMobilePlusClick={isMobile ? () => setIsMobileSheetOpen(true) : undefined}
         value={content}
         onChange={handleContentChange}
         selectedWorkspaceItems={atPath}
@@ -382,8 +556,8 @@ Please check your local CLI tool authentication status`,
         hasPendingAttachments={uploadFile.length > 0 || atPath.length > 0}
         enableBtw={isSideQuestionSupported({ type: 'acp', backend })}
         supportedExts={allSupportedExts}
-        defaultMultiLine={true}
-        lockMultiLine={true}
+        defaultMultiLine={!isMobile}
+        lockMultiLine={!isMobile}
         tools={<FileAttachButton openFileSelector={openFileSelector} onLocalFilesAdded={handleFilesAdded} />}
         rightTools={
           showModeSelector ? (
@@ -445,6 +619,17 @@ Please check your local CLI tool authentication status`,
         allowSendWhileLoading
         compactActions={false}
       ></SendBox>
+      {isMobile && (
+        <>
+          <MobileActionSheet
+            open={isMobileSheetOpen}
+            onClose={() => setIsMobileSheetOpen(false)}
+            title={t('common.more', { defaultValue: 'More' })}
+            entries={sheetEntries}
+          />
+          {attachHiddenInput}
+        </>
+      )}
     </div>
   );
 };

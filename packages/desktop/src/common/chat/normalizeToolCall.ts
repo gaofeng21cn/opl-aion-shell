@@ -9,6 +9,9 @@ export interface NormalizedToolCall {
   description?: string;
   input?: string;
   output?: string;
+  truncated?: boolean;
+  messageId?: string;
+  conversationId?: string;
 }
 
 const formatValue = (value: unknown): string => {
@@ -18,6 +21,12 @@ const formatValue = (value: unknown): string => {
   } catch {
     return String(value);
   }
+};
+
+const formatCommand = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.every((part) => typeof part === 'string')) return value.join(' ');
+  return undefined;
 };
 
 // ===== tool_group → NormalizedToolCall[] =====
@@ -101,7 +110,7 @@ const buildParamSummary = (kind: string, rawInput?: Record<string, unknown>): st
     return (rawInput.file_path as string) || (rawInput.path as string) || (rawInput.file_name as string);
   }
   if (kind === 'execute') {
-    return rawInput.command as string;
+    return formatCommand(rawInput.command);
   }
   if (kind === 'search' || kind === 'grep') {
     const parts: string[] = [];
@@ -121,19 +130,80 @@ const buildParamSummary = (kind: string, rawInput?: Record<string, unknown>): st
   }
 
   for (const key of ['file_path', 'command', 'path', 'pattern', 'query', 'url']) {
-    if (rawInput[key] && typeof rawInput[key] === 'string') return rawInput[key] as string;
+    if (key === 'command') {
+      const command = formatCommand(rawInput[key]);
+      if (command) return command;
+    } else if (rawInput[key] && typeof rawInput[key] === 'string') {
+      return rawInput[key] as string;
+    }
   }
   return undefined;
 };
 
+type AcpRawOutputCompat = {
+  aggregated_output?: unknown;
+  aggregatedOutput?: unknown;
+  formatted_output?: unknown;
+  formattedOutput?: unknown;
+  stdout?: unknown;
+  stderr?: unknown;
+};
+
+const getNonEmptyText = (...values: unknown[]): string | undefined => {
+  for (const value of values) {
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+};
+
+const joinOutputStreams = (stdout: string, stderr: string): string => {
+  if (!stdout) return stderr;
+  if (!stderr) return stdout;
+  return `${stdout}${stdout.endsWith('\n') ? '' : '\n'}${stderr}`;
+};
+
+const getRawOutputText = (rawOutput: AcpRawOutputCompat | undefined): string | undefined => {
+  if (!rawOutput) return undefined;
+  const aggregate = getNonEmptyText(
+    rawOutput.aggregated_output,
+    rawOutput.aggregatedOutput,
+    rawOutput.formatted_output,
+    rawOutput.formattedOutput
+  );
+  if (aggregate !== undefined) return aggregate;
+
+  return joinOutputStreams(getNonEmptyText(rawOutput.stdout) ?? '', getNonEmptyText(rawOutput.stderr) ?? '') || undefined;
+};
+
+type AcpToolCallUpdateCompat = IMessageAcpToolCall['content']['update'] & {
+  session_update?: string;
+  raw_input?: Record<string, unknown>;
+  raw_output?: AcpRawOutputCompat;
+  rawOutput?: AcpRawOutputCompat;
+};
+
+type AcpToolCallContentCompat = IMessageAcpToolCall['content'] & {
+  _compact?: {
+    truncated?: boolean;
+    original_size?: number;
+    preview_chars?: number;
+  };
+  update?: AcpToolCallUpdateCompat;
+};
+
 export function normalizeAcpToolCall(message: IMessageAcpToolCall): NormalizedToolCall | undefined {
-  const update = message.content?.update;
+  const content = message.content as AcpToolCallContentCompat | undefined;
+  const update = content?.update;
   if (!update) return undefined;
 
-  const input = update.rawInput ? formatValue(update.rawInput) : undefined;
+  const rawInput = update.rawInput ?? update.raw_input;
+  const input = rawInput ? formatValue(rawInput) : undefined;
 
   let output: string | undefined;
-  if (Array.isArray(update.content) && update.content.length) {
+  const rawOutput = getRawOutputText(update.raw_output ?? update.rawOutput);
+  if (rawOutput !== undefined) {
+    output = rawOutput;
+  } else if (Array.isArray(update.content) && update.content.length) {
     output = update.content
       .map((item) => {
         if (item.type === 'content' && item.content?.text) return item.content.text;
@@ -144,15 +214,18 @@ export function normalizeAcpToolCall(message: IMessageAcpToolCall): NormalizedTo
       .join('\n');
   }
 
-  const keyParam = buildParamSummary(update.kind, update.rawInput);
+  const keyParam = buildParamSummary(update.kind, rawInput);
 
   return {
     key: update.tool_call_id,
     name: update.title,
     status: normalizeAcpStatus(update.status),
-    description: keyParam || (update.rawInput?.command as string) || update.kind,
+    description: keyParam || formatCommand(rawInput?.command) || update.kind,
     input,
     output,
+    truncated: content?._compact?.truncated === true,
+    messageId: message.id,
+    conversationId: message.conversation_id,
   };
 }
 
@@ -173,7 +246,7 @@ function normalizeToolCallStatus(status?: string): NormalizedToolStatus {
 
 export function normalizeToolCall(message: IMessageToolCall): NormalizedToolCall | undefined {
   const { call_id, name, status, input, output, args, description } = message.content;
-  if (!call_id && !name) return undefined;
+  if (!call_id) return undefined;
 
   const displayInput = input
     ? formatValue(input)
@@ -182,7 +255,7 @@ export function normalizeToolCall(message: IMessageToolCall): NormalizedToolCall
       : undefined;
 
   return {
-    key: call_id || name,
+    key: call_id,
     name,
     status: normalizeToolCallStatus(status),
     description: description || undefined,

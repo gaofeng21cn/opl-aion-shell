@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import type { TMessage } from '@/common/chat/chatLib';
 import { transformMessage } from '@/common/chat/chatLib';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
-import SendBox from '@/renderer/components/chat/sendbox';
+import SendBox from '@/renderer/components/chat/SendBox';
 import ThoughtDisplay, { type ThoughtData } from '@/renderer/components/chat/ThoughtDisplay';
 import FileAttachButton from '@/renderer/components/media/FileAttachButton';
 import FilePreview from '@/renderer/components/media/FilePreview';
@@ -24,6 +24,7 @@ import {
   useConversationCommandQueue,
   type ConversationCommandQueueItem,
 } from '@/renderer/pages/conversation/platforms/useConversationCommandQueue';
+import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
@@ -151,7 +152,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
     hasContentInTurnRef.current = false;
     setHasHydratedRunningState(false);
 
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then((res) => {
+    void getConversationOrNull(conversation_id).then((res) => {
       if (!res) {
         setAiProcessing(false);
         aiProcessingRef.current = false;
@@ -233,7 +234,7 @@ const RemoteSendBox: React.FC<{ conversation_id: string }> = ({ conversation_id 
   }, [conversation_id, addOrUpdateMessage]);
 
   useEffect(() => {
-    void ipcBridge.conversation.get.invoke({ id: conversation_id }).then(async (res) => {
+    void getConversationOrNull(conversation_id).then(async (res) => {
       if (res?.extra?.workspace) setWorkspacePath(res.extra.workspace);
       const extra = res?.extra as { remoteAgentId?: string } | undefined;
       if (extra?.remoteAgentId) {

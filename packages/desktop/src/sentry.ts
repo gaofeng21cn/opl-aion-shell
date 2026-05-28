@@ -10,27 +10,99 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { getOrCreateAnalyticsId } from './process/utils/analyticsId';
+import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
 
 // 抑制 Chromium GPU 崩溃噪声（参见 ELECTRON-9A / ELECTRON-9D）：
 // 自愈逻辑在 gpuRecovery 中处理，事件流量已无价值。
-const GPU_CRASH_DROP_PATTERNS = [/'GPU' process exited with /, /IntentionallyCrashBrowserForUnusableGpuProcess/];
+const GPU_CRASH_DROP_PATTERNS = [
+  /'GPU' process exited with /,
+  /IntentionallyCrashBrowserForUnusableGpuProcess/,
+  /GPU process isn't usable\. Goodbye/,
+];
+const BACKEND_STARTUP_SECONDARY_DROP_PATTERNS = [
+  /globalThis\.__backendPort unset/,
+  /window\.__backendPort/,
+  /Failed to fetch/,
+  /ECONNREFUSED/,
+];
+
+type SearchableEvent = {
+  message?: unknown;
+  exception?: { values?: unknown[] };
+  contexts?: Record<string, unknown>;
+  extra?: Record<string, unknown>;
+};
+
+function collectStringLeaves(value: unknown, haystacks: string[], seen = new WeakSet<object>(), depth = 0): void {
+  if (typeof value === 'string') {
+    haystacks.push(value);
+    return;
+  }
+  if (!value || typeof value !== 'object' || depth > 6) {
+    return;
+  }
+  if (seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStringLeaves(item, haystacks, seen, depth + 1);
+    }
+    return;
+  }
+  for (const item of Object.values(value as Record<string, unknown>)) {
+    collectStringLeaves(item, haystacks, seen, depth + 1);
+  }
+}
+
+function collectEventSearchText(event: SearchableEvent): string[] {
+  const haystacks: string[] = [];
+  if (typeof event.message === 'string') haystacks.push(event.message);
+  const exceptions = event.exception?.values ?? [];
+  for (const ex of exceptions) {
+    if (!ex || typeof ex !== 'object') continue;
+    const value = (ex as { value?: unknown }).value;
+    if (typeof value === 'string') haystacks.push(value);
+    const frames = (ex as { stacktrace?: { frames?: unknown[] } }).stacktrace?.frames ?? [];
+    for (const frame of frames) {
+      if (!frame || typeof frame !== 'object') continue;
+      const fn = (frame as { function?: unknown }).function;
+      if (typeof fn === 'string') haystacks.push(fn);
+    }
+  }
+  collectStringLeaves(event.contexts, haystacks);
+  collectStringLeaves(event.extra, haystacks);
+  return haystacks;
+}
+
+function hasBackendStartupFailed(): boolean {
+  return (globalThis as typeof globalThis & { __backendStartupFailed?: boolean }).__backendStartupFailed === true;
+}
+
+function isBackendStartupFailureEvent(event: { tags?: Record<string, unknown> }): boolean {
+  return event.tags?.['aionui.failure'] === 'backend_startup';
+}
+
+function isBackendStartupSecondaryEvent(event: { tags?: Record<string, unknown> }, haystacks: string[]): boolean {
+  if (isBackendStartupFailureEvent(event)) {
+    return false;
+  }
+  return (
+    hasBackendStartupFailed() && BACKEND_STARTUP_SECONDARY_DROP_PATTERNS.some((re) => haystacks.some((h) => re.test(h)))
+  );
+}
 
 export function initSentry(): void {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     environment: app.isPackaged ? 'production' : 'development',
     beforeSend(event) {
-      const haystacks: string[] = [];
-      if (event.message) haystacks.push(event.message);
-      const exceptions = event.exception?.values ?? [];
-      for (const ex of exceptions) {
-        if (ex.value) haystacks.push(ex.value);
-        const frames = ex.stacktrace?.frames ?? [];
-        for (const frame of frames) {
-          if (frame.function) haystacks.push(frame.function);
-        }
-      }
+      const haystacks = collectEventSearchText(event);
       if (GPU_CRASH_DROP_PATTERNS.some((re) => haystacks.some((h) => re.test(h)))) {
+        return null;
+      }
+      if (isBackendStartupSecondaryEvent(event, haystacks)) {
         return null;
       }
       return event;
@@ -51,6 +123,44 @@ export function setSentryDeviceId(): void {
   const id = getOrCreateAnalyticsId();
   Sentry.setUser({ id });
   Sentry.setTag('device_id', id);
+}
+
+function getBackendStartupDetails(error: unknown): Record<string, unknown> | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const details = (error as { details?: unknown }).details;
+  if (!details || typeof details !== 'object') return undefined;
+  return details as Record<string, unknown>;
+}
+
+const BACKEND_STARTUP_FLUSH_TIMEOUT_MS = 2000;
+
+export async function captureBackendStartupFailure(error: unknown): Promise<void> {
+  (globalThis as typeof globalThis & { __backendStartupFailed?: boolean }).__backendStartupFailed = true;
+  const capturedError = error instanceof Error ? error : new Error(String(error));
+  const details = getBackendStartupDetails(error);
+  const failureInfo = classifyBackendStartupFailure(error);
+  Sentry.withScope((scope) => {
+    scope.setTag('aionui.failure', 'backend_startup');
+    scope.setTag('aionui.backend_startup.reason', failureInfo.reason);
+    if (failureInfo.runtime) {
+      scope.setTag('aionui.backend_startup.runtime', failureInfo.runtime);
+    }
+    if (typeof details?.stage === 'string') {
+      scope.setTag('aionui.backend_startup.stage', details.stage);
+    }
+    if (details) {
+      scope.setContext('aioncore_startup', details);
+      scope.setExtra('aioncore_startup', details);
+    }
+    scope.setContext('aioncore_startup_classification', { ...failureInfo });
+    scope.setExtra('aioncore_startup_classification', failureInfo);
+    Sentry.captureException(capturedError);
+  });
+  try {
+    await Sentry.flush(BACKEND_STARTUP_FLUSH_TIMEOUT_MS);
+  } catch {
+    // If Sentry cannot flush during fatal startup, keep shutdown deterministic.
+  }
 }
 
 /**

@@ -9,7 +9,27 @@
 // browser SDK when running as a web server (no window.electronAPI).
 if ((window as { electronAPI?: unknown }).electronAPI) {
   // Dynamic import avoids bundling sentry-ipc:// protocol code into the web build
-  import('@sentry/electron/renderer').then((Sentry) => Sentry.init()).catch(() => {});
+  import('@sentry/electron/renderer')
+    .then((Sentry) =>
+      Sentry.init({
+        beforeSend(event) {
+          if (!(window as { __backendStartupFailed?: boolean }).__backendStartupFailed) {
+            return event;
+          }
+          const haystacks: string[] = [];
+          if (event.message) haystacks.push(event.message);
+          const exceptions = event.exception?.values ?? [];
+          for (const ex of exceptions) {
+            if (ex.value) haystacks.push(ex.value);
+          }
+          if (haystacks.some((h) => /Failed to fetch|window\.__backendPort|__backendPort unset/.test(h))) {
+            return null;
+          }
+          return event;
+        },
+      })
+    )
+    .catch(() => {});
 }
 
 // Runtime patches must be imported early
@@ -25,12 +45,12 @@ import { createRoot } from 'react-dom/client';
 
 // Context providers
 import { AuthProvider } from './hooks/context/AuthContext';
-import { FeedbackProvider } from './hooks/context/FeedbackContext';
+import { FeedbackProvider, useFeedback } from './hooks/context/FeedbackContext';
 import { ThemeProvider } from './hooks/context/ThemeContext';
 import { PreviewProvider } from './pages/conversation/Preview/context/PreviewContext';
 
 // Arco Design
-import { ConfigProvider } from '@arco-design/web-react';
+import { Button, ConfigProvider, Result, Space, Typography } from '@arco-design/web-react';
 // Configure Arco Design to use React 18's createRoot, fixing Message component's CopyReactDOM.render error
 import '@arco-design/web-react/es/_util/react-19-adapter';
 import '@arco-design/web-react/dist/css/arco.css';
@@ -57,6 +77,7 @@ import { registerPwa } from './services/registerPwa';
 
 import { mutate as swrMutate } from 'swr';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents } from './utils/model/agentTypes';
+import { repairAllCronJobTimeZonesOnce } from '@renderer/pages/cron/repairCronJobTimeZone';
 
 // Components and utilities
 import Layout from './components/layout/Layout';
@@ -65,6 +86,9 @@ import Sider from './components/layout/Sider';
 import { useAuth } from './hooks/context/AuthContext';
 import { ConversationHistoryProvider } from './hooks/context/ConversationHistoryContext';
 import HOC from './utils/ui/HOC';
+import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
+
+const AIONUI_DOWNLOAD_URL = 'https://www.aionui.com/';
 
 const arcoLocales: Record<string, typeof enUS> = {
   'zh-CN': zhCN,
@@ -113,6 +137,11 @@ const Main = () => {
     ]).finally(() => setConfigReady(true));
   }, [ready]);
 
+  useEffect(() => {
+    if (!ready) return;
+    void repairAllCronJobTimeZonesOnce();
+  }, [ready]);
+
   if (!ready || !configReady) {
     return null;
   }
@@ -130,7 +159,100 @@ const Main = () => {
 
 const App = HOC.Wrapper(Config)(Main);
 
+const BackendIncompatibleRuntimeScreen: React.FC<{ failure: BackendStartupFailureInfo }> = ({ failure }) => {
+  const { t } = useTranslation();
+  const requiredVersions = failure.requiredVersions?.map((version) => `GLIBC_${version}`).join(', ');
+
+  return (
+    <div className='min-h-screen flex items-center justify-center bg-bg-1 px-6 text-center text-t-1'>
+      <Result
+        status='warning'
+        title={t('common.backendStartup.incompatibleRuntime.title')}
+        subTitle={
+          <div className='mx-auto max-w-[560px] text-t-secondary'>
+            <Typography.Paragraph className='m-0'>
+              {t('common.backendStartup.incompatibleRuntime.description')}
+            </Typography.Paragraph>
+            {requiredVersions ? (
+              <Typography.Paragraph className='mt-3 mb-0 text-12px text-t-tertiary'>
+                {t('common.backendStartup.incompatibleRuntime.requiredVersions', { versions: requiredVersions })}
+              </Typography.Paragraph>
+            ) : null}
+          </div>
+        }
+      />
+    </div>
+  );
+};
+
+const BackendIncompleteInstallationScreen: React.FC = () => {
+  const { t } = useTranslation();
+  const { openFeedback } = useFeedback();
+
+  const handleDownload = () => {
+    window.open(AIONUI_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleFeedback = () => {
+    void openFeedback({ module: 'system-settings' });
+  };
+
+  return (
+    <div className='min-h-screen flex items-center justify-center bg-bg-1 px-6 text-center text-t-1'>
+      <Result
+        status='error'
+        title={t('common.backendStartup.incompleteInstallation.title')}
+        subTitle={
+          <div className='mx-auto max-w-[560px] text-t-secondary'>
+            <Typography.Paragraph className='m-0'>
+              {t('common.backendStartup.incompleteInstallation.description')}
+            </Typography.Paragraph>
+          </div>
+        }
+        extra={
+          <Space wrap>
+            <Button type='primary' onClick={handleDownload}>
+              {t('common.backendStartup.incompleteInstallation.downloadLatest')}
+            </Button>
+            <Button onClick={handleFeedback}>
+              {t('common.backendStartup.incompleteInstallation.sendDiagnostics')}
+            </Button>
+          </Space>
+        }
+      />
+    </div>
+  );
+};
+
+const BackendStartupFailureScreen: React.FC<{ failure: BackendStartupFailureInfo }> = ({ failure }) => {
+  if (failure.reason === 'backend_incompatible_runtime') {
+    return <BackendIncompatibleRuntimeScreen failure={failure} />;
+  }
+
+  return (
+    <FeedbackProvider>
+      <BackendIncompleteInstallationScreen />
+    </FeedbackProvider>
+  );
+};
+
 void registerPwa();
 
 const root = createRoot(document.getElementById('root')!);
-root.render(React.createElement(AppProviders, null, React.createElement(App)));
+const backendStartupFailure = window.__backendStartupFailure;
+const shouldShowBackendStartupFailureScreen =
+  backendStartupFailure?.reason === 'backend_incompatible_runtime' ||
+  backendStartupFailure?.reason === 'backend_incomplete_installation';
+if (backendStartupFailure && shouldShowBackendStartupFailureScreen) {
+  root.render(
+    <Config>
+      <BackendStartupFailureScreen failure={backendStartupFailure} />
+    </Config>
+  );
+} else {
+  root.render(
+    <AppProviders>
+      <App />
+    </AppProviders>
+  );
+}
