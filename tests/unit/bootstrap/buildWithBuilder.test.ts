@@ -65,9 +65,10 @@ childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   if (commandText.includes('electron-vite build')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
-    fs.mkdirSync(path.join(process.cwd(), 'out/renderer'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), '');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
   }
   return Buffer.from('');
 };
@@ -76,7 +77,7 @@ childProcess.execSync = function mockedExecSync(command) {
     );
 
     try {
-      const result = spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args], {
+      const result = spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args, '--force'], {
         cwd: repoRoot,
         encoding: 'utf8',
         env: {
