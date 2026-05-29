@@ -52,6 +52,11 @@ const FULL_RUNTIME_MODULES = [
     ['agent', 'contracts', path.join('runtime', 'authority_functions')],
   ],
 ];
+const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
+  { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+  { id: 'mag', badge: '@MAG', shortName: 'MAG' },
+  { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+];
 
 function usage() {
   process.stdout.write(`Usage:
@@ -66,6 +71,9 @@ Options:
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
+  --assistant-route-smoke
+                         Click MAS/MAG/RCA purpose entries, send a smoke prompt, and verify
+                         each created conversation stores the Codex route receipt.
   --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
   --runtime-profile <profile>
                          First-run package profile to verify: full or standard. Default: full.
@@ -94,6 +102,7 @@ function parseArgs(argv) {
     processName: DEFAULT_PROCESS_NAME,
     timeoutMs: 180_000,
     settingsSmoke: false,
+    assistantRouteSmoke: false,
     cdpPort: 9230,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
@@ -117,6 +126,10 @@ function parseArgs(argv) {
     }
     if (arg === '--settings-smoke') {
       options.settingsSmoke = true;
+      continue;
+    }
+    if (arg === '--assistant-route-smoke') {
+      options.assistantRouteSmoke = true;
       continue;
     }
     const value = argv[index + 1];
@@ -1110,6 +1123,146 @@ function guidEntryNavigationExpression() {
   })()`;
 }
 
+function visibleHomeAssistantControlSelector(assistantId) {
+  return `[data-testid="preset-pill-${assistantId}"]`;
+}
+
+function homeAssistantDeniedSelectorParts() {
+  return [
+    '[data-testid="agent-mode-selector"]',
+    '[data-testid="aionrs-model-selector"]',
+    '[data-testid="acp-model-selector"]',
+    '[data-testid="google-model-selector"]',
+    '[data-testid^="agent-pill-"]',
+    '[class*="sendbox-model"]',
+    '.sendbox-model-btn',
+  ];
+}
+
+function homeAssistantDeniedSelectorExpression() {
+  return JSON.stringify(homeAssistantDeniedSelectorParts());
+}
+
+function homeAssistantRouteSelectionExpression(target) {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const deniedVisibleBefore = ${homeAssistantDeniedSelectorExpression()}
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
+    if (deniedVisibleBefore.length > 0) {
+      return { status: 'failed', reason: 'ordinary_home_selector_visible_before_select', deniedVisible: deniedVisibleBefore };
+    }
+    if (!window.location.hash.startsWith('#/guid')) {
+      window.location.hash = '#/guid';
+      return false;
+    }
+    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    if (!visible(card) || !visible(input) || !visible(sendButton)) return false;
+    card.click();
+    return { clickedAssistantId: ${cdpString(target.id)}, cardText: card.textContent || '' };
+  })()`;
+}
+
+function homeAssistantRouteReadyExpression(target) {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const text = document.body?.innerText || '';
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
+    if (deniedVisible.length > 0) {
+      return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
+    }
+    if (!visible(input) || !visible(sendButton) || !visible(card)) return false;
+    if (!text.includes(${cdpString(target.badge)})) return false;
+    return {
+      assistant_id: ${cdpString(target.id)},
+      badge: ${cdpString(target.badge)},
+      selected_card_text: card.textContent || '',
+      selectors_hidden: true,
+    };
+  })()`;
+}
+
+function homeAssistantRouteSendExpression(target, prompt) {
+  return `(() => {
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    if (!input || !sendButton) return false;
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+      || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (!nativeSetter) throw new Error('Could not resolve native input value setter');
+    nativeSetter.call(input, ${cdpString(prompt)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    if (sendButton.disabled || sendButton.getAttribute('disabled') !== null || sendButton.getAttribute('aria-disabled') === 'true') {
+      return false;
+    }
+    sendButton.click();
+    return { assistant_id: ${cdpString(target.id)}, promptLength: ${prompt.length} };
+  })()`;
+}
+
+function latestConversationRouteReceiptExpression(target) {
+  return `(async () => {
+    const backendPort = window.__backendPort;
+    if (!backendPort) return false;
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}/api/conversations?limit=10\`);
+    if (!response.ok) {
+      throw new Error(\`Conversation list returned \${response.status}\`);
+    }
+    const payload = await response.json();
+    const conversations = payload?.data?.items || payload?.items || [];
+    const matched = conversations.find((conversation) => {
+      const route = conversation?.extra?.opl_assistant_route;
+      return route?.assistant_id === ${cdpString(target.id)};
+    });
+    if (!matched) {
+      return {
+        status: 'waiting_for_route_receipt',
+        assistant_id: ${cdpString(target.id)},
+        recent_conversation_count: conversations.length,
+        recent_routes: conversations.map((conversation) => conversation?.extra?.opl_assistant_route || null),
+      };
+    }
+    const route = matched.extra.opl_assistant_route;
+    const invalid = [];
+    if (route.route_kind !== 'builtin_capability') invalid.push('route_kind');
+    if (route.executor !== 'codex_cli') invalid.push('executor');
+    if (route.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('assistant_short_name');
+    if (route.source !== 'opl_app_home') invalid.push('source');
+    if (matched.type !== 'acp') invalid.push('conversation_type');
+    if (matched.extra?.backend !== 'codex') invalid.push('backend');
+    if (invalid.length > 0) {
+      throw new Error(\`Invalid OPL assistant route receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
+    }
+    return {
+      status: 'passed',
+      conversation_id: matched.id,
+      conversation_type: matched.type,
+      backend: matched.extra.backend,
+      route,
+    };
+  })()`;
+}
+
 function firstRunBeginnerUxExpression() {
   return `(() => {
     const windowNode = document.querySelector('[data-testid="opl-first-run-window"]');
@@ -1641,6 +1794,78 @@ async function runSettingsSmoke(options, secret) {
   return results;
 }
 
+async function runAssistantRouteSmoke(options, secret) {
+  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  const results = [];
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    for (const assistantTarget of OPL_ASSISTANT_ROUTE_SMOKE_TARGETS) {
+      await evaluateCdp(client, "window.location.hash = '#/guid'");
+      await waitForCdpPredicate(
+        client,
+        guidEntryReadinessExpression(),
+        30_000,
+        `Guid page did not become ready before assistant route smoke: ${assistantTarget.id}`
+      );
+      const selected = await waitForCdpPredicate(
+        client,
+        homeAssistantRouteSelectionExpression(assistantTarget),
+        30_000,
+        `Could not select OPL built-in assistant: ${assistantTarget.id}`
+      );
+      if (selected?.status === 'failed') {
+        throw new Error(`OPL built-in assistant selection leaked selectors: ${JSON.stringify(selected)}`);
+      }
+      const ready = await waitForCdpPredicate(
+        client,
+        homeAssistantRouteReadyExpression(assistantTarget),
+        30_000,
+        `Selected OPL built-in assistant did not expose the expected badge without selectors: ${assistantTarget.id}`
+      );
+      if (ready?.status === 'failed') {
+        throw new Error(`Selected OPL built-in assistant leaked selectors: ${JSON.stringify(ready)}`);
+      }
+      await captureCdpScreenshot(
+        client,
+        path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}-selected.png`)
+      );
+      const prompt = `OPL packaged GUI route smoke for ${assistantTarget.shortName}.`;
+      const sent = await waitForCdpPredicate(
+        client,
+        homeAssistantRouteSendExpression(assistantTarget, prompt),
+        30_000,
+        `Could not send OPL built-in assistant route smoke prompt: ${assistantTarget.id}`
+      );
+      const receipt = await waitForCdpPredicate(
+        client,
+        latestConversationRouteReceiptExpression(assistantTarget),
+        45_000,
+        `Created conversation did not expose the OPL assistant route receipt: ${assistantTarget.id}`
+      );
+      results.push({
+        id: assistantTarget.id,
+        badge: assistantTarget.badge,
+        selected,
+        ready,
+        sent,
+        receipt,
+      });
+    }
+  } finally {
+    client.close();
+  }
+  const summary = {
+    surface_id: 'opl_packaged_gui_assistant_route_smoke',
+    status: 'passed',
+    cdp_port: options.cdpPort,
+    assistants: results,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
+  return results;
+}
+
 function captureUnifiedLog(processName, target) {
   const predicate = `process == "${processName.replace(/"/g, '\\"')}"`;
   const result = spawnSync('log', ['show', '--last', '10m', '--style', 'compact', '--predicate', predicate], {
@@ -1892,6 +2117,16 @@ async function main() {
           timeout_ms: options.timeoutMs,
         })
       : [];
+    const assistantRouteSmoke = options.assistantRouteSmoke
+      ? await runSmokePhase(
+          writeSmokeEvent,
+          'assistant_route_smoke',
+          () => runAssistantRouteSmoke(options, codexApiKey),
+          {
+            timeout_ms: options.timeoutMs,
+          }
+        )
+      : [];
 
     if (fs.existsSync(firstRunLog)) {
       writeTextArtifact(
@@ -1951,12 +2186,19 @@ async function main() {
             pages: settingsSmoke.map((page) => page.id),
           }
         : null,
+      assistant_route_smoke: options.assistantRouteSmoke
+        ? {
+            status: 'passed',
+            assistants: assistantRouteSmoke.map((assistant) => assistant.id),
+          }
+        : null,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
       runtime_profile: options.runtimeProfile,
       guid_entry_probe: guidEntry.mode,
       settings_smoke: summary.settings_smoke?.status ?? null,
+      assistant_route_smoke: summary.assistant_route_smoke?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -1998,10 +2240,16 @@ export const __test =
         buildLaunchAppArgs,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
+        OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         developerModeStatusExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
         shouldVerifyFullFirstRunEquivalence,
+        visibleHomeAssistantControlSelector,
+        homeAssistantRouteSelectionExpression,
+        homeAssistantRouteReadyExpression,
+        homeAssistantRouteSendExpression,
+        latestConversationRouteReceiptExpression,
       }
     : undefined;
 

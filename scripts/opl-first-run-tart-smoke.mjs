@@ -63,7 +63,8 @@ Options:
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
-  --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
+  --assistant-route-smoke  Verify MAS/MAG/RCA App-home assistant route receipts in the guest.
+  --cdp-port <n>           CDP port used by packaged GUI smoke probes. Default: 9230.
   --runtime-profile <profile>
                            First-run package profile to verify: full or standard. Default: full.
                            Use standard for the public macOS app DMG when Full-only bundled
@@ -103,6 +104,7 @@ function parseArgs(argv) {
     display: '1920x1080px',
     smokeProfile: 'full-gate',
     settingsSmoke: false,
+    assistantRouteSmoke: false,
     cdpPort: 9230,
     runtimeProfile: 'full',
     requireCodexConfigWizard: null,
@@ -134,6 +136,11 @@ function parseArgs(argv) {
     if (arg === '--settings-smoke') {
       options.settingsSmoke = true;
       explicit.add('settingsSmoke');
+      continue;
+    }
+    if (arg === '--assistant-route-smoke') {
+      options.assistantRouteSmoke = true;
+      explicit.add('assistantRouteSmoke');
       continue;
     }
     if (arg === '--require-codex-config-wizard') {
@@ -252,7 +259,8 @@ function buildDryRunPlan(options) {
     guest_workdir: options.guestWorkdir,
     display: options.display,
     settings_smoke: options.settingsSmoke,
-    cdp_port: options.settingsSmoke ? options.cdpPort : null,
+    assistant_route_smoke: options.assistantRouteSmoke,
+    cdp_port: options.settingsSmoke || options.assistantRouteSmoke ? options.cdpPort : null,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_node_root: options.guestNodeRoot || null,
@@ -619,7 +627,8 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     options.settingsSmoke ? '--settings-smoke' : '',
-    options.settingsSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
+    options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
+    options.settingsSmoke || options.assistantRouteSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
   ].join(' ');
   return ['set -euo pipefail', smokeArgs].join('\n');
@@ -681,12 +690,25 @@ function assertGuestSmokeSummary(options, guestSummary) {
   if (options.requireCodexConfigWizard && !guestSummary.codex_config_wizard_submitted) {
     throw new Error('Guest smoke did not submit the Codex configuration wizard.');
   }
-  if (!options.settingsSmoke) return;
-  if (guestSummary.settings_smoke?.status !== 'passed') {
-    throw new Error('Guest Settings smoke did not pass.');
+  if (options.settingsSmoke) {
+    if (guestSummary.settings_smoke?.status !== 'passed') {
+      throw new Error('Guest Settings smoke did not pass.');
+    }
+    if (!Array.isArray(guestSummary.settings_smoke.pages) || guestSummary.settings_smoke.pages.length === 0) {
+      throw new Error('Guest Settings smoke summary did not record visited pages.');
+    }
   }
-  if (!Array.isArray(guestSummary.settings_smoke.pages) || guestSummary.settings_smoke.pages.length === 0) {
-    throw new Error('Guest Settings smoke summary did not record visited pages.');
+  if (options.assistantRouteSmoke) {
+    if (guestSummary.assistant_route_smoke?.status !== 'passed') {
+      throw new Error('Guest assistant route smoke did not pass.');
+    }
+    const assistantIds = guestSummary.assistant_route_smoke.assistants;
+    if (
+      !Array.isArray(assistantIds) ||
+      !['mas', 'mag', 'rca'].every((assistantId) => assistantIds.includes(assistantId))
+    ) {
+      throw new Error('Guest assistant route smoke summary did not record MAS, MAG, and RCA.');
+    }
   }
 }
 
@@ -710,6 +732,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
     labels: guestSummary?.labels ?? [],
     settings_smoke: guestSummary?.settings_smoke ?? null,
+    assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));

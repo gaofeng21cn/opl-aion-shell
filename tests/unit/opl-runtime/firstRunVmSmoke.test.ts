@@ -185,6 +185,40 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/webui');
   });
 
+  it('smokes OPL built-in assistant route targets through Codex without ordinary selectors', () => {
+    expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
+      { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+      { id: 'mag', badge: '@MAG', shortName: 'MAG' },
+      { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+    ]);
+
+    const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
+    const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
+    const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
+
+    expect(selectionExpression).toContain('preset-pill-mas');
+    expect(readyExpression).toContain('@MAS');
+    for (const hiddenSelector of [
+      'agent-mode-selector',
+      'aionrs-model-selector',
+      'acp-model-selector',
+      'google-model-selector',
+      'agent-pill-',
+      'sendbox-model',
+    ]) {
+      expect(selectionExpression).toContain(hiddenSelector);
+      expect(readyExpression).toContain(hiddenSelector);
+    }
+    expect(receiptExpression).toContain('/api/conversations?limit=10');
+    expect(receiptExpression).toContain('opl_assistant_route');
+    expect(receiptExpression).toContain('builtin_capability');
+    expect(receiptExpression).toContain('codex_cli');
+    expect(receiptExpression).toContain('opl_app_home');
+    expect(receiptExpression).toContain("matched.type !== 'acp'");
+    expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
+  });
+
   it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {
     const expression = __test.developerModeStatusExpression();
 
