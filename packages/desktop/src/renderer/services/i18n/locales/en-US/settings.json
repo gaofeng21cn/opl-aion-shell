@@ -946,18 +946,18 @@
   "noExternalSources": "No external skill sources discovered",
   "firstRun": {
     "title": "Prepare One Person Lab",
-    "description": "OPL checks the few things needed to start first. Extra tools keep preparing in the background.",
+    "description": "Confirm the workspace, local assistant, and access. Everything else prepares in the background.",
     "openRuntimeSettings": "Runtime settings",
     "enterGuid": "Start in OPL",
     "coreReady": "Core ready",
     "ready": "Ready",
     "needsSetup": "Needs setup",
     "stage": "Current stage: {{phase}}",
-    "coreProgress": "Core checks {{progress}} complete",
+    "coreProgress": "Setup progress {{progress}}",
     "fullReadinessProgress": "Full readiness {{progress}} complete",
     "maintenanceProgress": "Maintenance and optional items {{progress}} complete",
-    "blockers": "Core blockers",
-    "noCoreBlockers": "No core blockers. You can start using OPL.",
+    "blockers": "Items to finish",
+    "noCoreBlockers": "No items to finish. You can start using OPL.",
     "noNextStep": "No blocking next step.",
     "backgroundMaintenance": "Background maintenance",
     "noMaintenance": "No maintenance pending",
@@ -978,11 +978,59 @@
     },
     "items": {
       "workspaceRoot": "Workspace root",
-      "codex": "Codex CLI",
-      "codexConfig": "Codex API configuration",
+      "codex": "Local assistant",
+      "codexConfig": "Access",
       "domainModules": "Domain modules",
       "familyRuntimeProvider": "Family runtime provider",
-      "recommendedSkills": "Recommended skills"
+      "recommendedSkills": "Recommended skills",
+      "otherSetup": "Other setup"
+    },
+    "itemSummaries": {
+      "workspaceRoot": {
+        "pending": "Confirming the local workspace.",
+        "checking": "Checking whether the workspace is usable.",
+        "ready": "Workspace is ready.",
+        "needsAction": "Choose or repair the local workspace."
+      },
+      "codex": {
+        "pending": "Confirming the local assistant.",
+        "checking": "Checking the local assistant.",
+        "ready": "Local assistant is ready.",
+        "needsAction": "Finish local assistant setup."
+      },
+      "codexConfig": {
+        "pending": "Confirming access.",
+        "checking": "Checking access.",
+        "ready": "Access is configured.",
+        "needsAction": "Enter the access key from your administrator."
+      },
+      "domainModules": {
+        "pending": "Domain modules will prepare in the background.",
+        "checking": "Checking domain modules.",
+        "ready": "Domain modules are ready.",
+        "maintenance": "Domain modules will keep preparing after you start."
+      },
+      "familyRuntimeProvider": {
+        "pending": "Runtime provider will prepare in the background.",
+        "checking": "Checking the runtime provider.",
+        "ready": "Runtime provider is ready.",
+        "maintenance": "Runtime provider will keep preparing after you start."
+      },
+      "recommendedSkills": {
+        "pending": "Recommended skills will prepare in the background.",
+        "checking": "Checking recommended skills.",
+        "ready": "Recommended skills are ready.",
+        "maintenance": "Recommended skills will keep preparing after you start."
+      }
+    },
+    "nextSteps": {
+      "workspaceRoot": "Choose a local workspace folder.",
+      "codex": "Wait for the local assistant to finish setup, or retry from technical details.",
+      "codexConfig": "Ask your administrator for the access key, then complete the setup below.",
+      "domainModules": "Domain modules can continue preparing after you enter OPL.",
+      "familyRuntimeProvider": "The runtime provider can continue preparing after you enter OPL.",
+      "recommendedSkills": "Recommended skills can continue preparing after you enter OPL.",
+      "generic": "Complete the current setup shown on the page, or retry from technical details."
     },
     "status": {
       "pending": "Waiting for initialize state",
@@ -1002,13 +1050,13 @@
       "completed": "Action completed"
     },
     "codex": {
-      "title": "Codex defaults",
-      "prompt": "Enter the Codex API key from your administrator to start using One Person Lab.",
+      "title": "Access",
+      "prompt": "Enter the access key from your administrator. You can start after this is configured.",
       "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
-      "apiKeyPlaceholder": "Enter Codex API key",
-      "apiKeyRequired": "Codex API key is required",
-      "configure": "Configure Codex",
-      "configured": "Codex configured"
+      "apiKeyPlaceholder": "Enter access key",
+      "apiKeyRequired": "Enter the access key",
+      "configure": "Finish setup",
+      "configured": "Access configured"
     },
     "maintenance": {
       "title": "Maintenance actions",
@@ -1020,7 +1068,7 @@
     "error": {
       "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
       "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
-      "codexConfig": "Codex API access is not configured yet. Enter the API key to continue."
+      "codexConfig": "Access is not configured yet. Enter the access key from your administrator to continue."
     }
   },
   "oplFirstLaunch": {
@@ -1035,19 +1083,19 @@
       "workingOn": "{{step}} ({{current}}/{{total}})",
       "steps": {
         "checkingEnvironment": "Checking environment",
-        "configureCodex": "Configuring Codex",
+        "configureCodex": "Configuring access",
         "installingModules": "Installing modules",
         "reviewingStatus": "Reviewing status",
         "complete": "Complete"
       }
     },
     "codex": {
-      "prompt": "Enter your Codex API key. OPL will write the local provider configuration without logging the secret.",
+      "prompt": "Enter the access key from your administrator. OPL will write the local access configuration without logging the secret.",
       "providerEndpoint": "Provider endpoint",
       "initialModelProfile": "Initial model profile",
-      "apiKeyPlaceholder": "Codex API key",
-      "apiKeyRequired": "Enter a Codex API key.",
-      "configure": "Configure Codex"
+      "apiKeyPlaceholder": "Access key",
+      "apiKeyRequired": "Enter the access key.",
+      "configure": "Configure access"
     },
     "actions": {
       "retry": "Retry",
@@ -1058,7 +1106,7 @@
     "blockers": {
       "workspace_root": "Workspace root needs attention.",
       "codex": "Codex CLI is not ready.",
-      "codex_config": "Codex API configuration is missing.",
+      "codex_config": "Access configuration is missing.",
       "family_runtime_provider": "Family runtime provider is not ready.",
       "domain_modules": "Default domain modules are not ready.",
       "recommended_skills": "Recommended companion skills need attention."

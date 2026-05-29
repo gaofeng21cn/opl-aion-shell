@@ -511,7 +511,6 @@ function firstRunAccessibilityExpectedLabels() {
     DEFAULT_LABELS.readyEntry,
     DEFAULT_LABELS.beginnerSummary,
     DEFAULT_LABELS.primaryAction,
-    DEFAULT_LABELS.backgroundMaintenance,
     DEFAULT_LABELS.technicalDetailsToggle,
     DEFAULT_LABELS.guidEntry,
   ];
@@ -1134,6 +1133,8 @@ function firstRunBeginnerUxExpression() {
       /setup_flow/,
       /overall_state/,
       /action_command_ref/,
+      /settings\\.firstRun\\.beginner\\.backgroundMaintenanceWithCount/,
+      /后台维护|Background maintenance/,
       /opl system initialize/,
       /runtime command failed/i,
       /\\{\\s*"/,

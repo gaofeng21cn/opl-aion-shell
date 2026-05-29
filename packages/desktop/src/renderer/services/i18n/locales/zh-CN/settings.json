@@ -946,19 +946,19 @@
   "allSkillsExist": "所有找到的技能都已存在",
   "noExternalSources": "未发现外部技能源",
   "firstRun": {
-    "title": "准备 One Person Lab",
-    "description": "OPL 会先检查开始使用所需的几个关键项，其他工具会在后台继续准备。",
+    "title": "准备开始使用",
+    "description": "只需确认工作目录、本机助手和访问权限。其他组件会在后台准备。",
     "openRuntimeSettings": "运行设置",
     "enterGuid": "进入 OPL",
     "coreReady": "核心已就绪",
     "ready": "就绪",
-    "needsSetup": "需要设置",
+    "needsSetup": "需要处理",
     "stage": "当前阶段：{{phase}}",
-    "coreProgress": "核心检查已完成 {{progress}}",
+    "coreProgress": "准备进度 {{progress}}",
     "fullReadinessProgress": "完整就绪度已完成 {{progress}}",
     "maintenanceProgress": "维护和可选项已完成 {{progress}}",
-    "blockers": "核心阻塞项",
-    "noCoreBlockers": "没有核心阻塞项，可以开始使用 OPL。",
+    "blockers": "待处理项",
+    "noCoreBlockers": "没有待处理项，可以开始使用 OPL。",
     "noNextStep": "当前没有阻塞性的下一步。",
     "backgroundMaintenance": "后台维护",
     "noMaintenance": "暂无待维护项",
@@ -967,10 +967,10 @@
     "lastAction": "上次操作结果",
     "noActionYet": "此窗口内尚未运行维护操作。",
     "beginner": {
-      "title": "正在检查关键项",
+      "title": "正在准备",
       "readyTitle": "可以开始使用",
-      "summaryChecking": "正在检查工作区、Codex 和 API 权限。",
-      "summaryPreparing": "关键项还在准备中，你可以在这里看到进度。",
+      "summaryChecking": "正在检查工作目录、本机助手和访问权限。",
+      "summaryPreparing": "开始使用前还要完成几项准备。",
       "summaryNeedsAction": "还有一个设置项需要处理，完成后即可开始使用。",
       "summaryReady": "开始使用所需的关键项已经就绪。",
       "nextStep": "下一步",
@@ -979,15 +979,63 @@
     },
     "items": {
       "workspaceRoot": "工作目录",
-      "codex": "Codex CLI",
-      "codexConfig": "Codex API 配置",
+      "codex": "本机助手",
+      "codexConfig": "访问权限",
       "domainModules": "智能体模块",
       "familyRuntimeProvider": "运行底座",
-      "recommendedSkills": "推荐能力"
+      "recommendedSkills": "推荐能力",
+      "otherSetup": "其他设置"
+    },
+    "itemSummaries": {
+      "workspaceRoot": {
+        "pending": "正在确认本机工作目录。",
+        "checking": "正在检查工作目录是否可用。",
+        "ready": "工作目录已准备好。",
+        "needsAction": "请选择或修复本机工作目录。"
+      },
+      "codex": {
+        "pending": "正在确认本机助手是否可用。",
+        "checking": "正在检查本机助手。",
+        "ready": "本机助手已准备好。",
+        "needsAction": "需要完成本机助手准备。"
+      },
+      "codexConfig": {
+        "pending": "正在确认访问权限。",
+        "checking": "正在检查访问权限。",
+        "ready": "访问权限已配置。",
+        "needsAction": "请输入管理员提供的访问密钥。"
+      },
+      "domainModules": {
+        "pending": "智能体模块会在后台准备。",
+        "checking": "正在检查智能体模块。",
+        "ready": "智能体模块已就绪。",
+        "maintenance": "智能体模块会在进入后继续准备。"
+      },
+      "familyRuntimeProvider": {
+        "pending": "运行底座会在后台准备。",
+        "checking": "正在检查运行底座。",
+        "ready": "运行底座已就绪。",
+        "maintenance": "运行底座会在进入后继续准备。"
+      },
+      "recommendedSkills": {
+        "pending": "推荐能力会在后台准备。",
+        "checking": "正在检查推荐能力。",
+        "ready": "推荐能力已就绪。",
+        "maintenance": "推荐能力会在进入后继续准备。"
+      }
+    },
+    "nextSteps": {
+      "workspaceRoot": "选择一个本机工作目录。",
+      "codex": "等待本机助手准备完成，或在技术详情中重试。",
+      "codexConfig": "联系管理员获取访问密钥，并在下方完成配置。",
+      "domainModules": "进入 OPL 后后台继续准备智能体模块。",
+      "familyRuntimeProvider": "进入 OPL 后后台继续准备运行底座。",
+      "recommendedSkills": "进入 OPL 后后台继续准备推荐能力。",
+      "generic": "按页面提示完成当前设置，或在技术详情中重试。"
     },
     "status": {
       "pending": "等待初始化状态",
-      "unknown": "未知",
+      "unknown": "待检查",
       "ready": "就绪",
       "installed": "已安装",
       "detected": "已检测",
@@ -1003,13 +1051,13 @@
       "completed": "操作已完成"
     },
     "codex": {
-      "title": "Codex 默认配置",
-      "prompt": "请输入管理员提供的 Codex API Key，完成后即可开始使用 One Person Lab。",
+      "title": "访问权限",
+      "prompt": "请输入管理员提供的访问密钥。配置完成后即可开始使用。",
       "defaults": "Provider {{provider}} 使用 {{baseUrl}}，默认模型 {{model}}，推理强度 {{reasoning}}。",
-      "apiKeyPlaceholder": "输入 Codex API Key",
-      "apiKeyRequired": "请输入 Codex API Key",
-      "configure": "配置 Codex",
-      "configured": "Codex 已配置"
+      "apiKeyPlaceholder": "输入访问密钥",
+      "apiKeyRequired": "请输入访问密钥",
+      "configure": "完成配置",
+      "configured": "访问权限已配置"
     },
     "maintenance": {
       "title": "维护操作",
@@ -1021,7 +1069,7 @@
     "error": {
       "general": "OPL 暂时无法完成启动检查。打开技术详情可以重试或查看诊断信息。",
       "blocked": "还有一个设置项需要处理。按下方下一步完成后，可在技术详情中重试。",
-      "codexConfig": "Codex API 访问还未配置。请输入 API Key 后继续。"
+      "codexConfig": "访问权限还未配置。请输入管理员提供的访问密钥后继续。"
     }
   },
   "oplFirstLaunch": {
@@ -1036,19 +1084,19 @@
       "workingOn": "{{step}}（{{current}}/{{total}}）",
       "steps": {
         "checkingEnvironment": "检查环境",
-        "configureCodex": "配置 Codex",
+        "configureCodex": "配置访问权限",
         "installingModules": "安装模块",
         "reviewingStatus": "检查状态",
         "complete": "完成"
       }
     },
     "codex": {
-      "prompt": "请输入 Codex API Key。OPL 会写入本机 provider 配置，且不会把密钥写入日志。",
+      "prompt": "请输入管理员提供的访问密钥。OPL 会写入本机访问配置，且不会把密钥写入日志。",
       "providerEndpoint": "服务端点",
       "initialModelProfile": "初始模型配置",
-      "apiKeyPlaceholder": "Codex API Key",
-      "apiKeyRequired": "请输入 Codex API Key。",
-      "configure": "配置 Codex"
+      "apiKeyPlaceholder": "访问密钥",
+      "apiKeyRequired": "请输入访问密钥。",
+      "configure": "配置访问权限"
     },
     "actions": {
       "retry": "重试",
@@ -1059,7 +1107,7 @@
     "blockers": {
       "workspace_root": "工作区根目录需要处理。",
       "codex": "Codex CLI 未就绪。",
-      "codex_config": "缺少 Codex API 配置。",
+      "codex_config": "缺少访问权限配置。",
       "family_runtime_provider": "运行底座未就绪。",
       "domain_modules": "默认领域模块未就绪。",
       "recommended_skills": "推荐配套能力需要处理。"

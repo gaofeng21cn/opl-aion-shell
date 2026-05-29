@@ -146,6 +146,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('settings\\.firstRun\\.stage');
     expect(expression).toContain('full_readiness');
     expect(expression).toContain('action_command_ref');
+    expect(expression).toContain('settings\\.firstRun\\.beginner\\.backgroundMaintenanceWithCount');
     expect(expression).toContain('opl system initialize');
     expect(expression).toContain('runtime command failed');
     expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
@@ -159,6 +160,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(labels).toContain('opl-first-run-primary-action');
     expect(labels).toContain('opl-first-run-technical-details-toggle');
     expect(labels).toContain('opl-guid-entry');
+    expect(labels).not.toContain('opl-first-run-background-maintenance-secondary');
     expect(labels).not.toContain('opl-first-run-install-button');
     expect(labels).not.toContain('opl-first-run-open-environment-button');
     expect(labels).not.toContain('opl-first-run-open-modules-button');

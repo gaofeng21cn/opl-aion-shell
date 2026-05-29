@@ -21,9 +21,11 @@ import type { FirstRunChecklistItem, FirstRunCommandResult, FirstRunInitialize }
 import styles from './FirstRun.module.css';
 
 type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 const PRIMARY_FIRST_RUN_ITEM_IDS: FirstRunItemId[] = ['workspace_root', 'codex', 'codex_config'];
 const STATUS_READY = new Set(['ready', 'installed', 'detected', 'configured', 'disabled']);
+const STATUS_NEEDS_ACTION = new Set(['missing', 'blocking', 'failed']);
 const STATUS_LABEL_KEYS: Record<string, string> = {
   ready: 'settings.firstRun.status.ready',
   installed: 'settings.firstRun.status.installed',
@@ -36,6 +38,69 @@ const STATUS_LABEL_KEYS: Record<string, string> = {
   blocking: 'settings.firstRun.status.blocking',
   failed: 'settings.firstRun.status.failed',
 };
+const ITEM_LABEL_KEYS: Record<FirstRunItemId, string> = {
+  workspace_root: 'settings.firstRun.items.workspaceRoot',
+  codex: 'settings.firstRun.items.codex',
+  codex_config: 'settings.firstRun.items.codexConfig',
+  domain_modules: 'settings.firstRun.items.domainModules',
+  family_runtime_provider: 'settings.firstRun.items.familyRuntimeProvider',
+  recommended_skills: 'settings.firstRun.items.recommendedSkills',
+};
+const ITEM_SUMMARY_KEYS: Record<
+  FirstRunItemId,
+  { pending: string; checking: string; ready: string; needsAction: string; maintenance: string }
+> = {
+  workspace_root: {
+    pending: 'settings.firstRun.itemSummaries.workspaceRoot.pending',
+    checking: 'settings.firstRun.itemSummaries.workspaceRoot.checking',
+    ready: 'settings.firstRun.itemSummaries.workspaceRoot.ready',
+    needsAction: 'settings.firstRun.itemSummaries.workspaceRoot.needsAction',
+    maintenance: 'settings.firstRun.itemSummaries.workspaceRoot.pending',
+  },
+  codex: {
+    pending: 'settings.firstRun.itemSummaries.codex.pending',
+    checking: 'settings.firstRun.itemSummaries.codex.checking',
+    ready: 'settings.firstRun.itemSummaries.codex.ready',
+    needsAction: 'settings.firstRun.itemSummaries.codex.needsAction',
+    maintenance: 'settings.firstRun.itemSummaries.codex.pending',
+  },
+  codex_config: {
+    pending: 'settings.firstRun.itemSummaries.codexConfig.pending',
+    checking: 'settings.firstRun.itemSummaries.codexConfig.checking',
+    ready: 'settings.firstRun.itemSummaries.codexConfig.ready',
+    needsAction: 'settings.firstRun.itemSummaries.codexConfig.needsAction',
+    maintenance: 'settings.firstRun.itemSummaries.codexConfig.pending',
+  },
+  domain_modules: {
+    pending: 'settings.firstRun.itemSummaries.domainModules.pending',
+    checking: 'settings.firstRun.itemSummaries.domainModules.checking',
+    ready: 'settings.firstRun.itemSummaries.domainModules.ready',
+    needsAction: 'settings.firstRun.itemSummaries.domainModules.maintenance',
+    maintenance: 'settings.firstRun.itemSummaries.domainModules.maintenance',
+  },
+  family_runtime_provider: {
+    pending: 'settings.firstRun.itemSummaries.familyRuntimeProvider.pending',
+    checking: 'settings.firstRun.itemSummaries.familyRuntimeProvider.checking',
+    ready: 'settings.firstRun.itemSummaries.familyRuntimeProvider.ready',
+    needsAction: 'settings.firstRun.itemSummaries.familyRuntimeProvider.maintenance',
+    maintenance: 'settings.firstRun.itemSummaries.familyRuntimeProvider.maintenance',
+  },
+  recommended_skills: {
+    pending: 'settings.firstRun.itemSummaries.recommendedSkills.pending',
+    checking: 'settings.firstRun.itemSummaries.recommendedSkills.checking',
+    ready: 'settings.firstRun.itemSummaries.recommendedSkills.ready',
+    needsAction: 'settings.firstRun.itemSummaries.recommendedSkills.maintenance',
+    maintenance: 'settings.firstRun.itemSummaries.recommendedSkills.maintenance',
+  },
+};
+const NEXT_STEP_KEYS: Record<FirstRunItemId, string> = {
+  workspace_root: 'settings.firstRun.nextSteps.workspaceRoot',
+  codex: 'settings.firstRun.nextSteps.codex',
+  codex_config: 'settings.firstRun.nextSteps.codexConfig',
+  domain_modules: 'settings.firstRun.nextSteps.domainModules',
+  family_runtime_provider: 'settings.firstRun.nextSteps.familyRuntimeProvider',
+  recommended_skills: 'settings.firstRun.nextSteps.recommendedSkills',
+};
 
 function itemStatusColor(item: FirstRunChecklistItem | null): string {
   if (!item) return 'gray';
@@ -45,10 +110,51 @@ function itemStatusColor(item: FirstRunChecklistItem | null): string {
   return 'gray';
 }
 
-function formatItemStatus(item: FirstRunChecklistItem | null, fallback: string, t: (key: string) => string): string {
+function isKnownFirstRunItemId(itemId: string | undefined): itemId is FirstRunItemId {
+  return Boolean(itemId && FIRST_RUN_ITEM_IDS.includes(itemId as FirstRunItemId));
+}
+
+function formatItemStatus(item: FirstRunChecklistItem | null, fallback: string, t: Translate): string {
   if (!item?.status) return fallback;
   const labelKey = STATUS_LABEL_KEYS[item.status];
   return labelKey ? t(labelKey) : fallback;
+}
+
+function formatItemLabel(item: FirstRunChecklistItem | null, fallbackLabel: string, t: Translate): string {
+  if (isKnownFirstRunItemId(item?.item_id)) return t(ITEM_LABEL_KEYS[item.item_id]);
+  return fallbackLabel;
+}
+
+function formatItemSummary(item: FirstRunChecklistItem | null, fallbackSummary: string, t: Translate): string {
+  if (!item || !isKnownFirstRunItemId(item.item_id)) return fallbackSummary;
+  const summaryKeys = ITEM_SUMMARY_KEYS[item.item_id];
+  if (
+    item.blocking ||
+    item.severity === 'blocking' ||
+    STATUS_NEEDS_ACTION.has(item.status) ||
+    (item.status === 'attention_needed' && item.severity !== 'maintenance')
+  ) {
+    return t(summaryKeys.needsAction);
+  }
+  if (STATUS_READY.has(item.status)) return t(summaryKeys.ready);
+  if (item.severity === 'maintenance' || item.status === 'attention_needed') return t(summaryKeys.maintenance);
+  if (item.status === 'initializing') return t(summaryKeys.checking);
+  return t(summaryKeys.pending);
+}
+
+function formatItemIds(ids: string[], t: Translate): string[] {
+  return ids.map((itemId) => {
+    if (isKnownFirstRunItemId(itemId)) return t(ITEM_LABEL_KEYS[itemId]);
+    return t('settings.firstRun.items.otherSetup');
+  });
+}
+
+function formatNextVisibleStep(initialize: FirstRunInitialize | null, t: Translate): string | null {
+  const blockingItemIds = initialize?.setup_flow?.blocking_items ?? [];
+  const blockedItem = initialize?.checklist?.find((entry) => blockingItemIds.includes(entry.item_id) || entry.blocking);
+  const item = blockedItem ?? initialize?.checklist?.find((entry) => entry.next_visible_step);
+  if (!isKnownFirstRunItemId(item?.item_id)) return null;
+  return t(NEXT_STEP_KEYS[item.item_id]);
 }
 
 function resultPreview(result: FirstRunCommandResult): string {
@@ -87,10 +193,8 @@ function ReadinessItem({
   return (
     <div className={styles.firstRunItem}>
       <div className={styles.firstRunItemBody}>
-        <div className={styles.firstRunItemTitle}>{item?.label ?? fallbackLabel}</div>
-        <div className={styles.firstRunItemSummary}>
-          {item?.detail_summary ?? item?.next_visible_step ?? fallbackSummary}
-        </div>
+        <div className={styles.firstRunItemTitle}>{formatItemLabel(item, fallbackLabel, t)}</div>
+        <div className={styles.firstRunItemSummary}>{formatItemSummary(item, fallbackSummary, t)}</div>
         {item?.action_command_ref && <code className={styles.firstRunCommand}>{item.action_command_ref}</code>}
       </div>
       <Tag size='small' color={itemStatusColor(item)}>
@@ -127,7 +231,9 @@ const FirstRun: React.FC = () => {
   const currentPhase =
     initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown');
   const userFacingError = formatFirstRunError(error, codexConfigBlocked, hasBlockingItems, t);
-  const nextVisibleStep = findNextVisibleStep(initialize);
+  const rawNextVisibleStep = findNextVisibleStep(initialize);
+  const nextVisibleStep =
+    formatNextVisibleStep(initialize, t) ?? (rawNextVisibleStep ? t('settings.firstRun.nextSteps.generic') : null);
   const codexProfile = initialize?.codex_default_profile;
   const coreStatusColor = initializeLoading && !initializeResult ? 'blue' : readyToLaunch ? 'green' : 'red';
   const coreStatusLabel =
@@ -228,23 +334,16 @@ const FirstRun: React.FC = () => {
     void checkFastAppState();
   }, [checkFastAppState, refreshInitialize]);
 
-  const itemLabels: Record<FirstRunItemId, string> = {
-    workspace_root: t('settings.firstRun.items.workspaceRoot'),
-    codex: t('settings.firstRun.items.codex'),
-    codex_config: t('settings.firstRun.items.codexConfig'),
-    domain_modules: t('settings.firstRun.items.domainModules'),
-    family_runtime_provider: t('settings.firstRun.items.familyRuntimeProvider'),
-    recommended_skills: t('settings.firstRun.items.recommendedSkills'),
-  };
+  const itemLabels = Object.fromEntries(
+    FIRST_RUN_ITEM_IDS.map((itemId) => [itemId, t(ITEM_LABEL_KEYS[itemId])])
+  ) as Record<FirstRunItemId, string>;
   const primaryItems = PRIMARY_FIRST_RUN_ITEM_IDS.map((itemId) => ({
     id: itemId,
     item: findChecklistItem(initialize, itemId),
     label: itemLabels[itemId],
   }));
-  const primaryBlockerLabels = blockingItems.map((itemId) => {
-    const checklistItem = initialize?.checklist?.find((item) => item.item_id === itemId);
-    return checklistItem?.label ?? itemLabels[itemId as FirstRunItemId] ?? itemId;
-  });
+  const primaryBlockerLabels = formatItemIds(blockingItems, t);
+  const maintenanceLabels = formatItemIds(maintenanceItems, t);
   const beginnerSummary = initializeLoading
     ? t('settings.firstRun.beginner.summaryChecking')
     : readyToLaunch
@@ -269,11 +368,7 @@ const FirstRun: React.FC = () => {
           </div>
         )}
 
-        <section
-          className={styles.firstRunHeroPanel}
-          data-testid='opl-first-run-progress'
-          aria-label='opl-first-run-progress'
-        >
+        <section className={styles.firstRunHeroPanel} data-testid='opl-first-run-progress' aria-label='opl-first-run-progress'>
           <div className={styles.firstRunHeroMain} data-testid='opl-first-run-beginner-primary'>
             <div className={styles.firstRunStatusHeading}>
               <span className={styles.firstRunHeroIcon}>
@@ -305,9 +400,9 @@ const FirstRun: React.FC = () => {
                     {STATUS_READY.has(item?.status ?? '') ? <CheckOne /> : <Config />}
                   </span>
                   <div>
-                    <div className={styles.firstRunItemTitle}>{item?.label ?? label}</div>
+                    <div className={styles.firstRunItemTitle}>{formatItemLabel(item, label, t)}</div>
                     <div className={styles.firstRunItemSummary}>
-                      {item?.detail_summary ?? item?.next_visible_step ?? t('settings.firstRun.status.pending')}
+                      {formatItemSummary(item, t('settings.firstRun.status.pending'), t)}
                     </div>
                   </div>
                   <Tag size='small' color={itemStatusColor(item)}>
@@ -373,27 +468,6 @@ const FirstRun: React.FC = () => {
             </div>
           </div>
 
-          <aside className={styles.firstRunBackground} data-testid='opl-first-run-background-maintenance-secondary'>
-            <div className={styles.firstRunSignalTitle}>
-              <span className={styles.firstRunCardIcon}>
-                <Tool />
-              </span>
-              <h3>{t('settings.firstRun.backgroundMaintenance')}</h3>
-              <Tag color={maintenanceItems.length > 0 ? 'orange' : 'green'}>{maintenanceItems.length}</Tag>
-            </div>
-            <p>
-              {maintenanceItems.length > 0
-                ? t('settings.firstRun.beginner.backgroundMaintenanceWithCount', {
-                    count: maintenanceItems.length,
-                  })
-                : t('settings.firstRun.noMaintenance')}
-            </p>
-            <p className={styles.firstRunMeta}>
-              {maintenanceItems.length > 0
-                ? maintenanceItems.join(', ')
-                : t('settings.firstRun.beginner.backgroundReady')}
-            </p>
-          </aside>
         </section>
 
         <Collapse
@@ -405,6 +479,21 @@ const FirstRun: React.FC = () => {
             <section className={styles.firstRunDiagnostics} data-testid='opl-first-run-primary-troubleshooting'>
               <div className={styles.firstRunDiagnosticLine} data-testid='opl-first-run-stage'>
                 <span>{t('settings.firstRun.stage', { phase: currentPhase })}</span>
+              </div>
+              <div
+                className={styles.firstRunDiagnosticLine}
+                data-testid='opl-first-run-background-maintenance-secondary'
+              >
+                <span>
+                  {maintenanceItems.length > 0
+                    ? t('settings.firstRun.beginner.backgroundMaintenanceWithCount', {
+                        count: maintenanceItems.length,
+                      })
+                    : t('settings.firstRun.noMaintenance')}
+                </span>
+                {maintenanceLabels.length > 0 && (
+                  <span className={styles.firstRunMeta}> {maintenanceLabels.join(', ')}</span>
+                )}
               </div>
               {error && (
                 <div className={styles.firstRunTechnicalError} data-testid='opl-first-run-technical-error'>

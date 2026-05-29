@@ -251,17 +251,22 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
     expect(screen.getByTestId('opl-first-run-progress')).toHaveAttribute('aria-label', 'opl-first-run-progress');
     expect(screen.getByTestId('opl-first-run-primary-action')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
-      'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
-    );
     expect(screen.getByTestId('opl-first-run-technical-details-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('settings.firstRun.stage');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('opl system');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('full_readiness');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
+      'settings.firstRun.beginner.backgroundMaintenanceWithCount'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex API Configuration');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex CLI');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Workspace Root');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Configured');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('{');
     expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
       'settings.firstRun.maintenance.title'
     );
+    expect(screen.queryByTestId('opl-first-run-background-maintenance-secondary')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.noCoreBlockers');
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveAttribute(
       'aria-label',
@@ -272,6 +277,30 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByTestId('opl-first-run-ready-entry'));
 
     expect(navigateMock).toHaveBeenCalledWith('/guid');
+  });
+
+  it('localizes the beginner surface even when initialize returns English and technical labels', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    const beginnerPrimary = screen.getByTestId('opl-first-run-beginner-primary');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.workspaceRoot');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codex');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codexConfig');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.itemSummaries.codexConfig.needsAction');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.codex.prompt');
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('settings.firstRun.nextSteps.codexConfig');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
+      'settings.firstRun.items.codexConfig'
+    );
+    expect(beginnerPrimary).not.toHaveTextContent('Codex API Configuration');
+    expect(beginnerPrimary).not.toHaveTextContent('Unknown');
+    expect(beginnerPrimary).not.toHaveTextContent('Needs setup');
+    expect(beginnerPrimary).not.toHaveTextContent('Codex API Key');
+    expect(beginnerPrimary).not.toHaveTextContent('opl system configure-codex');
+    expect(beginnerPrimary).not.toHaveTextContent('setup_flow');
   });
 
   it('enters /guid when initialize confirms Core launch readiness while fast App state is still pending', async () => {
@@ -345,13 +374,20 @@ describe('FirstRun readiness page', () => {
     expect(beginnerPrimary.queryByTestId('opl-settings-environment')).not.toBeInTheDocument();
     expect(beginnerPrimary.queryByTestId('opl-first-run-retry-button')).not.toBeInTheDocument();
     expect(beginnerPrimary.queryByTestId('opl-first-run-open-environment-button')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('Start the family runtime provider.');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('Family Runtime Provider');
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent(
+      'settings.firstRun.nextSteps.familyRuntimeProvider'
+    );
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
+      'settings.firstRun.items.familyRuntimeProvider'
+    );
 
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
 
     expect(screen.getByTestId('opl-first-run-stage')).toHaveTextContent(
       'settings.firstRun.stage full_readiness_maintenance'
+    );
+    expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
+      'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
     );
     expect(screen.getByTestId('opl-first-run-core-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
     expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
