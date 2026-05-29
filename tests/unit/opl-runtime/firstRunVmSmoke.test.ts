@@ -185,7 +185,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/webui');
   });
 
-  it('smokes OPL built-in assistant route targets through Codex without ordinary selectors', () => {
+  it('smokes OPL built-in assistant route targets through receipt-only Codex conversations', () => {
     expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
       { id: 'mas', badge: '@MAS', shortName: 'MAS' },
       { id: 'mag', badge: '@MAG', shortName: 'MAG' },
@@ -195,7 +195,9 @@ describe('packaged first-run VM smoke helpers', () => {
     const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
     const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
     const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
+    const createExpression = __test.createAssistantRouteReceiptConversationExpression(masTarget);
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
+    const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
 
     expect(selectionExpression).toContain('preset-pill-mas');
     expect(readyExpression).toContain('@MAS');
@@ -210,7 +212,16 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(selectionExpression).toContain(hiddenSelector);
       expect(readyExpression).toContain(hiddenSelector);
     }
+    expect(createExpression).toContain('/api/conversations');
+    expect(createExpression).toContain("method: 'POST'");
+    expect(createExpression).toContain('preset_assistant_id');
+    expect(createExpression).toContain('preset_assistant_id: "mas"');
+    expect(createExpression).toContain('opl_assistant_route');
+    expect(createExpression).toContain("backend: 'codex'");
+    expect(createExpression).not.toContain('guid-send-btn');
     expect(receiptExpression).toContain('/api/conversations?limit=10');
+    expect(receiptByIdExpression).toContain('/api/conversations/conv-123');
+    expect(receiptByIdExpression).toContain('expected_conversation_id');
     expect(receiptExpression).toContain('opl_assistant_route');
     expect(receiptExpression).toContain('builtin_capability');
     expect(receiptExpression).toContain('codex_cli');

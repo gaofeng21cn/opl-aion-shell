@@ -72,8 +72,8 @@ Options:
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
-                         Click MAS/MAG/RCA purpose entries, send a smoke prompt, and verify
-                         each created conversation stores the Codex route receipt.
+                         Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
+                         and verify each conversation stores the Codex route receipt.
   --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
   --runtime-profile <profile>
                          First-run package profile to verify: full or standard. Default: full.
@@ -1220,24 +1220,75 @@ function homeAssistantRouteSendExpression(target, prompt) {
   })()`;
 }
 
-function latestConversationRouteReceiptExpression(target) {
+function createAssistantRouteReceiptConversationExpression(target) {
   return `(async () => {
     const backendPort = window.__backendPort;
     if (!backendPort) return false;
-    const response = await fetch(\`http://127.0.0.1:\${backendPort}/api/conversations?limit=10\`);
+    const route = {
+      route_kind: 'builtin_capability',
+      executor: 'codex_cli',
+      assistant_id: ${cdpString(target.id)},
+      assistant_short_name: ${cdpString(target.shortName)},
+      source: 'opl_app_home',
+    };
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}/api/conversations\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'acp',
+        name: ${cdpString(`OPL packaged GUI route smoke receipt for ${target.shortName}`)},
+        extra: {
+          workspace: '',
+          custom_workspace: false,
+          backend: 'codex',
+          preset_assistant_id: ${cdpString(target.id)},
+          opl_assistant_route: route,
+        },
+      }),
+    });
     if (!response.ok) {
-      throw new Error(\`Conversation list returned \${response.status}\`);
+      const body = await response.text();
+      throw new Error(\`POST /api/conversations failed for ${target.id}: \${response.status} \${body}\`);
     }
     const payload = await response.json();
-    const conversations = payload?.data?.items || payload?.items || [];
+    const conversation = payload?.data || payload;
+    const conversationId = conversation?.id;
+    if (!conversationId) {
+      throw new Error(\`POST /api/conversations returned no conversation id for ${target.id}: \${JSON.stringify(payload)}\`);
+    }
+    return {
+      status: 'created',
+      assistant_id: ${cdpString(target.id)},
+      conversation_id: conversationId,
+      route,
+    };
+  })()`;
+}
+
+function conversationRouteReceiptExpression(target, conversationId = null) {
+  const conversationPath = conversationId
+    ? `/api/conversations/${encodeURIComponent(conversationId)}`
+    : '/api/conversations?limit=10';
+  return `(async () => {
+    const backendPort = window.__backendPort;
+    if (!backendPort) return false;
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}${conversationPath}\`);
+    if (!response.ok) {
+      throw new Error(\`Conversation receipt lookup returned \${response.status}\`);
+    }
+    const payload = await response.json();
+    const conversations = ${conversationId ? '[payload?.data || payload]' : 'payload?.data?.items || payload?.items || []'};
     const matched = conversations.find((conversation) => {
       const route = conversation?.extra?.opl_assistant_route;
-      return route?.assistant_id === ${cdpString(target.id)};
+      const assistantMatches = route?.assistant_id === ${cdpString(target.id)};
+      const conversationMatches = ${conversationId ? `conversation?.id === ${cdpString(conversationId)}` : 'true'};
+      return assistantMatches && conversationMatches;
     });
     if (!matched) {
       return {
         status: 'waiting_for_route_receipt',
         assistant_id: ${cdpString(target.id)},
+        expected_conversation_id: ${conversationId ? cdpString(conversationId) : 'null'},
         recent_conversation_count: conversations.length,
         recent_routes: conversations.map((conversation) => conversation?.extra?.opl_assistant_route || null),
       };
@@ -1261,6 +1312,10 @@ function latestConversationRouteReceiptExpression(target) {
       route,
     };
   })()`;
+}
+
+function latestConversationRouteReceiptExpression(target) {
+  return conversationRouteReceiptExpression(target);
 }
 
 function firstRunBeginnerUxExpression() {
@@ -1831,16 +1886,15 @@ async function runAssistantRouteSmoke(options, secret) {
         client,
         path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}-selected.png`)
       );
-      const prompt = `OPL packaged GUI route smoke for ${assistantTarget.shortName}.`;
-      const sent = await waitForCdpPredicate(
+      const created = await waitForCdpPredicate(
         client,
-        homeAssistantRouteSendExpression(assistantTarget, prompt),
+        createAssistantRouteReceiptConversationExpression(assistantTarget),
         30_000,
-        `Could not send OPL built-in assistant route smoke prompt: ${assistantTarget.id}`
+        `Could not create OPL built-in assistant route receipt conversation: ${assistantTarget.id}`
       );
       const receipt = await waitForCdpPredicate(
         client,
-        latestConversationRouteReceiptExpression(assistantTarget),
+        conversationRouteReceiptExpression(assistantTarget, created.conversation_id),
         45_000,
         `Created conversation did not expose the OPL assistant route receipt: ${assistantTarget.id}`
       );
@@ -1849,7 +1903,7 @@ async function runAssistantRouteSmoke(options, secret) {
         badge: assistantTarget.badge,
         selected,
         ready,
-        sent,
+        created,
         receipt,
       });
     }
@@ -2249,6 +2303,8 @@ export const __test =
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
         homeAssistantRouteSendExpression,
+        createAssistantRouteReceiptConversationExpression,
+        conversationRouteReceiptExpression,
         latestConversationRouteReceiptExpression,
       }
     : undefined;
