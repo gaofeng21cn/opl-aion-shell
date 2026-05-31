@@ -53,7 +53,11 @@ describe('buildOplHostToolEnv', () => {
     });
 
     const entries = env.PATH?.split(path.delimiter) ?? [];
-    expect(entries).toContain(nvmNodeBin);
+    if (process.platform === 'win32') {
+      expect(entries).not.toContain(nvmNodeBin);
+    } else {
+      expect(entries).toContain(nvmNodeBin);
+    }
     expect(entries).not.toContain(path.join(homeDir, '.nvm', 'versions', 'node', '*', 'bin'));
   });
 });

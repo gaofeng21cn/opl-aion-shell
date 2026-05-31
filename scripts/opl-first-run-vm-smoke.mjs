@@ -185,6 +185,15 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
+function toRuntimeShellPath(value) {
+  if (process.platform !== 'win32') return value;
+  return value.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+}
+
+function runtimePathDelimiter() {
+  return process.platform === 'win32' ? ':' : path.delimiter;
+}
+
 function runtimeShellExecutable() {
   const override = process.env.OPL_FIRST_RUN_SHELL?.trim();
   if (override) return override;
@@ -342,21 +351,24 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
   if (!runtimeHome) return '';
   const pythonBin = resolvePythonBin(runtimeHome);
   const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
+  const runtimeHomeForShell = toRuntimeShellPath(runtimeHome);
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
     path.join(runtimeHome, 'node', 'bin'),
     path.join(runtimeHome, 'uv', 'bin'),
     ...(pythonBin ? [pythonBin] : []),
-  ].join(path.delimiter);
+  ]
+    .map(toRuntimeShellPath)
+    .join(runtimePathDelimiter());
   return [
-    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
-    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(runtimeHome, 'skills'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
-    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
-    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(runtimeHome, 'modules', 'meta-agent'))}`,
-    `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
-    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
+    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHomeForShell)}`,
+    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'skills')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mas')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mag')))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'rca')))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'meta-agent')))}`,
+    `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'bin', 'codex')))}`,
+    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(toRuntimeShellPath(hermesBin))}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
   ]
     .filter(Boolean)

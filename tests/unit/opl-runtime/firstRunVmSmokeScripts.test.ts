@@ -16,6 +16,7 @@ function writeFile(filePath: string, content: string, mode?: number) {
 
 function writeRuntimeToolShim(runtimeHome: string, command: string, output: string) {
   if (process.platform === 'win32') {
+    writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
     writeFile(path.join(runtimeHome, 'bin', `${command}.cmd`), `@echo off\r\necho ${output}\r\n`, 0o755);
     return;
   }
@@ -231,6 +232,22 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(expression).toContain('OPL 运行状态');
     expect(expression).toContain('App\\/operator Drilldown');
     expect(expression).toContain('运行状态摘要');
+  });
+
+  it('uses POSIX-style PATH entries for Full runtime shell probes on Windows bash', () => {
+    const prefix = vmSmoke.buildFullRuntimeCommandPrefix('C:\\Users\\tester\\runtime\\current');
+
+    if (process.platform === 'win32') {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/c/Users/tester/runtime/current'");
+      expect(prefix).toContain(
+        "export PATH='/c/Users/tester/runtime/current/bin:/c/Users/tester/runtime/current/node/bin"
+      );
+      expect(prefix).not.toContain('runtime\\current');
+      expect(prefix).not.toContain('current/bin;/c/');
+    } else {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='C:\\Users\\tester\\runtime\\current'");
+      expect(prefix).toContain('current/bin');
+    }
   });
 
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
