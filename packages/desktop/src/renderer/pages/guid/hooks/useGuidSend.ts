@@ -5,6 +5,10 @@
  */
 
 import { ipcBridge } from '@/common';
+import {
+  getOplBuiltinAssistantRouteReceiptPolicy,
+  getOplDefaultHomeAssistants,
+} from '@/common/config/oplProductProfile';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { emitter } from '@/renderer/utils/emitter';
@@ -15,6 +19,14 @@ import { useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
+
+type OplAssistantRouteReceipt = {
+  route_kind: string;
+  executor: string;
+  assistant_id: string;
+  assistant_short_name: string;
+  source: string;
+};
 
 export type GuidSendDeps = {
   // Input state
@@ -72,6 +84,27 @@ export type GuidSendResult = {
   sendMessageHandler: () => void;
   isButtonDisabled: boolean;
 };
+
+function buildOplAssistantRouteReceipt(
+  isPreset: boolean,
+  agentInfo: { custom_agent_id?: string; name?: string } | undefined
+): OplAssistantRouteReceipt | undefined {
+  if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
+  const assistantId = agentInfo.custom_agent_id
+    .replace(/^builtin-/, '')
+    .trim()
+    .toLowerCase();
+  const policy = getOplBuiltinAssistantRouteReceiptPolicy();
+  if (!policy.required_for_assistants.includes(assistantId)) return undefined;
+  const assistant = getOplDefaultHomeAssistants().find((entry) => entry.id === assistantId);
+  return {
+    route_kind: policy.route_kind,
+    executor: policy.executor,
+    assistant_id: assistantId,
+    assistant_short_name: assistant?.short_name ?? agentInfo.name ?? assistantId.toUpperCase(),
+    source: policy.source,
+  };
+}
 
 /**
  * Hook that manages the send logic for all conversation types (openclaw/nanobot/acp).
@@ -136,6 +169,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         ? guidEnabledSkills
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
+    const oplAssistantRoute = buildOplAssistantRouteReceipt(is_preset, agentInfo);
 
     const finalEffectiveAgentType = effectiveAgentType;
 
@@ -164,6 +198,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_assistant_route: oplAssistantRoute,
         },
       });
 
@@ -212,6 +247,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: files,
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_assistant_route: oplAssistantRoute,
         },
       });
 
@@ -262,6 +298,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_rules: is_preset ? preset_rules : undefined,
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
+            opl_assistant_route: oplAssistantRoute,
             preset_assistant_id,
             session_mode: selectedMode,
           },
@@ -342,6 +379,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         extra: {
           default_files: files,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_assistant_route: oplAssistantRoute,
           // Non-preset agents still forward user-selected custom skills via the
           // shared backend slot. For preset assistants this is already wired
           // through `preset_resources.enabled_skills` above.
@@ -392,6 +430,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     resolveEnabledSkills,
     resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
+    guidEnabledSkills,
     navigate,
     t,
   ]);

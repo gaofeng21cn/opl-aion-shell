@@ -14,7 +14,8 @@ describe('OPL release version stamping', () => {
     const viteConfig = readRepoFile('packages/desktop/electron.vite.config.ts');
     const packageJson = JSON.parse(readRepoFile('package.json')) as { version: string };
 
-    expect(packageJson.version).toBe('2.1.1');
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
+    expect(packageJson.version).not.toBe('26.5.27');
     expect(buildScript).toContain('const OPL_RELEASE_VERSION_PATTERN = /^\\d+\\.\\d+\\.\\d+');
     expect(buildScript).toContain('function buildOplReleaseVersionConfigArg()');
     expect(buildScript).toContain('--config.extraMetadata.version=${version}');

@@ -6,8 +6,8 @@
 
 /**
  * Codex model defaults are App product policy.
- * The shell may observe newer Codex capability lists from ACP, but it must not
- * expose a synthetic or retired model catalog as a user-facing choice list.
+ * The shell observes Codex capability lists from ACP, filters retired entries,
+ * and resolves automatic selection to the newest usable frontier model.
  */
 import {
   getOplDefaultCodexModel,
@@ -74,11 +74,40 @@ export function selectDefaultCodexModelId(
   return selected;
 }
 
+function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefined | null): Array<{
+  id: string;
+  label: string;
+}> {
+  const seen = new Set<string>();
+  const options: Array<{ id: string; label: string; version: number[] }> = [];
+
+  for (const model of availableModels ?? []) {
+    const id = model.id.trim();
+    if (!id || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) continue;
+    const version = parseCodexFrontierVersion(id);
+    if (!version) continue;
+    seen.add(id);
+    options.push({
+      id,
+      label: model.label?.trim() || id,
+      version,
+    });
+  }
+
+  return options
+    .sort((left, right) => compareVersionParts(right.version, left.version))
+    .map(({ id, label }) => ({ id, label }));
+}
+
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
-  const currentModelId = selectDefaultCodexModelId(handshakeModels?.available_models);
+  const availableModels = normalizeCodexModelOptions(handshakeModels?.available_models);
+  const currentModelId = selectDefaultCodexModelId(availableModels);
+  const currentModelLabel =
+    availableModels.find((model) => model.id === currentModelId)?.label ||
+    (currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId);
   return {
     current_model_id: currentModelId,
-    current_model_label: currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId,
-    available_models: [],
+    current_model_label: currentModelLabel,
+    available_models: availableModels,
   };
 }

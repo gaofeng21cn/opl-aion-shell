@@ -45,7 +45,7 @@
 
 - 英文：`locales/en-US/settings.json:3-40`
 - 中文：`locales/zh-CN/settings.json:3-40`
-- 其他语言：tr-TR, uk-UA, ru-RU, ko-KR, ja-JP, zh-TW
+- 当前仅保留中英双语版本。
 
 ---
 

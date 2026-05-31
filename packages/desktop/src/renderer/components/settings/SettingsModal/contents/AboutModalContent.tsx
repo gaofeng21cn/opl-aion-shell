@@ -28,7 +28,7 @@ const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
 type AppVersions = {
   appVersion: string;
   guiVersion: string;
-  frameworkVersion: string;
+  frameworkRevision: string;
   releaseRepo: string;
   releaseChannel: string;
   latestStableVersion: string;
@@ -63,10 +63,13 @@ const AboutModalContent: React.FC = () => {
     ? {
         appVersion: __OPL_RELEASE_VERSION__ || __APP_VERSION__,
         guiVersion: __SHELL_VERSION__,
-        frameworkVersion:
-          oplString(release.opl_framework_version) ??
-          oplString(release.framework_version) ??
-          oplString(release.framework) ??
+        frameworkRevision:
+          oplString(release.opl_framework_revision) ??
+          oplString(release.framework_revision) ??
+          oplString(release.opl_framework_commit) ??
+          oplString(release.framework_commit) ??
+          oplString(release.opl_framework_date) ??
+          oplString(release.framework_date) ??
           '-',
         releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
         releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
@@ -169,7 +172,7 @@ const AboutModalContent: React.FC = () => {
                   {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
                 </Typography.Text>
                 <Typography.Text>
-                  {t('settings.aboutFrameworkVersion', { version: appVersions.frameworkVersion })}
+                  {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
                 </Typography.Text>
                 {appVersions.latestStableVersion && appVersions.latestStableVersion !== appVersions.appVersion && (
                   <Typography.Text>

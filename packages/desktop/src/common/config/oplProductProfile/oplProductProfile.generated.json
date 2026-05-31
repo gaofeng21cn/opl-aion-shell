@@ -15,6 +15,7 @@
     "active_shell": "contracts/app-shell-adapter.json",
     "page_state": "contracts/app-page-state-matrix.json",
     "first_run": "contracts/app-first-run-test-matrix.json",
+    "install_exposure": "contracts/app-install-exposure-policy.json",
     "release_channel": "contracts/app-release-channel.json",
     "gui_product": "contracts/app-gui-product-contract.json"
   },
@@ -31,28 +32,82 @@
     "authority": "app_repo_owned_product_truth",
     "implementation_carrier": "opl-aion-shell",
     "appearance": {
-      "default_css_theme_id": "codex",
-      "default_css_theme_name": "Codex",
-      "codex_theme_default_enabled": true
+      "default_css_theme_id": "default-theme",
+      "default_css_theme_name": "Default",
+      "codex_theme_default_enabled": false
     },
     "home": {
       "primary_input_surface": "single_card",
       "nested_input_card_frames_allowed": false,
+      "codex_cli_fixed_executor": true,
+      "home_executor_selector_visible": false,
       "codex_model_selector_visible": false,
       "codex_model_list_visible": false,
-      "codex_model_policy": "auto_latest_frontier_from_codex_capabilities_or_app_default",
-      "codex_default_model": "gpt-5.5",
+      "codex_model_policy": "codex_cli_auto_model_hidden_on_home",
+      "codex_model_auto_option_visible": false,
+      "codex_default_model": "codex_cli_auto",
       "codex_default_reasoning_effort": "xhigh",
       "codex_default_permission_mode": "full-access",
+      "permission_mode_selector_visible": false,
+      "conversation_backend_selector_visible": false,
+      "conversation_model_selector_visible": false,
+      "conversation_permission_mode_selector_visible": false,
+      "codex_home_model_status_label": "自动",
+      "codex_home_model_status_label_en": "Auto",
+      "codex_precise_model_display_policy": "technical_details_or_connected_state_only",
+      "codex_auto_model_selection": {
+        "strategy": "codex_cli_auto_latest_available_frontier",
+        "user_can_override_model": false,
+        "user_can_restore_auto": false,
+        "selection_persists_into_conversation": true,
+        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
+      },
+      "home_purpose_entries": [
+        {
+          "id": "research",
+          "primary_label": "科研",
+          "target_assistant_id": "mas",
+          "target_assistant_short_name": "MAS",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        },
+        {
+          "id": "grant",
+          "primary_label": "基金",
+          "target_assistant_id": "mag",
+          "target_assistant_short_name": "MAG",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        },
+        {
+          "id": "ppt",
+          "primary_label": "PPT",
+          "target_assistant_id": "rca",
+          "target_assistant_short_name": "RCA",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
+        }
+      ],
       "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
+    },
+    "builtin_assistant_route_receipt_policy": {
+      "scope": "home_purpose_entry_to_conversation",
+      "required_for_assistants": ["mas", "mag", "rca"],
+      "route_kind": "builtin_capability",
+      "executor": "codex_cli",
+      "source": "opl_app_home",
+      "required_fields": ["route_kind", "executor", "assistant_id", "assistant_short_name", "source"],
+      "must_not_depend_on_visible_backend_selection": true
     },
     "default_assistants": [
       {
         "id": "mas",
         "display_name": "Med Auto Science",
         "short_name": "MAS",
+        "home_purpose_label": "科研",
+        "home_entry_display_policy": "purpose_first",
         "role": "research_and_paper_agent",
-        "home_entry_policy": "visible_click_to_start",
+        "home_entry_policy": "purpose_entry_target",
         "avatar": "MAS",
         "description_i18n": {
           "zh-CN": "推进科研任务、论文写作、审稿回复、投稿材料和研究进度管理。",
@@ -67,8 +122,10 @@
         "id": "mag",
         "display_name": "Med Auto Grant",
         "short_name": "MAG",
+        "home_purpose_label": "基金",
+        "home_entry_display_policy": "purpose_first",
         "role": "grant_authoring_agent",
-        "home_entry_policy": "visible_click_to_start",
+        "home_entry_policy": "purpose_entry_target",
         "avatar": "MAG",
         "description_i18n": {
           "zh-CN": "推进基金选题、标书结构、申请书撰写、预算说明和评审意见回应。",
@@ -86,8 +143,10 @@
         "id": "rca",
         "display_name": "RedCube AI",
         "short_name": "RCA",
+        "home_purpose_label": "PPT",
+        "home_entry_display_policy": "purpose_first",
         "role": "presentation_and_visual_deliverable_agent",
-        "home_entry_policy": "visible_click_to_start",
+        "home_entry_policy": "purpose_entry_target",
         "avatar": "RCA",
         "description_i18n": {
           "zh-CN": "推进 PPT、汇报、图表、视觉交付物和演示材料制作。",
@@ -97,13 +156,42 @@
           "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
           "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
         }
+      }
+    ],
+    "assistant_skill_profiles": [
+      {
+        "assistant_id": "mas",
+        "required_skills": ["mas"],
+        "optional_skills": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
       },
+      {
+        "assistant_id": "mag",
+        "required_skills": ["mag"],
+        "optional_skills": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
+      },
+      {
+        "assistant_id": "rca",
+        "required_skills": ["rca"],
+        "optional_skills": ["officecli-pptx", "ui-ux-pro-max"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
+      }
+    ],
+    "non_default_assistants": [
       {
         "id": "oma",
         "display_name": "OPL Meta Agent",
         "short_name": "OMA",
         "role": "opl_agent_design_and_testing_agent",
-        "home_entry_policy": "visible_click_to_start",
+        "home_entry_policy": "explicit_or_settings_only",
+        "home_default_visible": false,
         "avatar": "OMA",
         "description_i18n": {
           "zh-CN": "设计、测试和改进 OPL Agent，梳理能力边界、合同和验证流程。",
@@ -125,10 +213,16 @@
       "mag",
       "rca",
       "superpowers",
+      "cron",
       "officecli",
       "officecli-docx",
       "officecli-pptx",
       "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "pdf",
       "mineru-document-extractor",
       "ui-ux-pro-max"
     ],
@@ -137,13 +231,18 @@
       "mag",
       "rca",
       "superpowers",
+      "cron",
       "officecli",
       "officecli-docx",
       "officecli-pptx",
       "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "pdf",
       "mineru-document-extractor",
-      "ui-ux-pro-max",
-      "morph-ppt"
+      "ui-ux-pro-max"
     ],
     "session_context_lines": [
       "## OPL App 默认会话规则",
@@ -156,7 +255,8 @@
       "- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。",
       "",
       "默认路由：",
-      "- OPL App 是前端和工作台；新增 OPL executor adapter 不改变默认会话行为。没有用户或 stage 的显式 executor 选择时，默认仍使用 Codex CLI 会话语义。",
+      "- OPL App 是 Codex CLI 驱动的内置智能体桌面 App：普通用户主路径不选择 executor，不选择 Aion CLI、Claude Code 或其他 backend。",
+      "- Codex CLI 是固定执行器；模型在首页显示为自动，精确模型和推理深度只进入技术细节或已连接状态。",
       "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
       "- 基金、标书、申请书：使用 MAG。",
       "- PPT、演示、视觉交付物：使用 RCA。",
@@ -325,6 +425,16 @@
   },
   "settings": {
     "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
+    "legacy_route_redirects": {
+      "model": "runtime",
+      "agent": "runtime",
+      "assistants": "capabilities",
+      "skills-hub": "capabilities",
+      "tools": "capabilities",
+      "display": "appearance",
+      "webui": "access",
+      "pet": "appearance"
+    },
     "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
     "developer_mode": {
       "label_key": "settings.developerMode",
@@ -340,6 +450,14 @@
     }
   },
   "companion_payloads": {
+    "install_exposure_policy_ref": "contracts/app-install-exposure-policy.json",
+    "public_abi": {
+      "primary_semantic_entry": "skill",
+      "preferred_app_distribution": "plugin_packaged_skill",
+      "plugin_must_not_create_second_semantics": true,
+      "cli_and_app_share_skill_semantics": true
+    },
+    "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
     "tools": ["officecli", "mineru-open-api"],
     "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
     "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent"],
@@ -348,16 +466,67 @@
       "mineru": "app_or_cli_managed",
       "opl-meta-agent": "app_or_cli_managed"
     },
-    "recommended_codex_skills": [
+    "default_packaged_codex_skill_ids": [
       "mas",
       "mag",
       "rca",
+      "superpowers",
+      "cron",
       "officecli",
       "officecli-docx",
       "officecli-pptx",
       "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "pdf",
       "mineru-document-extractor",
       "ui-ux-pro-max"
+    ],
+    "packaged_not_default_visible_codex_skill_ids": ["opl-meta-agent"],
+    "companion_skill_sync_default_ids": [
+      "superpowers",
+      "cron",
+      "officecli",
+      "officecli-docx",
+      "officecli-pptx",
+      "officecli-xlsx",
+      "officecli-academic-paper",
+      "officecli-data-dashboard",
+      "officecli-financial-model",
+      "officecli-pitch-deck",
+      "pdf",
+      "mineru-document-extractor",
+      "ui-ux-pro-max"
+    ],
+    "domain_plugin_skill_ids": ["mas", "mag", "rca"],
+    "domain_plugin_skills_must_not_be_companion_mirrors": true,
+    "domain_exposure": [
+      {
+        "domain_id": "mas",
+        "codex_visible_entry": "mas",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "mag",
+        "codex_visible_entry": "mag",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "rca",
+        "codex_visible_entry": "rca",
+        "preferred_app_distribution": "plugin_packaged_skill",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "oma",
+        "codex_visible_entry": "opl-meta-agent",
+        "preferred_app_distribution": "opl_generated_skill_surface",
+        "direct_skill_semantics_required": true
+      }
     ]
   },
   "boundary": {

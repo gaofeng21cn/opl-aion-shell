@@ -49,16 +49,30 @@ function firstRecord(...values: unknown[]): JsonRecord | undefined {
   return values.find(isRecord);
 }
 
-function readProjection(root: unknown): JsonRecord {
-  if (!isRecord(root)) return {};
+function readDiagnosticDrilldown(root: unknown): JsonRecord | undefined {
+  if (!isRecord(root)) return undefined;
   const traySnapshot = firstRecord(root.runtime_tray_snapshot);
-  const drilldown = firstRecord(traySnapshot?.app_operator_drilldown, root.app_operator_drilldown);
-  const visualization = firstRecord(
-    root.runtime_visualization_projection,
+  return firstRecord(root.app_operator_drilldown, traySnapshot?.app_operator_drilldown);
+}
+
+function readLegacyVisualizationProjection(root: unknown): JsonRecord | undefined {
+  if (!isRecord(root)) return undefined;
+  const drilldown = readDiagnosticDrilldown(root);
+  const traySnapshot = firstRecord(root.runtime_tray_snapshot);
+  return firstRecord(
     drilldown?.runtime_visualization_projection,
-    traySnapshot?.runtime_visualization_projection
+    traySnapshot?.runtime_visualization_projection,
+    root.runtime_visualization_projection
   );
-  return visualization ?? drilldown ?? root;
+}
+
+function readProjection(root: unknown, options: { allowLegacyVisualizationProjection?: boolean } = {}): JsonRecord {
+  if (!isRecord(root)) return {};
+  if (options.allowLegacyVisualizationProjection) {
+    const visualization = readLegacyVisualizationProjection(root);
+    if (visualization) return visualization;
+  }
+  return readDiagnosticDrilldown(root) ?? root;
 }
 
 function readAppState(root: unknown): JsonRecord | undefined {
@@ -420,14 +434,7 @@ function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualization
   };
 }
 
-export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationModel {
-  const appState = readAppState(root);
-  if (appState) {
-    return normalizeAppStateProjection(appState);
-  }
-
-  const projection = readProjection(root);
-  const rootRecord = isRecord(root) ? root : {};
+function normalizeProjectionRecord(projection: JsonRecord): RuntimeVisualizationModel {
   const workbench = readRuntimeWorkbench(projection);
   const unifiedGraph = readGraph(projection.graph, 'runtime');
   const stageGraph =
@@ -469,12 +476,7 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
   ];
 
   return {
-    sourceSurface:
-      asString(projection.surface_kind) ??
-      asString(projection.source_surface) ??
-      (projection === firstRecord(rootRecord.runtime_visualization_projection)
-        ? 'runtime_visualization_projection'
-        : 'app_operator_drilldown'),
+    sourceSurface: asString(projection.surface_kind) ?? asString(projection.source_surface) ?? 'app_operator_drilldown',
     state: asString(projection.state) ?? asString(projection.runtime_state) ?? asString(projection.status) ?? 'unknown',
     summary: readSummaryPairs(projection),
     summaryCards: readSummaryCards(workbench),
@@ -495,4 +497,17 @@ export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationM
     safeActionRoutes: readSafeActionRoutes(projection.safe_action_routes ?? visualRefGroups?.safe_action_refs),
     refs,
   };
+}
+
+export function normalizeRuntimeProjection(root: unknown): RuntimeVisualizationModel {
+  const appState = readAppState(root);
+  if (appState) {
+    return normalizeAppStateProjection(appState);
+  }
+
+  return normalizeProjectionRecord(readProjection(root));
+}
+
+export function normalizeLegacyRuntimeVisualizationProjection(root: unknown): RuntimeVisualizationModel {
+  return normalizeProjectionRecord(readProjection(root, { allowLegacyVisualizationProjection: true }));
 }

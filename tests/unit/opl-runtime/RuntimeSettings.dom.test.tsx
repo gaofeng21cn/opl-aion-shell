@@ -207,4 +207,30 @@ describe('RuntimeSettings app state bridge usage', () => {
       resolveState(appStateResult);
     });
   });
+
+  it('keeps Runtime page safe actions on the App action boundary', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ...appStateResult,
+      parsed: {
+        app_state: {
+          ...appStateResult.parsed.app_state,
+          actions: [
+            {
+              action_id: 'legacy-runtime-action',
+              submit_via: 'opl runtime action execute',
+            },
+            {
+              action_id: 'app-boundary-action',
+              submit_via: 'opl app action execute',
+            },
+          ],
+        },
+      },
+    });
+
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(screen.getAllByText('app-boundary-action').length).toBeGreaterThan(0));
+    expect(screen.queryByText('legacy-runtime-action')).not.toBeInTheDocument();
+  });
 });

@@ -62,21 +62,14 @@
 }
 
 .firstRunHeroPanel {
-  display: grid;
-  grid-template-columns: minmax(360px, 1fr) minmax(240px, 320px);
-  gap: 14px;
   border: 1px solid var(--border-base);
   border-radius: 8px;
   background: var(--bg-1);
   padding: 18px;
 }
 
-.firstRunHeroMain,
-.firstRunBackground {
-  min-width: 0;
-}
-
 .firstRunHeroMain {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -89,8 +82,7 @@
   gap: 10px;
 }
 
-.firstRunStatusHeading h2,
-.firstRunSignalTitle h3 {
+.firstRunStatusHeading h2 {
   margin: 0;
   color: var(--text-primary);
   font-size: 15px;
@@ -146,7 +138,6 @@
 }
 
 .firstRunSimpleStep,
-.firstRunBackground,
 .firstRunStatusStrip {
   min-width: 0;
   border: 1px solid var(--border-base);
@@ -214,13 +205,6 @@
   flex-direction: column;
   gap: 12px;
   padding: 0 14px 14px;
-}
-
-.firstRunSignalTitle {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
 }
 
 .firstRunCardHeader {
@@ -342,6 +326,35 @@
   overflow-wrap: anywhere;
 }
 
+.firstRunDiagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-2);
+  padding: 12px;
+}
+
+.firstRunDiagnosticLine {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunTechnicalError {
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  background: var(--bg-1);
+  color: var(--danger);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
 .firstRunResult {
   max-height: 220px;
   overflow: auto;
@@ -360,7 +373,6 @@
   }
 
   .firstRunHeader,
-  .firstRunHeroPanel,
   .firstRunGrid,
   .firstRunApiKeyControls,
   .firstRunSimpleSteps,

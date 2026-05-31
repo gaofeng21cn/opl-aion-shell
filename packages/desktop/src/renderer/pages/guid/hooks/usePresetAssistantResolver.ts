@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { useCallback } from 'react';
 
@@ -93,10 +94,10 @@ export const usePresetAssistantResolver = ({
 
   const resolvePresetAgentType = useCallback(
     (agentInfo: { agent_type: string; backend?: string; custom_agent_id?: string } | undefined): string => {
-      if (!agentInfo) return 'gemini';
+      if (!agentInfo) return getOplDefaultExecutorAgentKey();
       if (!agentInfo.custom_agent_id) return agentInfo.backend || agentInfo.agent_type;
       const assistant = assistants.find((a) => a.id === agentInfo.custom_agent_id);
-      return assistant?.preset_agent_type || 'gemini';
+      return assistant?.preset_agent_type || getOplDefaultExecutorAgentKey();
     },
     [assistants]
   );

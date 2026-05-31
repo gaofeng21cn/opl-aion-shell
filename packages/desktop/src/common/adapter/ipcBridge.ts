@@ -30,6 +30,8 @@ import type {
   CreateProviderRequest,
   FetchModelsAnonymousRequest,
   FetchModelsResponse,
+  ProviderHealthCheckRequest,
+  ProviderHealthCheckResponse,
   UpdateProviderRequest,
 } from '../types/provider/providerApi';
 import type { SpeechToTextRequest, SpeechToTextResult } from '../types/provider/speech';
@@ -76,7 +78,12 @@ import {
   toBackendAgent,
 } from './teamMapper';
 import { fromBackendCompareResult, type RawCompareResult } from './fileSnapshotMapper';
-import { absoluteToRelativePath, fromBackendWorkspaceList } from './workspaceMapper';
+import {
+  absoluteToRelativePath,
+  fromBackendWorkspaceFlatFiles,
+  fromBackendWorkspaceList,
+  type RawWorkspaceFlatFile,
+} from './workspaceMapper';
 
 // ---------------------------------------------------------------------------
 // Shell — routed to POST /api/shell/*
@@ -141,19 +148,19 @@ export const conversation = {
       const { model: _rawModel, ...rest } = p.conversation as TChatConversation & {
         model?: TProviderWithModel;
       };
-      const conversation: Record<string, unknown> = { ...rest };
+      const clonedConversation: Record<string, unknown> = { ...rest };
       if (isAionrs) {
         const model = toApiModelOptional(_rawModel);
-        if (model) conversation.model = model;
+        if (model) clonedConversation.model = model;
       }
       return {
-        conversation,
+        conversation: clonedConversation,
       };
     }),
     fromApiConversation
   ),
   get: withResponseMap(
-    httpGet<TChatConversation, { id: string }>((p) => `/api/conversations/${p.id}`),
+    httpGet<TChatConversation, { id: string }>((p) => `/api/conversations/${p.id}`, { silentStatuses: [404] }),
     fromApiConversation
   ),
   getAssociateConversation: withResponseMap(
@@ -494,7 +501,10 @@ export const dialog = {
 
 export const fs = {
   getFilesByDir: httpPost<Array<IDirOrFile>, { dir: string; root: string }>('/api/fs/dir'),
-  listWorkspaceFiles: httpPost<Array<IWorkspaceFlatFile>, { root: string }>('/api/fs/list'),
+  listWorkspaceFiles: withResponseMap(
+    httpPost<Array<RawWorkspaceFlatFile>, { root: string }>('/api/fs/list'),
+    fromBackendWorkspaceFlatFiles
+  ),
   getImageBase64: httpPost<string | null, { path: string; workspace?: string }>('/api/fs/image-base64'),
   fetchRemoteImage: httpPost<string, { url: string }>('/api/fs/fetch-remote-image'),
   readFile: httpPost<string | null, { path: string; workspace?: string }>('/api/fs/read'),
@@ -786,6 +796,9 @@ export const acpConversation = {
   checkAgentHealth: httpPost<{ available: boolean; latency?: number; error?: string }, { backend: string }>(
     '/api/agents/health-check'
   ),
+  checkProviderHealth: httpPost<ProviderHealthCheckResponse, ProviderHealthCheckRequest>(
+    '/api/agents/provider-health-check'
+  ),
   setMode: httpPut<void, { conversation_id: string; mode: string }>(
     (p) => `/api/conversations/${p.conversation_id}/mode`,
     (p) => ({ mode: p.mode })
@@ -814,6 +827,33 @@ export const acpConversation = {
 // ---------------------------------------------------------------------------
 
 export const mcpService = {
+  listServers: httpGet<IMcpServer[], void>('/api/mcp/servers'),
+  createServer: httpPost<
+    IMcpServer,
+    Omit<IMcpServer, 'id' | 'created_at' | 'updated_at' | 'status' | 'last_connected' | 'tools'>
+  >('/api/mcp/servers', (server) => ({
+    name: server.name,
+    description: server.description,
+    transport: server.transport,
+    original_json: server.original_json,
+    builtin: server.builtin,
+  })),
+  updateServer: httpPut<
+    IMcpServer,
+    { id: string; data: Partial<Pick<IMcpServer, 'name' | 'description' | 'transport' | 'original_json'>> }
+  >(
+    (p) => `/api/mcp/servers/${p.id}`,
+    (p) => p.data
+  ),
+  deleteServer: httpDelete<void, string>((id) => `/api/mcp/servers/${id}`),
+  toggleServer: httpPost<IMcpServer, string>(
+    (id) => `/api/mcp/servers/${id}/toggle`,
+    () => undefined
+  ),
+  batchImportServers: httpPost<
+    IMcpServer[],
+    { servers: Array<Partial<IMcpServer> & Pick<IMcpServer, 'name' | 'transport'>> }
+  >('/api/mcp/servers/import'),
   getAgentMcpConfigs: httpGet<
     Array<{ source: string; servers: IMcpServer[] }>,
     Array<{ agent_type: string; backend?: string; name: string; cli_path?: string }>
@@ -921,11 +961,15 @@ export type PaginatedResult<T> = {
 export const database = {
   getConversationMessages: httpGet<
     PaginatedResult<import('@/common/chat/chatLib').TMessage>,
-    { conversation_id: string; page?: number; page_size?: number; order?: string }
+    { conversation_id: string; page?: number; page_size?: number; order?: string; content_mode?: 'compact' | 'full' }
   >(
     (p) =>
-      `/api/conversations/${p.conversation_id}/messages?page=${p.page ?? 1}&page_size=${p.page_size ?? 50}${p.order ? `&order=${p.order}` : ''}`
+      `/api/conversations/${p.conversation_id}/messages?page=${p.page ?? 1}&page_size=${p.page_size ?? 50}${p.order ? `&order=${p.order}` : ''}${p.content_mode ? `&content_mode=${p.content_mode}` : ''}`
   ),
+  getConversationMessage: httpGet<
+    import('@/common/chat/chatLib').TMessage,
+    { conversation_id: string; message_id: string }
+  >((p) => `/api/conversations/${p.conversation_id}/messages/${encodeURIComponent(p.message_id)}`),
   getUserConversations: withResponseMap(
     httpGet<PaginatedResult<import('@/common/config/storage').TChatConversation>, { cursor?: string; limit?: number }>(
       (p) => {
@@ -1323,6 +1367,13 @@ export interface ICreateConversationParams {
     /** Transient: auto-inject skills the user opted out of on the Guid page.
      *  Consumed by backend create handler and stripped before persistence. */
     exclude_auto_inject_skills?: string[];
+    opl_assistant_route?: {
+      route_kind: string;
+      executor: string;
+      assistant_id: string;
+      assistant_short_name: string;
+      source: string;
+    };
     preset_context?: string;
     preset_assistant_id?: string;
     session_mode?: string;
@@ -1339,6 +1390,7 @@ export interface ICreateConversationParams {
       expected_identity_hash?: string | null;
       switched_at?: number;
     };
+    /** Legacy marker for pre-provider-probe health-check conversations. */
     is_health_check?: boolean;
     remote_agent_id?: string;
     extra_skill_paths?: string[];

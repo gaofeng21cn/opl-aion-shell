@@ -21,8 +21,22 @@ export interface ElectronBridgeAPI {
   captureFeedbackScreenshot?: () => Promise<{ filename: string; data: number[] } | null>;
 }
 
+export type BackendStartupFailureReason =
+  | 'backend_incompatible_runtime'
+  | 'backend_incomplete_installation'
+  | 'backend_startup_failed';
+
+export interface BackendStartupFailureInfo {
+  reason: BackendStartupFailureReason;
+  runtime?: 'glibc';
+  requiredVersions?: string[];
+  missingResources?: string[];
+}
+
 declare global {
   interface Window {
     electronAPI?: ElectronBridgeAPI;
+    __backendStartupFailed?: boolean;
+    __backendStartupFailure?: BackendStartupFailureInfo | null;
   }
 }

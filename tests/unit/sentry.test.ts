@@ -16,17 +16,32 @@ vi.mock('electron', () => ({
   app: { getVersion: () => '0.0.0-test', getPath: () => '/tmp', isPackaged: false },
 }));
 
+let sentryInitOptions: { beforeSend?: (event: unknown) => unknown } | undefined;
+
 vi.mock('@sentry/electron/main', () => ({
-  init: vi.fn(),
+  init: vi.fn((options: { beforeSend?: (event: unknown) => unknown }) => {
+    sentryInitOptions = options;
+  }),
   setTag: vi.fn(),
   setUser: vi.fn(),
+  withScope: vi.fn((callback: (scope: unknown) => void) => {
+    callback({
+      setTag: vi.fn(),
+      setExtra: vi.fn(),
+      setContext: vi.fn(),
+    });
+  }),
+  captureException: vi.fn(),
+  captureEvent: vi.fn(),
+  flush: vi.fn(async () => true),
 }));
 
 vi.mock('@/process/utils/analyticsId', () => ({
   getOrCreateAnalyticsId: () => 'test-device-id',
 }));
 
-import { selectRecentLogFiles, packAndCap } from '@/sentry';
+import * as Sentry from '@sentry/electron/main';
+import { selectRecentLogFiles, packAndCap, captureBackendStartupFailure, initSentry } from '@/sentry';
 
 describe('selectRecentLogFiles', () => {
   it('returns every file from the N most recent non-empty days', () => {
@@ -79,5 +94,96 @@ describe('packAndCap', () => {
     expect(out.truncated).toBe(true);
     const decompressed = gunzipSync(out.gzipped).toString('utf8');
     expect(decompressed).toContain('MARKER_TAIL');
+  });
+});
+
+describe('captureBackendStartupFailure', () => {
+  it('captures and flushes a dedicated backend startup failure with diagnostics', async () => {
+    const error = new Error('aioncore failed to start within timeout') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'health_timeout',
+      binaryPath: '/abs/path/aioncore',
+      port: 33334,
+      stderrTail: 'database is locked',
+    };
+
+    await captureBackendStartupFailure(error);
+
+    expect(Sentry.captureException).toHaveBeenCalledWith(error);
+    expect(Sentry.flush).toHaveBeenCalledWith(2000);
+    expect(Sentry.withScope).toHaveBeenCalledOnce();
+  });
+});
+
+describe('initSentry beforeSend', () => {
+  it('drops native GPU unusable crashes reported only through crashpad context', () => {
+    initSentry();
+
+    const event = {
+      contexts: {
+        electron: {
+          'crashpad.LOG_FATAL': "gpu_data_manager_impl_private.cc:415: GPU process isn't usable. Goodbye.\n",
+        },
+      },
+    };
+
+    expect(sentryInitOptions?.beforeSend?.(event)).toBeNull();
+  });
+
+  it('keeps native shutdown fatal crashes while filtering GPU crashpad noise', () => {
+    initSentry();
+
+    const event = {
+      contexts: {
+        electron: {
+          'crashpad.LOG_FATAL': 'electron_browser_main_parts.cc:501: Failed to shutdown.\n',
+        },
+      },
+    };
+
+    expect(sentryInitOptions?.beforeSend?.(event)).toBe(event);
+  });
+
+  it('drops backend-port secondary errors after backend startup already failed', () => {
+    initSentry();
+    (globalThis as { __backendStartupFailed?: boolean }).__backendStartupFailed = true;
+
+    const event = {
+      exception: {
+        values: [
+          {
+            value: '[WebUI] Cannot start: aioncore is not running (globalThis.__backendPort unset)',
+          },
+        ],
+      },
+    };
+
+    expect(sentryInitOptions?.beforeSend?.(event)).toBeNull();
+
+    delete (globalThis as { __backendStartupFailed?: boolean }).__backendStartupFailed;
+  });
+
+  it('keeps the primary backend startup failure even when its details contain secondary text', () => {
+    initSentry();
+    (globalThis as { __backendStartupFailed?: boolean }).__backendStartupFailed = true;
+
+    const event = {
+      tags: {
+        'aionui.failure': 'backend_startup',
+      },
+      exception: {
+        values: [
+          {
+            value: 'BackendStartupError: connect ECONNREFUSED 127.0.0.1:33334',
+          },
+        ],
+      },
+    };
+
+    expect(sentryInitOptions?.beforeSend?.(event)).toBe(event);
+
+    delete (globalThis as { __backendStartupFailed?: boolean }).__backendStartupFailed;
   });
 });

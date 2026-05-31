@@ -9,9 +9,15 @@ import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionCon
 import FlexFullContainer from '@renderer/components/layout/FlexFullContainer';
 import MessageList from '@renderer/pages/conversation/Messages/MessageList';
 import { ConversationArtifactProvider } from '@renderer/pages/conversation/Messages/artifacts';
-import { MessageListProvider, useMessageLstCache } from '@renderer/pages/conversation/Messages/hooks';
+import {
+  MessageListLoadingProvider,
+  MessageListProvider,
+  useMessageLstCache,
+} from '@renderer/pages/conversation/Messages/hooks';
+import { usePendingConfirmationsRecovery } from '@renderer/pages/conversation/Messages/usePendingConfirmationsRecovery';
 import HOC from '@renderer/utils/ui/HOC';
 import React from 'react';
+import AcpE2EStreamInjector from './AcpE2EStreamInjector';
 import AcpSendBox from './AcpSendBox';
 import { useAcpMessage } from './useAcpMessage';
 
@@ -37,6 +43,7 @@ const AcpChat: React.FC<{
   loadedSkills,
 }) => {
   useMessageLstCache(conversation_id);
+  usePendingConfirmationsRecovery(conversation_id);
   const teamPermission = useTeamPermission();
   const messageState = useAcpMessage(conversation_id, { skipWarmup: Boolean(teamPermission) });
 
@@ -49,6 +56,7 @@ const AcpChat: React.FC<{
           <FlexFullContainer>
             <MessageList className='flex-1' emptySlot={emptySlot} />
           </FlexFullContainer>
+          <AcpE2EStreamInjector conversationId={conversation_id} />
           {!hideSendBox && (
             <AcpSendBox
               conversation_id={conversation_id}
@@ -65,4 +73,4 @@ const AcpChat: React.FC<{
   );
 };
 
-export default HOC(MessageListProvider)(AcpChat);
+export default HOC.Wrapper(MessageListProvider, MessageListLoadingProvider)(AcpChat);

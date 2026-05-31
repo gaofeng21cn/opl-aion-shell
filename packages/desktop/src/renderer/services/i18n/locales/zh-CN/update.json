@@ -18,10 +18,11 @@
   "readyToInstall": "准备安装",
   "readyToInstallDesc": "更新已下载完成，点击下方按钮重启应用并安装更新。",
   "installNow": "立即安装",
+  "installWarning": "安装期间请勿手动打开应用，应用将自动重启。",
   "autoUpdateMode": "自动更新模式",
   "showInFolder": "在文件夹中显示",
   "openFile": "打开文件",
-  "manualCheckFailedWithReleaseLink": "未能读取 GitHub 发布信息：{{error}}。你仍可以打开发布页面查看稳定版和夜间版。",
+  "manualCheckFailedWithReleaseLink": "未能读取 GitHub 发布信息：{{error}}。你仍可以打开发布页面查看稳定版和 Nightly。",
   "errorTitle": "更新未完成",
   "errors": {
     "invalidUrl": "下载地址无效",
@@ -37,6 +38,6 @@
     "missingUrl": "缺少下载地址",
     "checkReturnedNull": "更新检查没有返回结果（开发模式）",
     "autoUpdateMetadataMissing": "当前构建没有自动更新元数据，已改用发布版本检查。",
-    "nightlyUsesManualCheck": "夜间版通过 GitHub Releases 检查。"
+    "nightlyUsesManualCheck": "Nightly 通过 GitHub Releases 检查。"
   }
 }

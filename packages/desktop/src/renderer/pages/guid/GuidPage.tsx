@@ -5,14 +5,20 @@
  */
 
 import { ipcBridge } from '@/common';
+import {
+  getOplAssistantSkillProfile,
+  getOplDefaultPackagedCodexSkills,
+  shouldShowOplCodexModelSelector,
+  shouldShowOplHomePermissionModeSelector,
+} from '@/common/config/oplProductProfile';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
-import { openExternalUrl, resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { CUSTOM_AVATAR_IMAGE_MAP } from './constants';
+import { openExternalUrl } from '@/renderer/utils/platform';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
+import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
 import QuickActionButtons from './components/QuickActionButtons';
 import FeedbackReportModal from '@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal';
@@ -22,18 +28,17 @@ import { useGuidMention } from './hooks/useGuidMention';
 import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
+import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { DEFAULT_CODEX_MODEL_DISPLAY_LABEL } from '@/common/types/codex/codexModels';
-import { CODEX_MODE_NATIVE_FULL_ACCESS } from '@/common/types/codex/codexModes';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
-import { Button, ConfigProvider, Dropdown, Menu, Message } from '@arco-design/web-react';
-import { Down, Left, Robot, Write } from '@icon-park/react';
+import { Button, ConfigProvider } from '@arco-design/web-react';
+import { Down } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { mutate as swrMutate } from 'swr';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
 import styles from './index.module.css';
+
+const EMPTY_GUID_SKILLS: string[] = [];
 
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -61,27 +66,27 @@ const GuidPage: React.FC = () => {
   }, []);
 
   // --- Skills state ---
-  // All available skills (builtin auto-injected + user-imported custom) merged
-  // into one catalog for the action-row menu. Auto-injected skills default to
-  // checked; the rest are opt-in per conversation (or pre-checked when the
-  // active assistant declares them in `enabled_skills`).
+  // Home skill choices are bounded by the App product packaged skill set.
+  // Upstream AionUI builtin-auto skills are shell candidates, not home catalog
+  // policy.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
-    Promise.all([ipcBridge.fs.listBuiltinAutoSkills.invoke(), ipcBridge.fs.listAvailableSkills.invoke()])
-      .then(([autoSkills, availableSkills]) => {
-        const autoNames = new Set(autoSkills.map((s) => s.name));
-        const merged: Array<{ name: string; description: string; isAuto: boolean }> = [
-          ...autoSkills.map((s) => ({ name: s.name, description: s.description, isAuto: true })),
-          ...availableSkills
-            .filter((s) => !autoNames.has(s.name))
-            .map((s) => ({ name: s.name, description: s.description, isAuto: false })),
-        ];
-        setAllSkills(merged);
+    const packagedSkillNames = new Set(getOplDefaultPackagedCodexSkills());
+    ipcBridge.fs.listAvailableSkills
+      .invoke()
+      .then((availableSkills) => {
+        setAllSkills(
+          availableSkills
+            .filter((skill) => packagedSkillNames.has(skill.name))
+            .map((skill) => ({ name: skill.name, description: skill.description, isAuto: false }))
+        );
       })
-      .catch(() => setAllSkills([]));
+      .catch(() => {
+        setAllSkills([]);
+      });
   }, []);
 
   const handleToggleSkill = useCallback((skillName: string, isAuto: boolean) => {
@@ -119,6 +124,28 @@ const GuidPage: React.FC = () => {
     locationState: location.state as { workspace?: string } | null,
   });
 
+  const selectedAssistantRecord = useMemo(() => {
+    if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return undefined;
+    const selectedId = agentSelection.selectedAgentInfo.custom_agent_id;
+    const strippedId = selectedId.replace(/^builtin-/, '');
+    const candidates = new Set([selectedId, `builtin-${strippedId}`, strippedId]);
+    return agentSelection.assistants.find((item) => candidates.has(item.id));
+  }, [agentSelection.assistants, agentSelection.is_presetAgent, agentSelection.selectedAgentInfo?.custom_agent_id]);
+
+  const selectedAssistantLabel = useMemo(() => {
+    if (!selectedAssistantRecord) return undefined;
+    return selectedAssistantRecord.avatar || selectedAssistantRecord.name;
+  }, [selectedAssistantRecord]);
+  const selectedAssistantSkillProfile = useMemo(() => {
+    if (!selectedAssistantRecord) return undefined;
+    return getOplAssistantSkillProfile(selectedAssistantRecord.id);
+  }, [selectedAssistantRecord]);
+  const selectedAssistantRequiredSkills = selectedAssistantSkillProfile?.required_skills ?? EMPTY_GUID_SKILLS;
+  const effectiveGuidEnabledSkills = useMemo(() => {
+    if (selectedAssistantRequiredSkills.length === 0 && !guidEnabledSkills?.length) return undefined;
+    return mergeRequiredSkills(selectedAssistantRequiredSkills, guidEnabledSkills ?? []);
+  }, [guidEnabledSkills, selectedAssistantRequiredSkills]);
+
   const mention = useGuidMention({
     availableAgents: agentSelection.availableAgents,
     customAgentAvatarMap: agentSelection.customAgentAvatarMap,
@@ -126,6 +153,7 @@ const GuidPage: React.FC = () => {
     setSelectedAgentKey: agentSelection.setSelectedAgentKey,
     setInput: guidInput.setInput,
     selectedAgentInfo: agentSelection.selectedAgentInfo,
+    selectedAgentLabelOverride: selectedAssistantLabel,
   });
 
   const send = useGuidSend({
@@ -156,7 +184,7 @@ const GuidPage: React.FC = () => {
     resolveEnabledSkills: agentSelection.resolveEnabledSkills,
     resolveDisabledBuiltinSkills: agentSelection.resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
-    guidEnabledSkills,
+    guidEnabledSkills: effectiveGuidEnabledSkills,
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
     isGoogleAuth: modelSelection.isGoogleAuth,
 
@@ -269,6 +297,7 @@ const GuidPage: React.FC = () => {
       mention.setMentionOpen(false);
       mention.setMentionQuery(null);
       mention.setMentionSelectorOpen(false);
+      mention.setMentionSelectorVisible(true);
       mention.setMentionActiveIndex(0);
     },
     [
@@ -276,79 +305,46 @@ const GuidPage: React.FC = () => {
       mention.setMentionOpen,
       mention.setMentionQuery,
       mention.setMentionSelectorOpen,
+      mention.setMentionSelectorVisible,
       mention.setMentionActiveIndex,
     ]
   );
+
+  useEffect(() => {
+    mention.setMentionSelectorVisible(agentSelection.is_presetAgent);
+  }, [agentSelection.is_presetAgent, agentSelection.selectedAgentKey, mention.setMentionSelectorVisible]);
 
   // Typewriter placeholder
   const defaultPlaceholder = t('conversation.welcome.placeholder');
   const oplPlaceholder = t('conversation.welcome.oplPlaceholder');
   const typewriterPlaceholder = useTypewriterPlaceholder(
-    agentSelection.is_presetAgent ? defaultPlaceholder : oplPlaceholder
+    agentSelection.is_presetAgent && selectedAssistantRecord
+      ? selectedAssistantRecord.description_i18n?.[localeKey] ||
+          selectedAssistantRecord.description ||
+          defaultPlaceholder
+      : oplPlaceholder
   );
-  const selectedAssistantRecord = useMemo(() => {
-    if (!agentSelection.is_presetAgent || !agentSelection.selectedAgentInfo?.custom_agent_id) return undefined;
-    const selectedId = agentSelection.selectedAgentInfo.custom_agent_id;
-    const strippedId = selectedId.replace(/^builtin-/, '');
-    const candidates = new Set([selectedId, `builtin-${strippedId}`, strippedId]);
-    return agentSelection.assistants.find((item) => candidates.has(item.id));
-  }, [agentSelection.assistants, agentSelection.is_presetAgent, agentSelection.selectedAgentInfo?.custom_agent_id]);
-
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
     if (agentSelection.is_presetAgent && selectedAssistantRecord) {
-      setGuidDisabledBuiltinSkills(selectedAssistantRecord.disabled_builtin_skills ?? []);
-      setGuidEnabledSkills(selectedAssistantRecord.enabled_skills ?? []);
+      setGuidDisabledBuiltinSkills([]);
+      setGuidEnabledSkills(
+        mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
+      );
     } else {
       setGuidDisabledBuiltinSkills(undefined);
       setGuidEnabledSkills(undefined);
     }
-  }, [agentSelection.is_presetAgent, selectedAssistantRecord]);
+  }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
 
   const heroTitle = useMemo(() => {
-    if (!agentSelection.is_presetAgent) return t('conversation.welcome.title');
-    const i18nName = selectedAssistantRecord?.name_i18n?.[localeKey];
-    if (i18nName) return i18nName;
-    return mention.selectedAgentLabel || t('conversation.welcome.title');
-  }, [agentSelection.is_presetAgent, selectedAssistantRecord, localeKey, mention.selectedAgentLabel, t]);
-  const codexDefaultStatus = useMemo(
-    () =>
-      t('conversation.welcome.codexDefaultStatus', {
-        model: DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
-        permission: t(`agentMode.${CODEX_MODE_NATIVE_FULL_ACCESS}`, { defaultValue: 'Full Access' }),
-      }),
-    [t]
-  );
+    return t('conversation.welcome.title');
+  }, [t]);
   const shouldRenderAgentTabs =
     agentSelection.availableAgents !== undefined && shouldShowOplHomeAgentTabs(agentSelection.availableAgents);
   const selectedAssistantDescription = useMemo(() => {
     return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
   }, [selectedAssistantRecord, localeKey]);
-  const selectedAssistantAvatar = useMemo(() => {
-    if (!agentSelection.is_presetAgent) return null;
-    const selectedId = agentSelection.selectedAgentInfo?.custom_agent_id;
-    const strippedId = selectedId?.replace(/^builtin-/, '');
-    const candidates = new Set(selectedId && strippedId ? [selectedId, `builtin-${strippedId}`, strippedId] : []);
-    const selectedAssistant = agentSelection.assistants.find((item) => candidates.has(item.id));
-    const avatarValue = selectedAssistant?.avatar?.trim() || agentSelection.selectedAgentInfo?.avatar?.trim();
-    if (!avatarValue) return { kind: 'icon' as const };
-    const mappedAvatar = CUSTOM_AVATAR_IMAGE_MAP[avatarValue];
-    const resolvedAvatar = resolveExtensionAssetUrl(avatarValue);
-    const avatarImage = mappedAvatar || resolvedAvatar;
-    const isImageAvatar = Boolean(
-      avatarImage &&
-      (/\.(svg|png|jpe?g|webp|gif)$/i.test(avatarImage) || /^(https?:|file:\/\/|data:|\/)/i.test(avatarImage))
-    );
-    if (isImageAvatar && avatarImage) {
-      return { kind: 'image' as const, value: avatarImage };
-    }
-    return { kind: 'emoji' as const, value: avatarValue };
-  }, [
-    agentSelection.assistants,
-    agentSelection.is_presetAgent,
-    agentSelection.selectedAgentInfo?.avatar,
-    agentSelection.selectedAgentInfo?.custom_agent_id,
-  ]);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [canExpandDescription, setCanExpandDescription] = useState(false);
 
@@ -426,35 +422,6 @@ const GuidPage: React.FC = () => {
     return () => observer.disconnect();
   }, [agentSelection.is_presetAgent, selectedAssistantDescription]);
 
-  const currentPresetAgentType = selectedAssistantRecord?.preset_agent_type || 'codex';
-  // Mirrors AssistantEditDrawer's Main Agent options — detected execution
-  // engines from the shared agent-selection data source, so avatars resolve
-  // the same way in the preset assistant header.
-  const agentSwitcherItems = useMemo(() => {
-    if (!agentSelection.availableAgents) return [];
-    return agentSelection.availableAgents
-      .filter((a) => !a.is_preset && a.agent_type !== 'remote')
-      .map((a) => {
-        const key = a.backend || a.agent_type;
-        const extensionAvatar = a.isExtension ? resolveExtensionAssetUrl(a.avatar) : undefined;
-        const logo =
-          extensionAvatar ||
-          resolveAgentLogo({
-            icon: a.icon,
-            backend: a.backend || a.agent_type,
-            custom_agent_id: a.custom_agent_id,
-            isExtension: a.isExtension,
-          });
-        return {
-          key,
-          label: a.name,
-          logo,
-          isCurrent: key === currentPresetAgentType,
-          isExtension: a.isExtension,
-        };
-      });
-  }, [agentSelection.availableAgents, currentPresetAgentType]);
-
   const effectiveAgentRecord = useMemo(() => {
     return agentSelection.availableAgents?.find(
       (agent) =>
@@ -471,38 +438,6 @@ const GuidPage: React.FC = () => {
         isExtension: effectiveAgentRecord?.isExtension,
       }),
     [effectiveAgentRecord, agentSelection.currentEffectiveAgentInfo.agent_type]
-  );
-  const handlePresetAgentTypeSwitch = useCallback(
-    async (nextType: string) => {
-      // Only preset assistants (is_preset=true) expose `custom_agent_id` here, so this id is
-      // always backed by the `/api/assistants` store. ACP custom agents are a separate store
-      // (`ipcBridge.acpConversation.updateCustomAgent`) and do not carry `preset_agent_type`.
-      // See commit 13858579d on main for the legacy single-store fix that this split already covers.
-      const assistantId = agentSelection.selectedAgentInfo?.custom_agent_id;
-      if (!assistantId || nextType === currentPresetAgentType) return;
-      try {
-        // Optimistically patch the shared `assistants.list` SWR cache so the hero
-        // avatar/logo reflect the new preset_agent_type on the same frame as the
-        // click. Without this, downstream memos (selectedAssistantRecord →
-        // currentEffectiveAgentInfo → effectiveAgentLogo) lag a network roundtrip
-        // behind the user action.
-        await swrMutate(
-          'assistants.list',
-          (prev: Assistant[] | undefined) =>
-            prev?.map((a) => (a.id === assistantId ? { ...a, preset_agent_type: nextType } : a)),
-          { revalidate: false }
-        );
-        await ipcBridge.assistants.update.invoke({ id: assistantId, preset_agent_type: nextType });
-        await Promise.all([swrMutate('assistants.list'), agentSelection.refreshCustomAgents()]);
-        const agent_name =
-          agentSelection.availableAgents?.find((a) => (a.backend || a.agent_type) === nextType)?.name || nextType;
-        Message.success(t('guid.switchedToAgent', { agent: agent_name }));
-      } catch (error) {
-        console.error('[GuidPage] Failed to switch preset agent type:', error);
-        Message.error(t('common.failed', { defaultValue: 'Failed' }));
-      }
-    },
-    [agentSelection, currentPresetAgentType, t]
   );
 
   // Resolve the effective agent type once — covers both direct selection and preset assistants
@@ -527,9 +462,17 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  // The App-owned home contract keeps model selection out of the first screen.
-  // Defaults still resolve through modelSelection / ACP handshake for send.
-  const modelSelectorNode: React.ReactNode = null;
+  const modelSelectorNode: React.ReactNode = shouldShowOplCodexModelSelector() ? (
+    <GuidModelSelector
+      isGeminiMode={isGeminiMode}
+      modelList={modelSelection.modelList}
+      current_model={modelSelection.current_model}
+      setCurrentModel={modelSelection.setCurrentModel}
+      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+      selectedAcpModel={agentSelection.selectedAcpModel}
+      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+    />
+  ) : null;
 
   // Build the action row
   const actionRowNode = (
@@ -547,13 +490,11 @@ const GuidPage: React.FC = () => {
       localeKey={localeKey}
       onClosePresetTag={() => agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey)}
       agentLogo={effectiveAgentLogo}
-      agentSwitcherItems={agentSwitcherItems}
-      onAgentSwitch={(key) => {
-        handlePresetAgentTypeSwitch(key).catch((err) => console.error('Failed to switch agent type:', err));
-      }}
-      allSkills={allSkills}
+      agentSwitcherItems={[]}
+      showModeSelector={shouldShowOplHomePermissionModeSelector()}
+      allSkills={buildAssistantScopedSkillMenuItems(allSkills, selectedAssistantSkillProfile)}
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
-      enabledSkills={guidEnabledSkills ?? []}
+      enabledSkills={effectiveGuidEnabledSkills ?? []}
       onToggleSkill={handleToggleSkill}
       hidePresetTag
       loading={guidInput.loading}
@@ -576,115 +517,9 @@ const GuidPage: React.FC = () => {
       >
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
-            {agentSelection.is_presetAgent ? (
-              <div className={styles.heroHeaderControls}>
-                <div className={styles.heroHeaderLeft}>
-                  <Button
-                    size='mini'
-                    type='text'
-                    shape='circle'
-                    icon={<Left theme='outline' size={18} fill='currentColor' />}
-                    className={styles.heroBackButton}
-                    onClick={() => {
-                      agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
-                      guidInput.setInput('');
-                      setIsDescriptionExpanded(false);
-                    }}
-                    aria-label={t('common.back')}
-                  />
-                  <p className={`${styles.heroTitle} text-2xl font-semibold mb-0 text-0`}>
-                    <span className={styles.heroTitleInlineIcon} aria-hidden='true'>
-                      {selectedAssistantAvatar?.kind === 'image' ? (
-                        <img
-                          src={selectedAssistantAvatar.value}
-                          alt=''
-                          width={28}
-                          height={28}
-                          style={{ objectFit: 'contain' }}
-                        />
-                      ) : selectedAssistantAvatar?.kind === 'emoji' ? (
-                        <span className={styles.heroTitleEmoji}>{selectedAssistantAvatar.value}</span>
-                      ) : (
-                        <Robot theme='outline' size={26} fill='currentColor' />
-                      )}
-                    </span>
-                    <span>{heroTitle}</span>
-                  </p>
-                  <Button
-                    size='mini'
-                    type='text'
-                    icon={<Write theme='outline' size={16} fill='currentColor' />}
-                    className={styles.heroTitleEdit}
-                    onClick={() => openAssistantDetailsRef.current?.()}
-                    aria-label={t('settings.editAssistant', { defaultValue: 'Assistant Details' })}
-                  />
-                </div>
-                <div className={styles.heroHeaderRight}>
-                  <Dropdown
-                    trigger='click'
-                    position='bl'
-                    droplist={
-                      <Menu
-                        onClickMenuItem={(key) => {
-                          handlePresetAgentTypeSwitch(String(key)).catch((err) =>
-                            console.error('Failed to switch agent type:', err)
-                          );
-                        }}
-                      >
-                        {agentSwitcherItems.map((item) => (
-                          <Menu.Item key={item.key}>
-                            <div className='flex items-center justify-between gap-12px min-w-120px'>
-                              <span className='flex items-center gap-6px'>
-                                {item.logo ? (
-                                  <img
-                                    src={item.logo}
-                                    alt=''
-                                    width={16}
-                                    height={16}
-                                    style={{ objectFit: 'contain', flexShrink: 0 }}
-                                  />
-                                ) : (
-                                  <Robot theme='outline' size={16} fill='currentColor' style={{ flexShrink: 0 }} />
-                                )}
-                                {item.label}
-                                {item.isExtension ? (
-                                  <span className='text-11px px-4px py-1px rd-4px bg-[rgb(var(--arcoblue-1))] text-[rgb(var(--arcoblue-6))]'>
-                                    ext
-                                  </span>
-                                ) : null}
-                              </span>
-                              {item.isCurrent ? <span>✓</span> : null}
-                            </div>
-                          </Menu.Item>
-                        ))}
-                      </Menu>
-                    }
-                  >
-                    <Button size='mini' type='text' className={styles.heroAgentSwitchButton}>
-                      <span className='inline-flex items-center gap-4px'>
-                        {effectiveAgentLogo ? (
-                          <img
-                            src={effectiveAgentLogo}
-                            alt=''
-                            width={20}
-                            height={20}
-                            className={styles.heroAgentSwitchIcon}
-                          />
-                        ) : (
-                          <Robot theme='outline' size={20} fill='currentColor' />
-                        )}
-                        <Down theme='outline' size={16} fill='currentColor' />
-                      </span>
-                    </Button>
-                  </Dropdown>
-                </div>
-              </div>
-            ) : (
-              <div className='text-center'>
-                <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
-                <p className='mt-8px mb-0 text-12px text-3'>{codexDefaultStatus}</p>
-              </div>
-            )}
+            <div className='text-center'>
+              <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+            </div>
           </div>
 
           {agentSelection.is_presetAgent && selectedAssistantDescription ? (
@@ -749,6 +584,13 @@ const GuidPage: React.FC = () => {
                 agentLabel={mention.selectedAgentLabel}
                 mentionMenu={mentionDropdownNode}
                 onResetQuery={() => mention.setMentionQuery(null)}
+                dropdownEnabled={false}
+                onClear={() => {
+                  agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
+                  mention.setMentionSelectorVisible(false);
+                  mention.setMentionSelectorOpen(false);
+                  mention.setMentionActiveIndex(0);
+                }}
               />
             }
             mentionDropdown={mentionDropdownNode}

@@ -48,7 +48,6 @@ export interface IConfigStorageRefer {
   'acp.cached_config_options'?: Record<string, import('@/common/types/platform/acpTypes').AcpSessionConfigOption[]>;
   // Cached modes per ACP backend for Guid page / AgentModeSelector
   'acp.cachedModes'?: Record<string, import('@/common/types/platform/acpTypes').AcpSessionModes>;
-  'mcp.config': IMcpServer[];
   'mcp.agentInstallStatus': Record<string, string[]>;
   language: string;
   theme: string;
@@ -149,6 +148,23 @@ export interface IConfigStorageRefer {
   };
   // Skills Market: whether the aionui-skills builtin skill is enabled
   'skillsMarket.enabled'?: boolean;
+  /**
+   * One-shot completion flag for the legacy `model.config` → backend providers
+   * migration in {@link migrateProviders}. Once `true`, the migration is
+   * short-circuited on subsequent launches so user-deleted providers don't
+   * resurface from the still-on-disk legacy `model.config` (ELECTRON-1KT).
+   * Stored in the local config file (not the backend) so a downgrade to the
+   * pre-flag build still re-reads the legacy data unchanged.
+   */
+  'migration.providersMigrated_v1'?: boolean;
+  /**
+   * One-shot completion flag for the legacy `assistants` → backend assistants
+   * migration in {@link migrateAssistantsToBackend}. Same rationale as
+   * `migration.providersMigrated_v1` — without it, an assistant the user
+   * deletes after migration would be re-imported on the next launch from the
+   * still-on-disk legacy field.
+   */
+  'migration.assistantsMigrated_v1'?: boolean;
   // Desktop Pet: whether the desktop pet feature is enabled
   'pet.enabled'?: boolean;
   // Desktop Pet: size in pixels (200, 280, or 360)
@@ -233,7 +249,7 @@ export type TChatConversation =
           cached_config_options?: import('@/common/types/platform/acpTypes').AcpSessionConfigOption[];
           /** Pending config option selections from Guid page / Guid 页面待应用的配置选项 */
           pending_config_options?: Record<string, string>;
-          /** Explicit marker for temporary health-check conversations */
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           /** Cron job ID that spawned this conversation */
           cron_job_id?: string;
@@ -263,7 +279,7 @@ export type TChatConversation =
           session_mode?: string;
           /** User-selected Codex model from Guid page / 用户在引导页选择的 Codex 模型 */
           codexModel?: string;
-          /** Explicit marker for temporary health-check conversations */
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           /** Cron job ID that spawned this conversation */
           cron_job_id?: string;
@@ -309,7 +325,7 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinned_at?: number;
-          /** Explicit marker for temporary health-check conversations */
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           /** Cron job ID that spawned this conversation */
           cron_job_id?: string;
@@ -334,6 +350,7 @@ export type TChatConversation =
           preset_assistant_id?: string;
           pinned?: boolean;
           pinned_at?: number;
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           cron_job_id?: string;
           // Other legacy-only keys (session_mode, preset_rules, etc.)
@@ -357,7 +374,7 @@ export type TChatConversation =
           pinned?: boolean;
           /** 置顶时间戳（毫秒）/ Pin timestamp in milliseconds */
           pinned_at?: number;
-          /** Explicit marker for temporary health-check conversations */
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           /** Cron job ID that spawned this conversation */
           cron_job_id?: string;
@@ -384,7 +401,7 @@ export type TChatConversation =
           pinned?: boolean;
           /** Pin timestamp in milliseconds */
           pinned_at?: number;
-          /** Explicit marker for temporary health-check conversations */
+          /** Legacy marker for pre-provider-probe health-check conversations */
           is_health_check?: boolean;
           /** Cron job ID that spawned this conversation */
           cron_job_id?: string;
@@ -415,7 +432,7 @@ export type TChatConversation =
         maxTurns?: number;
         /** Persisted session mode for resume support */
         session_mode?: string;
-        /** Explicit marker for temporary health-check conversations */
+        /** Legacy marker for pre-provider-probe health-check conversations */
         is_health_check?: boolean;
         /** Last token usage stats */
         last_token_usage?: TokenUsageData;
@@ -565,6 +582,8 @@ export interface IMcpServer {
 
 /** Stable ID for the built-in image generation MCP server */
 export const BUILTIN_IMAGE_GEN_ID = 'builtin-image-gen';
+export const BUILTIN_IMAGE_GEN_NAME = 'aionui-image-generation';
+export const BUILTIN_IMAGE_GEN_LEGACY_NAMES = ['AionUi Image Generation', BUILTIN_IMAGE_GEN_ID] as const;
 
 export interface IMcpTool {
   name: string;

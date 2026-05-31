@@ -3,6 +3,9 @@ import {
   getOplCodexSessionContext,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
+  getOplAssistantSkillProfile,
+  getOplAssistantSkillProfiles,
+  getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
   getOplDefaultCodexModel,
@@ -10,11 +13,25 @@ import {
   getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
   getOplGuiDefaultCssThemeId,
+  getOplGuiLegacySettingsRouteRedirects,
+  getOplGuiSettingsVisibleTabs,
+  getOplHomeModelStatusLabel,
+  getOplRuntimeEnvironmentItems,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
   getOplSkillPriority,
+  isOplCodexCliFixedExecutor,
+  OPL_PRODUCT_PROFILE,
   shouldDefaultCodexCssTheme,
+  shouldShowOplCodexModelAutoOption,
+  shouldShowOplCodexModelList,
+  shouldShowOplCodexModelSelector,
+  shouldShowOplConversationBackendSelector,
+  shouldShowOplConversationModelSelector,
+  shouldShowOplConversationPermissionModeSelector,
+  shouldShowOplHomeExecutorSelector,
+  shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
@@ -43,31 +60,140 @@ describe('OPL generated product profile', () => {
     );
   });
 
-  it('keeps App-owned GUI defaults for theme, home model policy, and Codex permissions', () => {
+  it('keeps App-owned GUI defaults for theme, fixed Codex executor, and hidden home controls', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
-    expect(getOplGuiDefaultCssThemeId()).toBe('codex');
-    expect(shouldDefaultCodexCssTheme()).toBe(true);
-    expect(normalizeOplActiveThemeId('')).toBe('codex');
-    expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('codex');
+    expect(getOplGuiDefaultCssThemeId()).toBe('default-theme');
+    expect(shouldDefaultCodexCssTheme()).toBe(false);
+    expect(normalizeOplActiveThemeId('')).toBe('default-theme');
+    expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('default-theme');
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
+    expect(isOplCodexCliFixedExecutor()).toBe(true);
+    expect(shouldShowOplHomeExecutorSelector()).toBe(false);
+    expect(shouldShowOplHomePermissionModeSelector()).toBe(false);
+    expect(shouldShowOplConversationBackendSelector()).toBe(false);
+    expect(shouldShowOplConversationModelSelector()).toBe(false);
+    expect(shouldShowOplConversationPermissionModeSelector()).toBe(false);
+    expect(shouldShowOplCodexModelSelector()).toBe(false);
+    expect(shouldShowOplCodexModelList()).toBe(false);
+    expect(shouldShowOplCodexModelAutoOption()).toBe(false);
+    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('自动');
+    expect(getOplHomeModelStatusLabel('en-US')).toBe('Auto');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_auto_model_hidden_on_home');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('codex_cli_auto');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
+      'technical_details_or_connected_state_only'
+    );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
+      'codex_cli_auto_latest_available_frontier'
+    );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(false);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(false);
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
+  });
+
+  it('exposes App-owned settings navigation and runtime environment profile slices', () => {
+    expect(getOplGuiSettingsVisibleTabs()).toEqual([
+      'overview',
+      'runtime',
+      'capabilities',
+      'access',
+      'appearance',
+      'system',
+      'about',
+    ]);
+    expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
+      model: 'runtime',
+      agent: 'runtime',
+      assistants: 'capabilities',
+      'skills-hub': 'capabilities',
+      tools: 'capabilities',
+      display: 'appearance',
+      webui: 'access',
+      pet: 'appearance',
+    });
+    expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'app']);
   });
 
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {
     const assistants = getOplDefaultHomeAssistants();
 
-    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
     expect(assistants.map((assistant) => assistant.display_name)).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL Meta Agent',
     ]);
-    expect(assistants.every((assistant) => assistant.home_entry_policy === 'visible_click_to_start')).toBe(true);
+    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', 'PPT']);
+    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
+      'research',
+      'grant',
+      'ppt',
+    ]);
+    expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.target_assistant_id)).toEqual([
+      'mas',
+      'mag',
+      'rca',
+    ]);
+    expect(
+      OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
+    ).toBe(true);
+    expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
+    expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
+    expect(assistants.map((assistant) => assistant.id)).not.toContain('oma');
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants.map((assistant) => assistant.id)).toEqual(['oma']);
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_default_visible).toBe(false);
+    expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
-    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'oma']);
+    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
+  });
+
+  it('exposes assistant-scoped home skill profiles from the App contract', () => {
+    const profiles = getOplAssistantSkillProfiles();
+
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca']);
+    expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
+      mas: ['mas'],
+      mag: ['mag'],
+      rca: ['rca'],
+    });
+    expect(getOplAssistantSkillProfile('builtin-mag')?.required_skills).toEqual(['mag']);
+    expect(getOplAssistantSkillProfile('rca')?.optional_skills).toEqual(['officecli-pptx', 'ui-ux-pro-max']);
+    expect(profiles.every((profile) => !profile.optional_skills.includes('morph-ppt'))).toBe(true);
+    expect(profiles.every((profile) => profile.required_skill_policy === 'checked_locked')).toBe(true);
+    expect(
+      profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
+    ).toBe(true);
+    const packagedSkillIds = new Set(OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids);
+    expect(
+      profiles.every((profile) =>
+        [...profile.required_skills, ...profile.optional_skills].every((skill) => packagedSkillIds.has(skill))
+      )
+    ).toBe(true);
+    expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
+
+    profiles[0].required_skills.push('caller-local-skill');
+    expect(getOplAssistantSkillProfile('mas')?.required_skills).toEqual(['mas']);
+  });
+
+  it('exposes the built-in assistant route receipt policy', () => {
+    const policy = getOplBuiltinAssistantRouteReceiptPolicy();
+
+    expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca']);
+    expect(policy.route_kind).toBe('builtin_capability');
+    expect(policy.executor).toBe('codex_cli');
+    expect(policy.source).toBe('opl_app_home');
+    expect(policy.required_fields).toEqual([
+      'route_kind',
+      'executor',
+      'assistant_id',
+      'assistant_short_name',
+      'source',
+    ]);
+
+    policy.required_for_assistants.push('caller-local-assistant');
+    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual(['mas', 'mag', 'rca']);
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {
@@ -89,7 +215,7 @@ describe('OPL generated product profile', () => {
     ).toEqual({
       current_model_id: 'gpt-5.6',
       current_model_label: 'gpt-5.6',
-      available_models: [],
+      available_models: [{ id: 'gpt-5.6', label: 'gpt-5.6' }],
     });
   });
 
@@ -103,16 +229,22 @@ describe('OPL generated product profile', () => {
       'mag',
       'rca',
       'superpowers',
+      'cron',
       'officecli',
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
+      'officecli-academic-paper',
+      'officecli-data-dashboard',
+      'officecli-financial-model',
+      'officecli-pitch-deck',
+      'pdf',
       'mineru-document-extractor',
       'ui-ux-pro-max',
     ]);
   });
 
-  it('keeps display priority aligned with default skills and the morph-ppt companion route', () => {
+  it('keeps display priority aligned with default skills without retired morph-ppt wiring', () => {
     const skillPriority = getOplSkillPriority();
 
     expect(skillPriority).toEqual([
@@ -120,15 +252,21 @@ describe('OPL generated product profile', () => {
       'mag',
       'rca',
       'superpowers',
+      'cron',
       'officecli',
       'officecli-docx',
       'officecli-pptx',
       'officecli-xlsx',
+      'officecli-academic-paper',
+      'officecli-data-dashboard',
+      'officecli-financial-model',
+      'officecli-pitch-deck',
+      'pdf',
       'mineru-document-extractor',
       'ui-ux-pro-max',
-      'morph-ppt',
     ]);
     expect(skillPriority).toEqual(expect.arrayContaining(getOplDefaultCodexSkills()));
+    expect(skillPriority).not.toContain('morph-ppt');
   });
 
   it('exposes first-run deferred blockers and Command Line Tools copy from the generated profile', () => {
@@ -160,7 +298,8 @@ describe('OPL generated product profile', () => {
     const context = getOplCodexSessionContext();
 
     expect(context).toContain('OPL App 默认会话规则');
-    expect(context).toContain('默认仍使用 Codex CLI 会话语义');
+    expect(context).toContain('Codex CLI 是固定执行器');
+    expect(context).toContain('普通用户主路径不选择 executor');
     expect(context).not.toContain('api_key');
     expect(context).not.toContain('experimental_bearer_token');
   });

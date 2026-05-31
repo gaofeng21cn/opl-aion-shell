@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FirstRun from '@/renderer/pages/FirstRun';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -251,10 +251,22 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
     expect(screen.getByTestId('opl-first-run-progress')).toHaveAttribute('aria-label', 'opl-first-run-progress');
     expect(screen.getByTestId('opl-first-run-primary-action')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
-      'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
-    );
     expect(screen.getByTestId('opl-first-run-technical-details-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('settings.firstRun.stage');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('opl system');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('full_readiness');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
+      'settings.firstRun.beginner.backgroundMaintenanceWithCount'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex API Configuration');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex CLI');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Workspace Root');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Configured');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('{');
+    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
+      'settings.firstRun.maintenance.title'
+    );
+    expect(screen.queryByTestId('opl-first-run-background-maintenance-secondary')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.noCoreBlockers');
     expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveAttribute(
       'aria-label',
@@ -265,6 +277,28 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByTestId('opl-first-run-ready-entry'));
 
     expect(navigateMock).toHaveBeenCalledWith('/guid');
+  });
+
+  it('localizes the beginner surface even when initialize returns English and technical labels', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult);
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    const beginnerPrimary = screen.getByTestId('opl-first-run-beginner-primary');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.workspaceRoot');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codex');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codexConfig');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.itemSummaries.codexConfig.needsAction');
+    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.codex.prompt');
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('settings.firstRun.nextSteps.codexConfig');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.items.codexConfig');
+    expect(beginnerPrimary).not.toHaveTextContent('Codex API Configuration');
+    expect(beginnerPrimary).not.toHaveTextContent('Unknown');
+    expect(beginnerPrimary).not.toHaveTextContent('Needs setup');
+    expect(beginnerPrimary).not.toHaveTextContent('Codex API Key');
+    expect(beginnerPrimary).not.toHaveTextContent('opl system configure-codex');
+    expect(beginnerPrimary).not.toHaveTextContent('setup_flow');
   });
 
   it('enters /guid when initialize confirms Core launch readiness while fast App state is still pending', async () => {
@@ -285,7 +319,7 @@ describe('FirstRun readiness page', () => {
     resolveFastState?.(fastStateNeedsSetupResult);
   });
 
-  it('summarizes initialize progress by stage, readiness layers, and next action', async () => {
+  it('keeps technical phase and maintenance controls out of the beginner primary area', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -327,19 +361,61 @@ describe('FirstRun readiness page', () => {
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    const beginnerPrimary = within(screen.getByTestId('opl-first-run-beginner-primary'));
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
+      'settings.firstRun.coreProgress 3/3'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent('settings.firstRun.enterGuid');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
+      'settings.firstRun.stage full_readiness_maintenance'
+    );
+    expect(beginnerPrimary.queryByTestId('opl-settings-environment')).not.toBeInTheDocument();
+    expect(beginnerPrimary.queryByTestId('opl-first-run-retry-button')).not.toBeInTheDocument();
+    expect(beginnerPrimary.queryByTestId('opl-first-run-open-environment-button')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent(
+      'settings.firstRun.nextSteps.familyRuntimeProvider'
+    );
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
+      'settings.firstRun.items.familyRuntimeProvider'
+    );
+
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+
     expect(screen.getByTestId('opl-first-run-stage')).toHaveTextContent(
       'settings.firstRun.stage full_readiness_maintenance'
     );
+    expect(screen.getByTestId('opl-first-run-background-maintenance-secondary')).toHaveTextContent(
+      'settings.firstRun.beginner.backgroundMaintenanceWithCount 2'
+    );
     expect(screen.getByTestId('opl-first-run-core-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
-    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+    expect(screen.getByTestId('opl-settings-environment')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-retry-button')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-full-readiness-progress')).toHaveTextContent(
       'settings.firstRun.fullReadinessProgress 4/6'
     );
     expect(screen.getByTestId('opl-first-run-maintenance-progress')).toHaveTextContent(
       'settings.firstRun.maintenanceProgress 1/3'
     );
-    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('Start the family runtime provider.');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('family_runtime_provider');
+  });
+
+  it('shows a user-facing first-run error and keeps the raw diagnostic in technical details', async () => {
+    bridgeMocks.getInitializeInvoke.mockRejectedValueOnce(
+      new Error('OPL runtime command failed: opl system initialize --json')
+    );
+
+    render(<FirstRun />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.general')
+    );
+    expect(screen.getByTestId('opl-first-run-user-error')).not.toHaveTextContent('opl system initialize');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('OPL runtime command failed');
+
+    fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
+
+    expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent(
+      'OPL runtime command failed: opl system initialize --json'
+    );
   });
 
   it('configures Codex through the narrow bridge when the Codex config blocks Core readiness', async () => {

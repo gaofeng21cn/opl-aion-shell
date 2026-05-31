@@ -16,7 +16,7 @@ export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
 /**
  * Normalize a language code to a supported BCP 47 tag.
- * e.g. 'zh' → 'zh-CN', 'ja_JP' → 'ja-JP'
+ * e.g. 'zh' -> 'zh-CN', 'en_GB' -> 'en-US'
  */
 export function normalizeLanguageCode(language: string): SupportedLanguage {
   const normalized = language.replace(/_/g, '-');
@@ -29,16 +29,6 @@ export function normalizeLanguageCode(language: string): SupportedLanguage {
   switch (langOnly) {
     case 'zh':
       return 'zh-CN';
-    case 'ja':
-      return 'ja-JP';
-    case 'ko':
-      return 'ko-KR';
-    case 'tr':
-      return 'tr-TR';
-    case 'ru':
-      return 'ru-RU';
-    case 'uk':
-      return 'uk-UA';
     default:
       return DEFAULT_LANGUAGE;
   }

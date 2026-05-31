@@ -116,6 +116,15 @@ export interface ToolCallContentItem {
   new_text?: string;
 }
 
+export interface ToolCallRawOutput {
+  aggregated_output?: string;
+  aggregatedOutput?: string;
+  formatted_output?: string;
+  formattedOutput?: string;
+  stdout?: string;
+  stderr?: string;
+}
+
 /** Tool call 位置项类型 / Tool call location item type */
 export interface ToolCallLocationItem {
   path: string;
@@ -130,6 +139,8 @@ export interface ToolCallUpdate extends BaseSessionUpdate {
     title: string;
     kind: 'read' | 'edit' | 'execute';
     rawInput?: Record<string, unknown>;
+    raw_output?: ToolCallRawOutput;
+    rawOutput?: ToolCallRawOutput;
     content?: ToolCallContentItem[];
     locations?: ToolCallLocationItem[];
   };

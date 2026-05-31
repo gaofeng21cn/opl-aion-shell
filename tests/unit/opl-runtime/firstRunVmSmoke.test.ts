@@ -119,7 +119,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(expression).toContain('[data-testid="opl-guid-entry"]');
     expect(expression).toContain('[data-testid="guid-input"]');
-    expect(expression).not.toContain("window.location.hash.startsWith('#/guid')");
+    expect(expression).toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).toContain('[data-testid="opl-first-run-window"]');
   });
 
@@ -129,8 +129,42 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[aria-label="opl-first-run-ready-entry"]');
     expect(expression).toContain('readyButton.click()');
     expect(expression).toContain("navigatedBy: 'ready_entry'");
-    expect(expression).not.toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).not.toContain("window.location.hash = '#/guid'");
+  });
+
+  it('checks the beginner first-run layout before the ready-entry navigation click', () => {
+    const expression = __test.firstRunBeginnerUxExpression();
+    const navigationExpression = __test.guidEntryNavigationExpression();
+
+    expect(expression).toContain('[data-testid="opl-first-run-window"]');
+    expect(expression).toContain('[data-testid="opl-first-run-progress"]');
+    expect(expression).toContain('[data-testid="opl-first-run-beginner-primary"]');
+    expect(expression).toContain('[data-testid="opl-first-run-beginner-summary"]');
+    expect(expression).toContain('[data-testid="opl-first-run-primary-action"]');
+    expect(expression).toContain('[data-testid="opl-first-run-technical-details-toggle"]');
+    expect(expression).toContain('technicalDetailsCollapsed');
+    expect(expression).toContain('settings\\.firstRun\\.stage');
+    expect(expression).toContain('full_readiness');
+    expect(expression).toContain('action_command_ref');
+    expect(expression).toContain('settings\\.firstRun\\.beginner\\.backgroundMaintenanceWithCount');
+    expect(expression).toContain('opl system initialize');
+    expect(expression).toContain('runtime command failed');
+    expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
+  });
+
+  it('does not require folded technical action labels during first-run accessibility fallback', () => {
+    const labels = __test.firstRunAccessibilityExpectedLabels();
+
+    expect(labels).toContain('opl-first-run-ready-entry');
+    expect(labels).toContain('opl-first-run-beginner-summary');
+    expect(labels).toContain('opl-first-run-primary-action');
+    expect(labels).toContain('opl-first-run-technical-details-toggle');
+    expect(labels).toContain('opl-guid-entry');
+    expect(labels).not.toContain('opl-first-run-background-maintenance-secondary');
+    expect(labels).not.toContain('opl-first-run-install-button');
+    expect(labels).not.toContain('opl-first-run-open-environment-button');
+    expect(labels).not.toContain('opl-first-run-open-modules-button');
+    expect(labels).not.toContain('opl-first-run-retry-button');
   });
 
   it('smokes the current OPL App-owned settings routes', () => {
@@ -149,6 +183,51 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/agent');
     expect(targetHashes).not.toContain('#/settings/display');
     expect(targetHashes).not.toContain('#/settings/webui');
+  });
+
+  it('smokes OPL built-in assistant route targets through receipt-only Codex conversations', () => {
+    expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
+      { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+      { id: 'mag', badge: '@MAG', shortName: 'MAG' },
+      { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+    ]);
+
+    const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
+    const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
+    const createExpression = __test.createAssistantRouteReceiptConversationExpression(masTarget);
+    const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
+    const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
+
+    expect(selectionExpression).toContain('preset-pill-mas');
+    expect(readyExpression).toContain('@MAS');
+    for (const hiddenSelector of [
+      'agent-mode-selector',
+      'aionrs-model-selector',
+      'acp-model-selector',
+      'google-model-selector',
+      'agent-pill-',
+      'sendbox-model',
+    ]) {
+      expect(selectionExpression).toContain(hiddenSelector);
+      expect(readyExpression).toContain(hiddenSelector);
+    }
+    expect(createExpression).toContain('/api/conversations');
+    expect(createExpression).toContain("method: 'POST'");
+    expect(createExpression).toContain('preset_assistant_id');
+    expect(createExpression).toContain('preset_assistant_id: "mas"');
+    expect(createExpression).toContain('opl_assistant_route');
+    expect(createExpression).toContain("backend: 'codex'");
+    expect(createExpression).not.toContain('guid-send-btn');
+    expect(receiptExpression).toContain('/api/conversations?limit=10');
+    expect(receiptByIdExpression).toContain('/api/conversations/conv-123');
+    expect(receiptByIdExpression).toContain('expected_conversation_id');
+    expect(receiptExpression).toContain('opl_assistant_route');
+    expect(receiptExpression).toContain('builtin_capability');
+    expect(receiptExpression).toContain('codex_cli');
+    expect(receiptExpression).toContain('opl_app_home');
+    expect(receiptExpression).toContain("matched.type !== 'acp'");
+    expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
   it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {

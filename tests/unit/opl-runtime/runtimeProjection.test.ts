@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
+import {
+  normalizeLegacyRuntimeVisualizationProjection,
+  normalizeRuntimeProjection,
+} from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
 
 describe('runtime visualization projection normalization', () => {
   it('normalizes OPL app state as the summary-first runtime model', () => {
@@ -90,8 +93,43 @@ describe('runtime visualization projection normalization', () => {
     expect(model.refs.map((ref) => ref.ref)).toContain('/Users/example/workspace/med-autoscience');
   });
 
-  it('prefers runtime_visualization_projection and preserves refs-only graph data', () => {
+  it('keeps top-level runtime_visualization_projection out of the main renderer path', () => {
     const model = normalizeRuntimeProjection({
+      runtime_visualization_projection: {
+        surface_kind: 'runtime_visualization_projection',
+        state: 'running',
+        summary: { stage_attempt_count: 2 },
+        stage_graph: {
+          nodes: [{ id: 'draft', label: 'Draft', state: 'done', owner: 'opl' }],
+          edges: [{ from: 'draft', to: 'review', label: 'next', ref: 'edge://one' }],
+        },
+        route_graph: {
+          nodes: [{ id: 'safe-action', label: 'Safe action', owner: 'opl' }],
+        },
+        decision_map: [{ id: 'go', label: 'Go', ref: 'decision://go' }],
+        timeline: [{ id: 't1', label: 'Started', timestamp: '2026-05-26T00:00:00Z' }],
+        research_paper_lens_refs: [{ id: 'paper', label: 'Paper lens', ref: 'paper://lens' }],
+        owner_boundary: { can_write_domain_truth: false },
+        safe_action_routes: [
+          {
+            action_id: 'stage-production:mas/analysis_campaign',
+            label: 'Run analysis',
+            owner: 'opl',
+            payload_refs_only_json: { receipt_ref: 'receipt://one' },
+          },
+        ],
+        memory_refs: [{ ref: 'memory://one' }],
+      },
+    });
+
+    expect(model.sourceSurface).toBe('app_operator_drilldown');
+    expect(model.state).toBe('unknown');
+    expect(model.stageGraph.nodes).toEqual([]);
+    expect(model.safeActionRoutes).toEqual([]);
+  });
+
+  it('isolates legacy runtime_visualization_projection parsing behind an explicit adapter', () => {
+    const model = normalizeLegacyRuntimeVisualizationProjection({
       runtime_visualization_projection: {
         surface_kind: 'runtime_visualization_projection',
         state: 'running',
@@ -132,8 +170,8 @@ describe('runtime visualization projection normalization', () => {
     expect(model.refs[0]?.ref).toBe('memory://one');
   });
 
-  it('normalizes OPL full-detail runtime_visualization_projection graph and research lens', () => {
-    const model = normalizeRuntimeProjection({
+  it('normalizes OPL full-detail runtime_visualization_projection graph only through the legacy adapter', () => {
+    const model = normalizeLegacyRuntimeVisualizationProjection({
       app_operator_drilldown: {
         surface_kind: 'opl_app_operator_drilldown_read_model',
         runtime_visualization_projection: {

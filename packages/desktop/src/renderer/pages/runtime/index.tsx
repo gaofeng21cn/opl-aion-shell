@@ -88,6 +88,17 @@ function compactAction(action: RuntimeSnapshot): RuntimeSnapshot {
   ]);
 }
 
+function isAppActionBoundary(action: RuntimeSnapshot): boolean {
+  const submitVia = stringValue(action.submit_via);
+  if (submitVia === 'opl runtime action execute') return false;
+  return (
+    submitVia === null ||
+    submitVia === 'opl app action execute' ||
+    action.can_submit_to_safe_action_shell === true ||
+    action.execution_policy === 'opl_safe_action_shell'
+  );
+}
+
 function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   const attention = record(drilldown.attention_first_payload);
   const executionBridge = record(drilldown.app_execution_bridge);
@@ -222,10 +233,10 @@ function collectSafeActions(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
       const actionId = stringValue(candidate.action_id);
       if (!actionId || seen.has(actionId)) return false;
       const isSafe =
-        candidate.can_submit_to_safe_action_shell === true ||
-        candidate.execution_policy === 'opl_safe_action_shell' ||
-        stringValue(candidate.submit_via) === 'opl app action execute' ||
-        stringValue(candidate.submit_via) === 'opl runtime action execute';
+        isAppActionBoundary(candidate) &&
+        (candidate.can_submit_to_safe_action_shell === true ||
+          candidate.execution_policy === 'opl_safe_action_shell' ||
+          stringValue(candidate.submit_via) === 'opl app action execute');
       if (!isSafe) return false;
       seen.add(actionId);
       return true;
@@ -242,7 +253,7 @@ function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot
     ...oplRecordList(appState.actions),
     ...oplRecordList(operator.actions),
     ...oplRecordList(oplRecord(operator.action_queue).items),
-  ];
+  ].filter(isAppActionBoundary);
   const firstAction = actions[0] ?? {};
   return {
     availability:

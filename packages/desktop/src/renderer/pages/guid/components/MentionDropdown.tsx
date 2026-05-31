@@ -6,7 +6,8 @@
 
 import type { MentionOption } from '../types';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { Dropdown, Menu } from '@arco-design/web-react';
+import { Button, Dropdown, Menu } from '@arco-design/web-react';
+import { IconClose } from '@arco-design/web-react/icon';
 import { Down, Robot } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -75,6 +76,8 @@ type MentionSelectorBadgeProps = {
   agentLabel: string;
   mentionMenu: React.ReactNode;
   onResetQuery: () => void;
+  onClear?: () => void;
+  dropdownEnabled?: boolean;
 };
 
 export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
@@ -84,27 +87,56 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
   agentLabel,
   mentionMenu,
   onResetQuery,
+  onClear,
+  dropdownEnabled = true,
 }) => {
+  const { t } = useTranslation();
+
   if (!visible) return null;
+
+  const badge = (
+    <div
+      className={`flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px select-none ${dropdownEnabled ? 'cursor-pointer' : ''}`}
+    >
+      <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
+      {dropdownEnabled ? <Down theme='outline' size={12} /> : null}
+    </div>
+  );
 
   return (
     <div className='flex items-center gap-8px mb-8px'>
-      <Dropdown
-        trigger='click'
-        popupVisible={open}
-        onVisibleChange={(v) => {
-          onOpenChange(v);
-          if (v) {
-            onResetQuery();
-          }
-        }}
-        droplist={mentionMenu}
-      >
-        <div className='flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px cursor-pointer select-none'>
-          <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
-          <Down theme='outline' size={12} />
-        </div>
-      </Dropdown>
+      {dropdownEnabled ? (
+        <Dropdown
+          trigger='click'
+          popupVisible={open}
+          onVisibleChange={(v) => {
+            onOpenChange(v);
+            if (v) {
+              onResetQuery();
+            }
+          }}
+          droplist={mentionMenu}
+        >
+          {badge}
+        </Dropdown>
+      ) : (
+        badge
+      )}
+      {onClear ? (
+        <Button
+          type='secondary'
+          shape='circle'
+          size='mini'
+          className='inline-flex items-center justify-center w-22px h-22px rd-50% b-none bg-fill-2 text-3 cursor-pointer p-0'
+          onClick={(event) => {
+            event.stopPropagation();
+            onClear();
+          }}
+          aria-label={t('common.clear')}
+        >
+          <IconClose style={{ fontSize: 12, color: 'var(--color-text-3)' }} />
+        </Button>
+      ) : null}
     </div>
   );
 };

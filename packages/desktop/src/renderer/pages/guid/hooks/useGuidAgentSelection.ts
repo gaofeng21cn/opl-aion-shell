@@ -164,7 +164,7 @@ export const useGuidAgentSelection = ({
     _setSelectedAcpModel((prev) => {
       const newModelId = typeof model_id === 'function' ? model_id(prev) : model_id;
       const agentKey = selectedAgentRef.current;
-      if (agentKey && agentKey !== 'codex' && agentKey !== 'gemini' && agentKey !== 'custom' && newModelId) {
+      if (agentKey && agentKey !== 'gemini' && agentKey !== 'custom') {
         void savePreferredModelId(agentKey, newModelId);
       }
       return newModelId;
@@ -402,8 +402,8 @@ export const useGuidAgentSelection = ({
     return getEffectiveAgentType(selectedAgentInfo);
   }, [is_presetAgent, selectedAgent, selectedAgentInfo, getEffectiveAgentType, isMainAgentAvailable]);
 
-  // Reset selected ACP model when agent changes: App-owned Codex policy wins,
-  // other ACP agents still honor saved preferences before handshake defaults.
+  // Reset selected ACP model when agent changes. Null means auto/latest for
+  // Codex and handshake default for other ACP agents.
   useEffect(() => {
     // For preset agents, resolve to the actual backend type for config lookup
     const backend = is_presetAgent ? currentEffectiveAgentInfo.agent_type : selectedAgent;
@@ -411,15 +411,15 @@ export const useGuidAgentSelection = ({
     const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
     const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
     const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
-    if (backend === 'codex') {
-      _setSelectedAcpModel(buildCodexDefaultModelInfo(handshakeModels).current_model_id);
-      return;
-    }
-
     const config = configService.get('acp.config');
     const preferred = (config?.[backend as string] as Record<string, unknown>)?.preferredModelId as string | undefined;
     if (preferred) {
       _setSelectedAcpModel(preferred);
+      return;
+    }
+
+    if (backend === 'codex') {
+      _setSelectedAcpModel(null);
       return;
     }
 

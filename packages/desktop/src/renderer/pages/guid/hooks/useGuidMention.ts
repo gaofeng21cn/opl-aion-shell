@@ -37,6 +37,7 @@ type UseGuidMentionOptions = {
   setSelectedAgentKey: (key: string) => void;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   selectedAgentInfo: AvailableAgent | undefined;
+  selectedAgentLabelOverride?: string;
 };
 
 /**
@@ -49,6 +50,7 @@ export const useGuidMention = ({
   setSelectedAgentKey,
   setInput,
   selectedAgentInfo,
+  selectedAgentLabelOverride,
 }: UseGuidMentionOptions): GuidMentionResult => {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -127,7 +129,7 @@ export const useGuidMention = ({
     [stripMentionToken, setSelectedAgentKey, setInput]
   );
 
-  const selectedAgentLabel = selectedAgentInfo?.name || selectedAgentKey;
+  const selectedAgentLabel = selectedAgentLabelOverride || selectedAgentInfo?.name || selectedAgentKey;
   const mentionMenuActiveOption = filteredMentionOptions[mentionActiveIndex] || filteredMentionOptions[0];
   const mentionMenuSelectedKey =
     mentionOpen || mentionSelectorOpen ? mentionMenuActiveOption?.key || selectedAgentKey : selectedAgentKey;

@@ -49,6 +49,13 @@ function createReadySystemInitialize() {
   });
 }
 
+function createPassedAssistantRouteSmokeSummary(assistantIds = ['mas', 'mag', 'rca']) {
+  return {
+    status: 'passed',
+    assistants: assistantIds,
+  };
+}
+
 function writeRuntimeModule(
   runtimeHome: string,
   input: {
@@ -367,6 +374,63 @@ describe('OPL first-run VM smoke scripts', () => {
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
     }
+  });
+
+  it('passes assistant route smoke through the Tart host command and plan', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ]);
+
+    expect(options.assistantRouteSmoke).toBe(true);
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.assistant_route_smoke).toBe(true);
+    expect(plan.cdp_port).toBe(options.cdpPort);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--assistant-route-smoke');
+    expect(command).toContain('--cdp-port');
+  });
+
+  it('validates assistant route smoke independently from Settings smoke', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ]);
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(['mas', 'mag']),
+      })
+    ).toThrow(/assistant route smoke/);
   });
 
   it('checks Full domain skills through packaged plugin surfaces, not retired Codex skill mirrors', () => {

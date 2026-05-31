@@ -15,6 +15,7 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "paths": {
+      "@aionui/web-host": ["./packages/web-host/src/index.ts"],
       "@/*": ["./packages/desktop/src/*"],
       "@process/*": ["./packages/desktop/src/process/*"],
       "@renderer/*": ["./packages/desktop/src/renderer/*"],

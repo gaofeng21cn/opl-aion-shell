@@ -43,9 +43,18 @@ vi.mock('@/renderer/pages/cron', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout', () => ({
-  default: ({ headerLeft, children }: { headerLeft?: React.ReactNode; children: React.ReactNode }) => (
+  default: ({
+    headerLeft,
+    headerExtra,
+    children,
+  }: {
+    headerLeft?: React.ReactNode;
+    headerExtra?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
     <div>
       <div data-testid='chat-header-left'>{headerLeft}</div>
+      <div data-testid='chat-header-extra'>{headerExtra}</div>
       {children}
     </div>
   ),
@@ -111,7 +120,7 @@ const acpConversation = (backend: string): TChatConversation =>
   }) as TChatConversation;
 
 describe('ChatConversation Codex model surface', () => {
-  it('hides the model selector for the App-owned Codex default executor', () => {
+  it('hides the model selector for Codex ACP conversations on the fixed App path', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
 
     expect(screen.getByTestId('acp-chat')).toBeInTheDocument();

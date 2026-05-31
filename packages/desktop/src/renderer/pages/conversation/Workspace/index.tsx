@@ -26,6 +26,7 @@ import { useWorkspaceEvents } from './hooks/useWorkspaceEvents';
 import { useWorkspaceFileOps } from './hooks/useWorkspaceFileOps';
 import { useWorkspaceModals } from './hooks/useWorkspaceModals';
 import { useWorkspacePaste } from './hooks/useWorkspacePaste';
+import { useAbortUploadsOnConversationChange } from '@/renderer/hooks/file/useAbortUploadsOnConversationChange';
 import { useWorkspaceSearch } from './hooks/useWorkspaceSearch';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import type { WorkspaceProps, WorkspaceTab } from './types';
@@ -58,6 +59,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
   // Tab state and file changes
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('files');
   const fileChangesHook = useFileChanges({ workspace });
+
+  // Bind workspace uploads to the conversation lifecycle: switching the
+  // workspace conversation or unmounting the panel cancels in-flight uploads.
+  useAbortUploadsOnConversationChange(conversation_id, 'workspace');
 
   // Initialize all hooks
   const { isWorkspaceCollapsed, setIsWorkspaceCollapsed } = useWorkspaceCollapse();
@@ -334,7 +339,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
               </div>
             ) : (
               <Tree
-                className={`${isMobile ? '!pl-20px !pr-10px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
+                className={`${isMobile ? '!pl-12px !pr-8px chat-workspace-tree--mobile' : '!pl-32px !pr-16px'} workspace-tree`}
                 showLine
                 key={treeHook.treeKey}
                 selectedKeys={treeHook.selected}
@@ -385,7 +390,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
                       {isMobile && (
                         <button
                           type='button'
-                          className='workspace-header__toggle workspace-node-more-btn h-28px w-28px rd-8px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
+                          className='workspace-header__toggle workspace-node-more-btn h-24px w-24px rd-6px flex items-center justify-center text-t-secondary hover:text-t-primary active:text-t-primary flex-shrink-0'
                           aria-label={t('common.more')}
                           onMouseDown={(event) => {
                             event.stopPropagation();
@@ -409,12 +414,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
                           }}
                         >
                           <div
-                            className='flex flex-col gap-2px items-center justify-center'
-                            style={{ width: '12px', height: '12px' }}
+                            className='flex flex-col gap-1.5px items-center justify-center'
+                            style={{ width: '10px', height: '10px' }}
                           >
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
-                            <div className='w-2px h-2px rounded-full bg-current'></div>
+                            <div className='w-1.5px h-1.5px rounded-full bg-current'></div>
+                            <div className='w-1.5px h-1.5px rounded-full bg-current'></div>
+                            <div className='w-1.5px h-1.5px rounded-full bg-current'></div>
                           </div>
                         </button>
                       )}

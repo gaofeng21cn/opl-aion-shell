@@ -21,6 +21,10 @@ type UpdateChannel = 'stable' | 'nightly';
 const OPL_APP_RELEASES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
 const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
 const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
+const CHECKING_MODAL_WIDTH = '400px';
+const RELEASE_NOTES_MODAL_WIDTH = '600px';
+const CHECKING_MODAL_HEIGHT = '224px';
+const RELEASE_NOTES_MODAL_HEIGHT = '420px';
 
 const readUpdateChannelPreference = (): UpdateChannel => {
   const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
@@ -321,7 +325,7 @@ const UpdateModal: React.FC = () => {
     switch (status) {
       case 'checking':
         return (
-          <div className='flex flex-col items-center justify-center py-48px'>
+          <div className='flex flex-col items-center justify-center w-full h-full min-h-224px box-border px-32px py-32px'>
             <div className='w-48px h-48px mb-20px relative'>
               <div className='absolute inset-0 border-3 border-fill-3 rounded-full' />
               <div className='absolute inset-0 border-3 border-primary border-t-transparent rounded-full animate-spin' />
@@ -431,8 +435,8 @@ const UpdateModal: React.FC = () => {
               <CheckOne theme='filled' size='28' fill='rgb(var(--success-6))' />
             </div>
             <div className='text-16px text-t-primary font-600 mb-8px'>{t('update.readyToInstall')}</div>
-            <div className='text-13px text-t-tertiary mb-24px text-center max-w-360px'>
-              {t('update.readyToInstallDesc')}
+            <div className='mb-24px text-13px text-[rgb(var(--warning-6))] max-w-360px text-center'>
+              {t('update.installWarning')}
             </div>
             <Button
               type='primary'
@@ -494,14 +498,16 @@ const UpdateModal: React.FC = () => {
     <AionModal
       visible={visible}
       onCancel={handleClose}
-      size={status === 'available' ? 'medium' : 'small'}
+      style={{
+        width: status === 'available' ? RELEASE_NOTES_MODAL_WIDTH : CHECKING_MODAL_WIDTH,
+      }}
       header={{
         title: t('update.modalTitle'),
         showClose: true,
       }}
       footer={{ render: () => null }}
       contentStyle={{
-        height: status === 'available' ? '420px' : 'auto',
+        height: status === 'available' ? RELEASE_NOTES_MODAL_HEIGHT : CHECKING_MODAL_HEIGHT,
         padding: 0,
         overflow: 'hidden',
       }}

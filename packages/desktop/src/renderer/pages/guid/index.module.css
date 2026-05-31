@@ -683,7 +683,7 @@
   }
 
   .actionConfigGroup {
-    gap: 12px;
+    gap: 0;
   }
 
   .actionConfigGroupWithDivider > :first-child::after {
@@ -797,18 +797,19 @@
 .assistantCardGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .assistantCard {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
   min-width: 0;
-  padding: 12px 14px;
+  min-height: 58px;
+  padding: 10px 12px;
   background: var(--bg-base, #fff);
   border: 1px solid color-mix(in srgb, var(--color-border-2) 70%, transparent);
-  border-radius: 14px;
+  border-radius: 8px;
   cursor: pointer;
   transition:
     border-color 0.15s,
@@ -820,12 +821,25 @@
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
 }
 
+.assistantCardSelected {
+  border-color: var(--color-primary-6);
+  background: var(--color-primary-light-1);
+}
+
+.assistantCardSelected:hover {
+  border-color: var(--color-primary-6);
+}
+
 :global([data-theme='dark']) .assistantCard {
   background: #262626;
 }
 
 :global([data-theme='dark']) .assistantCard:hover {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+:global([data-theme='dark']) .assistantCardSelected {
+  background: color-mix(in srgb, var(--color-primary-6) 18%, #262626);
 }
 
 .assistantCardAvatar {
@@ -856,11 +870,13 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
 }
 
 .assistantCardName {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--color-text-1);
   white-space: nowrap;
@@ -874,6 +890,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .assistantCardAdd {
@@ -974,6 +991,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
+}
+
+.presetAgentTagAt {
+  color: var(--color-text-3);
+  font-size: 14px;
+  line-height: 15px;
+  flex-shrink: 0;
 }
 
 /* Chevron (right side dropdown trigger) */

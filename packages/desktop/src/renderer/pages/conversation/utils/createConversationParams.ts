@@ -67,18 +67,18 @@ async function resolvePreferredMode(backend: string): Promise<string | undefined
 }
 
 async function resolvePreferredAcpModelId(backend: string): Promise<string | undefined> {
-  if (backend === 'codex') {
-    const agents = await getAgents();
-    const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
-    return buildCodexDefaultModelInfo(handshakeModels).current_model_id ?? undefined;
-  }
-
   const acpConfig = configService.get('acp.config');
   const backendConfig = acpConfig?.[backend as string] as { preferredModelId?: string } | undefined;
   const preferredModelId = backendConfig?.preferredModelId;
   if (typeof preferredModelId === 'string' && preferredModelId.trim().length > 0) {
     return preferredModelId;
+  }
+
+  if (backend === 'codex') {
+    const agents = await getAgents();
+    const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
+    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    return buildCodexDefaultModelInfo(handshakeModels).current_model_id ?? undefined;
   }
 
   // Fallback: last-seen model info persisted on the backend's agent_metadata row.

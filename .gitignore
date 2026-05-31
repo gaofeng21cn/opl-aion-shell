@@ -133,7 +133,10 @@ Thumbs.db
 # Build and output directories
 dist/
 build/
+build-artifacts/
 out/
+release-assets/
+tmp/
 
 # Keep extension example dist (pre-built distributable assets)
 !examples/**/dist/
@@ -171,7 +174,11 @@ wiki/
 # Local design docs and screenshots
 desdoc/
 
+# Local kanban (协作工作簿，不入库)
+kanban/
+
 # E2E test artifacts (Playwright)
+artifacts/
 tests/e2e/screenshots/
 tests/e2e/results/
 tests/e2e/report/
@@ -201,6 +208,7 @@ docs/superpowers/
 resources/bundled-bun
 resources/bundled-aioncore
 resources/hub
+packaged-runtimes/
 
 # Server build output
 dist-server/

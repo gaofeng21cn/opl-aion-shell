@@ -83,6 +83,13 @@ describe('utils', () => {
       expect(parseError(error)).toBe('msg value');
     });
 
+    it('prefers backendMessage over wrapped error message', () => {
+      const error = Object.assign(new Error('wrapped error'), {
+        backendMessage: 'raw backend error',
+      });
+      expect(parseError(error)).toBe('raw backend error');
+    });
+
     it('stringifies object without msg/message', () => {
       const error = { code: 500, status: 'fail' };
       expect(parseError(error)).toBe('{"code":500,"status":"fail"}');
@@ -119,25 +126,10 @@ describe('utils', () => {
       expect(resolveLocaleKey('zh-Hans')).toBe('zh-CN');
     });
 
-    it('resolves zh-TW to zh-TW', () => {
-      expect(resolveLocaleKey('zh-TW')).toBe('zh-TW');
-      expect(resolveLocaleKey('zh-tw')).toBe('zh-TW');
-      expect(resolveLocaleKey('zh-Hant')).toBe('zh-CN'); // Falls back to CN
-    });
-
-    it('resolves ja variants to ja-JP', () => {
-      expect(resolveLocaleKey('ja')).toBe('ja-JP');
-      expect(resolveLocaleKey('ja-JP')).toBe('ja-JP');
-    });
-
-    it('resolves ko variants to ko-KR', () => {
-      expect(resolveLocaleKey('ko')).toBe('ko-KR');
-      expect(resolveLocaleKey('ko-KR')).toBe('ko-KR');
-    });
-
-    it('resolves tr variants to tr-TR', () => {
-      expect(resolveLocaleKey('tr')).toBe('tr-TR');
-      expect(resolveLocaleKey('tr-TR')).toBe('tr-TR');
+    it('maps other zh variants to zh-CN', () => {
+      expect(resolveLocaleKey('zh-TW')).toBe('zh-CN');
+      expect(resolveLocaleKey('zh-tw')).toBe('zh-CN');
+      expect(resolveLocaleKey('zh-Hant')).toBe('zh-CN');
     });
 
     it('resolves unknown languages to en-US', () => {
@@ -150,9 +142,7 @@ describe('utils', () => {
 
     it('is case-insensitive', () => {
       expect(resolveLocaleKey('ZH')).toBe('zh-CN');
-      expect(resolveLocaleKey('JA')).toBe('ja-JP');
-      expect(resolveLocaleKey('KO')).toBe('ko-KR');
-      expect(resolveLocaleKey('TR')).toBe('tr-TR');
+      expect(resolveLocaleKey('EN')).toBe('en-US');
     });
 
     it('handles empty string', () => {

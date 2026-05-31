@@ -65,6 +65,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   }, [current_model?.use_model, defaultModelLabel, geminiSelectedLabel]);
 
   const acpSelectedLabel = React.useMemo(() => {
+    if (selectedAcpModel === null && currentAcpCachedModelInfo?.current_model_id) {
+      return t('conversation.welcome.autoModel', {
+        model: currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
+      });
+    }
     return (
       currentAcpCachedModelInfo?.available_models?.find((m) => m.id === selectedAcpModel)?.label ||
       currentAcpCachedModelInfo?.current_model_label ||
@@ -75,6 +80,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     currentAcpCachedModelInfo?.available_models,
     currentAcpCachedModelInfo?.current_model_id,
     currentAcpCachedModelInfo?.current_model_label,
+    t,
     selectedAcpModel,
   ]);
 
@@ -187,7 +193,21 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         <Dropdown
           trigger='click'
           droplist={
-            <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : []}>
+            <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}>
+              <Menu.Item
+                key='__auto'
+                className={selectedAcpModel === null ? '!bg-2' : ''}
+                onClick={() => setSelectedAcpModel(null)}
+              >
+                <div className='flex items-center gap-8px w-full'>
+                  <span>
+                    {t('conversation.welcome.autoModel', {
+                      model:
+                        currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
+                    })}
+                  </span>
+                </div>
+              </Menu.Item>
               {currentAcpCachedModelInfo.available_models.map((model) => {
                 // 获取模型健康状态
                 const providerConfig = modelConfig?.find((p) => p.platform?.includes(''));
@@ -228,6 +248,24 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       );
     }
 
+    return (
+      <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
+        <Button
+          className={'sendbox-model-btn guid-config-btn'}
+          shape='round'
+          size='small'
+          style={{ cursor: 'default' }}
+        >
+          <span className='flex items-center gap-6px min-w-0'>
+            <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+            <span>{acpButtonLabel}</span>
+          </span>
+        </Button>
+      </Tooltip>
+    );
+  }
+
+  if (currentAcpCachedModelInfo) {
     return (
       <Tooltip content={t('conversation.welcome.modelSwitchNotSupported')} position='top'>
         <Button

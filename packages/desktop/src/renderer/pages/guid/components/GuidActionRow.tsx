@@ -7,11 +7,13 @@
 import { ipcBridge } from '@/common';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import { supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import type { AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { isGuidSkillChecked, type GuidSkillMenuItem } from '../utils/assistantSkillMenu';
 import PresetAgentTag, { type AgentSwitcherItem } from './PresetAgentTag';
 import { Button, Checkbox, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { ArrowUp, Lightning, Plus, Shield, UploadOne } from '@icon-park/react';
@@ -47,9 +49,10 @@ type GuidActionRowProps = {
   agentSwitcherItems?: AgentSwitcherItem[];
   onAgentSwitch?: (key: string) => void;
   hidePresetTag?: boolean;
+  showModeSelector?: boolean;
 
   // Skills management
-  allSkills: Array<{ name: string; description: string; isAuto: boolean }>;
+  allSkills: GuidSkillMenuItem[];
   disabledBuiltinSkills: string[];
   enabledSkills: string[];
   onToggleSkill: (name: string, isAuto: boolean) => void;
@@ -82,15 +85,18 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   enabledSkills,
   onToggleSkill,
   hidePresetTag = false,
+  showModeSelector = true,
   loading,
   isButtonDisabled,
   speechInputNode,
   onSend,
 }) => {
   const { t } = useTranslation();
+  const layout = useLayoutContext();
+  const isMobile = layout?.isMobile ?? false;
   const [isPlusDropdownOpen, setIsPlusDropdownOpen] = useState(false);
   const modeBackend = effectiveModeAgent || selectedAgent;
-  const showModeSwitch = supportsModeSwitch(modeBackend);
+  const showModeSwitch = showModeSelector && supportsModeSwitch(modeBackend);
   const configOptionCount = (modelSelectorNode ? 1 : 0) + (showModeSwitch ? 1 : 0);
 
   // Browser file picker ref (WebUI only)
@@ -123,11 +129,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
 
   const isWebUI = !isElectronDesktop();
 
-  const builtinAutoSkills = allSkills.filter((s) => s.isAuto);
-  const activeSkillCount = builtinAutoSkills.length - disabledBuiltinSkills.length;
+  const isSkillChecked = (skill: GuidSkillMenuItem) => isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
 
-  const isSkillChecked = (skill: { name: string; isAuto: boolean }) =>
-    skill.isAuto ? !disabledBuiltinSkills.includes(skill.name) : enabledSkills.includes(skill.name);
+  const activeSkillCount = allSkills.filter(isSkillChecked).length;
 
   const menuContent = (
     <Menu
@@ -154,7 +158,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           <Menu.Item key='file'>
             <div className='flex items-center gap-8px'>
               <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-              <span>{t('common.fileAttach.hostFiles')}</span>
+              <span>{t('common.fileAttach.addFiles')}</span>
             </div>
           </Menu.Item>
           <Menu.Item key='device'>
@@ -168,7 +172,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         <Menu.Item key='file'>
           <div className='flex items-center gap-8px'>
             <UploadOne theme='outline' size='16' fill={iconColors.secondary} style={{ lineHeight: 0 }} />
-            <span>{t('conversation.welcome.uploadFile')}</span>
+            <span>{t('common.fileAttach.addFiles')}</span>
           </div>
         </Menu.Item>
       )}
@@ -196,13 +200,17 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
               key={`skill-${skill.name}`}
               onClick={(e) => {
                 e.stopPropagation();
+                if (skill.locked) return;
                 onToggleSkill(skill.name, skill.isAuto);
               }}
             >
               <Checkbox
-                checked={isSkillChecked(skill)}
+                checked={isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills)}
+                disabled={skill.locked}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                onChange={() => onToggleSkill(skill.name, skill.isAuto)}
+                onChange={() => {
+                  if (!skill.locked) onToggleSkill(skill.name, skill.isAuto);
+                }}
               >
                 <span className='text-13px'>{skill.name}</span>
               </Checkbox>
@@ -251,7 +259,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       </div>
       <div className={styles.actionSubmit}>
         {configOptionCount > 0 && (
-          <div className={styles.actionConfigGroup}>
+          <div className={styles.actionConfigGroup} data-mobile={isMobile ? 'true' : undefined}>
             {modelSelectorNode}
 
             {showModeSwitch && (

@@ -83,6 +83,9 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({
           <Down theme='outline' size={12} fill='currentColor' />
         </span>
       ) : null}
+      <span className={styles.presetAgentTagAt} aria-hidden='true'>
+        @
+      </span>
       {isImageAvatar ? (
         <img src={avatarImage} alt='' width={15} height={15} style={{ objectFit: 'contain', flexShrink: 0 }} />
       ) : avatarValue ? (
