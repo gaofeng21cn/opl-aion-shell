@@ -30,8 +30,10 @@ describe('OPL release version stamping', () => {
 
   it('sets a PR build-test release version so electron-builder artifact names can expand', () => {
     const prChecks = readRepoFile('.github/workflows/pr-checks.yml');
+    const matrixPlatforms = Array.from(prChecks.matchAll(/^\s+- platform: /gm));
+    const releaseVersionStamps = Array.from(prChecks.matchAll(/OPL_RELEASE_VERSION: '26\.5\.27-pr'/g));
 
     expect(prChecks).toContain("OPL_RELEASE_VERSION: '26.5.27-pr'");
-    expect(prChecks.match(/OPL_RELEASE_VERSION: '26\.5\.27-pr'/g)?.length).toBe(3);
+    expect(releaseVersionStamps).toHaveLength(matrixPlatforms.length);
   });
 });
