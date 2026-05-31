@@ -199,6 +199,15 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
+function toRuntimeShellPath(value) {
+  if (process.platform !== 'win32') return value;
+  return value.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+}
+
+function runtimePathDelimiter() {
+  return process.platform === 'win32' ? ':' : path.delimiter;
+}
+
 function runtimeShellExecutable() {
   const override = process.env.OPL_FIRST_RUN_SHELL?.trim();
   if (override) return override;
@@ -356,21 +365,24 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
   if (!runtimeHome) return '';
   const pythonBin = resolvePythonBin(runtimeHome);
   const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
+  const runtimeHomeForShell = toRuntimeShellPath(runtimeHome);
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
     path.join(runtimeHome, 'node', 'bin'),
     path.join(runtimeHome, 'uv', 'bin'),
     ...(pythonBin ? [pythonBin] : []),
-  ].join(path.delimiter);
+  ]
+    .map(toRuntimeShellPath)
+    .join(runtimePathDelimiter());
   return [
-    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
-    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(runtimeHome, 'skills'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
-    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
-    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(runtimeHome, 'modules', 'meta-agent'))}`,
-    `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
-    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
+    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHomeForShell)}`,
+    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'skills')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mas')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mag')))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'rca')))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'meta-agent')))}`,
+    `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'bin', 'codex')))}`,
+    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(toRuntimeShellPath(hermesBin))}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
   ]
     .filter(Boolean)
@@ -417,10 +429,8 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertCodexVisibleCompanionSkills(
-  initialize,
-  codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex')
-) {
+function assertFullCompanionSkillPayloads(initialize, runtimeHome, options = {}) {
+  const codexHome = options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
   for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
@@ -429,10 +439,11 @@ function assertCodexVisibleCompanionSkills(
         `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
       );
     }
-    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) {
+    const codexSkillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    const packagedSkillPath = path.join(runtimeHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(codexSkillPath) && !fs.existsSync(packagedSkillPath)) {
       throw new Error(
-        `OPL Full first-run companion skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+        `OPL Full first-run companion skill ${skillId} is missing from Codex-visible or packaged runtime skill sources: ${codexSkillPath}, ${packagedSkillPath}`
       );
     }
   }
@@ -463,11 +474,11 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
     );
   }
   JSON.parse(modulesRaw);
-  assertCodexVisibleCompanionSkills(initialize, options.codexHome);
   const runtimeHome = options.runtimeHome || findLatestFullRuntimeHome();
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
+  assertFullCompanionSkillPayloads(initialize, runtimeHome, { codexHome: options.codexHome });
   for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }
@@ -2269,6 +2280,7 @@ export const __test =
     ? {
         buildFullRuntimeCommandPrefix,
         assertFullFirstRunEquivalence,
+        assertFullCompanionSkillPayloads,
         captureMacScreenArtifact,
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,

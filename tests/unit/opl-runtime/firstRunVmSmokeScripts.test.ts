@@ -14,6 +14,15 @@ function writeFile(filePath: string, content: string, mode?: number) {
   if (mode) fs.chmodSync(filePath, mode);
 }
 
+function writeRuntimeToolShim(runtimeHome: string, command: string, output: string) {
+  if (process.platform === 'win32') {
+    writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
+    writeFile(path.join(runtimeHome, 'bin', `${command}.cmd`), `@echo off\r\necho ${output}\r\n`, 0o755);
+    return;
+  }
+  writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
+}
+
 function createReadySystemInitialize() {
   return JSON.stringify({
     system_initialize: {
@@ -87,7 +96,7 @@ function createFullRuntimeEquivalenceFixture() {
     'mineru-document-extractor',
     'ui-ux-pro-max',
   ]) {
-    writeFile(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+    writeFile(path.join(runtimeHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
   }
   for (const moduleFixture of [
     {
@@ -124,12 +133,8 @@ function createFullRuntimeEquivalenceFixture() {
   ]) {
     writeDomainPlugin(runtimeHome, pluginFixture);
   }
-  writeFile(path.join(runtimeHome, 'bin', 'officecli'), '#!/usr/bin/env bash\necho "officecli 1.0.0"\n', 0o755);
-  writeFile(
-    path.join(runtimeHome, 'bin', 'mineru-open-api'),
-    '#!/usr/bin/env bash\necho "mineru-open-api version 1.0.0"\n',
-    0o755
-  );
+  writeRuntimeToolShim(runtimeHome, 'officecli', 'officecli 1.0.0');
+  writeRuntimeToolShim(runtimeHome, 'mineru-open-api', 'mineru-open-api version 1.0.0');
   return { root, codexHome, runtimeHome };
 }
 
@@ -236,6 +241,22 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(expression).toContain('运行状态摘要');
   });
 
+  it('uses POSIX-style PATH entries for Full runtime shell probes on Windows bash', () => {
+    const prefix = vmSmoke.buildFullRuntimeCommandPrefix('C:\\Users\\tester\\runtime\\current');
+
+    if (process.platform === 'win32') {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/c/Users/tester/runtime/current'");
+      expect(prefix).toContain(
+        "export PATH='/c/Users/tester/runtime/current/bin:/c/Users/tester/runtime/current/node/bin"
+      );
+      expect(prefix).not.toContain('runtime\\current');
+      expect(prefix).not.toContain('current/bin;/c/');
+    } else {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='C:\\Users\\tester\\runtime\\current'");
+      expect(prefix).toContain('current/bin');
+    }
+  });
+
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
@@ -328,6 +349,31 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).toThrow(/Codex configuration wizard/);
+  });
+
+  it('checks Full companion skills through packaged runtime payloads before Codex skill mirrors exist', () => {
+    const fixture = createFullRuntimeEquivalenceFixture();
+    try {
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).not.toThrow();
+
+      expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'officecli', 'SKILL.md'))).toBe(false);
+      expect(fs.existsSync(path.join(fixture.runtimeHome, 'skills', 'officecli', 'SKILL.md'))).toBe(true);
+      fs.rmSync(path.join(fixture.runtimeHome, 'skills', 'officecli'), { recursive: true, force: true });
+
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).toThrow(/companion skill officecli/);
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('passes assistant route smoke through the Tart host command and plan', () => {

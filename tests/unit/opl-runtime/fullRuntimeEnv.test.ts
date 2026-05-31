@@ -10,6 +10,8 @@ import {
 } from '@/process/backend/fullRuntime';
 
 const tmpRoots: string[] = [];
+const SYSTEM_PATH_ENTRIES =
+  process.platform === 'win32' ? [] : ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
 function makeTempRoot(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
@@ -72,8 +74,9 @@ describe('ensurePackagedOplFullRuntime', () => {
       path.join(expectedHome, 'uv', 'bin'),
       path.join(expectedHome, 'python', 'cpython-3.12.12-macos-aarch64-none', 'bin'),
     ]);
-    expect(installed?.env.PATH?.split(path.delimiter)).toContain('/usr/bin');
-    expect(installed?.env.PATH?.split(path.delimiter)).toContain('/bin');
+    for (const entry of SYSTEM_PATH_ENTRIES) {
+      expect(installed?.env.PATH?.split(path.delimiter)).toContain(entry);
+    }
 
     const markerMtime = fs.statSync(path.join(expectedHome, '.opl-full-runtime-installed.json')).mtimeMs;
     const second = ensurePackagedOplFullRuntime({

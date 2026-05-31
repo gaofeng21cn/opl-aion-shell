@@ -13,6 +13,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   code-quality:
     name: Code Quality
@@ -47,20 +50,8 @@ jobs:
       - name: Run prek checks
         run: prek run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
 
-  unit-tests-ubuntu:
-    name: Unit Tests (ubuntu-latest)
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Docs-only PR, skipping unit tests."
-
   unit-tests-macos:
     name: Unit Tests (macos-14)
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Docs-only PR, skipping unit tests."
-
-  unit-tests-windows:
-    name: Unit Tests (windows-2022)
     runs-on: ubuntu-latest
     steps:
       - run: echo "Docs-only PR, skipping unit tests."
