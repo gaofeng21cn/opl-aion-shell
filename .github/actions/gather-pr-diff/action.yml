@@ -34,7 +34,7 @@ runs:
   using: 'composite'
   steps:
     - id: 'gather'
-      uses: 'actions/github-script@v7'
+      uses: 'actions/github-script@v9'
       env:
         INPUT_PR_NUMBER: '${{ inputs.pr_number }}'
       with:
