@@ -1,6 +1,27 @@
 # OPL App Shell Boundary
 
-`opl-aion-shell` is the replaceable renderer and Electron carrier for One Person Lab App. GUI product truth, page-state expectations, release gates, screenshots, and user documentation are owned by `one-person-lab-app`.
+`opl-aion-shell` is the replaceable renderer and Electron carrier for One Person Lab App. It implements App-owned contracts; it does not own product strategy, runtime truth, model-selection policy, onboarding truth, domain route authority, release gates, screenshots, or release/user documentation. Those decisions and evidence surfaces are owned by `one-person-lab-app` and the OPL/domain repositories behind its contracts.
+
+Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
+
+## Ownership Boundary
+
+This repository may own:
+
+- Renderer, Electron process, preload, packaging, and shell release implementation.
+- AionUI upstream intake and shell-local adaptation needed to satisfy App-owned contracts.
+- Shell-side consumption of App/runtime contracts, generated product profiles, and route receipts.
+- Shell tests and diagnostics that prove the implementation honors those contracts.
+
+This repository must not own:
+
+- Product strategy, ordinary-user workflow, or App onboarding truth.
+- Runtime truth, production readiness, domain readiness, or OPL family status.
+- Codex model-selection policy, visible assistant policy, or purpose-entry semantics.
+- MAS, MAG, RCA, OMA, or other domain route authority.
+- App release promotion, updater policy, release evidence, screenshots, or user-facing release documentation.
+
+If a shell-local change needs one of those decisions, land the decision in the owner repo first, then copy or consume the resulting contract here. If another shell candidate replaces this repository, that switch is made through the App-owned shell adapter contract and release gate, not by promoting this repository into product ownership.
 
 ## Runtime Bridge
 
