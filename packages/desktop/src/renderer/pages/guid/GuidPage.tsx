@@ -590,17 +590,18 @@ const GuidPage: React.FC = () => {
     />
   );
 
-  const modelSelectorNode: React.ReactNode = shouldShowOplCodexModelSelector() ? (
-    <GuidModelSelector
-      isGeminiMode={isGeminiMode}
-      modelList={modelSelection.modelList}
-      current_model={modelSelection.current_model}
-      setCurrentModel={modelSelection.setCurrentModel}
-      currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
-      selectedAcpModel={agentSelection.selectedAcpModel}
-      setSelectedAcpModel={agentSelection.setSelectedAcpModel}
-    />
-  ) : null;
+  const modelSelectorNode: React.ReactNode =
+    shouldShowOplCodexModelSelector() && !agentSelection.is_presetAgent ? (
+      <GuidModelSelector
+        isGeminiMode={isGeminiMode}
+        modelList={modelSelection.modelList}
+        current_model={modelSelection.current_model}
+        setCurrentModel={modelSelection.setCurrentModel}
+        currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
+        selectedAcpModel={agentSelection.selectedAcpModel}
+        setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+      />
+    ) : null;
 
   // Build the action row
   const actionRowNode = (

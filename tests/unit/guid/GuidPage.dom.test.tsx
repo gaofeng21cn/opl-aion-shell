@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     sendMessageHandler: vi.fn(),
     isButtonDisabled: true,
   })),
+  isPresetAgent: { value: true },
 }));
 
 const selectedAssistant: Assistant = {
@@ -58,6 +59,12 @@ const selectedAgentInfo: AvailableAgent = {
   is_preset: true,
   avatar: 'MAS',
 };
+
+const buildCodexModelInfo = () => ({
+  current_model_id: 'gpt-5.5',
+  current_model_label: 'GPT-5.5（超高）',
+  available_models: [{ id: 'gpt-5.5', label: 'GPT-5.5（超高）' }],
+});
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -157,12 +164,12 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidModelSelection', () => ({
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
   useGuidAgentSelection: () => ({
-    selectedAgentKey: 'custom:mas',
+    selectedAgentKey: mocks.isPresetAgent.value ? 'custom:mas' : 'codex',
     setSelectedAgentKey: mocks.setSelectedAgentKey,
     defaultAgentKey: 'codex',
-    selectedAgent: 'custom',
-    selectedAgentInfo,
-    is_presetAgent: true,
+    selectedAgent: mocks.isPresetAgent.value ? 'custom' : 'codex',
+    selectedAgentInfo: mocks.isPresetAgent.value ? selectedAgentInfo : undefined,
+    is_presetAgent: mocks.isPresetAgent.value,
     availableAgents: [{ agent_type: 'codex', backend: 'codex', name: 'Codex' }],
     assistants: [selectedAssistant],
     customAgents: [],
@@ -170,11 +177,13 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
     setSelectedMode: vi.fn(),
     selectedAcpModel: null,
     setSelectedAcpModel: vi.fn(),
-    currentAcpCachedModelInfo: {
-      current_model_id: 'gpt-5.5',
-      current_model_label: 'GPT-5.5（超高）',
-      available_models: [],
-    },
+    currentAcpCachedModelInfo: mocks.isPresetAgent.value
+      ? {
+          current_model_id: 'gpt-5.5',
+          current_model_label: 'GPT-5.5（超高）',
+          available_models: [],
+        }
+      : buildCodexModelInfo(),
     currentEffectiveAgentInfo: {
       agent_type: 'codex',
       isFallback: false,
@@ -227,7 +236,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
     setMentionQuery: vi.fn(),
     mentionOpen: false,
     setMentionOpen: vi.fn(),
-    mentionSelectorVisible: true,
+    mentionSelectorVisible: mocks.isPresetAgent.value,
     setMentionSelectorVisible: mocks.setMentionSelectorVisible,
     mentionSelectorOpen: false,
     setMentionSelectorOpen: vi.fn(),
@@ -238,8 +247,8 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidMention', () => ({
     selectMentionAgent: vi.fn(),
     mentionMenuRef: { current: null },
     mentionMatchRegex: /(?:^|\s)@([^\s@]*)$/,
-    selectedAgentLabel: 'MAS',
-    mentionMenuSelectedKey: 'custom:mas',
+    selectedAgentLabel: mocks.isPresetAgent.value ? 'MAS' : 'Codex',
+    mentionMenuSelectedKey: mocks.isPresetAgent.value ? 'custom:mas' : 'codex',
   }),
 }));
 
@@ -281,6 +290,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   beforeEach(() => {
     mocks.i18nLanguage.value = 'zh-CN';
     mocks.locationState.value = null;
+    mocks.isPresetAgent.value = true;
     mocks.navigate.mockClear();
     mocks.setInput.mockClear();
     mocks.setFiles.mockClear();
@@ -300,10 +310,19 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: GPT-5.5（超高）');
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
-    expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
+    expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
     });
+  });
+
+  it('keeps the Codex model selector visible on ordinary Home', () => {
+    mocks.isPresetAgent.value = false;
+
+    render(<GuidPage />);
+
+    expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
+    expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
   });
 
   it('opens the right context inspector with App-owned context tabs on request', async () => {
