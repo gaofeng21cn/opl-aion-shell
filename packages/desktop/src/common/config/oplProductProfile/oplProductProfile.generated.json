@@ -83,7 +83,7 @@
         },
         {
           "id": "ppt",
-          "primary_label": "PPT",
+          "primary_label": "演示",
           "target_assistant_id": "rca",
           "target_assistant_short_name": "RCA",
           "display_policy": "purpose_first",
@@ -164,7 +164,7 @@
         "id": "rca",
         "display_name": "RedCube AI",
         "short_name": "RCA",
-        "home_purpose_label": "PPT",
+        "home_purpose_label": "演示",
         "home_entry_display_policy": "purpose_first",
         "role": "presentation_and_visual_deliverable_agent",
         "home_entry_policy": "purpose_entry_target",
