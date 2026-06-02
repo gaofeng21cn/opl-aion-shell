@@ -43,7 +43,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   const [acpStatus, setAcpStatus] = useState<
     'connecting' | 'connected' | 'authenticated' | 'session_active' | 'disconnected' | 'error' | null
   >(null);
-  const [aiProcessing, setAiProcessing] = useState(false); // New loading state for AI response
+  const [aiProcessing, setAiProcessingState] = useState(false); // New loading state for AI response
   const [tokenUsage, setTokenUsage] = useState<TokenUsageData | null>(null);
   const [context_limit, setContextLimit] = useState<number>(0);
   const [slashCommands, setSlashCommands] = useState<SlashCommandItem[]>([]);
@@ -51,6 +51,12 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   // Use refs to sync state for immediate access in event handlers
   const runningRef = useRef(running);
   const aiProcessingRef = useRef(aiProcessing);
+  const setAiProcessing = useCallback<React.Dispatch<React.SetStateAction<boolean>>>((value) => {
+    const nextValue =
+      typeof value === 'function' ? (value as (previousValue: boolean) => boolean)(aiProcessingRef.current) : value;
+    aiProcessingRef.current = nextValue;
+    setAiProcessingState(nextValue);
+  }, []);
 
   // Track whether current turn has content output
   const hasContentInTurnRef = useRef(false);
@@ -472,14 +478,14 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
     setHasThinkingMessage(false);
     setHasHydratedRunningState(false);
 
-    // Clear running/processing immediately for the new conversation. Hydration only
-    // turns these back on when the backend reports status === 'running'. Otherwise
-    // conversation.get's idle branch raced with useAcpInitialMessage's
-    // setAiProcessing(true) and hid ThoughtDisplay until the first stream event.
+    // Clear running immediately for the new conversation. Keep an already
+    // started processing state: the initial-message sender can set it before
+    // idle hydration resolves, and clearing it here hides the elapsed timer.
     setRunning(false);
     runningRef.current = false;
-    setAiProcessing(false);
-    aiProcessingRef.current = false;
+    if (!aiProcessingRef.current) {
+      setAiProcessing(false);
+    }
 
     void getConversationOrNull(conversation_id)
       .then((res) => {
@@ -490,8 +496,9 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
         if (!res) {
           setRunning(false);
           runningRef.current = false;
-          setAiProcessing(false);
-          aiProcessingRef.current = false;
+          if (!aiProcessingRef.current) {
+            setAiProcessing(false);
+          }
           setHasHydratedRunningState(true);
           return;
         }
@@ -519,8 +526,9 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
         if (cancelled) return;
         setRunning(false);
         runningRef.current = false;
-        setAiProcessing(false);
-        aiProcessingRef.current = false;
+        if (!aiProcessingRef.current) {
+          setAiProcessing(false);
+        }
         setHasHydratedRunningState(true);
 
         if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
