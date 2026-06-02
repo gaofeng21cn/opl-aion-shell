@@ -118,24 +118,24 @@ type AppProductProfile = {
       nested_input_card_frames_allowed: false;
       codex_cli_fixed_executor: true;
       home_executor_selector_visible: false;
-      codex_model_selector_visible: false;
-      codex_model_list_visible: false;
-      codex_model_policy: 'codex_cli_auto_model_hidden_on_home';
-      codex_model_auto_option_visible: false;
+      codex_model_selector_visible: boolean;
+      codex_model_list_visible: boolean;
+      codex_model_policy: 'codex_cli_latest_strongest_model_selector_visible';
+      codex_model_auto_option_visible: boolean;
       codex_default_model: string;
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
       permission_mode_selector_visible: false;
       conversation_backend_selector_visible: false;
-      conversation_model_selector_visible: false;
+      conversation_model_selector_visible: boolean;
       conversation_permission_mode_selector_visible: false;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
-      codex_precise_model_display_policy: 'technical_details_or_connected_state_only';
+      codex_precise_model_display_policy: 'friendly_default_model_and_reasoning_visible';
       codex_auto_model_selection: {
         strategy: 'codex_cli_auto_latest_available_frontier';
-        user_can_override_model: false;
-        user_can_restore_auto: false;
+        user_can_override_model: boolean;
+        user_can_restore_auto: boolean;
         selection_persists_into_conversation: true;
         frontier_model_preference_order: string[];
       };
@@ -709,41 +709,41 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.nested_input_card_frames_allowed !== false ||
     guiHome.codex_cli_fixed_executor !== true ||
     guiHome.home_executor_selector_visible !== false ||
-    guiHome.codex_model_selector_visible !== false ||
-    guiHome.codex_model_list_visible !== false ||
-    guiHome.codex_model_policy !== 'codex_cli_auto_model_hidden_on_home' ||
-    guiHome.codex_model_auto_option_visible !== false ||
+    guiHome.codex_model_selector_visible !== true ||
+    guiHome.codex_model_list_visible !== true ||
+    guiHome.codex_model_policy !== 'codex_cli_latest_strongest_model_selector_visible' ||
+    guiHome.codex_model_auto_option_visible !== true ||
     guiHome.permission_mode_selector_visible !== false ||
     guiHome.conversation_backend_selector_visible !== false ||
-    guiHome.conversation_model_selector_visible !== false ||
+    guiHome.conversation_model_selector_visible !== true ||
     guiHome.conversation_permission_mode_selector_visible !== false ||
-    guiHome.codex_precise_model_display_policy !== 'technical_details_or_connected_state_only'
+    guiHome.codex_precise_model_display_policy !== 'friendly_default_model_and_reasoning_visible'
   ) {
-    throw new Error('Invalid OPL product profile: GUI home contract must hide executor and model selection');
+    throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
   if (
-    guiHome.codex_default_model !== 'codex_cli_auto' ||
+    guiHome.codex_default_model !== model ||
     guiHome.codex_default_reasoning_effort !== codexReasoningEffort ||
     guiHome.codex_default_permission_mode !== 'full-access'
   ) {
-    throw new Error('Invalid OPL product profile: GUI home Codex defaults must use Codex CLI auto selection');
+    throw new Error('Invalid OPL product profile: GUI home Codex defaults must use the App default model');
   }
   const homeModelStatusLabel =
     typeof guiHome.codex_home_model_status_label === 'string' ? guiHome.codex_home_model_status_label.trim() : '';
   const homeModelStatusLabelEn =
     typeof guiHome.codex_home_model_status_label_en === 'string' ? guiHome.codex_home_model_status_label_en.trim() : '';
-  if (homeModelStatusLabel !== '自动' || homeModelStatusLabelEn !== 'Auto') {
-    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be automatic');
+  if (homeModelStatusLabel !== 'GPT-5.5（超高）' || homeModelStatusLabelEn !== 'GPT-5.5 (Ultra)') {
+    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 ultra');
   }
   const autoModelSelection = guiHome.codex_auto_model_selection;
   if (
     !isRecord(autoModelSelection) ||
     autoModelSelection.strategy !== 'codex_cli_auto_latest_available_frontier' ||
-    autoModelSelection.user_can_override_model !== false ||
-    autoModelSelection.user_can_restore_auto !== false ||
+    autoModelSelection.user_can_override_model !== true ||
+    autoModelSelection.user_can_restore_auto !== true ||
     autoModelSelection.selection_persists_into_conversation !== true
   ) {
-    throw new Error('Invalid OPL product profile: GUI home Codex model policy must stay automatic');
+    throw new Error('Invalid OPL product profile: GUI home Codex model policy must expose model override and restore');
   }
   readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
   const homePurposeEntries = readHomePurposeEntries(guiHome);
@@ -862,24 +862,24 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         nested_input_card_frames_allowed: false,
         codex_cli_fixed_executor: true,
         home_executor_selector_visible: false,
-        codex_model_selector_visible: false,
-        codex_model_list_visible: false,
-        codex_model_policy: 'codex_cli_auto_model_hidden_on_home',
-        codex_model_auto_option_visible: false,
-        codex_default_model: 'codex_cli_auto',
+        codex_model_selector_visible: true,
+        codex_model_list_visible: true,
+        codex_model_policy: 'codex_cli_latest_strongest_model_selector_visible',
+        codex_model_auto_option_visible: true,
+        codex_default_model: model,
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
         permission_mode_selector_visible: false,
         conversation_backend_selector_visible: false,
-        conversation_model_selector_visible: false,
+        conversation_model_selector_visible: true,
         conversation_permission_mode_selector_visible: false,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
-        codex_precise_model_display_policy: 'technical_details_or_connected_state_only',
+        codex_precise_model_display_policy: 'friendly_default_model_and_reasoning_visible',
         codex_auto_model_selection: {
           strategy: 'codex_cli_auto_latest_available_frontier',
-          user_can_override_model: false,
-          user_can_restore_auto: false,
+          user_can_override_model: true,
+          user_can_restore_auto: true,
           selection_persists_into_conversation: true,
           frontier_model_preference_order: readStringArray(
             autoModelSelection,
@@ -1030,13 +1030,11 @@ export function getOplHomeModelStatusLabel(localeKey: 'zh-CN' | 'en-US' = 'zh-CN
 }
 
 export function getOplDefaultCodexModelDisplayLabel(): string {
-  const model = getOplDefaultCodexModel();
-  const reasoningEffort = getOplDefaultCodexReasoningEffort();
-  return reasoningEffort ? `${model}${reasoningEffort}` : model;
+  return getOplHomeModelStatusLabel('zh-CN');
 }
 
 export function getOplModelStatusDisplayText(localeKey: 'zh-CN' | 'en-US' = 'zh-CN'): string {
-  const label = getOplDefaultCodexModelDisplayLabel();
+  const label = getOplHomeModelStatusLabel(localeKey);
   return localeKey === 'en-US' ? `Model: ${label}` : `模型: ${label}`;
 }
 

@@ -53,16 +53,16 @@ describe('OPL generated product profile', () => {
     expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-5.5');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('xhigh');
     expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.5/xhigh');
-    expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('gpt-5.5xhigh');
+    expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('GPT-5.5（超高）');
     expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.5');
-    expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('gpt-5.5xhigh');
+    expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('GPT-5.5（超高）');
     expect(DEFAULT_CODEX_MODELS).toHaveLength(1);
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).not.toEqual(
       expect.arrayContaining(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini'])
     );
   });
 
-  it('keeps App-owned GUI defaults for theme, fixed Codex executor, and hidden home controls', () => {
+  it('keeps App-owned GUI defaults for theme, fixed Codex executor, and visible model controls', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
     expect(getOplGuiDefaultCssThemeId()).toBe('default-theme');
     expect(shouldDefaultCodexCssTheme()).toBe(false);
@@ -73,25 +73,25 @@ describe('OPL generated product profile', () => {
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
     expect(shouldShowOplHomePermissionModeSelector()).toBe(false);
     expect(shouldShowOplConversationBackendSelector()).toBe(false);
-    expect(shouldShowOplConversationModelSelector()).toBe(false);
+    expect(shouldShowOplConversationModelSelector()).toBe(true);
     expect(shouldShowOplConversationPermissionModeSelector()).toBe(false);
-    expect(shouldShowOplCodexModelSelector()).toBe(false);
-    expect(shouldShowOplCodexModelList()).toBe(false);
-    expect(shouldShowOplCodexModelAutoOption()).toBe(false);
-    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('自动');
-    expect(getOplHomeModelStatusLabel('en-US')).toBe('Auto');
-    expect(getOplModelStatusDisplayText('zh-CN')).toBe('模型: gpt-5.5xhigh');
-    expect(getOplModelStatusDisplayText('en-US')).toBe('Model: gpt-5.5xhigh');
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_auto_model_hidden_on_home');
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('codex_cli_auto');
+    expect(shouldShowOplCodexModelSelector()).toBe(true);
+    expect(shouldShowOplCodexModelList()).toBe(true);
+    expect(shouldShowOplCodexModelAutoOption()).toBe(true);
+    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('GPT-5.5（超高）');
+    expect(getOplHomeModelStatusLabel('en-US')).toBe('GPT-5.5 (Ultra)');
+    expect(getOplModelStatusDisplayText('zh-CN')).toBe('模型: GPT-5.5（超高）');
+    expect(getOplModelStatusDisplayText('en-US')).toBe('Model: GPT-5.5 (Ultra)');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_latest_strongest_model_selector_visible');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('gpt-5.5');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
-      'technical_details_or_connected_state_only'
+      'friendly_default_model_and_reasoning_visible'
     );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
       'codex_cli_auto_latest_available_frontier'
     );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(false);
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(false);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
   });
 

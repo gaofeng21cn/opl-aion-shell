@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
@@ -7,6 +7,7 @@ import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 const mocks = vi.hoisted(() => ({
   getModel: vi.fn(),
   setModel: vi.fn(),
+  conversationUpdate: vi.fn(),
   responseStreamOn: vi.fn(),
   agentsData: [] as unknown[],
 }));
@@ -17,6 +18,9 @@ vi.mock('@/common', () => ({
       getModel: { invoke: mocks.getModel },
       setModel: { invoke: mocks.setModel },
       responseStream: { on: mocks.responseStreamOn },
+    },
+    conversation: {
+      update: { invoke: mocks.conversationUpdate },
     },
   },
 }));
@@ -41,9 +45,11 @@ describe('AcpModelSelector Codex model switching', () => {
   beforeEach(() => {
     mocks.getModel.mockReset();
     mocks.setModel.mockReset();
+    mocks.conversationUpdate.mockReset();
     mocks.responseStreamOn.mockReset();
     mocks.getModel.mockRejectedValue(new Error('session not ready'));
     mocks.setModel.mockResolvedValue(undefined);
+    mocks.conversationUpdate.mockResolvedValue(true);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
     mocks.agentsData = [
       {
@@ -64,14 +70,16 @@ describe('AcpModelSelector Codex model switching', () => {
     ];
   });
 
-  it('uses auto latest Codex as a read-only status on the fixed App path', async () => {
+  it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /Auto \(gpt-5\.6 Codex\)/ });
+    const autoButton = await screen.findByRole('button', { name: /gpt-5\.6 Codex/ });
 
     await userEvent.click(autoButton);
 
-    expect(screen.queryByRole('menuitem', { name: 'gpt-5.5' })).not.toBeInTheDocument();
-    expect(mocks.setModel).not.toHaveBeenCalled();
+    expect(await screen.findByRole('menuitem', { name: 'gpt-5.5' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'gpt-5.5' }));
+
+    expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.5' });
   });
 });

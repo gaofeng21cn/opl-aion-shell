@@ -119,6 +119,15 @@ vi.mock('@/renderer/utils/platform', () => ({
 }));
 
 vi.mock('@/renderer/utils/model/agentLogo', () => ({
+  getModelDisplayLabel: ({
+    selectedLabel,
+    defaultModelLabel,
+    fallbackLabel,
+  }: {
+    selectedLabel?: string;
+    defaultModelLabel?: string;
+    fallbackLabel?: string;
+  }) => selectedLabel || defaultModelLabel || fallbackLabel || '',
   resolveAgentLogo: () => null,
 }));
 
@@ -149,7 +158,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
     setSelectedAcpModel: vi.fn(),
     currentAcpCachedModelInfo: {
       current_model_id: 'gpt-5.5',
-      current_model_label: 'gpt-5.5xhigh',
+      current_model_label: 'GPT-5.5（超高）',
       available_models: [],
     },
     currentEffectiveAgentInfo: {
@@ -232,13 +241,16 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
     mentionSelectorBadge,
     placeholder,
+    actionRow,
   }: {
     mentionSelectorBadge: React.ReactNode;
     placeholder: string;
+    actionRow: React.ReactNode;
   }) => (
     <div data-testid='guid-input-card'>
       {mentionSelectorBadge}
       <div data-testid='guid-placeholder'>{placeholder}</div>
+      {actionRow}
     </div>
   ),
 }));
@@ -269,10 +281,10 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByText('@MAS')).toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: gpt-5.5xhigh');
+    expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: GPT-5.5（超高）');
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('combobox', { name: /model/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
     });
