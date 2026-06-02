@@ -337,7 +337,7 @@ function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurpos
   if (entries.map((entry) => entry.id).join(',') !== ['research', 'grant', 'ppt'].join(',')) {
     throw new Error('Invalid OPL product profile: purpose entries must be research, grant, and ppt');
   }
-  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', 'PPT'].join(',')) {
+  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', '演示'].join(',')) {
     throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
   }
   if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca'].join(',')) {
@@ -405,7 +405,7 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
     throw new Error('Invalid OPL product profile: gui.default_assistants must not include mds');
   }
   const purposeLabels = assistants.map((assistant) => assistant.home_purpose_label);
-  if (purposeLabels.join(',') !== ['科研', '基金', 'PPT'].join(',')) {
+  if (purposeLabels.join(',') !== ['科研', '基金', '演示'].join(',')) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must expose purpose-first labels');
   }
   return assistants;

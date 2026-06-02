@@ -130,7 +130,7 @@ describe('OPL generated product profile', () => {
       'Med Auto Grant',
       'RedCube AI',
     ]);
-    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', 'PPT']);
+    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示']);
     expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
       'research',
       'grant',
