@@ -329,7 +329,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByText('payload-required-action')).not.toBeInTheDocument();
   });
 
-  it('renders Runtime page from the trusted Temporal/provider running projection', async () => {
+  it('renders Runtime page as a user-facing task status view', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       ...appStateResult,
       parsed: {
@@ -406,19 +406,35 @@ describe('RuntimeSettings app state bridge usage', () => {
               },
               task_drilldowns: [
                 {
-                  task_id: 'medautoscience',
+                  task_id: 'dm002-publication-eval',
                   domain_id: 'medautoscience',
-                  title: 'Med Auto Science',
-                  state: 'dirty',
-                  active_stage_id: 'module_runtime',
-                  blocker_ref_count: 1,
+                  domain_label: 'Med Auto Science',
+                  title: 'DM002 publication evaluation',
+                  state: 'running',
+                  active_stage_id: 'paper_autonomy/repair-recheck',
+                  active_stage_label: 'Publication repair check',
+                  progress_delta_classification: 'deliverable_progress',
+                  deliverable_progress_delta: { count: 1 },
+                  platform_repair_delta: { count: 0 },
+                  next_visible_step: 'Finish reviewer evaluation against current inputs',
+                  next_owner: 'AI reviewer',
+                  last_progress_at: '2026-06-02T00:01:12.853Z',
+                  stage_attempt_ids: ['sat_dm002'],
+                  blocker_ref_count: 0,
                 },
                 {
-                  task_id: 'medautogrant',
+                  task_id: 'dm003-publication-gate',
                   domain_id: 'medautogrant',
-                  title: 'Med Auto Grant',
-                  state: 'dirty',
-                  active_stage_id: 'module_runtime',
+                  domain_label: 'Med Auto Grant',
+                  title: 'DM003 grant aftercare',
+                  state: 'queued',
+                  active_stage_id: 'aftercare/reviewer-refresh',
+                  active_stage_label: 'Reviewer refresh',
+                  progress_delta_classification: 'human_gate',
+                  deliverable_progress_delta: { count: 0 },
+                  platform_repair_delta: { count: 0 },
+                  next_visible_step: 'Wait for owner confirmation',
+                  next_owner: 'User',
                   blocker_ref_count: 1,
                 },
                 {
@@ -446,16 +462,24 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getByText('common.runtime.runningActivity')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('common.runtime.taskOverview')).toBeInTheDocument());
     expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
-    expect(screen.getByText('common.runtime.runningActivitySummaryText 1 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.activeExecutionsWithCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.providerRefsWithCount 2')).toBeInTheDocument();
-    expect(screen.getByText('paper_autonomy/repair-recheck')).toBeInTheDocument();
-    expect(screen.queryByText('publication_aftercare/reviewer-refresh')).not.toBeInTheDocument();
-    expect(screen.getByText('common.runtime.projectProgress')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.projectProgressSummaryText 0 0')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.noProjectProgressRefs')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.runningTasks')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.runningTaskCount 1')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.activeProjectCount 2')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.queuedTaskCount 1')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.attentionTaskCount 1')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.taskProgress')).toBeInTheDocument();
+    expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
+    expect(
+      screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
+    ).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
+    expect(screen.getByText('DM003 grant aftercare')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.nextOwner User')).toBeInTheDocument();
+    const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
+    expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|refs|stage attempt/i);
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() => expect(screen.getByText('common.runtime.maintenanceAttentionSummaryText 4')).toBeInTheDocument());

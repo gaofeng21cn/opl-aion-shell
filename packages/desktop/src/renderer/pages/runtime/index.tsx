@@ -174,7 +174,7 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   const attention = record(drilldown.attention_first_payload);
   const executionBridge = record(drilldown.app_execution_bridge);
   const actionRefs = record(drilldown.operator_action_routing_refs);
-  const currentControlState = record(drilldown.current_control_state);
+  const controlState = record(drilldown.current_control_state);
   return {
     ...pickRecordFields(drilldown, [
       'surface_kind',
@@ -224,8 +224,8 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
       task_drilldowns: recordList(record(drilldown.runtime_workbench).task_drilldowns).slice(0, 12),
     },
     current_control_state: {
-      summary: compactCurrentControlStateSummary(record(currentControlState.summary)),
-      states: recordList(currentControlState.states).slice(0, 24).map(compactCurrentControlState),
+      summary: compactCurrentControlStateSummary(record(controlState.summary)),
+      states: recordList(controlState.states).slice(0, 24).map(compactCurrentControlState),
     },
     stage_progress_log: pickRecordFields(record(drilldown.stage_progress_log), [
       'attempt_count',
@@ -416,6 +416,8 @@ type RuntimeProjectProgress = {
   id: string;
   title: string;
   domainLabel: string;
+  stateRaw: string | null;
+  progressClassRaw: string | null;
   stateLabel: string | null;
   stageLabel: string | null;
   nextStep: string | null;
@@ -430,6 +432,19 @@ type RuntimeProjectProgress = {
   paperLensCount: number;
   stageAttemptCount: number;
   needsAttention: boolean;
+};
+
+type RuntimeTaskStatusItem = RuntimeProjectProgress & {
+  running: boolean;
+};
+
+type RuntimeTaskOverview = {
+  runningTaskCount: number;
+  activeProjectCount: number;
+  queuedTaskCount: number;
+  attentionTaskCount: number;
+  latestActivityAt: string | null;
+  tasks: RuntimeTaskStatusItem[];
 };
 
 const PROJECT_STATE_KEYS: Record<string, string> = {
@@ -517,6 +532,8 @@ function projectProgressItems(
       id: taskId ?? `${title}-${index + 1}`,
       title,
       domainLabel,
+      stateRaw: state,
+      progressClassRaw: progressClass,
       stateLabel: translateMappedValue(state, PROJECT_STATE_KEYS, t),
       stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
       nextStep:
@@ -537,6 +554,92 @@ function projectProgressItems(
       needsAttention,
     };
   });
+}
+
+function taskLooksRunning(project: RuntimeProjectProgress, activity: RuntimeActivityProjection): boolean {
+  if (project.stateRaw === 'running') return true;
+  if (activity.activeExecutionCount === 0) return false;
+  const domainLabels = new Set(activity.domains.map((domain) => domain.label));
+  return domainLabels.has(project.domainLabel);
+}
+
+function fallbackRunningTasks(
+  activity: RuntimeActivityProjection,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeTaskStatusItem[] {
+  return activity.domains.map<RuntimeTaskStatusItem>((domain) => ({
+    id: `running-${domain.id}`,
+    title: t('common.runtime.runningTaskFallbackTitle', { domain: domain.label }),
+    domainLabel: domain.label,
+    stateRaw: 'running',
+    progressClassRaw: null,
+    stateLabel: t('common.runtime.projectStates.running'),
+    stageLabel: null,
+    nextStep: t('common.runtime.runningTaskFallbackNextStep'),
+    nextOwner: null,
+    lastProgressAt: activity.latestHeartbeatAt,
+    progressClassLabel: null,
+    progressTone: 'blue',
+    deliverableCount: 0,
+    platformRepairCount: 0,
+    blockerCount: 0,
+    safeActionCount: 0,
+    paperLensCount: 0,
+    stageAttemptCount: activity.runningStageAttemptIds.length,
+    needsAttention: false,
+    running: true,
+  }));
+}
+
+function taskStatusItems(
+  projects: RuntimeProjectProgress[],
+  activity: RuntimeActivityProjection,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeTaskStatusItem[] {
+  const projectItems = projects.map((project) => ({
+    ...project,
+    running: taskLooksRunning(project, activity),
+  }));
+  if (projectItems.length > 0) {
+    return projectItems.toSorted((left, right) => {
+      if (left.running !== right.running) return left.running ? -1 : 1;
+      if (left.needsAttention !== right.needsAttention) return left.needsAttention ? -1 : 1;
+      return left.title.localeCompare(right.title);
+    });
+  }
+  return fallbackRunningTasks(activity, t);
+}
+
+function taskLooksQueued(task: RuntimeTaskStatusItem): boolean {
+  return task.stateRaw === 'queued' || task.stateRaw === 'pending' || task.progressClassRaw === 'human_gate';
+}
+
+function buildTaskOverview(
+  projects: RuntimeProjectProgress[],
+  activity: RuntimeActivityProjection,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeTaskOverview {
+  const tasks = taskStatusItems(projects, activity, t);
+  const runningTaskCount = tasks.filter((task) => task.running).length || activity.activeExecutionCount;
+  const activeProjectCount = projects.length || tasks.length;
+  const queuedTaskCount = tasks.filter(taskLooksQueued).length;
+  const attentionTaskCount = tasks.filter((task) => task.needsAttention).length;
+  const latestActivityAt =
+    activity.latestHeartbeatAt ??
+    tasks
+      .map((task) => task.lastProgressAt)
+      .filter((value): value is string => Boolean(value))
+      .toSorted()
+      .at(-1) ??
+    null;
+  return {
+    runningTaskCount,
+    activeProjectCount,
+    queuedTaskCount,
+    attentionTaskCount,
+    latestActivityAt,
+    tasks,
+  };
 }
 
 function summarizeProjectProgress(projects: RuntimeProjectProgress[], lanes: RuntimeSnapshot[]) {
@@ -841,6 +944,7 @@ const RuntimePage: React.FC = () => {
   const projects = useMemo(() => projectProgressItems(tasks, t), [tasks, t]);
   const projectSummary = useMemo(() => summarizeProjectProgress(projects, lanes), [projects, lanes]);
   const runtimeActivity = useMemo(() => runtimeActivityProjection(displayDrilldown ?? {}), [displayDrilldown]);
+  const taskOverview = useMemo(() => buildTaskOverview(projects, runtimeActivity, t), [projects, runtimeActivity, t]);
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
   const dryRunAction = useCallback(async (actionId: string) => {
@@ -914,106 +1018,54 @@ const RuntimePage: React.FC = () => {
               <div className='flex flex-col gap-12px'>
                 <div className='flex flex-col gap-4px'>
                   <Typography.Text className='font-600 text-t-primary'>
-                    {t('common.runtime.runningActivity')}
+                    {t('common.runtime.taskOverview')}
                   </Typography.Text>
                   <Typography.Text className='text-13px text-t-secondary'>
-                    {t('common.runtime.runningActivitySummaryText', {
-                      domains: runtimeActivity.runningDomainCount,
-                      attempts: runtimeActivity.activeExecutionCount,
+                    {t('common.runtime.taskOverviewSummaryText', {
+                      running: taskOverview.runningTaskCount,
+                      active: taskOverview.activeProjectCount,
+                      queued: taskOverview.queuedTaskCount,
+                      attention: taskOverview.attentionTaskCount,
                     })}
                   </Typography.Text>
                 </div>
-                <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+                <div className='grid grid-cols-1 md:grid-cols-4 gap-12px'>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.runningDomains')}
+                      {t('common.runtime.runningTasks')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {runtimeActivity.runningDomainCount}
+                      {t('common.runtime.runningTaskCount', { count: taskOverview.runningTaskCount })}
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.activeExecutions')}
+                      {t('common.runtime.activeProjects')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {runtimeActivity.activeExecutionCount}
+                      {t('common.runtime.activeProjectCount', { count: taskOverview.activeProjectCount })}
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.summaryProvider')}
+                      {t('common.runtime.queuedTasks')}
+                    </Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('common.runtime.queuedTaskCount', { count: taskOverview.queuedTaskCount })}
+                    </Typography.Text>
+                  </div>
+                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('common.runtime.needAttention')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary break-words'>
-                      {runtimeActivity.providerStatus
-                        ? formatValue(runtimeActivity.providerStatus, t)
-                        : formatValue(
-                            summary.find((item) => item.key === 'provider')?.value ??
-                              t('settings.oplEnvironmentPage.status.unknown'),
-                            t
-                          )}
+                      {t('common.runtime.attentionTaskCount', { count: taskOverview.attentionTaskCount })}
                     </Typography.Text>
                   </div>
                 </div>
-                {runtimeActivity.hasActiveExecution ? (
-                  <div className='flex flex-col divide-y divide-border-1'>
-                    {runtimeActivity.domains.map((domain) => (
-                      <div key={domain.id} className='py-12px'>
-                        <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
-                          <div className='min-w-0'>
-                            <Typography.Text className='block font-600 text-t-primary break-words'>
-                              {domain.label}
-                            </Typography.Text>
-                            <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                              {t('common.runtime.runningActivitySource', {
-                                provider: runtimeActivity.providerKind,
-                                source: runtimeActivity.sourceLabel,
-                              })}
-                            </Typography.Text>
-                          </div>
-                          <Space wrap size='mini'>
-                            <Tag color='blue'>
-                              {t('common.runtime.activeExecutionsWithCount', {
-                                count: domain.activeExecutionCount,
-                              })}
-                            </Tag>
-                          </Space>
-                        </div>
-                        <Space wrap size='mini' className='mt-8px'>
-                          {domain.taskKinds.map((taskKind) => (
-                            <Tag key={taskKind}>{taskKind}</Tag>
-                          ))}
-                          {runtimeActivity.latestHeartbeatAt && (
-                            <Tag>
-                              {t('common.runtime.lastHeartbeatAt', {
-                                time: runtimeActivity.latestHeartbeatAt,
-                              })}
-                            </Tag>
-                          )}
-                          {runtimeActivity.runningStageAttemptIds.length > 0 && (
-                            <Tag>
-                              {t('common.runtime.stageAttemptRefsWithCount', {
-                                count: runtimeActivity.runningStageAttemptIds.length,
-                              })}
-                            </Tag>
-                          )}
-                          {runtimeActivity.providerRefCount > runtimeActivity.activeExecutionCount && (
-                            <Tag>
-                              {t('common.runtime.providerRefsWithCount', {
-                                count: runtimeActivity.providerRefCount,
-                              })}
-                            </Tag>
-                          )}
-                        </Space>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <Alert type='info' content={t('common.runtime.noRunningTasks')} />
-                )}
-                {runtimeActivity.summaryPolicy && (
+                {taskOverview.latestActivityAt && (
                   <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('common.runtime.runningProjectionPolicy', { policy: runtimeActivity.summaryPolicy })}
+                    {t('common.runtime.latestActivityAt', { time: taskOverview.latestActivityAt })}
                   </Typography.Text>
                 )}
               </div>
@@ -1021,80 +1073,77 @@ const RuntimePage: React.FC = () => {
 
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('common.runtime.projectProgress')}
-                </Typography.Text>
+                <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.taskProgress')}</Typography.Text>
                 <Typography.Text className='text-13px text-t-secondary'>
-                  {t('common.runtime.projectProgressSummaryText', {
-                    count: projectSummary.total,
-                    attention: projectSummary.attention,
+                  {t('common.runtime.taskProgressSummaryText', {
+                    count: taskOverview.tasks.length,
+                    running: taskOverview.runningTaskCount,
+                    attention: taskOverview.attentionTaskCount,
                   })}
                 </Typography.Text>
-                {projects.length > 0 ? (
+                {taskOverview.tasks.length > 0 ? (
                   <div className='flex flex-col divide-y divide-border-1'>
-                    {projects.map((project) => {
+                    {taskOverview.tasks.map((task) => {
                       const deliverableLabel = formatCountLabel(
                         t('common.runtime.deliverableProgress'),
-                        project.deliverableCount
+                        task.deliverableCount
                       );
                       const platformRepairLabel = formatCountLabel(
                         t('common.runtime.platformRepair'),
-                        project.platformRepairCount
+                        task.platformRepairCount
                       );
                       return (
-                        <div key={project.id} className='py-12px'>
+                        <div key={task.id} className='py-12px'>
                           <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
                             <div className='min-w-0'>
                               <Typography.Text className='block font-600 text-t-primary break-words'>
-                                {project.title}
+                                {task.title}
                               </Typography.Text>
                               <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                                {project.domainLabel}
+                                {task.domainLabel}
                               </Typography.Text>
                             </div>
                             <Space wrap size='mini'>
-                              {project.stateLabel && <Tag>{project.stateLabel}</Tag>}
-                              {project.progressClassLabel && (
-                                <Tag color={project.progressTone}>{project.progressClassLabel}</Tag>
+                              {task.running && <Tag color='blue'>{t('common.runtime.runningNow')}</Tag>}
+                              {task.stateLabel && <Tag>{task.stateLabel}</Tag>}
+                              {task.progressClassLabel && (
+                                <Tag color={task.progressTone}>{task.progressClassLabel}</Tag>
                               )}
                             </Space>
                           </div>
                           <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
-                            {project.stageLabel && (
+                            {task.stageLabel && (
                               <Typography.Text className='block text-13px text-t-primary break-words'>
-                                {t('common.runtime.currentStage', { stage: project.stageLabel })}
+                                {t('common.runtime.currentStage', { stage: task.stageLabel })}
                               </Typography.Text>
                             )}
-                            {project.nextOwner && (
+                            {task.nextOwner && (
                               <Typography.Text className='block text-13px text-t-primary break-words'>
-                                {t('common.runtime.nextOwner', { owner: project.nextOwner })}
+                                {t('common.runtime.nextOwner', { owner: task.nextOwner })}
                               </Typography.Text>
                             )}
-                            {project.nextStep && (
+                            {task.nextStep && (
                               <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
-                                {t('common.runtime.nextStep', { step: project.nextStep })}
+                                {t('common.runtime.nextStep', { step: task.nextStep })}
                               </Typography.Text>
                             )}
-                            {project.lastProgressAt && (
+                            {task.lastProgressAt && (
                               <Typography.Text className='block text-12px text-t-secondary break-words'>
-                                {t('common.runtime.lastProgressAt', { time: project.lastProgressAt })}
+                                {t('common.runtime.lastProgressAt', { time: task.lastProgressAt })}
                               </Typography.Text>
                             )}
                           </div>
                           <Space wrap size='mini' className='mt-8px'>
-                            {project.stageAttemptCount > 0 && (
-                              <Tag>{`${t('common.runtime.stageAttempts')}: ${project.stageAttemptCount}`}</Tag>
-                            )}
                             {deliverableLabel && <Tag color='green'>{deliverableLabel}</Tag>}
                             {platformRepairLabel && <Tag color='orange'>{platformRepairLabel}</Tag>}
-                            {project.safeActionCount > 0 && (
-                              <Tag>{`${t('common.runtime.safeActions')}: ${project.safeActionCount}`}</Tag>
+                            {task.safeActionCount > 0 && (
+                              <Tag>{`${t('common.runtime.safeActions')}: ${task.safeActionCount}`}</Tag>
                             )}
-                            {project.blockerCount > 0 && (
-                              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${project.blockerCount}`}</Tag>
+                            {task.blockerCount > 0 && (
+                              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${task.blockerCount}`}</Tag>
                             )}
-                            {project.paperLensCount > 0 && (
-                              <Tag>{`${t('common.runtime.paperLensRefs')}: ${project.paperLensCount}`}</Tag>
+                            {task.paperLensCount > 0 && (
+                              <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>
                             )}
                           </Space>
                         </div>
@@ -1102,7 +1151,7 @@ const RuntimePage: React.FC = () => {
                     })}
                   </div>
                 ) : (
-                  <Alert type='info' content={t('common.runtime.noProjectProgressRefs')} />
+                  <Alert type='info' content={t('common.runtime.noRunningTasks')} />
                 )}
               </div>
             </Card>
