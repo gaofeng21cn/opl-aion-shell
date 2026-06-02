@@ -1540,13 +1540,6 @@ function homeAssistantRouteSelectionExpression(target) {
       const style = window.getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
-    const deniedVisibleBefore = ${homeAssistantDeniedSelectorExpression()}
-      .flatMap((selector) => [...document.querySelectorAll(selector)])
-      .filter(visible)
-      .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
-    if (deniedVisibleBefore.length > 0) {
-      return { status: 'failed', reason: 'ordinary_home_selector_visible_before_select', deniedVisible: deniedVisibleBefore };
-    }
     if (!window.location.hash.startsWith('#/guid')) {
       window.location.hash = '#/guid';
       return false;

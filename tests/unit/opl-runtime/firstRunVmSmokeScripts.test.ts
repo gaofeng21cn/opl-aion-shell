@@ -361,6 +361,29 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toThrow(/assistant route smoke/);
   });
 
+  it('accepts the release workflow guide screenshot toggle as a host-side flag', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--guide-screenshots',
+      '--dry-run',
+    ]);
+
+    expect(options.guideScreenshots).toBe(true);
+    expect(tartSmoke.buildDryRunPlan(options).guide_screenshots).toBe(true);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).not.toContain('--guide-screenshots');
+  });
+
   it('passes Codex functional check through the Tart host command and plan', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

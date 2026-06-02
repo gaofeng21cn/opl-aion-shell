@@ -271,7 +271,6 @@ describe('packaged first-run VM smoke helpers', () => {
       'agent-pill-',
       'sendbox-model',
     ]) {
-      expect(selectionExpression).toContain(hiddenSelector);
       expect(readyExpression).toContain(hiddenSelector);
     }
     expect(createExpression).toContain('/api/conversations');

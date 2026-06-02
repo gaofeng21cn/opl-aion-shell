@@ -87,6 +87,7 @@ Options:
                            opl system initialize and Full runtime equivalence.
   --no-require-codex-config-wizard
                            Do not require the Codex config wizard even when runtime-profile is full.
+  --guide-screenshots      Accept the release workflow guide screenshot toggle as a host-side flag.
   --codex-api-key-file <path>
                            Optional host file containing the test Codex API key.
                            If omitted, an ephemeral non-secret smoke key is generated.
@@ -135,6 +136,7 @@ function parseArgs(argv) {
     guestNodeCommand: '',
     frameworkSourceArchive: '',
     frameworkInstallScript: '',
+    guideScreenshots: false,
     dryRun: false,
     noGraphics: false,
     keepVm: false,
@@ -191,6 +193,11 @@ function parseArgs(argv) {
     if (arg === '--no-require-codex-config-wizard') {
       options.requireCodexConfigWizard = false;
       explicit.add('requireCodexConfigWizard');
+      continue;
+    }
+    if (arg === '--guide-screenshots') {
+      options.guideScreenshots = true;
+      explicit.add('guideScreenshots');
       continue;
     }
     if (arg === '--dry-run') {
@@ -339,6 +346,7 @@ function buildDryRunPlan(options) {
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
     framework_source_archive: frameworkSourceArchivePlan(options),
+    guide_screenshots: options.guideScreenshots,
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
   };
