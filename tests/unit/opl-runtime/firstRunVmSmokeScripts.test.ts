@@ -254,8 +254,15 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(expression).toContain("window.location.hash = '#/runtime'");
     expect(expression).toContain('OPL Runtime Status');
     expect(expression).toContain('OPL 运行状态');
+    expect(expression).toContain('Project Runtime Progress');
+    expect(expression).toContain('项目运行进度');
     expect(expression).toContain('App\\/operator Drilldown');
     expect(expression).toContain('运行状态摘要');
+    expect(expression).toContain('Task Overview');
+    expect(expression).toContain('任务概览');
+    expect(expression).toContain('Status Load');
+    expect(expression).toContain('状态加载');
+    expect(expression).toContain('Loaded at');
   });
 
   it('uses POSIX-style PATH entries for Full runtime shell probes on Windows bash', () => {
