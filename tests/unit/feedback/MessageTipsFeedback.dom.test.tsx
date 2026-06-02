@@ -20,6 +20,11 @@ const enConversation = JSON.parse(
     'utf8'
   )
 );
+const i18nConfig = JSON.parse(
+  readFileSync(path.join(process.cwd(), 'packages/desktop/src/common/config/i18n-config.json'), 'utf8')
+) as { supportedLanguages: string[] };
+const supportedLocaleNames = i18nConfig.supportedLanguages;
+const nonEnglishChineseLocaleNames = supportedLocaleNames.filter((localeName) => !['zh-CN', 'en-US'].includes(localeName));
 
 const resolveConversationKey = (key: string): unknown => {
   if (!key.startsWith('conversation.')) return undefined;
@@ -274,9 +279,8 @@ describe('MessageTips — FeedbackButton wiring', () => {
 describe('agent error locale copy', () => {
   it('defines title and body copy for newly classified agent error codes in every locale', () => {
     const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
-    const localeNames = ['zh-CN', 'en-US', 'ja-JP', 'zh-TW', 'ko-KR', 'tr-TR', 'ru-RU', 'uk-UA'];
 
-    for (const localeName of localeNames) {
+    for (const localeName of supportedLocaleNames) {
       const locale = JSON.parse(readFileSync(path.join(localeDir, localeName, 'conversation.json'), 'utf8'));
 
       expect(locale.agentError.resolutionPrefix, `${localeName} resolution prefix`).toEqual(expect.any(String));
@@ -293,9 +297,8 @@ describe('agent error locale copy', () => {
 
   it('keeps agent error copy localized outside English and Chinese locales', () => {
     const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
-    const localeNames = ['ja-JP', 'ko-KR', 'tr-TR', 'ru-RU', 'uk-UA'];
 
-    for (const localeName of localeNames) {
+    for (const localeName of nonEnglishChineseLocaleNames) {
       const locale = JSON.parse(readFileSync(path.join(localeDir, localeName, 'conversation.json'), 'utf8'));
       const agentError = locale.agentError;
 
@@ -313,9 +316,8 @@ describe('agent error locale copy', () => {
 
   it('does not label app-side errors as direct AionUi ownership', () => {
     const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
-    const localeNames = ['zh-CN', 'en-US', 'ja-JP', 'zh-TW', 'ko-KR', 'tr-TR', 'ru-RU', 'uk-UA'];
 
-    for (const localeName of localeNames) {
+    for (const localeName of supportedLocaleNames) {
       const locale = JSON.parse(readFileSync(path.join(localeDir, localeName, 'conversation.json'), 'utf8'));
       const agentError = locale.agentError;
 
