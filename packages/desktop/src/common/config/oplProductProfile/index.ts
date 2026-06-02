@@ -987,6 +987,10 @@ export function getOplRetiredCodexModels(): string[] {
   return [...OPL_PRODUCT_PROFILE.gui.home.retired_codex_models_must_not_be_exposed];
 }
 
+export function getOplCodexFrontierModelPreferenceOrder(): string[] {
+  return [...OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.frontier_model_preference_order];
+}
+
 export function shouldShowOplCodexModelSelector(): boolean {
   return OPL_PRODUCT_PROFILE.gui.home.codex_model_selector_visible;
 }

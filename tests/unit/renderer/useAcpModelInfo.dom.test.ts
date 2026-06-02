@@ -349,4 +349,39 @@ describe('useAcpModelInfo', () => {
     expect(result.current.model_info?.current_model_id).toBe('opus-4');
     vi.clearAllTimers();
   });
+
+  it('falls back to App default Codex model options before the first ACP handshake', async () => {
+    fetchDetectedAgentsMock.mockResolvedValue([
+      {
+        agent_type: 'acp',
+        backend: 'codex',
+        handshake: {},
+      },
+    ]);
+    getModelInvokeMock.mockRejectedValue({
+      name: 'BackendHttpError',
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'no active session',
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'new-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.canSwitch).toBe(true);
+    });
+    expect(result.current.model_info).toEqual({
+      current_model_id: 'gpt-5.5',
+      current_model_label: 'GPT-5.5（超高）',
+      available_models: [
+        { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
+        { id: 'gpt-5.4', label: 'gpt-5.4' },
+        { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
+        { id: 'gpt-5.2', label: 'gpt-5.2' },
+      ],
+    });
+  });
 });

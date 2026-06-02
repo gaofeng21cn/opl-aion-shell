@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 
@@ -121,5 +122,19 @@ describe('AcpModelSelector Codex model switching', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'GPT-5.4' }));
 
     expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
+  });
+
+  it('renders App default Codex model options from the product profile', async () => {
+    mocks.acpModelInfo = buildCodexDefaultModelInfo();
+
+    render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
+
+    const autoButton = await screen.findByRole('button', { name: /GPT-5\.5（超高）/ });
+
+    await userEvent.click(autoButton);
+
+    expect(await screen.findByRole('menuitem', { name: 'GPT-5.5（超高）' })).toBeInTheDocument();
+    expect(await screen.findByRole('menuitem', { name: 'gpt-5.4' })).toBeInTheDocument();
+    expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
   });
 });

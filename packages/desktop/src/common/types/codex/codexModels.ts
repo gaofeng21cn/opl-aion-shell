@@ -10,7 +10,9 @@
  * and resolves automatic selection to the newest usable frontier model.
  */
 import {
+  getOplCodexFrontierModelPreferenceOrder,
   getOplDefaultCodexModel,
+  getOplDefaultCodexModelDisplayLabel,
   getOplDefaultCodexReasoningEffort,
   getOplRetiredCodexModels,
 } from '@/common/config/oplProductProfile';
@@ -21,22 +23,20 @@ export const DEFAULT_CODEX_REASONING_EFFORT = getOplDefaultCodexReasoningEffort(
 export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFFORT
   ? `${DEFAULT_CODEX_MODEL_ID}/${DEFAULT_CODEX_REASONING_EFFORT}`
   : DEFAULT_CODEX_MODEL_ID;
-export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = DEFAULT_CODEX_REASONING_EFFORT
-  ? 'GPT-5.5（超高）'
-  : DEFAULT_CODEX_MODEL_ID;
+export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
+const CODEX_FRONTIER_MODEL_PREFERENCE_ORDER = getOplCodexFrontierModelPreferenceOrder();
+const RETIRED_CODEX_MODEL_IDS = new Set(getOplRetiredCodexModels());
 
-export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; description: string }> = [
-  {
-    id: DEFAULT_CODEX_MODEL_ID,
-    label: DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
-    description: 'One Person Lab App default Codex model',
-  },
-];
+export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; description: string }> =
+  CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.filter((id) => !RETIRED_CODEX_MODEL_IDS.has(id)).map((id) => ({
+    id,
+    label: id === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : id,
+    description: 'One Person Lab App Codex frontier model',
+  }));
 
 type CodexModelOption = { id: string; label?: string | null };
 
 const CODEX_FRONTIER_MODEL_PATTERN = /^gpt-(\d+(?:\.\d+)*)(?:-codex)?$/;
-const RETIRED_CODEX_MODEL_IDS = new Set(getOplRetiredCodexModels());
 
 function parseCodexFrontierVersion(modelId: string): number[] | null {
   const match = modelId.trim().match(CODEX_FRONTIER_MODEL_PATTERN);
@@ -101,13 +101,17 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
 
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
   const availableModels = normalizeCodexModelOptions(handshakeModels?.available_models);
-  const currentModelId = selectDefaultCodexModelId(availableModels);
+  const visibleModels =
+    availableModels.length > 0
+      ? availableModels
+      : DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }));
+  const currentModelId = selectDefaultCodexModelId(visibleModels);
   const currentModelLabel =
-    availableModels.find((model) => model.id === currentModelId)?.label ||
+    visibleModels.find((model) => model.id === currentModelId)?.label ||
     (currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId);
   return {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,
-    available_models: availableModels,
+    available_models: visibleModels,
   };
 }

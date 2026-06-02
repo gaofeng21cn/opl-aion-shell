@@ -56,7 +56,7 @@ describe('OPL generated product profile', () => {
     expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('GPT-5.5（超高）');
     expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.5');
     expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('GPT-5.5（超高）');
-    expect(DEFAULT_CODEX_MODELS).toHaveLength(1);
+    expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).toEqual(['gpt-5.5', 'gpt-5.4', 'gpt-5.3-codex', 'gpt-5.2']);
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).not.toEqual(
       expect.arrayContaining(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini'])
     );
@@ -238,6 +238,16 @@ describe('OPL generated product profile', () => {
       current_model_id: 'gpt-5.6',
       current_model_label: 'gpt-5.6',
       available_models: [{ id: 'gpt-5.6', label: 'gpt-5.6' }],
+    });
+    expect(buildCodexDefaultModelInfo()).toEqual({
+      current_model_id: 'gpt-5.5',
+      current_model_label: 'GPT-5.5（超高）',
+      available_models: [
+        { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
+        { id: 'gpt-5.4', label: 'gpt-5.4' },
+        { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
+        { id: 'gpt-5.2', label: 'gpt-5.2' },
+      ],
     });
   });
 
