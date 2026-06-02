@@ -183,22 +183,29 @@ describe('OPL first-run VM smoke scripts', () => {
   });
 
   it('targets current OPL Settings pages instead of the retired overview refresh control', () => {
-    const overviewTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'overview');
-    const runtimeTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'runtime');
+    const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
+    const environmentTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'environment');
 
-    expect(overviewTarget?.requiredTextAny).toEqual(
+    expect(generalTarget?.hash).toBe('#/settings/general');
+    expect(generalTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
         ['One Person Lab'],
         ['Open Runtime Status', '打开运行状态'],
         ['Open Runtime Settings', '打开运行设置'],
       ])
     );
-    expect(JSON.stringify(overviewTarget)).not.toContain('Refresh status');
-    expect(JSON.stringify(overviewTarget)).not.toContain('刷新状态');
-    expect(runtimeTarget?.requiredTextAny).toEqual(
-      expect.arrayContaining([['Runtime', '运行'], ['Codex CLI'], ['Temporal'], ['Foundry Modules', '智能体模块']])
+    expect(JSON.stringify(generalTarget)).not.toContain('Refresh status');
+    expect(JSON.stringify(generalTarget)).not.toContain('刷新状态');
+    expect(environmentTarget?.hash).toBe('#/settings/environment');
+    expect(environmentTarget?.requiredTextAny).toEqual(
+      expect.arrayContaining([
+        ['Local Environment', '本地环境'],
+        ['Codex CLI'],
+        ['Temporal'],
+        ['Foundry Modules', '智能体模块'],
+      ])
     );
-    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'system')?.requiredTextAny).toEqual(
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.requiredTextAny).toEqual(
       expect.arrayContaining([['OPL Developer Mode', 'OPL 开发者模式']])
     );
   });
@@ -207,7 +214,7 @@ describe('OPL first-run VM smoke scripts', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
 
     expect(scriptSource).toContain('settingsRuntimeRefresh');
-    expect(scriptSource).toContain("'#/settings/runtime'");
+    expect(scriptSource).toContain("'#/settings/environment'");
     expect(scriptSource).toContain("'#/runtime'");
   });
 

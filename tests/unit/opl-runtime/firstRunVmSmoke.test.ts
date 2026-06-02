@@ -220,14 +220,16 @@ describe('packaged first-run VM smoke helpers', () => {
     const targetHashes = __test.SETTINGS_PAGE_SMOKE_TARGETS.map((target) => target.hash);
 
     expect(targetHashes).toEqual([
-      '#/settings/overview',
-      '#/settings/runtime',
+      '#/settings/general',
+      '#/settings/environment',
       '#/settings/capabilities',
       '#/settings/access',
       '#/settings/appearance',
-      '#/settings/system',
+      '#/settings/advanced',
       '#/settings/about',
     ]);
+    expect(targetHashes).not.toContain('#/settings/overview');
+    expect(targetHashes).not.toContain('#/settings/runtime');
     expect(targetHashes).not.toContain('#/settings/model');
     expect(targetHashes).not.toContain('#/settings/agent');
     expect(targetHashes).not.toContain('#/settings/display');

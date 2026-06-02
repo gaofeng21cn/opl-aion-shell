@@ -2032,8 +2032,8 @@ async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage
 
 const SETTINGS_PAGE_SMOKE_TARGETS = [
   {
-    id: 'overview',
-    hash: '#/settings/overview',
+    id: 'general',
+    hash: '#/settings/general',
     requiredTextAny: [
       ['One Person Lab'],
       ['Open Runtime Status', '打开运行状态'],
@@ -2041,9 +2041,14 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     ],
   },
   {
-    id: 'runtime',
-    hash: '#/settings/runtime',
-    requiredTextAny: [['Runtime', '运行'], ['Codex CLI'], ['Temporal'], ['Foundry Modules', '智能体模块']],
+    id: 'environment',
+    hash: '#/settings/environment',
+    requiredTextAny: [
+      ['Local Environment', '本地环境'],
+      ['Codex CLI'],
+      ['Temporal'],
+      ['Foundry Modules', '智能体模块'],
+    ],
   },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },
   {
@@ -2062,7 +2067,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
       ['Codex Theme', 'Codex 主题'],
     ],
   },
-  { id: 'system', hash: '#/settings/system', requiredTextAny: [['OPL Developer Mode', 'OPL 开发者模式']] },
+  { id: 'advanced', hash: '#/settings/advanced', requiredTextAny: [['OPL Developer Mode', 'OPL 开发者模式']] },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
 ];
 
@@ -2133,7 +2138,7 @@ async function captureSettingsPage(client, target, options, secret) {
   const pageState = await waitForCdpPredicate(
     client,
     pageReadinessExpression(target),
-    30_000,
+    Math.min(Math.max(60_000, Math.floor(options.timeoutMs / 6)), 180_000),
     `Settings page did not become ready: ${target.id}`
   );
   const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
