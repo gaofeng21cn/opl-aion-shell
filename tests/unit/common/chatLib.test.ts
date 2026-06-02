@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import {
   composeMessage,
+  normalizeAgentStreamError,
   transformMessage,
+  type IMessageTips,
   type IMessageAcpToolCall,
   type IMessageThinking,
   type TMessage,
@@ -99,6 +101,65 @@ describe('composeMessage', () => {
   });
 });
 
+describe('normalizeAgentStreamError', () => {
+  it('treats resolution-only error metadata as structured', () => {
+    expect(
+      normalizeAgentStreamError({
+        message: 'Agent is still responding',
+        resolution: {
+          kind: 'wait_for_current_response',
+        },
+      })
+    ).toEqual({
+      message: 'Agent is still responding',
+      resolution: {
+        kind: 'wait_for_current_response',
+      },
+    });
+  });
+
+  it('drops unknown resolution kind and target values', () => {
+    expect(
+      normalizeAgentStreamError({
+        message: 'Provider authentication failed',
+        resolution: {
+          kind: 'check_provider_credentials',
+          target: 'unexpected_settings',
+        },
+      })
+    ).toEqual({
+      message: 'Provider authentication failed',
+      resolution: {
+        kind: 'check_provider_credentials',
+      },
+    });
+
+    expect(
+      normalizeAgentStreamError({
+        message: 'Unknown recovery action',
+        resolution: {
+          kind: 'open_secret_panel',
+          target: 'provider_settings',
+        },
+      })
+    ).toBeUndefined();
+  });
+
+  it('preserves workspace path metadata on structured errors', () => {
+    expect(
+      normalizeAgentStreamError({
+        message: 'This workspace path is no longer supported for send or warmup.',
+        code: 'WORKSPACE_PATH_CONTAINS_WHITESPACE_RUNTIME_UNSUPPORTED',
+        workspacePath: '/tmp/Archive ',
+      })
+    ).toEqual({
+      message: 'This workspace path is no longer supported for send or warmup.',
+      code: 'WORKSPACE_PATH_CONTAINS_WHITESPACE_RUNTIME_UNSUPPORTED',
+      workspacePath: '/tmp/Archive ',
+    });
+  });
+});
+
 describe('transformMessage', () => {
   it('returns undefined for hidden system stream messages', () => {
     const message: IResponseMessage = {
@@ -110,5 +171,86 @@ describe('transformMessage', () => {
     };
 
     expect(transformMessage(message)).toBeUndefined();
+  });
+
+  it('preserves structured agent stream error metadata', () => {
+    const message: IResponseMessage = {
+      type: 'error',
+      data: {
+        message: 'The model provider rejected the request',
+        code: 'USER_LLM_PROVIDER_AUTH_FAILED',
+        ownership: 'user_llm_provider',
+        detail: 'Provider returned 401.',
+        workspacePath: '/tmp/provider-test',
+        retryable: false,
+        feedback_recommended: false,
+        resolution: {
+          kind: 'check_provider_credentials',
+          target: 'provider_settings',
+        },
+      },
+      msg_id: 'error-1',
+      conversation_id: CONVERSATION_ID,
+    };
+
+    const transformed = transformMessage(message) as IMessageTips;
+
+    expect(transformed.type).toBe('tips');
+    expect(transformed.content.content).toBe('The model provider rejected the request');
+    expect(transformed.content.error).toEqual({
+      message: 'The model provider rejected the request',
+      code: 'USER_LLM_PROVIDER_AUTH_FAILED',
+      ownership: 'user_llm_provider',
+      detail: 'Provider returned 401.',
+      workspacePath: '/tmp/provider-test',
+      retryable: false,
+      feedback_recommended: false,
+      resolution: {
+        kind: 'check_provider_credentials',
+        target: 'provider_settings',
+      },
+    });
+  });
+
+  it('preserves structured metadata on live tips error messages', () => {
+    const message: IResponseMessage = {
+      type: 'tips',
+      data: {
+        content: 'AionUI failed while sending the message',
+        type: 'error',
+        source: 'send_failed',
+        code: 'INTERNAL_ERROR',
+        error: {
+          message: 'AionUI failed while sending the message',
+          code: 'AIONUI_INTERNAL_ERROR',
+          ownership: 'aionui',
+          detail: 'Failed to write Codex sandbox config',
+          retryable: true,
+          feedback_recommended: true,
+          resolution: {
+            kind: 'send_feedback',
+            target: 'feedback',
+          },
+        },
+      },
+      msg_id: 'tips-error-1',
+      conversation_id: CONVERSATION_ID,
+    };
+
+    const transformed = transformMessage(message) as IMessageTips;
+
+    expect(transformed.type).toBe('tips');
+    expect(transformed.content.error).toEqual({
+      message: 'AionUI failed while sending the message',
+      code: 'AIONUI_INTERNAL_ERROR',
+      ownership: 'aionui',
+      detail: 'Failed to write Codex sandbox config',
+      retryable: true,
+      feedback_recommended: true,
+      resolution: {
+        kind: 'send_feedback',
+        target: 'feedback',
+      },
+    });
   });
 });

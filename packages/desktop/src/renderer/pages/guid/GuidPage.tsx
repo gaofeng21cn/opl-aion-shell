@@ -12,6 +12,7 @@ import {
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
+import type { IMcpServer } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
@@ -27,6 +28,7 @@ import { useGuidModelSelection } from './hooks/useGuidModelSelection';
 import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
+import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider } from '@arco-design/web-react';
@@ -110,6 +112,8 @@ const GuidPage: React.FC = () => {
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
   const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
+  const [availableMcpServers, setAvailableMcpServers] = useState<IMcpServer[]>([]);
+  const [guidSelectedMcpServerIds, setGuidSelectedMcpServerIds] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     const packagedSkillNames = new Set(getOplDefaultPackagedCodexSkills());
@@ -127,6 +131,19 @@ const GuidPage: React.FC = () => {
       });
   }, []);
 
+  useEffect(() => {
+    void ensureBackendMcpCatalog()
+      .then(({ allServers }) => {
+        setAvailableMcpServers(allServers);
+        setGuidSelectedMcpServerIds((prev) => prev ?? []);
+      })
+      .catch((error) => {
+        console.error('[GuidPage] Failed to load MCP catalog:', error);
+        setAvailableMcpServers([]);
+        setGuidSelectedMcpServerIds((prev) => prev ?? []);
+      });
+  }, []);
+
   const handleToggleSkill = useCallback((skillName: string, isAuto: boolean) => {
     if (isAuto) {
       setGuidDisabledBuiltinSkills((prev) => {
@@ -139,6 +156,13 @@ const GuidPage: React.FC = () => {
         return list.includes(skillName) ? list.filter((s) => s !== skillName) : [...list, skillName];
       });
     }
+  }, []);
+
+  const handleToggleMcpServer = useCallback((serverId: string) => {
+    setGuidSelectedMcpServerIds((prev) => {
+      const current = prev ?? [];
+      return current.includes(serverId) ? current.filter((id) => id !== serverId) : [...current, serverId];
+    });
   }, []);
 
   // --- Hooks ---
@@ -224,6 +248,8 @@ const GuidPage: React.FC = () => {
     resolveDisabledBuiltinSkills: agentSelection.resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
     guidEnabledSkills: effectiveGuidEnabledSkills,
+    availableMcpServers,
+    selectedMcpServerIds: guidSelectedMcpServerIds,
     currentEffectiveAgentInfo: agentSelection.currentEffectiveAgentInfo,
     isGoogleAuth: modelSelection.isGoogleAuth,
 
@@ -562,14 +588,13 @@ const GuidPage: React.FC = () => {
       disabledBuiltinSkills={guidDisabledBuiltinSkills ?? []}
       enabledSkills={effectiveGuidEnabledSkills ?? []}
       onToggleSkill={handleToggleSkill}
+      mcpServers={availableMcpServers}
+      selectedMcpServerIds={guidSelectedMcpServerIds ?? []}
+      onToggleMcpServer={handleToggleMcpServer}
       hidePresetTag
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
-      onSend={() => {
-        send.handleSend().catch((error) => {
-          console.error('Failed to send message:', error);
-        });
-      }}
+      onSend={send.sendMessageHandler}
     />
   );
 

@@ -9,8 +9,9 @@ import {
   getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
 } from '@/common/config/oplProductProfile';
-import type { TProviderWithModel } from '@/common/config/storage';
+import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
+import { toSessionMcpServer } from '@/renderer/hooks/mcp/catalog';
 import { emitter } from '@/renderer/utils/emitter';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
 import { updateWorkspaceTime } from '@/renderer/utils/workspace/workspaceHistory';
@@ -18,6 +19,7 @@ import { Message } from '@arco-design/web-react';
 import { useCallback, useRef } from 'react';
 import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
+import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 
 type OplAssistantRouteReceipt = {
@@ -65,6 +67,8 @@ export type GuidSendDeps = {
   ) => string[] | undefined;
   guidDisabledBuiltinSkills: string[] | undefined;
   guidEnabledSkills: string[] | undefined;
+  availableMcpServers: IMcpServer[];
+  selectedMcpServerIds: string[] | undefined;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   isGoogleAuth: boolean;
 
@@ -135,6 +139,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
     guidEnabledSkills,
+    availableMcpServers,
+    selectedMcpServerIds,
     currentEffectiveAgentInfo,
     isGoogleAuth,
     setMentionOpen,
@@ -172,6 +178,16 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
     const oplAssistantRoute = buildOplAssistantRouteReceipt(is_preset, agentInfo);
+    const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
+    const selectedUserMcpServerIds = availableMcpServers
+      .filter((server) => selectedMcpServerIdSet.has(server.id) && server.builtin !== true)
+      .map((server) => server.id);
+    const selectedAllSessionMcpServers = availableMcpServers
+      .filter((server) => selectedMcpServerIdSet.has(server.id))
+      .map((server) => toSessionMcpServer(server));
+    const selectedSessionMcpServers = availableMcpServers
+      .filter((server) => selectedMcpServerIdSet.has(server.id) && server.builtin === true)
+      .map((server) => toSessionMcpServer(server));
 
     const finalEffectiveAgentType = effectiveAgentType;
 
@@ -209,7 +225,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const conversation = await ipcBridge.conversation.create.invoke(openclawConversationParams);
 
         if (!conversation || !conversation.id) {
-          alert('Failed to create OpenClaw conversation. Please ensure the OpenClaw Gateway is running.');
+          Message.error(t('conversation.createFailed'));
           return;
         }
 
@@ -227,8 +243,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         await navigate(`/conversation/${conversation.id}`);
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create OpenClaw conversation: ${errorMessage}`);
+        console.error('Failed to create OpenClaw conversation:', error);
         throw error;
       }
       return;
@@ -259,7 +274,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         const conversation = await ipcBridge.conversation.create.invoke(nanobotConversationParams);
 
         if (!conversation || !conversation.id) {
-          alert('Failed to create Nanobot conversation. Please ensure nanobot is installed.');
+          Message.error(t('conversation.createFailed'));
           return;
         }
 
@@ -277,8 +292,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         await navigate(`/conversation/${conversation.id}`);
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create Nanobot conversation: ${errorMessage}`);
+        console.error('Failed to create Nanobot conversation:', error);
         throw error;
       }
       return;
@@ -303,13 +317,18 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
             opl_assistant_route: oplAssistantRoute,
+            selected_mcp_server_ids: selectedUserMcpServerIds,
+            // aionrs should consume the authoritative session snapshot, just
+            // like team MCP does, instead of reloading only user servers from
+            // the global MCP repository at runtime.
+            selected_session_mcp_servers: selectedAllSessionMcpServers,
             preset_assistant_id,
             session_mode: selectedMode,
           },
         });
 
         if (!conversation || !conversation.id) {
-          alert('Failed to create Aion CLI conversation. Please ensure aionrs is installed.');
+          Message.error(t('conversation.createFailed'));
           return;
         }
 
@@ -327,8 +346,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         await navigate(`/conversation/${conversation.id}`);
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        alert(`Failed to create Aion CLI conversation: ${errorMessage}`);
+        console.error('Failed to create Aion CLI conversation:', error);
         throw error;
       }
       return;
@@ -385,6 +403,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: files,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           opl_assistant_route: oplAssistantRoute,
+          selected_mcp_server_ids: selectedUserMcpServerIds,
+          selected_session_mcp_servers: selectedSessionMcpServers,
           // Non-preset agents still forward user-selected custom skills via the
           // shared backend slot. For preset assistants this is already wired
           // through `preset_resources.enabled_skills` above.
@@ -436,6 +456,8 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     resolveDisabledBuiltinSkills,
     guidDisabledBuiltinSkills,
     guidEnabledSkills,
+    availableMcpServers,
+    selectedMcpServerIds,
     navigate,
     t,
     language,
@@ -457,6 +479,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       })
       .catch((error) => {
         console.error('Failed to send message:', error);
+        Message.error(getConversationCreateErrorMessage(error, t));
       })
       .finally(() => {
         sendingRef.current = false;
@@ -473,6 +496,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setMentionActiveIndex,
     setFiles,
     setDir,
+    t,
   ]);
 
   // Calculate button disabled state

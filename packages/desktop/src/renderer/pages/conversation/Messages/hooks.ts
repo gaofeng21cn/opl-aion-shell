@@ -5,11 +5,12 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IMessageText, TMessage } from '@/common/chat/chatLib';
+import type { AgentStreamErrorInfo, IMessageText, IMessageTips, TMessage } from '@/common/chat/chatLib';
 import {
   composeMessage,
   mergeAcpToolCallContent,
   mergeTextMessageContent,
+  normalizeAgentStreamError,
   preferTextMessageVersion,
 } from '@/common/chat/chatLib';
 import { useCallback, useEffect, useRef } from 'react';
@@ -409,11 +410,158 @@ export const useRemoveMessageByMsgId = () => {
   );
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseJsonRecord = (value: unknown): Record<string, unknown> | undefined => {
+  if (isRecord(value)) return value;
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const normalizeTipType = (value: unknown, fallback: IMessageTips['content']['type']) =>
+  value === 'success' || value === 'warning' || value === 'error' ? value : fallback;
+
+const normalizePersistedWorkspaceRuntimeError = (
+  parsed: Record<string, unknown>,
+  message: string
+): AgentStreamErrorInfo | undefined => {
+  if (parsed.code !== 'WORKSPACE_PATH_CONTAINS_WHITESPACE_RUNTIME_UNSUPPORTED') {
+    return undefined;
+  }
+
+  const details = isRecord(parsed.details) ? parsed.details : undefined;
+  const workspacePath = typeof details?.workspace_path === 'string' ? details.workspace_path : undefined;
+  if (!workspacePath) {
+    return undefined;
+  }
+
+  const persistedError = isRecord(parsed.error) ? parsed.error : undefined;
+  const detail = typeof persistedError?.detail === 'string' ? persistedError.detail : message;
+
+  return {
+    message,
+    code: 'WORKSPACE_PATH_CONTAINS_WHITESPACE_RUNTIME_UNSUPPORTED',
+    ownership: 'aionui',
+    detail,
+    workspacePath,
+    retryable: false,
+    feedback_recommended: false,
+  };
+};
+
+const classifyPersistedSendFailure = (
+  parsed: Record<string, unknown>,
+  message: string
+): AgentStreamErrorInfo | undefined => {
+  if (typeof parsed.source !== 'string' && typeof parsed.code !== 'string') {
+    return undefined;
+  }
+
+  const persistedCode = typeof parsed.code === 'string' ? parsed.code : undefined;
+  if (persistedCode === 'BAD_GATEWAY') {
+    return {
+      message,
+      code: 'UNKNOWN_UPSTREAM_ERROR',
+      ownership: 'unknown_upstream',
+      detail: message,
+      retryable: true,
+      feedback_recommended: true,
+    };
+  }
+
+  if (persistedCode === 'INTERNAL_ERROR') {
+    return {
+      message,
+      code: 'AIONUI_INTERNAL_ERROR',
+      ownership: 'aionui',
+      detail: message,
+      retryable: true,
+      feedback_recommended: true,
+    };
+  }
+
+  if (persistedCode?.startsWith('AIONUI_')) {
+    return { message, code: persistedCode, ownership: 'aionui', detail: message, retryable: true };
+  }
+  if (persistedCode?.startsWith('USER_AGENT_')) {
+    return { message, code: persistedCode, ownership: 'user_agent', detail: message, retryable: true };
+  }
+  if (persistedCode?.startsWith('USER_LLM_PROVIDER_')) {
+    return {
+      message,
+      code: persistedCode,
+      ownership: 'user_llm_provider',
+      detail: message,
+      retryable: false,
+      feedback_recommended: false,
+    };
+  }
+  if (persistedCode === 'UNKNOWN_UPSTREAM_ERROR') {
+    return {
+      message,
+      code: persistedCode,
+      ownership: 'unknown_upstream',
+      detail: message,
+      retryable: true,
+      feedback_recommended: true,
+    };
+  }
+
+  if (parsed.source === 'send_failed') {
+    return {
+      message,
+      code: 'AIONUI_INTERNAL_ERROR',
+      ownership: 'aionui',
+      detail: message,
+      retryable: true,
+      feedback_recommended: true,
+    };
+  }
+
+  return undefined;
+};
+
+const normalizeDbTipsMessage = (msg: TMessage): TMessage => {
+  if (msg.type !== 'tips') return msg;
+  const parsed = parseJsonRecord(msg.content);
+  if (!parsed || typeof parsed.content !== 'string') return msg;
+
+  const existingContent = isRecord(msg.content) ? msg.content : undefined;
+  const fallbackType =
+    existingContent?.type === 'success' || existingContent?.type === 'warning' || existingContent?.type === 'error'
+      ? existingContent.type
+      : 'error';
+  const tipType = normalizeTipType(parsed.type, fallbackType);
+  const structuredError =
+    tipType === 'error'
+      ? (normalizePersistedWorkspaceRuntimeError(parsed, parsed.content) ??
+        normalizeAgentStreamError(parsed.error) ??
+        classifyPersistedSendFailure(parsed, parsed.content) ??
+        normalizeAgentStreamError({ ...parsed, message: parsed.content }))
+      : undefined;
+
+  return {
+    ...msg,
+    content: {
+      content: parsed.content,
+      type: tipType,
+      ...(structuredError ? { error: structuredError } : {}),
+    },
+  } as IMessageTips;
+};
+
 /**
  * Normalize a message loaded from backend DB: if `content` is a JSON string,
- * parse it and map snake_case fields to camelCase for the renderer.
+ * parse it and map stored fields to renderer message content.
  */
-function normalizeDbMessage(msg: TMessage): TMessage {
+export function normalizeDbMessage(msg: TMessage): TMessage {
+  if (msg.type === 'tips') return normalizeDbTipsMessage(msg);
   if (msg.type !== 'text') return msg;
   const raw = msg.content as unknown;
   if (typeof raw !== 'string') return msg;

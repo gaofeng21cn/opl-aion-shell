@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { IMcpServer } from '@/common/config/storage';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import { supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -56,6 +57,9 @@ type GuidActionRowProps = {
   disabledBuiltinSkills: string[];
   enabledSkills: string[];
   onToggleSkill: (name: string, isAuto: boolean) => void;
+  mcpServers: IMcpServer[];
+  selectedMcpServerIds: string[];
+  onToggleMcpServer: (serverId: string) => void;
 
   // Send button
   loading: boolean;
@@ -84,6 +88,9 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   disabledBuiltinSkills,
   enabledSkills,
   onToggleSkill,
+  mcpServers,
+  selectedMcpServerIds,
+  onToggleMcpServer,
   hidePresetTag = false,
   showModeSelector = true,
   loading,
@@ -132,6 +139,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const isSkillChecked = (skill: GuidSkillMenuItem) => isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills);
 
   const activeSkillCount = allSkills.filter(isSkillChecked).length;
+  const activeMcpCount = selectedMcpServerIds.length;
 
   const menuContent = (
     <Menu
@@ -213,6 +221,47 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                 }}
               >
                 <span className='text-13px'>{skill.name}</span>
+              </Checkbox>
+            </Menu.Item>
+          ))}
+        </Menu.SubMenu>
+      )}
+      {mcpServers.length > 0 && (
+        <Menu.SubMenu
+          key='mcp'
+          title={
+            <div className='flex items-center gap-8px'>
+              <Shield theme='outline' size='16' fill={iconColors.primary} style={{ lineHeight: 0 }} />
+              <span>
+                {t('mcp.label')} ({activeMcpCount}/{mcpServers.length})
+              </span>
+            </div>
+          }
+          triggerProps={{
+            popupStyle: {
+              maxHeight: 360,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            },
+          }}
+        >
+          {mcpServers.map((server) => (
+            <Menu.Item
+              key={`mcp-${server.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleMcpServer(server.id);
+              }}
+            >
+              <Checkbox
+                checked={selectedMcpServerIds.includes(server.id)}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                onChange={() => onToggleMcpServer(server.id)}
+              >
+                <span className='text-13px'>
+                  {server.name}
+                  {server.tools?.length ? ` (${server.tools.length} ${t('mcp.tools')})` : ''}
+                </span>
               </Checkbox>
             </Menu.Item>
           ))}

@@ -1,156 +1,154 @@
-import type React from 'react';
-import { useCallback, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback } from 'react';
 import { Message } from '@arco-design/web-react';
+import { useTranslation } from 'react-i18next';
 import { mcpService } from '@/common/adapter/ipcBridge';
-import { configService } from '@/common/config/configService';
+import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { IMcpServer } from '@/common/config/storage';
+import { toBackendMcpPayload } from './catalog';
 
-/**
- * MCP服务器CRUD操作Hook
- * 处理MCP服务器的增加、编辑、删除、启用/禁用等操作
- */
+const mergeServerState = (persisted: IMcpServer, fallback?: Partial<IMcpServer>): IMcpServer => ({
+  ...persisted,
+  last_test_status: fallback?.last_test_status ?? persisted.last_test_status,
+  tools: fallback?.tools ?? persisted.tools,
+  last_connected: fallback?.last_connected ?? persisted.last_connected,
+  original_json: fallback?.original_json ?? persisted.original_json,
+});
+
+const replaceUserServer = (servers: IMcpServer[], nextServer: IMcpServer) => {
+  const remainingServers = servers.filter((server) => server.builtin === true || server.id !== nextServer.id);
+  const insertIndex = remainingServers.findIndex((server) => server.builtin === true);
+
+  if (insertIndex === -1) {
+    return [...remainingServers, nextServer];
+  }
+
+  remainingServers.splice(insertIndex, 0, nextServer);
+  return remainingServers;
+};
+
+const getMcpRequestErrorMessage = (error: unknown, fallback: string): string => {
+  if (isBackendHttpError(error) && error.backendMessage.trim()) return error.backendMessage;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  return fallback;
+};
 export const useMcpServerCRUD = (
-  mcpServers: IMcpServer[],
-  reloadMcpServers: () => Promise<IMcpServer[]>,
-  checkSingleServerInstallStatus: (server_name: string) => Promise<void>,
-  setAgentInstallStatus: React.Dispatch<React.SetStateAction<Record<string, string[]>>>
+  saveMcpServers: (serversOrUpdater: IMcpServer[] | ((prev: IMcpServer[]) => IMcpServer[])) => Promise<void>
 ) => {
   const { t } = useTranslation();
-  const togglingServerIdsRef = useRef<Set<string>>(new Set());
-  const [togglingServerIds, setTogglingServerIds] = useState<Set<string>>(() => new Set());
 
-  const setServerToggling = useCallback((serverId: string, isToggling: boolean) => {
-    const next = new Set(togglingServerIdsRef.current);
-
-    if (isToggling) {
-      next.add(serverId);
-    } else {
-      next.delete(serverId);
+  const persistEnabledState = useCallback(async (server: IMcpServer, enabled: boolean) => {
+    if (server.enabled === enabled) {
+      return server;
     }
 
-    togglingServerIdsRef.current = next;
-    setTogglingServerIds(next);
+    return mcpService.toggleServer.invoke({ id: server.id });
   }, []);
 
-  // 添加MCP服务器
   const handleAddMcpServer = useCallback(
     async (serverData: Omit<IMcpServer, 'id' | 'created_at' | 'updated_at'>) => {
-      const server = await mcpService.createServer.invoke(serverData);
-      await reloadMcpServers();
-      setTimeout(() => void checkSingleServerInstallStatus(server.name), 100);
-      return server;
+      try {
+        let persisted = await mcpService.createServer.invoke(toBackendMcpPayload(serverData));
+        persisted = await persistEnabledState(persisted, serverData.enabled);
+
+        const nextServer = mergeServerState(persisted, serverData);
+        await saveMcpServers((prevServers) => replaceUserServer(prevServers, nextServer));
+        return nextServer;
+      } catch (error) {
+        Message.error(getMcpRequestErrorMessage(error, t('settings.mcpImportFailed')));
+        return undefined;
+      }
     },
-    [reloadMcpServers, checkSingleServerInstallStatus]
+    [persistEnabledState, saveMcpServers, t]
   );
 
-  // 批量导入MCP服务器
   const handleBatchImportMcpServers = useCallback(
     async (serversData: Omit<IMcpServer, 'id' | 'created_at' | 'updated_at'>[]) => {
-      const servers = await mcpService.batchImportServers.invoke({ servers: serversData });
-      await reloadMcpServers();
-      setTimeout(() => {
-        servers.forEach((server) => void checkSingleServerInstallStatus(server.name));
-      }, 100);
-      return servers;
+      try {
+        const imported = await mcpService.importServers.invoke({
+          servers: serversData.map((server) => toBackendMcpPayload(server)),
+        });
+
+        const finalServers: IMcpServer[] = [];
+        for (const importedServer of imported) {
+          const original = serversData.find((server) => server.name === importedServer.name);
+          const persisted = await persistEnabledState(importedServer, original?.enabled ?? false);
+          finalServers.push(mergeServerState(persisted, original));
+        }
+
+        await saveMcpServers((prevServers) => {
+          let nextServers = prevServers.filter((server) => server.builtin === true);
+          const existingUserServers = prevServers.filter((server) => server.builtin !== true);
+
+          for (const server of existingUserServers) {
+            if (!finalServers.some((next) => next.id === server.id || next.name === server.name)) {
+              nextServers = [...nextServers, server];
+            }
+          }
+
+          for (const server of finalServers) {
+            nextServers = replaceUserServer(nextServers, server);
+          }
+
+          return nextServers;
+        });
+
+        return finalServers;
+      } catch (error) {
+        Message.error(getMcpRequestErrorMessage(error, t('settings.mcpImportFailed')));
+        return [];
+      }
     },
-    [reloadMcpServers, checkSingleServerInstallStatus]
+    [persistEnabledState, saveMcpServers, t]
   );
 
-  // 编辑MCP服务器
   const handleEditMcpServer = useCallback(
     async (
       editingMcpServer: IMcpServer | undefined,
       serverData: Omit<IMcpServer, 'id' | 'created_at' | 'updated_at'>
     ): Promise<IMcpServer | undefined> => {
-      if (!editingMcpServer) return undefined;
-
-      const updated = await mcpService.updateServer.invoke({
-        id: editingMcpServer.id,
-        data: {
-          name: serverData.name,
-          description: serverData.description,
-          transport: serverData.transport,
-          original_json: serverData.original_json,
-        },
-      });
-      await reloadMcpServers();
-
-      Message.success(t('settings.mcpImportSuccess'));
-      setTimeout(() => void checkSingleServerInstallStatus(updated.name), 100);
-      return updated;
-    },
-    [reloadMcpServers, t, checkSingleServerInstallStatus]
-  );
-
-  // 删除MCP服务器
-  const handleDeleteMcpServer = useCallback(
-    async (serverId: string) => {
-      const targetServer = mcpServers.find((server) => server.id === serverId);
-
-      await mcpService.deleteServer.invoke(serverId);
-      await reloadMcpServers();
-
-      if (targetServer) {
-        setAgentInstallStatus((prev) => {
-          const updated = { ...prev };
-          delete updated[targetServer.name];
-          void configService.set('mcp.agentInstallStatus', updated).catch(() => {
-            // Handle storage error silently
-          });
-          return updated;
-        });
+      if (!editingMcpServer) {
+        return undefined;
       }
-
-      Message.success(targetServer?.enabled ? t('settings.mcpDeletedWithCleanup') : t('settings.mcpDeleted'));
-    },
-    [mcpServers, reloadMcpServers, setAgentInstallStatus, t]
-  );
-
-  // 启用/禁用MCP服务器
-  const handleToggleMcpServer = useCallback(
-    async (serverId: string, enabled: boolean) => {
-      if (togglingServerIdsRef.current.has(serverId)) return;
-
-      setServerToggling(serverId, true);
 
       try {
-        const updatedServer = await mcpService.toggleServer.invoke(serverId);
-        await reloadMcpServers();
-
-        if (updatedServer.enabled !== enabled) {
-          Message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
-          return;
-        }
-
-        if (enabled) {
-          setTimeout(() => void checkSingleServerInstallStatus(updatedServer.name), 100);
-          return;
-        }
-
-        setAgentInstallStatus((prev) => {
-          const updated = { ...prev };
-          delete updated[updatedServer.name];
-          void configService.set('mcp.agentInstallStatus', updated).catch(() => {
-            // Handle storage error silently
-          });
-          return updated;
+        let persisted = await mcpService.updateServer.invoke({
+          id: editingMcpServer.id,
+          data: toBackendMcpPayload(serverData),
         });
-      } catch {
-        Message.error(enabled ? t('settings.mcpSyncError') : t('settings.mcpRemoveError'));
-      } finally {
-        setServerToggling(serverId, false);
+        persisted = await persistEnabledState(persisted, serverData.enabled);
+
+        const nextServer = mergeServerState(persisted, {
+          ...editingMcpServer,
+          ...serverData,
+        });
+        await saveMcpServers((prevServers) =>
+          prevServers.map((server) => (server.id === editingMcpServer.id ? nextServer : server))
+        );
+
+        Message.success(t('settings.mcpImportSuccess'));
+        return nextServer;
+      } catch (error) {
+        Message.error(getMcpRequestErrorMessage(error, t('settings.mcpImportFailed')));
+        return undefined;
       }
     },
-    [reloadMcpServers, checkSingleServerInstallStatus, setAgentInstallStatus, setServerToggling, t]
+    [persistEnabledState, saveMcpServers, t]
+  );
+
+  const handleDeleteMcpServer = useCallback(
+    async (serverId: string) => {
+      await mcpService.deleteServer.invoke({ id: serverId });
+      await saveMcpServers((prevServers) => prevServers.filter((server) => server.id !== serverId));
+      Message.success(t('settings.mcpDeleted'));
+    },
+    [saveMcpServers, t]
   );
 
   return {
-    togglingServerIds,
     handleAddMcpServer,
     handleBatchImportMcpServers,
     handleEditMcpServer,
     handleDeleteMcpServer,
-    handleToggleMcpServer,
   };
 };

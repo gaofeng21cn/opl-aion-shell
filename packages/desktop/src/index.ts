@@ -71,6 +71,7 @@ import {
 } from './process/utils/tray';
 import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/backend/fullRuntime';
 import { buildOplHostToolEnv } from './process/backend/hostToolEnv';
+import { readCloseToTraySetting } from './process/utils/closeToTraySetting';
 // @ts-expect-error - electron-squirrel-startup doesn't have types
 import electronSquirrelStartup from 'electron-squirrel-startup';
 
@@ -714,7 +715,7 @@ const handleAppReady = async (): Promise<void> => {
   } else {
     await initializeTrayForDesktopMode({
       isE2ETestMode,
-      readCloseToTray: () => ProcessConfig.get('system.closeToTray'),
+      readCloseToTray: readCloseToTraySetting,
       setCloseToTrayEnabled,
       createOrUpdateTray,
       destroyTray,

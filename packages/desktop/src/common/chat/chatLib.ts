@@ -125,7 +125,50 @@ export type IMessageText = IMessage<
   }
 >;
 
-export type IMessageTips = IMessage<'tips', { content: string; type: 'error' | 'success' | 'warning' }>;
+export type AgentErrorOwnership = 'aionui' | 'user_agent' | 'user_llm_provider' | 'unknown_upstream';
+
+export type AgentErrorResolutionKind =
+  | 'retry'
+  | 'wait_for_current_response'
+  | 'start_new_session'
+  | 'reconnect_agent'
+  | 'check_agent_login'
+  | 'check_agent_installation'
+  | 'check_agent_version'
+  | 'check_local_command'
+  | 'check_provider_credentials'
+  | 'check_provider_billing'
+  | 'check_provider_base_url'
+  | 'change_model'
+  | 'reduce_context'
+  | 'send_feedback';
+
+export type AgentErrorResolutionTarget = 'provider_settings' | 'agent_settings' | 'new_conversation' | 'feedback';
+
+export type AgentErrorResolution = {
+  kind: AgentErrorResolutionKind;
+  target?: AgentErrorResolutionTarget;
+};
+
+export type AgentStreamErrorInfo = {
+  message: string;
+  code?: string;
+  ownership?: AgentErrorOwnership;
+  detail?: string;
+  workspacePath?: string;
+  retryable?: boolean;
+  feedback_recommended?: boolean;
+  resolution?: AgentErrorResolution;
+};
+
+export type IMessageTips = IMessage<
+  'tips',
+  {
+    content: string;
+    type: 'error' | 'success' | 'warning';
+    error?: AgentStreamErrorInfo;
+  }
+>;
 
 export type IMessageToolCall = IMessage<
   'tool_call',
@@ -341,6 +384,100 @@ export interface IConfirmation<Option extends any = any> {
   command_type?: string;
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const AGENT_ERROR_OWNERSHIPS = new Set<AgentErrorOwnership>([
+  'aionui',
+  'user_agent',
+  'user_llm_provider',
+  'unknown_upstream',
+]);
+
+const AGENT_ERROR_RESOLUTION_KINDS = new Set<AgentErrorResolutionKind>([
+  'retry',
+  'wait_for_current_response',
+  'start_new_session',
+  'reconnect_agent',
+  'check_agent_login',
+  'check_agent_installation',
+  'check_agent_version',
+  'check_local_command',
+  'check_provider_credentials',
+  'check_provider_billing',
+  'check_provider_base_url',
+  'change_model',
+  'reduce_context',
+  'send_feedback',
+]);
+
+const AGENT_ERROR_RESOLUTION_TARGETS = new Set<AgentErrorResolutionTarget>([
+  'provider_settings',
+  'agent_settings',
+  'new_conversation',
+  'feedback',
+]);
+
+export const normalizeAgentErrorResolution = (value: unknown): AgentErrorResolution | undefined => {
+  if (!isObject(value) || typeof value.kind !== 'string') {
+    return undefined;
+  }
+
+  if (!AGENT_ERROR_RESOLUTION_KINDS.has(value.kind as AgentErrorResolutionKind)) {
+    return undefined;
+  }
+
+  const target =
+    typeof value.target === 'string' && AGENT_ERROR_RESOLUTION_TARGETS.has(value.target as AgentErrorResolutionTarget)
+      ? (value.target as AgentErrorResolutionTarget)
+      : undefined;
+
+  return {
+    kind: value.kind as AgentErrorResolutionKind,
+    ...(target ? { target } : {}),
+  };
+};
+
+export const normalizeAgentStreamError = (value: unknown): AgentStreamErrorInfo | undefined => {
+  if (!isObject(value) || typeof value.message !== 'string') {
+    return undefined;
+  }
+
+  const code = typeof value.code === 'string' ? value.code : undefined;
+  const ownership =
+    typeof value.ownership === 'string' && AGENT_ERROR_OWNERSHIPS.has(value.ownership as AgentErrorOwnership)
+      ? (value.ownership as AgentErrorOwnership)
+      : undefined;
+  const detail = typeof value.detail === 'string' ? value.detail : undefined;
+  const workspacePath = typeof value.workspacePath === 'string' ? value.workspacePath : undefined;
+  const retryable = typeof value.retryable === 'boolean' ? value.retryable : undefined;
+  const feedback_recommended = typeof value.feedback_recommended === 'boolean' ? value.feedback_recommended : undefined;
+  const resolution = normalizeAgentErrorResolution(value.resolution);
+
+  if (
+    !code &&
+    !ownership &&
+    !detail &&
+    !workspacePath &&
+    retryable === undefined &&
+    feedback_recommended === undefined &&
+    !resolution
+  ) {
+    return undefined;
+  }
+
+  return {
+    message: value.message,
+    ...(code ? { code } : {}),
+    ...(ownership ? { ownership } : {}),
+    ...(detail ? { detail } : {}),
+    ...(workspacePath ? { workspacePath } : {}),
+    ...(retryable !== undefined ? { retryable } : {}),
+    ...(feedback_recommended !== undefined ? { feedback_recommended } : {}),
+    ...(resolution ? { resolution } : {}),
+  };
+};
+
 /**
  * @description 将后端返回的消息转换为前端消息
  * */
@@ -349,6 +486,7 @@ export const transformMessage = (message: IResponseMessage): TMessage | undefine
   switch (message.type) {
     case 'error': {
       const errorData = message.data;
+      const structuredError = normalizeAgentStreamError(errorData);
       const errorText =
         typeof errorData === 'string'
           ? errorData
@@ -363,11 +501,21 @@ export const transformMessage = (message: IResponseMessage): TMessage | undefine
         content: {
           content: errorText,
           type: 'error',
+          ...(structuredError ? { error: structuredError } : {}),
         },
       };
     }
     case 'tips': {
-      const data = message.data as { content: string; type?: 'error' | 'success' | 'warning' };
+      const data = message.data as {
+        content: string;
+        type?: 'error' | 'success' | 'warning';
+        error?: unknown;
+      };
+      const tipType = data.type ?? 'warning';
+      const structuredError =
+        tipType === 'error'
+          ? (normalizeAgentStreamError(data.error) ?? normalizeAgentStreamError({ ...data, message: data.content }))
+          : undefined;
       return {
         id: uuid(),
         type: 'tips',
@@ -377,7 +525,8 @@ export const transformMessage = (message: IResponseMessage): TMessage | undefine
         created_at,
         content: {
           content: data.content,
-          type: data.type ?? 'warning',
+          type: tipType,
+          ...(structuredError ? { error: structuredError } : {}),
         },
       };
     }

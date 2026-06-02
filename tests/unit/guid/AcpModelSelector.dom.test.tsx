@@ -2,14 +2,18 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 
 const mocks = vi.hoisted(() => ({
   getModel: vi.fn(),
   setModel: vi.fn(),
   conversationUpdate: vi.fn(),
+  writeRendererLog: vi.fn(),
   responseStreamOn: vi.fn(),
   agentsData: [] as unknown[],
+  acpModelInfo: null as AcpModelInfo | null,
+  mutateModelInfo: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -22,11 +26,28 @@ vi.mock('@/common', () => ({
     conversation: {
       update: { invoke: mocks.conversationUpdate },
     },
+    application: {
+      writeRendererLog: { invoke: mocks.writeRendererLog },
+    },
   },
 }));
 
 vi.mock('swr', () => ({
-  default: () => ({ data: mocks.agentsData }),
+  default: (key: unknown) => {
+      if (Array.isArray(key) && key[0] === 'acp-model-info') {
+      return {
+        data: mocks.acpModelInfo,
+        isLoading: false,
+        mutate: mocks.mutateModelInfo,
+      };
+    }
+    return {
+      data: mocks.agentsData,
+      isLoading: false,
+      mutate: vi.fn(),
+    };
+  },
+  mutate: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -46,11 +67,30 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.getModel.mockReset();
     mocks.setModel.mockReset();
     mocks.conversationUpdate.mockReset();
+    mocks.writeRendererLog.mockReset();
     mocks.responseStreamOn.mockReset();
+    mocks.mutateModelInfo.mockReset();
     mocks.getModel.mockRejectedValue(new Error('session not ready'));
     mocks.setModel.mockResolvedValue(undefined);
     mocks.conversationUpdate.mockResolvedValue(true);
+    mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
+    mocks.acpModelInfo = {
+      current_model_id: 'gpt-5.5',
+      current_model_label: 'GPT-5.5（超高）',
+      available_models: [
+        { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
+        { id: 'gpt-5.4', label: 'GPT-5.4' },
+      ],
+    };
+    mocks.mutateModelInfo.mockImplementation((updater: unknown) => {
+      if (typeof updater === 'function') {
+        mocks.acpModelInfo = (updater as (previous: unknown) => unknown)(mocks.acpModelInfo);
+      } else {
+        mocks.acpModelInfo = updater;
+      }
+      return Promise.resolve(mocks.acpModelInfo);
+    });
     mocks.agentsData = [
       {
         agent_type: 'acp',
@@ -60,8 +100,8 @@ describe('AcpModelSelector Codex model switching', () => {
             current_model_id: 'gpt-5.2-codex',
             current_model_label: 'gpt-5.2-codex',
             available_models: [
-              { id: 'gpt-5.5', label: 'gpt-5.5' },
-              { id: 'gpt-5.6-codex', label: 'gpt-5.6 Codex' },
+              { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
+              { id: 'gpt-5.4', label: 'GPT-5.4' },
               { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1 mini' },
             ],
           },
@@ -73,13 +113,13 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /gpt-5\.6 Codex/ });
+    const autoButton = await screen.findByRole('button', { name: /GPT-5\.5（超高）/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByRole('menuitem', { name: 'gpt-5.5' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'gpt-5.5' }));
+    expect(await screen.findByRole('menuitem', { name: 'GPT-5.5（超高）' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'GPT-5.4' }));
 
-    expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.5' });
+    expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
   });
 });

@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import type { IConversationMcpStatus } from '@/common/config/storage';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import {
@@ -36,6 +37,7 @@ import {
   type ConversationCommandQueueItem,
 } from '@/renderer/pages/conversation/platforms/useConversationCommandQueue';
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
+import { getConversationRuntimeWorkspaceErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
@@ -47,6 +49,7 @@ import { Message, Tag } from '@arco-design/web-react';
 import { Brain, MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { buildSendFailureError } from './buildSendFailureError';
 import { useAcpInitialMessage } from './useAcpInitialMessage';
 import type { UseAcpMessageReturn } from './useAcpMessage';
 
@@ -123,6 +126,13 @@ const AcpSendBox: React.FC<{
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
   const loadedSkills = conversationContext?.loadedSkills ?? [];
+  const loadedMcpStatuses =
+    conversationContext?.loadedMcpStatuses ??
+    (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
+      id: name,
+      name,
+      status: 'loaded',
+    }));
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
 
@@ -174,8 +184,10 @@ const AcpSendBox: React.FC<{
       .then(() => {
         fetchSlashCommands();
       })
-      .catch(() => {});
-  }, [teamPermission, conversation_id, fetchSlashCommands]);
+      .catch((error) => {
+        Message.error(getConversationRuntimeWorkspaceErrorMessage(error, t));
+      });
+  }, [teamPermission, conversation_id, fetchSlashCommands, t]);
 
   const handleContentChange = useCallback(
     (val: string) => {
@@ -265,7 +277,8 @@ const AcpSendBox: React.FC<{
         });
         emitter.emit('chat.history.refresh');
       } catch (error: unknown) {
-        const errorMsg = parseError(error) ?? t('common.unknownError');
+        const errorMsg =
+          getConversationRuntimeWorkspaceErrorMessage(error, t) || parseError(error) || t('common.unknownError');
 
         // Archived conversation (e.g. legacy Gemini). Backend signals this
         // via HTTP 410 + code='CONVERSATION_ARCHIVED' — identified by code,
@@ -311,8 +324,9 @@ Please check your local CLI tool authentication status`,
               conversation_id,
               created_at: Date.now(),
               content: {
-                content: t('acp.send.failed', { error: errorMsg }),
+                content: errorMsg,
                 type: 'error',
+                error: buildSendFailureError(error, errorMsg),
               },
             },
             true
@@ -484,6 +498,31 @@ Please check your local CLI tool authentication status`,
       });
     }
 
+    if (loadedMcpStatuses.length > 0) {
+      const mcpOptions: MobileActionSheetOption[] = loadedMcpStatuses.map((item) => ({
+        key: item.id,
+        label: item.name,
+        description:
+          item.status === 'loaded'
+            ? undefined
+            : item.reason
+              ? `${t(`conversation.mcp.status.${item.status}` as const)} · ${item.reason}`
+              : t(`conversation.mcp.status.${item.status}` as const),
+      }));
+      entries.push({
+        key: 'mcp',
+        icon: <Shield theme='outline' size='16' />,
+        label: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
+        variant: 'muted',
+        submenu: {
+          title: t('conversation.mcp.loaded', { defaultValue: 'Loaded MCP' }),
+          selectable: false,
+          options: mcpOptions,
+          onSelect: () => undefined,
+        },
+      });
+    }
+
     return entries;
   }, [
     attachEntries,
@@ -492,6 +531,7 @@ Please check your local CLI tool authentication status`,
     currentMode,
     handleSheetModeChange,
     isMobile,
+    loadedMcpStatuses,
     loadedSkills,
     model_info,
     selectModel,
@@ -563,7 +603,13 @@ Please check your local CLI tool authentication status`,
         supportedExts={allSupportedExts}
         defaultMultiLine={!isMobile}
         lockMultiLine={!isMobile}
-        tools={<FileAttachButton openFileSelector={openFileSelector} onLocalFilesAdded={handleFilesAdded} />}
+        tools={
+          <FileAttachButton
+            openFileSelector={openFileSelector}
+            onLocalFilesAdded={handleFilesAdded}
+            loadedMcpStatuses={loadedMcpStatuses}
+          />
+        }
         rightTools={
           showModeSelector ? (
             <AgentModeSelector

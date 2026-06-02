@@ -17,6 +17,9 @@ vi.mock('electron', () => ({
 }));
 
 let sentryInitOptions: { beforeSend?: (event: unknown) => unknown } | undefined;
+const scopeSetContext = vi.fn();
+const scopeSetExtra = vi.fn();
+const scopeSetTag = vi.fn();
 
 vi.mock('@sentry/electron/main', () => ({
   init: vi.fn((options: { beforeSend?: (event: unknown) => unknown }) => {
@@ -26,9 +29,9 @@ vi.mock('@sentry/electron/main', () => ({
   setUser: vi.fn(),
   withScope: vi.fn((callback: (scope: unknown) => void) => {
     callback({
-      setTag: vi.fn(),
-      setExtra: vi.fn(),
-      setContext: vi.fn(),
+      setTag: scopeSetTag,
+      setExtra: scopeSetExtra,
+      setContext: scopeSetContext,
     });
   }),
   captureException: vi.fn(),
@@ -38,6 +41,14 @@ vi.mock('@sentry/electron/main', () => ({
 
 vi.mock('@/process/utils/analyticsId', () => ({
   getOrCreateAnalyticsId: () => 'test-device-id',
+}));
+
+const autoUpdateDiagnosticsMock = vi.hoisted(() => ({
+  readAutoUpdateDiagnostics: vi.fn(),
+}));
+
+vi.mock('@/process/services/autoUpdateDiagnostics', () => ({
+  readAutoUpdateDiagnostics: autoUpdateDiagnosticsMock.readAutoUpdateDiagnostics,
 }));
 
 import * as Sentry from '@sentry/electron/main';
@@ -99,6 +110,7 @@ describe('packAndCap', () => {
 
 describe('captureBackendStartupFailure', () => {
   it('captures and flushes a dedicated backend startup failure with diagnostics', async () => {
+    autoUpdateDiagnosticsMock.readAutoUpdateDiagnostics.mockReturnValue(undefined);
     const error = new Error('aioncore failed to start within timeout') as Error & {
       details?: Record<string, unknown>;
     };
@@ -114,6 +126,80 @@ describe('captureBackendStartupFailure', () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(error);
     expect(Sentry.flush).toHaveBeenCalledWith(2000);
     expect(Sentry.withScope).toHaveBeenCalledOnce();
+    expect(scopeSetContext).toHaveBeenCalledWith(
+      'aioncore_install_diagnostics',
+      expect.objectContaining({
+        appVersion: '0.0.0-test',
+        isPackaged: false,
+        platform: process.platform,
+      })
+    );
+  });
+
+  it('sets flattened incomplete-installation tags for update-related missing directory resources', async () => {
+    scopeSetTag.mockClear();
+    scopeSetContext.mockClear();
+    autoUpdateDiagnosticsMock.readAutoUpdateDiagnostics.mockReturnValue({
+      currentAppVersion: '2.1.8',
+      events: [],
+      lastEvent: {
+        at: '2026-06-01T22:41:03.273Z',
+        status: 'quit-and-install',
+      },
+      lastQuitAndInstallAt: '2026-06-01T22:41:03.273Z',
+    });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T22:41:49.273Z'));
+
+    try {
+      const error = new Error('aioncore startup failed while resolving backend binary') as Error & {
+        details?: Record<string, unknown>;
+      };
+      error.details = {
+        stage: 'resolve_binary',
+        isPackaged: true,
+        runtimeKey: 'win32-x64',
+        binaryName: 'aioncore.exe',
+        resourcesPath: 'C:\\Users\\alice\\AppData\\Local\\Programs\\AionUi\\resources',
+        bundledDirExists: false,
+        runtimeDirExists: false,
+        resourcesDirEntries: [
+          'app-update.yml',
+          'app.asar',
+          'app.asar.unpacked/',
+          'app.png',
+          'elevate.exe',
+          'manifest.webmanifest',
+          'sw.js',
+        ],
+      };
+
+      await captureBackendStartupFailure(error);
+
+      expect(scopeSetTag).toHaveBeenCalledWith(
+        'aionui.backend_startup.incomplete_installation_kind',
+        'missing_directory_resources'
+      );
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.missing_bundled_dir', 'true');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.missing_runtime_dir', 'true');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.missing_binary', 'true');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.missing_hub_dir', 'true');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.last_update_status', 'quit-and-install');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.seconds_since_quit_and_install', '46');
+      expect(scopeSetTag).toHaveBeenCalledWith('aionui.backend_startup.install_path_kind', 'user_local_programs');
+      expect(scopeSetContext).toHaveBeenCalledWith(
+        'aioncore_startup_classification',
+        expect.objectContaining({
+          incompleteInstallationKind: 'missing_directory_resources',
+          missingBundledAioncoreDir: true,
+          missingRuntimeDir: true,
+          missingBackendBinary: true,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+      autoUpdateDiagnosticsMock.readAutoUpdateDiagnostics.mockReturnValue(undefined);
+    }
   });
 });
 
