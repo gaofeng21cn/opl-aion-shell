@@ -24,21 +24,21 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       title: t('settings.overviewPage.codexTitle'),
       value: t('settings.overviewPage.codexDescription'),
       icon: <Toolkit theme='outline' />,
-      route: '/settings/runtime',
+      route: '/settings/environment',
     },
     {
       key: 'workspace',
       title: t('settings.overviewPage.workspaceTitle'),
       value: t('settings.overviewPage.workspaceDescription'),
       icon: <CheckOne theme='outline' />,
-      route: '/settings/runtime#workspace',
+      route: '/settings/environment#workspace',
     },
     {
       key: 'modules',
       title: t('settings.overviewPage.modulesTitle'),
       value: t('settings.overviewPage.modulesDescription'),
       icon: <Lightning theme='outline' />,
-      route: '/settings/runtime#modules',
+      route: '/settings/environment#modules',
     },
     {
       key: 'remote',
@@ -91,7 +91,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
             <Button type='primary' onClick={() => navigate('/runtime')}>
               {t('settings.overviewPage.actions.openRuntimeStatus')}
             </Button>
-            <Button onClick={() => navigate('/settings/runtime')}>
+            <Button onClick={() => navigate('/settings/environment')}>
               {t('settings.overviewPage.actions.openRuntimeSettings')}
             </Button>
             <Button onClick={() => navigate('/settings/capabilities')}>

@@ -5,7 +5,12 @@
  */
 
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
+import {
+  getOplCodexSessionContextForLocale,
+  getOplFlowContextPolicy,
+} from '@/common/config/oplProductProfile';
 import type { TProviderWithModel } from '@/common/config/storage';
+import { resolveLocaleKey } from '@/common/utils';
 
 export type BuildAgentConversationPresetResources = {
   rules?: string;
@@ -29,8 +34,13 @@ export type BuildAgentConversationInput = {
   preset_resources?: BuildAgentConversationPresetResources;
   session_mode?: string;
   current_model_id?: string;
+  language?: string;
   extra?: Partial<ICreateConversationParams['extra']>;
 };
+
+function mergePresetContext(oplFlowContext: string, presetRules?: string): string {
+  return [oplFlowContext.trim(), presetRules?.trim()].filter(Boolean).join('\n\n');
+}
 
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
   switch (backend) {
@@ -65,15 +75,25 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     preset_resources,
     session_mode,
     current_model_id,
+    language = 'zh-CN',
     extra: extraOverrides,
   } = input;
 
   const effectivePresetType = preset_agent_type || backend;
   const effectivePresetAssistantId = preset_assistant_id || custom_agent_id;
   const type = getConversationTypeForBackend(is_preset ? effectivePresetType : backend);
+  const oplFlowContextPolicy = getOplFlowContextPolicy();
+  const oplFlowSessionContext = getOplCodexSessionContextForLocale(resolveLocaleKey(language));
   const extra: ICreateConversationParams['extra'] = {
     workspace,
     custom_workspace,
+    opl_flow_context: {
+      flow_id: oplFlowContextPolicy.flow_id,
+      source: oplFlowContextPolicy.source,
+      delivery: oplFlowContextPolicy.delivery,
+      language: oplFlowContextPolicy.language_policy,
+      user_agents_policy: oplFlowContextPolicy.user_agents_policy,
+    },
     ...extraOverrides,
   };
 
@@ -87,7 +107,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       extra.exclude_auto_inject_skills = preset_resources.exclude_auto_inject_skills;
     }
     extra.preset_assistant_id = effectivePresetAssistantId;
-    extra.preset_context = preset_resources?.rules;
+    extra.preset_context = mergePresetContext(oplFlowSessionContext, preset_resources?.rules);
     if (type === 'acp') {
       extra.backend = effectivePresetType as string;
     }
@@ -104,6 +124,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   } else if (type === 'acp') {
     extra.backend = backend as string;
     extra.agent_name = agent_name || name;
+    extra.preset_context = mergePresetContext(oplFlowSessionContext, extra.preset_context);
     if (agent_id) extra.agent_id = agent_id;
     if (cli_path) extra.cli_path = cli_path;
     if (custom_agent_id) {

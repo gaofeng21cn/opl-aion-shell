@@ -49,11 +49,15 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app state --profile full --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
   ],
-  diagnosticExceptionSurfaces: ['opl runtime app-operator-drilldown --detail full --json'],
+  diagnosticExceptionSurfaces: [
+    'opl runtime app-operator-drilldown --json',
+    'opl runtime app-operator-drilldown --detail full --json',
+  ],
   allowedSurfaces: [
     'opl app state --profile fast --json',
     'opl app state --profile full --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+    'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
     'opl system initialize --json',
     'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
@@ -106,13 +110,19 @@ function buildAppStateCommand(profile: IOplAppStateProfile): RuntimeCommandSpec 
 }
 
 function buildDrilldownCommand(detail: IOplRuntimeDetailLevel): RuntimeCommandSpec {
+  if (detail === 'summary') {
+    return {
+      surface: 'runtime_summary',
+      args: ['runtime', 'app-operator-drilldown', '--json'],
+    };
+  }
   if (detail === 'full') {
     return {
       surface: 'runtime_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     };
   }
-  throw new Error('OPL runtime drilldown is only available as an explicit full-detail diagnostic surface.');
+  throw new Error('Unsupported OPL runtime drilldown detail level.');
 }
 
 function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSpec {
@@ -218,6 +228,29 @@ function resolveManagedNodeBin(input: BuildStandardBootstrapEnvInput): string | 
   return fs.existsSync(path.join(nodeBin, 'node')) && fs.existsSync(path.join(nodeBin, 'npm')) ? nodeBin : null;
 }
 
+function hasHealthyOplShim(binDir: string): boolean {
+  const shimPath = path.join(binDir, 'opl');
+  if (!fs.existsSync(shimPath)) {
+    return false;
+  }
+
+  try {
+    const realPath = fs.realpathSync(shimPath);
+    const cliPath = path.join(path.dirname(realPath), '..', 'dist', 'cli.js');
+    return fs.existsSync(cliPath) && fs.statSync(cliPath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function shouldIncludeManagedNodeBin(nodeBin: string | null): nodeBin is string {
+  if (!nodeBin) {
+    return false;
+  }
+  const shimPath = path.join(nodeBin, 'opl');
+  return !fs.existsSync(shimPath) || hasHealthyOplShim(nodeBin);
+}
+
 function normalizePathEntries(entries: Array<string | undefined | null>): string {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -242,8 +275,8 @@ function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): 
     ...baseEnv,
     HOME: homeDir,
     PATH: normalizePathEntries([
-      fs.existsSync(path.join(managedOplBin, 'opl')) ? managedOplBin : null,
-      managedNodeBin,
+      hasHealthyOplShim(managedOplBin) ? managedOplBin : null,
+      shouldIncludeManagedNodeBin(managedNodeBin) ? managedNodeBin : null,
       path.join(homeDir, '.npm-global', 'bin'),
       path.join(homeDir, '.local', 'bin'),
       '/opt/homebrew/bin',

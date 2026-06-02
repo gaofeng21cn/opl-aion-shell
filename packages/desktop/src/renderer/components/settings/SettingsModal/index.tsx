@@ -13,7 +13,7 @@ import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } f
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Info, Lightning, Puzzle, SwitchThemes, Toolkit } from '@icon-park/react';
+import { Computer, Earth, Info, Lightning, Puzzle, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,13 +21,12 @@ import AboutModalContent from './contents/AboutModalContent';
 import DisplayModalContent from './contents/DisplayModalContent';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SystemModalContent from './contents/SystemModalContent';
-import ToolsModalContent from './contents/ToolsModalContent';
-import WebuiModalContent from './contents/WebuiModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
-import SkillsHubSettings from '@/renderer/pages/settings/SkillsHubSettings';
+import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
+import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 
 // ==================== 常量定义 / Constants ====================
 
@@ -54,30 +53,32 @@ const MODAL_HEIGHT = {
 const RESIZE_DEBOUNCE_DELAY = 150;
 
 const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
-  overview: 'settings.overview',
-  runtime: 'settings.runtime',
+  general: 'settings.general',
+  environment: 'settings.environment',
   capabilities: 'settings.capabilities',
   access: 'settings.access',
   appearance: 'settings.appearance',
-  system: 'settings.system',
+  advanced: 'settings.advanced',
   about: 'settings.about',
 };
 
 const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
-  overview: 'Overview',
-  runtime: 'Runtime',
-  capabilities: 'Capabilities',
+  general: 'General',
+  environment: 'Local Environment',
+  capabilities: 'Agents & Capabilities',
   access: 'Access',
   appearance: 'Appearance',
+  advanced: 'Advanced',
+  about: 'About & Updates',
 };
 
 const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
-  overview: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
-  runtime: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
+  general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
+  environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
   capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
   access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
   appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
-  system: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
+  advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
   about: <Info theme='outline' size='20' fill={iconColors.secondary} />,
 };
 
@@ -86,19 +87,27 @@ const normalizeOplSettingsTab = (tab: SettingTab): string => {
   return legacyRedirects[tab] ?? tab;
 };
 
+const capabilityDetailTabFor = (tab: SettingTab): CapabilitiesTab => {
+  if (tab === 'tools') return 'tools';
+  return 'skills';
+};
+
 // ==================== 类型定义 / Type Definitions ====================
 
 /**
  * 内置设置标签页类型 / Built-in settings tab type
  */
 export type BuiltinSettingTab =
-  | 'overview'
-  | 'runtime'
+  | 'general'
+  | 'environment'
   | 'capabilities'
   | 'access'
   | 'appearance'
-  | 'system'
+  | 'advanced'
   | 'about'
+  | 'overview'
+  | 'runtime'
+  | 'system'
   | 'model'
   | 'agent'
   | 'tools'
@@ -177,13 +186,14 @@ export const SubModal: React.FC<SubModalProps> = ({ visible, onCancel, title, ch
  * @example
  * ```tsx
  * const { openSettings, settingsModal } = useSettingsModal();
- * // 打开设置弹窗并跳转到系统设置 / Open settings modal and navigate to system tab
- * openSettings('system');
+ * // 打开设置弹窗并跳转到高级设置 / Open settings modal and navigate to Advanced
+ * openSettings('advanced');
  * ```
  */
-const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaultTab = 'runtime' }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaultTab = 'general' }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeOplSettingsTab(defaultTab));
+  const [capabilitiesTab, setCapabilitiesTab] = useState<CapabilitiesTab>(() => capabilityDetailTabFor(defaultTab));
   const [isMobile, setIsMobile] = useState(false);
   const resizeTimerRef = useRef<number | undefined>(undefined);
   const extensionTabs = useExtensionSettingsTabs();
@@ -288,10 +298,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       if (befores) builtinItems.splice(i, 0, ...befores.map(toMenuItem));
     }
 
-    // Append unanchored before system
+    // Append unanchored before Advanced so extension diagnostics stay out of the daily setup flow.
     if (unanchored.length > 0) {
-      const sysIdx = builtinItems.findIndex((item) => item.key === 'system');
-      const idx = sysIdx >= 0 ? sysIdx : builtinItems.length;
+      const advancedIdx = builtinItems.findIndex((item) => item.key === 'advanced');
+      const idx = advancedIdx >= 0 ? advancedIdx : builtinItems.length;
       builtinItems.splice(idx, 0, ...unanchored.map(toMenuItem));
     }
 
@@ -300,6 +310,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
 
   useEffect(() => {
     setActiveTab(normalizeOplSettingsTab(defaultTab));
+    setCapabilitiesTab(capabilityDetailTabFor(defaultTab));
   }, [defaultTab, visible]);
 
   // Track which extension tabs have been visited (lazy mount + keep-alive)
@@ -326,27 +337,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   // Render built-in tab content (conditional)
   const renderBuiltinContent = () => {
     switch (activeTab) {
+      case 'general':
       case 'overview':
         return <OverviewSettings withWrapper={false} />;
+      case 'environment':
       case 'runtime':
       case 'model':
-      case 'agent':
         return <RuntimeSettings withWrapper={false} />;
       case 'capabilities':
+      case 'agent':
       case 'tools':
-        return (
-          <div className='flex flex-col gap-24px'>
-            <SkillsHubSettings withWrapper={false} />
-            <ToolsModalContent />
-          </div>
-        );
+        return <CapabilitiesSettingsContent activeTab={capabilitiesTab} onTabChange={setCapabilitiesTab} />;
       case 'access':
       case 'webui':
-        return <WebuiModalContent />;
+        return <AccessSettingsContent />;
       case 'appearance':
       case 'display':
       case 'pet':
         return <DisplayModalContent />;
+      case 'advanced':
       case 'system':
         return <SystemModalContent />;
       case 'about':
@@ -378,6 +387,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
    */
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(normalizeOplSettingsTab(tab));
+    setCapabilitiesTab(capabilityDetailTabFor(tab));
   }, []);
 
   // 移动端菜单（Tabs切换）/ Mobile menu (Tabs)
@@ -411,7 +421,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
                 'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
               }
             )}
-            onClick={() => setActiveTab(normalizeOplSettingsTab(item.key))}
+            onClick={() => handleTabChange(item.key)}
           >
             <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
             <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>

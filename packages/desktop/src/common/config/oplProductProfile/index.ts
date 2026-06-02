@@ -69,6 +69,29 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
   must_not_depend_on_visible_backend_selection: true;
 };
 
+export type OplFlowContextPolicy = {
+  flow_id: 'opl-flow';
+  source: string;
+  delivery: 'session_scoped_preset_context';
+  user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
+  language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
+};
+
+type OplCodexSessionContext = {
+  'zh-CN': string[];
+  'en-US': string[];
+};
+
+type OplPostInstallAiSelfCheckEntry = {
+  trigger: string;
+  target_route: '/guid';
+  route_state: 'postInstallSelfCheck';
+  prompt_policy: 'localized Codex CLI read-only diagnosis prompt describing target OPL working mode';
+  target_state_checks: string[];
+  mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation';
+  release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt';
+};
+
 type AppProductProfile = {
   schema_version: 1;
   owner: 'one-person-lab-app';
@@ -127,9 +150,11 @@ type AppProductProfile = {
   codex: {
     default_model: string;
     default_reasoning_effort: OplCodexReasoningEffort | null;
+    opl_flow_context: OplFlowContextPolicy;
     default_visible_skills: string[];
     skill_priority: string[];
     session_context_lines: string[];
+    session_context_i18n?: OplCodexSessionContext;
   };
   companion_payloads: {
     default_packaged_codex_skill_ids: string[];
@@ -153,6 +178,17 @@ type AppProductProfile = {
       auto_request_installer: boolean;
       blocks_full_first_launch: boolean;
       messages: string[];
+    };
+    beginner_presentation: {
+      audience: 'beginner_non_technical_users';
+      presentation_mode: 'simplified_first_run';
+      primary_user_goal: 'reach_guid_with_codex_ready';
+      primary_steps: string[];
+      primary_progress_signal: string;
+      advanced_progress_disclosure: 'collapsed_or_secondary';
+      background_maintenance_presentation: 'collapsed_technical_non_blocking';
+      technical_detail_policy: 'hidden_until_expanded_or_error';
+      post_install_ai_self_check_entry: OplPostInstallAiSelfCheckEntry;
     };
   };
   settings: {
@@ -195,6 +231,45 @@ function readStringArray(
     throw new Error(`Invalid OPL product profile: ${context}.${key} must not contain duplicate non-empty entries`);
   }
   return normalized;
+}
+
+function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): OplPostInstallAiSelfCheckEntry {
+  if (!isRecord(entry)) {
+    throw new Error(`Invalid OPL product profile: ${context} must be declared`);
+  }
+  if (
+    entry.target_route !== '/guid' ||
+    entry.route_state !== 'postInstallSelfCheck' ||
+    entry.prompt_policy !== 'localized Codex CLI read-only diagnosis prompt describing target OPL working mode' ||
+    entry.mutation_policy !== 'diagnose_first_no_file_mutation_without_user_confirmation' ||
+    entry.release_gate_policy !== 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt'
+  ) {
+    throw new Error(`Invalid OPL product profile: ${context} has invalid route or policy`);
+  }
+  const targetStateChecks = readStringArray(entry, 'target_state_checks', context);
+  for (const required of [
+    'codex_cli_callable',
+    'ui_language_policy',
+    'session_scoped_opl_flow_context',
+    'user_agents_md_respected_no_overwrite',
+    'mas_mag_rca_routes_visible',
+    'opl_meta_agent_capability_visible',
+    'codex_skills_plugins_visible',
+    'module_update_skill_plugin_continuity',
+  ]) {
+    if (!targetStateChecks.includes(required)) {
+      throw new Error(`Invalid OPL product profile: ${context}.target_state_checks missing ${required}`);
+    }
+  }
+  return {
+    trigger: typeof entry.trigger === 'string' ? entry.trigger : '',
+    target_route: '/guid',
+    route_state: 'postInstallSelfCheck',
+    prompt_policy: 'localized Codex CLI read-only diagnosis prompt describing target OPL working mode',
+    target_state_checks: targetStateChecks,
+    mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation',
+    release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt',
+  };
 }
 
 function readReasoningEffort(value: unknown, context: string): OplCodexReasoningEffort | null {
@@ -459,6 +534,30 @@ function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): O
   };
 }
 
+function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContextPolicy {
+  const value = codex.opl_flow_context;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: codex.opl_flow_context must be an object');
+  }
+  const source = typeof value.source === 'string' ? value.source.trim() : '';
+  if (
+    value.flow_id !== 'opl-flow' ||
+    !source ||
+    value.delivery !== 'session_scoped_preset_context' ||
+    value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
+    value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh'
+  ) {
+    throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
+  }
+  return {
+    flow_id: 'opl-flow',
+    source,
+    delivery: 'session_scoped_preset_context',
+    user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+    language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+  };
+}
+
 function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: root must be an object');
@@ -499,7 +598,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: missing settings or boundary section');
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
-  const expectedTabs = ['overview', 'runtime', 'capabilities', 'access', 'appearance', 'system', 'about'];
+  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced', 'about'];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
@@ -509,8 +608,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'settings.legacy_route_redirects'
   );
   const expectedLegacySettingsRouteRedirects: Record<string, string> = {
-    model: 'runtime',
-    agent: 'runtime',
+    overview: 'general',
+    runtime: 'environment',
+    system: 'advanced',
+    model: 'environment',
+    agent: 'capabilities',
     assistants: 'capabilities',
     'skills-hub': 'capabilities',
     tools: 'capabilities',
@@ -561,6 +663,27 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'first_run.ready_to_launch_gate'
   );
   const fullReadinessLayers = readStringArray(firstRun, 'full_readiness_layers', 'first_run');
+  const beginnerPresentation = isRecord(firstRun.beginner_presentation) ? firstRun.beginner_presentation : null;
+  if (
+    !beginnerPresentation ||
+    beginnerPresentation.audience !== 'beginner_non_technical_users' ||
+    beginnerPresentation.presentation_mode !== 'simplified_first_run' ||
+    beginnerPresentation.primary_user_goal !== 'reach_guid_with_codex_ready' ||
+    beginnerPresentation.advanced_progress_disclosure !== 'collapsed_or_secondary' ||
+    beginnerPresentation.background_maintenance_presentation !== 'collapsed_technical_non_blocking' ||
+    beginnerPresentation.technical_detail_policy !== 'hidden_until_expanded_or_error'
+  ) {
+    throw new Error('Invalid OPL product profile: first-run beginner presentation policy is invalid');
+  }
+  const beginnerPresentationPrimarySteps = readStringArray(
+    beginnerPresentation,
+    'primary_steps',
+    'first_run.beginner_presentation'
+  );
+  const postInstallAiSelfCheckEntry = validatePostInstallAiSelfCheckEntry(
+    beginnerPresentation.post_install_ai_self_check_entry,
+    'first_run.beginner_presentation.post_install_ai_self_check_entry'
+  );
   const reasoningEffort = readReasoningEffort(
     defaultSession.reasoning_effort,
     'default_session_profile.reasoning_effort'
@@ -626,6 +749,18 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
+  const oplFlowContext = readOplFlowContextPolicy(codex);
+  const sessionContextI18n =
+    isRecord(codex.session_context_i18n)
+      ? {
+          'zh-CN': readStringArray(codex.session_context_i18n, 'zh-CN', 'codex.session_context_i18n', {
+            allowBlank: true,
+          }),
+          'en-US': readStringArray(codex.session_context_i18n, 'en-US', 'codex.session_context_i18n', {
+            allowBlank: true,
+          }),
+        }
+      : undefined;
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
   const defaultPackagedCodexSkillIds = readStringArray(
@@ -763,9 +898,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     codex: {
       default_model: codexModel,
       default_reasoning_effort: codexReasoningEffort,
+      opl_flow_context: oplFlowContext,
       default_visible_skills: defaultVisibleSkills,
       skill_priority: skillPriority,
       session_context_lines: readStringArray(codex, 'session_context_lines', 'codex', { allowBlank: true }),
+      ...(sessionContextI18n ? { session_context_i18n: sessionContextI18n } : {}),
     },
     companion_payloads: {
       default_packaged_codex_skill_ids: defaultPackagedCodexSkillIds,
@@ -789,6 +926,20 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         auto_request_installer: commandLineTools.auto_request_installer === true,
         blocks_full_first_launch: commandLineTools.blocks_full_first_launch === true,
         messages: readStringArray(commandLineTools, 'messages', 'first_run.command_line_tools'),
+      },
+      beginner_presentation: {
+        audience: 'beginner_non_technical_users',
+        presentation_mode: 'simplified_first_run',
+        primary_user_goal: 'reach_guid_with_codex_ready',
+        primary_steps: beginnerPresentationPrimarySteps,
+        primary_progress_signal:
+          typeof beginnerPresentation.primary_progress_signal === 'string'
+            ? beginnerPresentation.primary_progress_signal
+            : 'Core completed and total count',
+        advanced_progress_disclosure: 'collapsed_or_secondary',
+        background_maintenance_presentation: 'collapsed_technical_non_blocking',
+        technical_detail_policy: 'hidden_until_expanded_or_error',
+        post_install_ai_self_check_entry: postInstallAiSelfCheckEntry,
       },
     },
     settings: {
@@ -919,6 +1070,10 @@ export function getOplBuiltinAssistantRouteReceiptPolicy(): OplBuiltinAssistantR
   };
 }
 
+export function getOplFlowContextPolicy(): OplFlowContextPolicy {
+  return { ...OPL_PRODUCT_PROFILE.codex.opl_flow_context };
+}
+
 export function getOplDefaultCodexSkills(): string[] {
   return [...OPL_PRODUCT_PROFILE.codex.default_visible_skills];
 }
@@ -933,6 +1088,11 @@ export function getOplSkillPriority(): string[] {
 
 export function getOplCodexSessionContext(): string {
   return OPL_PRODUCT_PROFILE.codex.session_context_lines.join('\n').trim();
+}
+
+export function getOplCodexSessionContextForLocale(locale: 'zh-CN' | 'en-US'): string {
+  const context = OPL_PRODUCT_PROFILE.codex.session_context_i18n?.[locale];
+  return (context ?? OPL_PRODUCT_PROFILE.codex.session_context_lines).join('\n').trim();
 }
 
 export function getOplLegacyCodexSessionContexts(): string[] {

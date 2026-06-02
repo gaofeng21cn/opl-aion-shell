@@ -23,6 +23,7 @@ import styles from './FirstRun.module.css';
 type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
+const POST_INSTALL_SELF_CHECK_STATE = { postInstallSelfCheck: true };
 const PRIMARY_FIRST_RUN_ITEM_IDS: FirstRunItemId[] = ['workspace_root', 'codex', 'codex_config'];
 const STATUS_READY = new Set(['ready', 'installed', 'detected', 'configured', 'disabled']);
 const STATUS_NEEDS_ACTION = new Set(['missing', 'blocking', 'failed']);
@@ -180,6 +181,10 @@ function assertBridgeResultOk(result: Exclude<FirstRunCommandResult, null>): voi
   }
 }
 
+function shouldOfferPostInstallSelfCheck(initialize: FirstRunInitialize | null): boolean {
+  return initialize?.setup_flow?.is_first_run === true;
+}
+
 function ReadinessItem({
   item,
   fallbackLabel,
@@ -255,7 +260,12 @@ const FirstRun: React.FC = () => {
         initializePayload?.setup_flow?.ready_to_launch === true ||
         initializePayload?.readiness?.launch_ready === true
       ) {
-        navigate('/guid', { replace: true });
+        navigate(
+          '/guid',
+          shouldOfferPostInstallSelfCheck(initializePayload)
+            ? { replace: true, state: POST_INSTALL_SELF_CHECK_STATE }
+            : { replace: true }
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -442,7 +452,7 @@ const FirstRun: React.FC = () => {
                 type='primary'
                 size='large'
                 disabled={!readyToLaunch}
-                onClick={() => navigate('/guid')}
+                onClick={() => navigate('/guid', { state: POST_INSTALL_SELF_CHECK_STATE })}
                 data-testid='opl-first-run-primary-action'
                 aria-label='opl-first-run-ready-entry'
               >

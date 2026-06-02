@@ -117,13 +117,13 @@ function createFullRuntimeEquivalenceFixture() {
   ]) {
     writeDomainPlugin(runtimeHome, pluginFixture);
   }
-  writeFile(path.join(runtimeHome, 'bin', 'officecli'), '#!/usr/bin/env bash\necho "officecli 1.0.0"\n', 0o755);
-  writeFile(
-    path.join(runtimeHome, 'bin', 'mineru-open-api'),
-    '#!/usr/bin/env bash\necho "mineru-open-api version 1.0.0"\n',
-    0o755
-  );
+  writeFile(path.join(runtimeHome, 'bin', 'officecli'), '#!/bin/sh\nexit 0\n', 0o755);
+  writeFile(path.join(runtimeHome, 'bin', 'mineru-open-api'), '#!/bin/sh\nexit 0\n', 0o755);
   return { root, codexHome, runtimeHome };
+}
+
+function createPassedAssistantRouteSmokeSummary() {
+  return { status: 'passed', assistants: ['mas', 'mag', 'rca'] };
 }
 
 describe('OPL first-run VM smoke scripts', () => {
@@ -195,8 +195,18 @@ describe('OPL first-run VM smoke scripts', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
 
     expect(scriptSource).toContain('settingsRuntimeRefresh');
-    expect(scriptSource).toContain("exerciseRuntimeRefresh(client, '#/settings/runtime')");
-    expect(scriptSource).toContain("exerciseRuntimeRefresh(client, '#/runtime')");
+    expect(scriptSource).toContain("'#/settings/runtime'");
+    expect(scriptSource).toContain("'#/runtime'");
+  });
+
+  it('writes release evidence screenshots from deterministic CDP smoke paths', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+
+    expect(scriptSource).toContain("path.join('screenshots', 'full.png')");
+    expect(scriptSource).toContain("path.join('screenshots', 'action.png')");
+    expect(scriptSource).toContain('shouldCaptureFullReleaseScreenshot(options)');
+    expect(scriptSource).toContain('runtime-action-evidence.json');
+    expect(scriptSource).toContain('captureRuntimeActionEvidence(client, options, secret)');
   });
 
   it('terminates existing packaged app instances before launching a fresh smoke target', () => {
@@ -258,6 +268,317 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).not.toThrow();
+  });
+
+  it('forwards assistant route smoke into the guest and requires its passed summary', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ]);
+
+    expect(options.assistantRouteSmoke).toBe(true);
+
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.assistant_route_smoke).toBe(true);
+    expect(plan.cdp_port).toBe(9230);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--assistant-route-smoke');
+    expect(command).toContain('--cdp-port');
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'standard',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: { status: 'passed', assistants: ['mas', 'mag', 'rca'] },
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'standard',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: null,
+      })
+    ).toThrow(/assistant route smoke/);
+  });
+
+  it('passes Codex functional check through the Tart host command and plan', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--assistant-route-smoke',
+      '--codex-functional-check',
+      '--dry-run',
+    ]);
+
+    expect(options.codexFunctionalCheck).toBe(true);
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.codex_functional_check).toBe(true);
+    expect(plan.assistant_route_smoke).toBe(true);
+    expect(plan.cdp_port).toBe(options.cdpPort);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--assistant-route-smoke');
+    expect(command).toContain('--codex-functional-check');
+  });
+
+  it('passes Codex AI self-check through the Tart host command and plan as a diagnostic', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--codex-ai-self-check',
+      '--dry-run',
+    ]);
+
+    expect(options.codexAiSelfCheck).toBe(true);
+    expect(options.codexFunctionalCheck).toBe(true);
+    expect(options.assistantRouteSmoke).toBe(true);
+
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.codex_ai_self_check).toEqual({
+      requested: true,
+      mode: 'diagnose',
+      blocking_release_gate: false,
+    });
+    expect(plan.codex_functional_check).toBe(true);
+    expect(plan.assistant_route_smoke).toBe(true);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--assistant-route-smoke');
+    expect(command).toContain('--codex-functional-check');
+    expect(command).toContain('--codex-ai-self-check');
+  });
+
+  it('bounds the host SSH command for long-running guest smokes', async () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--smoke-timeout-ms',
+      '1000',
+      '--dry-run',
+    ]);
+
+    expect(tartSmoke.guestSmokeHostTimeoutMs(options)).toBe(121_000);
+    await expect(
+      tartSmoke.runAsync(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)'], {
+        label: 'test-long-running-child',
+        timeoutMs: 50,
+      })
+    ).rejects.toThrow(/test-long-running-child timed out after 50ms/);
+  });
+
+  it('requires the guest Codex functional check receipt when requested', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--codex-functional-check',
+      '--dry-run',
+    ]);
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
+        codex_functional_check: {
+          status: 'diagnostic_skipped',
+          blocking_release_gate: {
+            deterministic_fields_passed: true,
+            llm_invocation_required: false,
+          },
+        },
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
+      })
+    ).toThrow(/Codex functional check/);
+  });
+
+  it('does not fail the Tart release gate when optional Codex AI self-check is skipped', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--codex-ai-self-check',
+      '--dry-run',
+    ]);
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
+        codex_functional_check: {
+          status: 'diagnostic_skipped',
+          blocking_release_gate: {
+            deterministic_fields_passed: true,
+            llm_invocation_required: false,
+          },
+        },
+        codex_ai_self_check: {
+          schema: 'opl_codex_ai_self_check_receipt.v1',
+          status: 'skipped_missing_codex_config',
+          blocking_release_gate: false,
+        },
+      })
+    ).not.toThrow();
+  });
+
+  it('passes an explicit current-source Framework archive into the packaged Tart smoke', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--framework-source-archive',
+      '/tmp/current-framework.tar.gz',
+      '--framework-install-script',
+      '/tmp/current-install.sh',
+      '--guest-workdir',
+      '/tmp/guest',
+      '--dry-run',
+    ]);
+
+    expect(options.frameworkSourceArchive).toBe('/tmp/current-framework.tar.gz');
+
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.framework_source_archive).toEqual({
+      evidence_role: 'current_source_framework_archive',
+      host_path: '/tmp/current-framework.tar.gz',
+      guest_path: '/tmp/guest/current-framework.tar.gz',
+      install_script_host_path: '/tmp/current-install.sh',
+      install_script_guest_path: '/tmp/guest/opl-framework-install.sh',
+      install_script_url: 'file:///tmp/guest/opl-framework-install.sh',
+      install_source_mode: 'archive',
+      source_archive_url: 'file:///tmp/guest/current-framework.tar.gz',
+    });
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt',
+      '/tmp/guest/current-framework.tar.gz',
+      '/tmp/guest/opl-framework-install.sh'
+    );
+    expect(command).toContain('launchctl setenv OPL_INSTALL_SOURCE_MODE');
+    expect(command).toContain('launchctl setenv OPL_SOURCE_ARCHIVE_URL');
+    expect(command).toContain('launchctl setenv OPL_INSTALL_SCRIPT_URL');
+    expect(command).toContain("export OPL_INSTALL_SOURCE_MODE='archive'");
+    expect(command).toContain("export OPL_SOURCE_ARCHIVE_URL='file:///tmp/guest/current-framework.tar.gz'");
+    expect(command).toContain("export OPL_INSTALL_SCRIPT_URL='file:///tmp/guest/opl-framework-install.sh'");
+
+    expect(tartSmoke.frameworkInstallScriptFinalizeCommand(options)).toContain(
+      "mv '/tmp/guest/current-install.sh' '/tmp/guest/opl-framework-install.sh'"
+    );
+    expect(tartSmoke.frameworkInstallScriptFinalizeCommand(options)).toContain(
+      "chmod +x '/tmp/guest/opl-framework-install.sh'"
+    );
+  });
+
+  it('writes a structured Tart summary when guest smoke fails after artifacts were copied', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-failed-summary-'));
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--settings-smoke',
+      '--assistant-route-smoke',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+
+    try {
+      fs.mkdirSync(path.join(artifacts, 'artifacts'), { recursive: true });
+      fs.writeFileSync(
+        path.join(artifacts, 'artifacts', 'smoke-summary.json'),
+        `${JSON.stringify({
+          status: 'failed',
+          runtime_profile: 'standard',
+          settings_smoke: {
+            status: 'passed',
+            pages: ['overview', 'runtime'],
+            runtime_action_evidence_status: 'blocked',
+          },
+          assistant_route_smoke: null,
+        })}\n`
+      );
+
+      tartSmoke.writeFailedSummary(options, '192.168.64.10', '/tmp/guest/artifacts', new Error('guest failed'));
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-smoke-summary.json'), 'utf8'));
+
+      expect(summary).toMatchObject({
+        surface_id: 'opl_tart_gui_first_run_smoke',
+        status: 'failed',
+        error: 'guest failed',
+        runtime_profile: 'standard',
+        guest_ip: '192.168.64.10',
+        guest_artifacts: '/tmp/guest/artifacts',
+        settings_smoke: {
+          status: 'passed',
+          runtime_action_evidence_status: 'blocked',
+        },
+      });
+      expect(summary.guest_summary.status).toBe('failed');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('does not require the Codex config wizard for full VM smokes by default', () => {

@@ -408,6 +408,7 @@ export type IOplRuntimeCommandResult = {
   surface:
     | 'app_state_fast'
     | 'app_state_full'
+    | 'runtime_summary'
     | 'runtime_full'
     | 'app_action'
     | 'system_initialize'
@@ -1373,6 +1374,13 @@ export interface ICreateConversationParams {
       assistant_id: string;
       assistant_short_name: string;
       source: string;
+    };
+    opl_flow_context?: {
+      flow_id: string;
+      source: string;
+      delivery: string;
+      language: string;
+      user_agents_policy: string;
     };
     preset_context?: string;
     preset_assistant_id?: string;

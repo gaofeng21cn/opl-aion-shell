@@ -9,6 +9,9 @@
   "selectAssistantHint": "Select an assistant to start a task",
   "agentSwitcherLabel": "Agent",
   "switchedToAgent": "Switched to {{agent}}",
+  "postInstallSelfCheck": {
+    "prompt": "Post-install intelligent self-check\n\nProgrammatic initialization has completed. Please inspect the current environment and verify that the installed One Person Lab App working mode matches the intended target state.\n\nTarget state:\n1. Codex CLI is callable from the App.\n2. App-created Codex sessions use session-scoped opl-flow context.\n3. The UI language policy is correct: use Chinese only when the UI is Chinese, and use English when the UI is English.\n4. Respect the user's existing AGENTS.md. Do not overwrite it or append duplicate rules; report conflicts with App-managed opl-flow context instead.\n5. MAS/MAG/RCA routing, OPL Meta Agent capability, and Codex skills/plugins are visible and usable after installation.\n6. After module auto-update, Codex plugins and skills remain registered and callable.\n\nStart with read-only diagnosis: report the conclusion, evidence, issues, and recommended actions. Do not overwrite the user's AGENTS.md. If a file change or repair command is needed, explain the reason, impact, and exact command first, then wait for my confirmation."
+  },
   "workspace": {
     "workInProject": "Work in a project",
     "optional": "Optional",
@@ -16,6 +19,24 @@
     "specifyWorkspace": "Select project folder",
     "searchPlaceholder": "Search projects…",
     "noProject": "No Project"
+  },
+  "activity": {
+    "title": "Continue work",
+    "subtitle": "Refs from OPL App state",
+    "attentionCount": "{{count}} attention",
+    "activeCount": "{{count}} active",
+    "itemCount": "{{count}}",
+    "continueAction": "Continue",
+    "continuationPrompt": "Continue OPL task {{taskId}}: {{title}}\nDomain: {{domain}}\nState: {{state}}\nStage: {{stage}}\nNext step: {{nextStep}}",
+    "unknown": "Unknown",
+    "needsAttention": "Needs attention",
+    "activeProjects": "Active projects",
+    "recentProjects": "Recent projects",
+    "empty": "No OPL project activity yet",
+    "error": "OPL App state is temporarily unavailable.",
+    "noAttention": "Nothing needs attention",
+    "noActive": "No active project",
+    "noRecent": "No recent project"
   },
   "scanning": {
     "initialMessage": "Current Agent is unavailable, detecting other available agents...",

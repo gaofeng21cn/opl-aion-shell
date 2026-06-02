@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -152,6 +154,55 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
   });
 
+  it('requires the beginner first-run layout only for clean first-run probes', () => {
+    expect(
+      __test.shouldCheckFirstRunBeginnerUx({
+        assertClean: true,
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(true);
+    expect(
+      __test.shouldCheckFirstRunBeginnerUx({
+        assertClean: false,
+        requireCodexConfigWizard: true,
+      })
+    ).toBe(true);
+    expect(
+      __test.shouldCheckFirstRunBeginnerUx({
+        assertClean: false,
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(false);
+  });
+
+  it('maps clean Full first-run screenshots to release evidence paths only for Full gates', () => {
+    expect(__test.RELEASE_EVIDENCE_SCREENSHOTS).toEqual({
+      full: path.join('screenshots', 'full.png'),
+      action: path.join('screenshots', 'action.png'),
+    });
+    expect(
+      __test.shouldCaptureFullReleaseScreenshot({
+        assertClean: true,
+        requireCodexConfigWizard: false,
+        runtimeProfile: 'full',
+      })
+    ).toBe(true);
+    expect(
+      __test.shouldCaptureFullReleaseScreenshot({
+        assertClean: true,
+        requireCodexConfigWizard: false,
+        runtimeProfile: 'standard',
+      })
+    ).toBe(false);
+    expect(
+      __test.shouldCaptureFullReleaseScreenshot({
+        assertClean: false,
+        requireCodexConfigWizard: false,
+        runtimeProfile: 'full',
+      })
+    ).toBe(false);
+  });
+
   it('does not require folded technical action labels during first-run accessibility fallback', () => {
     const labels = __test.firstRunAccessibilityExpectedLabels();
 
@@ -183,6 +234,422 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/agent');
     expect(targetHashes).not.toContain('#/settings/display');
     expect(targetHashes).not.toContain('#/settings/webui');
+  });
+
+  it('parses packaged assistant route smoke and exposes MAS/MAG/RCA targets', () => {
+    const options = __test.parseArgs([
+      '--app',
+      '/Applications/One Person Lab.app',
+      '--assistant-route-smoke',
+      '--runtime-profile',
+      'standard',
+    ]);
+
+    expect(options.assistantRouteSmoke).toBe(true);
+    expect(__test.ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
+      { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+      { id: 'mag', badge: '@MAG', shortName: 'MAG' },
+      { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+    ]);
+  });
+
+  it('checks packaged assistant routes through persisted Codex ACP route receipts', () => {
+    const expression = __test.assistantRouteSmokeExpression({ id: 'mas', badge: '@MAS', shortName: 'MAS' });
+
+    expect(expression).toContain('[data-testid="preset-pill-mas"]');
+    expect(expression).toContain('[data-testid="guid-input"]');
+    expect(expression).toContain('[data-testid="guid-send-btn"]');
+    expect(expression).toContain('window.__backendPort');
+    expect(expression).toContain('selectors_hidden');
+    const receiptVerifier = __test.verifyAssistantRouteConversationReceipt.toString();
+    expect(receiptVerifier).toContain('/api/conversations/');
+    expect(receiptVerifier).toContain('opl_assistant_route');
+    expect(receiptVerifier).toContain('builtin_capability');
+    expect(receiptVerifier).toContain('codex_cli');
+  });
+
+  it('builds a deterministic Codex functional check receipt without requiring LLM credentials', () => {
+    const receipt = __test.buildCodexFunctionalCheckReceipt({
+      codexApiKey: null,
+      codexCliProbe: { detected: false, command: 'codex', version: null },
+      assistantRouteSmoke: [{ id: 'mas' }, { id: 'mag' }, { id: 'rca' }],
+    });
+
+    expect(receipt).toMatchObject({
+      schema: 'opl_codex_functional_check_receipt.v1',
+      status: 'diagnostic_skipped',
+      ui_language: 'zh-CN',
+      opl_flow_context_expected: {
+        status: 'passed',
+        context_id: 'opl-flow',
+        deterministic: true,
+      },
+      user_agents_policy: {
+        status: 'passed',
+        agents_override_allowed: false,
+        deterministic: true,
+      },
+      codex_cli_invokable: {
+        detected: false,
+        status: 'missing',
+      },
+      assistant_route_receipts_checked: {
+        status: 'passed',
+        required: ['mas', 'mag', 'rca'],
+        checked: ['mas', 'mag', 'rca'],
+        deterministic: true,
+      },
+      skills_or_plugins_policy_checked: {
+        status: 'passed',
+        companion_skills_policy: 'codex_visible_companion_skills',
+        domain_routes_policy: 'plugin_visible_domain_routes_not_companion_skill_mirrors',
+        deterministic: true,
+      },
+      blocking_release_gate: {
+        stable_vm_gate: 'receipt_file_exists_and_deterministic_fields_passed',
+        deterministic_fields_passed: true,
+        llm_invocation_required: false,
+      },
+      future_codex_invocation: {
+        status: 'diagnostic_skipped',
+        reason: 'missing_codex_credentials',
+      },
+    });
+  });
+
+  it('parses Codex AI self-check as an optional post-install diagnostic', () => {
+    const options = __test.parseArgs([
+      '--app',
+      '/Applications/One Person Lab.app',
+      '--codex-ai-self-check',
+      '--runtime-profile',
+      'standard',
+    ]);
+
+    expect(options.codexAiSelfCheck).toBe(true);
+    expect(options.codexAiSelfCheckMode).toBe('diagnose');
+    expect(options.codexFunctionalCheck).toBe(true);
+    expect(options.assistantRouteSmoke).toBe(true);
+  });
+
+  it('builds the Codex AI self-check prompt from deterministic post-install evidence', () => {
+    const prompt = __test.buildCodexAiSelfCheckPrompt({
+      runtimeProfile: 'full',
+      uiLanguage: 'zh-CN',
+      coreFirstLaunch: {
+        source: 'opl system initialize --json',
+        status: 'ready',
+      },
+      assistantRouteSmoke: [{ id: 'mas' }, { id: 'mag' }, { id: 'rca' }],
+      codexFunctionalCheck: {
+        schema: 'opl_codex_functional_check_receipt.v1',
+        status: 'passed',
+        blocking_release_gate: {
+          deterministic_fields_passed: true,
+          llm_invocation_required: false,
+        },
+      },
+    });
+
+    expect(prompt).toContain('One Person Lab post-install AI self-check');
+    expect(prompt).toContain('Programmatic initialization has already run');
+    expect(prompt).toContain('Read the evidence and judge whether the installed OPL working mode matches the target state');
+    expect(prompt).toContain('Do not modify user files');
+    expect(prompt).toContain('Output strict JSON only');
+    expect(prompt).toContain('opl-flow');
+    expect(prompt).toContain('MAS/MAG/RCA');
+    expect(prompt).toContain('user AGENTS.md');
+    expect(prompt).toContain('module_update_skill_plugin_continuity');
+    expect(prompt).toContain('"runtime_profile": "full"');
+  });
+
+  it('builds a skipped Codex AI self-check receipt when the diagnostic is not requested', () => {
+    const receipt = __test.buildSkippedCodexAiSelfCheckReceipt({
+      requested: false,
+      reason: 'not_requested',
+      codexCliProbe: { detected: true, command: 'codex', version: 'codex 0.50.0' },
+    });
+
+    expect(receipt).toMatchObject({
+      schema: 'opl_codex_ai_self_check_receipt.v1',
+      status: 'skipped_not_requested',
+      mode: 'diagnose',
+      mutations_allowed: false,
+      blocking_release_gate: false,
+      codex_cli: {
+        detected: true,
+        command: 'codex',
+      },
+    });
+  });
+
+  it('wraps Codex AI self-check output as a non-blocking receipt', () => {
+    const receipt = __test.buildCodexAiSelfCheckReceipt({
+      requested: true,
+      mode: 'diagnose',
+      codexCliProbe: { detected: true, command: 'codex', version: 'codex 0.50.0' },
+      prompt: 'target state brief',
+      result: {
+        status: 'passed',
+        stdout: '{"status":"passed","checks":{"opl_flow_context":{"status":"passed"}}}',
+        stderr: '',
+        parsed: {
+          status: 'passed',
+          checks: {
+            opl_flow_context: { status: 'passed' },
+          },
+        },
+        outputPath: '/tmp/codex-ai-self-check-output.json',
+      },
+    });
+
+    expect(receipt).toMatchObject({
+      schema: 'opl_codex_ai_self_check_receipt.v1',
+      status: 'passed',
+      mode: 'diagnose',
+      mutations_allowed: false,
+      blocking_release_gate: false,
+      codex_cli: {
+        detected: true,
+        command: 'codex',
+      },
+      codex_result: {
+        parsed_status: 'passed',
+        output_path: '/tmp/codex-ai-self-check-output.json',
+      },
+    });
+  });
+
+  it('captures Runtime action dry-run evidence from the visible Runtime page', () => {
+    const expression = __test.runtimeActionEvidenceExpression();
+
+    expect(__test.RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS).toBe(45_000);
+    expect(expression).toContain("window.location.hash = '#/runtime'");
+    expect(expression).toContain('Safe Action Routes');
+    expect(expression).toContain('安全动作');
+    expect(expression).toContain('Dry Run');
+    expect(expression).toContain('试运行');
+    expect(expression).toContain('Action Result');
+    expect(expression).toContain('动作结果');
+    expect(expression).toContain('Dry run completed');
+    expect(expression).toContain('试运行完成');
+  });
+
+  it('keeps Settings smoke passed when Runtime action evidence is unavailable', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-settings-smoke-'));
+    const calls: string[] = [];
+    const client = {
+      send: async () => ({ data: 'iVBORw0KGgo=' }),
+      close: () => {
+        calls.push('close');
+      },
+    };
+    const options = {
+      artifacts,
+      cdpPort: 9230,
+      timeoutMs: 1_000,
+      __testHooks: {
+        waitForCdpPageTarget: async () => ({ webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/page/test' }),
+        openCdpClient: async () => client,
+        captureSettingsPage: async (_client: unknown, pageTarget: { id: string }) => ({ id: pageTarget.id }),
+        exerciseRuntimeRefresh: async (_client: unknown, targetHash: string) => ({ targetHash }),
+        assertDeveloperModeStatus: async () => ({ status: 'ready' }),
+        captureRuntimeActionEvidence: async () => {
+          throw new Error('No safe action routes are currently exposed.');
+        },
+      },
+    };
+
+    try {
+      const result = await __test.runSettingsSmoke(options, null);
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'settings-smoke-summary.json'), 'utf8'));
+      const blocker = JSON.parse(fs.readFileSync(path.join(artifacts, 'runtime-action-evidence-blocker.json'), 'utf8'));
+
+      expect(result.map((page: { id: string }) => page.id)).toContain('runtime-status');
+      expect(result.runtimeActionEvidence).toBeNull();
+      expect(result.runtimeActionEvidenceBlocker).toMatchObject({
+        status: 'blocked',
+        blocker_kind: 'runtime_action_evidence_unavailable',
+      });
+      expect(summary).toMatchObject({
+        surface_id: 'opl_packaged_gui_settings_smoke',
+        status: 'passed',
+        runtime_action_evidence: null,
+        runtime_action_evidence_blocker: {
+          status: 'blocked',
+          blocker_kind: 'runtime_action_evidence_unavailable',
+        },
+      });
+      expect(blocker.reason).toContain('No safe action routes');
+      expect(calls).toContain('close');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps assistant route DOM actions separate from persisted receipt fetches', () => {
+    const expression = __test.assistantRouteSmokeExpression({ id: 'mas', badge: '@MAS', shortName: 'MAS' });
+
+    expect(expression).toContain('Date.now() + 30000');
+    expect(expression).not.toContain("fetch('http://127.0.0.1:'");
+    expect(expression).not.toContain('/api/conversations/');
+    expect(__test.verifyAssistantRouteConversationReceipt.toString()).toContain('/api/conversations/');
+  });
+
+  it('verifies assistant route receipts from backend response envelopes', async () => {
+    const server = http.createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          success: true,
+          data: {
+            id: 'conv-mas',
+            type: 'acp',
+            extra: {
+              backend: 'codex',
+              opl_assistant_route: {
+                route_kind: 'builtin_capability',
+                executor: 'codex_cli',
+                assistant_id: 'mas',
+                assistant_short_name: 'MAS',
+                source: 'opl_app_home',
+              },
+              opl_flow_context: {
+                flow_id: 'opl-flow',
+                delivery: 'session_scoped_preset_context',
+                language: 'follow_ui_locale_zh_only_when_ui_zh',
+                user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+              },
+            },
+          },
+        })
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address() as AddressInfo;
+      await expect(
+        __test.verifyAssistantRouteConversationReceipt(
+          { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+          address.port,
+          'conv-mas'
+        )
+      ).resolves.toMatchObject({
+        status: 'passed',
+        conversation_id: 'conv-mas',
+        conversation_type: 'acp',
+        backend: 'codex',
+        route: {
+          route_kind: 'builtin_capability',
+          executor: 'codex_cli',
+          assistant_id: 'mas',
+          assistant_short_name: 'MAS',
+          source: 'opl_app_home',
+        },
+        opl_flow_context: {
+          flow_id: 'opl-flow',
+          delivery: 'session_scoped_preset_context',
+        },
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it('does not require OPL Flow context on the assistant route receipt gate', async () => {
+    const server = http.createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          success: true,
+          data: {
+            id: 'conv-mas',
+            type: 'acp',
+            extra: {
+              backend: 'codex',
+              opl_assistant_route: {
+                route_kind: 'builtin_capability',
+                executor: 'codex_cli',
+                assistant_id: 'mas',
+                assistant_short_name: 'MAS',
+                source: 'opl_app_home',
+              },
+            },
+          },
+        })
+      );
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    try {
+      const address = server.address() as AddressInfo;
+      await expect(
+        __test.verifyAssistantRouteConversationReceipt(
+          { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+          address.port,
+          'conv-mas'
+        )
+      ).resolves.toMatchObject({
+        status: 'passed',
+        conversation_id: 'conv-mas',
+        route: {
+          route_kind: 'builtin_capability',
+          executor: 'codex_cli',
+          assistant_id: 'mas',
+          assistant_short_name: 'MAS',
+          source: 'opl_app_home',
+        },
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it('writes a fail-closed assistant route summary when packaged UI controls are missing', () => {
+    const error = new Error('Assistant route controls did not become ready for mas') as Error & {
+      lastState?: unknown;
+      lastError?: string | null;
+    };
+    error.lastState = {
+      target_pill_present: false,
+      selectors_hidden: false,
+      badge_visible: false,
+    };
+    error.lastError = null;
+
+    expect(
+      __test.buildAssistantRouteSmokeFailureSummary(
+        { cdpPort: 9230 },
+        { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+        [],
+        error
+      )
+    ).toEqual({
+      surface_id: 'opl_packaged_gui_assistant_route_smoke',
+      status: 'failed',
+      cdp_port: 9230,
+      failed_assistant: 'mas',
+      assistants: [],
+      error: 'Assistant route controls did not become ready for mas',
+      last_state: {
+        target_pill_present: false,
+        selectors_hidden: false,
+        badge_visible: false,
+      },
+      last_error: null,
+      required_contract: {
+        purpose_entries: ['preset-pill-mas', 'preset-pill-mag', 'preset-pill-rca'],
+        selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
+        route_receipt: {
+          route_kind: 'builtin_capability',
+          executor: 'codex_cli',
+          source: 'opl_app_home',
+        },
+      },
+    });
   });
 
   it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {

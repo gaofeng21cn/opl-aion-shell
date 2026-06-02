@@ -14,14 +14,11 @@ import {
 import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
-import { openExternalUrl } from '@/renderer/utils/platform';
 import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
 import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
-import QuickActionButtons from './components/QuickActionButtons';
-import FeedbackReportModal from '@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
@@ -40,6 +37,55 @@ import styles from './index.module.css';
 
 const EMPTY_GUID_SKILLS: string[] = [];
 
+type GuidNavigationState = {
+  resetAssistant?: boolean;
+  selectedAgentKey?: string;
+  workspace?: string;
+  postInstallSelfCheck?: boolean;
+};
+
+const POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS: Record<'zh-CN' | 'en-US', string> = {
+  'zh-CN': [
+    '安装后智能自检',
+    '',
+    '程序化初始化已经完成，现在请基于当前环境检查 One Person Lab App 的安装后工作模式是否符合预期。',
+    '',
+    '目标态：',
+    '1. Codex CLI 可以被 App 正常调用。',
+    '2. App 创建的 Codex 会话使用 session-scoped opl-flow 上下文。',
+    '3. 当前 UI 语言策略正确：中文界面用中文，英文界面用英文。',
+    '4. 尊重用户已有的 AGENTS.md，不覆盖、不重复追加；如与 App 管理的 opl-flow 上下文冲突，请指出冲突。',
+    '5. MAS/MAG/RCA 路由、OPL Meta Agent 能力、Codex skill/plugin 在安装后可见可用。',
+    '6. 模块自动更新后，Codex 插件和 skill 仍然注册并可调用。',
+    '',
+    '请先只读诊断：给出结论、证据、发现的问题和建议动作。不要覆盖用户已有的 AGENTS.md；如果需要修改文件或执行修复，请先说明原因、影响范围和具体命令，等我确认后再执行。',
+  ].join('\n'),
+  'en-US': [
+    'Post-install intelligent self-check',
+    '',
+    'Programmatic initialization has completed. Please inspect the current environment and verify that the installed One Person Lab App working mode matches the intended target state.',
+    '',
+    'Target state:',
+    '1. Codex CLI is callable from the App.',
+    '2. App-created Codex sessions use session-scoped opl-flow context.',
+    '3. The UI language policy is correct: use Chinese only when the UI is Chinese, and use English when the UI is English.',
+    '4. Respect the user\'s existing AGENTS.md. Do not overwrite it or append duplicate rules; report conflicts with App-managed opl-flow context instead.',
+    '5. MAS/MAG/RCA routing, OPL Meta Agent capability, and Codex skills/plugins are visible and usable after installation.',
+    '6. After module auto-update, Codex plugins and skills remain registered and callable.',
+    '',
+    'Start with read-only diagnosis: report the conclusion, evidence, issues, and recommended actions. Do not overwrite the user\'s AGENTS.md. If a file change or repair command is needed, explain the reason, impact, and exact command first, then wait for my confirmation.',
+  ].join('\n'),
+};
+
+function buildPostInstallSelfCheckPrompt(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  localeKey: 'zh-CN' | 'en-US'
+): string {
+  return t('guid.postInstallSelfCheck.prompt', {
+    defaultValue: POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS[localeKey],
+  });
+}
+
 const GuidPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -47,22 +93,13 @@ const GuidPage: React.FC = () => {
   const guidContainerRef = useRef<HTMLDivElement>(null);
   const openAssistantDetailsRef = useRef<(() => void) | null>(null);
   const descriptionTextRef = useRef<HTMLDivElement>(null);
+  const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
 
   const localeKey = resolveLocaleKey(i18n.language);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   useEffect(() => {
     document.title = 'One Person Lab App';
-  }, []);
-
-  // Open external link
-  const openLink = useCallback(async (url: string) => {
-    try {
-      await openExternalUrl(url);
-    } catch (error) {
-      console.error('Failed to open external link:', error);
-    }
   }, []);
 
   // --- Skills state ---
@@ -108,9 +145,10 @@ const GuidPage: React.FC = () => {
   // regular ACP backend with its own model selector).
   const modelSelection = useGuidModelSelection('aionrs');
 
-  const navState = location.state as { resetAssistant?: boolean; selectedAgentKey?: string } | null;
+  const navState = location.state as GuidNavigationState | null;
   const resetAssistantRequested = navState?.resetAssistant === true;
   const preselectAgentKey = navState?.selectedAgentKey;
+  const postInstallSelfCheckRequested = navState?.postInstallSelfCheck === true;
   const agentSelection = useGuidAgentSelection({
     modelList: modelSelection.modelList,
     isGoogleAuth: modelSelection.isGoogleAuth,
@@ -121,7 +159,7 @@ const GuidPage: React.FC = () => {
   });
 
   const guidInput = useGuidInput({
-    locationState: location.state as { workspace?: string } | null,
+    locationState: navState,
   });
 
   const selectedAssistantRecord = useMemo(() => {
@@ -197,6 +235,7 @@ const GuidPage: React.FC = () => {
     // Navigation
     navigate,
     t,
+    language: i18n.language,
   });
 
   // --- Coordinated handlers (depend on multiple hooks) ---
@@ -351,14 +390,31 @@ const GuidPage: React.FC = () => {
   // Reset guid-local UI state before paint so same-route navigations do not
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
-    guidInput.setInput('');
+    if (postInstallSelfCheckRequested) {
+      guidInput.setInput(buildPostInstallSelfCheckPrompt(t, localeKey));
+      preservePostInstallPromptRef.current = true;
+    } else if (preservePostInstallPromptRef.current) {
+      preservePostInstallPromptRef.current = false;
+    } else {
+      guidInput.setInput('');
+    }
     guidInput.setFiles([]);
     guidInput.setLoading(false);
-    if (!(location.state as { workspace?: string } | null)?.workspace) {
+    if (!navState?.workspace) {
       guidInput.setDir('');
     }
     setIsDescriptionExpanded(false);
-  }, [guidInput.setDir, guidInput.setFiles, guidInput.setInput, guidInput.setLoading, location.key, location.state]);
+  }, [
+    guidInput.setDir,
+    guidInput.setFiles,
+    guidInput.setInput,
+    guidInput.setLoading,
+    localeKey,
+    location.key,
+    navState?.workspace,
+    postInstallSelfCheckRequested,
+    t,
+  ]);
 
   // Clear resetAssistant from location.state after the hook has consumed it,
   // so that re-renders don't re-trigger the reset logic.
@@ -369,9 +425,17 @@ const GuidPage: React.FC = () => {
   // next hard reload, the browser would then request '/guid' directly from
   // the dev server (which has no SPA fallback) and 404.
   useEffect(() => {
-    if (!resetAssistantRequested && !preselectAgentKey) return;
+    if (!resetAssistantRequested && !preselectAgentKey && !postInstallSelfCheckRequested) return;
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
-  }, [resetAssistantRequested, preselectAgentKey, location.pathname, location.search, location.hash, navigate]);
+  }, [
+    resetAssistantRequested,
+    preselectAgentKey,
+    postInstallSelfCheckRequested,
+    location.pathname,
+    location.search,
+    location.hash,
+    navigate,
+  ]);
 
   useEffect(() => {
     const node = descriptionTextRef.current;
@@ -617,13 +681,6 @@ const GuidPage: React.FC = () => {
           />
         </div>
 
-        <QuickActionButtons
-          onOpenLink={openLink}
-          onOpenBugReport={() => setShowFeedbackModal(true)}
-          inactiveBorderColor={inactiveBorderColor}
-          activeShadow={activeShadow}
-        />
-        <FeedbackReportModal visible={showFeedbackModal} onCancel={() => setShowFeedbackModal(false)} />
       </div>
     </ConfigProvider>
   );

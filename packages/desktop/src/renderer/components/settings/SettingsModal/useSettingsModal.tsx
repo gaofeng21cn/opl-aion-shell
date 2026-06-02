@@ -36,7 +36,7 @@ interface UseSettingsModalReturn {
  * return (
  *   <>
  *     <Button onClick={() => openSettings()}>Open Settings</Button>
- *     <Button onClick={() => openSettings('runtime')}>Open Runtime Settings</Button>
+ *     <Button onClick={() => openSettings('general')}>Open General Settings</Button>
  *     {settingsModal}
  *   </>
  * );
@@ -46,7 +46,7 @@ export const useSettingsModal = (): UseSettingsModalReturn => {
   // 弹窗可见状态 / Modal visibility state
   const [visible, setVisible] = useState(false);
   // 默认选中的标签页 / Default selected tab
-  const [defaultTab, setDefaultTab] = useState<SettingTab>('runtime');
+  const [defaultTab, setDefaultTab] = useState<SettingTab>('general');
 
   /**
    * 打开设置弹窗 / Open settings modal

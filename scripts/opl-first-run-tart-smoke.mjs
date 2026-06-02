@@ -14,6 +14,7 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGINT', 130],
   ['SIGTERM', 143],
 ]);
+const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
 const SMOKE_PROFILES = new Map([
   [
     'full-gate',
@@ -63,6 +64,18 @@ Options:
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
+  --assistant-route-smoke  Select MAS, MAG, and RCA in the packaged guest GUI and verify Codex CLI route receipts.
+  --codex-functional-check
+                           Generate and require the guest Codex functional check receipt.
+                           This implies --assistant-route-smoke and does not call an LLM.
+  --codex-ai-self-check
+                           Generate a non-blocking guest Codex AI self-check receipt after
+                           deterministic initialization and Codex functional checks.
+                           This implies --codex-functional-check.
+  --codex-ai-self-check-mode <mode>
+                           Codex AI self-check mode: diagnose or fix. Default: diagnose.
+  --codex-ai-self-check-timeout-ms <n>
+                           Codex AI self-check timeout. Default: 120000.
   --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
   --runtime-profile <profile>
                            First-run package profile to verify: full or standard. Default: full.
@@ -80,6 +93,12 @@ Options:
   --guest-node-root <path> Copy a host Node.js runtime directory into the guest workdir and use it for the smoke.
   --guest-node-command <cmd>
                            Existing Node.js command in the guest. Skips Node download/probe install.
+  --framework-source-archive <path>
+                           Optional current-source OPL Framework tar.gz to inject into the packaged app bootstrap.
+                           This marks the smoke as current-source evidence, not published release evidence.
+  --framework-install-script <path>
+                           Optional current-source Framework install.sh paired with --framework-source-archive.
+                           The packaged app receives it through OPL_INSTALL_SCRIPT_URL=file://... .
   --dry-run                Resolve arguments and write a host plan without cloning or starting Tart.
   --no-graphics            Start Tart with --no-graphics. Use only for images with a logged-in GUI session.
   --keep-vm                Leave the temporary VM running for debugging.
@@ -103,12 +122,19 @@ function parseArgs(argv) {
     display: '1920x1080px',
     smokeProfile: 'full-gate',
     settingsSmoke: false,
+    assistantRouteSmoke: false,
+    codexFunctionalCheck: false,
+    codexAiSelfCheck: false,
+    codexAiSelfCheckMode: 'diagnose',
+    codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
     runtimeProfile: 'full',
     requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     guestNodeRoot: '',
     guestNodeCommand: '',
+    frameworkSourceArchive: '',
+    frameworkInstallScript: '',
     dryRun: false,
     noGraphics: false,
     keepVm: false,
@@ -134,6 +160,27 @@ function parseArgs(argv) {
     if (arg === '--settings-smoke') {
       options.settingsSmoke = true;
       explicit.add('settingsSmoke');
+      continue;
+    }
+    if (arg === '--assistant-route-smoke') {
+      options.assistantRouteSmoke = true;
+      explicit.add('assistantRouteSmoke');
+      continue;
+    }
+    if (arg === '--codex-functional-check') {
+      options.codexFunctionalCheck = true;
+      options.assistantRouteSmoke = true;
+      explicit.add('codexFunctionalCheck');
+      explicit.add('assistantRouteSmoke');
+      continue;
+    }
+    if (arg === '--codex-ai-self-check') {
+      options.codexAiSelfCheck = true;
+      options.codexFunctionalCheck = true;
+      options.assistantRouteSmoke = true;
+      explicit.add('codexAiSelfCheck');
+      explicit.add('codexFunctionalCheck');
+      explicit.add('assistantRouteSmoke');
       continue;
     }
     if (arg === '--require-codex-config-wizard') {
@@ -196,6 +243,12 @@ function parseArgs(argv) {
     } else if (arg === '--runtime-profile') {
       options.runtimeProfile = value;
       explicit.add('runtimeProfile');
+    } else if (arg === '--codex-ai-self-check-mode') {
+      options.codexAiSelfCheckMode = value;
+      explicit.add('codexAiSelfCheckMode');
+    } else if (arg === '--codex-ai-self-check-timeout-ms') {
+      options.codexAiSelfCheckTimeoutMs = Number(value);
+      explicit.add('codexAiSelfCheckTimeoutMs');
     } else if (arg === '--codex-api-key-file') {
       options.codexApiKeyFile = path.resolve(value);
       explicit.add('codexApiKeyFile');
@@ -205,6 +258,12 @@ function parseArgs(argv) {
     } else if (arg === '--guest-node-command') {
       options.guestNodeCommand = value;
       explicit.add('guestNodeCommand');
+    } else if (arg === '--framework-source-archive') {
+      options.frameworkSourceArchive = path.resolve(value);
+      explicit.add('frameworkSourceArchive');
+    } else if (arg === '--framework-install-script') {
+      options.frameworkInstallScript = path.resolve(value);
+      explicit.add('frameworkInstallScript');
     } else throw new Error(`Unsupported argument: ${arg}`);
   }
 
@@ -232,8 +291,23 @@ function parseArgs(argv) {
       throw new Error(`--guest-node-root must contain bin/node: ${options.guestNodeRoot}`);
     }
   }
+  if (options.frameworkSourceArchive && !options.dryRun && !fs.existsSync(options.frameworkSourceArchive)) {
+    throw new Error(`Framework source archive does not exist: ${options.frameworkSourceArchive}`);
+  }
+  if (options.frameworkInstallScript && !options.frameworkSourceArchive) {
+    throw new Error('--framework-install-script requires --framework-source-archive.');
+  }
+  if (options.frameworkInstallScript && !options.dryRun && !fs.existsSync(options.frameworkInstallScript)) {
+    throw new Error(`Framework install script does not exist: ${options.frameworkInstallScript}`);
+  }
   if (!['full', 'standard'].includes(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
+  }
+  if (!['diagnose', 'fix'].includes(options.codexAiSelfCheckMode)) {
+    throw new Error('--codex-ai-self-check-mode must be one of: diagnose, fix.');
+  }
+  if (!Number.isFinite(options.codexAiSelfCheckTimeoutMs) || options.codexAiSelfCheckTimeoutMs <= 0) {
+    throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
   }
   if (options.requireCodexConfigWizard === null) options.requireCodexConfigWizard = false;
 
@@ -252,14 +326,55 @@ function buildDryRunPlan(options) {
     guest_workdir: options.guestWorkdir,
     display: options.display,
     settings_smoke: options.settingsSmoke,
-    cdp_port: options.settingsSmoke ? options.cdpPort : null,
+    assistant_route_smoke: options.assistantRouteSmoke,
+    codex_functional_check: options.codexFunctionalCheck,
+    codex_ai_self_check: {
+      requested: options.codexAiSelfCheck,
+      mode: options.codexAiSelfCheckMode,
+      blocking_release_gate: false,
+    },
+    cdp_port: options.settingsSmoke || options.assistantRouteSmoke ? options.cdpPort : null,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
+    framework_source_archive: frameworkSourceArchivePlan(options),
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
   };
+}
+
+function guestFrameworkSourceArchivePath(options) {
+  if (!options.frameworkSourceArchive) return null;
+  return `${options.guestWorkdir}/${path.basename(options.frameworkSourceArchive)}`;
+}
+
+function guestFrameworkInstallScriptPath(options) {
+  if (!options.frameworkInstallScript) return null;
+  return `${options.guestWorkdir}/opl-framework-install.sh`;
+}
+
+function frameworkSourceArchivePlan(options) {
+  const guestPath = guestFrameworkSourceArchivePath(options);
+  if (!options.frameworkSourceArchive || !guestPath) return null;
+  const installScriptGuestPath = guestFrameworkInstallScriptPath(options);
+  return {
+    evidence_role: 'current_source_framework_archive',
+    host_path: options.frameworkSourceArchive,
+    guest_path: guestPath,
+    install_script_host_path: options.frameworkInstallScript || null,
+    install_script_guest_path: installScriptGuestPath,
+    install_script_url: installScriptGuestPath ? `file://${installScriptGuestPath}` : null,
+    install_source_mode: 'archive',
+    source_archive_url: `file://${guestPath}`,
+  };
+}
+
+function frameworkInstallScriptFinalizeCommand(options) {
+  if (!options.frameworkInstallScript) return '';
+  const copiedPath = `${options.guestWorkdir}/${path.basename(options.frameworkInstallScript)}`;
+  const guestPath = guestFrameworkInstallScriptPath(options);
+  return [`mv ${shellQuote(copiedPath)} ${shellQuote(guestPath)}`, `chmod +x ${shellQuote(guestPath)}`].join(' && ');
 }
 
 function prepareHostCodexApiKeyFile(options) {
@@ -348,6 +463,26 @@ function runAsync(command, args, options = {}) {
     runtimeState.currentChild = child;
     let stdout = '';
     let stderr = '';
+    let timedOut = false;
+    let timeoutMessage = '';
+    const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? Number(options.timeoutMs) : null;
+    let timeoutTimer = null;
+    let killTimer = null;
+    const clearTimers = () => {
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      if (killTimer) clearTimeout(killTimer);
+    };
+    if (timeoutMs) {
+      timeoutTimer = setTimeout(() => {
+        timedOut = true;
+        timeoutMessage = `${options.label ?? `${command} ${args.join(' ')}`} timed out after ${timeoutMs}ms`;
+        appendRuntimeLog(`child_timeout ${timeoutMessage}`);
+        child.kill('SIGTERM');
+        killTimer = setTimeout(() => {
+          child.kill('SIGKILL');
+        }, 5_000);
+      }, timeoutMs);
+    }
     child.stdout.on('data', (chunk) => {
       stdout += chunk.toString();
     });
@@ -355,11 +490,17 @@ function runAsync(command, args, options = {}) {
       stderr += chunk.toString();
     });
     child.once('error', (error) => {
+      clearTimers();
       if (runtimeState.currentChild === child) runtimeState.currentChild = null;
-      reject(error);
+      reject(timedOut ? new Error(timeoutMessage) : error);
     });
     child.once('close', (code, signal) => {
+      clearTimers();
       if (runtimeState.currentChild === child) runtimeState.currentChild = null;
+      if (timedOut) {
+        reject(new Error(`${timeoutMessage}; process exited with ${code ?? `signal ${signal}`}`));
+        return;
+      }
       if (code !== 0) {
         reject(
           new Error(
@@ -377,6 +518,10 @@ function runAsync(command, args, options = {}) {
       resolve(stdout);
     });
   });
+}
+
+function guestSmokeHostTimeoutMs(options) {
+  return options.smokeTimeoutMs + GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS;
 }
 
 function runPipe(leftCommand, leftArgs, rightCommand, rightArgs) {
@@ -431,6 +576,10 @@ function sshBaseArgs(options, ip) {
 
 async function ssh(options, ip, command) {
   return await runAsync('ssh', [...sshBaseArgs(options, ip), command]);
+}
+
+async function sshWithRunOptions(options, ip, command, runOptions) {
+  return await runAsync('ssh', [...sshBaseArgs(options, ip), command], runOptions);
 }
 
 async function scpToGuest(options, ip, sources, targetDir) {
@@ -607,8 +756,28 @@ function assertTartAvailable() {
   run('tart', ['--version']);
 }
 
-function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath) {
+function guestSmokeCommand(
+  options,
+  guestDmgPath,
+  guestScriptPath,
+  guestArtifactDir,
+  guestCodexApiKeyPath,
+  guestFrameworkSourceArchivePath = null,
+  guestFrameworkInstallScriptPath = null
+) {
   const nodeCommand = shellQuote(options.guestNodeCommand);
+  const sourceArchiveUrl = guestFrameworkSourceArchivePath ? `file://${guestFrameworkSourceArchivePath}` : null;
+  const installScriptUrl = guestFrameworkInstallScriptPath ? `file://${guestFrameworkInstallScriptPath}` : null;
+  const sourceArchiveEnv = sourceArchiveUrl
+    ? [
+        `export OPL_INSTALL_SOURCE_MODE='archive'`,
+        `export OPL_SOURCE_ARCHIVE_URL=${shellQuote(sourceArchiveUrl)}`,
+        installScriptUrl ? `export OPL_INSTALL_SCRIPT_URL=${shellQuote(installScriptUrl)}` : '',
+        `launchctl setenv OPL_INSTALL_SOURCE_MODE 'archive'`,
+        `launchctl setenv OPL_SOURCE_ARCHIVE_URL ${shellQuote(sourceArchiveUrl)}`,
+        installScriptUrl ? `launchctl setenv OPL_INSTALL_SCRIPT_URL ${shellQuote(installScriptUrl)}` : '',
+      ].filter(Boolean)
+    : [];
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
     `--dmg ${shellQuote(guestDmgPath)}`,
@@ -619,10 +788,17 @@ function guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifact
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     options.settingsSmoke ? '--settings-smoke' : '',
-    options.settingsSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
+    options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
+    options.codexFunctionalCheck ? '--codex-functional-check' : '',
+    options.codexAiSelfCheck ? '--codex-ai-self-check' : '',
+    options.codexAiSelfCheck ? `--codex-ai-self-check-mode ${shellQuote(options.codexAiSelfCheckMode)}` : '',
+    options.codexAiSelfCheck
+      ? `--codex-ai-self-check-timeout-ms ${shellQuote(String(options.codexAiSelfCheckTimeoutMs))}`
+      : '',
+    options.settingsSmoke || options.assistantRouteSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
   ].join(' ');
-  return ['set -euo pipefail', smokeArgs].join('\n');
+  return ['set -euo pipefail', ...sourceArchiveEnv, smokeArgs].join('\n');
 }
 
 function resolveGuestSmokeScriptPath() {
@@ -681,12 +857,49 @@ function assertGuestSmokeSummary(options, guestSummary) {
   if (options.requireCodexConfigWizard && !guestSummary.codex_config_wizard_submitted) {
     throw new Error('Guest smoke did not submit the Codex configuration wizard.');
   }
-  if (!options.settingsSmoke) return;
-  if (guestSummary.settings_smoke?.status !== 'passed') {
-    throw new Error('Guest Settings smoke did not pass.');
+  if (options.settingsSmoke) {
+    if (guestSummary.settings_smoke?.status !== 'passed') {
+      throw new Error('Guest Settings smoke did not pass.');
+    }
+    if (!Array.isArray(guestSummary.settings_smoke.pages) || guestSummary.settings_smoke.pages.length === 0) {
+      throw new Error('Guest Settings smoke summary did not record visited pages.');
+    }
   }
-  if (!Array.isArray(guestSummary.settings_smoke.pages) || guestSummary.settings_smoke.pages.length === 0) {
-    throw new Error('Guest Settings smoke summary did not record visited pages.');
+  if (options.assistantRouteSmoke) {
+    if (guestSummary.assistant_route_smoke?.status !== 'passed') {
+      throw new Error('Guest assistant route smoke did not pass.');
+    }
+    const assistants = guestSummary.assistant_route_smoke.assistants;
+    if (!Array.isArray(assistants) || !['mas', 'mag', 'rca'].every((assistantId) => assistants.includes(assistantId))) {
+      throw new Error('Guest assistant route smoke summary did not record MAS, MAG, and RCA.');
+    }
+  }
+  if (options.codexFunctionalCheck) {
+    const receipt = guestSummary.codex_functional_check;
+    if (!receipt) {
+      throw new Error('Guest Codex functional check receipt is missing.');
+    }
+    if (receipt.blocking_release_gate?.deterministic_fields_passed !== true) {
+      throw new Error('Guest Codex functional check deterministic fields did not pass.');
+    }
+    if (receipt.blocking_release_gate?.llm_invocation_required !== false) {
+      throw new Error('Guest Codex functional check must not require LLM invocation.');
+    }
+    if (!['passed', 'diagnostic_skipped'].includes(receipt.status)) {
+      throw new Error(`Guest Codex functional check has release-blocking status: ${receipt.status ?? 'missing'}`);
+    }
+  }
+  if (options.codexAiSelfCheck) {
+    const receipt = guestSummary.codex_ai_self_check;
+    if (!receipt) {
+      throw new Error('Guest Codex AI self-check receipt is missing.');
+    }
+    if (receipt.schema !== 'opl_codex_ai_self_check_receipt.v1') {
+      throw new Error('Guest Codex AI self-check receipt has an unexpected schema.');
+    }
+    if (receipt.blocking_release_gate !== false) {
+      throw new Error('Guest Codex AI self-check must remain non-blocking release evidence.');
+    }
   }
 }
 
@@ -702,6 +915,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     display: options.display,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
+    framework_source_archive: frameworkSourceArchivePlan(options),
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
@@ -710,10 +924,43 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
     labels: guestSummary?.labels ?? [],
     settings_smoke: guestSummary?.settings_smoke ?? null,
+    assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
+    codex_functional_check: guestSummary?.codex_functional_check ?? null,
+    codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+}
+
+function writeFailedSummary(options, ip, guestArtifactDir, error) {
+  const guestSummary = readGuestSmokeSummary(options.artifacts);
+  const summary = {
+    surface_id: 'opl_tart_gui_first_run_smoke',
+    status: 'failed',
+    failure_stage: runtimeState.stage,
+    error: error instanceof Error ? error.message : String(error),
+    smoke_profile: options.smokeProfile,
+    vm_name: options.vmName,
+    source_vm: options.sourceVm,
+    display: options.display,
+    runtime_profile: options.runtimeProfile,
+    require_codex_config_wizard: options.requireCodexConfigWizard,
+    framework_source_archive: frameworkSourceArchivePlan(options),
+    guest_ip: ip || null,
+    guest_artifacts: guestArtifactDir || null,
+    host_artifacts: options.artifacts,
+    copied_guest_artifacts: runtimeState.copiedArtifacts,
+    codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
+    codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
+    labels: guestSummary?.labels ?? [],
+    settings_smoke: guestSummary?.settings_smoke ?? null,
+    assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
+    codex_functional_check: guestSummary?.codex_functional_check ?? null,
+    codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    guest_summary: guestSummary,
+  };
+  fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
 }
 
 async function main() {
@@ -738,6 +985,7 @@ async function main() {
   let ip = '';
   let guestArtifactDir = '';
   let copiedArtifacts = false;
+  let failure = null;
   try {
     setStage('clone_vm');
     run('tart', ['clone', options.sourceVm, options.vmName]);
@@ -766,12 +1014,16 @@ async function main() {
       `rm -rf ${shellQuote(options.guestWorkdir)} && mkdir -p ${shellQuote(options.guestWorkdir)}`
     );
     setStage('copy_inputs_to_guest');
-    await scpToGuest(
-      options,
-      ip,
-      [options.dmg, resolveGuestSmokeScriptPath(), codexApiKeyFile.path],
-      options.guestWorkdir
-    );
+    const guestFrameworkArchivePath = guestFrameworkSourceArchivePath(options);
+    const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
+    const guestInputs = [options.dmg, resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
+    if (options.frameworkSourceArchive) guestInputs.push(options.frameworkSourceArchive);
+    if (options.frameworkInstallScript) guestInputs.push(options.frameworkInstallScript);
+    await scpToGuest(options, ip, guestInputs, options.guestWorkdir);
+    if (options.frameworkInstallScript) {
+      setStage('prepare_framework_install_script');
+      await ssh(options, ip, frameworkInstallScriptFinalizeCommand(options));
+    }
     if (options.guestNodeRoot && !options.guestNodeCommand) {
       setStage('copy_guest_node_root');
       options.guestNodeCommand = await copyHostNodeRootToGuest(options, ip);
@@ -781,10 +1033,22 @@ async function main() {
       options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);
     }
     setStage('run_guest_smoke');
-    await ssh(
+    await sshWithRunOptions(
       options,
       ip,
-      guestSmokeCommand(options, guestDmgPath, guestScriptPath, guestArtifactDir, guestCodexApiKeyPath)
+      guestSmokeCommand(
+        options,
+        guestDmgPath,
+        guestScriptPath,
+        guestArtifactDir,
+        guestCodexApiKeyPath,
+        guestFrameworkArchivePath,
+        guestFrameworkInstallerPath
+      ),
+      {
+        label: `ssh run_guest_smoke ${options.guestUser}@${ip}`,
+        timeoutMs: guestSmokeHostTimeoutMs(options),
+      }
     );
     setStage('copy_guest_artifacts');
     await scpFromGuest(options, ip, guestArtifactDir, options.artifacts);
@@ -792,11 +1056,17 @@ async function main() {
     runtimeState.copiedArtifacts = true;
     setStage('write_summary');
     writeSummary(options, ip, guestArtifactDir);
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
     runtimeState.ip = ip;
     runtimeState.guestArtifactDir = guestArtifactDir;
     runtimeState.copiedArtifacts = copiedArtifacts || runtimeState.copiedArtifacts;
     await cleanupRuntime({ copyGuestArtifacts: true, reason: 'finally' });
+    if (failure) {
+      writeFailedSummary(options, ip, guestArtifactDir, failure);
+    }
   }
 }
 
@@ -814,10 +1084,16 @@ export const __test =
     ? {
         assertGuestSmokeSummary,
         buildDryRunPlan,
+        frameworkInstallScriptFinalizeCommand,
+        frameworkSourceArchivePlan,
+        guestFrameworkSourceArchivePath,
+        guestSmokeHostTimeoutMs,
         guestSmokeCommand,
         isMainModule,
         parseArgs,
         resolveGuestSmokeScriptPath,
+        runAsync,
+        writeFailedSummary,
         writeSummary,
       }
     : undefined;

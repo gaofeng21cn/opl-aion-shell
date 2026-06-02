@@ -173,7 +173,7 @@
   "gemini": "Gemini CLI",
   "model": "Model",
   "system": "System",
-  "about": "About",
+  "about": "About & Updates",
   "advancedSettings": "Advanced Settings",
   "addModel": "Add Model",
   "editModel": "Edit Model Platform",
@@ -245,7 +245,7 @@
   "darkMode": "Dark",
   "agent": "Agent",
   "tools": "Tools",
-  "capabilities": "Capabilities",
+  "capabilities": "Agents & Capabilities",
   "capabilitiesTab": {
     "skills": "Skills",
     "tools": "Tools"
@@ -928,8 +928,10 @@
   "unavailable": "Unavailable",
   "oplDeveloperMode": "OPL Developer Mode",
   "oplDeveloperModeDesc": "Effective Developer Mode state from OPL App state.",
-  "oplAgentCodexContext": "OPL Agent Codex Context",
-  "oplAgentCodexContextDesc": "The OPL GUI product contract and Codex context source currently used by this App.",
+  "oplAgentCodexContext": "OPL Flow Context",
+  "oplAgentCodexContextDesc": "App-managed OPL Flow metadata follows the UI language and respects user AGENTS.md files.",
+  "oplFlowContext": "OPL Flow Context",
+  "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
   "oplDeveloperModeStates": {
     "active_direct": "On",
     "active_observe": "Observe only",
@@ -1114,10 +1116,15 @@
   },
   "overview": "Overview",
   "runtime": "Runtime",
+  "general": "General",
   "access": "Access",
+  "environment": "Local Environment",
   "appearance": "Appearance",
+  "advanced": "Advanced",
   "groupOverview": "Overview",
-  "groupRuntime": "Runtime",
+  "groupGeneral": "General",
+  "groupRuntime": "Local Runtime",
+  "groupAdvanced": "Advanced",
   "overviewPage": {
     "title": "One Person Lab",
     "description": "Manage the OPL App defaults that should survive shell upgrades.",
@@ -1138,8 +1145,8 @@
     }
   },
   "runtimePage": {
-    "title": "Runtime",
-    "description": "Check Codex CLI, workspace, logs, and OPL Foundry module readiness.",
+    "title": "Local Environment",
+    "description": "Check Codex CLI, Temporal, workspace, logs, updates, and OPL Foundry module readiness.",
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {
@@ -1148,6 +1155,51 @@
       "nightly": "Nightly",
       "beta": "Beta",
       "dev": "Developer"
+    }
+  },
+  "accessPage": {
+    "title": "Access",
+    "description": "Check whether Codex CLI, provider access, and current permissions can work now.",
+    "cards": {
+      "codex": {
+        "title": "Codex CLI",
+        "fallback": "Codex CLI details are not available yet."
+      },
+      "key": {
+        "title": "Provider Keys",
+        "configured": "Access configuration is present.",
+        "missing": "Access configuration needs attention."
+      },
+      "provider": {
+        "title": "Provider Access",
+        "fallback": "Provider readiness details are not available yet."
+      },
+      "permission": {
+        "title": "Permission Mode",
+        "detail": "Current command and file permissions used by the App executor."
+      }
+    }
+  },
+  "capabilitiesPage": {
+    "title": "Agents & Capabilities",
+    "description": "Choose capabilities by work purpose first. Skills and tools remain available as supporting details.",
+    "purposes": {
+      "research": {
+        "title": "Research",
+        "description": "Use MAS for literature, study progress, evidence, and medical research workflows."
+      },
+      "grant": {
+        "title": "Grant Writing",
+        "description": "Use MAG for grant drafting, review loops, and structured grant assets."
+      },
+      "presentation": {
+        "title": "Presentations",
+        "description": "Use RCA for polished decks, visual deliverables, and presentation artifacts."
+      },
+      "automation": {
+        "title": "OPL Meta Agent",
+        "description": "Enable OMA explicitly for agent-building and OPL-family automation work."
+      }
     }
   },
   "oplEnvironmentPage": {
@@ -1239,8 +1291,8 @@
       }
     },
     "codexContext": {
-      "title": "OPL Agent Codex Context",
-      "description": "Read-only OPL App default context injected into new Codex CLI sessions. The source is the OPL App product profile."
+      "title": "OPL Flow Context",
+      "description": "Read-only App-managed OPL Flow metadata for new Codex CLI sessions. It follows the UI language, respects user AGENTS.md files, and records the OPL App product profile as source."
     }
   },
   "appearancePage": {

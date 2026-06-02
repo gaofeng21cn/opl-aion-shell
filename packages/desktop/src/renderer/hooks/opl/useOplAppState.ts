@@ -17,6 +17,7 @@ export type OplAppState = {
   paths?: JsonRecord;
   actions?: unknown[];
   ui_defaults?: JsonRecord;
+  opl_flow_context?: JsonRecord;
   opl_agent_codex_context?: JsonRecord;
 };
 

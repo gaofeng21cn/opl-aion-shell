@@ -17,6 +17,7 @@ type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'dow
 
 type UpdateInfo = UpdateReleaseInfo;
 type UpdateChannel = 'stable' | 'nightly';
+type ReleaseNotesLocale = 'zh-CN' | 'en-US';
 
 const OPL_APP_RELEASES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
 const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
@@ -25,6 +26,7 @@ const CHECKING_MODAL_WIDTH = '400px';
 const RELEASE_NOTES_MODAL_WIDTH = '600px';
 const CHECKING_MODAL_HEIGHT = '224px';
 const RELEASE_NOTES_MODAL_HEIGHT = '420px';
+const RELEASE_NOTES_LOCALES: ReleaseNotesLocale[] = ['zh-CN', 'en-US'];
 
 const readUpdateChannelPreference = (): UpdateChannel => {
   const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
@@ -32,8 +34,41 @@ const readUpdateChannelPreference = (): UpdateChannel => {
   return (saved ?? legacySaved) === 'true' ? 'nightly' : 'stable';
 };
 
+const resolveReleaseNotesLocale = (language?: string): ReleaseNotesLocale => {
+  return language?.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en-US';
+};
+
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const selectLocalizedReleaseNotes = (markdown: string, language?: string): string => {
+  const findSegment = (locale: ReleaseNotesLocale): string | null => {
+    const escapedLocale = escapeRegExp(locale);
+    const hiddenComment = new RegExp(
+      `<!--\\s*OPL_RELEASE_NOTES:${escapedLocale}\\s*\\n([\\s\\S]*?)\\n?-->`,
+      'i'
+    ).exec(markdown)?.[1]?.trim();
+    if (hiddenComment) return hiddenComment;
+
+    const pairedComment = new RegExp(
+      `<!--\\s*OPL_RELEASE_NOTES:${escapedLocale}\\s*-->\\s*([\\s\\S]*?)\\s*<!--\\s*/OPL_RELEASE_NOTES:${escapedLocale}\\s*-->`,
+      'i'
+    ).exec(markdown)?.[1]?.trim();
+    return pairedComment || null;
+  };
+
+  const preferredLocale = resolveReleaseNotesLocale(language);
+  for (const locale of [
+    preferredLocale,
+    ...RELEASE_NOTES_LOCALES.filter((candidate) => candidate !== preferredLocale),
+  ]) {
+    const segment = findSegment(locale);
+    if (segment) return segment;
+  }
+  return markdown;
+};
+
 const UpdateModal: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [status, setStatus] = useState<UpdateStatus>('checking');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -321,6 +356,9 @@ const UpdateModal: React.FC = () => {
     });
   };
 
+  const releaseNotes = updateInfo?.body || autoUpdateInfo?.releaseNotes || '';
+  const localizedReleaseNotes = releaseNotes ? selectLocalizedReleaseNotes(releaseNotes, i18n.language) : '';
+
   const renderContent = () => {
     switch (status) {
       case 'checking':
@@ -392,9 +430,9 @@ const UpdateModal: React.FC = () => {
             {/* Release notes content */}
             <div className='flex-1 min-h-0 overflow-y-auto px-24px py-16px custom-scrollbar'>
               {updateInfo?.name && <div className='text-14px font-500 text-t-primary mb-12px'>{updateInfo.name}</div>}
-              {updateInfo?.body || autoUpdateInfo?.releaseNotes ? (
+              {localizedReleaseNotes ? (
                 <div className='text-13px text-t-secondary leading-relaxed'>
-                  <MarkdownView allowHtml>{updateInfo?.body || autoUpdateInfo?.releaseNotes || ''}</MarkdownView>
+                  <MarkdownView allowHtml>{localizedReleaseNotes}</MarkdownView>
                 </div>
               ) : (
                 <div className='text-13px text-t-tertiary italic'>{t('update.noReleaseNotes')}</div>

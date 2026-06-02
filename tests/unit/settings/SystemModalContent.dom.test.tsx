@@ -103,8 +103,12 @@ describe('SystemModalContent OPL App state', () => {
             },
             logs_dir: '/Users/example/.opl/logs',
           },
-          opl_agent_codex_context: {
-            contract_ref: 'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system',
+          opl_flow_context: {
+            flow_id: 'opl-flow',
+            source: 'one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context',
+            delivery: 'session_scoped_preset_context',
+            language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+            user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
           },
         },
       },
@@ -133,9 +137,9 @@ describe('SystemModalContent OPL App state', () => {
     expect(screen.queryByText('Developer mode from app state')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-developer-mode-row')).toHaveTextContent('settings.oplDeveloperModeDesc');
     expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('active_direct');
-    expect(
-      screen.getByText('one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system')
-    ).toBeInTheDocument();
+    expect(screen.getByText('opl-flow')).toBeInTheDocument();
+    expect(screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.oplFlowContextDesc');
     expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();
   });
@@ -169,5 +173,36 @@ describe('SystemModalContent OPL App state', () => {
 
     expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('settings.unavailable');
     expect(screen.getByTestId('opl-developer-mode-row')).not.toHaveTextContent('blocked');
+  });
+
+  it('keeps rendering legacy OPL Agent Codex context while the app_state projection migrates', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: {
+        app_state: {
+          schema_version: 'opl_app_state.v1',
+          developer_mode: {
+            effective_state: 'active_direct',
+          },
+          paths: {
+            workspace_root_path: '/Users/example/OPL Workspace',
+            logs_dir: '/Users/example/.opl/logs',
+          },
+          opl_agent_codex_context: {
+            contract_ref: 'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system',
+          },
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent(
+      'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system'
+    );
   });
 });

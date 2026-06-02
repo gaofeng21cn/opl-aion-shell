@@ -173,7 +173,7 @@
   "gemini": "Gemini CLI",
   "model": "模型",
   "system": "系统",
-  "about": "关于",
+  "about": "关于与更新",
   "advancedSettings": "高级设置",
   "addModel": "添加模型",
   "editModel": "编辑模型平台",
@@ -245,7 +245,7 @@
   "darkMode": "深色",
   "agent": "对话Agent",
   "tools": "工具",
-  "capabilities": "能力扩展",
+  "capabilities": "智能体与能力",
   "capabilitiesTab": {
     "skills": "技能",
     "tools": "工具"
@@ -929,8 +929,10 @@
   "unavailable": "不可用",
   "oplDeveloperMode": "OPL 开发者模式",
   "oplDeveloperModeDesc": "来自 OPL App 状态的当前开发者模式。",
-  "oplAgentCodexContext": "OPL Agent Codex 上下文",
-  "oplAgentCodexContextDesc": "当前 App 使用的 OPL GUI 产品合同与 Codex 上下文来源。",
+  "oplAgentCodexContext": "OPL Flow 上下文",
+  "oplAgentCodexContextDesc": "App 管理的 OPL Flow 元数据跟随界面语言，并尊重用户 AGENTS.md 文件。",
+  "oplFlowContext": "OPL Flow 上下文",
+  "oplFlowContextDesc": "App 管理的会话上下文跟随界面语言、尊重用户 AGENTS.md 文件，并记录来源，不改写用户文件。",
   "oplDeveloperModeStates": {
     "active_direct": "已开启",
     "active_observe": "仅观察",
@@ -1115,10 +1117,15 @@
   },
   "overview": "概览",
   "runtime": "运行",
+  "general": "通用",
   "access": "访问",
+  "environment": "本机运行环境",
   "appearance": "外观",
+  "advanced": "高级",
   "groupOverview": "概览",
-  "groupRuntime": "运行",
+  "groupGeneral": "通用",
+  "groupRuntime": "本机运行",
+  "groupAdvanced": "高级",
   "overviewPage": {
     "title": "One Person Lab",
     "description": "管理 OPL App 在 shell 升级后也必须保留的默认产品面。",
@@ -1139,8 +1146,8 @@
     }
   },
   "runtimePage": {
-    "title": "运行",
-    "description": "检查 Codex CLI、工作目录、日志目录和 OPL 智能体模块就绪状态。",
+    "title": "本机运行环境",
+    "description": "检查 Codex CLI、Temporal、工作目录、日志目录、更新和 OPL 智能体模块就绪状态。",
     "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
     "latestStableDetail": "GitHub 最新稳定版：{{version}}",
     "releaseChannels": {
@@ -1149,6 +1156,51 @@
       "nightly": "Nightly",
       "beta": "测试版",
       "dev": "开发版"
+    }
+  },
+  "accessPage": {
+    "title": "访问权限",
+    "description": "先确认 Codex CLI、供应商访问和当前权限现在能不能工作。",
+    "cards": {
+      "codex": {
+        "title": "Codex CLI",
+        "fallback": "暂时无法读取 Codex CLI 详情。"
+      },
+      "key": {
+        "title": "供应商密钥",
+        "configured": "访问配置已存在。",
+        "missing": "访问配置需要处理。"
+      },
+      "provider": {
+        "title": "供应商访问",
+        "fallback": "暂时无法读取供应商就绪详情。"
+      },
+      "permission": {
+        "title": "权限模式",
+        "detail": "App 执行器当前使用的命令和文件权限。"
+      }
+    }
+  },
+  "capabilitiesPage": {
+    "title": "智能体与能力",
+    "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
+    "purposes": {
+      "research": {
+        "title": "研究",
+        "description": "使用 MAS 处理文献、研究进度、证据和医学研究工作流。"
+      },
+      "grant": {
+        "title": "基金写作",
+        "description": "使用 MAG 处理基金草稿、评审循环和结构化基金资产。"
+      },
+      "presentation": {
+        "title": "演示文稿",
+        "description": "使用 RCA 处理精修幻灯片、视觉交付物和演示资产。"
+      },
+      "automation": {
+        "title": "OPL Meta Agent",
+        "description": "明确启用 OMA，用于智能体构建和 OPL 系列自动化工作。"
+      }
     }
   },
   "oplEnvironmentPage": {
@@ -1240,8 +1292,8 @@
       }
     },
     "codexContext": {
-      "title": "OPL Agent Codex 上下文",
-      "description": "新建 Codex CLI 会话时注入的 OPL App 默认上下文。这里是只读展示，来源是 OPL App 产品规则。"
+      "title": "OPL Flow 上下文",
+      "description": "新建 Codex CLI 会话使用的 App 管理 OPL Flow 元数据。它跟随界面语言、尊重用户 AGENTS.md 文件，并记录 OPL App 产品规则作为来源。"
     }
   },
   "appearancePage": {

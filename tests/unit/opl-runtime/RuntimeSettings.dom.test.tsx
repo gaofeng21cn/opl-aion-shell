@@ -27,9 +27,10 @@ vi.mock('@/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, values?: Record<string, string>) => {
+    t: (key: string, values?: Record<string, string | number>) => {
       const renderedValues = Object.values(values ?? {})
-        .filter((value) => typeof value === 'string' && value.length > 0)
+        .filter((value) => value !== undefined && value !== null && String(value).length > 0)
+        .map(String)
         .join(' ');
       return renderedValues ? `${key} ${renderedValues}` : key;
     },
@@ -93,12 +94,94 @@ describe('RuntimeSettings app state bridge usage', () => {
     vi.clearAllMocks();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResult);
-    bridgeMocks.getDrilldownInvoke.mockResolvedValue({
-      surface: 'runtime_full',
-      command: 'opl runtime app-operator-drilldown --detail full --json',
-      stdout: '{}',
-      parsed: { app_operator_drilldown: { surface_kind: 'opl_app_operator_drilldown_read_model', status: 'ready' } },
-    });
+    bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
+      Promise.resolve(
+        detail === 'summary'
+          ? {
+              surface: 'runtime_summary',
+              command: 'opl runtime app-operator-drilldown --json',
+              stdout: JSON.stringify({
+                app_operator_drilldown: {
+                  surface_kind: 'opl_app_operator_drilldown_read_model',
+                  availability: 'available',
+                  summary: {
+                    stage_attempt_count: 25,
+                    current_control_state_blocked_count: 3,
+                    current_control_state_running_provider_attempt_count: 2,
+                    current_control_state_running_provider_attempt_domain_ids: ['medautoscience'],
+                    current_control_state_running_provider_attempt_task_kinds: [
+                      'paper_autonomy/repair-recheck',
+                      'publication_aftercare/reviewer-refresh',
+                    ],
+                    current_control_state_running_provider_attempt_stage_attempt_ids: ['sat_dm002', 'sat_dm003'],
+                    current_control_state_latest_running_provider_heartbeat_at: '2026-06-02T00:01:12.853Z',
+                    current_control_state_running_provider_attempt_summary_policy:
+                      'refs_only_liveness_projection_no_domain_ready_publication_ready_or_artifact_ready',
+                  },
+                  current_control_state: {
+                    summary: {
+                      running_provider_attempt_count: 2,
+                      running_provider_attempt_domain_ids: ['medautoscience'],
+                      running_provider_attempt_task_kinds: [
+                        'paper_autonomy/repair-recheck',
+                        'publication_aftercare/reviewer-refresh',
+                      ],
+                      running_provider_attempt_stage_attempt_ids: ['sat_dm002', 'sat_dm003'],
+                      latest_running_provider_heartbeat_at: '2026-06-02T00:01:12.853Z',
+                      running_provider_attempt_summary_policy:
+                        'refs_only_liveness_projection_no_domain_ready_publication_ready_or_artifact_ready',
+                    },
+                    states: [
+                      {
+                        task_id: 'frt_dm002',
+                        domain_id: 'medautoscience',
+                        task_kind: 'paper_autonomy/repair-recheck',
+                        running_provider_attempt: true,
+                        current_stage_attempt_id: 'sat_dm002',
+                        workflow_id: 'wf_dm002',
+                        provider_kind: 'temporal',
+                        current_attempt_state: 'running',
+                        provider_run: {
+                          provider_status: 'running',
+                          last_heartbeat_at: '2026-06-02T00:01:12.853Z',
+                        },
+                      },
+                      {
+                        task_id: 'frt_dm003',
+                        domain_id: 'medautoscience',
+                        task_kind: 'publication_aftercare/reviewer-refresh',
+                        running_provider_attempt: true,
+                        current_stage_attempt_id: 'sat_dm003',
+                        workflow_id: 'wf_dm003',
+                        provider_kind: 'temporal',
+                        current_attempt_state: 'checkpointed',
+                        provider_run: {
+                          provider_status: 'checkpointed',
+                          last_heartbeat_at: '2026-06-02T00:01:10.000Z',
+                        },
+                      },
+                    ],
+                  },
+                  attention_first_payload: {
+                    provider_health: {
+                      provider_kind: 'temporal',
+                      health_status: 'ready',
+                    },
+                  },
+                },
+              }),
+              parsed: undefined,
+            }
+          : {
+              surface: 'runtime_full',
+              command: 'opl runtime app-operator-drilldown --detail full --json',
+              stdout: '{}',
+              parsed: {
+                app_operator_drilldown: { surface_kind: 'opl_app_operator_drilldown_read_model', status: 'ready' },
+              },
+            }
+      )
+    );
   });
 
   it('loads the fast OPL app state on initial render and fast App state on page refresh', async () => {
@@ -222,6 +305,15 @@ describe('RuntimeSettings app state bridge usage', () => {
             {
               action_id: 'app-boundary-action',
               submit_via: 'opl app action execute',
+              can_submit_to_safe_action_shell: true,
+              dry_run_supported: true,
+            },
+            {
+              action_id: 'payload-required-action',
+              submit_via: 'opl app action execute',
+              can_submit_to_safe_action_shell: true,
+              route_requires_domain_or_app_payload: true,
+              payload_fields: ['module_id'],
             },
           ],
         },
@@ -230,7 +322,208 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimePage />);
 
+    await waitFor(() => expect(screen.getByText('common.runtime.advancedRuntimeDetails')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() => expect(screen.getAllByText('app-boundary-action').length).toBeGreaterThan(0));
     expect(screen.queryByText('legacy-runtime-action')).not.toBeInTheDocument();
+    expect(screen.queryByText('payload-required-action')).not.toBeInTheDocument();
+  });
+
+  it('renders Runtime page from the trusted Temporal/provider running projection', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ...appStateResult,
+      parsed: {
+        app_state: {
+          ...appStateResult.parsed.app_state,
+          operator: {
+            status: 'ready',
+            summary: {
+              runtime_status: 'ready',
+              provider_status: 'ready',
+              visible_action_count: 20,
+              profile: 'fast',
+            },
+            workbench: {
+              domain_lane_map: {
+                lanes: [
+                  {
+                    domain_id: 'medautoscience',
+                    lane_label: 'Med Auto Science',
+                    active_task_count: 1,
+                    blocked_task_count: 1,
+                    tasks: [
+                      {
+                        task_id: 'medautoscience',
+                        label: 'Med Auto Science',
+                        state: 'dirty',
+                        active_stage_id: 'module_runtime',
+                      },
+                    ],
+                  },
+                  {
+                    domain_id: 'medautogrant',
+                    lane_label: 'Med Auto Grant',
+                    active_task_count: 1,
+                    blocked_task_count: 1,
+                    tasks: [
+                      {
+                        task_id: 'medautogrant',
+                        label: 'Med Auto Grant',
+                        state: 'dirty',
+                        active_stage_id: 'module_runtime',
+                      },
+                    ],
+                  },
+                  {
+                    domain_id: 'redcube',
+                    lane_label: 'RedCube AI',
+                    active_task_count: 1,
+                    blocked_task_count: 1,
+                    tasks: [
+                      {
+                        task_id: 'redcube',
+                        label: 'RedCube AI',
+                        state: 'dirty',
+                        active_stage_id: 'module_runtime',
+                      },
+                    ],
+                  },
+                  {
+                    domain_id: 'oplmetaagent',
+                    lane_label: 'OPL Meta Agent',
+                    active_task_count: 1,
+                    blocked_task_count: 1,
+                    tasks: [
+                      {
+                        task_id: 'oplmetaagent',
+                        label: 'OPL Meta Agent',
+                        state: 'dirty',
+                        active_stage_id: 'module_runtime',
+                      },
+                    ],
+                  },
+                ],
+              },
+              task_drilldowns: [
+                {
+                  task_id: 'medautoscience',
+                  domain_id: 'medautoscience',
+                  title: 'Med Auto Science',
+                  state: 'dirty',
+                  active_stage_id: 'module_runtime',
+                  blocker_ref_count: 1,
+                },
+                {
+                  task_id: 'medautogrant',
+                  domain_id: 'medautogrant',
+                  title: 'Med Auto Grant',
+                  state: 'dirty',
+                  active_stage_id: 'module_runtime',
+                  blocker_ref_count: 1,
+                },
+                {
+                  task_id: 'redcube',
+                  domain_id: 'redcube',
+                  title: 'RedCube AI',
+                  state: 'dirty',
+                  active_stage_id: 'module_runtime',
+                  blocker_ref_count: 1,
+                },
+                {
+                  task_id: 'oplmetaagent',
+                  domain_id: 'oplmetaagent',
+                  title: 'OPL Meta Agent',
+                  state: 'dirty',
+                  active_stage_id: 'module_runtime',
+                  blocker_ref_count: 1,
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(screen.getByText('common.runtime.runningActivity')).toBeInTheDocument());
+    expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
+    expect(screen.getByText('common.runtime.runningActivitySummaryText 1 1')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.activeExecutionsWithCount 1')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.providerRefsWithCount 2')).toBeInTheDocument();
+    expect(screen.getByText('paper_autonomy/repair-recheck')).toBeInTheDocument();
+    expect(screen.queryByText('publication_aftercare/reviewer-refresh')).not.toBeInTheDocument();
+    expect(screen.getByText('common.runtime.projectProgress')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.projectProgressSummaryText 0 0')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.noProjectProgressRefs')).toBeInTheDocument();
+    expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
+    await waitFor(() => expect(screen.getByText('common.runtime.maintenanceAttentionSummaryText 4')).toBeInTheDocument());
+  });
+
+  it('renders full-detail workbench tasks after explicit full detail load', async () => {
+    bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
+      Promise.resolve({
+        surface: detail === 'summary' ? 'runtime_summary' : 'runtime_full',
+        command:
+          detail === 'summary'
+            ? 'opl runtime app-operator-drilldown --json'
+            : 'opl runtime app-operator-drilldown --detail full --json',
+        stdout: JSON.stringify({
+          app_operator_drilldown: {
+            surface_kind: 'opl_app_operator_drilldown_read_model',
+            summary: { stage_attempt_count: 25, current_control_state_blocked_count: 3 },
+            runtime_workbench:
+              detail === 'full'
+                ? {
+                    task_drilldowns: [
+                      {
+                        task_id: 'full-dm002',
+                        domain_id: 'medautoscience',
+                        domain_label: 'MAS',
+                        title: 'Full detail DM002 guarded apply',
+                        state: 'checkpointed',
+                        active_stage_id: 'paper_autonomy/guarded-apply',
+                        stage_attempt_ids: ['sat_full_dm002'],
+                        progress_delta_classification: 'deliverable_progress',
+                        deliverable_progress_delta: { count: 1 },
+                      },
+                    ],
+                  }
+                : {},
+            artifact_gallery_refs:
+              detail === 'full'
+                ? {
+                    refs: [
+                      {
+                        ref: 'studies/002-dm-china-us-mortality-attribution/artifacts/publication_eval/latest.json',
+                      },
+                      {
+                        ref: 'studies/003-dpcc-primary-care-phenotype-treatment-gap/artifacts/controller_decisions/latest.json',
+                      },
+                    ],
+                  }
+                : { refs: [] },
+          },
+        }),
+      })
+    );
+
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
+    fireEvent.click(screen.getByText('common.runtime.fullDetail'));
+
+    await waitFor(() => expect(screen.getByText('Full detail DM002 guarded apply')).toBeInTheDocument());
+    expect(screen.getByText('common.runtime.currentStage paper_autonomy/guarded-apply')).toBeInTheDocument();
+    expect(
+      screen.getByText('studies/002-dm-china-us-mortality-attribution/artifacts/publication_eval/latest.json')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'studies/003-dpcc-primary-care-phenotype-treatment-gap/artifacts/controller_decisions/latest.json'
+      )
+    ).toBeInTheDocument();
   });
 });

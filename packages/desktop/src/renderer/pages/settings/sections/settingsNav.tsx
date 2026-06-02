@@ -15,18 +15,18 @@ import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } f
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 export const BUILTIN_TAB_IDS = getOplGuiSettingsVisibleTabs() as [
-  'overview',
-  'runtime',
-  'capabilities',
+  'general',
   'access',
+  'capabilities',
+  'environment',
   'appearance',
-  'system',
+  'advanced',
   'about',
 ];
 
 export type BuiltinSettingsTabId = (typeof BUILTIN_TAB_IDS)[number];
 
-export const SETTINGS_DEFAULT_ROUTE = '/settings/overview';
+export const SETTINGS_DEFAULT_ROUTE = '/settings/general';
 
 export const SETTINGS_ROUTE_PATHS = Object.fromEntries(BUILTIN_TAB_IDS.map((id) => [id, `/settings/${id}`])) as Record<
   BuiltinSettingsTabId,
@@ -49,12 +49,12 @@ export const LEGACY_SETTINGS_ANCHOR_REMAP = legacyRedirectTargets;
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 
 export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefined> = {
-  overview: 'settings.groupOverview',
-  runtime: 'settings.groupRuntime',
+  general: 'settings.groupGeneral',
+  access: undefined,
   capabilities: undefined,
-  access: 'settings.groupApp',
+  environment: 'settings.groupRuntime',
   appearance: undefined,
-  system: undefined,
+  advanced: 'settings.groupAdvanced',
   about: 'settings.groupAbout',
 };
 
@@ -79,23 +79,11 @@ const BUILTIN_TAB_ID_SET = new Set<string>(BUILTIN_TAB_IDS);
 
 export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): SettingsNavItem[] {
   const builtinMap: Record<BuiltinSettingsTabId, SettingsNavItem> = {
-    overview: {
-      id: 'overview',
-      label: t('settings.overview', { defaultValue: 'Overview' }),
+    general: {
+      id: 'general',
+      label: t('settings.general', { defaultValue: 'General' }),
       icon: <Dashboard />,
-      path: 'overview',
-    },
-    runtime: {
-      id: 'runtime',
-      label: t('settings.runtime', { defaultValue: 'Runtime' }),
-      icon: <Toolkit />,
-      path: 'runtime',
-    },
-    capabilities: {
-      id: 'capabilities',
-      label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
-      icon: <Lightning />,
-      path: 'capabilities',
+      path: 'general',
     },
     access: {
       id: 'access',
@@ -103,21 +91,33 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       icon: isDesktop ? <Earth /> : <Communication />,
       path: 'access',
     },
+    capabilities: {
+      id: 'capabilities',
+      label: t('settings.capabilities', { defaultValue: 'Agents & Capabilities' }),
+      icon: <Lightning />,
+      path: 'capabilities',
+    },
+    environment: {
+      id: 'environment',
+      label: t('settings.environment', { defaultValue: 'Local Environment' }),
+      icon: <Toolkit />,
+      path: 'environment',
+    },
     appearance: {
       id: 'appearance',
       label: t('settings.appearance', { defaultValue: 'Appearance' }),
       icon: <SwitchThemes />,
       path: 'appearance',
     },
-    system: {
-      id: 'system',
-      label: t('settings.system'),
+    advanced: {
+      id: 'advanced',
+      label: t('settings.advanced', { defaultValue: 'Advanced' }),
       icon: <System />,
-      path: 'system',
+      path: 'advanced',
     },
     about: {
       id: 'about',
-      label: t('settings.about'),
+      label: t('settings.about', { defaultValue: 'About & Updates' }),
       icon: <Info />,
       path: 'about',
     },
@@ -174,8 +174,8 @@ export function buildSettingsNavItems({
   }
 
   if (unanchored.length > 0) {
-    const systemIdx = result.findIndex((item) => item.id === 'system');
-    const insertIdx = systemIdx >= 0 ? systemIdx : result.length;
+    const advancedIdx = result.findIndex((item) => item.id === 'advanced');
+    const insertIdx = advancedIdx >= 0 ? advancedIdx : result.length;
     result.splice(insertIdx, 0, ...unanchored.map(toNavItem));
   }
 

@@ -236,6 +236,10 @@ describe('FirstRun readiness page', () => {
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
     expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      '/guid',
+      expect.objectContaining({ state: { postInstallSelfCheck: true } })
+    );
   });
 
   it('loads initialize state and lets users enter /guid only after Core is ready', async () => {
@@ -276,7 +280,7 @@ describe('FirstRun readiness page', () => {
 
     fireEvent.click(screen.getByTestId('opl-first-run-ready-entry'));
 
-    expect(navigateMock).toHaveBeenCalledWith('/guid');
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { state: { postInstallSelfCheck: true } });
   });
 
   it('localizes the beginner surface even when initialize returns English and technical labels', async () => {
@@ -310,13 +314,24 @@ describe('FirstRun readiness page', () => {
         resolveFastState = resolve;
       })
     );
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(initializeResult);
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
+      ...initializeResult,
+      parsed: {
+        system_initialize: {
+          ...initializeResult.parsed.system_initialize,
+          setup_flow: {
+            ...initializeResult.parsed.system_initialize.setup_flow,
+            is_first_run: true,
+          },
+        },
+      },
+    });
 
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
-    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true, state: { postInstallSelfCheck: true } });
 
     resolveFastState?.(fastStateNeedsSetupResult);
   });

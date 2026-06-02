@@ -9,7 +9,9 @@
     "id": "one_person_lab_app",
     "display_name": "One Person Lab App",
     "primary_surface": "desktop_workbench",
-    "supported_release_platforms": ["macos-arm64"]
+    "supported_release_platforms": ["macos-arm64"],
+    "positioning": "purpose_first_codex_app_wrapper",
+    "primary_user_path": "chat_first_codex_cli_with_builtin_mas_mag_rca_purpose_entries"
   },
   "contract_refs": {
     "active_shell": "contracts/app-shell-adapter.json",
@@ -88,7 +90,26 @@
           "home_entry_policy": "visible_click_to_start"
         }
       ],
-      "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"]
+      "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"],
+      "activity_center_policy": {
+        "source": "not_rendered_on_ordinary_home",
+        "authority": "app_owned_home_minimal_command_surface",
+        "role": "home_runtime_activity_suppressed_to_keep_composer_first",
+        "default_placement": "not_rendered_on_ordinary_home",
+        "home_surface_policy": "ordinary_home_must_not_render_activity_center_or_continue_work_grid",
+        "allowed_home_runtime_context": [],
+        "must_not_display": [
+          "expanded continue-work center",
+          "needs attention / active / recent activity groups",
+          "per-assistant running badges",
+          "module_runtime dirty state as task",
+          "domain artifact body",
+          "memory body",
+          "quality verdict body",
+          "provider implementation details"
+        ],
+        "footer_quick_actions_policy": "do_not_render_feedback_star_web_icons_on_home"
+      }
     },
     "builtin_assistant_route_receipt_policy": {
       "scope": "home_purpose_entry_to_conversation",
@@ -208,6 +229,13 @@
     "default_model": "gpt-5.5",
     "default_model_description": "System Codex default model when configured",
     "default_reasoning_effort": "xhigh",
+    "opl_flow_context": {
+      "flow_id": "opl-flow",
+      "source": "one-person-lab-app",
+      "delivery": "session_scoped_preset_context",
+      "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
+      "language_policy": "follow_ui_locale_zh_only_when_ui_zh"
+    },
     "default_visible_skills": [
       "mas",
       "mag",
@@ -262,7 +290,47 @@
       "- PPT、演示、视觉交付物：使用 RCA。",
       "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
       "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
-    ]
+    ],
+    "session_context_i18n": {
+      "zh-CN": [
+        "## OPL App 默认会话规则",
+        "",
+        "你正在 One Person Lab App 的 Codex 会话中工作。App 是普通用户/开发者工作台，负责使用入口、显式激活、状态投影和共享上下文；它不是 runtime truth owner。",
+        "",
+        "三层产品模型：",
+        "- 使用 One Person Lab：面向普通用户和开发者的工作台入口。",
+        "- 管理 Foundry Agents：MAS/MAG/RCA 等领域智能体持有领域事实、质量结论、运行入口和产物 authority。",
+        "- 开发 OPL Agent：OPL Framework 提供开发与运行框架、Codex-first executor 接入、显式 activation、typed queue / provider-backed stage runtime 等共享能力。",
+        "",
+        "默认路由：",
+        "- OPL App 是 Codex CLI 驱动的内置智能体桌面 App：普通用户主路径不选择 executor，不选择 Aion CLI、Claude Code 或其他 backend。",
+        "- Codex CLI 是固定执行器；模型在首页显示为自动，精确模型和推理深度只进入技术细节或已连接状态。",
+        "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
+        "- 基金、标书、申请书：使用 MAG。",
+        "- PPT、演示、视觉交付物：使用 RCA。",
+        "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
+        "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
+      ],
+      "en-US": [
+        "## OPL App Default Session Rules",
+        "",
+        "You are working inside a Codex session launched from One Person Lab App. The App is the user and developer workbench for entry points, explicit activation, status projection, and shared context; it is not the runtime truth owner.",
+        "",
+        "Three-layer product model:",
+        "- Use One Person Lab: the workbench entry point for normal users and developers.",
+        "- Manage Foundry Agents: MAS, MAG, RCA, and other domain agents own domain truth, quality decisions, runtime entries, and artifact authority.",
+        "- Develop OPL Agents: OPL Framework provides the development and runtime framework, Codex-first executor integration, explicit activation, typed queue / provider-backed stage runtime, and shared capabilities.",
+        "",
+        "Default routing:",
+        "- OPL App is a Codex CLI driven desktop App for built-in agents. The normal user path does not choose an executor, Aion CLI, Claude Code, or another backend.",
+        "- Codex CLI is the fixed executor. The home model is displayed as Auto; exact model and reasoning details belong only in technical details or connected state.",
+        "- Use MAS for research, studies, papers, datasets, reviews, revisions, submissions, submission packages, and research progress.",
+        "- Use MAG for grants, proposals, and funding applications.",
+        "- Use RCA for PPT, presentations, and visual deliverables.",
+        "- For general One Person Lab usage, engineering collaboration, or OPL Agent development, keep the default Codex/OPL entry.",
+        "- If the user explicitly names a Foundry Agent or route, follow that request. Do not require the user to type @MAS/@MAG/@RCA."
+      ]
+    }
   },
   "first_run": {
     "readiness_layers": ["core"],
@@ -419,15 +487,36 @@
       "primary_steps": ["workspace_root", "codex_cli", "codex_config"],
       "primary_progress_signal": "Core completed and total count",
       "advanced_progress_disclosure": "collapsed_or_secondary",
-      "background_maintenance_presentation": "secondary_non_blocking",
-      "technical_detail_policy": "hidden_until_expanded_or_error"
+      "background_maintenance_presentation": "collapsed_technical_non_blocking",
+      "technical_detail_policy": "hidden_until_expanded_or_error",
+      "post_install_ai_self_check_entry": {
+        "trigger": "ready_to_launch first-run completion or explicit ready entry",
+        "target_route": "/guid",
+        "route_state": "postInstallSelfCheck",
+        "prompt_policy": "localized Codex CLI read-only diagnosis prompt describing target OPL working mode",
+        "target_state_checks": [
+          "codex_cli_callable",
+          "ui_language_policy",
+          "session_scoped_opl_flow_context",
+          "user_agents_md_respected_no_overwrite",
+          "mas_mag_rca_routes_visible",
+          "opl_meta_agent_capability_visible",
+          "codex_skills_plugins_visible",
+          "module_update_skill_plugin_continuity"
+        ],
+        "mutation_policy": "diagnose_first_no_file_mutation_without_user_confirmation",
+        "release_gate_policy": "user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt"
+      }
     }
   },
   "settings": {
-    "visible_tabs": ["overview", "runtime", "capabilities", "access", "appearance", "system", "about"],
+    "visible_tabs": ["general", "access", "capabilities", "environment", "appearance", "advanced", "about"],
     "legacy_route_redirects": {
-      "model": "runtime",
-      "agent": "runtime",
+      "overview": "general",
+      "runtime": "environment",
+      "system": "advanced",
+      "model": "environment",
+      "agent": "capabilities",
       "assistants": "capabilities",
       "skills-hub": "capabilities",
       "tools": "capabilities",
@@ -446,6 +535,50 @@
         "auto": "settings.developerModeStateAuto",
         "on_limited": "settings.developerModeStateOnLimited",
         "on_ready": "settings.developerModeStateOnReady"
+      }
+    },
+    "settings_information_architecture": {
+      "general": {
+        "label_zh": "通用",
+        "label_en": "General",
+        "role": "workbench_preferences",
+        "primary_question": "Where does the App work and how should it start?"
+      },
+      "access": {
+        "label_zh": "访问权限",
+        "label_en": "Access",
+        "role": "can_the_app_work",
+        "primary_question": "Can Codex CLI and configured providers work now?"
+      },
+      "capabilities": {
+        "label_zh": "智能体与能力",
+        "label_en": "Agents & Capabilities",
+        "role": "purpose_grouped_capability_catalog",
+        "primary_question": "What can Research, Grant, PPT, and OPL Meta Agent do?"
+      },
+      "environment": {
+        "label_zh": "本机运行环境",
+        "label_en": "Local Environment",
+        "role": "local_runtime_foundation",
+        "primary_question": "Are Codex CLI, Temporal, modules, paths, and updates ready?"
+      },
+      "appearance": {
+        "label_zh": "外观",
+        "label_en": "Appearance",
+        "role": "visual_preferences",
+        "primary_question": "How should the App look?"
+      },
+      "advanced": {
+        "label_zh": "高级",
+        "label_en": "Advanced",
+        "role": "developer_and_diagnostic_controls",
+        "primary_question": "Which raw paths, logs, developer mode, and diagnostics are exposed?"
+      },
+      "about": {
+        "label_zh": "关于与更新",
+        "label_en": "About & Updates",
+        "role": "version_channel_update_status",
+        "primary_question": "What version and release channel is this App running?"
       }
     }
   },
@@ -536,21 +669,62 @@
       "updater metadata",
       "first-run UX checks",
       "GUI page-state tests",
-      "user documentation"
+      "user documentation",
+      "App product truth",
+      "purpose-first Codex wrapper experience",
+      "runtime page display contract",
+      "shell candidate admission gates",
+      "release and user-path evidence classification"
     ],
     "app_consumes": [
       "framework contracts",
       "OPL CLI JSON outputs",
       "runtime snapshots",
       "provider receipts",
-      "domain-owned projections"
+      "domain-owned projections",
+      "owner action projections",
+      "refs-only evidence summaries"
     ],
     "app_does_not_own": [
       "runtime_truth",
       "provider_implementation",
       "domain_truth",
       "domain_quality_verdict",
-      "domain_artifact_authority"
-    ]
+      "domain_artifact_authority",
+      "owner_receipt_authority",
+      "memory_body",
+      "artifact_body",
+      "family_production_readiness"
+    ],
+    "default_runtime_page_attention": {
+      "mode": "running_activity_first_project_refs_second",
+      "primary_questions": [
+        "which domain has live Temporal/provider active execution",
+        "how many currently running tasks are visible after filtering checkpointed provider refs",
+        "what kinds of work are currently executing",
+        "when the latest running heartbeat was observed"
+      ],
+      "secondary_questions": [
+        "what is the next visible owner action",
+        "whether the next delta is deliverable progress, platform repair, human gate, typed blocker, or stop-loss",
+        "which owner must produce the next receipt, delta, or blocker"
+      ],
+      "secondary_diagnostics": [
+        "operator summary",
+        "safe action refs",
+        "refs-only evidence summary",
+        "full ledger drilldown"
+      ],
+      "full_ledger_policy": "on_demand_diagnostic_or_release_evidence_only"
+    },
+    "release_evidence_scope": {
+      "classification": "cohort_bound_app_user_path_evidence",
+      "must_not_imply": [
+        "stable_latest_promotion",
+        "App release-ready without promotion decision",
+        "MAS/MAG/RCA domain readiness",
+        "OPL family production readiness"
+      ]
+    }
   }
 }

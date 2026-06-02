@@ -37,11 +37,15 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app state --profile full --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
       ],
-      diagnosticExceptionSurfaces: ['opl runtime app-operator-drilldown --detail full --json'],
+      diagnosticExceptionSurfaces: [
+        'opl runtime app-operator-drilldown --json',
+        'opl runtime app-operator-drilldown --detail full --json',
+      ],
       allowedSurfaces: [
         'opl app state --profile fast --json',
         'opl app state --profile full --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+        'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
         'opl system initialize --json',
         'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
@@ -73,14 +77,15 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
-  it('builds only the declared full drilldown exception command', () => {
+  it('builds the declared summary and full drilldown projection commands', () => {
+    expect(__oplRuntimeBridgeTest.buildDrilldownCommand('summary')).toEqual({
+      surface: 'runtime_summary',
+      args: ['runtime', 'app-operator-drilldown', '--json'],
+    });
     expect(__oplRuntimeBridgeTest.buildDrilldownCommand('full')).toEqual({
       surface: 'runtime_full',
       args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
     });
-    expect(() => __oplRuntimeBridgeTest.buildDrilldownCommand('summary')).toThrow(
-      /only available as an explicit full-detail diagnostic surface/
-    );
   });
 
   it('rejects unsafe action identifiers before spawning opl', () => {
@@ -175,9 +180,25 @@ describe('OPL runtime bridge command whitelist', () => {
     const homeDir = makeTempRoot('opl-standard-bootstrap-home');
     const installDir = path.join(homeDir, '.opl', 'one-person-lab');
     const nodeBin = path.join(homeDir, '.opl', 'toolchain', 'node-v22.21.1-darwin-arm64', 'bin');
+    const managedPackageRoot = path.join(
+      homeDir,
+      '.opl',
+      'toolchain',
+      'node-v22.21.1-darwin-arm64',
+      'lib',
+      'node_modules',
+      'opl-framework-shared'
+    );
     fs.mkdirSync(path.join(installDir, 'bin'), { recursive: true });
     fs.mkdirSync(nodeBin, { recursive: true });
-    fs.writeFileSync(path.join(installDir, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.mkdirSync(path.join(managedPackageRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(managedPackageRoot, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(managedPackageRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(path.join(managedPackageRoot, 'dist', 'cli.js'), 'console.log("opl")\n', 'utf8');
+    fs.symlinkSync(
+      path.join(managedPackageRoot, 'bin', 'opl'),
+      path.join(installDir, 'bin', 'opl')
+    );
     fs.writeFileSync(path.join(nodeBin, 'node'), '#!/usr/bin/env bash\n', 'utf8');
     fs.writeFileSync(path.join(nodeBin, 'npm'), '#!/usr/bin/env bash\n', 'utf8');
 
@@ -192,6 +213,37 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(entries).toContain('/usr/bin');
     expect(entries).toContain('/bin');
     expect(new Set(entries).size).toBe(entries.length);
+  });
+
+  it('does not let a broken managed Node opl shim shadow a working system opl', () => {
+    const homeDir = makeTempRoot('opl-broken-managed-shim-home');
+    const nodeBin = path.join(homeDir, '.opl', 'toolchain', 'node-v22.21.1-darwin-arm64', 'bin');
+    const brokenPackageBin = path.join(
+      homeDir,
+      '.opl',
+      'toolchain',
+      'node-v22.21.1-darwin-arm64',
+      'lib',
+      'node_modules',
+      'opl-framework-shared',
+      'bin'
+    );
+    fs.mkdirSync(nodeBin, { recursive: true });
+    fs.mkdirSync(brokenPackageBin, { recursive: true });
+    fs.writeFileSync(path.join(nodeBin, 'node'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(path.join(nodeBin, 'npm'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.writeFileSync(path.join(brokenPackageBin, 'opl'), '#!/usr/bin/env bash\n', 'utf8');
+    fs.symlinkSync('../lib/node_modules/opl-framework-shared/bin/opl', path.join(nodeBin, 'opl'));
+
+    const env = __oplRuntimeBridgeTest.buildStandardBootstrapEnv({
+      baseEnv: { HOME: homeDir, PATH: '/opt/homebrew/bin:/usr/bin:/bin' },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const entries = env.PATH?.split(path.delimiter) ?? [];
+    expect(entries).not.toContain(nodeBin);
+    expect(entries.indexOf('/opt/homebrew/bin')).toBeLessThan(entries.indexOf('/usr/bin'));
   });
 
   it('injects Full runtime environment into first-run bridge commands when a packaged runtime is active', () => {

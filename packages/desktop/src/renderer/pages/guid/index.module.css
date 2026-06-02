@@ -742,11 +742,6 @@
   animation: agentSelectPop 0.4s ease-out forwards;
 }
 
-/* 底部快捷按钮：基础间距 + 安全区 */
-.guidQuickActions {
-  bottom: calc(32px + env(safe-area-inset-bottom, 0px));
-}
-
 @media (max-width: 768px) {
   .guidContainer {
     justify-content: flex-start;

@@ -3,6 +3,7 @@ import {
   getOplCodexSessionContext,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
+  getOplFlowContextPolicy,
   getOplAssistantSkillProfile,
   getOplAssistantSkillProfiles,
   getOplBuiltinAssistantRouteReceiptPolicy,
@@ -93,17 +94,20 @@ describe('OPL generated product profile', () => {
 
   it('exposes App-owned settings navigation and runtime environment profile slices', () => {
     expect(getOplGuiSettingsVisibleTabs()).toEqual([
-      'overview',
-      'runtime',
-      'capabilities',
+      'general',
       'access',
+      'capabilities',
+      'environment',
       'appearance',
-      'system',
+      'advanced',
       'about',
     ]);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
-      model: 'runtime',
-      agent: 'runtime',
+      overview: 'general',
+      runtime: 'environment',
+      system: 'advanced',
+      model: 'environment',
+      agent: 'capabilities',
       assistants: 'capabilities',
       'skills-hub': 'capabilities',
       tools: 'capabilities',
@@ -194,6 +198,21 @@ describe('OPL generated product profile', () => {
 
     policy.required_for_assistants.push('caller-local-assistant');
     expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual(['mas', 'mag', 'rca']);
+  });
+
+  it('exposes App-managed OPL Flow context policy without allowing caller mutation', () => {
+    const policy = getOplFlowContextPolicy();
+
+    expect(policy).toEqual({
+      flow_id: 'opl-flow',
+      source: 'one-person-lab-app',
+      delivery: 'session_scoped_preset_context',
+      user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+      language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+    });
+
+    policy.source = 'caller-local-source';
+    expect(getOplFlowContextPolicy().source).toBe('one-person-lab-app');
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {

@@ -256,7 +256,18 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  const oplAgentCodexContext = oplRecord(appState.opl_agent_codex_context);
+  const oplFlowContext = oplRecord(appState.opl_flow_context);
+  const legacyOplAgentCodexContext = oplRecord(appState.opl_agent_codex_context);
+  const oplFlowContextDisplay =
+    oplString(oplFlowContext.flow_id) ??
+    oplString(oplFlowContext.contract_ref) ??
+    oplString(legacyOplAgentCodexContext.flow_id) ??
+    oplString(legacyOplAgentCodexContext.contract_ref) ??
+    t('settings.unavailable');
+  const oplFlowContextSource =
+    oplString(oplFlowContext.source) ??
+    oplString(legacyOplAgentCodexContext.source) ??
+    oplString(legacyOplAgentCodexContext.contract_ref);
   const systemInfo = {
     cacheDir: oplString(appPaths.cache_root) ?? '',
     workDir: appWorkspaceRoot ?? '',
@@ -512,12 +523,14 @@ const SystemModalContent: React.FC = () => {
               </span>
             </PreferenceRow>
             <PreferenceRow
-              label={t('settings.oplAgentCodexContext')}
-              description={t('settings.oplAgentCodexContextDesc')}
+              label={t('settings.oplFlowContext')}
+              description={t('settings.oplFlowContextDesc')}
+              testId='opl-flow-context-row'
             >
-              <span className='text-12px text-t-secondary text-right max-w-260px truncate'>
-                {oplString(oplAgentCodexContext.contract_ref) ?? t('settings.unavailable')}
-              </span>
+              <div className='text-12px text-t-secondary text-right max-w-320px truncate'>
+                <div className='text-t-primary font-500 truncate'>{oplFlowContextDisplay}</div>
+                {oplFlowContextSource && <div className='truncate'>{oplFlowContextSource}</div>}
+              </div>
             </PreferenceRow>
           </div>
 

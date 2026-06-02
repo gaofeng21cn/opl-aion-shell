@@ -59,23 +59,26 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
             path='/team/:id'
             element={TEAM_MODE_ENABLED ? withRouteFallback(TeamIndex) : <Navigate to='/guid' replace />}
           />
-          <Route path='/settings/overview' element={withRouteFallback(OverviewSettings)} />
-          <Route path='/settings/runtime' element={withRouteFallback(RuntimeSettings)} />
+          <Route path='/settings/general' element={withRouteFallback(OverviewSettings)} />
+          <Route path='/settings/overview' element={<Navigate to='/settings/general' replace />} />
+          <Route path='/settings/environment' element={withRouteFallback(RuntimeSettings)} />
+          <Route path='/settings/runtime' element={<Navigate to='/settings/environment' replace />} />
           <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
           <Route path='/settings/access' element={withRouteFallback(AccessSettings)} />
           <Route path='/settings/appearance' element={withRouteFallback(AppearanceSettings)} />
-          <Route path='/settings/model' element={<Navigate to='/settings/runtime' replace />} />
-          <Route path='/settings/agent' element={<Navigate to='/settings/runtime' replace />} />
+          <Route path='/settings/model' element={<Navigate to='/settings/environment' replace />} />
+          <Route path='/settings/agent' element={<Navigate to='/settings/capabilities' replace />} />
           <Route path='/settings/assistants' element={<Navigate to='/settings/capabilities' replace />} />
           <Route path='/settings/skills-hub' element={<Navigate to='/settings/capabilities?tab=skills' replace />} />
           <Route path='/settings/tools' element={<Navigate to='/settings/capabilities?tab=tools' replace />} />
           <Route path='/settings/display' element={<Navigate to='/settings/appearance' replace />} />
           <Route path='/settings/webui' element={<Navigate to='/settings/access' replace />} />
           <Route path='/settings/pet' element={<Navigate to='/settings/appearance' replace />} />
-          <Route path='/settings/system' element={withRouteFallback(SystemSettings)} />
+          <Route path='/settings/advanced' element={withRouteFallback(SystemSettings)} />
+          <Route path='/settings/system' element={<Navigate to='/settings/advanced' replace />} />
           <Route path='/settings/about' element={withRouteFallback(SystemSettings)} />
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
-          <Route path='/settings' element={<Navigate to='/settings/overview' replace />} />
+          <Route path='/settings' element={<Navigate to='/settings/general' replace />} />
           <Route path='/runtime' element={withRouteFallback(RuntimePage)} />
           <Route path='/runtime/item' element={withRouteFallback(RuntimePage)} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />

@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Message, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Collapse, Message, Space, Tag, Typography } from '@arco-design/web-react';
 import { Play, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -63,6 +63,30 @@ function numberValue(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function stringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(stringValue).filter((item): item is string => Boolean(item)) : [];
+}
+
+function countValue(value: unknown): number {
+  return numberValue(record(value).count) ?? 0;
+}
+
+function firstNumber(values: unknown[]): number | null {
+  for (const value of values) {
+    const number = numberValue(value);
+    if (number !== null) return number;
+  }
+  return null;
+}
+
+function firstString(values: unknown[]): string | null {
+  for (const value of values) {
+    const text = stringValue(value);
+    if (text) return text;
+  }
+  return null;
+}
+
 function pickRecordFields(source: RuntimeSnapshot, keys: string[]): RuntimeSnapshot {
   const result: RuntimeSnapshot = {};
   for (const key of keys) {
@@ -77,11 +101,14 @@ function compactAction(action: RuntimeSnapshot): RuntimeSnapshot {
   return pickRecordFields(action, [
     'action_id',
     'action_kind',
+    'label',
     'owner',
     'execution_policy',
     'submit_via',
     'can_submit_to_safe_action_shell',
     'route_requires_domain_or_app_payload',
+    'dry_run_supported',
+    'payload_fields',
     'provider_worker_lifecycle_status',
     'provider_worker_required_next_action',
     'provider_worker_repair_command',
@@ -99,10 +126,55 @@ function isAppActionBoundary(action: RuntimeSnapshot): boolean {
   );
 }
 
+function isPayloadFreeAppAction(action: RuntimeSnapshot): boolean {
+  if (action.route_requires_domain_or_app_payload === true) return false;
+  return !Array.isArray(action.payload_fields) || action.payload_fields.length === 0;
+}
+
+function compactCurrentControlState(state: RuntimeSnapshot): RuntimeSnapshot {
+  return pickRecordFields(state, [
+    'task_id',
+    'domain_id',
+    'task_kind',
+    'active_run_id',
+    'active_stage_attempt_id',
+    'active_workflow_id',
+    'running_provider_attempt',
+    'current_stage_attempt_id',
+    'workflow_id',
+    'provider_kind',
+    'current_attempt_state',
+    'reconciliation_status',
+    'blocker_reason',
+    'derivation_sources',
+    'forbidden_derivation_sources',
+    'provider_run',
+  ]);
+}
+
+function compactCurrentControlStateSummary(summary: RuntimeSnapshot): RuntimeSnapshot {
+  return pickRecordFields(summary, [
+    'current_control_state_count',
+    'blocked_control_state_count',
+    'accepted_typed_closeout_count',
+    'running_control_state_count',
+    'running_provider_attempt_count',
+    'running_provider_attempt_domain_ids',
+    'running_provider_attempt_domain_id_omitted_count',
+    'running_provider_attempt_task_kinds',
+    'running_provider_attempt_task_kind_omitted_count',
+    'running_provider_attempt_stage_attempt_ids',
+    'running_provider_attempt_stage_attempt_id_omitted_count',
+    'latest_running_provider_heartbeat_at',
+    'running_provider_attempt_summary_policy',
+  ]);
+}
+
 function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   const attention = record(drilldown.attention_first_payload);
   const executionBridge = record(drilldown.app_execution_bridge);
   const actionRefs = record(drilldown.operator_action_routing_refs);
+  const currentControlState = record(drilldown.current_control_state);
   return {
     ...pickRecordFields(drilldown, [
       'surface_kind',
@@ -114,6 +186,7 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
     ]),
     summary: pickRecordFields(record(drilldown.summary), [
       'stage_attempt_count',
+      'current_control_state_running_count',
       'current_control_state_count',
       'current_control_state_blocked_count',
       'current_control_state_accepted_typed_closeout_count',
@@ -142,6 +215,36 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
     },
     operator_action_routing_refs: {
       refs: recordList(actionRefs.refs).slice(0, 8).map(compactAction),
+    },
+    runtime_workbench: {
+      summary_cards: recordList(record(drilldown.runtime_workbench).summary_cards).slice(0, 8),
+      domain_lane_map: {
+        lanes: recordList(record(record(drilldown.runtime_workbench).domain_lane_map).lanes).slice(0, 8),
+      },
+      task_drilldowns: recordList(record(drilldown.runtime_workbench).task_drilldowns).slice(0, 12),
+    },
+    current_control_state: {
+      summary: compactCurrentControlStateSummary(record(currentControlState.summary)),
+      states: recordList(currentControlState.states).slice(0, 24).map(compactCurrentControlState),
+    },
+    stage_progress_log: pickRecordFields(record(drilldown.stage_progress_log), [
+      'attempt_count',
+      'temporal_attempt_count',
+      'completed_attempt_count',
+      'blocked_attempt_count',
+      'runner_progress_event_count',
+      'temporal_visibility_readiness_statuses',
+      'temporal_webui_ref_count',
+    ]),
+    artifact_gallery_refs: {
+      refs: recordList(record(drilldown.artifact_gallery_refs).refs).slice(0, 32),
+    },
+    memory_trace_projection: {
+      source_refs: stringList(record(drilldown.memory_trace_projection).source_refs).slice(0, 32),
+      writeback_receipt_refs: stringList(record(drilldown.memory_trace_projection).writeback_receipt_refs).slice(0, 32),
+    },
+    memory_writeback_refs: {
+      writeback_receipt_refs: stringList(record(drilldown.memory_writeback_refs).writeback_receipt_refs).slice(0, 32),
     },
   };
 }
@@ -176,11 +279,63 @@ function detailDigest(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   };
 }
 
+function runtimeWorkbench(drilldown: RuntimeSnapshot): RuntimeSnapshot {
+  return record(drilldown.runtime_workbench);
+}
+
+function workbenchTaskDrilldowns(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
+  return recordList(runtimeWorkbench(drilldown).task_drilldowns).slice(0, 12);
+}
+
+function workbenchDomainLanes(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
+  return recordList(record(runtimeWorkbench(drilldown).domain_lane_map).lanes).slice(0, 8);
+}
+
+function currentControlState(drilldown: RuntimeSnapshot): RuntimeSnapshot {
+  return record(drilldown.current_control_state);
+}
+
+function currentControlStateSummary(drilldown: RuntimeSnapshot): RuntimeSnapshot {
+  return record(currentControlState(drilldown).summary);
+}
+
+function currentControlStateRecords(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
+  return recordList(currentControlState(drilldown).states);
+}
+
+function refText(value: unknown): string | null {
+  return (
+    stringValue(value) ??
+    stringValue(record(value).ref) ??
+    stringValue(record(value).source_ref) ??
+    stringValue(record(value).receipt_ref)
+  );
+}
+
+function evidenceRefs(drilldown: RuntimeSnapshot): string[] {
+  const refs = [
+    ...recordList(record(drilldown.artifact_gallery_refs).refs).map(refText),
+    ...stringList(record(drilldown.memory_trace_projection).source_refs),
+    ...stringList(record(drilldown.memory_trace_projection).writeback_receipt_refs),
+    ...stringList(record(drilldown.memory_writeback_refs).writeback_receipt_refs),
+  ];
+  const seen = new Set<string>();
+  return refs
+    .filter((ref): ref is string => Boolean(ref))
+    .filter((ref) => {
+      if (seen.has(ref)) return false;
+      seen.add(ref);
+      return true;
+    })
+    .slice(0, 32);
+}
+
 function summaryEntries(
   drilldown: RuntimeSnapshot,
   t: (key: string, options?: Record<string, string | number>) => string
 ): Array<{ key: string; label: string; value: unknown }> {
   const summary = record(drilldown.summary);
+  const controlSummary = currentControlStateSummary(drilldown);
   const attention = record(drilldown.attention_first_payload);
   const providerHealth = record(attention.provider_health);
   const nextAction = record(attention.next_safe_action);
@@ -200,12 +355,15 @@ function summaryEntries(
     {
       key: 'stage_attempts',
       label: t('common.runtime.summaryStageAttempts'),
-      value: numberValue(summary.stage_attempt_count) ?? 0,
+      value: numberValue(summary.stage_attempt_count) ?? numberValue(record(drilldown.stage_progress_log).attempt_count) ?? 0,
     },
     {
       key: 'blocked',
       label: t('common.runtime.summaryBlocked'),
-      value: numberValue(summary.current_control_state_blocked_count) ?? 0,
+      value:
+        numberValue(summary.current_control_state_blocked_count) ??
+        numberValue(controlSummary.blocked_control_state_count) ??
+        0,
     },
     {
       key: 'safe_actions',
@@ -234,14 +392,296 @@ function collectSafeActions(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
       if (!actionId || seen.has(actionId)) return false;
       const isSafe =
         isAppActionBoundary(candidate) &&
+        isPayloadFreeAppAction(candidate) &&
         (candidate.can_submit_to_safe_action_shell === true ||
           candidate.execution_policy === 'opl_safe_action_shell' ||
-          stringValue(candidate.submit_via) === 'opl app action execute');
+          stringValue(candidate.submit_via) === 'opl app action execute') &&
+        candidate.dry_run_supported !== false;
       if (!isSafe) return false;
       seen.add(actionId);
       return true;
     })
     .slice(0, 8);
+}
+
+function taskFallbackLabel(taskId: string | null, index: number): string {
+  return taskId ?? `task-${index + 1}`;
+}
+
+function formatCountLabel(label: string, count: number): string | null {
+  return count > 0 ? `${label}: ${count}` : null;
+}
+
+type RuntimeProjectProgress = {
+  id: string;
+  title: string;
+  domainLabel: string;
+  stateLabel: string | null;
+  stageLabel: string | null;
+  nextStep: string | null;
+  nextOwner: string | null;
+  lastProgressAt: string | null;
+  progressClassLabel: string | null;
+  progressTone: 'green' | 'orange' | 'blue' | 'red';
+  deliverableCount: number;
+  platformRepairCount: number;
+  blockerCount: number;
+  safeActionCount: number;
+  paperLensCount: number;
+  stageAttemptCount: number;
+  needsAttention: boolean;
+};
+
+const PROJECT_STATE_KEYS: Record<string, string> = {
+  ready: 'common.runtime.projectStates.ready',
+  running: 'common.runtime.projectStates.running',
+  queued: 'common.runtime.projectStates.queued',
+  pending: 'common.runtime.projectStates.pending',
+  checkpointed: 'common.runtime.projectStates.checkpointed',
+  quality_repair: 'common.runtime.projectStates.qualityRepair',
+  repair: 'common.runtime.projectStates.qualityRepair',
+  blocked: 'common.runtime.projectStates.blocked',
+  blocking: 'common.runtime.projectStates.blocked',
+  missing: 'common.runtime.projectStates.needsSetup',
+  attention_needed: 'common.runtime.projectStates.needsAttention',
+  attention_required: 'common.runtime.projectStates.needsAttention',
+};
+
+const PROJECT_PROGRESS_CLASS_KEYS: Record<string, string> = {
+  deliverable_progress: 'common.runtime.progressClasses.deliverable_progress',
+  platform_repair: 'common.runtime.progressClasses.platform_repair',
+  mixed: 'common.runtime.progressClasses.mixed',
+  typed_blocker: 'common.runtime.progressClasses.typed_blocker',
+  human_gate: 'common.runtime.progressClasses.human_gate',
+  stop_loss: 'common.runtime.progressClasses.stop_loss',
+};
+
+const ATTENTION_STATES = new Set(['blocked', 'blocking', 'missing', 'attention_needed', 'attention_required']);
+const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
+
+function translateMappedValue(
+  value: unknown,
+  mapping: Record<string, string>,
+  t: (key: string, options?: Record<string, string | number>) => string
+): string | null {
+  const text = stringValue(value);
+  if (!text) return null;
+  return mapping[text] ? t(mapping[text]) : text;
+}
+
+function progressTone(progressClass: string | null, deliverableCount: number, platformRepairCount: number) {
+  if (progressClass === 'stop_loss') return 'red';
+  if (progressClass && ATTENTION_PROGRESS_CLASSES.has(progressClass)) return 'orange';
+  if (deliverableCount > 0) return 'green';
+  if (platformRepairCount > 0 || progressClass === 'platform_repair') return 'orange';
+  return 'blue';
+}
+
+function isUserProjectProgressTask(task: RuntimeSnapshot): boolean {
+  const activeStage = stringValue(task.active_stage_id);
+  const state = stringValue(task.state);
+  if (activeStage === 'module_runtime') return false;
+  if (state === 'dirty' || state === 'missing') return false;
+  return Boolean(
+    stringValue(task.progress_delta_classification) ||
+      task.deliverable_progress_delta !== undefined ||
+      task.platform_repair_delta !== undefined ||
+      stringValue(task.next_visible_step) ||
+      stringValue(task.next_owner)
+  );
+}
+
+function projectProgressItems(
+  tasks: RuntimeSnapshot[],
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeProjectProgress[] {
+  return tasks.filter(isUserProjectProgressTask).map((task, index) => {
+    const taskId = stringValue(task.task_id);
+    const title = stringValue(task.title) ?? stringValue(task.label) ?? taskFallbackLabel(taskId, index);
+    const domainLabel =
+      stringValue(task.domain_label) ?? stringValue(task.domain_id) ?? t('common.runtime.unknownDomain');
+    const state = stringValue(task.state);
+    const progressClass = stringValue(task.progress_delta_classification);
+    const deliverableCount = countValue(task.deliverable_progress_delta);
+    const platformRepairCount = countValue(task.platform_repair_delta);
+    const blockerCount = numberValue(task.blocker_ref_count) ?? 0;
+    const safeActionCount = numberValue(task.safe_action_ref_count) ?? 0;
+    const paperLensCount = numberValue(task.paper_route_lens_ref_count) ?? 0;
+    const stageAttemptCount = stringList(task.stage_attempt_ids).length;
+    const needsAttention =
+      blockerCount > 0 ||
+      (state ? ATTENTION_STATES.has(state) : false) ||
+      (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
+
+    return {
+      id: taskId ?? `${title}-${index + 1}`,
+      title,
+      domainLabel,
+      stateLabel: translateMappedValue(state, PROJECT_STATE_KEYS, t),
+      stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
+      nextStep:
+        stringValue(task.next_visible_step) ??
+        stringValue(task.next_step) ??
+        stringValue(task.required_next_action) ??
+        null,
+      nextOwner: stringValue(task.next_owner) ?? stringValue(task.owner) ?? null,
+      lastProgressAt: stringValue(task.last_progress_at) ?? stringValue(task.updated_at) ?? null,
+      progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
+      progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
+      deliverableCount,
+      platformRepairCount,
+      blockerCount,
+      safeActionCount,
+      paperLensCount,
+      stageAttemptCount,
+      needsAttention,
+    };
+  });
+}
+
+function summarizeProjectProgress(projects: RuntimeProjectProgress[], lanes: RuntimeSnapshot[]) {
+  const maintenanceAttention = lanes.reduce((total, lane) => total + (numberValue(lane.blocked_task_count) ?? 0), 0);
+  return {
+    total: projects.length,
+    attention: projects.filter((project) => project.needsAttention).length,
+    maintenanceAttention,
+  };
+}
+
+type RuntimeActivityDomain = {
+  id: string;
+  label: string;
+  activeExecutionCount: number;
+  taskKinds: string[];
+};
+
+type RuntimeActivityProjection = {
+  providerKind: string;
+  providerStatus: string | null;
+  activeExecutionCount: number;
+  runningDomainCount: number;
+  runningStageAttemptIds: string[];
+  providerRefCount: number;
+  latestHeartbeatAt: string | null;
+  summaryPolicy: string | null;
+  domains: RuntimeActivityDomain[];
+  sourceLabel: string;
+  hasActiveExecution: boolean;
+};
+
+function readableDomainLabel(domainId: string): string {
+  const labels: Record<string, string> = {
+    medautoscience: 'Med Auto Science',
+    medautogrant: 'Med Auto Grant',
+    redcube: 'RedCube AI',
+    'opl-meta-agent': 'OPL Meta Agent',
+    oplmetaagent: 'OPL Meta Agent',
+  };
+  return labels[domainId] ?? domainId;
+}
+
+function providerRun(state: RuntimeSnapshot): RuntimeSnapshot {
+  return record(state.provider_run);
+}
+
+function isActiveProviderExecution(state: RuntimeSnapshot): boolean {
+  return (
+    state.running_provider_attempt === true &&
+    (stringValue(providerRun(state).provider_status) === 'running' ||
+      stringValue(state.current_attempt_state) === 'running' ||
+      stringValue(state.reconciliation_status) === 'running')
+  );
+}
+
+function stateHeartbeat(state: RuntimeSnapshot): string | null {
+  return firstString([
+    providerRun(state).last_heartbeat_at,
+    providerRun(state).ledger_last_heartbeat_at,
+    state.latest_running_provider_heartbeat_at,
+  ]);
+}
+
+function runtimeActivityProjection(drilldown: RuntimeSnapshot): RuntimeActivityProjection {
+  const summary = record(drilldown.summary);
+  const controlSummary = currentControlStateSummary(drilldown);
+  const attention = record(drilldown.attention_first_payload);
+  const providerHealth = record(attention.provider_health);
+  const states = currentControlStateRecords(drilldown);
+  const providerKind =
+    firstString([
+      providerHealth.provider_kind,
+      ...states.map((state) => state.provider_kind),
+      'temporal',
+    ]) ?? 'temporal';
+  const providerStatus = stringValue(providerHealth.health_status);
+  const providerRefCount =
+    firstNumber([
+      controlSummary.running_provider_attempt_count,
+      summary.current_control_state_running_provider_attempt_count,
+      controlSummary.running_control_state_count,
+      summary.current_control_state_running_count,
+    ]) ?? states.filter((state) => state.running_provider_attempt === true).length;
+  const summaryPolicy =
+    firstString([
+      controlSummary.running_provider_attempt_summary_policy,
+      summary.current_control_state_running_provider_attempt_summary_policy,
+    ]) ?? null;
+
+  const activeStates = states.filter(isActiveProviderExecution);
+  const domainCounts = new Map<string, number>();
+  const domainTaskKinds = new Map<string, Set<string>>();
+  const runningStageAttemptIds: string[] = [];
+  let latestHeartbeatAt: string | null = null;
+  for (const state of activeStates) {
+    const domainId = stringValue(state.domain_id);
+    if (!domainId) continue;
+    domainCounts.set(domainId, (domainCounts.get(domainId) ?? 0) + 1);
+    const taskKind = stringValue(state.task_kind);
+    if (taskKind) {
+      const taskKinds = domainTaskKinds.get(domainId) ?? new Set<string>();
+      taskKinds.add(taskKind);
+      domainTaskKinds.set(domainId, taskKinds);
+    }
+    const stageAttemptId = stringValue(state.current_stage_attempt_id) ?? stringValue(state.active_stage_attempt_id);
+    if (stageAttemptId && runningStageAttemptIds.length < 5) {
+      runningStageAttemptIds.push(stageAttemptId);
+    }
+    const heartbeat = stateHeartbeat(state);
+    if (heartbeat && (!latestHeartbeatAt || heartbeat > latestHeartbeatAt)) {
+      latestHeartbeatAt = heartbeat;
+    }
+  }
+
+  if (!latestHeartbeatAt && activeStates.length > 0) {
+    latestHeartbeatAt =
+      firstString([
+        controlSummary.latest_running_provider_heartbeat_at,
+        summary.current_control_state_latest_running_provider_heartbeat_at,
+      ]) ?? null;
+  }
+
+  const domainIds = Array.from(domainCounts.keys());
+  const domains = domainIds.map((domainId) => ({
+    id: domainId,
+    label: readableDomainLabel(domainId),
+    activeExecutionCount: domainCounts.get(domainId) ?? 0,
+    taskKinds: Array.from(domainTaskKinds.get(domainId) ?? []),
+  }));
+  const activeExecutionCount = activeStates.length;
+
+  return {
+    providerKind,
+    providerStatus,
+    activeExecutionCount,
+    runningDomainCount: domains.length,
+    runningStageAttemptIds,
+    providerRefCount,
+    latestHeartbeatAt,
+    summaryPolicy,
+    domains,
+    sourceLabel: 'Temporal provider projection',
+    hasActiveExecution: activeExecutionCount > 0,
+  };
 }
 
 function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot | null {
@@ -253,7 +693,7 @@ function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot
     ...oplRecordList(appState.actions),
     ...oplRecordList(operator.actions),
     ...oplRecordList(oplRecord(operator.action_queue).items),
-  ].filter(isAppActionBoundary);
+  ].filter((action) => isAppActionBoundary(action) && isPayloadFreeAppAction(action));
   const firstAction = actions[0] ?? {};
   return {
     availability:
@@ -273,7 +713,17 @@ function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot
     operator_action_routing_refs: {
       refs: actions.map(compactAction),
     },
+    runtime_workbench: oplRecord(operator.workbench),
   };
+}
+
+function hasWorkbenchRefs(drilldown: RuntimeSnapshot | null | undefined): boolean {
+  const workbench = runtimeWorkbench(drilldown ?? {});
+  return (
+    recordList(workbench.task_drilldowns).length > 0 ||
+    recordList(record(workbench.domain_lane_map).lanes).length > 0 ||
+    recordList(workbench.summary_cards).length > 0
+  );
 }
 
 const RuntimePage: React.FC = () => {
@@ -281,13 +731,16 @@ const RuntimePage: React.FC = () => {
   const navigate = useNavigate();
   const [message, contextHolder] = Message.useMessage();
   const appStateQuery = useOplAppState('fast');
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [summaryDrilldown, setSummaryDrilldown] = useState<RuntimeSnapshot | null>(null);
+  const [fullDetailDrilldown, setFullDetailDrilldown] = useState<RuntimeSnapshot | null>(null);
   const [fullDetailDigest, setFullDetailDigest] = useState<RuntimeSnapshot | null>(null);
   const [actionResult, setActionResult] = useState<RuntimeSnapshot | null>(null);
   const messageRef = useRef(message);
   const tRef = useRef(t);
-  const requestSeq = useRef({ full: 0 });
+  const requestSeq = useRef({ summary: 0, full: 0 });
 
   useEffect(() => {
     messageRef.current = message;
@@ -297,22 +750,62 @@ const RuntimePage: React.FC = () => {
     tRef.current = t;
   }, [t]);
 
-  const drilldown = useMemo(() => appStateToRuntimeProjection(appStateQuery.appState), [appStateQuery.appState]);
-  const loading = appStateQuery.loading || appStateQuery.refreshing;
+  const appStateProjection = useMemo(() => appStateToRuntimeProjection(appStateQuery.appState), [appStateQuery.appState]);
+  const displayDrilldown = fullDetailDrilldown ?? summaryDrilldown ?? appStateProjection;
+  const workbenchDrilldown = useMemo(() => {
+    if (hasWorkbenchRefs(displayDrilldown) || !appStateProjection) return displayDrilldown;
+    return appStateProjection;
+  }, [appStateProjection, displayDrilldown]);
+  const actionDrilldown = useMemo(() => {
+    const safeActionCount = collectSafeActions(displayDrilldown ?? {}).length;
+    if (safeActionCount > 0 || !appStateProjection) return displayDrilldown;
+    return appStateProjection;
+  }, [appStateProjection, displayDrilldown]);
+  const loading = appStateQuery.loading || appStateQuery.refreshing || summaryLoading;
   const lastLoadedAt = appStateQuery.loadedAt;
+
+  const loadSummaryDrilldown = useCallback(async (options: { showToast?: boolean } = {}) => {
+    requestSeq.current.summary += 1;
+    const requestId = requestSeq.current.summary;
+    setSummaryLoading(true);
+    try {
+      const result = await ipcBridge.oplRuntime.getDrilldown.invoke({ detail: 'summary' });
+      if (requestSeq.current.summary !== requestId) return;
+      const parsed =
+        parseDrilldown(result.stdout) ??
+        compactDrilldown(record(record(parseBridgePayload(result)).app_operator_drilldown));
+      setSummaryDrilldown(parsed);
+      setFullDetailDrilldown(null);
+      setFullDetailDigest(null);
+      if (options.showToast) {
+        messageRef.current.success(tRef.current('common.refreshSuccess'));
+      }
+    } catch {
+      if (options.showToast) {
+        messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      }
+    } finally {
+      if (requestSeq.current.summary === requestId) {
+        setSummaryLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSummaryDrilldown();
+  }, [loadSummaryDrilldown]);
 
   const refreshAppState = useCallback(
     async (showToast = false) => {
       const nextPayload = await appStateQuery.load('fast', { showRefreshing: true });
-      if (showToast) {
-        if (nextPayload) {
-          messageRef.current.success(tRef.current('common.refreshSuccess'));
-        } else {
-          messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
-        }
+      await loadSummaryDrilldown({ showToast: false });
+      if (showToast && !nextPayload) {
+        messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      } else if (showToast) {
+        messageRef.current.success(tRef.current('common.refreshSuccess'));
       }
     },
-    [appStateQuery.load]
+    [appStateQuery.load, loadSummaryDrilldown]
   );
 
   const loadFullDrilldown = useCallback(async (options: { showToast?: boolean } = {}) => {
@@ -325,6 +818,7 @@ const RuntimePage: React.FC = () => {
       const parsed =
         parseDrilldown(result.stdout) ??
         compactDrilldown(record(record(parseBridgePayload(result)).app_operator_drilldown));
+      setFullDetailDrilldown(parsed);
       setFullDetailDigest(parsed ? detailDigest(parsed) : null);
       if (options.showToast) {
         messageRef.current.success(tRef.current('common.runtime.detailFullLoaded'));
@@ -340,8 +834,14 @@ const RuntimePage: React.FC = () => {
     }
   }, []);
 
-  const actions = useMemo(() => collectSafeActions(drilldown ?? {}), [drilldown]);
-  const summary = useMemo(() => summaryEntries(drilldown ?? {}, t), [drilldown, t]);
+  const actions = useMemo(() => collectSafeActions(actionDrilldown ?? {}), [actionDrilldown]);
+  const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
+  const lanes = useMemo(() => workbenchDomainLanes(workbenchDrilldown ?? {}), [workbenchDrilldown]);
+  const tasks = useMemo(() => workbenchTaskDrilldowns(workbenchDrilldown ?? {}), [workbenchDrilldown]);
+  const projects = useMemo(() => projectProgressItems(tasks, t), [tasks, t]);
+  const projectSummary = useMemo(() => summarizeProjectProgress(projects, lanes), [projects, lanes]);
+  const runtimeActivity = useMemo(() => runtimeActivityProjection(displayDrilldown ?? {}), [displayDrilldown]);
+  const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
   const dryRunAction = useCallback(async (actionId: string) => {
     setRunningActionId(actionId);
@@ -381,13 +881,6 @@ const RuntimePage: React.FC = () => {
             >
               {t('common.refresh')}
             </Button>
-            <Button
-              icon={<UpdateRotation theme='outline' />}
-              loading={detailLoading}
-              onClick={() => void loadFullDrilldown({ showToast: true })}
-            >
-              {t('common.runtime.fullDetail')}
-            </Button>
           </div>
         </div>
 
@@ -403,102 +896,399 @@ const RuntimePage: React.FC = () => {
                 </Typography.Text>
               )}
             </div>
-            <Tag color={drilldown ? 'green' : 'orange'}>
+            <Tag color={displayDrilldown ? 'green' : 'orange'}>
               {loading
-                ? drilldown
+                ? displayDrilldown
                   ? t('common.runtime.refreshing')
                   : t('common.loading')
-                : drilldown
+                : displayDrilldown
                   ? t('common.runtime.drilldownLoaded')
                   : t('common.runtime.drilldownUnavailable')}
             </Tag>
           </div>
         </Card>
 
-        {drilldown ? (
+        {displayDrilldown ? (
           <>
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.summary')}</Typography.Text>
-                <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
-                  {summary.map((item) => (
-                    <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {item.label}
-                      </Typography.Text>
-                      <Typography.Text className='block font-600 text-t-primary break-words'>
-                        {formatValue(item.value, t)}
-                      </Typography.Text>
-                    </div>
-                  ))}
+                <div className='flex flex-col gap-4px'>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('common.runtime.runningActivity')}
+                  </Typography.Text>
+                  <Typography.Text className='text-13px text-t-secondary'>
+                    {t('common.runtime.runningActivitySummaryText', {
+                      domains: runtimeActivity.runningDomainCount,
+                      attempts: runtimeActivity.activeExecutionCount,
+                    })}
+                  </Typography.Text>
                 </div>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('common.runtime.runningDomains')}
+                    </Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {runtimeActivity.runningDomainCount}
+                    </Typography.Text>
+                  </div>
+                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('common.runtime.activeExecutions')}
+                    </Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {runtimeActivity.activeExecutionCount}
+                    </Typography.Text>
+                  </div>
+                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('common.runtime.summaryProvider')}
+                    </Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary break-words'>
+                      {runtimeActivity.providerStatus
+                        ? formatValue(runtimeActivity.providerStatus, t)
+                        : formatValue(
+                            summary.find((item) => item.key === 'provider')?.value ??
+                              t('settings.oplEnvironmentPage.status.unknown'),
+                            t
+                          )}
+                    </Typography.Text>
+                  </div>
+                </div>
+                {runtimeActivity.hasActiveExecution ? (
+                  <div className='flex flex-col divide-y divide-border-1'>
+                    {runtimeActivity.domains.map((domain) => (
+                      <div key={domain.id} className='py-12px'>
+                        <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
+                          <div className='min-w-0'>
+                            <Typography.Text className='block font-600 text-t-primary break-words'>
+                              {domain.label}
+                            </Typography.Text>
+                            <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
+                              {t('common.runtime.runningActivitySource', {
+                                provider: runtimeActivity.providerKind,
+                                source: runtimeActivity.sourceLabel,
+                              })}
+                            </Typography.Text>
+                          </div>
+                          <Space wrap size='mini'>
+                            <Tag color='blue'>
+                              {t('common.runtime.activeExecutionsWithCount', {
+                                count: domain.activeExecutionCount,
+                              })}
+                            </Tag>
+                          </Space>
+                        </div>
+                        <Space wrap size='mini' className='mt-8px'>
+                          {domain.taskKinds.map((taskKind) => (
+                            <Tag key={taskKind}>{taskKind}</Tag>
+                          ))}
+                          {runtimeActivity.latestHeartbeatAt && (
+                            <Tag>
+                              {t('common.runtime.lastHeartbeatAt', {
+                                time: runtimeActivity.latestHeartbeatAt,
+                              })}
+                            </Tag>
+                          )}
+                          {runtimeActivity.runningStageAttemptIds.length > 0 && (
+                            <Tag>
+                              {t('common.runtime.stageAttemptRefsWithCount', {
+                                count: runtimeActivity.runningStageAttemptIds.length,
+                              })}
+                            </Tag>
+                          )}
+                          {runtimeActivity.providerRefCount > runtimeActivity.activeExecutionCount && (
+                            <Tag>
+                              {t('common.runtime.providerRefsWithCount', {
+                                count: runtimeActivity.providerRefCount,
+                              })}
+                            </Tag>
+                          )}
+                        </Space>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Alert type='info' content={t('common.runtime.noRunningTasks')} />
+                )}
+                {runtimeActivity.summaryPolicy && (
+                  <Typography.Text className='text-12px text-t-secondary break-words'>
+                    {t('common.runtime.runningProjectionPolicy', { policy: runtimeActivity.summaryPolicy })}
+                  </Typography.Text>
+                )}
               </div>
             </Card>
 
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.safeActions')}</Typography.Text>
-                {actions.length > 0 ? (
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('common.runtime.projectProgress')}
+                </Typography.Text>
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('common.runtime.projectProgressSummaryText', {
+                    count: projectSummary.total,
+                    attention: projectSummary.attention,
+                  })}
+                </Typography.Text>
+                {projects.length > 0 ? (
                   <div className='flex flex-col divide-y divide-border-1'>
-                    {actions.map((action) => {
-                      const actionId = stringValue(action.action_id) ?? '';
+                    {projects.map((project) => {
+                      const deliverableLabel = formatCountLabel(
+                        t('common.runtime.deliverableProgress'),
+                        project.deliverableCount
+                      );
+                      const platformRepairLabel = formatCountLabel(
+                        t('common.runtime.platformRepair'),
+                        project.platformRepairCount
+                      );
                       return (
-                        <div
-                          key={actionId}
-                          className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
-                        >
-                          <div className='min-w-0'>
-                            <Typography.Text className='block font-600 text-t-primary break-all'>
-                              {actionId}
-                            </Typography.Text>
-                            <Space wrap size='mini' className='mt-6px'>
-                              {stringValue(action.action_kind) && <Tag>{stringValue(action.action_kind)}</Tag>}
-                              {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
-                              {action.route_requires_domain_or_app_payload === true && (
-                                <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
+                        <div key={project.id} className='py-12px'>
+                          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
+                            <div className='min-w-0'>
+                              <Typography.Text className='block font-600 text-t-primary break-words'>
+                                {project.title}
+                              </Typography.Text>
+                              <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
+                                {project.domainLabel}
+                              </Typography.Text>
+                            </div>
+                            <Space wrap size='mini'>
+                              {project.stateLabel && <Tag>{project.stateLabel}</Tag>}
+                              {project.progressClassLabel && (
+                                <Tag color={project.progressTone}>{project.progressClassLabel}</Tag>
                               )}
                             </Space>
                           </div>
-                          <Button
-                            icon={<Play theme='outline' />}
-                            loading={runningActionId === actionId}
-                            disabled={!actionId}
-                            onClick={() => void dryRunAction(actionId)}
-                          >
-                            {t('common.runtime.dryRun')}
-                          </Button>
+                          <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
+                            {project.stageLabel && (
+                              <Typography.Text className='block text-13px text-t-primary break-words'>
+                                {t('common.runtime.currentStage', { stage: project.stageLabel })}
+                              </Typography.Text>
+                            )}
+                            {project.nextOwner && (
+                              <Typography.Text className='block text-13px text-t-primary break-words'>
+                                {t('common.runtime.nextOwner', { owner: project.nextOwner })}
+                              </Typography.Text>
+                            )}
+                            {project.nextStep && (
+                              <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
+                                {t('common.runtime.nextStep', { step: project.nextStep })}
+                              </Typography.Text>
+                            )}
+                            {project.lastProgressAt && (
+                              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                                {t('common.runtime.lastProgressAt', { time: project.lastProgressAt })}
+                              </Typography.Text>
+                            )}
+                          </div>
+                          <Space wrap size='mini' className='mt-8px'>
+                            {project.stageAttemptCount > 0 && (
+                              <Tag>{`${t('common.runtime.stageAttempts')}: ${project.stageAttemptCount}`}</Tag>
+                            )}
+                            {deliverableLabel && <Tag color='green'>{deliverableLabel}</Tag>}
+                            {platformRepairLabel && <Tag color='orange'>{platformRepairLabel}</Tag>}
+                            {project.safeActionCount > 0 && (
+                              <Tag>{`${t('common.runtime.safeActions')}: ${project.safeActionCount}`}</Tag>
+                            )}
+                            {project.blockerCount > 0 && (
+                              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${project.blockerCount}`}</Tag>
+                            )}
+                            {project.paperLensCount > 0 && (
+                              <Tag>{`${t('common.runtime.paperLensRefs')}: ${project.paperLensCount}`}</Tag>
+                            )}
+                          </Space>
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                  <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                  <Alert type='info' content={t('common.runtime.noProjectProgressRefs')} />
                 )}
               </div>
             </Card>
 
-            {actionResult && (
-              <Card bordered className='rd-8px'>
-                <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                  {t('common.runtime.actionResult')}
-                </Typography.Text>
-                <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                  {JSON.stringify(actionResult, null, 2)}
-                </pre>
-              </Card>
-            )}
+            <Card bordered className='rd-8px'>
+              <Collapse bordered={false}>
+                <Collapse.Item
+                  name='advanced-runtime'
+                  header={
+                    <div className='flex flex-col gap-2px'>
+                      <Typography.Text className='font-600 text-t-primary'>
+                        {t('common.runtime.advancedRuntimeDetails')}
+                      </Typography.Text>
+                      <Typography.Text className='text-12px text-t-secondary'>
+                        {t('common.runtime.advancedRuntimeDetailsHint')}
+                      </Typography.Text>
+                    </div>
+                  }
+                >
+                  <div className='flex flex-col gap-16px'>
+                    <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px'>
+                      <Typography.Text className='text-13px text-t-secondary'>
+                        {t('common.runtime.fullDetailHint')}
+                      </Typography.Text>
+                      <Button
+                        icon={<UpdateRotation theme='outline' />}
+                        loading={detailLoading}
+                        onClick={() => void loadFullDrilldown({ showToast: true })}
+                      >
+                        {t('common.runtime.fullDetail')}
+                      </Button>
+                    </div>
 
-            {fullDetailDigest && (
-              <Card bordered className='rd-8px'>
-                <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                  {t('common.runtime.fullDetail')}
-                </Typography.Text>
-                <Alert type='info' content={t('common.runtime.fullDetailReady')} />
-                <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                  {JSON.stringify(fullDetailDigest, null, 2)}
-                </pre>
-              </Card>
-            )}
+                    {lanes.length > 0 && (
+                      <div className='flex flex-col gap-12px'>
+                        <Typography.Text className='font-600 text-t-primary'>
+                          {t('common.runtime.maintenanceAttention')}
+                        </Typography.Text>
+                        <Typography.Text className='text-13px text-t-secondary'>
+                          {t('common.runtime.maintenanceAttentionSummaryText', {
+                            count: projectSummary.maintenanceAttention,
+                          })}
+                        </Typography.Text>
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                          {lanes.map((lane, laneIndex) => {
+                            const laneId = stringValue(lane.domain_id) ?? `lane-${laneIndex + 1}`;
+                            return (
+                              <div key={laneId} className='rounded-6px border border-border-1 px-12px py-10px'>
+                                <div className='flex items-start justify-between gap-10px'>
+                                  <Typography.Text className='font-600 text-t-primary break-words'>
+                                    {stringValue(lane.lane_label) ?? laneId}
+                                  </Typography.Text>
+                                  <Space wrap size='mini'>
+                                    {(numberValue(lane.blocked_task_count) ?? 0) > 0 && (
+                                      <Tag color='orange'>{`${t('common.runtime.needAttention')}: ${numberValue(lane.blocked_task_count) ?? 0}`}</Tag>
+                                    )}
+                                  </Space>
+                                </div>
+                                <div className='mt-8px flex flex-col gap-6px'>
+                                  {recordList(lane.tasks)
+                                    .slice(0, 4)
+                                    .map((task, taskIndex) => {
+                                      const taskId = stringValue(task.task_id);
+                                      return (
+                                        <div key={taskId ?? taskIndex} className='min-w-0'>
+                                          <Typography.Text className='block text-13px text-t-primary break-words'>
+                                            {stringValue(task.label) ?? taskFallbackLabel(taskId, taskIndex)}
+                                          </Typography.Text>
+                                          <Space wrap size='mini' className='mt-4px'>
+                                            {stringValue(task.state) && (
+                                              <Tag>{translateMappedValue(task.state, PROJECT_STATE_KEYS, t)}</Tag>
+                                            )}
+                                            {stringValue(task.active_stage_id) && (
+                                              <Tag>
+                                                {stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id)}
+                                              </Tag>
+                                            )}
+                                          </Space>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className='flex flex-col gap-12px'>
+                      <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.diagnostics')}</Typography.Text>
+                      <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+                        {summary.map((item) => (
+                          <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                            <Typography.Text className='block text-12px text-t-secondary break-words'>
+                              {item.label}
+                            </Typography.Text>
+                            <Typography.Text className='block font-600 text-t-primary break-words'>
+                              {formatValue(item.value, t)}
+                            </Typography.Text>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {refs.length > 0 && (
+                      <div className='flex flex-col gap-12px'>
+                        <Typography.Text className='font-600 text-t-primary'>
+                          {t('common.runtime.evidenceRefs')}
+                        </Typography.Text>
+                        <div className='flex flex-col divide-y divide-border-1'>
+                          {refs.map((ref) => (
+                            <Typography.Text key={ref} className='block py-8px text-12px text-t-secondary break-all'>
+                              {ref}
+                            </Typography.Text>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className='flex flex-col gap-12px'>
+                      <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.safeActions')}</Typography.Text>
+                      {actions.length > 0 ? (
+                        <div className='flex flex-col divide-y divide-border-1'>
+                          {actions.map((action) => {
+                            const actionId = stringValue(action.action_id) ?? '';
+                            return (
+                              <div
+                                key={actionId}
+                                className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
+                              >
+                                <div className='min-w-0'>
+                                  <Typography.Text className='block font-600 text-t-primary break-all'>
+                                    {actionId}
+                                  </Typography.Text>
+                                  <Space wrap size='mini' className='mt-6px'>
+                                    {stringValue(action.action_kind) && <Tag>{stringValue(action.action_kind)}</Tag>}
+                                    {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
+                                    {action.route_requires_domain_or_app_payload === true && (
+                                      <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
+                                    )}
+                                  </Space>
+                                </div>
+                                <Button
+                                  icon={<Play theme='outline' />}
+                                  loading={runningActionId === actionId}
+                                  disabled={!actionId}
+                                  onClick={() => void dryRunAction(actionId)}
+                                >
+                                  {t('common.runtime.dryRun')}
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                      )}
+                    </div>
+
+                    {actionResult && (
+                      <div>
+                        <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                          {t('common.runtime.actionResult')}
+                        </Typography.Text>
+                        <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                          {JSON.stringify(actionResult, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+
+                    {fullDetailDigest && (
+                      <div>
+                        <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                          {t('common.runtime.fullDetail')}
+                        </Typography.Text>
+                        <Alert type='info' content={t('common.runtime.fullDetailReady')} />
+                        <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                          {JSON.stringify(fullDetailDigest, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </Collapse.Item>
+              </Collapse>
+            </Card>
           </>
         ) : (
           <Alert type='info' content={t('common.runtime.drilldownUnavailableDescription')} />

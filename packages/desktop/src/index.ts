@@ -23,6 +23,7 @@ import { initializeProcess } from './process';
 import { startBackendOrExit } from './process/startup/backendStartup';
 import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
 import { installQuitCleanup } from './process/startup/quitCleanup';
+import { initializeTrayForDesktopMode } from './process/startup/trayStartup';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
 import { registerWindowMaximizeListeners } from '@process/bridge';
@@ -711,21 +712,13 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
-    // 初始化关闭到托盘设置 / Initialize close-to-tray setting
-    if (isE2ETestMode) {
-      setCloseToTrayEnabled(false);
-      destroyTray();
-    } else {
-      try {
-        const savedCloseToTray = await ProcessConfig.get('system.closeToTray');
-        setCloseToTrayEnabled(savedCloseToTray ?? false);
-        if (getCloseToTrayEnabled()) {
-          createOrUpdateTray();
-        }
-      } catch {
-        // Ignore storage read errors, default to false
-      }
-    }
+    await initializeTrayForDesktopMode({
+      isE2ETestMode,
+      readCloseToTray: () => ProcessConfig.get('system.closeToTray'),
+      setCloseToTrayEnabled,
+      createOrUpdateTray,
+      destroyTray,
+    });
 
     const showMainWindowOnReady = !(wasLaunchedAtLogin() && getCloseToTrayEnabled());
 

@@ -7,8 +7,15 @@ import type { AvailableAgent } from '@/renderer/pages/guid/types';
 import GuidPage from '@/renderer/pages/guid/GuidPage';
 
 const mocks = vi.hoisted(() => ({
+  i18nLanguage: { value: 'zh-CN' },
+  locationState: { value: null as Record<string, unknown> | null },
+  navigate: vi.fn(),
   setSelectedAgentKey: vi.fn(),
   setMentionSelectorVisible: vi.fn(),
+  setInput: vi.fn(),
+  setFiles: vi.fn(),
+  setDir: vi.fn(),
+  setLoading: vi.fn(),
   useGuidSend: vi.fn(() => ({
     handleSend: vi.fn().mockResolvedValue(undefined),
     sendMessageHandler: vi.fn(),
@@ -77,13 +84,19 @@ vi.mock('@/common', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
-    i18n: { language: 'zh-CN' },
+    i18n: { language: mocks.i18nLanguage.value },
   }),
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
-  useLocation: () => ({ key: 'guid-test', pathname: '/guid', search: '', hash: '', state: null }),
+  useNavigate: () => mocks.navigate,
+  useLocation: () => ({
+    key: 'guid-test',
+    pathname: '/guid',
+    search: '',
+    hash: '',
+    state: mocks.locationState.value,
+  }),
 }));
 
 vi.mock('swr', () => ({
@@ -167,13 +180,13 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
 vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
   useGuidInput: () => ({
     input: '',
-    setInput: vi.fn(),
+    setInput: mocks.setInput,
     files: [],
-    setFiles: vi.fn(),
+    setFiles: mocks.setFiles,
     dir: '',
-    setDir: vi.fn(),
+    setDir: mocks.setDir,
     loading: false,
-    setLoading: vi.fn(),
+    setLoading: mocks.setLoading,
     isInputFocused: false,
     isFileDragging: false,
     handleTextareaFocus: vi.fn(),
@@ -216,7 +229,13 @@ vi.mock('@/renderer/pages/guid/hooks/useTypewriterPlaceholder', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
-  default: ({ mentionSelectorBadge, placeholder }: { mentionSelectorBadge: React.ReactNode; placeholder: string }) => (
+  default: ({
+    mentionSelectorBadge,
+    placeholder,
+  }: {
+    mentionSelectorBadge: React.ReactNode;
+    placeholder: string;
+  }) => (
     <div data-testid='guid-input-card'>
       {mentionSelectorBadge}
       <div data-testid='guid-placeholder'>{placeholder}</div>
@@ -228,16 +247,19 @@ vi.mock('@/renderer/pages/guid/components/AssistantSelectionArea', () => ({
   default: () => <div data-testid='assistant-selection-area' />,
 }));
 
-vi.mock('@/renderer/pages/guid/components/QuickActionButtons', () => ({
-  default: () => <div data-testid='quick-actions' />,
-}));
-
 vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal', () => ({
   default: () => null,
 }));
 
 describe('GuidPage selected purpose assistant surface', () => {
   beforeEach(() => {
+    mocks.i18nLanguage.value = 'zh-CN';
+    mocks.locationState.value = null;
+    mocks.navigate.mockClear();
+    mocks.setInput.mockClear();
+    mocks.setFiles.mockClear();
+    mocks.setDir.mockClear();
+    mocks.setLoading.mockClear();
     mocks.useGuidSend.mockClear();
   });
 
@@ -289,5 +311,45 @@ describe('GuidPage selected purpose assistant surface', () => {
         })
       )
     );
+  });
+
+  it('keeps ordinary Home free of runtime activity and floating footer shortcuts', () => {
+    render(<GuidPage />);
+
+    expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('quick-actions')).not.toBeInTheDocument();
+    expect(screen.queryByText(/running attempts/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/needs_attention/i)).not.toBeInTheDocument();
+  });
+
+  it('prefills a Chinese post-install Codex self-check prompt from first-run navigation state', () => {
+    mocks.locationState.value = { postInstallSelfCheck: true };
+
+    render(<GuidPage />);
+
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('安装后智能自检'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('程序化初始化已经完成'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl-flow'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('不要覆盖用户已有的 AGENTS.md'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('模块自动更新'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
+  });
+
+  it('prefills an English post-install Codex self-check prompt for English UI', () => {
+    mocks.i18nLanguage.value = 'en-US';
+    mocks.locationState.value = { postInstallSelfCheck: true };
+
+    render(<GuidPage />);
+
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Post-install intelligent self-check'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Programmatic initialization has completed'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl-flow'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Do not overwrite the user'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('module auto-update'));
+    expect(mocks.setInput).not.toHaveBeenCalledWith(expect.stringContaining('始终用中文'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 });

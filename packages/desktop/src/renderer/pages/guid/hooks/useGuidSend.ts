@@ -77,6 +77,7 @@ export type GuidSendDeps = {
   // Navigation
   navigate: NavigateFunction;
   t: TFunction;
+  language: string;
 };
 
 export type GuidSendResult = {
@@ -142,6 +143,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     setMentionActiveIndex,
     navigate,
     t,
+    language,
   } = deps;
   const sendingRef = useRef(false);
 
@@ -186,6 +188,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         cli_path: openclawAgentInfo?.cli_path,
         custom_agent_id: openclawAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
+        language,
         extra: {
           default_files: files,
           runtime_validation: {
@@ -243,6 +246,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         model: current_model!,
         custom_agent_id: nanobotAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
+        language,
         extra: {
           default_files: files,
           preset_enabled_skills: enabled_skills_to_send,
@@ -376,6 +380,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           : undefined,
         session_mode: selectedMode,
         current_model_id: selectedAcpModel || currentAcpCachedModelInfo?.current_model_id || undefined,
+        language,
         extra: {
           default_files: files,
           exclude_auto_inject_skills: excludeBuiltinSkills,
@@ -433,6 +438,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     guidEnabledSkills,
     navigate,
     t,
+    language,
   ]);
 
   const sendMessageHandler = useCallback(() => {

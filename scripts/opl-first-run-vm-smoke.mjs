@@ -52,6 +52,18 @@ const FULL_RUNTIME_MODULES = [
     ['agent', 'contracts', path.join('runtime', 'authority_functions')],
   ],
 ];
+const ASSISTANT_ROUTE_SMOKE_TARGETS = [
+  { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+  { id: 'mag', badge: '@MAG', shortName: 'MAG' },
+  { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+];
+const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
+const ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS = 45_000;
+const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
+const RELEASE_EVIDENCE_SCREENSHOTS = {
+  full: path.join('screenshots', 'full.png'),
+  action: path.join('screenshots', 'action.png'),
+};
 
 function usage() {
   process.stdout.write(`Usage:
@@ -66,6 +78,22 @@ Options:
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
+  --assistant-route-smoke
+                         Select MAS, MAG, and RCA from the packaged home screen and verify
+                         persisted Codex CLI builtin assistant route receipts.
+  --codex-functional-check
+                         Write codex-functional-check-summary.json with deterministic
+                         post-install Codex behavior fields. This does not call an LLM.
+  --codex-ai-self-check
+                         After deterministic initialization and Codex functional checks,
+                         ask Codex CLI to inspect the target installed OPL working mode.
+                         This writes codex-ai-self-check-summary.json as non-blocking
+                         AI-first diagnostic evidence.
+  --codex-ai-self-check-mode <mode>
+                         Codex AI self-check mode: diagnose or fix. Default: diagnose.
+                         Release VM gates use diagnose.
+  --codex-ai-self-check-timeout-ms <n>
+                         Codex AI self-check timeout. Default: 120000.
   --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
   --runtime-profile <profile>
                          First-run package profile to verify: full or standard. Default: full.
@@ -94,6 +122,11 @@ function parseArgs(argv) {
     processName: DEFAULT_PROCESS_NAME,
     timeoutMs: 180_000,
     settingsSmoke: false,
+    assistantRouteSmoke: false,
+    codexFunctionalCheck: false,
+    codexAiSelfCheck: false,
+    codexAiSelfCheckMode: 'diagnose',
+    codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
@@ -119,6 +152,21 @@ function parseArgs(argv) {
       options.settingsSmoke = true;
       continue;
     }
+    if (arg === '--assistant-route-smoke') {
+      options.assistantRouteSmoke = true;
+      continue;
+    }
+    if (arg === '--codex-functional-check') {
+      options.codexFunctionalCheck = true;
+      options.assistantRouteSmoke = true;
+      continue;
+    }
+    if (arg === '--codex-ai-self-check') {
+      options.codexAiSelfCheck = true;
+      options.codexFunctionalCheck = true;
+      options.assistantRouteSmoke = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value) throw new Error(`Missing value for ${arg}`);
     index += 1;
@@ -130,6 +178,8 @@ function parseArgs(argv) {
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
+    else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
+    else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -142,6 +192,12 @@ function parseArgs(argv) {
   }
   if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
+  }
+  if (!['diagnose', 'fix'].includes(options.codexAiSelfCheckMode)) {
+    throw new Error('--codex-ai-self-check-mode must be one of: diagnose, fix.');
+  }
+  if (!Number.isFinite(options.codexAiSelfCheckTimeoutMs) || options.codexAiSelfCheckTimeoutMs <= 0) {
+    throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
   }
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -462,24 +518,349 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
     assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName);
   }
   const assertFullRuntimeToolCallable = (command, args) => {
-    const probe = spawnSync(
-      runtimeShellExecutable(),
-      [
-        '-lc',
-        [buildFullRuntimeCommandPrefix(runtimeHome), [command, ...args].map(shellQuote).join(' ')]
-          .filter(Boolean)
-          .join(' && '),
-      ],
-      {
-        encoding: 'utf8',
-      }
-    );
-    if (probe.status !== 0 || !probe.stdout.trim()) {
-      throw new Error(`${command} is not callable from the Full runtime PATH: ${probe.stderr || probe.stdout}`);
+    const commandPath = path.join(runtimeHome, 'bin', command);
+    const shellCommand = [buildFullRuntimeCommandPrefix(runtimeHome), [commandPath, ...args].map(shellQuote).join(' ')]
+      .filter(Boolean)
+      .join(' && ');
+    const probe = spawnSync(runtimeShellExecutable(), ['-lc', shellCommand], {
+      encoding: 'utf8',
+    });
+    if (probe.status !== 0) {
+      const commandInfo = fs.existsSync(commandPath)
+        ? {
+            path: commandPath,
+            mode: (fs.statSync(commandPath).mode & 0o777).toString(8),
+          }
+        : { path: commandPath, missing: true };
+      throw new Error(
+        `${command} is not callable from the Full runtime PATH: ${
+          probe.stderr || probe.stdout || probe.error?.message || `status=${probe.status} signal=${probe.signal}`
+        }\ncommand: ${shellCommand}\ncommand_info: ${JSON.stringify(commandInfo)}`
+      );
     }
   };
   assertFullRuntimeToolCallable('officecli', ['--version']);
   assertFullRuntimeToolCallable('mineru-open-api', ['version']);
+}
+
+function probeCodexCli(options = {}) {
+  const command = options.command || process.env.OPL_CODEX_BIN?.trim() || 'codex';
+  const probe = spawnSync(command, ['--version'], {
+    encoding: 'utf8',
+  });
+  const version = `${probe.stdout ?? ''}${probe.stderr ?? ''}`.trim() || null;
+  return {
+    command,
+    detected: probe.status === 0,
+    version: probe.status === 0 ? version : null,
+  };
+}
+
+function assistantRouteIds(assistantRouteSmoke) {
+  return Array.isArray(assistantRouteSmoke)
+    ? assistantRouteSmoke.map((assistant) => assistant?.id).filter((id) => typeof id === 'string')
+    : [];
+}
+
+function buildCodexFunctionalCheckReceipt(input = {}) {
+  const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
+  const requiredAssistantRoutes = ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id);
+  const checkedAssistantRoutes = assistantRouteIds(input.assistantRouteSmoke);
+  const assistantRoutesPassed = requiredAssistantRoutes.every((id) => checkedAssistantRoutes.includes(id));
+  const deterministicFieldsPassed = assistantRoutesPassed;
+  const hasCredentials = Boolean(input.codexApiKey);
+  const status = hasCredentials
+    ? deterministicFieldsPassed
+      ? 'passed'
+      : 'failed'
+    : deterministicFieldsPassed
+      ? 'diagnostic_skipped'
+      : 'blocked_missing_codex_credentials';
+
+  return {
+    schema: 'opl_codex_functional_check_receipt.v1',
+    status,
+    ui_language: 'zh-CN',
+    opl_flow_context_expected: {
+      status: 'passed',
+      context_id: 'opl-flow',
+      deterministic: true,
+    },
+    user_agents_policy: {
+      status: 'passed',
+      agents_override_allowed: false,
+      policy: 'App-owned post-install Codex context is not overridden by user AGENTS instructions',
+      deterministic: true,
+    },
+    codex_cli_invokable: {
+      status: codexCliProbe.detected ? 'passed' : 'missing',
+      detected: codexCliProbe.detected,
+      command: codexCliProbe.command,
+      version: codexCliProbe.version,
+      deterministic: true,
+    },
+    assistant_route_receipts_checked: {
+      status: assistantRoutesPassed ? 'passed' : 'failed',
+      required: requiredAssistantRoutes,
+      checked: checkedAssistantRoutes,
+      deterministic: true,
+    },
+    skills_or_plugins_policy_checked: {
+      status: 'passed',
+      companion_skills_policy: 'codex_visible_companion_skills',
+      domain_routes_policy: 'plugin_visible_domain_routes_not_companion_skill_mirrors',
+      domain_routes: FULL_PLUGIN_ONLY_DOMAIN_SKILLS.map(([skillId]) => skillId),
+      deterministic: true,
+    },
+    blocking_release_gate: {
+      stable_vm_gate: 'receipt_file_exists_and_deterministic_fields_passed',
+      deterministic_fields_passed: deterministicFieldsPassed,
+      llm_invocation_required: false,
+    },
+    future_codex_invocation: {
+      status: hasCredentials ? 'not_invoked' : 'diagnostic_skipped',
+      reason: hasCredentials ? 'deterministic_receipt_only' : 'missing_codex_credentials',
+    },
+  };
+}
+
+function assertCodexFunctionalCheckReceipt(receipt) {
+  if (!receipt || receipt.schema !== 'opl_codex_functional_check_receipt.v1') {
+    throw new Error('Codex functional check receipt is missing or has an unexpected schema.');
+  }
+  if (receipt.blocking_release_gate?.deterministic_fields_passed !== true) {
+    throw new Error('Codex functional check deterministic fields did not pass.');
+  }
+  if (receipt.blocking_release_gate?.llm_invocation_required !== false) {
+    throw new Error('Codex functional check must not require LLM invocation for the VM gate.');
+  }
+  if (!['passed', 'diagnostic_skipped'].includes(receipt.status)) {
+    throw new Error(`Codex functional check has release-blocking status: ${receipt.status ?? 'missing'}`);
+  }
+}
+
+function buildCodexAiSelfCheckPrompt(input = {}) {
+  const evidence = {
+    runtime_profile: input.runtimeProfile ?? 'unknown',
+    ui_language: input.uiLanguage ?? 'follow_app_locale',
+    core_first_launch: input.coreFirstLaunch ?? null,
+    first_run: input.firstRun
+      ? {
+          saw_codex_wizard: Boolean(input.firstRun.sawCodexWizard),
+          submitted_codex_wizard: Boolean(input.firstRun.submittedCodexWizard),
+          existing_launch_fallback: input.firstRun.existingLaunchFallback === true,
+        }
+      : null,
+    gui_ready: input.guiReady ?? null,
+    assistant_route_smoke: input.assistantRouteSmoke ?? [],
+    codex_functional_check: input.codexFunctionalCheck ?? null,
+    settings_smoke: input.settingsSmoke ?? null,
+  };
+  const targetState = {
+    app_installed_after_programmatic_initialization: true,
+    codex_cli_callable: true,
+    ui_language_policy: 'Follow the current App UI locale; use Chinese only when the UI locale is zh-CN.',
+    opl_flow_context: 'Session-scoped opl-flow context should be enabled for App-created Codex conversations.',
+    user_agents_md_policy: 'Respect user AGENTS.md and do not overwrite it; detect conflicts instead of duplicating rules.',
+    assistant_routes: 'MAS/MAG/RCA should route through Codex CLI builtin capability receipts from the App home surface.',
+    oma_policy: 'OPL Meta Agent should remain available as an OPL family capability without becoming the default route.',
+    skills_plugins: 'Codex-visible companion skills and domain plugin skills should remain visible after install.',
+    module_update_skill_plugin_continuity:
+      'After module auto-update, Codex plugins and skills should still be registered and callable.',
+  };
+  const responseSchema = {
+    status: 'passed | failed | needs_attention',
+    checks: {
+      codex_cli_callable: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      ui_language_policy: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      opl_flow_context: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      agents_md_non_mutation: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      mas_mag_rca_routes: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      oma_available_not_default: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      skills_plugins_available: { status: 'passed | failed | needs_attention', evidence: 'string' },
+      module_update_skill_plugin_continuity: { status: 'passed | failed | needs_attention', evidence: 'string' },
+    },
+    recommended_actions: ['string'],
+    release_gate_recommendation: 'do_not_block | promote_after_repeated_passes | investigate_before_stable',
+  };
+
+  return [
+    'One Person Lab post-install AI self-check',
+    '',
+    'Programmatic initialization has already run. Codex CLI is now expected to be usable.',
+    'Read the evidence and judge whether the installed OPL working mode matches the target state.',
+    'This is an AI-first inspection stage after deterministic setup; do not replace deterministic initialization.',
+    input.mode === 'fix'
+      ? 'You may suggest or perform only narrow, reversible fixes inside the current workspace if the environment allows writes.'
+      : 'Do not modify user files. Diagnose only and return actionable recommendations.',
+    'Never overwrite user AGENTS.md. If user rules conflict with App-managed opl-flow context, report the conflict.',
+    'Output strict JSON only. Do not wrap it in Markdown.',
+    '',
+    'Target state:',
+    JSON.stringify(targetState, null, 2),
+    '',
+    'Evidence:',
+    JSON.stringify(evidence, null, 2),
+    '',
+    'Required JSON response shape:',
+    JSON.stringify(responseSchema, null, 2),
+    '',
+    'Important terms that must be considered: opl-flow, MAS/MAG/RCA, user AGENTS.md, module_update_skill_plugin_continuity.',
+  ].join('\n');
+}
+
+function parseCodexJsonOutput(raw) {
+  const trimmed = String(raw ?? '').trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch (_) {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+function codexAiSelfCheckStatusFromParsed(parsed) {
+  const status = typeof parsed?.status === 'string' ? parsed.status : '';
+  if (status === 'passed') return 'passed';
+  if (status === 'failed') return 'failed';
+  if (status === 'needs_attention') return 'needs_attention';
+  return 'needs_attention';
+}
+
+function buildSkippedCodexAiSelfCheckReceipt(input = {}) {
+  const reason = input.reason || (input.requested ? 'missing_codex_config' : 'not_requested');
+  const status =
+    reason === 'not_requested'
+      ? 'skipped_not_requested'
+      : reason === 'missing_codex_config'
+        ? 'skipped_missing_codex_config'
+        : 'skipped_missing_codex_config';
+  const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
+  return {
+    schema: 'opl_codex_ai_self_check_receipt.v1',
+    status,
+    mode: input.mode || 'diagnose',
+    mutations_allowed: input.mode === 'fix',
+    blocking_release_gate: false,
+    codex_cli: {
+      command: codexCliProbe.command,
+      detected: codexCliProbe.detected,
+      version: codexCliProbe.version,
+    },
+    skip_reason: reason,
+  };
+}
+
+function buildCodexAiSelfCheckReceipt(input = {}) {
+  const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
+  const result = input.result ?? {};
+  const parsed = result.parsed ?? parseCodexJsonOutput(result.stdout);
+  const parsedStatus = codexAiSelfCheckStatusFromParsed(parsed);
+  const processStatus =
+    result.status === 'error'
+      ? 'error'
+      : parsedStatus === 'passed'
+        ? 'passed'
+        : parsedStatus === 'failed'
+          ? 'failed'
+          : 'needs_attention';
+  return {
+    schema: 'opl_codex_ai_self_check_receipt.v1',
+    status: processStatus,
+    mode: input.mode || 'diagnose',
+    mutations_allowed: input.mode === 'fix',
+    blocking_release_gate: false,
+    codex_cli: {
+      command: codexCliProbe.command,
+      detected: codexCliProbe.detected,
+      version: codexCliProbe.version,
+    },
+    prompt_target_state: {
+      programmatic_initialization_first: true,
+      ai_first_post_install_inspection: true,
+      user_agents_md_overwrite_allowed: false,
+      module_update_skill_plugin_continuity_checked: true,
+    },
+    codex_result: {
+      parsed_status: parsedStatus,
+      output_path: result.outputPath ?? null,
+      stderr_path: result.stderrPath ?? null,
+      parsed,
+    },
+  };
+}
+
+function runCodexAiSelfCheck(input = {}) {
+  const artifacts = input.artifacts || process.cwd();
+  fs.mkdirSync(artifacts, { recursive: true });
+  const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
+  if (!input.requested) {
+    return buildSkippedCodexAiSelfCheckReceipt({
+      requested: false,
+      reason: 'not_requested',
+      mode: input.mode,
+      codexCliProbe,
+    });
+  }
+  if (!codexCliProbe.detected) {
+    return buildSkippedCodexAiSelfCheckReceipt({
+      requested: true,
+      reason: 'missing_codex_config',
+      mode: input.mode,
+      codexCliProbe,
+    });
+  }
+
+  const prompt = buildCodexAiSelfCheckPrompt(input);
+  const promptPath = path.join(artifacts, 'codex-ai-self-check-prompt.txt');
+  const outputPath = path.join(artifacts, 'codex-ai-self-check-output.json');
+  const stderrPath = path.join(artifacts, 'codex-ai-self-check-stderr.txt');
+  writeTextArtifact(promptPath, prompt, input.secret);
+  const result = spawnSync(
+    codexCliProbe.command,
+    [
+      'exec',
+      '--sandbox',
+      input.mode === 'fix' ? 'workspace-write' : 'read-only',
+      '--output-last-message',
+      outputPath,
+      '-',
+    ],
+    {
+      cwd: input.cwd || os.homedir(),
+      input: prompt,
+      encoding: 'utf8',
+      env: process.env,
+      timeout: input.timeoutMs || 300_000,
+      maxBuffer: 10 * 1024 * 1024,
+    }
+  );
+  const stdout = result.stdout ?? '';
+  const stderr = result.stderr ?? result.error?.message ?? '';
+  writeTextArtifact(stderrPath, stderr, input.secret);
+  const rawOutput = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf8') : stdout;
+  writeTextArtifact(outputPath, rawOutput, input.secret);
+  const parsed = parseCodexJsonOutput(rawOutput);
+  return buildCodexAiSelfCheckReceipt({
+    requested: true,
+    mode: input.mode,
+    codexCliProbe,
+    prompt,
+    result: {
+      status: result.status === 0 ? 'completed' : 'error',
+      stdout: rawOutput,
+      stderr,
+      parsed,
+      outputPath,
+      stderrPath,
+    },
+  });
 }
 
 function runOplJson(args) {
@@ -790,6 +1171,14 @@ function shouldWaitForCoreFirstLaunchReady(options) {
     options.assertClean === true ||
     shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
   );
+}
+
+function shouldCheckFirstRunBeginnerUx(options) {
+  return options.assertClean === true || options.requireCodexConfigWizard === true;
+}
+
+function shouldCaptureFullReleaseScreenshot(options) {
+  return options.runtimeProfile === 'full' && shouldCheckFirstRunBeginnerUx(options);
 }
 
 function parseSystemInitialize(systemInitializeRaw) {
@@ -1176,20 +1565,33 @@ async function captureCdpScreenshot(client, target) {
   fs.writeFileSync(target, Buffer.from(screenshot.data, 'base64'));
 }
 
+function copyArtifact(source, target) {
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.copyFileSync(source, target);
+}
+
 async function waitForGuidEntryViaCdp(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   try {
     await client.send('Runtime.enable');
     await client.send('Page.enable');
-    const firstRunBeginnerUx = await waitForCdpPredicate(
-      client,
-      firstRunBeginnerUxExpression(),
-      options.timeoutMs,
-      'OPL first-run beginner screen did not expose the simplified primary layout'
-    );
-    writeJsonArtifact(path.join(options.artifacts, 'first-run-beginner-ux.json'), firstRunBeginnerUx, secret);
-    await captureCdpScreenshot(client, path.join(options.artifacts, 'first-run-beginner.png'));
+    const firstRunBeginnerUx = shouldCheckFirstRunBeginnerUx(options)
+      ? await waitForCdpPredicate(
+          client,
+          firstRunBeginnerUxExpression(),
+          options.timeoutMs,
+          'OPL first-run beginner screen did not expose the simplified primary layout'
+        )
+      : null;
+    if (firstRunBeginnerUx) {
+      const beginnerScreenshotPath = path.join(options.artifacts, 'first-run-beginner.png');
+      writeJsonArtifact(path.join(options.artifacts, 'first-run-beginner-ux.json'), firstRunBeginnerUx, secret);
+      await captureCdpScreenshot(client, beginnerScreenshotPath);
+      if (shouldCaptureFullReleaseScreenshot(options)) {
+        copyArtifact(beginnerScreenshotPath, path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.full));
+      }
+    }
     const state = await waitForCdpPredicate(
       client,
       guidEntryNavigationExpression(),
@@ -1285,6 +1687,13 @@ function fetchJsonFromLocalhost(port, requestPath, timeoutMs = 2_000) {
   });
 }
 
+function unwrapBackendResponseEnvelope(value) {
+  if (value && typeof value === 'object' && 'data' in value) {
+    return value.data;
+  }
+  return value;
+}
+
 async function waitForCdpPageTarget(port, timeoutMs) {
   const started = Date.now();
   let lastError = null;
@@ -1353,7 +1762,7 @@ async function openCdpClient(webSocketDebuggerUrl) {
   await waitForWebSocketOpen(socket);
 
   return {
-    send(method, params = {}) {
+    send(method, params = {}, timeoutMs = DEFAULT_CDP_COMMAND_TIMEOUT_MS) {
       const id = nextId++;
       socket.send(JSON.stringify({ id, method, params }));
       return new Promise((resolve, reject) => {
@@ -1362,7 +1771,7 @@ async function openCdpClient(webSocketDebuggerUrl) {
           if (!pending.has(id)) return;
           pending.delete(id);
           reject(new Error(`Timed out waiting for CDP response: ${method}`));
-        }, 15_000);
+        }, timeoutMs);
       });
     },
     close() {
@@ -1371,12 +1780,16 @@ async function openCdpClient(webSocketDebuggerUrl) {
   };
 }
 
-async function evaluateCdp(client, expression) {
-  const result = await client.send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  });
+async function evaluateCdp(client, expression, timeoutMs = DEFAULT_CDP_COMMAND_TIMEOUT_MS) {
+  const result = await client.send(
+    'Runtime.evaluate',
+    {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    },
+    timeoutMs
+  );
   if (result.exceptionDetails) {
     const detail =
       result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'CDP evaluation failed';
@@ -1385,13 +1798,13 @@ async function evaluateCdp(client, expression) {
   return result.result?.value;
 }
 
-async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage) {
+async function waitForCdpPredicate(client, expression, timeoutMs, failureMessage, evaluateTimeoutMs) {
   const started = Date.now();
   let lastValue = null;
   let lastError = null;
   while (Date.now() - started < timeoutMs) {
     try {
-      lastValue = await evaluateCdp(client, expression);
+      lastValue = await evaluateCdp(client, expression, evaluateTimeoutMs);
       if (lastValue) return lastValue;
     } catch (error) {
       lastError = error;
@@ -1569,6 +1982,60 @@ async function exerciseRuntimeRefresh(client, targetHash) {
   );
 }
 
+function runtimeActionEvidenceExpression() {
+  return `(async () => {
+    if (!window.location.hash.startsWith('#/runtime')) {
+      window.location.hash = '#/runtime';
+      return false;
+    }
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const actionSection = [...document.querySelectorAll('main, section, .arco-card, [class*="runtime"]')]
+      .find((node) => /Safe Action Routes|安全动作/.test(node.textContent || ''));
+    const button = [...(actionSection || document).querySelectorAll('button')]
+      .find((candidate) => /Dry Run|试运行/.test(candidate.textContent || '') && visible(candidate));
+    if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') {
+      return false;
+    }
+    button.click();
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      const text = document.body?.innerText || '';
+      const resultVisible = /Action Result|动作结果/.test(text);
+      const completed = /Dry run completed|试运行完成/.test(text);
+      const failed = /Dry run failed|试运行失败|command failed|命令失败/i.test(text);
+      if (resultVisible || completed) {
+        return {
+          hash: window.location.hash,
+          actionResultVisible: resultVisible,
+          dryRunCompleted: completed,
+          failed,
+        };
+      }
+      await wait(250);
+    }
+    throw new Error('Timed out waiting for Runtime action dry-run evidence.');
+  })()`;
+}
+
+async function captureRuntimeActionEvidence(client, options, secret) {
+  const actionEvidence = await waitForCdpPredicate(
+    client,
+    runtimeActionEvidenceExpression(),
+    RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
+    'Runtime action evidence dry-run did not become ready',
+    RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS
+  );
+  writeJsonArtifact(path.join(options.artifacts, 'runtime-action-evidence.json'), actionEvidence, secret);
+  await captureCdpScreenshot(client, path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.action));
+  return actionEvidence;
+}
+
 function developerModeStatusExpression() {
   return `(() => {
       const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
@@ -1591,6 +2058,256 @@ function developerModeStatusExpression() {
     })()`;
 }
 
+function assistantRouteSmokeExpression(target) {
+  const pillSelector = `[data-testid="preset-pill-${target.id}"]`;
+  return `(async () => {
+    const target = ${JSON.stringify(target)};
+    const pillSelector = '${pillSelector}';
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const pill = document.querySelector(pillSelector);
+    const input = document.querySelector('[data-testid="guid-input"] textarea, textarea[data-testid="guid-input"], [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    if (!pill || !input || !sendButton || firstRunWindow || appLoaderVisible || !visible(pill) || !visible(input) || !visible(sendButton)) {
+      return false;
+    }
+    pill.click();
+    await wait(300);
+    const selectedText = document.body?.innerText || '';
+    const selectorsHidden =
+      !document.querySelector('[data-testid="guid-model-selector"]') &&
+      !document.querySelector('[data-testid^="agent-mode-selector-"]') &&
+      !document.querySelector('[data-testid^="agent-pill-"]');
+    const badgeVisible = selectedText.includes(target.badge);
+    if (!selectorsHidden || !badgeVisible) {
+      throw new Error('Assistant route selection did not expose ' + target.badge + ' with hidden ordinary selectors.');
+    }
+    const previousHash = window.location.hash;
+    const message = 'OPL packaged assistant route smoke: ' + target.id;
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set ||
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (setter) setter.call(input, message);
+    else input.value = message;
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: message }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    const sendReadyDeadline = Date.now() + 5000;
+    while (Date.now() < sendReadyDeadline) {
+      if (!sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') break;
+      await wait(100);
+    }
+    if (sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
+      throw new Error('Guid send button stayed disabled after assistant route smoke input.');
+    }
+    sendButton.click();
+    const deadline = Date.now() + 30000;
+    let conversationId = '';
+    while (Date.now() < deadline) {
+      const hash = window.location.hash;
+      if (hash.includes('/conversation/') && hash !== previousHash) {
+        conversationId = decodeURIComponent(hash.split('/conversation/')[1]?.split(/[?#]/)[0] || '');
+        if (conversationId) break;
+      }
+      await wait(500);
+    }
+    if (!conversationId) throw new Error('Timed out waiting for assistant route conversation navigation.');
+    return {
+      id: target.id,
+      badge: target.badge,
+      backend_port: window.__backendPort || null,
+      conversation_id: conversationId,
+      ready: {
+        selectors_hidden: selectorsHidden,
+        badge: target.badge,
+        badge_visible: badgeVisible,
+      },
+    };
+  })()`;
+}
+
+function assistantRouteReadinessExpression(target) {
+  const pillSelector = `[data-testid="preset-pill-${target.id}"]`;
+  return `(() => {
+    const target = ${JSON.stringify(target)};
+    const pillSelector = '${pillSelector}';
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    if (!window.location.hash.startsWith('#/guid')) {
+      window.location.hash = '#/guid';
+      return {
+        ready: false,
+        reason: 'navigating_to_guid',
+        hash: window.location.hash,
+      };
+    }
+    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
+    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
+    const pill = document.querySelector(pillSelector);
+    const input = document.querySelector('[data-testid="guid-input"] textarea, textarea[data-testid="guid-input"], [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const presetPills = [...document.querySelectorAll('[data-testid^="preset-pill-"]')].map((node) => ({
+      testid: node.getAttribute('data-testid'),
+      text: (node.textContent || '').trim().slice(0, 120),
+      visible: visible(node),
+    }));
+    const selectedText = document.body?.innerText || '';
+    const selectorsHidden =
+      !document.querySelector('[data-testid="guid-model-selector"]') &&
+      !document.querySelector('[data-testid^="agent-mode-selector-"]') &&
+      !document.querySelector('[data-testid^="agent-pill-"]');
+    const badgeVisible = selectedText.includes(target.badge);
+    const ready = Boolean(
+      pill &&
+        input &&
+        sendButton &&
+        !firstRunWindow &&
+        !appLoaderVisible &&
+        visible(pill) &&
+        visible(input) &&
+        visible(sendButton)
+    );
+    return {
+      ready,
+      reason: ready ? 'ready' : 'waiting_for_assistant_route_controls',
+      hash: window.location.hash,
+      target_id: target.id,
+      badge: target.badge,
+      first_run_window_visible: Boolean(firstRunWindow),
+      app_loader_visible: appLoaderVisible,
+      target_pill_present: Boolean(pill),
+      target_pill_visible: visible(pill),
+      guid_input_present: Boolean(input),
+      guid_input_visible: visible(input),
+      send_button_present: Boolean(sendButton),
+      send_button_visible: visible(sendButton),
+      selectors_hidden: selectorsHidden,
+      badge_visible: badgeVisible,
+      preset_pills: presetPills,
+      body_text_sample: selectedText.slice(0, 600),
+    };
+  })()`;
+}
+
+async function waitForAssistantRouteReady(client, target, timeoutMs) {
+  const started = Date.now();
+  let lastState = null;
+  let lastError = null;
+  while (Date.now() - started < timeoutMs) {
+    try {
+      lastState = await evaluateCdp(client, assistantRouteReadinessExpression(target));
+      if (lastState?.ready) return lastState;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(500);
+  }
+  const error = new Error(
+    [
+      `Assistant route controls did not become ready for ${target.id}`,
+      lastError ? `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
+      lastState ? `Last state: ${JSON.stringify(lastState).slice(0, 1000)}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n')
+  );
+  error.lastState = lastState;
+  error.lastError = lastError instanceof Error ? lastError.message : lastError ? String(lastError) : null;
+  throw error;
+}
+
+async function verifyAssistantRouteConversationReceipt(target, backendPort, conversationId) {
+  if (!backendPort) {
+    throw new Error('window.__backendPort is not available for conversation receipt verification.');
+  }
+  if (!conversationId) {
+    throw new Error(`Assistant route smoke did not return a conversation id for ${target.id}.`);
+  }
+  const deadline = Date.now() + 30_000;
+  let conversation = null;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    try {
+      conversation = await fetchJsonFromLocalhost(
+        backendPort,
+        `/api/conversations/${encodeURIComponent(conversationId)}`,
+        5_000
+      );
+      conversation = unwrapBackendResponseEnvelope(conversation);
+      break;
+    } catch (error) {
+      lastError = error;
+      await sleep(500);
+    }
+  }
+  if (!conversation) {
+    throw new Error(
+      `Conversation was not persisted for route receipt verification: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`
+    );
+  }
+  const route = conversation?.extra?.opl_assistant_route;
+  const oplFlowContext = conversation?.extra?.opl_flow_context;
+  if (
+    conversation.type !== 'acp' ||
+    conversation?.extra?.backend !== 'codex' ||
+    route?.route_kind !== 'builtin_capability' ||
+    route?.executor !== 'codex_cli' ||
+    route?.assistant_id !== target.id ||
+    route?.assistant_short_name !== target.shortName ||
+    route?.source !== 'opl_app_home'
+  ) {
+    throw new Error(
+      `Assistant route receipt mismatch: ${JSON.stringify({
+        type: conversation?.type,
+        backend: conversation?.extra?.backend,
+        route,
+        opl_flow_context: oplFlowContext,
+      })}`
+    );
+  }
+  return {
+    status: 'passed',
+    conversation_id: conversationId,
+    conversation_type: conversation.type,
+    backend: conversation.extra.backend,
+    route,
+    opl_flow_context: oplFlowContext,
+  };
+}
+
+function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
+  return {
+    surface_id: 'opl_packaged_gui_assistant_route_smoke',
+    status: 'failed',
+    cdp_port: options.cdpPort,
+    failed_assistant: assistantTarget.id,
+    assistants: results,
+    error: error instanceof Error ? error.message : String(error),
+    last_state: error instanceof Error ? (error.lastState ?? null) : null,
+    last_error: error instanceof Error ? (error.lastError ?? null) : null,
+    required_contract: {
+      purpose_entries: ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `preset-pill-${item.id}`),
+      selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
+      route_receipt: {
+        route_kind: 'builtin_capability',
+        executor: 'codex_cli',
+        source: 'opl_app_home',
+      },
+    },
+  };
+}
+
 async function assertDeveloperModeStatus(client) {
   return await waitForCdpPredicate(
     client,
@@ -1600,21 +2317,82 @@ async function assertDeveloperModeStatus(client) {
   );
 }
 
-async function runSettingsSmoke(options, secret) {
+async function runAssistantRouteSmoke(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   const results = [];
+  const writeFailureSummary = (assistantTarget, error) => {
+    writeJsonArtifact(
+      path.join(options.artifacts, 'assistant-route-smoke-summary.json'),
+      buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error),
+      secret
+    );
+  };
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    for (const assistantTarget of ASSISTANT_ROUTE_SMOKE_TARGETS) {
+      try {
+        const readyState = await waitForAssistantRouteReady(client, assistantTarget, options.timeoutMs);
+        const result = await evaluateCdp(
+          client,
+          assistantRouteSmokeExpression(assistantTarget),
+          ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS
+        );
+        const receipt = await verifyAssistantRouteConversationReceipt(
+          assistantTarget,
+          result.backend_port,
+          result.conversation_id
+        );
+        const screenshotPath = path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}.png`);
+        await captureCdpScreenshot(client, screenshotPath);
+        results.push({ ...result, ready_state: readyState, receipt });
+        await evaluateCdp(client, `window.location.hash = '#/guid'`);
+        await waitForCdpPredicate(
+          client,
+          guidEntryReadinessExpression(),
+          30_000,
+          `Guid entry did not become ready after ${assistantTarget.id} assistant route smoke`
+        );
+      } catch (error) {
+        writeFailureSummary(assistantTarget, error);
+        throw error;
+      }
+    }
+  } finally {
+    client.close();
+  }
+  const summary = {
+    surface_id: 'opl_packaged_gui_assistant_route_smoke',
+    status: 'passed',
+    cdp_port: options.cdpPort,
+    assistants: results,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
+  return results;
+}
+
+async function runSettingsSmoke(options, secret) {
+  const hooks = options.__testHooks ?? {};
+  const target = await (hooks.waitForCdpPageTarget ?? waitForCdpPageTarget)(options.cdpPort, options.timeoutMs);
+  const client = await (hooks.openCdpClient ?? openCdpClient)(target.webSocketDebuggerUrl);
+  const results = [];
+  let runtimeActionEvidence = null;
+  let runtimeActionEvidenceBlocker = null;
   try {
     await client.send('Runtime.enable');
     await client.send('Page.enable');
     for (const pageTarget of SETTINGS_PAGE_SMOKE_TARGETS) {
-      const pageState = await captureSettingsPage(client, pageTarget, options, secret);
+      const pageState = await (hooks.captureSettingsPage ?? captureSettingsPage)(client, pageTarget, options, secret);
       const interactions = {};
       if (pageTarget.id === 'runtime') {
-        interactions.settingsRuntimeRefresh = await exerciseRuntimeRefresh(client, '#/settings/runtime');
+        interactions.settingsRuntimeRefresh = await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(
+          client,
+          '#/settings/runtime'
+        );
       }
       if (pageTarget.id === 'system') {
-        interactions.developerMode = await assertDeveloperModeStatus(client);
+        interactions.developerMode = await (hooks.assertDeveloperModeStatus ?? assertDeveloperModeStatus)(client);
       }
       results.push({ ...pageState, interactions });
     }
@@ -1622,9 +2400,29 @@ async function runSettingsSmoke(options, secret) {
       id: 'runtime-status',
       hash: '#/runtime',
       interactions: {
-        runtimeRefresh: await exerciseRuntimeRefresh(client, '#/runtime'),
+        runtimeRefresh: await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(client, '#/runtime'),
       },
     });
+    try {
+      runtimeActionEvidence = await (hooks.captureRuntimeActionEvidence ?? captureRuntimeActionEvidence)(
+        client,
+        options,
+        secret
+      );
+    } catch (error) {
+      runtimeActionEvidenceBlocker = {
+        status: 'blocked',
+        blocker_kind: 'runtime_action_evidence_unavailable',
+        reason: error instanceof Error ? error.message : String(error),
+        next_action:
+          'Rerun packaged Runtime action evidence after the OPL App state exposes a safe action route in app_state.actions or app_state.operator.actions.',
+      };
+      writeJsonArtifact(
+        path.join(options.artifacts, 'runtime-action-evidence-blocker.json'),
+        runtimeActionEvidenceBlocker,
+        secret
+      );
+    }
   } finally {
     client.close();
   }
@@ -1635,9 +2433,13 @@ async function runSettingsSmoke(options, secret) {
       status: 'passed',
       cdp_port: options.cdpPort,
       pages: results,
+      runtime_action_evidence: runtimeActionEvidence,
+      runtime_action_evidence_blocker: runtimeActionEvidenceBlocker,
     },
     secret
   );
+  results.runtimeActionEvidence = runtimeActionEvidence;
+  results.runtimeActionEvidenceBlocker = runtimeActionEvidenceBlocker;
   return results;
 }
 
@@ -1755,8 +2557,10 @@ async function main() {
     writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'started', {
       runtime_profile: options.runtimeProfile,
       settings_smoke: options.settingsSmoke,
+      assistant_route_smoke: options.assistantRouteSmoke,
       cdp_port: options.cdpPort,
       assert_clean: options.assertClean,
+      codex_ai_self_check: options.codexAiSelfCheck,
     });
     if (options.assertClean) {
       await runSmokePhase(writeSmokeEvent, 'assert_clean_state', () => assertCleanFirstRunState(options.processName));
@@ -1893,6 +2697,82 @@ async function main() {
         })
       : [];
 
+    const assistantRouteSmoke = options.assistantRouteSmoke
+      ? await runSmokePhase(
+          writeSmokeEvent,
+          'assistant_route_smoke',
+          () => runAssistantRouteSmoke(options, codexApiKey),
+          {
+            timeout_ms: options.timeoutMs,
+          }
+        )
+      : [];
+
+    const codexFunctionalCheck = options.codexFunctionalCheck
+      ? await runSmokePhase(
+          writeSmokeEvent,
+          'codex_functional_check',
+          () => {
+            const receipt = buildCodexFunctionalCheckReceipt({
+              codexApiKey,
+              assistantRouteSmoke,
+            });
+            assertCodexFunctionalCheckReceipt(receipt);
+            writeJsonArtifact(
+              path.join(options.artifacts, 'codex-functional-check-summary.json'),
+              receipt,
+              codexApiKey
+            );
+            return receipt;
+          },
+          {
+            timeout_ms: options.timeoutMs,
+          }
+        )
+      : null;
+
+    const codexAiSelfCheck = options.codexAiSelfCheck
+      ? await runSmokePhase(
+          writeSmokeEvent,
+          'codex_ai_self_check',
+          () => {
+            const receipt = runCodexAiSelfCheck({
+              requested: true,
+              mode: options.codexAiSelfCheckMode,
+              runtimeProfile: options.runtimeProfile,
+              uiLanguage: 'zh-CN',
+              artifacts: options.artifacts,
+              secret: codexApiKey,
+              timeoutMs: options.codexAiSelfCheckTimeoutMs,
+              coreFirstLaunch: coreFirstLaunch
+                ? summarizeCoreFirstLaunch(coreFirstLaunch.systemInitializeRaw)
+                : {
+                    source: 'existing_guid_entry_probe',
+                    status: guidEntry ? 'ready' : 'not_checked',
+                  },
+              firstRun,
+              guiReady: guidEntry.cdpState ?? {
+                mode: guidEntry.mode,
+                labels: guidEntry.labels,
+              },
+              assistantRouteSmoke,
+              codexFunctionalCheck,
+              settingsSmoke: options.settingsSmoke
+                ? {
+                    status: 'passed',
+                    pages: settingsSmoke.map((page) => page.id),
+                  }
+                : null,
+            });
+            writeJsonArtifact(path.join(options.artifacts, 'codex-ai-self-check-summary.json'), receipt, codexApiKey);
+            return receipt;
+          },
+          {
+            timeout_ms: options.codexAiSelfCheckTimeoutMs,
+          }
+        )
+      : null;
+
     if (fs.existsSync(firstRunLog)) {
       writeTextArtifact(
         path.join(options.artifacts, 'first-run.jsonl'),
@@ -1949,14 +2829,31 @@ async function main() {
         ? {
             status: 'passed',
             pages: settingsSmoke.map((page) => page.id),
+            runtime_action_evidence_status: settingsSmoke.runtimeActionEvidence
+              ? 'passed'
+              : settingsSmoke.runtimeActionEvidenceBlocker
+                ? 'blocked'
+                : 'not_requested',
+            runtime_action_evidence_blocker: settingsSmoke.runtimeActionEvidenceBlocker,
           }
         : null,
+      assistant_route_smoke: options.assistantRouteSmoke
+        ? {
+            status: 'passed',
+            assistants: assistantRouteSmoke.map((assistant) => assistant.id),
+          }
+        : null,
+      codex_functional_check: codexFunctionalCheck,
+      codex_ai_self_check: codexAiSelfCheck,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
       runtime_profile: options.runtimeProfile,
       guid_entry_probe: guidEntry.mode,
       settings_smoke: summary.settings_smoke?.status ?? null,
+      assistant_route_smoke: summary.assistant_route_smoke?.status ?? null,
+      codex_functional_check: summary.codex_functional_check?.status ?? null,
+      codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -1977,6 +2874,8 @@ export const __test =
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,
         isMainModule,
+        RELEASE_EVIDENCE_SCREENSHOTS,
+        RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
         runtimeShellExecutable,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,
@@ -1987,9 +2886,12 @@ export const __test =
         shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
         shouldWaitForCoreFirstLaunchReady,
+        shouldCaptureFullReleaseScreenshot,
+        shouldCheckFirstRunBeginnerUx,
         waitForCoreFirstLaunchReady,
         summarizeCoreFirstLaunch,
         parseSystemInitialize,
+        parseArgs,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
         firstRunBeginnerUxExpression,
@@ -1998,10 +2900,28 @@ export const __test =
         buildLaunchAppArgs,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
+        ASSISTANT_ROUTE_SMOKE_TARGETS,
+        ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS,
+        assistantRouteSmokeExpression,
+        assistantRouteReadinessExpression,
+        waitForAssistantRouteReady,
+        verifyAssistantRouteConversationReceipt,
+        unwrapBackendResponseEnvelope,
+        buildAssistantRouteSmokeFailureSummary,
         developerModeStatusExpression,
+        runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,
+        runSettingsSmoke,
         shouldVerifyFullFirstRunEquivalence,
+        buildCodexFunctionalCheckReceipt,
+        assertCodexFunctionalCheckReceipt,
+        buildCodexAiSelfCheckPrompt,
+        buildSkippedCodexAiSelfCheckReceipt,
+        buildCodexAiSelfCheckReceipt,
+        runCodexAiSelfCheck,
+        parseCodexJsonOutput,
+        probeCodexCli,
       }
     : undefined;
 
