@@ -14,6 +14,15 @@ function writeFile(filePath: string, content: string, mode?: number) {
   if (mode) fs.chmodSync(filePath, mode);
 }
 
+function writeRuntimeToolShim(runtimeHome: string, command: string, output: string) {
+  if (process.platform === 'win32') {
+    writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
+    writeFile(path.join(runtimeHome, 'bin', `${command}.cmd`), `@echo off\r\necho ${output}\r\n`, 0o755);
+    return;
+  }
+  writeFile(path.join(runtimeHome, 'bin', command), `#!/usr/bin/env bash\necho "${output}"\n`, 0o755);
+}
+
 function createReadySystemInitialize() {
   return JSON.stringify({
     system_initialize: {
@@ -38,6 +47,13 @@ function createReadySystemInitialize() {
       },
     },
   });
+}
+
+function createPassedAssistantRouteSmokeSummary(assistantIds = ['mas', 'mag', 'rca']) {
+  return {
+    status: 'passed',
+    assistants: assistantIds,
+  };
 }
 
 function writeRuntimeModule(
@@ -80,7 +96,7 @@ function createFullRuntimeEquivalenceFixture() {
     'mineru-document-extractor',
     'ui-ux-pro-max',
   ]) {
-    writeFile(path.join(codexHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
+    writeFile(path.join(runtimeHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
   }
   for (const moduleFixture of [
     {
@@ -117,13 +133,9 @@ function createFullRuntimeEquivalenceFixture() {
   ]) {
     writeDomainPlugin(runtimeHome, pluginFixture);
   }
-  writeFile(path.join(runtimeHome, 'bin', 'officecli'), '#!/bin/sh\nexit 0\n', 0o755);
-  writeFile(path.join(runtimeHome, 'bin', 'mineru-open-api'), '#!/bin/sh\nexit 0\n', 0o755);
+  writeRuntimeToolShim(runtimeHome, 'officecli', 'officecli 1.0.0');
+  writeRuntimeToolShim(runtimeHome, 'mineru-open-api', 'mineru-open-api version 1.0.0');
   return { root, codexHome, runtimeHome };
-}
-
-function createPassedAssistantRouteSmokeSummary() {
-  return { status: 'passed', assistants: ['mas', 'mag', 'rca'] };
 }
 
 describe('OPL first-run VM smoke scripts', () => {
@@ -237,6 +249,22 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(expression).toContain('OPL 运行状态');
     expect(expression).toContain('App\\/operator Drilldown');
     expect(expression).toContain('运行状态摘要');
+  });
+
+  it('uses POSIX-style PATH entries for Full runtime shell probes on Windows bash', () => {
+    const prefix = vmSmoke.buildFullRuntimeCommandPrefix('C:\\Users\\tester\\runtime\\current');
+
+    if (process.platform === 'win32') {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='/c/Users/tester/runtime/current'");
+      expect(prefix).toContain(
+        "export PATH='/c/Users/tester/runtime/current/bin:/c/Users/tester/runtime/current/node/bin"
+      );
+      expect(prefix).not.toContain('runtime\\current');
+      expect(prefix).not.toContain('current/bin;/c/');
+    } else {
+      expect(prefix).toContain("export OPL_FULL_RUNTIME_HOME='C:\\Users\\tester\\runtime\\current'");
+      expect(prefix).toContain('current/bin');
+    }
   });
 
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
@@ -642,6 +670,88 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).toThrow(/Codex configuration wizard/);
+  });
+
+  it('checks Full companion skills through packaged runtime payloads before Codex skill mirrors exist', () => {
+    const fixture = createFullRuntimeEquivalenceFixture();
+    try {
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).not.toThrow();
+
+      expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'officecli', 'SKILL.md'))).toBe(false);
+      expect(fs.existsSync(path.join(fixture.runtimeHome, 'skills', 'officecli', 'SKILL.md'))).toBe(true);
+      fs.rmSync(path.join(fixture.runtimeHome, 'skills', 'officecli'), { recursive: true, force: true });
+
+      expect(() =>
+        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
+          codexHome: fixture.codexHome,
+          runtimeHome: fixture.runtimeHome,
+        })
+      ).toThrow(/companion skill officecli/);
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+    }
+  });
+
+  it('passes assistant route smoke through the Tart host command and plan', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ]);
+
+    expect(options.assistantRouteSmoke).toBe(true);
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.assistant_route_smoke).toBe(true);
+    expect(plan.cdp_port).toBe(options.cdpPort);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--assistant-route-smoke');
+    expect(command).toContain('--cdp-port');
+  });
+
+  it('validates assistant route smoke independently from Settings smoke', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--assistant-route-smoke',
+      '--dry-run',
+    ]);
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      tartSmoke.assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'full',
+        codex_config_wizard_submitted: false,
+        settings_smoke: null,
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(['mas', 'mag']),
+      })
+    ).toThrow(/assistant route smoke/);
   });
 
   it('checks Full domain skills through packaged plugin surfaces, not retired Codex skill mirrors', () => {

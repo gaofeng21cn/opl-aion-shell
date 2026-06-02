@@ -482,7 +482,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|refs|stage attempt/i);
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
-    await waitFor(() => expect(screen.getByText('common.runtime.maintenanceAttentionSummaryText 4')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('common.runtime.maintenanceAttentionSummaryText 4')).toBeInTheDocument()
+    );
   });
 
   it('renders full-detail workbench tasks after explicit full detail load', async () => {

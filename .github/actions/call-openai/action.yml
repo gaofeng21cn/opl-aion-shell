@@ -22,7 +22,7 @@ runs:
   using: 'composite'
   steps:
     - id: 'call'
-      uses: 'actions/github-script@v7'
+      uses: 'actions/github-script@v9'
       env:
         OPENAI_API_KEY: '${{ inputs.openai_api_key }}'
         OUTPUT_FILE: '${{ inputs.output_file }}'

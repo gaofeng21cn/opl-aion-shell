@@ -32,7 +32,7 @@ import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
+import { Down, FolderOpen, History, Link, MemoryCard, Right, SettingTwo, Timer } from '@icon-park/react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -72,11 +72,11 @@ const POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS: Record<'zh-CN' | 'en-US', string>
     '1. Codex CLI is callable from the App.',
     '2. App-created Codex sessions use session-scoped opl-flow context.',
     '3. The UI language policy is correct: use Chinese only when the UI is Chinese, and use English when the UI is English.',
-    '4. Respect the user\'s existing AGENTS.md. Do not overwrite it or append duplicate rules; report conflicts with App-managed opl-flow context instead.',
+    "4. Respect the user's existing AGENTS.md. Do not overwrite it or append duplicate rules; report conflicts with App-managed opl-flow context instead.",
     '5. MAS/MAG/RCA routing, OPL Meta Agent capability, and Codex skills/plugins are visible and usable after installation.',
     '6. After module auto-update, Codex plugins and skills remain registered and callable.',
     '',
-    'Start with read-only diagnosis: report the conclusion, evidence, issues, and recommended actions. Do not overwrite the user\'s AGENTS.md. If a file change or repair command is needed, explain the reason, impact, and exact command first, then wait for my confirmation.',
+    "Start with read-only diagnosis: report the conclusion, evidence, issues, and recommended actions. Do not overwrite the user's AGENTS.md. If a file change or repair command is needed, explain the reason, impact, and exact command first, then wait for my confirmation.",
   ].join('\n'),
 };
 
@@ -98,6 +98,7 @@ const GuidPage: React.FC = () => {
   const descriptionTextRef = useRef<HTMLDivElement>(null);
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -407,6 +408,41 @@ const GuidPage: React.FC = () => {
     return t('conversation.welcome.title');
   }, [t]);
   const modelStatusText = useMemo(() => getOplModelStatusDisplayText(localeKey), [localeKey]);
+  const inspectorTabs = useMemo(
+    () => [
+      {
+        id: 'files',
+        label: t('guid.inspector.files'),
+        icon: <FolderOpen theme='outline' size='14' fill='currentColor' />,
+      },
+      {
+        id: 'capabilities',
+        label: t('guid.inspector.capabilities'),
+        icon: <Link theme='outline' size='14' fill='currentColor' />,
+      },
+      {
+        id: 'runtime',
+        label: t('guid.inspector.runtime'),
+        icon: <Timer theme='outline' size='14' fill='currentColor' />,
+      },
+      {
+        id: 'memory',
+        label: t('guid.inspector.memory'),
+        icon: <MemoryCard theme='outline' size='14' fill='currentColor' />,
+      },
+      {
+        id: 'automations',
+        label: t('guid.inspector.automations'),
+        icon: <History theme='outline' size='14' fill='currentColor' />,
+      },
+      {
+        id: 'settings',
+        label: t('guid.inspector.settings'),
+        icon: <SettingTwo theme='outline' size='14' fill='currentColor' />,
+      },
+    ],
+    [t]
+  );
   const shouldRenderAgentTabs =
     agentSelection.availableAgents !== undefined && shouldShowOplHomeAgentTabs(agentSelection.availableAgents);
   const selectedAssistantDescription = useMemo(() => {
@@ -606,6 +642,37 @@ const GuidPage: React.FC = () => {
         data-testid='opl-guid-entry'
         aria-label='opl-guid-entry'
       >
+        <div className={styles.guidShellFrame} data-testid='opl-chat-first-frame'>
+          <Button
+            type='secondary'
+            shape='circle'
+            className={styles.guidContextInspectorToggle}
+            data-testid='opl-guid-context-inspector-toggle'
+            aria-label={t('guid.inspector.open')}
+            icon={<Right theme='outline' size='14' fill='currentColor' />}
+            onClick={() => setIsInspectorOpen((open) => !open)}
+          />
+          {isInspectorOpen ? (
+            <aside className={styles.guidContextInspector} data-testid='opl-guid-context-inspector'>
+              <div className={styles.guidContextInspectorTitle}>{t('guid.inspector.title')}</div>
+              <div className={styles.guidContextInspectorTabs}>
+                {inspectorTabs.map((tab) => (
+                  <Button
+                    key={tab.id}
+                    type='text'
+                    size='mini'
+                    className={styles.guidContextInspectorTab}
+                    data-testid={`opl-inspector-tab-${tab.id}`}
+                    aria-label={tab.label}
+                  >
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                  </Button>
+                ))}
+              </div>
+            </aside>
+          ) : null}
+        </div>
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
             <div className='text-center'>
@@ -713,7 +780,6 @@ const GuidPage: React.FC = () => {
             }}
           />
         </div>
-
       </div>
     </ConfigProvider>
   );

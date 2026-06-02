@@ -750,17 +750,16 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
-  const sessionContextI18n =
-    isRecord(codex.session_context_i18n)
-      ? {
-          'zh-CN': readStringArray(codex.session_context_i18n, 'zh-CN', 'codex.session_context_i18n', {
-            allowBlank: true,
-          }),
-          'en-US': readStringArray(codex.session_context_i18n, 'en-US', 'codex.session_context_i18n', {
-            allowBlank: true,
-          }),
-        }
-      : undefined;
+  const sessionContextI18n = isRecord(codex.session_context_i18n)
+    ? {
+        'zh-CN': readStringArray(codex.session_context_i18n, 'zh-CN', 'codex.session_context_i18n', {
+          allowBlank: true,
+        }),
+        'en-US': readStringArray(codex.session_context_i18n, 'en-US', 'codex.session_context_i18n', {
+          allowBlank: true,
+        }),
+      }
+    : undefined;
   const defaultVisibleSkills = readStringArray(codex, 'default_visible_skills', 'codex');
   const skillPriority = readStringArray(codex, 'skill_priority', 'codex');
   const defaultPackagedCodexSkillIds = readStringArray(

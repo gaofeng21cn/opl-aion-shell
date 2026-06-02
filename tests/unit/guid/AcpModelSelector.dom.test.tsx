@@ -35,7 +35,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('swr', () => ({
   default: (key: unknown) => {
-      if (Array.isArray(key) && key[0] === 'acp-model-info') {
+    if (Array.isArray(key) && key[0] === 'acp-model-info') {
       return {
         data: mocks.acpModelInfo,
         isLoading: false,

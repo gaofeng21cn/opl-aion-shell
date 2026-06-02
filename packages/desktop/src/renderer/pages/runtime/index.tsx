@@ -355,7 +355,10 @@ function summaryEntries(
     {
       key: 'stage_attempts',
       label: t('common.runtime.summaryStageAttempts'),
-      value: numberValue(summary.stage_attempt_count) ?? numberValue(record(drilldown.stage_progress_log).attempt_count) ?? 0,
+      value:
+        numberValue(summary.stage_attempt_count) ??
+        numberValue(record(drilldown.stage_progress_log).attempt_count) ??
+        0,
     },
     {
       key: 'blocked',
@@ -499,10 +502,10 @@ function isUserProjectProgressTask(task: RuntimeSnapshot): boolean {
   if (state === 'dirty' || state === 'missing') return false;
   return Boolean(
     stringValue(task.progress_delta_classification) ||
-      task.deliverable_progress_delta !== undefined ||
-      task.platform_repair_delta !== undefined ||
-      stringValue(task.next_visible_step) ||
-      stringValue(task.next_owner)
+    task.deliverable_progress_delta !== undefined ||
+    task.platform_repair_delta !== undefined ||
+    stringValue(task.next_visible_step) ||
+    stringValue(task.next_owner)
   );
 }
 
@@ -711,11 +714,8 @@ function runtimeActivityProjection(drilldown: RuntimeSnapshot): RuntimeActivityP
   const providerHealth = record(attention.provider_health);
   const states = currentControlStateRecords(drilldown);
   const providerKind =
-    firstString([
-      providerHealth.provider_kind,
-      ...states.map((state) => state.provider_kind),
-      'temporal',
-    ]) ?? 'temporal';
+    firstString([providerHealth.provider_kind, ...states.map((state) => state.provider_kind), 'temporal']) ??
+    'temporal';
   const providerStatus = stringValue(providerHealth.health_status);
   const providerRefCount =
     firstNumber([
@@ -853,7 +853,10 @@ const RuntimePage: React.FC = () => {
     tRef.current = t;
   }, [t]);
 
-  const appStateProjection = useMemo(() => appStateToRuntimeProjection(appStateQuery.appState), [appStateQuery.appState]);
+  const appStateProjection = useMemo(
+    () => appStateToRuntimeProjection(appStateQuery.appState),
+    [appStateQuery.appState]
+  );
   const displayDrilldown = fullDetailDrilldown ?? summaryDrilldown ?? appStateProjection;
   const workbenchDrilldown = useMemo(() => {
     if (hasWorkbenchRefs(displayDrilldown) || !appStateProjection) return displayDrilldown;
@@ -1073,7 +1076,9 @@ const RuntimePage: React.FC = () => {
 
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.taskProgress')}</Typography.Text>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('common.runtime.taskProgress')}
+                </Typography.Text>
                 <Typography.Text className='text-13px text-t-secondary'>
                   {t('common.runtime.taskProgressSummaryText', {
                     count: taskOverview.tasks.length,
@@ -1226,7 +1231,8 @@ const RuntimePage: React.FC = () => {
                                             )}
                                             {stringValue(task.active_stage_id) && (
                                               <Tag>
-                                                {stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id)}
+                                                {stringValue(task.active_stage_label) ??
+                                                  stringValue(task.active_stage_id)}
                                               </Tag>
                                             )}
                                           </Space>
@@ -1242,7 +1248,9 @@ const RuntimePage: React.FC = () => {
                     )}
 
                     <div className='flex flex-col gap-12px'>
-                      <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.diagnostics')}</Typography.Text>
+                      <Typography.Text className='font-600 text-t-primary'>
+                        {t('common.runtime.diagnostics')}
+                      </Typography.Text>
                       <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
                         {summary.map((item) => (
                           <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
@@ -1273,7 +1281,9 @@ const RuntimePage: React.FC = () => {
                     )}
 
                     <div className='flex flex-col gap-12px'>
-                      <Typography.Text className='font-600 text-t-primary'>{t('common.runtime.safeActions')}</Typography.Text>
+                      <Typography.Text className='font-600 text-t-primary'>
+                        {t('common.runtime.safeActions')}
+                      </Typography.Text>
                       {actions.length > 0 ? (
                         <div className='flex flex-col divide-y divide-border-1'>
                           {actions.map((action) => {

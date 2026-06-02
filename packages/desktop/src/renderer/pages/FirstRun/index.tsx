@@ -378,7 +378,11 @@ const FirstRun: React.FC = () => {
           </div>
         )}
 
-        <section className={styles.firstRunHeroPanel} data-testid='opl-first-run-progress' aria-label='opl-first-run-progress'>
+        <section
+          className={styles.firstRunHeroPanel}
+          data-testid='opl-first-run-progress'
+          aria-label='opl-first-run-progress'
+        >
           <div className={styles.firstRunHeroMain} data-testid='opl-first-run-beginner-primary'>
             <div className={styles.firstRunStatusHeading}>
               <span className={styles.firstRunHeroIcon}>
@@ -477,7 +481,6 @@ const FirstRun: React.FC = () => {
               </div>
             </div>
           </div>
-
         </section>
 
         <Collapse

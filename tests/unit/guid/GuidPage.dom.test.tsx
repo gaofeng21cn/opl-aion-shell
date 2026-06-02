@@ -83,7 +83,21 @@ vi.mock('@/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
+    t: (key: string, options?: Record<string, unknown>) =>
+      String(
+        options?.defaultValue ??
+          ({
+            'guid.inspector.title': '上下文',
+            'guid.inspector.open': '打开上下文',
+            'guid.inspector.files': '文件',
+            'guid.inspector.capabilities': '能力',
+            'guid.inspector.runtime': '运行',
+            'guid.inspector.memory': '记忆',
+            'guid.inspector.automations': '自动化',
+            'guid.inspector.settings': '设置',
+          }[key] ||
+            key)
+      ),
     i18n: { language: mocks.i18nLanguage.value },
   }),
 }));
@@ -278,6 +292,8 @@ describe('GuidPage selected purpose assistant surface', () => {
   it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', async () => {
     render(<GuidPage />);
 
+    expect(screen.getByTestId('opl-chat-first-frame')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
     expect(screen.getByText('@MAS')).toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
@@ -288,6 +304,22 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
     });
+  });
+
+  it('opens the right context inspector with App-owned context tabs on request', async () => {
+    render(<GuidPage />);
+
+    expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('opl-guid-context-inspector-toggle'));
+
+    expect(screen.getByTestId('opl-guid-context-inspector')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-inspector-tab-files')).toHaveTextContent('文件');
+    expect(screen.getByTestId('opl-inspector-tab-capabilities')).toHaveTextContent('能力');
+    expect(screen.getByTestId('opl-inspector-tab-runtime')).toHaveTextContent('运行');
+    expect(screen.getByTestId('opl-inspector-tab-memory')).toHaveTextContent('记忆');
+    expect(screen.getByTestId('opl-inspector-tab-automations')).toHaveTextContent('自动化');
+    expect(screen.getByTestId('opl-inspector-tab-settings')).toHaveTextContent('设置');
   });
 
   it('does not open an execution-agent dropdown from the selected built-in assistant badge', async () => {

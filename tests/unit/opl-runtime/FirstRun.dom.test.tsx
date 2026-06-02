@@ -296,9 +296,7 @@ describe('FirstRun readiness page', () => {
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.itemSummaries.codexConfig.needsAction');
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.codex.prompt');
     expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('settings.firstRun.nextSteps.codexConfig');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
-      'settings.firstRun.items.codexConfig'
-    );
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.items.codexConfig');
     expect(beginnerPrimary).not.toHaveTextContent('Codex API Configuration');
     expect(beginnerPrimary).not.toHaveTextContent('Unknown');
     expect(beginnerPrimary).not.toHaveTextContent('Needs setup');

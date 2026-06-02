@@ -41,7 +41,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -97,7 +97,7 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -128,7 +128,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload tarball artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.append_commit_hash && format('web-cli-{0}-{1}-{2}', matrix.platform, matrix.arch, steps.commit.outputs.short) || format('web-cli-{0}-{1}', matrix.platform, matrix.arch) }}
           path: |
@@ -156,7 +156,7 @@ jobs:
           echo "short=$SHORT" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -173,7 +173,7 @@ jobs:
           chmod +x dist-scripts/install-web.sh
 
       - name: Upload install-web.sh artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.append_commit_hash && format('install-web-script-{0}', steps.commit.outputs.short) || 'install-web-script' }}
           path: dist-scripts/install-web.sh
@@ -197,7 +197,7 @@ jobs:
           apt-get install -y curl tar gzip nodejs
 
       - name: Download linux-x86_64 tarball
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-cli-linux-x64
           path: dist-web-cli
@@ -235,13 +235,13 @@ jobs:
           echo "Resolved version: $VERSION"
 
       - name: Download linux-x86_64 tarball
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: web-cli-linux-x64
           path: /tmp/releases/v${{ steps.version.outputs.version }}
 
       - name: Download install-web.sh
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: install-web-script
           path: /tmp/releases

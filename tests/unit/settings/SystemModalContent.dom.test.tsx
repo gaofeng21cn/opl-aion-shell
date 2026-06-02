@@ -138,7 +138,9 @@ describe('SystemModalContent OPL App state', () => {
     expect(screen.getByTestId('opl-developer-mode-row')).toHaveTextContent('settings.oplDeveloperModeDesc');
     expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('active_direct');
     expect(screen.getByText('opl-flow')).toBeInTheDocument();
-    expect(screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')).toBeInTheDocument();
+    expect(
+      screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
+    ).toBeInTheDocument();
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.oplFlowContextDesc');
     expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();

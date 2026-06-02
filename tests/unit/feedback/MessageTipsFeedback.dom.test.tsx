@@ -24,7 +24,9 @@ const i18nConfig = JSON.parse(
   readFileSync(path.join(process.cwd(), 'packages/desktop/src/common/config/i18n-config.json'), 'utf8')
 ) as { supportedLanguages: string[] };
 const supportedLocaleNames = i18nConfig.supportedLanguages;
-const nonEnglishChineseLocaleNames = supportedLocaleNames.filter((localeName) => !['zh-CN', 'en-US'].includes(localeName));
+const nonEnglishChineseLocaleNames = supportedLocaleNames.filter(
+  (localeName) => !['zh-CN', 'en-US'].includes(localeName)
+);
 
 const resolveConversationKey = (key: string): unknown => {
   if (!key.startsWith('conversation.')) return undefined;

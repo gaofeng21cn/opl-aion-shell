@@ -43,16 +43,17 @@ const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\
 export const selectLocalizedReleaseNotes = (markdown: string, language?: string): string => {
   const findSegment = (locale: ReleaseNotesLocale): string | null => {
     const escapedLocale = escapeRegExp(locale);
-    const hiddenComment = new RegExp(
-      `<!--\\s*OPL_RELEASE_NOTES:${escapedLocale}\\s*\\n([\\s\\S]*?)\\n?-->`,
-      'i'
-    ).exec(markdown)?.[1]?.trim();
+    const hiddenComment = new RegExp(`<!--\\s*OPL_RELEASE_NOTES:${escapedLocale}\\s*\\n([\\s\\S]*?)\\n?-->`, 'i')
+      .exec(markdown)?.[1]
+      ?.trim();
     if (hiddenComment) return hiddenComment;
 
     const pairedComment = new RegExp(
       `<!--\\s*OPL_RELEASE_NOTES:${escapedLocale}\\s*-->\\s*([\\s\\S]*?)\\s*<!--\\s*/OPL_RELEASE_NOTES:${escapedLocale}\\s*-->`,
       'i'
-    ).exec(markdown)?.[1]?.trim();
+    )
+      .exec(markdown)?.[1]
+      ?.trim();
     return pairedComment || null;
   };
 

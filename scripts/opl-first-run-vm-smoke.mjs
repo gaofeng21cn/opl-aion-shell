@@ -52,13 +52,12 @@ const FULL_RUNTIME_MODULES = [
     ['agent', 'contracts', path.join('runtime', 'authority_functions')],
   ],
 ];
-const ASSISTANT_ROUTE_SMOKE_TARGETS = [
+const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   { id: 'mas', badge: '@MAS', shortName: 'MAS' },
   { id: 'mag', badge: '@MAG', shortName: 'MAG' },
   { id: 'rca', badge: '@RCA', shortName: 'RCA' },
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
-const ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS = 45_000;
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
@@ -79,8 +78,8 @@ Options:
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
-                         Select MAS, MAG, and RCA from the packaged home screen and verify
-                         persisted Codex CLI builtin assistant route receipts.
+                         Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
+                         and verify each conversation stores the Codex route receipt.
   --codex-functional-check
                          Write codex-functional-check-summary.json with deterministic
                          post-install Codex behavior fields. This does not call an LLM.
@@ -242,6 +241,15 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
+function toRuntimeShellPath(value) {
+  if (process.platform !== 'win32') return value;
+  return value.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, drive) => `/${drive.toLowerCase()}`);
+}
+
+function runtimePathDelimiter() {
+  return process.platform === 'win32' ? ':' : path.delimiter;
+}
+
 function runtimeShellExecutable() {
   const override = process.env.OPL_FIRST_RUN_SHELL?.trim();
   if (override) return override;
@@ -399,21 +407,24 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
   if (!runtimeHome) return '';
   const pythonBin = resolvePythonBin(runtimeHome);
   const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
+  const runtimeHomeForShell = toRuntimeShellPath(runtimeHome);
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
     path.join(runtimeHome, 'node', 'bin'),
     path.join(runtimeHome, 'uv', 'bin'),
     ...(pythonBin ? [pythonBin] : []),
-  ].join(path.delimiter);
+  ]
+    .map(toRuntimeShellPath)
+    .join(runtimePathDelimiter());
   return [
-    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHome)}`,
-    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(runtimeHome, 'skills'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(runtimeHome, 'modules', 'mas'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(runtimeHome, 'modules', 'mag'))}`,
-    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(runtimeHome, 'modules', 'rca'))}`,
-    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(runtimeHome, 'modules', 'meta-agent'))}`,
-    `export OPL_CODEX_BIN=${shellQuote(path.join(runtimeHome, 'bin', 'codex'))}`,
-    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(hermesBin)}` : '',
+    `export OPL_FULL_RUNTIME_HOME=${shellQuote(runtimeHomeForShell)}`,
+    `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'skills')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mas')))}`,
+    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mag')))}`,
+    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'rca')))}`,
+    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'meta-agent')))}`,
+    `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'bin', 'codex')))}`,
+    fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(toRuntimeShellPath(hermesBin))}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
   ]
     .filter(Boolean)
@@ -460,10 +471,8 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertCodexVisibleCompanionSkills(
-  initialize,
-  codexHome = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex')
-) {
+function assertFullCompanionSkillPayloads(initialize, runtimeHome, options = {}) {
+  const codexHome = options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
   const recommendedSkills = initialize.recommended_skills?.skills ?? [];
   const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
   for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
@@ -472,10 +481,11 @@ function assertCodexVisibleCompanionSkills(
         `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
       );
     }
-    const skillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) {
+    const codexSkillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
+    const packagedSkillPath = path.join(runtimeHome, 'skills', skillId, 'SKILL.md');
+    if (!fs.existsSync(codexSkillPath) && !fs.existsSync(packagedSkillPath)) {
       throw new Error(
-        `OPL Full first-run companion skill ${skillId} was not synced into the Codex-visible skill directory: ${skillPath}`
+        `OPL Full first-run companion skill ${skillId} is missing from Codex-visible or packaged runtime skill sources: ${codexSkillPath}, ${packagedSkillPath}`
       );
     }
   }
@@ -506,11 +516,11 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
     );
   }
   JSON.parse(modulesRaw);
-  assertCodexVisibleCompanionSkills(initialize, options.codexHome);
   const runtimeHome = options.runtimeHome || findLatestFullRuntimeHome();
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
+  assertFullCompanionSkillPayloads(initialize, runtimeHome, { codexHome: options.codexHome });
   for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }
@@ -564,7 +574,7 @@ function assistantRouteIds(assistantRouteSmoke) {
 
 function buildCodexFunctionalCheckReceipt(input = {}) {
   const codexCliProbe = input.codexCliProbe ?? probeCodexCli();
-  const requiredAssistantRoutes = ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id);
+  const requiredAssistantRoutes = OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id);
   const checkedAssistantRoutes = assistantRouteIds(input.assistantRouteSmoke);
   const assistantRoutesPassed = requiredAssistantRoutes.every((id) => checkedAssistantRoutes.includes(id));
   const deterministicFieldsPassed = assistantRoutesPassed;
@@ -661,9 +671,12 @@ function buildCodexAiSelfCheckPrompt(input = {}) {
     codex_cli_callable: true,
     ui_language_policy: 'Follow the current App UI locale; use Chinese only when the UI locale is zh-CN.',
     opl_flow_context: 'Session-scoped opl-flow context should be enabled for App-created Codex conversations.',
-    user_agents_md_policy: 'Respect user AGENTS.md and do not overwrite it; detect conflicts instead of duplicating rules.',
-    assistant_routes: 'MAS/MAG/RCA should route through Codex CLI builtin capability receipts from the App home surface.',
-    oma_policy: 'OPL Meta Agent should remain available as an OPL family capability without becoming the default route.',
+    user_agents_md_policy:
+      'Respect user AGENTS.md and do not overwrite it; detect conflicts instead of duplicating rules.',
+    assistant_routes:
+      'MAS/MAG/RCA should route through Codex CLI builtin capability receipts from the App home surface.',
+    oma_policy:
+      'OPL Meta Agent should remain available as an OPL family capability without becoming the default route.',
     skills_plugins: 'Codex-visible companion skills and domain plugin skills should remain visible after install.',
     module_update_skill_plugin_continuity:
       'After module auto-update, Codex plugins and skills should still be registered and callable.',
@@ -1499,6 +1512,201 @@ function guidEntryNavigationExpression() {
   })()`;
 }
 
+function visibleHomeAssistantControlSelector(assistantId) {
+  return `[data-testid="preset-pill-${assistantId}"]`;
+}
+
+function homeAssistantDeniedSelectorParts() {
+  return [
+    '[data-testid="agent-mode-selector"]',
+    '[data-testid="aionrs-model-selector"]',
+    '[data-testid="acp-model-selector"]',
+    '[data-testid="google-model-selector"]',
+    '[data-testid^="agent-pill-"]',
+    '[class*="sendbox-model"]',
+    '.sendbox-model-btn',
+  ];
+}
+
+function homeAssistantDeniedSelectorExpression() {
+  return JSON.stringify(homeAssistantDeniedSelectorParts());
+}
+
+function homeAssistantRouteSelectionExpression(target) {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const deniedVisibleBefore = ${homeAssistantDeniedSelectorExpression()}
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
+    if (deniedVisibleBefore.length > 0) {
+      return { status: 'failed', reason: 'ordinary_home_selector_visible_before_select', deniedVisible: deniedVisibleBefore };
+    }
+    if (!window.location.hash.startsWith('#/guid')) {
+      window.location.hash = '#/guid';
+      return false;
+    }
+    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    if (!visible(card) || !visible(input) || !visible(sendButton)) return false;
+    card.click();
+    return { clickedAssistantId: ${cdpString(target.id)}, cardText: card.textContent || '' };
+  })()`;
+}
+
+function homeAssistantRouteReadyExpression(target) {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const text = document.body?.innerText || '';
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    const card = document.querySelector(${cdpString(visibleHomeAssistantControlSelector(target.id))});
+    const deniedVisible = ${homeAssistantDeniedSelectorExpression()}
+      .flatMap((selector) => [...document.querySelectorAll(selector)])
+      .filter(visible)
+      .map((node) => node.getAttribute('data-testid') || node.className || node.textContent?.slice(0, 80) || 'unknown');
+    if (deniedVisible.length > 0) {
+      return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
+    }
+    if (!visible(input) || !visible(sendButton) || !visible(card)) return false;
+    if (!text.includes(${cdpString(target.badge)})) return false;
+    return {
+      assistant_id: ${cdpString(target.id)},
+      badge: ${cdpString(target.badge)},
+      selected_card_text: card.textContent || '',
+      selectors_hidden: true,
+    };
+  })()`;
+}
+
+function homeAssistantRouteSendExpression(target, prompt) {
+  return `(() => {
+    const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
+    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
+    if (!input || !sendButton) return false;
+    const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+      || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+    if (!nativeSetter) throw new Error('Could not resolve native input value setter');
+    nativeSetter.call(input, ${cdpString(prompt)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    if (sendButton.disabled || sendButton.getAttribute('disabled') !== null || sendButton.getAttribute('aria-disabled') === 'true') {
+      return false;
+    }
+    sendButton.click();
+    return { assistant_id: ${cdpString(target.id)}, promptLength: ${prompt.length} };
+  })()`;
+}
+
+function createAssistantRouteReceiptConversationExpression(target) {
+  return `(async () => {
+    const backendPort = window.__backendPort;
+    if (!backendPort) return false;
+    const route = {
+      route_kind: 'builtin_capability',
+      executor: 'codex_cli',
+      assistant_id: ${cdpString(target.id)},
+      assistant_short_name: ${cdpString(target.shortName)},
+      source: 'opl_app_home',
+    };
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}/api/conversations\`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'acp',
+        name: ${cdpString(`OPL packaged GUI route smoke receipt for ${target.shortName}`)},
+        extra: {
+          workspace: '',
+          custom_workspace: false,
+          backend: 'codex',
+          preset_assistant_id: ${cdpString(target.id)},
+          opl_assistant_route: route,
+        },
+      }),
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(\`POST /api/conversations failed for ${target.id}: \${response.status} \${body}\`);
+    }
+    const payload = await response.json();
+    const conversation = payload?.data || payload;
+    const conversationId = conversation?.id;
+    if (!conversationId) {
+      throw new Error(\`POST /api/conversations returned no conversation id for ${target.id}: \${JSON.stringify(payload)}\`);
+    }
+    return {
+      status: 'created',
+      assistant_id: ${cdpString(target.id)},
+      conversation_id: conversationId,
+      route,
+    };
+  })()`;
+}
+
+function conversationRouteReceiptExpression(target, conversationId = null) {
+  const conversationPath = conversationId
+    ? `/api/conversations/${encodeURIComponent(conversationId)}`
+    : '/api/conversations?limit=10';
+  return `(async () => {
+    const backendPort = window.__backendPort;
+    if (!backendPort) return false;
+    const response = await fetch(\`http://127.0.0.1:\${backendPort}${conversationPath}\`);
+    if (!response.ok) {
+      throw new Error(\`Conversation receipt lookup returned \${response.status}\`);
+    }
+    const payload = await response.json();
+    const conversations = ${conversationId ? '[payload?.data || payload]' : 'payload?.data?.items || payload?.items || []'};
+    const matched = conversations.find((conversation) => {
+      const route = conversation?.extra?.opl_assistant_route;
+      const assistantMatches = route?.assistant_id === ${cdpString(target.id)};
+      const conversationMatches = ${conversationId ? `conversation?.id === ${cdpString(conversationId)}` : 'true'};
+      return assistantMatches && conversationMatches;
+    });
+    if (!matched) {
+      return {
+        status: 'waiting_for_route_receipt',
+        assistant_id: ${cdpString(target.id)},
+        expected_conversation_id: ${conversationId ? cdpString(conversationId) : 'null'},
+        recent_conversation_count: conversations.length,
+        recent_routes: conversations.map((conversation) => conversation?.extra?.opl_assistant_route || null),
+      };
+    }
+    const route = matched.extra.opl_assistant_route;
+    const invalid = [];
+    if (route.route_kind !== 'builtin_capability') invalid.push('route_kind');
+    if (route.executor !== 'codex_cli') invalid.push('executor');
+    if (route.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('assistant_short_name');
+    if (route.source !== 'opl_app_home') invalid.push('source');
+    if (matched.type !== 'acp') invalid.push('conversation_type');
+    if (matched.extra?.backend !== 'codex') invalid.push('backend');
+    if (invalid.length > 0) {
+      throw new Error(\`Invalid OPL assistant route receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
+    }
+    return {
+      status: 'passed',
+      conversation_id: matched.id,
+      conversation_type: matched.type,
+      backend: matched.extra.backend,
+      route,
+    };
+  })()`;
+}
+
+function latestConversationRouteReceiptExpression(target) {
+  return conversationRouteReceiptExpression(target);
+}
+
 function firstRunBeginnerUxExpression() {
   return `(() => {
     const windowNode = document.querySelector('[data-testid="opl-first-run-window"]');
@@ -2058,234 +2266,6 @@ function developerModeStatusExpression() {
     })()`;
 }
 
-function assistantRouteSmokeExpression(target) {
-  const pillSelector = `[data-testid="preset-pill-${target.id}"]`;
-  return `(async () => {
-    const target = ${JSON.stringify(target)};
-    const pillSelector = '${pillSelector}';
-    const visible = (node) => {
-      if (!node) return false;
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
-    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    const pill = document.querySelector(pillSelector);
-    const input = document.querySelector('[data-testid="guid-input"] textarea, textarea[data-testid="guid-input"], [data-testid="guid-input"]');
-    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
-    if (!pill || !input || !sendButton || firstRunWindow || appLoaderVisible || !visible(pill) || !visible(input) || !visible(sendButton)) {
-      return false;
-    }
-    pill.click();
-    await wait(300);
-    const selectedText = document.body?.innerText || '';
-    const selectorsHidden =
-      !document.querySelector('[data-testid="guid-model-selector"]') &&
-      !document.querySelector('[data-testid^="agent-mode-selector-"]') &&
-      !document.querySelector('[data-testid^="agent-pill-"]');
-    const badgeVisible = selectedText.includes(target.badge);
-    if (!selectorsHidden || !badgeVisible) {
-      throw new Error('Assistant route selection did not expose ' + target.badge + ' with hidden ordinary selectors.');
-    }
-    const previousHash = window.location.hash;
-    const message = 'OPL packaged assistant route smoke: ' + target.id;
-    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set ||
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    if (setter) setter.call(input, message);
-    else input.value = message;
-    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: message }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    const sendReadyDeadline = Date.now() + 5000;
-    while (Date.now() < sendReadyDeadline) {
-      if (!sendButton.disabled && sendButton.getAttribute('aria-disabled') !== 'true') break;
-      await wait(100);
-    }
-    if (sendButton.disabled || sendButton.getAttribute('aria-disabled') === 'true') {
-      throw new Error('Guid send button stayed disabled after assistant route smoke input.');
-    }
-    sendButton.click();
-    const deadline = Date.now() + 30000;
-    let conversationId = '';
-    while (Date.now() < deadline) {
-      const hash = window.location.hash;
-      if (hash.includes('/conversation/') && hash !== previousHash) {
-        conversationId = decodeURIComponent(hash.split('/conversation/')[1]?.split(/[?#]/)[0] || '');
-        if (conversationId) break;
-      }
-      await wait(500);
-    }
-    if (!conversationId) throw new Error('Timed out waiting for assistant route conversation navigation.');
-    return {
-      id: target.id,
-      badge: target.badge,
-      backend_port: window.__backendPort || null,
-      conversation_id: conversationId,
-      ready: {
-        selectors_hidden: selectorsHidden,
-        badge: target.badge,
-        badge_visible: badgeVisible,
-      },
-    };
-  })()`;
-}
-
-function assistantRouteReadinessExpression(target) {
-  const pillSelector = `[data-testid="preset-pill-${target.id}"]`;
-  return `(() => {
-    const target = ${JSON.stringify(target)};
-    const pillSelector = '${pillSelector}';
-    const visible = (node) => {
-      if (!node) return false;
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    if (!window.location.hash.startsWith('#/guid')) {
-      window.location.hash = '#/guid';
-      return {
-        ready: false,
-        reason: 'navigating_to_guid',
-        hash: window.location.hash,
-      };
-    }
-    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
-    const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    const pill = document.querySelector(pillSelector);
-    const input = document.querySelector('[data-testid="guid-input"] textarea, textarea[data-testid="guid-input"], [data-testid="guid-input"]');
-    const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
-    const presetPills = [...document.querySelectorAll('[data-testid^="preset-pill-"]')].map((node) => ({
-      testid: node.getAttribute('data-testid'),
-      text: (node.textContent || '').trim().slice(0, 120),
-      visible: visible(node),
-    }));
-    const selectedText = document.body?.innerText || '';
-    const selectorsHidden =
-      !document.querySelector('[data-testid="guid-model-selector"]') &&
-      !document.querySelector('[data-testid^="agent-mode-selector-"]') &&
-      !document.querySelector('[data-testid^="agent-pill-"]');
-    const badgeVisible = selectedText.includes(target.badge);
-    const ready = Boolean(
-      pill &&
-        input &&
-        sendButton &&
-        !firstRunWindow &&
-        !appLoaderVisible &&
-        visible(pill) &&
-        visible(input) &&
-        visible(sendButton)
-    );
-    return {
-      ready,
-      reason: ready ? 'ready' : 'waiting_for_assistant_route_controls',
-      hash: window.location.hash,
-      target_id: target.id,
-      badge: target.badge,
-      first_run_window_visible: Boolean(firstRunWindow),
-      app_loader_visible: appLoaderVisible,
-      target_pill_present: Boolean(pill),
-      target_pill_visible: visible(pill),
-      guid_input_present: Boolean(input),
-      guid_input_visible: visible(input),
-      send_button_present: Boolean(sendButton),
-      send_button_visible: visible(sendButton),
-      selectors_hidden: selectorsHidden,
-      badge_visible: badgeVisible,
-      preset_pills: presetPills,
-      body_text_sample: selectedText.slice(0, 600),
-    };
-  })()`;
-}
-
-async function waitForAssistantRouteReady(client, target, timeoutMs) {
-  const started = Date.now();
-  let lastState = null;
-  let lastError = null;
-  while (Date.now() - started < timeoutMs) {
-    try {
-      lastState = await evaluateCdp(client, assistantRouteReadinessExpression(target));
-      if (lastState?.ready) return lastState;
-    } catch (error) {
-      lastError = error;
-    }
-    await sleep(500);
-  }
-  const error = new Error(
-    [
-      `Assistant route controls did not become ready for ${target.id}`,
-      lastError ? `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
-      lastState ? `Last state: ${JSON.stringify(lastState).slice(0, 1000)}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n')
-  );
-  error.lastState = lastState;
-  error.lastError = lastError instanceof Error ? lastError.message : lastError ? String(lastError) : null;
-  throw error;
-}
-
-async function verifyAssistantRouteConversationReceipt(target, backendPort, conversationId) {
-  if (!backendPort) {
-    throw new Error('window.__backendPort is not available for conversation receipt verification.');
-  }
-  if (!conversationId) {
-    throw new Error(`Assistant route smoke did not return a conversation id for ${target.id}.`);
-  }
-  const deadline = Date.now() + 30_000;
-  let conversation = null;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    try {
-      conversation = await fetchJsonFromLocalhost(
-        backendPort,
-        `/api/conversations/${encodeURIComponent(conversationId)}`,
-        5_000
-      );
-      conversation = unwrapBackendResponseEnvelope(conversation);
-      break;
-    } catch (error) {
-      lastError = error;
-      await sleep(500);
-    }
-  }
-  if (!conversation) {
-    throw new Error(
-      `Conversation was not persisted for route receipt verification: ${
-        lastError instanceof Error ? lastError.message : String(lastError)
-      }`
-    );
-  }
-  const route = conversation?.extra?.opl_assistant_route;
-  const oplFlowContext = conversation?.extra?.opl_flow_context;
-  if (
-    conversation.type !== 'acp' ||
-    conversation?.extra?.backend !== 'codex' ||
-    route?.route_kind !== 'builtin_capability' ||
-    route?.executor !== 'codex_cli' ||
-    route?.assistant_id !== target.id ||
-    route?.assistant_short_name !== target.shortName ||
-    route?.source !== 'opl_app_home'
-  ) {
-    throw new Error(
-      `Assistant route receipt mismatch: ${JSON.stringify({
-        type: conversation?.type,
-        backend: conversation?.extra?.backend,
-        route,
-        opl_flow_context: oplFlowContext,
-      })}`
-    );
-  }
-  return {
-    status: 'passed',
-    conversation_id: conversationId,
-    conversation_type: conversation.type,
-    backend: conversation.extra.backend,
-    route,
-    opl_flow_context: oplFlowContext,
-  };
-}
-
 function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
   return {
     surface_id: 'opl_packaged_gui_assistant_route_smoke',
@@ -2297,7 +2277,7 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
     last_state: error instanceof Error ? (error.lastState ?? null) : null,
     last_error: error instanceof Error ? (error.lastError ?? null) : null,
     required_contract: {
-      purpose_entries: ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `preset-pill-${item.id}`),
+      purpose_entries: OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `preset-pill-${item.id}`),
       selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
       route_receipt: {
         route_kind: 'builtin_capability',
@@ -2315,61 +2295,6 @@ async function assertDeveloperModeStatus(client) {
     30_000,
     'System Settings did not expose the OPL Developer Mode status'
   );
-}
-
-async function runAssistantRouteSmoke(options, secret) {
-  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
-  const client = await openCdpClient(target.webSocketDebuggerUrl);
-  const results = [];
-  const writeFailureSummary = (assistantTarget, error) => {
-    writeJsonArtifact(
-      path.join(options.artifacts, 'assistant-route-smoke-summary.json'),
-      buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error),
-      secret
-    );
-  };
-  try {
-    await client.send('Runtime.enable');
-    await client.send('Page.enable');
-    for (const assistantTarget of ASSISTANT_ROUTE_SMOKE_TARGETS) {
-      try {
-        const readyState = await waitForAssistantRouteReady(client, assistantTarget, options.timeoutMs);
-        const result = await evaluateCdp(
-          client,
-          assistantRouteSmokeExpression(assistantTarget),
-          ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS
-        );
-        const receipt = await verifyAssistantRouteConversationReceipt(
-          assistantTarget,
-          result.backend_port,
-          result.conversation_id
-        );
-        const screenshotPath = path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}.png`);
-        await captureCdpScreenshot(client, screenshotPath);
-        results.push({ ...result, ready_state: readyState, receipt });
-        await evaluateCdp(client, `window.location.hash = '#/guid'`);
-        await waitForCdpPredicate(
-          client,
-          guidEntryReadinessExpression(),
-          30_000,
-          `Guid entry did not become ready after ${assistantTarget.id} assistant route smoke`
-        );
-      } catch (error) {
-        writeFailureSummary(assistantTarget, error);
-        throw error;
-      }
-    }
-  } finally {
-    client.close();
-  }
-  const summary = {
-    surface_id: 'opl_packaged_gui_assistant_route_smoke',
-    status: 'passed',
-    cdp_port: options.cdpPort,
-    assistants: results,
-  };
-  writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
-  return results;
 }
 
 async function runSettingsSmoke(options, secret) {
@@ -2440,6 +2365,89 @@ async function runSettingsSmoke(options, secret) {
   );
   results.runtimeActionEvidence = runtimeActionEvidence;
   results.runtimeActionEvidenceBlocker = runtimeActionEvidenceBlocker;
+  return results;
+}
+
+async function runAssistantRouteSmoke(options, secret) {
+  const target = await waitForCdpPageTarget(options.cdpPort, options.timeoutMs);
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  const results = [];
+  const writeFailureSummary = (assistantTarget, error) => {
+    writeJsonArtifact(
+      path.join(options.artifacts, 'assistant-route-smoke-summary.json'),
+      buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error),
+      secret
+    );
+  };
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    for (const assistantTarget of OPL_ASSISTANT_ROUTE_SMOKE_TARGETS) {
+      try {
+        await evaluateCdp(client, "window.location.hash = '#/guid'");
+        await waitForCdpPredicate(
+          client,
+          guidEntryReadinessExpression(),
+          30_000,
+          `Guid page did not become ready before assistant route smoke: ${assistantTarget.id}`
+        );
+        const selected = await waitForCdpPredicate(
+          client,
+          homeAssistantRouteSelectionExpression(assistantTarget),
+          30_000,
+          `Could not select OPL built-in assistant: ${assistantTarget.id}`
+        );
+        if (selected?.status === 'failed') {
+          throw new Error(`OPL built-in assistant selection leaked selectors: ${JSON.stringify(selected)}`);
+        }
+        const ready = await waitForCdpPredicate(
+          client,
+          homeAssistantRouteReadyExpression(assistantTarget),
+          30_000,
+          `Selected OPL built-in assistant did not expose the expected badge without selectors: ${assistantTarget.id}`
+        );
+        if (ready?.status === 'failed') {
+          throw new Error(`Selected OPL built-in assistant leaked selectors: ${JSON.stringify(ready)}`);
+        }
+        await captureCdpScreenshot(
+          client,
+          path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}.png`)
+        );
+        const created = await waitForCdpPredicate(
+          client,
+          createAssistantRouteReceiptConversationExpression(assistantTarget),
+          30_000,
+          `Could not create OPL built-in assistant route receipt conversation: ${assistantTarget.id}`
+        );
+        const receipt = await waitForCdpPredicate(
+          client,
+          conversationRouteReceiptExpression(assistantTarget, created.conversation_id),
+          45_000,
+          `Created conversation did not expose the OPL assistant route receipt: ${assistantTarget.id}`
+        );
+        results.push({
+          id: assistantTarget.id,
+          badge: assistantTarget.badge,
+          selected,
+          ready,
+          created,
+          receipt,
+        });
+      } catch (error) {
+        writeFailureSummary(assistantTarget, error);
+        throw error;
+      }
+    }
+  } finally {
+    client.close();
+  }
+  const summary = {
+    surface_id: 'opl_packaged_gui_assistant_route_smoke',
+    status: 'passed',
+    cdp_port: options.cdpPort,
+    assistants: results,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'assistant-route-smoke-summary.json'), summary, secret);
   return results;
 }
 
@@ -2696,7 +2704,6 @@ async function main() {
           timeout_ms: options.timeoutMs,
         })
       : [];
-
     const assistantRouteSmoke = options.assistantRouteSmoke
       ? await runSmokePhase(
           writeSmokeEvent,
@@ -2870,6 +2877,7 @@ export const __test =
     ? {
         buildFullRuntimeCommandPrefix,
         assertFullFirstRunEquivalence,
+        assertFullCompanionSkillPayloads,
         captureMacScreenArtifact,
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,
@@ -2900,14 +2908,7 @@ export const __test =
         buildLaunchAppArgs,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
-        ASSISTANT_ROUTE_SMOKE_TARGETS,
-        ASSISTANT_ROUTE_SMOKE_EVALUATE_TIMEOUT_MS,
-        assistantRouteSmokeExpression,
-        assistantRouteReadinessExpression,
-        waitForAssistantRouteReady,
-        verifyAssistantRouteConversationReceipt,
-        unwrapBackendResponseEnvelope,
-        buildAssistantRouteSmokeFailureSummary,
+        OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
         developerModeStatusExpression,
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
@@ -2922,6 +2923,15 @@ export const __test =
         runCodexAiSelfCheck,
         parseCodexJsonOutput,
         probeCodexCli,
+        unwrapBackendResponseEnvelope,
+        buildAssistantRouteSmokeFailureSummary,
+        visibleHomeAssistantControlSelector,
+        homeAssistantRouteSelectionExpression,
+        homeAssistantRouteReadyExpression,
+        homeAssistantRouteSendExpression,
+        createAssistantRouteReceiptConversationExpression,
+        conversationRouteReceiptExpression,
+        latestConversationRouteReceiptExpression,
       }
     : undefined;
 

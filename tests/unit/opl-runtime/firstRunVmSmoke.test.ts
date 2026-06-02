@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
-import http from 'node:http';
-import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -246,26 +244,50 @@ describe('packaged first-run VM smoke helpers', () => {
     ]);
 
     expect(options.assistantRouteSmoke).toBe(true);
-    expect(__test.ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
+    expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
       { id: 'mas', badge: '@MAS', shortName: 'MAS' },
       { id: 'mag', badge: '@MAG', shortName: 'MAG' },
       { id: 'rca', badge: '@RCA', shortName: 'RCA' },
     ]);
   });
 
-  it('checks packaged assistant routes through persisted Codex ACP route receipts', () => {
-    const expression = __test.assistantRouteSmokeExpression({ id: 'mas', badge: '@MAS', shortName: 'MAS' });
+  it('checks packaged assistant routes through receipt-only Codex ACP conversations', () => {
+    const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const selectionExpression = __test.homeAssistantRouteSelectionExpression(masTarget);
+    const readyExpression = __test.homeAssistantRouteReadyExpression(masTarget);
+    const createExpression = __test.createAssistantRouteReceiptConversationExpression(masTarget);
+    const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
+    const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
 
-    expect(expression).toContain('[data-testid="preset-pill-mas"]');
-    expect(expression).toContain('[data-testid="guid-input"]');
-    expect(expression).toContain('[data-testid="guid-send-btn"]');
-    expect(expression).toContain('window.__backendPort');
-    expect(expression).toContain('selectors_hidden');
-    const receiptVerifier = __test.verifyAssistantRouteConversationReceipt.toString();
-    expect(receiptVerifier).toContain('/api/conversations/');
-    expect(receiptVerifier).toContain('opl_assistant_route');
-    expect(receiptVerifier).toContain('builtin_capability');
-    expect(receiptVerifier).toContain('codex_cli');
+    expect(selectionExpression).toContain('preset-pill-mas');
+    expect(readyExpression).toContain('@MAS');
+    for (const hiddenSelector of [
+      'agent-mode-selector',
+      'aionrs-model-selector',
+      'acp-model-selector',
+      'google-model-selector',
+      'agent-pill-',
+      'sendbox-model',
+    ]) {
+      expect(selectionExpression).toContain(hiddenSelector);
+      expect(readyExpression).toContain(hiddenSelector);
+    }
+    expect(createExpression).toContain('/api/conversations');
+    expect(createExpression).toContain("method: 'POST'");
+    expect(createExpression).toContain('preset_assistant_id');
+    expect(createExpression).toContain('preset_assistant_id: "mas"');
+    expect(createExpression).toContain('opl_assistant_route');
+    expect(createExpression).toContain("backend: 'codex'");
+    expect(createExpression).not.toContain('guid-send-btn');
+    expect(receiptExpression).toContain('/api/conversations?limit=10');
+    expect(receiptByIdExpression).toContain('/api/conversations/conv-123');
+    expect(receiptByIdExpression).toContain('expected_conversation_id');
+    expect(receiptExpression).toContain('opl_assistant_route');
+    expect(receiptExpression).toContain('builtin_capability');
+    expect(receiptExpression).toContain('codex_cli');
+    expect(receiptExpression).toContain('opl_app_home');
+    expect(receiptExpression).toContain("matched.type !== 'acp'");
+    expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
   it('builds a deterministic Codex functional check receipt without requiring LLM credentials', () => {
@@ -353,7 +375,9 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(prompt).toContain('One Person Lab post-install AI self-check');
     expect(prompt).toContain('Programmatic initialization has already run');
-    expect(prompt).toContain('Read the evidence and judge whether the installed OPL working mode matches the target state');
+    expect(prompt).toContain(
+      'Read the evidence and judge whether the installed OPL working mode matches the target state'
+    );
     expect(prompt).toContain('Do not modify user files');
     expect(prompt).toContain('Output strict JSON only');
     expect(prompt).toContain('opl-flow');
@@ -484,127 +508,6 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(calls).toContain('close');
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
-    }
-  });
-
-  it('keeps assistant route DOM actions separate from persisted receipt fetches', () => {
-    const expression = __test.assistantRouteSmokeExpression({ id: 'mas', badge: '@MAS', shortName: 'MAS' });
-
-    expect(expression).toContain('Date.now() + 30000');
-    expect(expression).not.toContain("fetch('http://127.0.0.1:'");
-    expect(expression).not.toContain('/api/conversations/');
-    expect(__test.verifyAssistantRouteConversationReceipt.toString()).toContain('/api/conversations/');
-  });
-
-  it('verifies assistant route receipts from backend response envelopes', async () => {
-    const server = http.createServer((_request, response) => {
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(
-        JSON.stringify({
-          success: true,
-          data: {
-            id: 'conv-mas',
-            type: 'acp',
-            extra: {
-              backend: 'codex',
-              opl_assistant_route: {
-                route_kind: 'builtin_capability',
-                executor: 'codex_cli',
-                assistant_id: 'mas',
-                assistant_short_name: 'MAS',
-                source: 'opl_app_home',
-              },
-              opl_flow_context: {
-                flow_id: 'opl-flow',
-                delivery: 'session_scoped_preset_context',
-                language: 'follow_ui_locale_zh_only_when_ui_zh',
-                user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
-              },
-            },
-          },
-        })
-      );
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    try {
-      const address = server.address() as AddressInfo;
-      await expect(
-        __test.verifyAssistantRouteConversationReceipt(
-          { id: 'mas', badge: '@MAS', shortName: 'MAS' },
-          address.port,
-          'conv-mas'
-        )
-      ).resolves.toMatchObject({
-        status: 'passed',
-        conversation_id: 'conv-mas',
-        conversation_type: 'acp',
-        backend: 'codex',
-        route: {
-          route_kind: 'builtin_capability',
-          executor: 'codex_cli',
-          assistant_id: 'mas',
-          assistant_short_name: 'MAS',
-          source: 'opl_app_home',
-        },
-        opl_flow_context: {
-          flow_id: 'opl-flow',
-          delivery: 'session_scoped_preset_context',
-        },
-      });
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-      });
-    }
-  });
-
-  it('does not require OPL Flow context on the assistant route receipt gate', async () => {
-    const server = http.createServer((_request, response) => {
-      response.writeHead(200, { 'Content-Type': 'application/json' });
-      response.end(
-        JSON.stringify({
-          success: true,
-          data: {
-            id: 'conv-mas',
-            type: 'acp',
-            extra: {
-              backend: 'codex',
-              opl_assistant_route: {
-                route_kind: 'builtin_capability',
-                executor: 'codex_cli',
-                assistant_id: 'mas',
-                assistant_short_name: 'MAS',
-                source: 'opl_app_home',
-              },
-            },
-          },
-        })
-      );
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    try {
-      const address = server.address() as AddressInfo;
-      await expect(
-        __test.verifyAssistantRouteConversationReceipt(
-          { id: 'mas', badge: '@MAS', shortName: 'MAS' },
-          address.port,
-          'conv-mas'
-        )
-      ).resolves.toMatchObject({
-        status: 'passed',
-        conversation_id: 'conv-mas',
-        route: {
-          route_kind: 'builtin_capability',
-          executor: 'codex_cli',
-          assistant_id: 'mas',
-          assistant_short_name: 'MAS',
-          source: 'opl_app_home',
-        },
-      });
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-      });
     }
   });
 

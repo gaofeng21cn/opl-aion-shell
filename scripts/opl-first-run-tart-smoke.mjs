@@ -64,7 +64,7 @@ Options:
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
-  --assistant-route-smoke  Select MAS, MAG, and RCA in the packaged guest GUI and verify Codex CLI route receipts.
+  --assistant-route-smoke  Verify MAS/MAG/RCA App-home assistant route receipts in the guest.
   --codex-functional-check
                            Generate and require the guest Codex functional check receipt.
                            This implies --assistant-route-smoke and does not call an LLM.
@@ -76,7 +76,7 @@ Options:
                            Codex AI self-check mode: diagnose or fix. Default: diagnose.
   --codex-ai-self-check-timeout-ms <n>
                            Codex AI self-check timeout. Default: 120000.
-  --cdp-port <n>           CDP port used by --settings-smoke. Default: 9230.
+  --cdp-port <n>           CDP port used by packaged GUI smoke probes. Default: 9230.
   --runtime-profile <profile>
                            First-run package profile to verify: full or standard. Default: full.
                            Use standard for the public macOS app DMG when Full-only bundled
@@ -869,8 +869,11 @@ function assertGuestSmokeSummary(options, guestSummary) {
     if (guestSummary.assistant_route_smoke?.status !== 'passed') {
       throw new Error('Guest assistant route smoke did not pass.');
     }
-    const assistants = guestSummary.assistant_route_smoke.assistants;
-    if (!Array.isArray(assistants) || !['mas', 'mag', 'rca'].every((assistantId) => assistants.includes(assistantId))) {
+    const assistantIds = guestSummary.assistant_route_smoke.assistants;
+    if (
+      !Array.isArray(assistantIds) ||
+      !['mas', 'mag', 'rca'].every((assistantId) => assistantIds.includes(assistantId))
+    ) {
       throw new Error('Guest assistant route smoke summary did not record MAS, MAG, and RCA.');
     }
   }

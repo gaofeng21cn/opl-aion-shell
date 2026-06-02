@@ -8,11 +8,116 @@
   margin: 0 auto;
 }
 
+.guidShellFrame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.guidContextInspectorToggle {
+  position: absolute !important;
+  top: 84px;
+  right: 18px;
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  padding: 0 !important;
+  border: 1px solid var(--color-border-2) !important;
+  background: color-mix(in srgb, var(--bg-1) 92%, transparent) !important;
+  color: var(--color-text-2) !important;
+  pointer-events: auto;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08) !important;
+}
+
+.guidContextInspectorToggle:hover {
+  background: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
+}
+
+.guidContextInspectorToggle :global(.arco-btn-icon) {
+  margin: 0 !important;
+  line-height: 0 !important;
+  display: inline-flex;
+}
+
+.guidContextInspector {
+  position: absolute;
+  top: 84px;
+  right: 18px;
+  width: 188px;
+  max-width: min(188px, calc(100vw - 32px));
+  padding: 10px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-1) 92%, transparent);
+  color: var(--color-text-2);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  pointer-events: auto;
+}
+
+.guidContextInspectorTitle {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--color-text-2);
+}
+
+.guidContextInspectorTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guidContextInspectorTab {
+  display: flex !important;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  min-height: 30px !important;
+  padding: 0 8px !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent;
+  color: var(--color-text-2) !important;
+  font: inherit;
+  font-size: 12px !important;
+  line-height: 18px !important;
+  text-align: left !important;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.guidContextInspectorTab:hover {
+  background: var(--color-fill-2) !important;
+  color: var(--color-text-1) !important;
+}
+
+.guidContextInspectorTab:focus-visible {
+  outline: 2px solid rgb(var(--primary-6));
+  outline-offset: 2px;
+}
+
+.guidContextInspectorTab :global(.arco-btn-icon) {
+  margin-right: 0 !important;
+  line-height: 0 !important;
+  display: inline-flex;
+}
+
 .heroHeader {
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 16px;
+}
+
+@media (max-width: 1120px) {
+  .guidContextInspectorToggle,
+  .guidContextInspector {
+    display: none;
+  }
 }
 
 .heroHeaderControls {

@@ -5,10 +5,7 @@
  */
 
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
-import {
-  getOplCodexSessionContextForLocale,
-  getOplFlowContextPolicy,
-} from '@/common/config/oplProductProfile';
+import { getOplCodexSessionContextForLocale, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
 

@@ -195,10 +195,7 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(managedPackageRoot, 'dist'), { recursive: true });
     fs.writeFileSync(path.join(managedPackageRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', 'utf8');
     fs.writeFileSync(path.join(managedPackageRoot, 'dist', 'cli.js'), 'console.log("opl")\n', 'utf8');
-    fs.symlinkSync(
-      path.join(managedPackageRoot, 'bin', 'opl'),
-      path.join(installDir, 'bin', 'opl')
-    );
+    fs.symlinkSync(path.join(managedPackageRoot, 'bin', 'opl'), path.join(installDir, 'bin', 'opl'));
     fs.writeFileSync(path.join(nodeBin, 'node'), '#!/usr/bin/env bash\n', 'utf8');
     fs.writeFileSync(path.join(nodeBin, 'npm'), '#!/usr/bin/env bash\n', 'utf8');
 
