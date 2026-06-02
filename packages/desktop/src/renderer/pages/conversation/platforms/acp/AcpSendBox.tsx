@@ -3,9 +3,10 @@ import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import {
   isOplCodexCliFixedExecutor,
+  getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
 } from '@/common/config/oplProductProfile';
-import { parseError, uuid } from '@/common/utils';
+import { parseError, resolveLocaleKey, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import MobileActionSheet, {
@@ -109,8 +110,10 @@ const AcpSendBox: React.FC<{
     slashCommands,
     fetchSlashCommands,
   } = messageState;
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const teamPermission = useTeamPermission();
+  const showOplCodexModelStatus = backend === 'codex' && isOplCodexCliFixedExecutor();
+  const oplCodexModelStatusText = getOplModelStatusDisplayText(resolveLocaleKey(i18n.language));
   const showModeSelector =
     backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
@@ -535,7 +538,7 @@ Please check your local CLI tool authentication status`,
         onRemove={remove}
         onClear={clear}
       />
-      <ThoughtDisplay running={aiProcessing && !hasThinkingMessage} onStop={handleStop} />
+      <ThoughtDisplay running={isBusy} onStop={handleStop} />
 
       <SendBox
         onMobilePlusClick={isMobile ? () => setIsMobileSheetOpen(true) : undefined}
@@ -578,6 +581,16 @@ Please check your local CLI tool authentication status`,
         }
         prefix={
           <>
+            {showOplCodexModelStatus && (
+              <div className='flex flex-wrap items-center gap-8px mb-8px'>
+                <span
+                  className='inline-flex items-center min-h-22px px-8px rd-full bg-fill-1 text-12px lh-18px text-t-tertiary whitespace-nowrap'
+                  data-testid='opl-conversation-model-status'
+                >
+                  {oplCodexModelStatusText}
+                </span>
+              </div>
+            )}
             {uploadFile.length > 0 && (
               <HorizontalFileList>
                 {uploadFile.map((path) => (

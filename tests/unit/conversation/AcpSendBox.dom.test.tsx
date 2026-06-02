@@ -29,6 +29,7 @@ vi.mock('@/common', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, unknown>) => String(options?.defaultValue ?? key),
+    i18n: { language: 'en-US' },
   }),
 }));
 
@@ -52,8 +53,17 @@ vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
 }));
 
 vi.mock('@/renderer/components/chat/SendBox', () => ({
-  default: ({ rightTools, onMobilePlusClick }: { rightTools?: React.ReactNode; onMobilePlusClick?: () => void }) => (
+  default: ({
+    prefix,
+    rightTools,
+    onMobilePlusClick,
+  }: {
+    prefix?: React.ReactNode;
+    rightTools?: React.ReactNode;
+    onMobilePlusClick?: () => void;
+  }) => (
     <div data-testid='sendbox'>
+      {prefix ? <div data-testid='sendbox-prefix'>{prefix}</div> : null}
       {rightTools ? <div data-testid='sendbox-right-tools'>{rightTools}</div> : null}
       {onMobilePlusClick ? (
         <button data-testid='mobile-plus-button' type='button' onClick={onMobilePlusClick}>
@@ -69,7 +79,9 @@ vi.mock('@/renderer/components/chat/CommandQueuePanel', () => ({
 }));
 
 vi.mock('@/renderer/components/chat/ThoughtDisplay', () => ({
-  default: () => <div data-testid='thought-display' />,
+  default: ({ running }: { running?: boolean }) => (
+    <div data-testid='thought-display' data-running={running ? 'true' : 'false'} />
+  ),
 }));
 
 vi.mock('@/renderer/components/media/FileAttachButton', () => ({
@@ -187,12 +199,14 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-mode-selector')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: gpt-5.5xhigh');
   });
 
   it('keeps the permission mode selector for non-Codex ACP conversations', () => {
     render(<AcpSendBox conversation_id='claude-conversation' backend='claude' messageState={messageState()} />);
 
     expect(screen.getByTestId('agent-mode-selector')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
   it('hides the mobile permission action for ordinary Codex conversations', () => {
@@ -204,5 +218,29 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('mobile-action-sheet')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-permission')).not.toBeInTheDocument();
+  });
+
+  it('keeps a visible elapsed-time thinking indicator while an ACP request is pending', () => {
+    render(
+      <AcpSendBox
+        conversation_id='codex-conversation'
+        backend='codex'
+        messageState={{ ...messageState(), aiProcessing: true }}
+      />
+    );
+
+    expect(screen.getByTestId('thought-display')).toHaveAttribute('data-running', 'true');
+  });
+
+  it('keeps the elapsed-time indicator visible while the backend is running even after thinking starts', () => {
+    render(
+      <AcpSendBox
+        conversation_id='codex-conversation'
+        backend='codex'
+        messageState={{ ...messageState(), running: true, hasThinkingMessage: true }}
+      />
+    );
+
+    expect(screen.getByTestId('thought-display')).toHaveAttribute('data-running', 'true');
   });
 });

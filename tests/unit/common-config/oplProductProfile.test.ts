@@ -17,6 +17,7 @@ import {
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsVisibleTabs,
   getOplHomeModelStatusLabel,
+  getOplModelStatusDisplayText,
   getOplRuntimeEnvironmentItems,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
@@ -79,6 +80,8 @@ describe('OPL generated product profile', () => {
     expect(shouldShowOplCodexModelAutoOption()).toBe(false);
     expect(getOplHomeModelStatusLabel('zh-CN')).toBe('自动');
     expect(getOplHomeModelStatusLabel('en-US')).toBe('Auto');
+    expect(getOplModelStatusDisplayText('zh-CN')).toBe('模型: gpt-5.5xhigh');
+    expect(getOplModelStatusDisplayText('en-US')).toBe('Model: gpt-5.5xhigh');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_auto_model_hidden_on_home');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('codex_cli_auto');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(

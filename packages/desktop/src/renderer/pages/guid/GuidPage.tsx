@@ -8,6 +8,7 @@ import { ipcBridge } from '@/common';
 import {
   getOplAssistantSkillProfile,
   getOplDefaultPackagedCodexSkills,
+  getOplModelStatusDisplayText,
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
@@ -379,6 +380,7 @@ const GuidPage: React.FC = () => {
   const heroTitle = useMemo(() => {
     return t('conversation.welcome.title');
   }, [t]);
+  const modelStatusText = useMemo(() => getOplModelStatusDisplayText(localeKey), [localeKey]);
   const shouldRenderAgentTabs =
     agentSelection.availableAgents !== undefined && shouldShowOplHomeAgentTabs(agentSelection.availableAgents);
   const selectedAssistantDescription = useMemo(() => {
@@ -620,6 +622,12 @@ const GuidPage: React.FC = () => {
               ) : null}
             </div>
           ) : null}
+
+          <div className={styles.homeModelStatusRow}>
+            <span className={styles.homeModelStatus} data-testid='opl-home-model-status'>
+              {modelStatusText}
+            </span>
+          </div>
 
           <GuidInputCard
             input={guidInput.input}

@@ -1029,6 +1029,17 @@ export function getOplHomeModelStatusLabel(localeKey: 'zh-CN' | 'en-US' = 'zh-CN
     : OPL_PRODUCT_PROFILE.gui.home.codex_home_model_status_label;
 }
 
+export function getOplDefaultCodexModelDisplayLabel(): string {
+  const model = getOplDefaultCodexModel();
+  const reasoningEffort = getOplDefaultCodexReasoningEffort();
+  return reasoningEffort ? `${model}${reasoningEffort}` : model;
+}
+
+export function getOplModelStatusDisplayText(localeKey: 'zh-CN' | 'en-US' = 'zh-CN'): string {
+  const label = getOplDefaultCodexModelDisplayLabel();
+  return localeKey === 'en-US' ? `Model: ${label}` : `模型: ${label}`;
+}
+
 export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
   return OPL_PRODUCT_PROFILE.gui.default_assistants.map((assistant) => ({
     ...assistant,
@@ -1080,6 +1091,13 @@ export function getOplDefaultCodexSkills(): string[] {
 
 export function getOplDefaultPackagedCodexSkills(): string[] {
   return [...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids];
+}
+
+export function getOplPackagedCodexSkills(): string[] {
+  return [
+    ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
+    ...OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids,
+  ];
 }
 
 export function getOplSkillPriority(): string[] {

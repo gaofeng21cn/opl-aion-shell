@@ -269,9 +269,10 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByText('@MAS')).toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: gpt-5.5xhigh');
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
-    expect(screen.queryByText('gpt-5.5xhigh')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /model/i })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
     });

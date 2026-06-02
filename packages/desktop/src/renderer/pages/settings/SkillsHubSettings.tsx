@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { getOplDefaultPackagedCodexSkills, getOplPackagedCodexSkills } from '@/common/config/oplProductProfile';
 import { Button, Message, Modal, Typography } from '@arco-design/web-react';
 import { Delete, FolderOpen, Info, Lightning, Puzzle, Search, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
@@ -75,14 +76,16 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({ withWrapper = tru
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      const appVisibleSkills = new Set(getOplPackagedCodexSkills());
       const skills = await ipcBridge.fs.listAvailableSkills.invoke();
-      setAvailableSkills(skills);
+      setAvailableSkills(skills.filter((skill) => skill.source !== 'builtin' || appVisibleSkills.has(skill.name)));
 
       const paths = await ipcBridge.fs.getSkillPaths.invoke();
       setSkillPaths(paths);
 
       const autoSkills = await ipcBridge.fs.listBuiltinAutoSkills.invoke();
-      setBuiltinAutoSkills(autoSkills);
+      const appPackagedSkills = new Set(getOplDefaultPackagedCodexSkills());
+      setBuiltinAutoSkills(autoSkills.filter((skill) => appPackagedSkills.has(skill.name)));
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       Message.error(t('settings.skillsHub.fetchError', { defaultValue: 'Failed to fetch skills' }));

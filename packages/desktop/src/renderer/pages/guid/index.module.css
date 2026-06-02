@@ -231,6 +231,26 @@
   line-height: 1.6;
 }
 
+.homeModelStatusRow {
+  display: flex;
+  justify-content: center;
+  margin: -4px auto 10px;
+}
+
+.homeModelStatus {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-fill-1);
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
 .heroSubtitleDetail {
   flex-shrink: 0;
   height: 22px !important;
