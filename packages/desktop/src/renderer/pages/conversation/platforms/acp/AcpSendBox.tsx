@@ -3,6 +3,8 @@ import type { IConversationMcpStatus } from '@/common/config/storage';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import {
+  filterOplOrdinaryMcpStatuses,
+  filterOplOrdinarySkillNames,
   isOplCodexCliFixedExecutor,
   getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
@@ -125,14 +127,15 @@ const AcpSendBox: React.FC<{
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
-  const loadedSkills = conversationContext?.loadedSkills ?? [];
-  const loadedMcpStatuses =
+  const loadedSkills = filterOplOrdinarySkillNames(conversationContext?.loadedSkills ?? []);
+  const loadedMcpStatuses = filterOplOrdinaryMcpStatuses(
     conversationContext?.loadedMcpStatuses ??
-    (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
-      id: name,
-      name,
-      status: 'loaded',
-    }));
+      (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
+        id: name,
+        name,
+        status: 'loaded',
+      }))
+  );
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
   const prepareRuntimeSync = useCallback(async () => {

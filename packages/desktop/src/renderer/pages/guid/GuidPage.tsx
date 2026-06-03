@@ -6,8 +6,10 @@
 
 import { ipcBridge } from '@/common';
 import {
+  filterOplOrdinaryMcpServers,
+  getOplOrdinarySkillAllowlist,
+  getOplOrdinaryCapabilitySelectorPolicy,
   getOplAssistantSkillProfile,
-  getOplDefaultPackagedCodexSkills,
   getOplModelStatusDisplayText,
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
@@ -39,6 +41,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
 
 const EMPTY_GUID_SKILLS: string[] = [];
+const DEFAULT_AUTO_SKILL_EXCLUSIONS = getOplOrdinaryCapabilitySelectorPolicy().forbidden_skill_examples;
 
 type GuidNavigationState = {
   resetAssistant?: boolean;
@@ -111,32 +114,57 @@ const GuidPage: React.FC = () => {
   // Upstream AionUI builtin-auto skills are shell candidates, not home catalog
   // policy.
   const [allSkills, setAllSkills] = useState<Array<{ name: string; description: string; isAuto: boolean }>>([]);
-  const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(undefined);
+  const [guidDisabledBuiltinSkills, setGuidDisabledBuiltinSkills] = useState<string[] | undefined>(
+    DEFAULT_AUTO_SKILL_EXCLUSIONS
+  );
   const [guidEnabledSkills, setGuidEnabledSkills] = useState<string[] | undefined>(undefined);
   const [availableMcpServers, setAvailableMcpServers] = useState<IMcpServer[]>([]);
   const [guidSelectedMcpServerIds, setGuidSelectedMcpServerIds] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
-    const packagedSkillNames = new Set(getOplDefaultPackagedCodexSkills());
     ipcBridge.fs.listAvailableSkills
       .invoke()
       .then((availableSkills) => {
+        const descriptionByName = new Map(availableSkills.map((skill) => [skill.name, skill.description]));
         setAllSkills(
-          availableSkills
-            .filter((skill) => packagedSkillNames.has(skill.name))
-            .map((skill) => ({ name: skill.name, description: skill.description, isAuto: false }))
+          getOplOrdinarySkillAllowlist().map((name) => ({
+            name,
+            description: descriptionByName.get(name) ?? '',
+            isAuto: false,
+          }))
         );
       })
       .catch(() => {
-        setAllSkills([]);
+        setAllSkills(getOplOrdinarySkillAllowlist().map((name) => ({ name, description: '', isAuto: false })));
+      });
+  }, []);
+
+  useEffect(() => {
+    const ordinarySkillNames = new Set(getOplOrdinarySkillAllowlist());
+    ipcBridge.fs.listBuiltinAutoSkills
+      .invoke()
+      .then((autoSkills) => {
+        setGuidDisabledBuiltinSkills(
+          Array.from(
+            new Set([
+              ...DEFAULT_AUTO_SKILL_EXCLUSIONS,
+              ...autoSkills.map((skill) => skill.name).filter((name) => !ordinarySkillNames.has(name)),
+            ])
+          )
+        );
+      })
+      .catch(() => {
+        setGuidDisabledBuiltinSkills(DEFAULT_AUTO_SKILL_EXCLUSIONS);
       });
   }, []);
 
   useEffect(() => {
     void ensureBackendMcpCatalog()
       .then(({ allServers }) => {
-        setAvailableMcpServers(allServers);
-        setGuidSelectedMcpServerIds((prev) => prev ?? []);
+        const visibleServers = filterOplOrdinaryMcpServers(allServers);
+        const visibleIds = new Set(visibleServers.map((server) => server.id));
+        setAvailableMcpServers(visibleServers);
+        setGuidSelectedMcpServerIds((prev) => (prev ?? []).filter((id) => visibleIds.has(id)));
       })
       .catch((error) => {
         console.error('[GuidPage] Failed to load MCP catalog:', error);
@@ -394,12 +422,10 @@ const GuidPage: React.FC = () => {
   // Sync disabledBuiltinSkills + enabledSkills from preset assistant config
   useEffect(() => {
     if (agentSelection.is_presetAgent && selectedAssistantRecord) {
-      setGuidDisabledBuiltinSkills([]);
       setGuidEnabledSkills(
         mergeRequiredSkills(selectedAssistantRequiredSkills, selectedAssistantRecord.enabled_skills ?? [])
       );
     } else {
-      setGuidDisabledBuiltinSkills(undefined);
       setGuidEnabledSkills(undefined);
     }
   }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);

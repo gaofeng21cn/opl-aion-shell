@@ -5,6 +5,7 @@
  */
 
 import generatedProfile from './oplProductProfile.generated.json';
+import type { IConversationMcpStatus, IMcpServer } from '@/common/config/storage';
 
 export type OplCodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
@@ -67,6 +68,20 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
   source: 'opl_app_home';
   required_fields: string[];
   must_not_depend_on_visible_backend_selection: true;
+};
+
+export type OplOrdinaryCapabilitySelectorPolicy = {
+  scope: 'home_composer_and_ordinary_conversation';
+  authority: 'app_owned_opl_allowlist';
+  skill_source_ref: 'gui.assistant_skill_profiles.required_skills + optional_skills';
+  skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
+  conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
+  mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids';
+  mcp_menu_policy: 'empty_until_app_explicitly_whitelists_opl_mcp_servers';
+  visible_mcp_server_ids: string[];
+  conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids';
+  forbidden_skill_examples: string[];
+  forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist';
 };
 
 export type OplFlowContextPolicy = {
@@ -173,6 +188,7 @@ type AppProductProfile = {
       retired_codex_models_must_not_be_exposed: string[];
     };
     builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
+    ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
     default_assistants: OplHomeAssistant[];
     assistant_skill_profiles: OplAssistantSkillProfile[];
     non_default_assistants: OplNonDefaultAssistant[];
@@ -650,6 +666,58 @@ function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): O
   };
 }
 
+function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): OplOrdinaryCapabilitySelectorPolicy {
+  const value = gui.ordinary_capability_selector_policy;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: gui.ordinary_capability_selector_policy must be an object');
+  }
+  const visibleMcpServerIds = Array.isArray(value.visible_mcp_server_ids)
+    ? value.visible_mcp_server_ids.map((entry) => (typeof entry === 'string' ? entry.trim() : ''))
+    : [];
+  if (visibleMcpServerIds.some((entry) => !entry) || new Set(visibleMcpServerIds).size !== visibleMcpServerIds.length) {
+    throw new Error(
+      'Invalid OPL product profile: gui.ordinary_capability_selector_policy.visible_mcp_server_ids must be unique strings'
+    );
+  }
+  const forbiddenSkillExamples = readStringArray(
+    value,
+    'forbidden_skill_examples',
+    'gui.ordinary_capability_selector_policy'
+  );
+  if (
+    value.scope !== 'home_composer_and_ordinary_conversation' ||
+    value.authority !== 'app_owned_opl_allowlist' ||
+    value.skill_source_ref !== 'gui.assistant_skill_profiles.required_skills + optional_skills' ||
+    value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
+    value.conversation_loaded_skill_display_policy !== 'filter_to_ordinary_skill_allowlist' ||
+    value.mcp_server_source_ref !== 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids' ||
+    value.mcp_menu_policy !== 'empty_until_app_explicitly_whitelists_opl_mcp_servers' ||
+    value.conversation_loaded_mcp_display_policy !== 'filter_to_visible_mcp_server_ids' ||
+    value.forbidden_mcp_policy !==
+      'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist'
+  ) {
+    throw new Error('Invalid OPL product profile: ordinary capability selector policy is unsupported');
+  }
+  for (const forbidden of ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron']) {
+    if (!forbiddenSkillExamples.includes(forbidden)) {
+      throw new Error(`Invalid OPL product profile: ordinary selector forbidden examples must include ${forbidden}`);
+    }
+  }
+  return {
+    scope: 'home_composer_and_ordinary_conversation',
+    authority: 'app_owned_opl_allowlist',
+    skill_source_ref: 'gui.assistant_skill_profiles.required_skills + optional_skills',
+    skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
+    conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
+    mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids',
+    mcp_menu_policy: 'empty_until_app_explicitly_whitelists_opl_mcp_servers',
+    visible_mcp_server_ids: visibleMcpServerIds,
+    conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids',
+    forbidden_skill_examples: forbiddenSkillExamples,
+    forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist',
+  };
+}
+
 function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContextPolicy {
   const value = codex.opl_flow_context;
   if (!isRecord(value)) {
@@ -865,6 +933,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
+  const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
   const sessionContextI18n = isRecord(codex.session_context_i18n)
     ? {
@@ -1006,6 +1075,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
       builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
+      ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
       default_assistants: defaultHomeAssistants,
       assistant_skill_profiles: assistantSkillProfiles,
       non_default_assistants: nonDefaultAssistants,
@@ -1193,6 +1263,47 @@ export function getOplBuiltinAssistantRouteReceiptPolicy(): OplBuiltinAssistantR
     required_for_assistants: [...policy.required_for_assistants],
     required_fields: [...policy.required_fields],
   };
+}
+
+export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilitySelectorPolicy {
+  const policy = OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy;
+  return {
+    ...policy,
+    visible_mcp_server_ids: [...policy.visible_mcp_server_ids],
+    forbidden_skill_examples: [...policy.forbidden_skill_examples],
+  };
+}
+
+export function getOplOrdinarySkillAllowlist(): string[] {
+  const skills = OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.flatMap((profile) => [
+    ...profile.required_skills,
+    ...profile.optional_skills,
+  ]);
+  return Array.from(new Set(skills));
+}
+
+export function getOplOrdinaryMcpServerAllowlist(): string[] {
+  return [...OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.visible_mcp_server_ids];
+}
+
+export function filterOplOrdinarySkillNames(names: string[]): string[] {
+  const allowlist = new Set(getOplOrdinarySkillAllowlist());
+  return names.filter((name, index) => allowlist.has(name) && names.indexOf(name) === index);
+}
+
+export function filterOplOrdinarySkillCatalog<T extends { name: string }>(skills: T[]): T[] {
+  const allowlist = new Set(getOplOrdinarySkillAllowlist());
+  return skills.filter((skill) => allowlist.has(skill.name));
+}
+
+export function filterOplOrdinaryMcpServers<T extends Pick<IMcpServer, 'id' | 'name'>>(servers: T[]): T[] {
+  const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
+  return servers.filter((server) => allowlist.has(server.id) || allowlist.has(server.name));
+}
+
+export function filterOplOrdinaryMcpStatuses<T extends IConversationMcpStatus>(statuses: T[]): T[] {
+  const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
+  return statuses.filter((status) => allowlist.has(status.id) || allowlist.has(status.name));
 }
 
 export function getOplFlowContextPolicy(): OplFlowContextPolicy {

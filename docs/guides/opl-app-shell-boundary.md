@@ -59,3 +59,7 @@ The `/guid` home path treats MAS, MAG, and RCA as App-owned purpose assistants o
 ## Local Hygiene
 
 Local CodeGraph indexes and packaged runtime payloads are development/build artifacts. They are ignored in this repository and must not be committed from shell lanes.
+
+## Retirement Ledger
+
+- 2026-06-03: Removed `packages/web-host/tests/equivalence.test.ts` and its dedicated `packages/web-host/tests/fixtures/mock-backend.ts` fixture. The test file was a no-op pointer left after N2 legacy test cleanup; active WebUI host coverage now lives in `packages/web-host/src/*.test.ts` and `packages/web-host/tests/start-web-host.test.ts`. Verification: `bun run --cwd packages/web-host test`.

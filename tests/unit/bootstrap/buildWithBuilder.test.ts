@@ -5,12 +5,37 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(__dirname, '../../..');
+
+function withOutBundleBackup<T>(callback: () => T): T {
+  const tempDir = mkdtempSync(join(tmpdir(), 'aionui-out-backup-'));
+  const targets = ['main', 'preload', 'renderer'];
+
+  try {
+    for (const target of targets) {
+      const source = join(repoRoot, 'out', target);
+      if (existsSync(source)) {
+        cpSync(source, join(tempDir, target), { recursive: true });
+      }
+    }
+
+    return callback();
+  } finally {
+    for (const target of targets) {
+      rmSync(join(repoRoot, 'out', target), { recursive: true, force: true });
+      const backup = join(tempDir, target);
+      if (existsSync(backup)) {
+        cpSync(backup, join(repoRoot, 'out', target), { recursive: true });
+      }
+    }
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
 
 describe('build-with-builder', () => {
   it.each([
@@ -66,6 +91,54 @@ childProcess.execSync = function mockedExecSync(command) {
   if (commandText.includes('electron-vite build')) {
     fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
     fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  return Buffer.from('');
+};
+`,
+      'utf8'
+    );
+
+    try {
+      const result = withOutBundleBackup(() => {
+        return spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args, '--force'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            AIONUI_PREPARE_CALLS_FILE: callsPath,
+            NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+          },
+        });
+      });
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+
+      const calls = JSON.parse(readFileSync(callsPath, 'utf8')) as Array<{ arch?: string } | null>;
+      expect(calls).toContainEqual(expect.objectContaining({ arch: expectedArch }));
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects empty Vite bundle entrypoints before packaging', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'aionui-empty-build-test-'));
+    const hookPath = join(tempDir, 'hook.cjs');
+
+    writeFileSync(
+      hookPath,
+      `
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+
+childProcess.execSync = function mockedExecSync(command) {
+  const commandText = String(command);
+  if (commandText.includes('electron-vite build')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), '');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
@@ -77,20 +150,19 @@ childProcess.execSync = function mockedExecSync(command) {
     );
 
     try {
-      const result = spawnSync(process.execPath, ['scripts/build-with-builder.js', ...args, '--force'], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          AIONUI_PREPARE_CALLS_FILE: callsPath,
-          NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
-        },
+      const result = withOutBundleBackup(() => {
+        return spawnSync(process.execPath, ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--force'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+          },
+        });
       });
 
-      expect(result.status, result.stderr || result.stdout).toBe(0);
-
-      const calls = JSON.parse(readFileSync(callsPath, 'utf8')) as Array<{ arch?: string } | null>;
-      expect(calls).toContainEqual(expect.objectContaining({ arch: expectedArch }));
+      expect(result.status).toBe(1);
+      expect(result.stderr || result.stdout).toContain('main entry is empty: out/main/index.js');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

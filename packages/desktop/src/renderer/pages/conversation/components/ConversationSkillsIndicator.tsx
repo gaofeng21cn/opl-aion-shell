@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
 import type { TChatConversation } from '@/common/config/storage';
 import { iconColors } from '@/renderer/styles/colors';
 import { Popover } from '@arco-design/web-react';
@@ -27,7 +28,7 @@ const ConversationSkillsIndicator: React.FC<ConversationSkillsIndicatorProps> = 
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const names = (conversation?.extra as { skills?: string[] } | undefined)?.skills ?? [];
+  const names = filterOplOrdinarySkillNames((conversation?.extra as { skills?: string[] } | undefined)?.skills ?? []);
 
   const { data: skillIndex } = useSWR(names.length > 0 ? 'skills-index' : null, () =>
     ipcBridge.fs.listAvailableSkills.invoke()

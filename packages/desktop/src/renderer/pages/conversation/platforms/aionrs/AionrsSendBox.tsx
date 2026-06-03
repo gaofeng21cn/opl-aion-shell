@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { filterOplOrdinaryMcpStatuses, filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
@@ -107,14 +108,15 @@ const AionrsSendBox: React.FC<{
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const conversationContext = useConversationContextSafe();
-  const loadedSkills = conversationContext?.loadedSkills ?? [];
-  const loadedMcpStatuses =
+  const loadedSkills = filterOplOrdinarySkillNames(conversationContext?.loadedSkills ?? []);
+  const loadedMcpStatuses = filterOplOrdinaryMcpStatuses(
     conversationContext?.loadedMcpStatuses ??
-    (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
-      id: name,
-      name,
-      status: 'loaded',
-    }));
+      (conversationContext?.loadedMcpServers ?? []).map<IConversationMcpStatus>((name) => ({
+        id: name,
+        name,
+        status: 'loaded',
+      }))
+  );
   const { t } = useTranslation();
   const { checkAndUpdateTitle } = useAutoTitle();
   const { current_model } = modelSelection;

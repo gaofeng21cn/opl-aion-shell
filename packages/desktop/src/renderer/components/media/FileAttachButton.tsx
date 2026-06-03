@@ -5,6 +5,7 @@
  */
 
 import type { IConversationMcpStatus, IConversationMcpStatusKind } from '@/common/config/storage';
+import { filterOplOrdinaryMcpStatuses, filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
 import { ipcBridge } from '@/common';
 import { Button, Message, Trigger } from '@arco-design/web-react';
 import { FolderOpen, Lightning, Paperclip, Plus, Right, Shield } from '@icon-park/react';
@@ -87,10 +88,9 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
 
-  const skillNames = loadedSkills ?? conversationContext?.loadedSkills ?? [];
-  const mcpStatuses = buildLoadedMcpStatuses(
-    loadedMcpStatuses ?? conversationContext?.loadedMcpStatuses,
-    conversationContext?.loadedMcpServers
+  const skillNames = filterOplOrdinarySkillNames(loadedSkills ?? conversationContext?.loadedSkills ?? []);
+  const mcpStatuses = filterOplOrdinaryMcpStatuses(
+    buildLoadedMcpStatuses(loadedMcpStatuses ?? conversationContext?.loadedMcpStatuses, conversationContext?.loadedMcpServers)
   );
   const { data: skillIndex } = useSWR(skillNames.length > 0 ? 'skills-index' : null, () =>
     ipcBridge.fs.listAvailableSkills.invoke()

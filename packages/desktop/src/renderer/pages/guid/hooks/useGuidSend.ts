@@ -6,6 +6,8 @@
 
 import { ipcBridge } from '@/common';
 import {
+  filterOplOrdinaryMcpServers,
+  filterOplOrdinarySkillNames,
   getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
 } from '@/common/config/oplProductProfile';
@@ -170,22 +172,24 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     // agents we still forward the user's selection (the backend accepts
     // `preset_enabled_skills` regardless of `is_preset`).
     const presetEnabledSkillsDefault = resolveEnabledSkills(agentInfo);
-    const enabled_skills = guidEnabledSkills ?? presetEnabledSkillsDefault;
+    const enabled_skills = filterOplOrdinarySkillNames(guidEnabledSkills ?? presetEnabledSkillsDefault ?? []);
+    const filteredGuidEnabledSkills = filterOplOrdinarySkillNames(guidEnabledSkills ?? []);
     const enabled_skills_to_send = is_presetAgent
       ? enabled_skills
-      : guidEnabledSkills?.length
-        ? guidEnabledSkills
+      : filteredGuidEnabledSkills.length
+        ? filteredGuidEnabledSkills
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
     const oplAssistantRoute = buildOplAssistantRouteReceipt(is_preset, agentInfo);
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
-    const selectedUserMcpServerIds = availableMcpServers
+    const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
+    const selectedUserMcpServerIds = visibleMcpServers
       .filter((server) => selectedMcpServerIdSet.has(server.id) && server.builtin !== true)
       .map((server) => server.id);
-    const selectedAllSessionMcpServers = availableMcpServers
+    const selectedAllSessionMcpServers = visibleMcpServers
       .filter((server) => selectedMcpServerIdSet.has(server.id))
       .map((server) => toSessionMcpServer(server));
-    const selectedSessionMcpServers = availableMcpServers
+    const selectedSessionMcpServers = visibleMcpServers
       .filter((server) => selectedMcpServerIdSet.has(server.id) && server.builtin === true)
       .map((server) => toSessionMcpServer(server));
 
@@ -408,7 +412,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           // Non-preset agents still forward user-selected custom skills via the
           // shared backend slot. For preset assistants this is already wired
           // through `preset_resources.enabled_skills` above.
-          ...(is_preset ? {} : guidEnabledSkills?.length ? { preset_enabled_skills: guidEnabledSkills } : {}),
+          ...(is_preset ? {} : filteredGuidEnabledSkills.length ? { preset_enabled_skills: filteredGuidEnabledSkills } : {}),
         },
       });
 

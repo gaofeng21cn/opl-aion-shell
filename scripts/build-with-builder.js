@@ -106,12 +106,31 @@ function saveCurrentHash(hash) {
   } catch {}
 }
 
+function fileExistsAndNonEmpty(filePath) {
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
+  } catch {
+    return false;
+  }
+}
+
+function assertRequiredOutputFile(filePath, label) {
+  const rootDir = path.resolve(__dirname, '..');
+  const relativePath = path.relative(rootDir, filePath).replace(/\\/g, '/');
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing ${label}: ${relativePath}`);
+  }
+  if (fs.statSync(filePath).size === 0) {
+    throw new Error(`${label} is empty: ${relativePath}`);
+  }
+}
+
 function viteBuildExists() {
   const outDir = path.resolve(__dirname, '../out');
   const mainDir = path.join(outDir, 'main');
   const rendererDir = path.join(outDir, 'renderer');
 
-  return fs.existsSync(path.join(mainDir, 'index.js')) && fs.existsSync(path.join(rendererDir, 'index.html'));
+  return fileExistsAndNonEmpty(path.join(mainDir, 'index.js')) && fileExistsAndNonEmpty(path.join(rendererDir, 'index.html'));
 }
 
 function cleanViteBundleOutput() {
@@ -500,13 +519,8 @@ try {
   const mainIndex = path.join(outDir, 'main', 'index.js');
   const rendererIndex = path.join(outDir, 'renderer', 'index.html');
 
-  if (!fs.existsSync(mainIndex)) {
-    throw new Error('Missing main entry: out/main/index.js');
-  }
-
-  if (!fs.existsSync(rendererIndex)) {
-    throw new Error('Missing renderer entry: out/renderer/index.html');
-  }
+  assertRequiredOutputFile(mainIndex, 'main entry');
+  assertRequiredOutputFile(rendererIndex, 'renderer entry');
   validateRendererBundleOutput(outDir);
 
   // If --pack-only, skip electron-builder distributable creation

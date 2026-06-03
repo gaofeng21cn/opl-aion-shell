@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   setFiles: vi.fn(),
   setDir: vi.fn(),
   setLoading: vi.fn(),
+  ensureBackendMcpCatalog: vi.fn(),
   useGuidSend: vi.fn(() => ({
     handleSend: vi.fn().mockResolvedValue(undefined),
     sendMessageHandler: vi.fn(),
@@ -75,7 +76,11 @@ vi.mock('@/common', () => ({
       listAvailableSkills: {
         invoke: vi.fn().mockResolvedValue([
           { name: 'mas', description: 'MAS skill' },
+          { name: 'mag', description: 'MAG skill' },
+          { name: 'rca', description: 'RCA skill' },
           { name: 'officecli-docx', description: 'Word documents' },
+          { name: 'aionui-skills', description: 'Upstream AionUI helper' },
+          { name: 'cron', description: 'AionUI cron skill' },
         ]),
       },
     },
@@ -260,6 +265,10 @@ vi.mock('@/renderer/pages/guid/hooks/useTypewriterPlaceholder', () => ({
   useTypewriterPlaceholder: () => '描述任务',
 }));
 
+vi.mock('@/renderer/hooks/mcp/catalog', () => ({
+  ensureBackendMcpCatalog: mocks.ensureBackendMcpCatalog,
+}));
+
 vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
     mentionSelectorBadge,
@@ -296,6 +305,30 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setFiles.mockClear();
     mocks.setDir.mockClear();
     mocks.setLoading.mockClear();
+    mocks.ensureBackendMcpCatalog.mockReset();
+    mocks.ensureBackendMcpCatalog.mockResolvedValue({
+      allServers: [
+        {
+          id: 'unknown-mcp',
+          name: 'Unknown MCP',
+          enabled: true,
+          transport: { type: 'stdio', command: 'echo' },
+          created_at: 1,
+          updated_at: 1,
+          original_json: '{}',
+        },
+        {
+          id: 'aionui-image-generation',
+          name: 'AionUI Image Generation',
+          enabled: true,
+          builtin: true,
+          transport: { type: 'stdio', command: 'echo' },
+          created_at: 1,
+          updated_at: 1,
+          original_json: '{}',
+        },
+      ],
+    });
     mocks.useGuidSend.mockClear();
   });
 
@@ -313,6 +346,21 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
+    });
+  });
+
+  it('keeps ordinary Home skills and MCP servers inside the App-owned OPL allowlist', async () => {
+    render(<GuidPage />);
+
+    await waitFor(() => {
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          guidEnabledSkills: ['mas'],
+          guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
+          availableMcpServers: [],
+          selectedMcpServerIds: [],
+        })
+      );
     });
   });
 
@@ -366,12 +414,12 @@ describe('GuidPage selected purpose assistant surface', () => {
     await screen.findByText('@MAS');
 
     const { ipcBridge } = await import('@/common');
-    expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).not.toHaveBeenCalled();
+    expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).toHaveBeenCalled();
     expect(ipcBridge.fs.listAvailableSkills.invoke).toHaveBeenCalled();
     await waitFor(() =>
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidDisabledBuiltinSkills: [],
+          guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
         })
       )
     );
