@@ -43,28 +43,6 @@ export const HTTP_ROUTES: Record<string, HttpRoute> = {
     method: 'POST',
     path: (p) => `/api/cron/jobs/${encodeURIComponent(String(p.job_id))}/run`,
   },
-  'team.list': {
-    method: 'GET',
-    path: (p) => `/api/teams?user_id=${encodeURIComponent(String(p.user_id ?? ''))}`,
-  },
-  'team.create': { method: 'POST', path: '/api/teams' },
-  'team.get': {
-    method: 'GET',
-    path: (p) => `/api/teams/${encodeURIComponent(String(p.id))}`,
-  },
-  'team.remove': {
-    method: 'DELETE',
-    path: (p) => `/api/teams/${encodeURIComponent(String(p.id))}`,
-  },
-  'team.add-agent': {
-    method: 'POST',
-    path: (p) => `/api/teams/${encodeURIComponent(String(p.team_id))}/agents`,
-    mapBody: (p) => p.agent,
-  },
-  'team.ensure-session': {
-    method: 'POST',
-    path: (p) => `/api/teams/${encodeURIComponent(String(p.team_id))}/session`,
-  },
   'database.get-conversation-messages': {
     method: 'GET',
     path: (p) => {

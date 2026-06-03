@@ -62,4 +62,25 @@ Local CodeGraph indexes and packaged runtime payloads are development/build arti
 
 ## Retirement Ledger
 
+- 2026-06-03: Retired the Team-mode E2E compatibility tail after the App-owned
+  product contract made ordinary AionUI Team hidden (`TEAM_MODE_ENABLED=false`).
+  Removed `tests/e2e/cases/teams/`, the Team-only E2E specs, Team E2E helper
+  exports, Team `invokeBridge` HTTP route mappings, Team npm scripts, and
+  Team-workspace E2E files that required the hidden `/team/*` surface. Active
+  proof now lives in the runtime flag,
+  `/team/:id` router redirect, hidden Sider section, and
+  `tests/unit/renderer/useTeamCreatedRedirect.dom.test.tsx`. The Team runtime
+  implementation remains in place as disabled upstream implementation material,
+  not ordinary OPL App product authority.
 - 2026-06-03: Removed `packages/web-host/tests/equivalence.test.ts` and its dedicated `packages/web-host/tests/fixtures/mock-backend.ts` fixture. The test file was a no-op pointer left after N2 legacy test cleanup; active WebUI host coverage now lives in `packages/web-host/src/*.test.ts` and `packages/web-host/tests/start-web-host.test.ts`. Verification: `bun run --cwd packages/web-host test`.
+
+## Remaining Deletion Gates
+
+- Legacy `invokeBridge` IPC fallback still has active E2E callers for extension,
+  WebUI, aionrs, channel, and conversation keys. Delete it only after each
+  active key has an HTTP-backed helper route or an explicit current hosted
+  surface.
+- `runLegacyDatabaseMigrations` is still called from `initStorage` for the
+  one-shot legacy Electron SQLite catalog migration. Delete it only after the
+  legacy catalog window is closed by App/release policy and no supported launch
+  path calls it.

@@ -162,8 +162,7 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
                 className={classNames('transition-transform duration-150', { 'rotate-90': expanded })}
               />
             </span>
-            {/* [E2E SYNC] data-testid="team-create-btn" 是 E2E 测试的入口 selector，不得删除或重命名。
-                如需修改，必须同步更新 tests/e2e/cases/teams/team-create.e2e.ts。 */}
+            {/* Team mode is disabled for the OPL App shell; this selector is no longer an ordinary App E2E contract. */}
             <Tooltip content={t('team.sider.createTeam')} position='top'>
               <div
                 data-testid='team-create-btn'

@@ -414,63 +414,6 @@ This is a test skill created for E2E testing.
 }
 
 /**
- * RESERVED FOR FUTURE OPTION A IMPLEMENTATION
- * Create a temporary extension for testing Extension Skills board
- * (TC-S-27 Option A - not used in current v1.3, uses Option B instead)
- *
- * NOTE: v1.3 uses Option B (Bridge query + container assertion),
- * so this helper is not called. Kept for potential future use.
- */
-// export function createTempExtension(extensionName: string): {
-//   path: string;
-//   cleanup: () => void;
-// } {
-//   const examplesDir = path.join(process.cwd(), 'examples');
-//   const extDir = path.join(examplesDir, extensionName);
-//
-//   // Create extension with skills directory
-//   fs.mkdirSync(path.join(extDir, 'skills'), { recursive: true });
-//
-//   const cleanup = () => {
-//     try {
-//       fs.rmSync(extDir, { recursive: true, force: true });
-//     } catch {
-//       // Ignore cleanup errors
-//     }
-//   };
-//
-//   return { path: extDir, cleanup };
-// }
-
-/**
- * RESERVED FOR FUTURE OPTION A IMPLEMENTATION
- * Create a temporary auto-injected skill for testing Auto Skills board
- * (TC-S-28 Option A - not used in current v1.3, uses Option B instead)
- *
- * NOTE: v1.3 uses Option B (Bridge query + container assertion),
- * so this helper is not called. Kept for potential future use.
- */
-// export function createTempAutoSkill(skillName: string): {
-//   path: string;
-//   cleanup: () => void;
-// } {
-//   const builtinDir = path.join(process.cwd(), '_builtin');
-//   const skillDir = path.join(builtinDir, skillName);
-//
-//   fs.mkdirSync(skillDir, { recursive: true });
-//
-//   const cleanup = () => {
-//     try {
-//       fs.rmSync(skillDir, { recursive: true, force: true });
-//     } catch {
-//       // Ignore cleanup errors
-//     }
-//   };
-//
-//   return { path: skillDir, cleanup };
-// }
-
-/**
  * Clean up all E2E test skills and custom paths
  */
 export async function cleanupTestSkills(page: Page): Promise<void> {
