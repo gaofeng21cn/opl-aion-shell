@@ -13,7 +13,6 @@ import {
   formatMaintenanceProgressText,
   formatProgressText,
   hasCodexConfigBlocker,
-  isCoreLaunchReadyFromAppState,
   readInitializePayload,
   type FirstRunItemId,
 } from './initializeModel';
@@ -181,8 +180,9 @@ function assertBridgeResultOk(result: Exclude<FirstRunCommandResult, null>): voi
   }
 }
 
-function shouldOfferPostInstallSelfCheck(initialize: FirstRunInitialize | null): boolean {
-  return initialize?.setup_flow?.is_first_run === true;
+function shouldEnterGuidAutomatically(initialize: FirstRunInitialize | null): boolean {
+  if (initialize?.setup_flow?.is_first_run !== false) return false;
+  return initialize.setup_flow.ready_to_launch === true || initialize.readiness?.launch_ready === true;
 }
 
 function ReadinessItem({
@@ -256,35 +256,14 @@ const FirstRun: React.FC = () => {
       assertBridgeResultOk(result);
       const initializePayload = readInitializePayload(result.parsed);
       setInitializeResult(result);
-      if (
-        initializePayload?.setup_flow?.ready_to_launch === true ||
-        initializePayload?.readiness?.launch_ready === true
-      ) {
-        navigate(
-          '/guid',
-          shouldOfferPostInstallSelfCheck(initializePayload)
-            ? { replace: true, state: POST_INSTALL_SELF_CHECK_STATE }
-            : { replace: true }
-        );
+      if (shouldEnterGuidAutomatically(initializePayload)) {
+        navigate('/guid', { replace: true });
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
     } finally {
       setInitializeLoading(false);
-    }
-  }, [navigate]);
-
-  const checkFastAppState = useCallback(async () => {
-    try {
-      const appState = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
-      assertBridgeResultOk(appState);
-      if (isCoreLaunchReadyFromAppState(appState.parsed)) {
-        navigate('/guid', { replace: true });
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError((current) => current ?? message);
     }
   }, [navigate]);
 
@@ -341,8 +320,7 @@ const FirstRun: React.FC = () => {
   useEffect(() => {
     document.title = 'One Person Lab App';
     void refreshInitialize();
-    void checkFastAppState();
-  }, [checkFastAppState, refreshInitialize]);
+  }, [refreshInitialize]);
 
   const itemLabels = Object.fromEntries(
     FIRST_RUN_ITEM_IDS.map((itemId) => [itemId, t(ITEM_LABEL_KEYS[itemId])])

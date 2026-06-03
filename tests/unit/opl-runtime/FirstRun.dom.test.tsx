@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import FirstRun from '@/renderer/pages/FirstRun';
 
 const bridgeMocks = vi.hoisted(() => ({
-  getAppStateInvoke: vi.fn(),
   getInitializeInvoke: vi.fn(),
   runInstallPrepInvoke: vi.fn(),
   configureCodexInvoke: vi.fn(),
@@ -28,7 +27,6 @@ vi.mock('@arco-design/web-react', async () => {
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
-      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
       getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
       runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
@@ -136,47 +134,6 @@ const initializeResult = {
   },
 };
 
-const fastStateReadyResult = {
-  surface: 'app_state_fast',
-  command: 'opl app state --profile fast --json',
-  stdout: '{}',
-  parsed: {
-    app_state: {
-      schema_version: 'opl_app_state.v1',
-      core: {
-        codex: {
-          installed: true,
-          api_key_present: true,
-          version_status: 'compatible',
-        },
-      },
-      paths: {
-        workspace_root: {
-          selected_path: '/Users/example/workspace',
-          exists: true,
-          health_status: 'ready',
-        },
-      },
-    },
-  },
-};
-
-const fastStateNeedsSetupResult = {
-  ...fastStateReadyResult,
-  parsed: {
-    app_state: {
-      ...fastStateReadyResult.parsed.app_state,
-      core: {
-        codex: {
-          installed: true,
-          api_key_present: false,
-          version_status: 'compatible',
-        },
-      },
-    },
-  },
-};
-
 const blockedInitializeResult = {
   ...initializeResult,
   parsed: {
@@ -212,7 +169,6 @@ const blockedInitializeResult = {
 describe('FirstRun readiness page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    bridgeMocks.getAppStateInvoke.mockResolvedValue(fastStateNeedsSetupResult);
     bridgeMocks.getInitializeInvoke.mockResolvedValue(initializeResult);
     bridgeMocks.runStartupMaintenanceInvoke.mockResolvedValue({
       surface: 'startup_maintenance',
@@ -228,24 +184,31 @@ describe('FirstRun readiness page', () => {
     });
   });
 
-  it('uses fast App state to enter /guid while still starting the initialize progress read', async () => {
-    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(fastStateReadyResult);
+  it('keeps the beginner first-run surface visible when first-run Core is ready', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
+      ...initializeResult,
+      parsed: {
+        system_initialize: {
+          ...initializeResult.parsed.system_initialize,
+          setup_flow: {
+            ...initializeResult.parsed.system_initialize.setup_flow,
+            is_first_run: true,
+          },
+        },
+      },
+    });
 
     render(<FirstRun />);
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
-    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
-    expect(navigateMock).not.toHaveBeenCalledWith(
-      '/guid',
-      expect.objectContaining({ state: { postInstallSelfCheck: true } })
-    );
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument());
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toBeInTheDocument();
+    expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
   });
 
   it('loads initialize state and lets users enter /guid only after Core is ready', async () => {
     render(<FirstRun />);
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('aria-label', 'opl-first-run-window');
@@ -305,13 +268,7 @@ describe('FirstRun readiness page', () => {
     expect(beginnerPrimary).not.toHaveTextContent('setup_flow');
   });
 
-  it('enters /guid when initialize confirms Core launch readiness while fast App state is still pending', async () => {
-    let resolveFastState: ((value: typeof fastStateNeedsSetupResult) => void) | null = null;
-    bridgeMocks.getAppStateInvoke.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveFastState = resolve;
-      })
-    );
+  it('does not leave first-run automatically when first-run initialize confirms Core launch readiness', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -329,9 +286,27 @@ describe('FirstRun readiness page', () => {
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('opl-first-run-progress')).toHaveTextContent('settings.firstRun.coreProgress 3/3');
-    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true, state: { postInstallSelfCheck: true } });
+    expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
+  });
 
-    resolveFastState?.(fastStateNeedsSetupResult);
+  it('enters /guid automatically only after non-first-run Core launch readiness', async () => {
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
+      ...initializeResult,
+      parsed: {
+        system_initialize: {
+          ...initializeResult.parsed.system_initialize,
+          setup_flow: {
+            ...initializeResult.parsed.system_initialize.setup_flow,
+            is_first_run: false,
+          },
+        },
+      },
+    });
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { replace: true });
   });
 
   it('keeps technical phase and maintenance controls out of the beginner primary area', async () => {
