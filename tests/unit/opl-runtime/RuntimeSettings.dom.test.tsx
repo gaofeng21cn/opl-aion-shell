@@ -476,6 +476,10 @@ describe('RuntimeSettings app state bridge usage', () => {
       screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.inactiveTasks')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.inactiveTaskSummaryText 1')).toBeInTheDocument();
+    expect(screen.queryByText('DM003 grant aftercare')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('common.runtime.inactiveTasks'));
     expect(screen.getByText('DM003 grant aftercare')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner User')).toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
@@ -487,7 +491,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
   });
 
-  it('renders full-detail workbench tasks after explicit full detail load', async () => {
+  it('keeps explicit full-detail workbench tasks in diagnostics after full detail load', async () => {
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve({
         surface: detail === 'summary' ? 'runtime_summary' : 'runtime_full',
@@ -541,8 +545,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     fireEvent.click(screen.getByText('common.runtime.fullDetail'));
 
-    await waitFor(() => expect(screen.getByText('Full detail DM002 guarded apply')).toBeInTheDocument());
-    expect(screen.getByText('common.runtime.currentStage paper_autonomy/guarded-apply')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('common.runtime.fullDetailReady')).toBeInTheDocument());
+    expect(screen.queryByText('Full detail DM002 guarded apply')).not.toBeInTheDocument();
     expect(
       screen.getByText('studies/002-dm-china-us-mortality-attribution/artifacts/publication_eval/latest.json')
     ).toBeInTheDocument();

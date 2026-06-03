@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
@@ -32,6 +32,17 @@ vi.mock('@/common', () => ({
     },
   },
 }));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      success: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
 vi.mock('swr', () => ({
   default: (key: unknown) => {
@@ -121,7 +132,9 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(await screen.findByRole('menuitem', { name: 'GPT-5.5（超高）' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'GPT-5.4' }));
 
-    expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
+    await waitFor(() => {
+      expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
+    });
   });
 
   it('renders App default Codex model options from the product profile', async () => {

@@ -12,6 +12,7 @@ import { useTeamCreatedRedirect } from '@renderer/pages/team/hooks/useTeamCreate
 import { Tooltip } from '@arco-design/web-react';
 import { ActivitySource } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
+import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { SiderToolbar, SiderSearchEntry, SiderScheduledEntry } from './SiderNav';
 import SiderFooter from './SiderFooter';
 import CronJobSiderSection from './CronJobSiderSection';
@@ -243,12 +244,14 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
                   {...workspaceHistoryProps}
                   afterPinnedContent={
                     <>
-                      <TeamSiderSection
-                        collapsed={collapsed}
-                        pathname={pathname}
-                        siderTooltipProps={siderTooltipProps}
-                        onSessionClick={onSessionClick}
-                      />
+                      {TEAM_MODE_ENABLED && (
+                        <TeamSiderSection
+                          collapsed={collapsed}
+                          pathname={pathname}
+                          siderTooltipProps={siderTooltipProps}
+                          onSessionClick={onSessionClick}
+                        />
+                      )}
                       {!collapsed && (
                         <CronJobSiderSection jobs={cronJobs} pathname={pathname} onNavigate={handleCronNavigate} />
                       )}

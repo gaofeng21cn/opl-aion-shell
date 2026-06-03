@@ -182,6 +182,8 @@
   "runtime.actionResult": "Action Result",
   "runtime.runningTasks": "Running Tasks",
   "runtime.noRunningTasks": "No tasks are currently running.",
+  "runtime.inactiveTasks": "Not Running / Waiting Projects",
+  "runtime.inactiveTaskSummaryText": "{{count}} projects are not running and are collapsed by default.",
   "runtime.activeTasks": "Active",
   "runtime.blockedTasks": "Blocked",
   "runtime.stageAttempts": "Stage attempts",

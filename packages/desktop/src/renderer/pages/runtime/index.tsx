@@ -71,22 +71,6 @@ function countValue(value: unknown): number {
   return numberValue(record(value).count) ?? 0;
 }
 
-function firstNumber(values: unknown[]): number | null {
-  for (const value of values) {
-    const number = numberValue(value);
-    if (number !== null) return number;
-  }
-  return null;
-}
-
-function firstString(values: unknown[]): string | null {
-  for (const value of values) {
-    const text = stringValue(value);
-    if (text) return text;
-  }
-  return null;
-}
-
 function pickRecordFields(source: RuntimeSnapshot, keys: string[]): RuntimeSnapshot {
   const result: RuntimeSnapshot = {};
   for (const key of keys) {
@@ -218,10 +202,19 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
     },
     runtime_workbench: {
       summary_cards: recordList(record(drilldown.runtime_workbench).summary_cards).slice(0, 8),
+      activity_center: {
+        active_projects: recordList(record(record(drilldown.runtime_workbench).activity_center).active_projects).slice(
+          0,
+          32
+        ),
+      },
       domain_lane_map: {
         lanes: recordList(record(record(drilldown.runtime_workbench).domain_lane_map).lanes).slice(0, 8),
       },
       task_drilldowns: recordList(record(drilldown.runtime_workbench).task_drilldowns).slice(0, 12),
+    },
+    visual_ref_groups: {
+      active_project_refs: recordList(record(drilldown.visual_ref_groups).active_project_refs).slice(0, 32),
     },
     current_control_state: {
       summary: compactCurrentControlStateSummary(record(controlState.summary)),
@@ -289,6 +282,22 @@ function workbenchTaskDrilldowns(drilldown: RuntimeSnapshot): RuntimeSnapshot[] 
 
 function workbenchDomainLanes(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
   return recordList(record(runtimeWorkbench(drilldown).domain_lane_map).lanes).slice(0, 8);
+}
+
+function workbenchActiveProjectLines(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
+  const workbench = runtimeWorkbench(drilldown);
+  const activityLines = recordList(record(workbench.activity_center).active_projects);
+  const visualLines = recordList(record(drilldown.visual_ref_groups).active_project_refs);
+  const seen = new Set<string>();
+  return [...activityLines, ...visualLines]
+    .filter((line) => {
+      const key = stringValue(line.task_id) ?? stringValue(line.id) ?? stringValue(line.source_ref);
+      if (!key) return true;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 32);
 }
 
 function currentControlState(drilldown: RuntimeSnapshot): RuntimeSnapshot {
@@ -420,12 +429,15 @@ type RuntimeProjectProgress = {
   title: string;
   domainLabel: string;
   stateRaw: string | null;
+  statusRaw: string | null;
   progressClassRaw: string | null;
   stateLabel: string | null;
   stageLabel: string | null;
   nextStep: string | null;
   nextOwner: string | null;
   lastProgressAt: string | null;
+  studyId: string | null;
+  activeRunId: string | null;
   progressClassLabel: string | null;
   progressTone: 'green' | 'orange' | 'blue' | 'red';
   deliverableCount: number;
@@ -448,6 +460,8 @@ type RuntimeTaskOverview = {
   attentionTaskCount: number;
   latestActivityAt: string | null;
   tasks: RuntimeTaskStatusItem[];
+  runningTasks: RuntimeTaskStatusItem[];
+  inactiveTasks: RuntimeTaskStatusItem[];
 };
 
 const PROJECT_STATE_KEYS: Record<string, string> = {
@@ -476,6 +490,7 @@ const PROJECT_PROGRESS_CLASS_KEYS: Record<string, string> = {
 
 const ATTENTION_STATES = new Set(['blocked', 'blocking', 'missing', 'attention_needed', 'attention_required']);
 const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
+const RUNNING_STATES = new Set(['running', 'in_progress', 'advancing']);
 
 function translateMappedValue(
   value: unknown,
@@ -509,99 +524,170 @@ function isUserProjectProgressTask(task: RuntimeSnapshot): boolean {
   );
 }
 
+function activeProjectLineByTaskId(lines: RuntimeSnapshot[]): Map<string, RuntimeSnapshot> {
+  const result = new Map<string, RuntimeSnapshot>();
+  for (const line of lines) {
+    const taskId = stringValue(line.task_id);
+    if (taskId && !result.has(taskId)) {
+      result.set(taskId, line);
+    }
+  }
+  return result;
+}
+
+function taskFromActiveProjectLine(
+  line: RuntimeSnapshot,
+  index: number,
+  t: (key: string, options?: Record<string, string | number>) => string,
+  detail?: RuntimeSnapshot
+): RuntimeProjectProgress {
+  const taskId = stringValue(line.task_id) ?? stringValue(detail?.task_id);
+  const title =
+    stringValue(line.title) ??
+    stringValue(detail?.title) ??
+    stringValue(detail?.label) ??
+    taskFallbackLabel(taskId, index);
+  const domainLabel =
+    stringValue(line.domain_label) ??
+    stringValue(detail?.domain_label) ??
+    stringValue(line.domain_id) ??
+    stringValue(detail?.domain_id) ??
+    t('common.runtime.unknownDomain');
+  const state = stringValue(line.state) ?? stringValue(detail?.state);
+  const status = stringValue(line.status) ?? stringValue(detail?.status);
+  const progressClass = stringValue(detail?.progress_delta_classification);
+  const deliverableCount = countValue(detail?.deliverable_progress_delta);
+  const platformRepairCount = countValue(detail?.platform_repair_delta);
+  const blockerCount = numberValue(detail?.blocker_ref_count) ?? numberValue(line.blocker_ref_count) ?? 0;
+  const safeActionCount = numberValue(detail?.safe_action_ref_count) ?? numberValue(line.safe_action_ref_count) ?? 0;
+  const paperLensCount =
+    numberValue(detail?.paper_route_lens_ref_count) ?? numberValue(line.paper_route_lens_ref_count) ?? 0;
+  const stageAttemptCount = stringList(detail?.stage_attempt_ids).length;
+  const needsAttention =
+    blockerCount > 0 ||
+    (state ? ATTENTION_STATES.has(state) : false) ||
+    (status ? ATTENTION_STATES.has(status) : false) ||
+    (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
+
+  return {
+    id: taskId ?? `${title}-${index + 1}`,
+    title,
+    domainLabel,
+    stateRaw: state,
+    statusRaw: status,
+    progressClassRaw: progressClass,
+    stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
+    stageLabel: stringValue(detail?.active_stage_label) ?? stringValue(detail?.active_stage_id),
+    nextStep:
+      stringValue(line.next_visible_step) ??
+      stringValue(detail?.next_visible_step) ??
+      stringValue(detail?.next_step) ??
+      stringValue(detail?.required_next_action) ??
+      null,
+    nextOwner: stringValue(detail?.next_owner) ?? stringValue(detail?.owner) ?? null,
+    lastProgressAt: stringValue(detail?.last_progress_at) ?? stringValue(detail?.updated_at) ?? null,
+    studyId: stringValue(line.study_id) ?? stringValue(detail?.study_id),
+    activeRunId: stringValue(line.active_run_id) ?? stringValue(detail?.active_run_id),
+    progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
+    progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
+    deliverableCount,
+    platformRepairCount,
+    blockerCount,
+    safeActionCount,
+    paperLensCount,
+    stageAttemptCount,
+    needsAttention,
+  };
+}
+
 function projectProgressItems(
   tasks: RuntimeSnapshot[],
+  activeProjectLines: RuntimeSnapshot[],
   t: (key: string, options?: Record<string, string | number>) => string
 ): RuntimeProjectProgress[] {
-  return tasks.filter(isUserProjectProgressTask).map((task, index) => {
+  const lineByTaskId = activeProjectLineByTaskId(activeProjectLines);
+  const taskById = new Map<string, RuntimeSnapshot>();
+  for (const task of tasks) {
     const taskId = stringValue(task.task_id);
-    const title = stringValue(task.title) ?? stringValue(task.label) ?? taskFallbackLabel(taskId, index);
-    const domainLabel =
-      stringValue(task.domain_label) ?? stringValue(task.domain_id) ?? t('common.runtime.unknownDomain');
-    const state = stringValue(task.state);
-    const progressClass = stringValue(task.progress_delta_classification);
-    const deliverableCount = countValue(task.deliverable_progress_delta);
-    const platformRepairCount = countValue(task.platform_repair_delta);
-    const blockerCount = numberValue(task.blocker_ref_count) ?? 0;
-    const safeActionCount = numberValue(task.safe_action_ref_count) ?? 0;
-    const paperLensCount = numberValue(task.paper_route_lens_ref_count) ?? 0;
-    const stageAttemptCount = stringList(task.stage_attempt_ids).length;
-    const needsAttention =
-      blockerCount > 0 ||
-      (state ? ATTENTION_STATES.has(state) : false) ||
-      (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
+    if (taskId && isUserProjectProgressTask(task)) {
+      taskById.set(taskId, task);
+    }
+  }
 
-    return {
-      id: taskId ?? `${title}-${index + 1}`,
-      title,
-      domainLabel,
-      stateRaw: state,
-      progressClassRaw: progressClass,
-      stateLabel: translateMappedValue(state, PROJECT_STATE_KEYS, t),
-      stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
-      nextStep:
-        stringValue(task.next_visible_step) ??
-        stringValue(task.next_step) ??
-        stringValue(task.required_next_action) ??
-        null,
-      nextOwner: stringValue(task.next_owner) ?? stringValue(task.owner) ?? null,
-      lastProgressAt: stringValue(task.last_progress_at) ?? stringValue(task.updated_at) ?? null,
-      progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
-      progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
-      deliverableCount,
-      platformRepairCount,
-      blockerCount,
-      safeActionCount,
-      paperLensCount,
-      stageAttemptCount,
-      needsAttention,
-    };
+  const activeLineItems = activeProjectLines.map((line, index) => {
+    const taskId = stringValue(line.task_id);
+    return taskFromActiveProjectLine(line, index, t, taskId ? taskById.get(taskId) : undefined);
   });
+
+  const activeLineTaskIds = new Set(activeProjectLines.map((line) => stringValue(line.task_id)).filter(Boolean));
+  const drilldownItems = tasks
+    .filter(isUserProjectProgressTask)
+    .flatMap<RuntimeProjectProgress>((task, index): RuntimeProjectProgress[] => {
+      const taskId = stringValue(task.task_id);
+      if (taskId && activeLineTaskIds.has(taskId)) return [];
+      const title = stringValue(task.title) ?? stringValue(task.label) ?? taskFallbackLabel(taskId, index);
+      const domainLabel =
+        stringValue(task.domain_label) ?? stringValue(task.domain_id) ?? t('common.runtime.unknownDomain');
+      const state = stringValue(task.state);
+      const status = stringValue(task.status) ?? stringValue(lineByTaskId.get(taskId ?? '')?.status);
+      const progressClass = stringValue(task.progress_delta_classification);
+      const deliverableCount = countValue(task.deliverable_progress_delta);
+      const platformRepairCount = countValue(task.platform_repair_delta);
+      const blockerCount = numberValue(task.blocker_ref_count) ?? 0;
+      const safeActionCount = numberValue(task.safe_action_ref_count) ?? 0;
+      const paperLensCount = numberValue(task.paper_route_lens_ref_count) ?? 0;
+      const stageAttemptCount = stringList(task.stage_attempt_ids).length;
+      const needsAttention =
+        blockerCount > 0 ||
+        (state ? ATTENTION_STATES.has(state) : false) ||
+        (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
+
+      return [
+        {
+          id: taskId ?? `${title}-${index + 1}`,
+          title,
+          domainLabel,
+          stateRaw: state,
+          statusRaw: status,
+          progressClassRaw: progressClass,
+          stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
+          stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
+          nextStep:
+            stringValue(task.next_visible_step) ??
+            stringValue(task.next_step) ??
+            stringValue(task.required_next_action) ??
+            null,
+          nextOwner: stringValue(task.next_owner) ?? stringValue(task.owner) ?? null,
+          lastProgressAt: stringValue(task.last_progress_at) ?? stringValue(task.updated_at) ?? null,
+          studyId: stringValue(task.study_id),
+          activeRunId: stringValue(task.active_run_id),
+          progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
+          progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
+          deliverableCount,
+          platformRepairCount,
+          blockerCount,
+          safeActionCount,
+          paperLensCount,
+          stageAttemptCount,
+          needsAttention,
+        },
+      ];
+    });
+
+  return [...activeLineItems, ...drilldownItems];
 }
 
-function taskLooksRunning(project: RuntimeProjectProgress, activity: RuntimeActivityProjection): boolean {
-  if (project.stateRaw === 'running') return true;
-  if (activity.activeExecutionCount === 0) return false;
-  const domainLabels = new Set(activity.domains.map((domain) => domain.label));
-  return domainLabels.has(project.domainLabel);
+function taskLooksRunning(project: RuntimeProjectProgress): boolean {
+  return Boolean(
+    (project.statusRaw && RUNNING_STATES.has(project.statusRaw)) ||
+    (project.stateRaw && RUNNING_STATES.has(project.stateRaw))
+  );
 }
 
-function fallbackRunningTasks(
-  activity: RuntimeActivityProjection,
-  t: (key: string, options?: Record<string, string | number>) => string
-): RuntimeTaskStatusItem[] {
-  return activity.domains.map<RuntimeTaskStatusItem>((domain) => ({
-    id: `running-${domain.id}`,
-    title: t('common.runtime.runningTaskFallbackTitle', { domain: domain.label }),
-    domainLabel: domain.label,
-    stateRaw: 'running',
-    progressClassRaw: null,
-    stateLabel: t('common.runtime.projectStates.running'),
-    stageLabel: null,
-    nextStep: t('common.runtime.runningTaskFallbackNextStep'),
-    nextOwner: null,
-    lastProgressAt: activity.latestHeartbeatAt,
-    progressClassLabel: null,
-    progressTone: 'blue',
-    deliverableCount: 0,
-    platformRepairCount: 0,
-    blockerCount: 0,
-    safeActionCount: 0,
-    paperLensCount: 0,
-    stageAttemptCount: activity.runningStageAttemptIds.length,
-    needsAttention: false,
-    running: true,
-  }));
-}
-
-function taskStatusItems(
-  projects: RuntimeProjectProgress[],
-  activity: RuntimeActivityProjection,
-  t: (key: string, options?: Record<string, string | number>) => string
-): RuntimeTaskStatusItem[] {
+function taskStatusItems(projects: RuntimeProjectProgress[]): RuntimeTaskStatusItem[] {
   const projectItems = projects.map((project) => ({
     ...project,
-    running: taskLooksRunning(project, activity),
+    running: taskLooksRunning(project),
   }));
   if (projectItems.length > 0) {
     return projectItems.toSorted((left, right) => {
@@ -610,31 +696,34 @@ function taskStatusItems(
       return left.title.localeCompare(right.title);
     });
   }
-  return fallbackRunningTasks(activity, t);
+  return [];
 }
 
 function taskLooksQueued(task: RuntimeTaskStatusItem): boolean {
-  return task.stateRaw === 'queued' || task.stateRaw === 'pending' || task.progressClassRaw === 'human_gate';
+  return (
+    !task.running ||
+    task.statusRaw === 'queued' ||
+    task.statusRaw === 'pending' ||
+    task.stateRaw === 'queued' ||
+    task.stateRaw === 'pending' ||
+    task.progressClassRaw === 'human_gate'
+  );
 }
 
-function buildTaskOverview(
-  projects: RuntimeProjectProgress[],
-  activity: RuntimeActivityProjection,
-  t: (key: string, options?: Record<string, string | number>) => string
-): RuntimeTaskOverview {
-  const tasks = taskStatusItems(projects, activity, t);
-  const runningTaskCount = tasks.filter((task) => task.running).length || activity.activeExecutionCount;
-  const activeProjectCount = projects.length || tasks.length;
+function buildTaskOverview(projects: RuntimeProjectProgress[]): RuntimeTaskOverview {
+  const tasks = taskStatusItems(projects);
+  const runningTasks = tasks.filter((task) => task.running);
+  const inactiveTasks = tasks.filter((task) => !task.running);
+  const runningTaskCount = runningTasks.length;
+  const activeProjectCount = projects.length;
   const queuedTaskCount = tasks.filter(taskLooksQueued).length;
   const attentionTaskCount = tasks.filter((task) => task.needsAttention).length;
   const latestActivityAt =
-    activity.latestHeartbeatAt ??
     tasks
       .map((task) => task.lastProgressAt)
       .filter((value): value is string => Boolean(value))
       .toSorted()
-      .at(-1) ??
-    null;
+      .at(-1) ?? null;
   return {
     runningTaskCount,
     activeProjectCount,
@@ -642,6 +731,8 @@ function buildTaskOverview(
     attentionTaskCount,
     latestActivityAt,
     tasks,
+    runningTasks,
+    inactiveTasks,
   };
 }
 
@@ -651,139 +742,6 @@ function summarizeProjectProgress(projects: RuntimeProjectProgress[], lanes: Run
     total: projects.length,
     attention: projects.filter((project) => project.needsAttention).length,
     maintenanceAttention,
-  };
-}
-
-type RuntimeActivityDomain = {
-  id: string;
-  label: string;
-  activeExecutionCount: number;
-  taskKinds: string[];
-};
-
-type RuntimeActivityProjection = {
-  providerKind: string;
-  providerStatus: string | null;
-  activeExecutionCount: number;
-  runningDomainCount: number;
-  runningStageAttemptIds: string[];
-  providerRefCount: number;
-  latestHeartbeatAt: string | null;
-  summaryPolicy: string | null;
-  domains: RuntimeActivityDomain[];
-  sourceLabel: string;
-  hasActiveExecution: boolean;
-};
-
-function readableDomainLabel(domainId: string): string {
-  const labels: Record<string, string> = {
-    medautoscience: 'Med Auto Science',
-    medautogrant: 'Med Auto Grant',
-    redcube: 'RedCube AI',
-    'opl-meta-agent': 'OPL Meta Agent',
-    oplmetaagent: 'OPL Meta Agent',
-  };
-  return labels[domainId] ?? domainId;
-}
-
-function providerRun(state: RuntimeSnapshot): RuntimeSnapshot {
-  return record(state.provider_run);
-}
-
-function isActiveProviderExecution(state: RuntimeSnapshot): boolean {
-  return (
-    state.running_provider_attempt === true &&
-    (stringValue(providerRun(state).provider_status) === 'running' ||
-      stringValue(state.current_attempt_state) === 'running' ||
-      stringValue(state.reconciliation_status) === 'running')
-  );
-}
-
-function stateHeartbeat(state: RuntimeSnapshot): string | null {
-  return firstString([
-    providerRun(state).last_heartbeat_at,
-    providerRun(state).ledger_last_heartbeat_at,
-    state.latest_running_provider_heartbeat_at,
-  ]);
-}
-
-function runtimeActivityProjection(drilldown: RuntimeSnapshot): RuntimeActivityProjection {
-  const summary = record(drilldown.summary);
-  const controlSummary = currentControlStateSummary(drilldown);
-  const attention = record(drilldown.attention_first_payload);
-  const providerHealth = record(attention.provider_health);
-  const states = currentControlStateRecords(drilldown);
-  const providerKind =
-    firstString([providerHealth.provider_kind, ...states.map((state) => state.provider_kind), 'temporal']) ??
-    'temporal';
-  const providerStatus = stringValue(providerHealth.health_status);
-  const providerRefCount =
-    firstNumber([
-      controlSummary.running_provider_attempt_count,
-      summary.current_control_state_running_provider_attempt_count,
-      controlSummary.running_control_state_count,
-      summary.current_control_state_running_count,
-    ]) ?? states.filter((state) => state.running_provider_attempt === true).length;
-  const summaryPolicy =
-    firstString([
-      controlSummary.running_provider_attempt_summary_policy,
-      summary.current_control_state_running_provider_attempt_summary_policy,
-    ]) ?? null;
-
-  const activeStates = states.filter(isActiveProviderExecution);
-  const domainCounts = new Map<string, number>();
-  const domainTaskKinds = new Map<string, Set<string>>();
-  const runningStageAttemptIds: string[] = [];
-  let latestHeartbeatAt: string | null = null;
-  for (const state of activeStates) {
-    const domainId = stringValue(state.domain_id);
-    if (!domainId) continue;
-    domainCounts.set(domainId, (domainCounts.get(domainId) ?? 0) + 1);
-    const taskKind = stringValue(state.task_kind);
-    if (taskKind) {
-      const taskKinds = domainTaskKinds.get(domainId) ?? new Set<string>();
-      taskKinds.add(taskKind);
-      domainTaskKinds.set(domainId, taskKinds);
-    }
-    const stageAttemptId = stringValue(state.current_stage_attempt_id) ?? stringValue(state.active_stage_attempt_id);
-    if (stageAttemptId && runningStageAttemptIds.length < 5) {
-      runningStageAttemptIds.push(stageAttemptId);
-    }
-    const heartbeat = stateHeartbeat(state);
-    if (heartbeat && (!latestHeartbeatAt || heartbeat > latestHeartbeatAt)) {
-      latestHeartbeatAt = heartbeat;
-    }
-  }
-
-  if (!latestHeartbeatAt && activeStates.length > 0) {
-    latestHeartbeatAt =
-      firstString([
-        controlSummary.latest_running_provider_heartbeat_at,
-        summary.current_control_state_latest_running_provider_heartbeat_at,
-      ]) ?? null;
-  }
-
-  const domainIds = Array.from(domainCounts.keys());
-  const domains = domainIds.map((domainId) => ({
-    id: domainId,
-    label: readableDomainLabel(domainId),
-    activeExecutionCount: domainCounts.get(domainId) ?? 0,
-    taskKinds: Array.from(domainTaskKinds.get(domainId) ?? []),
-  }));
-  const activeExecutionCount = activeStates.length;
-
-  return {
-    providerKind,
-    providerStatus,
-    activeExecutionCount,
-    runningDomainCount: domains.length,
-    runningStageAttemptIds,
-    providerRefCount,
-    latestHeartbeatAt,
-    summaryPolicy,
-    domains,
-    sourceLabel: 'Temporal provider projection',
-    hasActiveExecution: activeExecutionCount > 0,
   };
 }
 
@@ -817,16 +775,8 @@ function appStateToRuntimeProjection(appState: RuntimeSnapshot): RuntimeSnapshot
       refs: actions.map(compactAction),
     },
     runtime_workbench: oplRecord(operator.workbench),
+    visual_ref_groups: oplRecord(operator.visual_ref_groups),
   };
-}
-
-function hasWorkbenchRefs(drilldown: RuntimeSnapshot | null | undefined): boolean {
-  const workbench = runtimeWorkbench(drilldown ?? {});
-  return (
-    recordList(workbench.task_drilldowns).length > 0 ||
-    recordList(record(workbench.domain_lane_map).lanes).length > 0 ||
-    recordList(workbench.summary_cards).length > 0
-  );
 }
 
 const RuntimePage: React.FC = () => {
@@ -857,11 +807,8 @@ const RuntimePage: React.FC = () => {
     () => appStateToRuntimeProjection(appStateQuery.appState),
     [appStateQuery.appState]
   );
+  const userTaskDrilldown = appStateProjection;
   const displayDrilldown = fullDetailDrilldown ?? summaryDrilldown ?? appStateProjection;
-  const workbenchDrilldown = useMemo(() => {
-    if (hasWorkbenchRefs(displayDrilldown) || !appStateProjection) return displayDrilldown;
-    return appStateProjection;
-  }, [appStateProjection, displayDrilldown]);
   const actionDrilldown = useMemo(() => {
     const safeActionCount = collectSafeActions(displayDrilldown ?? {}).length;
     if (safeActionCount > 0 || !appStateProjection) return displayDrilldown;
@@ -942,12 +889,12 @@ const RuntimePage: React.FC = () => {
 
   const actions = useMemo(() => collectSafeActions(actionDrilldown ?? {}), [actionDrilldown]);
   const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
-  const lanes = useMemo(() => workbenchDomainLanes(workbenchDrilldown ?? {}), [workbenchDrilldown]);
-  const tasks = useMemo(() => workbenchTaskDrilldowns(workbenchDrilldown ?? {}), [workbenchDrilldown]);
-  const projects = useMemo(() => projectProgressItems(tasks, t), [tasks, t]);
+  const lanes = useMemo(() => workbenchDomainLanes(userTaskDrilldown ?? {}), [userTaskDrilldown]);
+  const tasks = useMemo(() => workbenchTaskDrilldowns(userTaskDrilldown ?? {}), [userTaskDrilldown]);
+  const activeProjectLines = useMemo(() => workbenchActiveProjectLines(userTaskDrilldown ?? {}), [userTaskDrilldown]);
+  const projects = useMemo(() => projectProgressItems(tasks, activeProjectLines, t), [activeProjectLines, tasks, t]);
   const projectSummary = useMemo(() => summarizeProjectProgress(projects, lanes), [projects, lanes]);
-  const runtimeActivity = useMemo(() => runtimeActivityProjection(displayDrilldown ?? {}), [displayDrilldown]);
-  const taskOverview = useMemo(() => buildTaskOverview(projects, runtimeActivity, t), [projects, runtimeActivity, t]);
+  const taskOverview = useMemo(() => buildTaskOverview(projects), [projects]);
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
   const dryRunAction = useCallback(async (actionId: string) => {
@@ -966,6 +913,63 @@ const RuntimePage: React.FC = () => {
       setRunningActionId(null);
     }
   }, []);
+
+  const renderTaskItem = useCallback(
+    (task: RuntimeTaskStatusItem) => {
+      const deliverableLabel = formatCountLabel(t('common.runtime.deliverableProgress'), task.deliverableCount);
+      const platformRepairLabel = formatCountLabel(t('common.runtime.platformRepair'), task.platformRepairCount);
+      return (
+        <div key={task.id} className='py-12px'>
+          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
+            <div className='min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary break-words'>{task.title}</Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
+                {task.domainLabel}
+                {task.studyId ? ` · ${task.studyId}` : ''}
+              </Typography.Text>
+            </div>
+            <Space wrap size='mini'>
+              {task.running && <Tag color='blue'>{t('common.runtime.runningNow')}</Tag>}
+              {task.stateLabel && <Tag>{task.stateLabel}</Tag>}
+              {task.progressClassLabel && <Tag color={task.progressTone}>{task.progressClassLabel}</Tag>}
+            </Space>
+          </div>
+          <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
+            {task.stageLabel && (
+              <Typography.Text className='block text-13px text-t-primary break-words'>
+                {t('common.runtime.currentStage', { stage: task.stageLabel })}
+              </Typography.Text>
+            )}
+            {task.nextOwner && (
+              <Typography.Text className='block text-13px text-t-primary break-words'>
+                {t('common.runtime.nextOwner', { owner: task.nextOwner })}
+              </Typography.Text>
+            )}
+            {task.nextStep && (
+              <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
+                {t('common.runtime.nextStep', { step: task.nextStep })}
+              </Typography.Text>
+            )}
+            {task.lastProgressAt && (
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('common.runtime.lastProgressAt', { time: task.lastProgressAt })}
+              </Typography.Text>
+            )}
+          </div>
+          <Space wrap size='mini' className='mt-8px'>
+            {deliverableLabel && <Tag color='green'>{deliverableLabel}</Tag>}
+            {platformRepairLabel && <Tag color='orange'>{platformRepairLabel}</Tag>}
+            {task.safeActionCount > 0 && <Tag>{`${t('common.runtime.safeActions')}: ${task.safeActionCount}`}</Tag>}
+            {task.blockerCount > 0 && (
+              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${task.blockerCount}`}</Tag>
+            )}
+            {task.paperLensCount > 0 && <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>}
+          </Space>
+        </div>
+      );
+    },
+    [t]
+  );
 
   return (
     <div className='w-full h-full overflow-auto px-24px md:px-48px py-28px box-border'>
@@ -1086,77 +1090,35 @@ const RuntimePage: React.FC = () => {
                     attention: taskOverview.attentionTaskCount,
                   })}
                 </Typography.Text>
-                {taskOverview.tasks.length > 0 ? (
+                {taskOverview.runningTasks.length > 0 ? (
                   <div className='flex flex-col divide-y divide-border-1'>
-                    {taskOverview.tasks.map((task) => {
-                      const deliverableLabel = formatCountLabel(
-                        t('common.runtime.deliverableProgress'),
-                        task.deliverableCount
-                      );
-                      const platformRepairLabel = formatCountLabel(
-                        t('common.runtime.platformRepair'),
-                        task.platformRepairCount
-                      );
-                      return (
-                        <div key={task.id} className='py-12px'>
-                          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
-                            <div className='min-w-0'>
-                              <Typography.Text className='block font-600 text-t-primary break-words'>
-                                {task.title}
-                              </Typography.Text>
-                              <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                                {task.domainLabel}
-                              </Typography.Text>
-                            </div>
-                            <Space wrap size='mini'>
-                              {task.running && <Tag color='blue'>{t('common.runtime.runningNow')}</Tag>}
-                              {task.stateLabel && <Tag>{task.stateLabel}</Tag>}
-                              {task.progressClassLabel && (
-                                <Tag color={task.progressTone}>{task.progressClassLabel}</Tag>
-                              )}
-                            </Space>
-                          </div>
-                          <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
-                            {task.stageLabel && (
-                              <Typography.Text className='block text-13px text-t-primary break-words'>
-                                {t('common.runtime.currentStage', { stage: task.stageLabel })}
-                              </Typography.Text>
-                            )}
-                            {task.nextOwner && (
-                              <Typography.Text className='block text-13px text-t-primary break-words'>
-                                {t('common.runtime.nextOwner', { owner: task.nextOwner })}
-                              </Typography.Text>
-                            )}
-                            {task.nextStep && (
-                              <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
-                                {t('common.runtime.nextStep', { step: task.nextStep })}
-                              </Typography.Text>
-                            )}
-                            {task.lastProgressAt && (
-                              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                                {t('common.runtime.lastProgressAt', { time: task.lastProgressAt })}
-                              </Typography.Text>
-                            )}
-                          </div>
-                          <Space wrap size='mini' className='mt-8px'>
-                            {deliverableLabel && <Tag color='green'>{deliverableLabel}</Tag>}
-                            {platformRepairLabel && <Tag color='orange'>{platformRepairLabel}</Tag>}
-                            {task.safeActionCount > 0 && (
-                              <Tag>{`${t('common.runtime.safeActions')}: ${task.safeActionCount}`}</Tag>
-                            )}
-                            {task.blockerCount > 0 && (
-                              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${task.blockerCount}`}</Tag>
-                            )}
-                            {task.paperLensCount > 0 && (
-                              <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>
-                            )}
-                          </Space>
-                        </div>
-                      );
-                    })}
+                    {taskOverview.runningTasks.map(renderTaskItem)}
                   </div>
                 ) : (
                   <Alert type='info' content={t('common.runtime.noRunningTasks')} />
+                )}
+                {taskOverview.inactiveTasks.length > 0 && (
+                  <Collapse bordered={false}>
+                    <Collapse.Item
+                      name='inactive-tasks'
+                      header={
+                        <div className='flex flex-col gap-2px'>
+                          <Typography.Text className='font-600 text-t-primary'>
+                            {t('common.runtime.inactiveTasks')}
+                          </Typography.Text>
+                          <Typography.Text className='text-12px text-t-secondary'>
+                            {t('common.runtime.inactiveTaskSummaryText', {
+                              count: taskOverview.inactiveTasks.length,
+                            })}
+                          </Typography.Text>
+                        </div>
+                      }
+                    >
+                      <div className='flex flex-col divide-y divide-border-1'>
+                        {taskOverview.inactiveTasks.map(renderTaskItem)}
+                      </div>
+                    </Collapse.Item>
+                  </Collapse>
                 )}
               </div>
             </Card>

@@ -161,8 +161,84 @@ describe('useAcpModelInfo', () => {
     });
   });
 
+  it('waits for runtime preparation before loading model info', async () => {
+    const prepareRuntimeDeferred = deferred<void>();
+    const prepareRuntime = vi.fn().mockReturnValue(prepareRuntimeDeferred.promise);
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'opus-4' }) });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(prepareRuntime).toHaveBeenCalledTimes(1);
+    });
+    expect(getModelInvokeMock).not.toHaveBeenCalled();
+
+    prepareRuntimeDeferred.resolve(undefined);
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('opus-4');
+    });
+    expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('does not request model info when runtime preparation fails', async () => {
+    const prepareRuntime = vi.fn().mockRejectedValue(new Error('warmup failed'));
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(prepareRuntime).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(writeRendererLogInvokeMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: 'info',
+          tag: 'useAcpModelInfo',
+          message: 'prepare_runtime_failed_before_model_reload',
+        })
+      );
+    });
+    expect(getModelInvokeMock).not.toHaveBeenCalled();
+    expect(result.current.model_info).toBeNull();
+  });
+
+  it('does not prepare or request model info while disabled', async () => {
+    const prepareRuntime = vi.fn().mockResolvedValue(undefined);
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'opus-4' }) });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+      enabled: false,
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(prepareRuntime).not.toHaveBeenCalled();
+    expect(getModelInvokeMock).not.toHaveBeenCalled();
+    expect(result.current.model_info).toBeNull();
+    expect(result.current.canSwitch).toBe(false);
+
+    act(() => {
+      result.current.selectModel('opus-4');
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+  });
+
   it('persists preferred model and conversation extra only after backend accepts selectModel', async () => {
     const setModelDeferred = deferred<void>();
+    const onSelectModelSuccess = vi.fn();
+    const onSelectModelFailed = vi.fn();
     getModelInvokeMock
       .mockResolvedValueOnce({ model_info: buildModelInfo() })
       .mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'opus-4' }) });
@@ -172,6 +248,8 @@ describe('useAcpModelInfo', () => {
       conversation_id: 'conv-1',
       backend: 'claude',
       initialModelId: 'sonnet-4',
+      onSelectModelSuccess,
+      onSelectModelFailed,
     });
 
     await waitFor(() => {
@@ -193,6 +271,8 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(result.current.model_info?.current_model_id).toBe('opus-4');
     });
+    expect(onSelectModelSuccess).toHaveBeenCalledWith('opus-4');
+    expect(onSelectModelFailed).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(configServiceSetMock).toHaveBeenCalled();
     });
@@ -209,13 +289,18 @@ describe('useAcpModelInfo', () => {
 
   it('rolls back to backend model info and does not persist when selectModel fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onSelectModelSuccess = vi.fn();
+    const onSelectModelFailed = vi.fn();
+    const setModelError = new Error('model unavailable');
     getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo() });
-    setModelInvokeMock.mockRejectedValue(new Error('model unavailable'));
+    setModelInvokeMock.mockRejectedValue(setModelError);
 
     const { result } = renderUseAcpModelInfo({
       conversation_id: 'conv-1',
       backend: 'claude',
       initialModelId: 'sonnet-4',
+      onSelectModelSuccess,
+      onSelectModelFailed,
     });
 
     await waitFor(() => {
@@ -235,6 +320,8 @@ describe('useAcpModelInfo', () => {
 
     expect(configServiceSetMock).not.toHaveBeenCalled();
     expect(conversationUpdateInvokeMock).not.toHaveBeenCalled();
+    expect(onSelectModelFailed).toHaveBeenCalledWith('opus-4', setModelError);
+    expect(onSelectModelSuccess).not.toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
   });
@@ -345,7 +432,7 @@ describe('useAcpModelInfo', () => {
       await Promise.resolve();
     });
 
-    expect(getModelInvokeMock.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(getModelInvokeMock.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(result.current.model_info?.current_model_id).toBe('opus-4');
     vi.clearAllTimers();
   });

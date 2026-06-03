@@ -178,6 +178,8 @@
   "runtime.actionResult": "动作结果",
   "runtime.runningTasks": "运行任务",
   "runtime.noRunningTasks": "当前没有正在跑的任务。",
+  "runtime.inactiveTasks": "未运行 / 等待中的项目",
+  "runtime.inactiveTaskSummaryText": "{{count}} 个项目当前未运行，默认折叠显示。",
   "runtime.activeTasks": "活跃",
   "runtime.blockedTasks": "阻塞",
   "runtime.stageAttempts": "阶段尝试",

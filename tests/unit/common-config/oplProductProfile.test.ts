@@ -118,7 +118,7 @@ describe('OPL generated product profile', () => {
       webui: 'access',
       pet: 'appearance',
     });
-    expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'app']);
+    expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'oma', 'app']);
   });
 
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {

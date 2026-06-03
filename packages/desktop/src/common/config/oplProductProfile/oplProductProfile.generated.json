@@ -57,6 +57,23 @@
       "codex_home_model_status_label": "GPT-5.5（超高）",
       "codex_home_model_status_label_en": "GPT-5.5 (Ultra)",
       "codex_precise_model_display_policy": "friendly_default_model_and_reasoning_visible",
+      "home_layout": {
+        "default_mode": "composer_first_chat_canvas",
+        "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
+        "composer_position": "pinned_bottom",
+        "composer_primary": true,
+        "workspace_selector_visible": true,
+        "purpose_entries_visible": ["research", "grant", "ppt"],
+        "workspace_session_rail_default_state": "collapsed",
+        "right_context_inspector_default_state": "collapsed",
+        "must_not_show": [
+          "dashboard-first home",
+          "explanatory landing page",
+          "backend settings panel in composer",
+          "AionUI Team nav entry",
+          "AionUI Team page as ordinary App surface"
+        ]
+      },
       "codex_auto_model_selection": {
         "strategy": "codex_cli_auto_latest_available_frontier",
         "user_can_override_model": true,
@@ -110,6 +127,60 @@
         ],
         "footer_quick_actions_policy": "do_not_render_feedback_star_web_icons_on_home"
       }
+    },
+    "ordinary_conversation": {
+      "path_id": "ordinary_codex_conversation",
+      "entry_source": "home_purpose_entry_or_new_conversation",
+      "executor": "codex_cli",
+      "composer_position": "pinned_bottom",
+      "purpose_tag_visible": true,
+      "assistant_route_receipt_required": true,
+      "backend_selector_visible": false,
+      "model_selector_visible": true,
+      "permission_mode_selector_visible": false,
+      "provider_selector_visible": false,
+      "model_status_surface": "gui.home.codex_home_model_status_label",
+      "technical_details_policy": "friendly_default_model_and_reasoning_visible"
+    },
+    "right_context_inspector": {
+      "placement": "right",
+      "default_state": "collapsed",
+      "opens_on_user_request_only": true,
+      "chat_canvas_remains_primary": true,
+      "scope": "selected_workspace_and_conversation",
+      "tabs": [
+        {
+          "id": "files",
+          "label": "Files",
+          "authority": "workspace_refs_only"
+        },
+        {
+          "id": "capabilities",
+          "label": "Capabilities",
+          "authority": "app_packaged_skill_profiles"
+        },
+        {
+          "id": "runtime",
+          "label": "Routing/runtime refs",
+          "authority": "opl_app_state_refs_only"
+        },
+        {
+          "id": "memory",
+          "label": "Memory refs",
+          "authority": "refs_only_no_memory_body_authority"
+        },
+        {
+          "id": "automations",
+          "label": "Always-On/Automations",
+          "authority": "app_state_action_refs"
+        },
+        {
+          "id": "settings",
+          "label": "Settings",
+          "authority": "app_owned_settings"
+        }
+      ],
+      "must_not_own": ["runtime truth", "domain truth", "artifact body", "memory body", "backend selection authority"]
     },
     "builtin_assistant_route_receipt_policy": {
       "scope": "home_purpose_entry_to_conversation",
@@ -524,11 +595,18 @@
       "webui": "access",
       "pet": "appearance"
     },
-    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "app"],
+    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "oma", "app"],
     "developer_mode": {
       "label_key": "settings.developerMode",
       "description_key": "settings.developerModeDesc",
       "hide_machine_status": true,
+      "module_source_override": {
+        "surface": "Developer Mode",
+        "source": "app_state.developer_mode + app_state.modules[].source_policy",
+        "ordinary_user_default": "stable_package_channel",
+        "developer_override": "github_repo_or_local_checkout",
+        "policy": "explicit_opt_in_only"
+      },
       "state_keys": {
         "unknown": "settings.developerModeDesc",
         "off": "settings.developerModeStateOff",

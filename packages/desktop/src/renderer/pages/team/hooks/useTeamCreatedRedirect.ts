@@ -16,6 +16,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { TEAM_MODE_ENABLED } from '@/common/config/constants';
 import { emitter } from '@/renderer/utils/emitter';
 import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -27,6 +28,10 @@ export function useTeamCreatedRedirect() {
   pathnameRef.current = location.pathname;
 
   useEffect(() => {
+    if (!TEAM_MODE_ENABLED) {
+      return undefined;
+    }
+
     const navigateToTeam = (teamId: string) => {
       if (!teamId) return;
       if (pathnameRef.current === `/team/${teamId}`) return;

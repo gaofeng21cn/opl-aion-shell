@@ -40,7 +40,7 @@ export const consumePendingDeepLink = (): DeepLinkAddProviderDetail | null => {
  * Allowed route patterns for the navigate deep link action.
  * Only routes matching these patterns are permitted.
  */
-const ALLOWED_NAVIGATE_PATTERNS = [/^\/team\/[^/]+$/, /^\/conversation\/[^/]+$/];
+const ALLOWED_NAVIGATE_PATTERNS = [/^\/conversation\/[^/]+$/];
 
 /**
  * Hook to listen for aionui:// deep link events from main process.
