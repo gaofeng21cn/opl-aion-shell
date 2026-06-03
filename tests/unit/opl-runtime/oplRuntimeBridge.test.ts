@@ -32,6 +32,23 @@ describe('OPL runtime bridge command whitelist', () => {
       ownsDomainTruth: false,
       readsArtifactBody: false,
       readsMemoryBody: false,
+      defaultOperatorPayload: 'compact_owner_delta_projection',
+      defaultReadSurfacePolicy: {
+        defaultProjection: 'opl_compact_owner_delta_projection',
+        sourcePath: 'app_state.operator.default_read_surface_policy',
+        fullDetailPolicy: 'explicit_full_detail_or_lazy_diagnostic_only',
+        rawRefsPolicy: 'raw_refs_require_explicit_full_detail',
+        fullDetailAutoPoll: false,
+        shellMustNotUseFullDrilldownAsNormalState: true,
+        shellMustNotDeriveLayoutFromRawRuntimeProjection: true,
+        forbiddenDefaultStateFields: [
+          'runtime_tray_snapshot',
+          'raw_evidence_envelope',
+          'stage_replay_packet_body',
+          'private_residue_inventory_body',
+          'provider_internal_ledger_body',
+        ],
+      },
       primarySurfaces: [
         'opl app state --profile fast --json',
         'opl app state --profile full --json',

@@ -37,6 +37,15 @@ The shell bridge uses the App/runtime contract surfaces as its primary path:
 
 Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visualization_projection` parsing is kept as an isolated adapter for historical full-detail payloads and tests. New GUI work should not add top-level `runtime_visualization_projection` fallback to the main renderer path.
 
+`app_state.operator.default_read_surface_policy` is the shell-visible guard for
+the default Runtime page. The normal page must treat
+`compact_owner_delta_projection` / `opl_compact_owner_delta_projection` as the
+first-screen payload and keep `runtime_tray_snapshot`, raw evidence envelopes,
+stage replay body, private residue inventory, and provider internal ledgers out
+of the default state. Those refs may appear only through explicit full-state or
+diagnostic detail. The shell must render this App/Framework policy; it must not
+replace it with a shell-local runtime truth or full-detail polling rule.
+
 ## Codex Conversation Output
 
 Codex ACP tool-call output must render like native Codex output. The shell

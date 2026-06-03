@@ -54,6 +54,27 @@ describe('runtime visualization projection normalization', () => {
         },
         operator: {
           status: 'ready',
+          default_read_surface_policy: {
+            surface_kind: 'opl_app_default_read_surface_policy',
+            default_operator_payload: 'compact_owner_delta_projection',
+            normal_state_surface: 'opl app state --profile fast --json',
+            full_runtime_drilldown_surface: 'opl runtime app-operator-drilldown --detail full --json',
+            raw_runtime_projection_policy: 'explicit_full_detail_or_lazy_diagnostic_only',
+            first_screen_answers: [
+              'next_safe_action_or_none',
+              'current_owner',
+              'required_delta',
+              'accepted_return_shapes',
+              'readiness_false_flags',
+              'count_summary',
+            ],
+            fast_profile_excludes: ['runtime_tray_snapshot', 'raw_evidence_envelope'],
+            shell_contract: {
+              shell_must_not_use_full_drilldown_as_normal_state: true,
+              shell_must_not_derive_layout_from_raw_runtime_projection: true,
+              full_detail_auto_poll: false,
+            },
+          },
           summary: 'OPL runtime provider is ready.',
         },
         actions: [
@@ -68,6 +89,24 @@ describe('runtime visualization projection normalization', () => {
 
     expect(model.sourceSurface).toBe('opl_app_state');
     expect(model.state).toBe('ready');
+    expect(model.defaultReadSurfacePolicy).toMatchObject({
+      defaultProjection: 'compact_owner_delta_projection',
+      normalStateSurface: 'opl app state --profile fast --json',
+      fullRuntimeDrilldownSurface: 'opl runtime app-operator-drilldown --detail full --json',
+      rawRuntimeProjectionPolicy: 'explicit_full_detail_or_lazy_diagnostic_only',
+      firstScreenAnswers: [
+        'next_safe_action_or_none',
+        'current_owner',
+        'required_delta',
+        'accepted_return_shapes',
+        'readiness_false_flags',
+        'count_summary',
+      ],
+      forbiddenDefaultStateFields: ['runtime_tray_snapshot', 'raw_evidence_envelope'],
+      fullDetailAutoPoll: false,
+      shellMustNotUseFullDrilldownAsNormalState: true,
+      shellMustNotDeriveLayoutFromRawRuntimeProjection: true,
+    });
     expect(model.summaryCards).toContainEqual({
       id: 'codex',
       label: 'Codex CLI',

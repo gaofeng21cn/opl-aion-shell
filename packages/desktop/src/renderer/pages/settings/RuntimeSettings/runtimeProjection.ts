@@ -6,6 +6,7 @@
 
 import type {
   RuntimeActionQueueItem,
+  RuntimeDefaultReadSurfacePolicy,
   RuntimeDomainLane,
   RuntimeGraphEdge,
   RuntimeGraphNode,
@@ -234,6 +235,27 @@ function readPerformancePolicy(workbench: JsonRecord): RuntimePerformancePolicy 
   };
 }
 
+function readDefaultReadSurfacePolicy(value: unknown): RuntimeDefaultReadSurfacePolicy | undefined {
+  const policy = firstRecord(value);
+  if (!policy) return undefined;
+  const shellContract = firstRecord(policy.shell_contract);
+  return {
+    defaultProjection: asString(policy.default_projection) ?? asString(policy.default_operator_payload),
+    normalStateSurface: asString(policy.normal_state_surface),
+    fullRuntimeDrilldownSurface: asString(policy.full_runtime_drilldown_surface),
+    rawRuntimeProjectionPolicy: asString(policy.raw_runtime_projection_policy) ?? asString(policy.raw_refs_policy),
+    firstScreenAnswers: asStringArray(policy.first_screen_answers),
+    forbiddenDefaultStateFields: asStringArray(policy.forbidden_default_state_fields ?? policy.fast_profile_excludes),
+    fullDetailAutoPoll: asBoolean(policy.full_detail_auto_poll) ?? asBoolean(shellContract?.full_detail_auto_poll),
+    shellMustNotUseFullDrilldownAsNormalState:
+      asBoolean(policy.shell_must_not_use_full_drilldown_as_normal_state) ??
+      asBoolean(shellContract?.shell_must_not_use_full_drilldown_as_normal_state),
+    shellMustNotDeriveLayoutFromRawRuntimeProjection:
+      asBoolean(policy.shell_must_not_derive_layout_from_raw_runtime_projection) ??
+      asBoolean(shellContract?.shell_must_not_derive_layout_from_raw_runtime_projection),
+  };
+}
+
 function readActionQueue(workbench: JsonRecord): RuntimeActionQueueItem[] {
   const queue = firstRecord(workbench.action_queue);
   return asRecordArray(queue?.items).map((entry, index) => ({
@@ -411,6 +433,7 @@ function normalizeAppStateRefs(appState: JsonRecord): RuntimeGraphNode[] {
 
 function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualizationModel {
   const operator = firstRecord(appState.operator);
+  const workbench = firstRecord(operator?.workbench);
   return {
     sourceSurface: asString(appState.surface_kind) ?? 'opl_app_state',
     state: asString(operator?.status) ?? asString(appState.status) ?? 'unknown',
@@ -421,6 +444,9 @@ function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualization
     actionQueue: [],
     domainLaneMap: normalizeAppStateDomainLaneMap(appState),
     taskDrilldowns: [],
+    defaultReadSurfacePolicy: readDefaultReadSurfacePolicy(
+      operator?.default_read_surface_policy ?? workbench?.default_read_surface_policy
+    ),
     refreshPolicy: undefined,
     performancePolicy: {},
     stageGraph: { nodes: [], edges: [] },
@@ -483,6 +509,9 @@ function normalizeProjectionRecord(projection: JsonRecord): RuntimeVisualization
     actionQueue: readActionQueue(workbench),
     domainLaneMap: readDomainLaneMap(workbench),
     taskDrilldowns: readTaskDrilldowns(workbench),
+    defaultReadSurfacePolicy: readDefaultReadSurfacePolicy(
+      projection.default_read_surface_policy ?? workbench.default_read_surface_policy
+    ),
     refreshPolicy: readRefreshPolicy(workbench),
     performancePolicy: readPerformancePolicy(workbench),
     stageGraph,

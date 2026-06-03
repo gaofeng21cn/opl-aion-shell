@@ -111,6 +111,18 @@ export type RuntimePerformancePolicy = {
   graphLayoutRecompute?: string;
 };
 
+export type RuntimeDefaultReadSurfacePolicy = {
+  defaultProjection?: string;
+  normalStateSurface?: string;
+  fullRuntimeDrilldownSurface?: string;
+  rawRuntimeProjectionPolicy?: string;
+  firstScreenAnswers: string[];
+  forbiddenDefaultStateFields: string[];
+  fullDetailAutoPoll?: boolean;
+  shellMustNotUseFullDrilldownAsNormalState?: boolean;
+  shellMustNotDeriveLayoutFromRawRuntimeProjection?: boolean;
+};
+
 export type RuntimeVisualizationModel = {
   sourceSurface: string;
   state: string;
@@ -119,6 +131,7 @@ export type RuntimeVisualizationModel = {
   actionQueue: RuntimeActionQueueItem[];
   domainLaneMap: RuntimeDomainLane[];
   taskDrilldowns: RuntimeTaskDrilldown[];
+  defaultReadSurfacePolicy?: RuntimeDefaultReadSurfacePolicy;
   refreshPolicy?: RuntimeRefreshPolicy;
   performancePolicy: RuntimePerformancePolicy;
   stageGraph: {
