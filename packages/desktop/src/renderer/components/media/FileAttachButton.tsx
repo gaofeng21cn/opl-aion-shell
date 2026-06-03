@@ -90,7 +90,10 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
 
   const skillNames = filterOplOrdinarySkillNames(loadedSkills ?? conversationContext?.loadedSkills ?? []);
   const mcpStatuses = filterOplOrdinaryMcpStatuses(
-    buildLoadedMcpStatuses(loadedMcpStatuses ?? conversationContext?.loadedMcpStatuses, conversationContext?.loadedMcpServers)
+    buildLoadedMcpStatuses(
+      loadedMcpStatuses ?? conversationContext?.loadedMcpStatuses,
+      conversationContext?.loadedMcpServers
+    )
   );
   const { data: skillIndex } = useSWR(skillNames.length > 0 ? 'skills-index' : null, () =>
     ipcBridge.fs.listAvailableSkills.invoke()

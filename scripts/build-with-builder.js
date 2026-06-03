@@ -130,7 +130,9 @@ function viteBuildExists() {
   const mainDir = path.join(outDir, 'main');
   const rendererDir = path.join(outDir, 'renderer');
 
-  return fileExistsAndNonEmpty(path.join(mainDir, 'index.js')) && fileExistsAndNonEmpty(path.join(rendererDir, 'index.html'));
+  return (
+    fileExistsAndNonEmpty(path.join(mainDir, 'index.js')) && fileExistsAndNonEmpty(path.join(rendererDir, 'index.html'))
+  );
 }
 
 function cleanViteBundleOutput() {

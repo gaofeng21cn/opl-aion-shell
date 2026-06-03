@@ -412,7 +412,11 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           // Non-preset agents still forward user-selected custom skills via the
           // shared backend slot. For preset assistants this is already wired
           // through `preset_resources.enabled_skills` above.
-          ...(is_preset ? {} : filteredGuidEnabledSkills.length ? { preset_enabled_skills: filteredGuidEnabledSkills } : {}),
+          ...(is_preset
+            ? {}
+            : filteredGuidEnabledSkills.length
+              ? { preset_enabled_skills: filteredGuidEnabledSkills }
+              : {}),
         },
       });
 
