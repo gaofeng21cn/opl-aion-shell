@@ -206,7 +206,10 @@ describe('OPL first-run VM smoke scripts', () => {
       ])
     );
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.requiredTextAny).toEqual(
-      expect.arrayContaining([['OPL Developer Mode', 'OPL 开发者模式']])
+      expect.arrayContaining([
+        ['OPL Developer Profile', 'OPL 开发者配置'],
+        ['OPL Flow Context', 'OPL Flow 上下文'],
+      ])
     );
   });
 

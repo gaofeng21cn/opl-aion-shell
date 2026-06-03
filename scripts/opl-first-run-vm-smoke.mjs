@@ -2060,7 +2060,14 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
       ['Codex Theme', 'Codex 主题'],
     ],
   },
-  { id: 'advanced', hash: '#/settings/advanced', requiredTextAny: [['OPL Developer Mode', 'OPL 开发者模式']] },
+  {
+    id: 'advanced',
+    hash: '#/settings/advanced',
+    requiredTextAny: [
+      ['OPL Developer Profile', 'OPL 开发者配置'],
+      ['OPL Flow Context', 'OPL Flow 上下文'],
+    ],
+  },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
 ];
 
@@ -2130,12 +2137,40 @@ function runtimeStatusReadinessExpression() {
 
 async function captureSettingsPage(client, target, options, secret) {
   await evaluateCdp(client, `window.location.hash = ${cdpString(target.hash)}`);
-  const pageState = await waitForCdpPredicate(
-    client,
-    pageReadinessExpression(target),
-    Math.min(Math.max(60_000, Math.floor(options.timeoutMs / 6)), 180_000),
-    `Settings page did not become ready: ${target.id}`
-  );
+  let pageState;
+  try {
+    pageState = await waitForCdpPredicate(
+      client,
+      pageReadinessExpression(target),
+      Math.min(Math.max(60_000, Math.floor(options.timeoutMs / 6)), 180_000),
+      `Settings page did not become ready: ${target.id}`
+    );
+  } catch (error) {
+    const diagnostic = await evaluateCdp(
+      client,
+      `(() => {
+        const text = document.body?.innerText || '';
+        const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
+        const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
+        return {
+          id: ${cdpString(target.id)},
+          expectedHash: ${cdpString(target.hash)},
+          hash: window.location.hash,
+          textLength: text.length,
+          navPresent: Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]')),
+          loaderVisible: Boolean(document.querySelector('[class*="loader"], .arco-spin-loading')),
+          firstRunWindowVisible: Boolean(document.querySelector('[data-testid="opl-first-run-window"]')),
+          missingText,
+          textSample: text.slice(0, 1000),
+        };
+      })()`
+    ).catch((diagnosticError) => ({
+      diagnostic_error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError),
+    }));
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}\nSettings readiness diagnostic: ${JSON.stringify(diagnostic)}`
+    );
+  }
   const screenshotPath = path.join(options.artifacts, 'settings-pages', `${target.id}.png`);
   await captureCdpScreenshot(client, screenshotPath);
   return pageState;
@@ -2244,21 +2279,21 @@ async function captureRuntimeActionEvidence(client, options, secret) {
   return actionEvidence;
 }
 
-function developerModeStatusExpression() {
+function developerProfileStatusExpression() {
   return `(() => {
-      const row = document.querySelector('[data-testid="opl-developer-mode-row"]');
-      const status = document.querySelector('[data-testid="opl-developer-mode-status"]');
+      const row = document.querySelector('[data-testid="opl-developer-profile-row"]');
+      const status = document.querySelector('[data-testid="opl-developer-profile-status"]');
       const text = document.body?.innerText || '';
-      if (!row || !status || !/OPL Developer Mode|OPL 开发者模式/.test(text)) return false;
+      if (!row || !status || !/OPL Developer Profile|OPL 开发者配置/.test(text)) return false;
       const rowText = row.textContent || '';
       const machineStatusPattern = /\\b(blocked|developer_apply_safe|direct_repo_fix|fork_pull_request|active_direct|active_pr_only)\\b|Status:|Mode:|Route:|GitHub:|状态：|模式：|路由：|GitHub：/;
       if (machineStatusPattern.test(rowText)) {
-        throw new Error(\`OPL Developer Mode row exposed machine status: \${rowText.slice(0, 220)}\`);
+        throw new Error(\`OPL Developer Profile row exposed machine status: \${rowText.slice(0, 220)}\`);
       }
       const statusText = (status.textContent || '').trim();
       return statusText.length > 0
         ? {
-            developerModeVisible: true,
+            developerProfileVisible: true,
             statusText,
             rowText,
           }
@@ -2288,12 +2323,12 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
   };
 }
 
-async function assertDeveloperModeStatus(client) {
+async function assertDeveloperProfileStatus(client) {
   return await waitForCdpPredicate(
     client,
-    developerModeStatusExpression(),
+    developerProfileStatusExpression(),
     30_000,
-    'System Settings did not expose the OPL Developer Mode status'
+    'Advanced Settings did not expose the OPL Developer Profile status'
   );
 }
 
@@ -2316,8 +2351,10 @@ async function runSettingsSmoke(options, secret) {
           '#/settings/runtime'
         );
       }
-      if (pageTarget.id === 'system') {
-        interactions.developerMode = await (hooks.assertDeveloperModeStatus ?? assertDeveloperModeStatus)(client);
+      if (pageTarget.id === 'advanced') {
+        interactions.developerProfile = await (hooks.assertDeveloperProfileStatus ?? assertDeveloperProfileStatus)(
+          client
+        );
       }
       results.push({ ...pageState, interactions });
     }
@@ -2909,7 +2946,7 @@ export const __test =
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
-        developerModeStatusExpression,
+        developerProfileStatusExpression,
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,
         runtimeStatusReadinessExpression,

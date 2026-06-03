@@ -478,7 +478,7 @@ describe('packaged first-run VM smoke helpers', () => {
         openCdpClient: async () => client,
         captureSettingsPage: async (_client: unknown, pageTarget: { id: string }) => ({ id: pageTarget.id }),
         exerciseRuntimeRefresh: async (_client: unknown, targetHash: string) => ({ targetHash }),
-        assertDeveloperModeStatus: async () => ({ status: 'ready' }),
+        assertDeveloperProfileStatus: async () => ({ status: 'ready' }),
         captureRuntimeActionEvidence: async () => {
           throw new Error('No safe action routes are currently exposed.');
         },
@@ -556,13 +556,13 @@ describe('packaged first-run VM smoke helpers', () => {
     });
   });
 
-  it('checks the read-only Developer Mode status instead of toggling a removed switch', () => {
-    const expression = __test.developerModeStatusExpression();
+  it('checks the read-only Developer Profile status instead of toggling a removed switch', () => {
+    const expression = __test.developerProfileStatusExpression();
 
-    expect(expression).toContain('[data-testid="opl-developer-mode-row"]');
-    expect(expression).toContain('[data-testid="opl-developer-mode-status"]');
-    expect(expression).toContain('OPL 开发者模式');
-    expect(expression).toContain('OPL Developer Mode row exposed machine status');
+    expect(expression).toContain('[data-testid="opl-developer-profile-row"]');
+    expect(expression).toContain('[data-testid="opl-developer-profile-status"]');
+    expect(expression).toContain('OPL 开发者配置');
+    expect(expression).toContain('OPL Developer Profile row exposed machine status');
     expect(expression).not.toContain('opl-developer-mode-switch');
     expect(expression).not.toContain('.click()');
   });
