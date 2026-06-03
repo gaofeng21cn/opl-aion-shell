@@ -596,23 +596,58 @@
       "pet": "appearance"
     },
     "environment_items": ["codex", "temporal", "mas", "mag", "rca", "oma", "app"],
-    "developer_mode": {
-      "label_key": "settings.developerMode",
-      "description_key": "settings.developerModeDesc",
+    "developer_profile": {
+      "label_key": "settings.developerProfile",
+      "description_key": "settings.developerProfileDesc",
       "hide_machine_status": true,
-      "module_source_override": {
-        "surface": "Developer Mode",
-        "source": "app_state.developer_mode + app_state.modules[].source_policy",
-        "ordinary_user_default": "stable_package_channel",
-        "developer_override": "github_repo_or_local_checkout",
-        "policy": "explicit_opt_in_only"
+      "source": "app_state.developer_profile + app_state.developer_mode compatibility field + app_state.modules[].source_policy",
+      "default_profile": "standard_user",
+      "opt_in_policy": "explicit_opt_in_only",
+      "capability_axes": [
+        "source_channel",
+        "workspace_trust",
+        "github_authority",
+        "agent_automation",
+        "runtime_mutation_scope"
+      ],
+      "capabilities": {
+        "source_channel": {
+          "standard_default": "stable_package_channel",
+          "developer_opt_in": "github_repo_or_local_checkout",
+          "display_policy": "show_package_channel_first_then_checkout_override"
+        },
+        "workspace_trust": {
+          "standard_default": "selected_workspace_only",
+          "developer_opt_in": "trusted_local_workspace_with_visible_path",
+          "display_policy": "show_trust_scope_and_workspace_path"
+        },
+        "github_authority": {
+          "standard_default": "read_only_or_user_confirmed",
+          "developer_opt_in": "repo_checkout_and_remote_intent_visible",
+          "display_policy": "show_repo_authority_without_hiding_user_confirmation"
+        },
+        "agent_automation": {
+          "standard_default": "user_confirmed_app_actions",
+          "developer_opt_in": "developer_enabled_agent_automation",
+          "display_policy": "show_automation_scope_and_confirmation_policy"
+        },
+        "runtime_mutation_scope": {
+          "standard_default": "app_action_route_only",
+          "developer_opt_in": "app_action_route_with_developer_scope",
+          "display_policy": "show_mutation_scope_without_claiming_runtime_authority"
+        }
+      },
+      "legacy_developer_mode_alias": {
+        "state_source": "app_state.developer_mode",
+        "display_policy": "show_as_profile_summary_not_primary_switch",
+        "must_not_display_as": "single_global_toggle"
       },
       "state_keys": {
-        "unknown": "settings.developerModeDesc",
-        "off": "settings.developerModeStateOff",
-        "auto": "settings.developerModeStateAuto",
-        "on_limited": "settings.developerModeStateOnLimited",
-        "on_ready": "settings.developerModeStateOnReady"
+        "unknown": "settings.developerProfileDesc",
+        "standard_user": "settings.developerProfileStateStandard",
+        "source_channel_opt_in": "settings.developerProfileStateSourceChannel",
+        "developer_limited": "settings.developerProfileStateLimited",
+        "developer_ready": "settings.developerProfileStateReady"
       }
     },
     "settings_information_architecture": {
@@ -650,7 +685,7 @@
         "label_zh": "高级",
         "label_en": "Advanced",
         "role": "developer_and_diagnostic_controls",
-        "primary_question": "Which raw paths, logs, developer mode, and diagnostics are exposed?"
+        "primary_question": "Which Developer Profile capabilities, raw paths, logs, and diagnostics are exposed?"
       },
       "about": {
         "label_zh": "关于与更新",

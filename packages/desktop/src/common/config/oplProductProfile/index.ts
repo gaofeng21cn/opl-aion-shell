@@ -92,6 +92,36 @@ type OplPostInstallAiSelfCheckEntry = {
   release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt';
 };
 
+export type OplDeveloperProfileCapabilityAxis =
+  | 'source_channel'
+  | 'workspace_trust'
+  | 'github_authority'
+  | 'agent_automation'
+  | 'runtime_mutation_scope';
+
+export type OplDeveloperProfileCapability = {
+  standard_default: string;
+  developer_opt_in: string;
+  display_policy: string;
+};
+
+export type OplDeveloperProfileSettings = {
+  label_key: string;
+  description_key: string;
+  hide_machine_status: boolean;
+  source: string;
+  default_profile: string;
+  opt_in_policy: string;
+  capability_axes: OplDeveloperProfileCapabilityAxis[];
+  capabilities: Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>;
+  legacy_developer_mode_alias: {
+    state_source: string;
+    display_policy: string;
+    must_not_display_as: string;
+  };
+  state_keys: Record<string, string>;
+};
+
 type AppProductProfile = {
   schema_version: 1;
   owner: 'one-person-lab-app';
@@ -195,10 +225,7 @@ type AppProductProfile = {
     visible_tabs: string[];
     environment_items: string[];
     legacy_route_redirects: Record<string, string>;
-    developer_mode: {
-      hide_machine_status: boolean;
-      state_keys: Record<string, string>;
-    };
+    developer_profile: OplDeveloperProfileSettings;
   };
   boundary: {
     app_does_not_own: string[];
@@ -206,6 +233,13 @@ type AppProductProfile = {
 };
 
 const CODEX_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
+const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[] = [
+  'source_channel',
+  'workspace_trust',
+  'github_authority',
+  'agent_automation',
+  'runtime_mutation_scope',
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -301,6 +335,88 @@ function readStringArrayRecord(value: unknown, context: string): Record<string, 
       return entry[1].every((item) => typeof item === 'string' && item.trim().length > 0);
     })
   );
+}
+
+function readDeveloperProfileCapability(
+  value: unknown,
+  axis: OplDeveloperProfileCapabilityAxis
+): OplDeveloperProfileCapability {
+  if (!isRecord(value)) {
+    throw new Error(`Invalid OPL product profile: settings.developer_profile.capabilities.${axis} must be an object`);
+  }
+  const standardDefault = typeof value.standard_default === 'string' ? value.standard_default.trim() : '';
+  const developerOptIn = typeof value.developer_opt_in === 'string' ? value.developer_opt_in.trim() : '';
+  const displayPolicy = typeof value.display_policy === 'string' ? value.display_policy.trim() : '';
+  if (!standardDefault || !developerOptIn || !displayPolicy) {
+    throw new Error(`Invalid OPL product profile: settings.developer_profile.capabilities.${axis} is incomplete`);
+  }
+  return {
+    standard_default: standardDefault,
+    developer_opt_in: developerOptIn,
+    display_policy: displayPolicy,
+  };
+}
+
+function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDeveloperProfileSettings {
+  const developerProfile = settings.developer_profile;
+  if (!isRecord(developerProfile)) {
+    throw new Error('Invalid OPL product profile: settings.developer_profile must be declared');
+  }
+  const capabilityAxes = readStringArray(
+    developerProfile,
+    'capability_axes',
+    'settings.developer_profile'
+  ) as OplDeveloperProfileCapabilityAxis[];
+  if (capabilityAxes.join(',') !== OPL_DEVELOPER_PROFILE_CAPABILITY_AXES.join(',')) {
+    throw new Error('Invalid OPL product profile: Developer Profile capability axes must match OPL App');
+  }
+  if (
+    developerProfile.source !==
+      'app_state.developer_profile + app_state.developer_mode compatibility field + app_state.modules[].source_policy' ||
+    developerProfile.default_profile !== 'standard_user' ||
+    developerProfile.opt_in_policy !== 'explicit_opt_in_only'
+  ) {
+    throw new Error('Invalid OPL product profile: Developer Profile source and defaults must match OPL App');
+  }
+  const capabilities = isRecord(developerProfile.capabilities) ? developerProfile.capabilities : null;
+  if (!capabilities) {
+    throw new Error('Invalid OPL product profile: settings.developer_profile.capabilities must be an object');
+  }
+  const capabilityEntries = Object.fromEntries(
+    OPL_DEVELOPER_PROFILE_CAPABILITY_AXES.map((axis) => [
+      axis,
+      readDeveloperProfileCapability(capabilities[axis], axis),
+    ])
+  ) as Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>;
+
+  const legacyAlias = developerProfile.legacy_developer_mode_alias;
+  if (!isRecord(legacyAlias)) {
+    throw new Error('Invalid OPL product profile: Developer Profile legacy alias must be declared');
+  }
+  if (
+    legacyAlias.state_source !== 'app_state.developer_mode' ||
+    legacyAlias.display_policy !== 'show_as_profile_summary_not_primary_switch' ||
+    legacyAlias.must_not_display_as !== 'single_global_toggle'
+  ) {
+    throw new Error('Invalid OPL product profile: Developer Profile legacy alias must preserve compatibility policy');
+  }
+
+  return {
+    label_key: typeof developerProfile.label_key === 'string' ? developerProfile.label_key : '',
+    description_key: typeof developerProfile.description_key === 'string' ? developerProfile.description_key : '',
+    hide_machine_status: developerProfile.hide_machine_status === true,
+    source: developerProfile.source,
+    default_profile: developerProfile.default_profile,
+    opt_in_policy: developerProfile.opt_in_policy,
+    capability_axes: capabilityAxes,
+    capabilities: capabilityEntries,
+    legacy_developer_mode_alias: {
+      state_source: 'app_state.developer_mode',
+      display_policy: 'show_as_profile_summary_not_primary_switch',
+      must_not_display_as: 'single_global_toggle',
+    },
+    state_keys: readStringRecord(developerProfile.state_keys, 'settings.developer_profile.state_keys'),
+  };
 }
 
 function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurposeEntry[] {
@@ -582,7 +698,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const companionPayloads = value.companion_payloads;
   const commandLineTools = isRecord(firstRun) ? firstRun.command_line_tools : null;
   const settings = value.settings;
-  const developerMode = isRecord(settings) ? settings.developer_mode : null;
   const boundary = value.boundary;
   if (
     !isRecord(defaultSession) ||
@@ -594,10 +709,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   ) {
     throw new Error('Invalid OPL product profile: missing default session, codex, or first-run section');
   }
-  if (!isRecord(settings) || !isRecord(developerMode) || !isRecord(boundary)) {
+  if (!isRecord(settings) || !isRecord(boundary)) {
     throw new Error('Invalid OPL product profile: missing settings or boundary section');
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
+  const developerProfile = readDeveloperProfileSettings(settings);
   const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced', 'about'];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
@@ -945,10 +1061,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       visible_tabs: visibleSettingsTabs,
       environment_items: environmentItems,
       legacy_route_redirects: legacySettingsRouteRedirects,
-      developer_mode: {
-        hide_machine_status: developerMode.hide_machine_status === true,
-        state_keys: readStringRecord(developerMode.state_keys, 'settings.developer_mode.state_keys'),
-      },
+      developer_profile: developerProfile,
     },
     boundary: {
       app_does_not_own: appDoesNotOwn,
@@ -1144,4 +1257,17 @@ export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> 
 
 export function getOplRuntimeEnvironmentItems(): string[] {
   return [...OPL_PRODUCT_PROFILE.settings.environment_items];
+}
+
+export function getOplDeveloperProfileSettings(): OplDeveloperProfileSettings {
+  const developerProfile = OPL_PRODUCT_PROFILE.settings.developer_profile;
+  return {
+    ...developerProfile,
+    capability_axes: [...developerProfile.capability_axes],
+    capabilities: Object.fromEntries(
+      developerProfile.capability_axes.map((axis) => [axis, { ...developerProfile.capabilities[axis] }])
+    ) as Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>,
+    legacy_developer_mode_alias: { ...developerProfile.legacy_developer_mode_alias },
+    state_keys: { ...developerProfile.state_keys },
+  };
 }

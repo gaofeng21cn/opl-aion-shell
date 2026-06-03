@@ -96,6 +96,36 @@ describe('SystemModalContent OPL App state', () => {
             effective_state: 'active_direct',
             description: 'Developer mode from app state',
           },
+          developer_profile: {
+            profile_id: 'maintainer',
+            status: 'ready',
+            level: 'maintainer',
+            source: 'repo_authority_direct_write',
+            impact: 'May use direct repository repair routes for required OPL repos.',
+            capabilities: {
+              source_channel: {
+                status: 'ready',
+                level: 'managed_package_channel',
+                source: 'stable_package_channel',
+                impact: 'This module uses the stable managed package channel.',
+              },
+              workspace_trust: {
+                status: 'ready',
+                level: 'selected_workspace_only',
+                source: 'workspace_root',
+                impact: 'Only the selected workspace is trusted by default.',
+              },
+              github_authority: {
+                status: 'ready',
+                level: 'direct_write',
+                source: 'github_repo_permissions',
+                impact: 'Direct repository repair routes are available.',
+              },
+            },
+            legacy_developer_mode: {
+              effective_state: 'active_direct',
+            },
+          },
           paths: {
             workspace_root: {
               selected_path: '/Users/example/OPL Workspace',
@@ -127,7 +157,7 @@ describe('SystemModalContent OPL App state', () => {
       </SWRConfig>
     );
 
-  it('renders Developer Mode and paths from fast OPL app state', async () => {
+  it('renders Developer Profile capabilities and paths from fast OPL app state', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
@@ -135,8 +165,12 @@ describe('SystemModalContent OPL App state', () => {
     expect(await screen.findByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
     expect(screen.queryByText('Developer mode from app state')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-developer-mode-row')).toHaveTextContent('settings.oplDeveloperModeDesc');
-    expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('active_direct');
+    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('settings.developerProfileDesc');
+    expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('maintainer');
+    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('source_channel');
+    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('managed_package_channel');
+    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('github_authority');
+    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('direct_write');
     expect(screen.getByText('opl-flow')).toBeInTheDocument();
     expect(
       screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
@@ -173,8 +207,8 @@ describe('SystemModalContent OPL App state', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
-    expect(screen.getByTestId('opl-developer-mode-status')).toHaveTextContent('settings.unavailable');
-    expect(screen.getByTestId('opl-developer-mode-row')).not.toHaveTextContent('blocked');
+    expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('settings.unavailable');
+    expect(screen.getByTestId('opl-developer-profile-row')).not.toHaveTextContent('blocked');
   });
 
   it('keeps rendering legacy OPL Agent Codex context while the app_state projection migrates', async () => {

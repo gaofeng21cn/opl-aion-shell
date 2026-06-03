@@ -8,6 +8,7 @@ export type OplAppState = {
   schema_version?: string;
   surface_kind?: string;
   core?: JsonRecord;
+  developer_profile?: JsonRecord;
   developer_mode?: JsonRecord;
   modules?: JsonRecord;
   provider?: JsonRecord;

@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IGpuStatus, IStartOnBootStatus } from '@/common/adapter/ipcBridge';
+import { getOplDeveloperProfileSettings } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import FeedbackButton from '@/renderer/components/base/FeedbackButton';
@@ -34,18 +35,32 @@ function oplPathString(value: unknown): string | null {
   return oplString(value) ?? oplString(oplRecord(value).selected_path);
 }
 
-const USER_VISIBLE_DEVELOPER_MODE_STATES = new Set([
-  'active_direct',
-  'active_observe',
-  'inactive',
-  'auto',
-  'on',
-  'off',
+type DeveloperCapabilityDisplay = {
+  id: string;
+  status: string;
+  level: string;
+};
+
+const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
+  'contributor',
+  'maintainer',
+  'runtime_maintainer',
+  'standard_user',
+  'source_channel_opt_in',
+  'developer_limited',
+  'developer_ready',
   'unknown',
 ]);
 
-function normalizeDeveloperModeState(state: string): string {
-  return USER_VISIBLE_DEVELOPER_MODE_STATES.has(state) ? state : 'unavailable';
+function normalizeDeveloperProfileState(state: string): string {
+  return USER_VISIBLE_DEVELOPER_PROFILE_STATES.has(state) ? state : 'unavailable';
+}
+
+function readDeveloperCapabilityDisplay(value: unknown, id: string): DeveloperCapabilityDisplay | null {
+  const capability = oplRecord(value);
+  const status = oplString(capability.status) ?? 'unknown';
+  const level = oplString(capability.level) ?? status;
+  return status === 'unknown' && level === 'unknown' ? null : { id, status, level };
 }
 
 /**
@@ -72,14 +87,21 @@ const SystemModalContent: React.FC = () => {
     oplPathString(appPaths.workspace_root) ??
     oplPathString(appPaths.family_workspace_root);
   const appLogsDir = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir);
+  const developerProfileSettings = getOplDeveloperProfileSettings();
+  const appDeveloperProfile = oplRecord(appState.developer_profile);
   const appDeveloperMode = oplRecord(appState.developer_mode);
-  const developerModeState =
+  const appDeveloperCapabilities = oplRecord(appDeveloperProfile.capabilities ?? appDeveloperMode.capabilities);
+  const developerProfileState =
+    oplString(appDeveloperProfile.profile_id) ??
+    oplString(appDeveloperProfile.level) ??
+    oplString(appDeveloperProfile.status) ??
     oplString(appDeveloperMode.effective_state) ??
-    oplString(appDeveloperMode.enabled) ??
-    oplString(appDeveloperMode.status) ??
     'unknown';
-  const developerModeDisplayState = normalizeDeveloperModeState(developerModeState);
-  const developerModeDescription = t('settings.oplDeveloperModeDesc');
+  const developerProfileDisplayState = normalizeDeveloperProfileState(developerProfileState);
+  const developerProfileDescription = t(developerProfileSettings.description_key);
+  const developerProfileCapabilities = developerProfileSettings.capability_axes
+    .map((axis) => readDeveloperCapabilityDisplay(appDeveloperCapabilities[axis], axis))
+    .filter((entry): entry is DeveloperCapabilityDisplay => Boolean(entry));
 
   const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
     supported: false,
@@ -529,20 +551,35 @@ const SystemModalContent: React.FC = () => {
 
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
             <PreferenceRow
-              label={t('settings.oplDeveloperMode')}
-              description={developerModeDescription}
-              testId='opl-developer-mode-row'
+              label={t(developerProfileSettings.label_key)}
+              description={developerProfileDescription}
+              testId='opl-developer-profile-row'
             >
-              <span
-                className='px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
-                data-testid='opl-developer-mode-status'
-              >
-                {developerModeDisplayState === 'unavailable'
-                  ? t('settings.unavailable')
-                  : t(`settings.oplDeveloperModeStates.${developerModeDisplayState}`, {
-                      defaultValue: developerModeDisplayState,
-                    })}
-              </span>
+              <div className='text-12px text-t-secondary text-right max-w-420px space-y-6px'>
+                <span
+                  className='inline-flex px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
+                  data-testid='opl-developer-profile-status'
+                >
+                  {developerProfileDisplayState === 'unavailable'
+                    ? t('settings.unavailable')
+                    : t(`settings.oplDeveloperProfileStates.${developerProfileDisplayState}`, {
+                        defaultValue: developerProfileDisplayState,
+                      })}
+                </span>
+                {developerProfileCapabilities.length > 0 && (
+                  <div className='flex flex-wrap justify-end gap-6px'>
+                    {developerProfileCapabilities.map((capability) => (
+                      <span
+                        key={capability.id}
+                        className='px-8px py-3px rd-6px bg-fill-1 text-11px text-t-secondary'
+                        data-testid={`opl-developer-capability-${capability.id}`}
+                      >
+                        {capability.id}: {capability.level}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </PreferenceRow>
             <PreferenceRow
               label={t('settings.oplFlowContext')}
