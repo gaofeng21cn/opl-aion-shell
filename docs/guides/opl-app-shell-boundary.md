@@ -39,8 +39,9 @@ Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visual
 
 `app_state.operator.default_read_surface_policy` is the shell-visible guard for
 the default Runtime page. The normal page must treat
-`compact_owner_delta_projection` / `opl_compact_owner_delta_projection` as the
-first-screen payload and keep `runtime_tray_snapshot`, raw evidence envelopes,
+`current_owner_delta` / `opl_current_owner_delta` as the first-screen payload.
+`compact_owner_delta_projection` / `opl_compact_owner_delta_projection` remain
+compatibility aliases only. The normal page must keep `runtime_tray_snapshot`, raw evidence envelopes,
 stage replay body, private residue inventory, and provider internal ledgers out
 of the default state. Those refs may appear only through explicit full-state or
 diagnostic detail. The shell must render this App/Framework policy; it must not

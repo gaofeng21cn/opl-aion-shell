@@ -39,6 +39,12 @@
 
 ---
 
+## One Person Lab Shell Boundary
+
+`opl-aion-shell` is the replaceable implementation carrier for One Person Lab App. App product truth, runtime bridge contracts, release gates, screenshots, and user documentation stay in `one-person-lab-app`; this repository implements those contracts. The default OPL Runtime payload is `current_owner_delta`, while `compact_owner_delta_projection` remains a compatibility alias. See [OPL App Shell Boundary](./docs/guides/opl-app-shell-boundary.md).
+
+---
+
 ## 📋 Quick Navigation
 
 <p align="center">

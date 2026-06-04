@@ -44,9 +44,11 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   ownsDomainTruth: false,
   readsArtifactBody: false,
   readsMemoryBody: false,
-  defaultOperatorPayload: 'compact_owner_delta_projection',
+  defaultOperatorPayload: 'current_owner_delta',
+  compatibilityOperatorPayload: 'compact_owner_delta_projection',
   defaultReadSurfacePolicy: {
-    defaultProjection: 'opl_compact_owner_delta_projection',
+    defaultProjection: 'opl_current_owner_delta',
+    compatibilityProjection: 'opl_compact_owner_delta_projection',
     sourcePath: 'app_state.operator.default_read_surface_policy',
     fullDetailPolicy: 'explicit_full_detail_or_lazy_diagnostic_only',
     rawRefsPolicy: 'raw_refs_require_explicit_full_detail',

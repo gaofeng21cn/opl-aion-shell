@@ -56,7 +56,10 @@ describe('runtime visualization projection normalization', () => {
           status: 'ready',
           default_read_surface_policy: {
             surface_kind: 'opl_app_default_read_surface_policy',
-            default_operator_payload: 'compact_owner_delta_projection',
+            default_operator_payload: 'current_owner_delta',
+            compatibility_operator_payload: 'compact_owner_delta_projection',
+            default_projection: 'opl_current_owner_delta',
+            compatibility_projection: 'opl_compact_owner_delta_projection',
             normal_state_surface: 'opl app state --profile fast --json',
             full_runtime_drilldown_surface: 'opl runtime app-operator-drilldown --detail full --json',
             raw_runtime_projection_policy: 'explicit_full_detail_or_lazy_diagnostic_only',
@@ -90,7 +93,8 @@ describe('runtime visualization projection normalization', () => {
     expect(model.sourceSurface).toBe('opl_app_state');
     expect(model.state).toBe('ready');
     expect(model.defaultReadSurfacePolicy).toMatchObject({
-      defaultProjection: 'compact_owner_delta_projection',
+      defaultProjection: 'opl_current_owner_delta',
+      compatibilityProjection: 'opl_compact_owner_delta_projection',
       normalStateSurface: 'opl app state --profile fast --json',
       fullRuntimeDrilldownSurface: 'opl runtime app-operator-drilldown --detail full --json',
       rawRuntimeProjectionPolicy: 'explicit_full_detail_or_lazy_diagnostic_only',
