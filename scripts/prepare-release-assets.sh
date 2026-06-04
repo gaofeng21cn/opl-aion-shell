@@ -31,7 +31,8 @@ is_macos_arm64_distributable() {
 mapfile -t ALL_DISTRIBUTABLES < <(find "$ARTIFACTS_DIR" -type f \( \
   -name "*.dmg" -o \
   -name "*.zip" -o \
-  -name "*.blockmap" \
+  -name "*.blockmap" -o \
+  -name "standard-gatekeeper-launch-policy.json" \
 \) | sort)
 
 DISTRIBUTABLES=()

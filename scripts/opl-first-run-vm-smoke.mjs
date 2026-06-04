@@ -331,6 +331,52 @@ function launchApp(appPath, options) {
   run('open', buildLaunchAppArgs(appPath, options));
 }
 
+function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
+  const codesign = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
+    encoding: 'utf8',
+  });
+  const spctl = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
+    encoding: 'utf8',
+  });
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(artifactsDir, 'gatekeeper-launch-policy.json'),
+    `${JSON.stringify(
+      {
+        schema: 'opl_gatekeeper_launch_policy.v1',
+        app_path: appPath,
+        codesign: {
+          status: codesign.status,
+          stdout: codesign.stdout ?? '',
+          stderr: codesign.stderr ?? codesign.error?.message ?? '',
+        },
+        spctl: {
+          status: spctl.status,
+          stdout: spctl.stdout ?? '',
+          stderr: spctl.stderr ?? spctl.error?.message ?? '',
+        },
+      },
+      null,
+      2
+    )}\n`
+  );
+  if (codesign.status !== 0 || spctl.status !== 0) {
+    throw new Error(
+      [
+        'Gatekeeper launch policy rejected the packaged app before first launch.',
+        `codesign status=${codesign.status}`,
+        codesign.stdout ? `codesign stdout:\n${codesign.stdout}` : '',
+        codesign.stderr ? `codesign stderr:\n${codesign.stderr}` : '',
+        `spctl status=${spctl.status}`,
+        spctl.stdout ? `spctl stdout:\n${spctl.stdout}` : '',
+        spctl.stderr ? `spctl stderr:\n${spctl.stderr}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+}
+
 function terminateExistingApp(processName = DEFAULT_PROCESS_NAME) {
   spawnSync('osascript', ['-e', `tell application ${JSON.stringify(processName)} to quit`], { stdio: 'ignore' });
   spawnSync('/usr/bin/pkill', ['-x', processName], { stdio: 'ignore' });
@@ -2637,6 +2683,9 @@ async function main() {
         }
       );
     }
+    await runSmokePhase(writeSmokeEvent, 'verify_gatekeeper_launch_policy', () =>
+      verifyGatekeeperLaunchPolicy(appPath, options.artifacts)
+    );
     const launchStartedAtMs = Date.now() - 1_000;
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
       app_path: appPath,
@@ -2943,6 +2992,7 @@ export const __test =
         firstRunAccessibilityExpectedLabels,
         runOplJson,
         buildLaunchAppArgs,
+        verifyGatekeeperLaunchPolicy,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,

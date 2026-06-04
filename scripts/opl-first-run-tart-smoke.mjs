@@ -31,6 +31,16 @@ const SMOKE_PROFILES = new Map([
       display: '1920x1080px',
     },
   ],
+  [
+    'homebrew-standard-cask',
+    {
+      runtimeProfile: 'standard',
+      settingsSmoke: true,
+      display: '1920x1080px',
+      installMode: 'homebrew-cask',
+      homebrewCask: 'one-person-lab',
+    },
+  ],
 ]);
 
 const runtimeState = {
@@ -81,6 +91,9 @@ Options:
                            First-run package profile to verify: full or standard. Default: full.
                            Use standard for the public macOS app DMG when Full-only bundled
                            module/skill equivalence is not expected.
+  --install-mode <mode>     Install mode: dmg or homebrew-cask. Default: dmg.
+  --homebrew-tap <tap>      Homebrew tap for --install-mode homebrew-cask. Default: gaofeng21cn/one-person-lab.
+  --homebrew-cask <name>    Homebrew cask to install. Default: one-person-lab.
   --require-codex-config-wizard
                            Fail unless the guest smoke sees and submits the Codex config wizard.
                            Defaults to false; Full gates still require Codex readiness through
@@ -130,6 +143,9 @@ function parseArgs(argv) {
     codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
     runtimeProfile: 'full',
+    installMode: 'dmg',
+    homebrewTap: 'gaofeng21cn/one-person-lab',
+    homebrewCask: 'one-person-lab',
     requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
     guestNodeRoot: '',
@@ -250,6 +266,15 @@ function parseArgs(argv) {
     } else if (arg === '--runtime-profile') {
       options.runtimeProfile = value;
       explicit.add('runtimeProfile');
+    } else if (arg === '--install-mode') {
+      options.installMode = value;
+      explicit.add('installMode');
+    } else if (arg === '--homebrew-tap') {
+      options.homebrewTap = value;
+      explicit.add('homebrewTap');
+    } else if (arg === '--homebrew-cask') {
+      options.homebrewCask = value;
+      explicit.add('homebrewCask');
     } else if (arg === '--codex-ai-self-check-mode') {
       options.codexAiSelfCheckMode = value;
       explicit.add('codexAiSelfCheckMode');
@@ -280,8 +305,14 @@ function parseArgs(argv) {
     if (!explicit.has(key)) options[key] = value;
   }
   if (!options.sourceVm) throw new Error('--source-vm or OPL_FIRST_RUN_TART_SOURCE is required.');
-  if (!options.dmg) throw new Error('--dmg is required.');
-  if (!options.dryRun && !fs.existsSync(options.dmg)) throw new Error(`DMG does not exist: ${options.dmg}`);
+  if (!['dmg', 'homebrew-cask'].includes(options.installMode)) {
+    throw new Error('--install-mode must be one of: dmg, homebrew-cask.');
+  }
+  if (options.installMode === 'dmg' && !options.dmg) throw new Error('--dmg is required for --install-mode dmg.');
+  if (options.installMode === 'homebrew-cask' && !options.homebrewCask) {
+    throw new Error('--homebrew-cask is required for --install-mode homebrew-cask.');
+  }
+  if (!options.dryRun && options.dmg && !fs.existsSync(options.dmg)) throw new Error(`DMG does not exist: ${options.dmg}`);
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
   if (!Number.isFinite(options.smokeTimeoutMs) || options.smokeTimeoutMs <= 0) {
     throw new Error('--smoke-timeout-ms must be positive.');
@@ -297,6 +328,8 @@ function parseArgs(argv) {
     if (!fs.existsSync(nodeBin)) {
       throw new Error(`--guest-node-root must contain bin/node: ${options.guestNodeRoot}`);
     }
+    const realNodeBin = fs.realpathSync(nodeBin);
+    options.guestNodeRoot = path.resolve(path.dirname(realNodeBin), '..');
   }
   if (options.frameworkSourceArchive && !options.dryRun && !fs.existsSync(options.frameworkSourceArchive)) {
     throw new Error(`Framework source archive does not exist: ${options.frameworkSourceArchive}`);
@@ -328,7 +361,10 @@ function buildDryRunPlan(options) {
     smoke_profile: options.smokeProfile,
     source_vm: options.sourceVm,
     vm_name: options.vmName,
-    dmg: options.dmg,
+    install_mode: options.installMode,
+    dmg: options.dmg || null,
+    homebrew_tap: options.homebrewTap,
+    homebrew_cask: options.homebrewCask,
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
     display: options.display,
@@ -788,7 +824,9 @@ function guestSmokeCommand(
     : [];
   const smokeArgs = [
     `${nodeCommand} ${shellQuote(guestScriptPath)}`,
-    `--dmg ${shellQuote(guestDmgPath)}`,
+    options.installMode === 'homebrew-cask'
+      ? `--app ${shellQuote('/Applications/One Person Lab.app')}`
+      : `--dmg ${shellQuote(guestDmgPath)}`,
     `--artifacts ${shellQuote(guestArtifactDir)}`,
     `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`,
     options.requireCodexConfigWizard ? '--require-codex-config-wizard' : '',
@@ -807,6 +845,45 @@ function guestSmokeCommand(
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
   ].join(' ');
   return ['set -euo pipefail', ...sourceArchiveEnv, smokeArgs].join('\n');
+}
+
+function guestCleanStateProbeCommand() {
+  return `
+set -euo pipefail
+existing=()
+for path in "$HOME/Library/Logs/One Person Lab/first-run.jsonl" "$HOME/Library/Application Support/OPL/state" "$HOME/Library/Application Support/One Person Lab"; do
+  if [ -e "$path" ]; then
+    existing+=("$path")
+  fi
+done
+if [ "\${#existing[@]}" -gt 0 ]; then
+  printf 'Fresh VM assertion failed; existing OPL state/log/app-local state found:\\n' >&2
+  printf '%s\\n' "\${existing[@]}" >&2
+  exit 1
+fi
+`;
+}
+
+function guestHomebrewInstallCommand(options) {
+  return `
+set -euo pipefail
+BREW_BIN=""
+if command -v brew >/dev/null 2>&1; then
+  BREW_BIN="$(command -v brew)"
+elif [ -x /opt/homebrew/bin/brew ]; then
+  BREW_BIN="/opt/homebrew/bin/brew"
+elif [ -x /usr/local/bin/brew ]; then
+  BREW_BIN="/usr/local/bin/brew"
+fi
+if [ -z "$BREW_BIN" ]; then
+  echo "Homebrew is required for the Homebrew cask first-run smoke VM image." >&2
+  exit 85
+fi
+eval "$("$BREW_BIN" shellenv)"
+"$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
+"$BREW_BIN" install --cask ${shellQuote(options.homebrewCask)}
+test -d "/Applications/One Person Lab.app"
+`;
 }
 
 function resolveGuestSmokeScriptPath() {
@@ -1015,7 +1092,7 @@ async function main() {
 
     guestArtifactDir = `${options.guestWorkdir}/artifacts`;
     runtimeState.guestArtifactDir = guestArtifactDir;
-    const guestDmgPath = `${options.guestWorkdir}/${path.basename(options.dmg)}`;
+    const guestDmgPath = options.dmg ? `${options.guestWorkdir}/${path.basename(options.dmg)}` : null;
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
     const guestCodexApiKeyPath = `${options.guestWorkdir}/codex-api-key.txt`;
     setStage('prepare_guest_workdir');
@@ -1027,7 +1104,8 @@ async function main() {
     setStage('copy_inputs_to_guest');
     const guestFrameworkArchivePath = guestFrameworkSourceArchivePath(options);
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
-    const guestInputs = [options.dmg, resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
+    const guestInputs = [resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
+    if (options.dmg) guestInputs.unshift(options.dmg);
     if (options.frameworkSourceArchive) guestInputs.push(options.frameworkSourceArchive);
     if (options.frameworkInstallScript) guestInputs.push(options.frameworkInstallScript);
     await scpToGuest(options, ip, guestInputs, options.guestWorkdir);
@@ -1042,6 +1120,15 @@ async function main() {
     setStage(options.guestNodeCommand ? 'use_guest_node_command' : 'resolve_guest_node');
     if (!options.guestNodeCommand) {
       options.guestNodeCommand = await resolveGuestNodeCommand(options, ip);
+    }
+    if (options.installMode === 'homebrew-cask') {
+      setStage('assert_clean_state_before_homebrew_install');
+      await ssh(options, ip, guestCleanStateProbeCommand());
+      setStage('homebrew_cask_install');
+      await sshWithRunOptions(options, ip, guestHomebrewInstallCommand(options), {
+        label: `ssh homebrew_cask_install ${options.guestUser}@${ip}`,
+        timeoutMs: options.timeoutMs,
+      });
     }
     setStage('run_guest_smoke');
     await sshWithRunOptions(
@@ -1098,6 +1185,7 @@ export const __test =
         frameworkInstallScriptFinalizeCommand,
         frameworkSourceArchivePlan,
         guestFrameworkSourceArchivePath,
+        guestHomebrewInstallCommand,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
         isMainModule,

@@ -240,6 +240,15 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource.indexOf('terminate_existing_app')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
   });
 
+  it('checks Gatekeeper launch policy before opening the packaged app', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+
+    expect(scriptSource).toContain('verify_gatekeeper_launch_policy');
+    expect(scriptSource).toContain("spctl', ['--assess', '--type', 'execute', '--verbose=4'");
+    expect(scriptSource).toContain('gatekeeper-launch-policy.json');
+    expect(scriptSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
+  });
+
   it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
     const expression = vmSmoke.visibleRuntimeRefreshButtonExpression();
 
@@ -761,6 +770,54 @@ describe('OPL first-run VM smoke scripts', () => {
     );
     expect(command).toContain('--assistant-route-smoke');
     expect(command).toContain('--cdp-port');
+  });
+
+  it('resolves guest node root through symlinked node binaries before copying to the guest', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-node-root-'));
+    try {
+      const linkedRoot = path.join(root, 'homebrew');
+      const realRoot = path.join(root, 'Cellar', 'node', '26.0.0');
+      fs.mkdirSync(path.join(linkedRoot, 'bin'), { recursive: true });
+      fs.mkdirSync(path.join(realRoot, 'bin'), { recursive: true });
+      writeFile(path.join(realRoot, 'bin', 'node'), '#!/bin/sh\n', 0o755);
+      fs.symlinkSync(path.join(realRoot, 'bin', 'node'), path.join(linkedRoot, 'bin', 'node'));
+
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--guest-node-root',
+        linkedRoot,
+        '--dry-run',
+      ]);
+
+      const expectedRoot = fs.realpathSync(realRoot);
+      expect(options.guestNodeRoot).toBe(expectedRoot);
+      expect(tartSmoke.buildDryRunPlan(options).guest_node_root).toBe(expectedRoot);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the canonical Homebrew binary path when SSH does not provide a login PATH', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--install-mode',
+      'homebrew-cask',
+      '--homebrew-cask',
+      'one-person-lab',
+      '--smoke-profile',
+      'homebrew-standard-cask',
+      '--dry-run',
+    ]);
+
+    const command = tartSmoke.guestHomebrewInstallCommand(options);
+    expect(command).toContain('/opt/homebrew/bin/brew');
+    expect(command).toContain('"$BREW_BIN" shellenv');
+    expect(command).toContain('"$BREW_BIN" tap');
+    expect(command).toContain('"$BREW_BIN" install --cask');
   });
 
   it('validates assistant route smoke independently from Settings smoke', () => {
