@@ -1260,10 +1260,7 @@ function shouldWaitForFirstRunCompletion(options) {
 }
 
 function shouldWaitForCoreFirstLaunchReady(options) {
-  return (
-    options.requireCodexConfigWizard === true ||
-    shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
-  );
+  return options.requireCodexConfigWizard === true || shouldVerifyFullFirstRunEquivalence(options.runtimeProfile);
 }
 
 function shouldCheckFirstRunBeginnerUx(options) {
