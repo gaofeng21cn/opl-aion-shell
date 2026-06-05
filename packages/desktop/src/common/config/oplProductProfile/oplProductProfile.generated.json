@@ -629,7 +629,7 @@
       "label_key": "settings.developerProfile",
       "description_key": "settings.developerProfileDesc",
       "hide_machine_status": true,
-      "source": "app_state.developer_profile + app_state.developer_mode compatibility field + app_state.modules[].source_policy",
+      "source": "app_state.developer_profile + app_state.modules[].source_policy",
       "default_profile": "standard_user",
       "opt_in_policy": "explicit_opt_in_only",
       "capability_axes": [
@@ -665,11 +665,6 @@
           "developer_opt_in": "app_action_route_with_developer_scope",
           "display_policy": "show_mutation_scope_without_claiming_runtime_authority"
         }
-      },
-      "legacy_developer_mode_alias": {
-        "state_source": "app_state.developer_mode",
-        "display_policy": "show_as_profile_summary_not_primary_switch",
-        "must_not_display_as": "single_global_toggle"
       },
       "state_keys": {
         "unknown": "settings.developerProfileDesc",
@@ -839,32 +834,33 @@
       "family_production_readiness"
     ],
     "default_runtime_page_attention": {
-      "mode": "running_activity_first_project_refs_second",
+      "mode": "current_owner_delta_first_project_refs_second",
       "primary_questions": [
-        "which domain has live Temporal/provider active execution",
-        "how many currently running tasks are visible after filtering checkpointed provider refs",
-        "what kinds of work are currently executing",
-        "when the latest running heartbeat was observed",
-        "which project or paper lines are still active from the user perspective"
+        "which task or project needs the next owner action",
+        "who owns the next visible step",
+        "what accepted answer shape is needed next",
+        "whether the next visible item is an artifact, receipt, typed blocker, human gate, or release fact",
+        "which project or paper lines are active from the user perspective"
       ],
       "active_project_line_projection": {
         "source": "app_state.operator.workbench.activity_center.active_projects + app_state.operator.visual_ref_groups.active_project_refs",
         "display_policy": "queued_or_escalated_owner_handled_project_lines_count_as_active_projects_without_claiming_active_worker_run",
         "status_preservation_required": true,
-        "must_preserve_fields": ["status", "active_run_id", "next_visible_step"]
+        "must_preserve_fields": ["status", "active_run_id", "next_visible_step", "next_owner"]
       },
       "secondary_questions": [
-        "what is the next visible owner action",
         "whether the next delta is deliverable progress, platform repair, human gate, typed blocker, or stop-loss",
-        "which owner must produce the next receipt, delta, or blocker"
+        "which owner must produce the next receipt, delta, or blocker",
+        "which detail view can explain raw provider or ledger evidence on demand"
       ],
       "secondary_diagnostics": [
-        "operator summary",
+        "operator diagnostic summary",
         "safe action refs",
         "refs-only evidence summary",
         "full ledger drilldown"
       ],
-      "full_ledger_policy": "on_demand_diagnostic_or_release_evidence_only"
+      "full_ledger_policy": "on_demand_diagnostic_or_release_evidence_only",
+      "ordinary_cockpit_surface_budget_ref": "contracts/app-gui-product-contract.json#ordinary_cockpit_surface_budget"
     },
     "release_evidence_scope": {
       "classification": "cohort_bound_app_user_path_evidence",

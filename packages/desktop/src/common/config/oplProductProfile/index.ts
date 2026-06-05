@@ -388,7 +388,7 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
   }
   if (
     developerProfile.source !==
-      'app_state.developer_profile + app_state.developer_mode compatibility field + app_state.modules[].source_policy' ||
+      'app_state.developer_profile + app_state.modules[].source_policy' ||
     developerProfile.default_profile !== 'standard_user' ||
     developerProfile.opt_in_policy !== 'explicit_opt_in_only'
   ) {
@@ -404,18 +404,6 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
       readDeveloperProfileCapability(capabilities[axis], axis),
     ])
   ) as Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>;
-
-  const legacyAlias = developerProfile.legacy_developer_mode_alias;
-  if (!isRecord(legacyAlias)) {
-    throw new Error('Invalid OPL product profile: Developer Profile legacy alias must be declared');
-  }
-  if (
-    legacyAlias.state_source !== 'app_state.developer_mode' ||
-    legacyAlias.display_policy !== 'show_as_profile_summary_not_primary_switch' ||
-    legacyAlias.must_not_display_as !== 'single_global_toggle'
-  ) {
-    throw new Error('Invalid OPL product profile: Developer Profile legacy alias must preserve compatibility policy');
-  }
 
   return {
     label_key: typeof developerProfile.label_key === 'string' ? developerProfile.label_key : '',
