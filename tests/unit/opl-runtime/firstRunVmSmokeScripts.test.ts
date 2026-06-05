@@ -246,6 +246,11 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('verify_gatekeeper_launch_policy');
     expect(scriptSource).toContain("spctl', ['--assess', '--type', 'execute', '--verbose=4'");
     expect(scriptSource).toContain('gatekeeper-launch-policy.json');
+    expect(scriptSource).toContain("xattr', ['-dr', 'com.apple.quarantine', targetApp]");
+    expect(scriptSource).toContain('local_authorization_status: localAuthorizationStatus');
+    expect(scriptSource).toContain("'rejected_allowed_unsigned'");
+    expect(scriptSource).toContain('if (codesign.status !== 0)');
+    expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
     expect(scriptSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
   });
 

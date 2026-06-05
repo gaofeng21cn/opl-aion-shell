@@ -201,6 +201,58 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(false);
   });
 
+  it('records unsigned spctl rejection as local authorization diagnostic after codesign passes', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-'));
+    const previousPath = process.env.PATH;
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-bin-'));
+    const appPath = path.join(os.tmpdir(), 'One Person Lab.app');
+    try {
+      fs.writeFileSync(path.join(binDir, 'codesign'), '#!/bin/sh\nexit 0\n');
+      fs.writeFileSync(path.join(binDir, 'spctl'), '#!/bin/sh\necho "$1: rejected" >&2\nexit 3\n');
+      fs.chmodSync(path.join(binDir, 'codesign'), 0o755);
+      fs.chmodSync(path.join(binDir, 'spctl'), 0o755);
+      process.env.PATH = `${binDir}:${previousPath}`;
+
+      expect(() => __test.verifyGatekeeperLaunchPolicy(appPath, artifacts)).not.toThrow();
+      const policy = JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8'));
+      expect(policy).toMatchObject({
+        schema: 'opl_gatekeeper_launch_policy.v1',
+        app_path: appPath,
+        gatekeeper_required: false,
+        quarantine_removal_required: true,
+        local_authorization_status: 'rejected_allowed_unsigned',
+        codesign: { status: 0 },
+        spctl: { status: 3 },
+      });
+      expect(policy.spctl.stderr).toContain('rejected');
+    } finally {
+      process.env.PATH = previousPath;
+      fs.rmSync(artifacts, { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails local authorization when codesign verification fails', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-'));
+    const previousPath = process.env.PATH;
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-bin-'));
+    try {
+      fs.writeFileSync(path.join(binDir, 'codesign'), '#!/bin/sh\necho codesign-failed >&2\nexit 1\n');
+      fs.writeFileSync(path.join(binDir, 'spctl'), '#!/bin/sh\nexit 0\n');
+      fs.chmodSync(path.join(binDir, 'codesign'), 0o755);
+      fs.chmodSync(path.join(binDir, 'spctl'), 0o755);
+      process.env.PATH = `${binDir}:${previousPath}`;
+
+      expect(() => __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts)).toThrow(
+        /Stable local authorization failed before first launch/
+      );
+    } finally {
+      process.env.PATH = previousPath;
+      fs.rmSync(artifacts, { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  });
+
   it('does not require folded technical action labels during first-run accessibility fallback', () => {
     const labels = __test.firstRunAccessibilityExpectedLabels();
 

@@ -314,6 +314,7 @@ function installDmgApp(dmgPath, installDir) {
     const targetApp = path.join(installDir, path.basename(mountedApp));
     fs.rmSync(targetApp, { recursive: true, force: true });
     run('ditto', [mountedApp, targetApp]);
+    spawnSync('xattr', ['-dr', 'com.apple.quarantine', targetApp], { stdio: 'ignore' });
     return targetApp;
   } finally {
     detachDmg(mountPoint);
@@ -338,6 +339,8 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
   const spctl = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
     encoding: 'utf8',
   });
+  const localAuthorizationStatus =
+    codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed';
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.writeFileSync(
     path.join(artifactsDir, 'gatekeeper-launch-policy.json'),
@@ -345,6 +348,9 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
       {
         schema: 'opl_gatekeeper_launch_policy.v1',
         app_path: appPath,
+        gatekeeper_required: false,
+        quarantine_removal_required: true,
+        local_authorization_status: localAuthorizationStatus,
         codesign: {
           status: codesign.status,
           stdout: codesign.stdout ?? '',
@@ -360,10 +366,10 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
       2
     )}\n`
   );
-  if (codesign.status !== 0 || spctl.status !== 0) {
+  if (codesign.status !== 0) {
     throw new Error(
       [
-        'Gatekeeper launch policy rejected the packaged app before first launch.',
+        'Stable local authorization failed before first launch.',
         `codesign status=${codesign.status}`,
         codesign.stdout ? `codesign stdout:\n${codesign.stdout}` : '',
         codesign.stderr ? `codesign stderr:\n${codesign.stderr}` : '',
