@@ -66,10 +66,14 @@ describe('ensurePackagedOplFullRuntime', () => {
       true
     );
     if (process.platform === 'darwin') {
-      expect(spawnSync).toHaveBeenCalledWith('xattr', ['-dr', 'com.apple.quarantine', expect.stringContaining('.tmp-')], {
-        encoding: 'utf8',
-        stdio: 'pipe',
-      });
+      expect(spawnSync).toHaveBeenCalledWith(
+        'xattr',
+        ['-dr', 'com.apple.quarantine', expect.stringContaining('.tmp-')],
+        {
+          encoding: 'utf8',
+          stdio: 'pipe',
+        }
+      );
     }
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
     expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));

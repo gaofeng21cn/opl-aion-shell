@@ -312,7 +312,8 @@ function parseArgs(argv) {
   if (options.installMode === 'homebrew-cask' && !options.homebrewCask) {
     throw new Error('--homebrew-cask is required for --install-mode homebrew-cask.');
   }
-  if (!options.dryRun && options.dmg && !fs.existsSync(options.dmg)) throw new Error(`DMG does not exist: ${options.dmg}`);
+  if (!options.dryRun && options.dmg && !fs.existsSync(options.dmg))
+    throw new Error(`DMG does not exist: ${options.dmg}`);
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
   if (!Number.isFinite(options.smokeTimeoutMs) || options.smokeTimeoutMs <= 0) {
     throw new Error('--smoke-timeout-ms must be positive.');
