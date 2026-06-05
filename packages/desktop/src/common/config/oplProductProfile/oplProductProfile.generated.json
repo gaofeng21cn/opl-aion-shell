@@ -455,6 +455,22 @@
       "full_readiness_provider": "temporal",
       "ready_to_launch_blocking": false
     },
+    "first_conversation": {
+      "gate": "acp_warmup_before_initial_send",
+      "source_command": "opl system initialize --json",
+      "ready_to_launch_must_be_true": true,
+      "must_wait_for": ["conversation_record_ready", "acp_warmup_complete"],
+      "must_not_wait_for": [
+        "domain_modules",
+        "family_runtime_provider",
+        "recommended_skills",
+        "native_helpers",
+        "repo_sync",
+        "command_line_tools_install",
+        "ecosystem_module_updates"
+      ],
+      "failure_policy": "show_retryable_initial_message_error_without_losing_user_prompt"
+    },
     "progress_model": {
       "source_command": "opl system initialize --json",
       "source_path": "system_initialize.setup_flow",
@@ -783,7 +799,7 @@
       {
         "domain_id": "oma",
         "codex_visible_entry": "opl-meta-agent",
-        "preferred_app_distribution": "opl_generated_skill_surface",
+        "preferred_app_distribution": "opl_generated_codex_plugin_surface",
         "direct_skill_semantics_required": true
       }
     ]

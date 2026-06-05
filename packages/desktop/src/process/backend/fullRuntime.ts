@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
+import { spawnSync } from 'child_process';
 
 import { buildOplHostToolEnv } from './hostToolEnv';
 
@@ -165,6 +166,7 @@ function installRuntimePayload(
     dereference: false,
     preserveTimestamps: true,
   });
+  removeMacosQuarantineAttribute(tempTarget);
   fs.writeFileSync(
     path.join(tempTarget, INSTALL_MARKER),
     `${JSON.stringify(
@@ -180,6 +182,20 @@ function installRuntimePayload(
   );
   fs.rmSync(runtimeHome, { recursive: true, force: true });
   fs.renameSync(tempTarget, runtimeHome);
+}
+
+function removeMacosQuarantineAttribute(root: string): void {
+  if (process.platform !== 'darwin') {
+    return;
+  }
+  const result = spawnSync('xattr', ['-dr', 'com.apple.quarantine', root], {
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.status === 0 || /No such xattr/i.test(`${result.stderr || ''}${result.stdout || ''}`)) {
+    return;
+  }
+  throw new Error(`Failed to remove com.apple.quarantine from Full runtime payload: ${result.stderr || result.stdout}`);
 }
 
 function writeActiveRuntimePointer(

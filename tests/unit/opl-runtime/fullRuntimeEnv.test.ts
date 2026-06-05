@@ -1,13 +1,18 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'child_process';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   activateInstalledOplFullRuntime,
   buildOplFullRuntimeShellPrefix,
   ensurePackagedOplFullRuntime,
 } from '@/process/backend/fullRuntime';
+
+vi.mock('child_process', () => ({
+  spawnSync: vi.fn(() => ({ status: 0, stdout: '', stderr: '' })),
+}));
 
 const tmpRoots: string[] = [];
 const SYSTEM_PATH_ENTRIES =
@@ -20,6 +25,7 @@ function makeTempRoot(name: string): string {
 }
 
 afterEach(() => {
+  vi.mocked(spawnSync).mockClear();
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -59,6 +65,12 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(fs.existsSync(path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current.json'))).toBe(
       true
     );
+    if (process.platform === 'darwin') {
+      expect(spawnSync).toHaveBeenCalledWith('xattr', ['-dr', 'com.apple.quarantine', expect.stringContaining('.tmp-')], {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+    }
     expect(installed?.env.OPL_FULL_RUNTIME_HOME).toBe(expectedHome);
     expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));
     expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');

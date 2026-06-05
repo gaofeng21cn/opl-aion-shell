@@ -12,6 +12,7 @@ import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getConversationRuntimeWorkspaceErrorMessage } from '../../utils/conversationCreateError';
+import { warmupConversation } from '../../utils/warmupConversation';
 import { buildSendFailureError } from './buildSendFailureError';
 
 type UseAcpInitialMessageParams = {
@@ -54,6 +55,8 @@ export const useAcpInitialMessage = ({
         const displayMessage = buildDisplayMessage(input, files, workspacePath || '');
 
         setAiProcessing(true);
+
+        await warmupConversation(conversation_id);
 
         // POST first to obtain the server-assigned msg_id, then render the
         // optimistic user bubble with that canonical id. Doing it in this
