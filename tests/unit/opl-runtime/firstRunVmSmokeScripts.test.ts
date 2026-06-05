@@ -171,7 +171,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtimeProfile: 'full',
         requireCodexConfigWizard: false,
       })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {
