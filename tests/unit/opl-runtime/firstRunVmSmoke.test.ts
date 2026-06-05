@@ -232,7 +232,7 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
-  it('fails local authorization when codesign verification fails', () => {
+  it('records codesign verification failure as unsigned local authorization diagnostic', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-'));
     const previousPath = process.env.PATH;
     const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-bin-'));
@@ -243,9 +243,20 @@ describe('packaged first-run VM smoke helpers', () => {
       fs.chmodSync(path.join(binDir, 'spctl'), 0o755);
       process.env.PATH = `${binDir}:${previousPath}`;
 
-      expect(() => __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts)).toThrow(
-        /Stable local authorization failed before first launch/
-      );
+      expect(() => __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts)).not.toThrow();
+      const policy = JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8'));
+      expect(policy).toMatchObject({
+        schema: 'opl_gatekeeper_launch_policy.v1',
+        app_path: '/tmp/One Person Lab.app',
+        gatekeeper_required: false,
+        quarantine_removal_required: true,
+        quarantine_status: 'absent',
+        quarantine_attribute_count: 0,
+        local_authorization_status: 'failed_allowed_unsigned',
+        codesign: { status: 1 },
+        spctl: { status: 0 },
+      });
+      expect(policy.codesign.stderr).toContain('codesign-failed');
     } finally {
       process.env.PATH = previousPath;
       fs.rmSync(artifacts, { recursive: true, force: true });

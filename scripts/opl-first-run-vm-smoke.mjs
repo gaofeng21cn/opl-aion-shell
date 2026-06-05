@@ -321,6 +321,30 @@ function installDmgApp(dmgPath, installDir) {
   }
 }
 
+function countQuarantineAttributes(target) {
+  let count = 0;
+  const stack = [target];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (_) {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        stack.push(path.join(current, entry));
+      }
+    }
+    const attr = spawnSync('xattr', ['-p', 'com.apple.quarantine', current], {
+      encoding: 'utf8',
+    });
+    if (attr.status === 0) count += 1;
+  }
+  return count;
+}
+
 function buildLaunchAppArgs(appPath, options) {
   const args = ['--force-renderer-accessibility'];
   args.push(`--aionui-cdp-port=${options.cdpPort}`);
@@ -339,8 +363,11 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
   const spctl = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
     encoding: 'utf8',
   });
+  const quarantineAttributeCount = countQuarantineAttributes(appPath);
   const localAuthorizationStatus =
-    codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed';
+    codesign.status === 0
+      ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned')
+      : 'failed_allowed_unsigned';
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.writeFileSync(
     path.join(artifactsDir, 'gatekeeper-launch-policy.json'),
@@ -350,6 +377,8 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
         app_path: appPath,
         gatekeeper_required: false,
         quarantine_removal_required: true,
+        quarantine_status: quarantineAttributeCount === 0 ? 'absent' : 'present',
+        quarantine_attribute_count: quarantineAttributeCount,
         local_authorization_status: localAuthorizationStatus,
         codesign: {
           status: codesign.status,
@@ -366,10 +395,11 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
       2
     )}\n`
   );
-  if (codesign.status !== 0) {
+  if (quarantineAttributeCount !== 0) {
     throw new Error(
       [
-        'Stable local authorization failed before first launch.',
+        'Stable local authorization failed to clear quarantine before first launch.',
+        `quarantine_attribute_count=${quarantineAttributeCount}`,
         `codesign status=${codesign.status}`,
         codesign.stdout ? `codesign stdout:\n${codesign.stdout}` : '',
         codesign.stderr ? `codesign stderr:\n${codesign.stderr}` : '',
