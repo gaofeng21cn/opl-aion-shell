@@ -884,6 +884,7 @@ eval "$("$BREW_BIN" shellenv)"
 "$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
 "$BREW_BIN" install --cask ${shellQuote(options.homebrewCask)}
 test -d "/Applications/One Person Lab.app"
+xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true
 `;
 }
 

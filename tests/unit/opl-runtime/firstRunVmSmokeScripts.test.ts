@@ -199,7 +199,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['Local Environment', '本地环境'],
+        ['Local Environment', '本地环境', '本机运行环境'],
         ['Codex CLI'],
         ['Temporal'],
         ['Foundry Modules', '智能体模块'],
@@ -823,6 +823,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).toContain('"$BREW_BIN" shellenv');
     expect(command).toContain('"$BREW_BIN" tap');
     expect(command).toContain('"$BREW_BIN" install --cask');
+    expect(command).toContain('xattr -dr com.apple.quarantine "/Applications/One Person Lab.app"');
   });
 
   it('validates assistant route smoke independently from Settings smoke', () => {
