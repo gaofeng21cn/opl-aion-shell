@@ -365,9 +365,7 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
   });
   const quarantineAttributeCount = countQuarantineAttributes(appPath);
   const localAuthorizationStatus =
-    codesign.status === 0
-      ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned')
-      : 'failed_allowed_unsigned';
+    codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed_allowed_unsigned';
   fs.mkdirSync(artifactsDir, { recursive: true });
   fs.writeFileSync(
     path.join(artifactsDir, 'gatekeeper-launch-policy.json'),
