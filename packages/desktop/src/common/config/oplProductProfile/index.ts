@@ -387,8 +387,7 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
     throw new Error('Invalid OPL product profile: Developer Profile capability axes must match OPL App');
   }
   if (
-    developerProfile.source !==
-      'app_state.developer_profile + app_state.modules[].source_policy' ||
+    developerProfile.source !== 'app_state.developer_profile + app_state.modules[].source_policy' ||
     developerProfile.default_profile !== 'standard_user' ||
     developerProfile.opt_in_policy !== 'explicit_opt_in_only'
   ) {
