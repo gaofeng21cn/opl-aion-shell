@@ -172,6 +172,14 @@ describe('OPL first-run VM smoke scripts', () => {
         requireCodexConfigWizard: false,
       })
     ).toBe(false);
+    expect(
+      vmSmoke.shouldWaitForCoreFirstLaunchReady({
+        assertClean: true,
+        runtimeProfile: 'standard',
+        requireCodexConfigWizard: false,
+        codexApiKeyFile: '/tmp/codex-api-key.txt',
+      })
+    ).toBe(true);
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {

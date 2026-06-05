@@ -1260,7 +1260,7 @@ function shouldWaitForFirstRunCompletion(options) {
 }
 
 function shouldWaitForCoreFirstLaunchReady(options) {
-  return options.requireCodexConfigWizard === true;
+  return options.requireCodexConfigWizard === true || Boolean(options.codexApiKeyFile);
 }
 
 function shouldCheckFirstRunBeginnerUx(options) {
