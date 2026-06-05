@@ -87,7 +87,7 @@ const LoginPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'authenticated') {
-      void navigate('/guid', { replace: true });
+      void navigate('/first-run', { replace: true });
     }
   }, [navigate, status]);
 
@@ -155,7 +155,7 @@ const LoginPage: React.FC = () => {
         showMessage({ type: 'success', text: successText });
 
         window.setTimeout(() => {
-          void navigate('/guid', { replace: true });
+          void navigate('/first-run', { replace: true });
         }, 600);
       } else {
         const errorText = (() => {
