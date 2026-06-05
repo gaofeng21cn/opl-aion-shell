@@ -970,7 +970,8 @@ function runOplJson(args) {
     env: { ...process.env, OPL_OUTPUT: 'json' },
   });
   if (result.status !== 0) {
-    throw new Error(`opl ${args.join(' ')} failed:\n${result.stderr || result.stdout}`);
+    const output = result.stderr || result.stdout || `status=${result.status} signal=${result.signal ?? 'none'}`;
+    throw new Error(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`);
   }
   return result.stdout;
 }
@@ -1261,7 +1262,6 @@ function shouldWaitForFirstRunCompletion(options) {
 function shouldWaitForCoreFirstLaunchReady(options) {
   return (
     options.requireCodexConfigWizard === true ||
-    options.assertClean === true ||
     shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)
   );
 }

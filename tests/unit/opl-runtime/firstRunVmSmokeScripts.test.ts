@@ -157,6 +157,13 @@ describe('OPL first-run VM smoke scripts', () => {
         runtimeProfile: 'standard',
         requireCodexConfigWizard: false,
       })
+    ).toBe(false);
+    expect(
+      vmSmoke.shouldWaitForCoreFirstLaunchReady({
+        assertClean: false,
+        runtimeProfile: 'standard',
+        requireCodexConfigWizard: true,
+      })
     ).toBe(true);
     expect(
       vmSmoke.shouldWaitForCoreFirstLaunchReady({
