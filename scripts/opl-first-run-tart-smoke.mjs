@@ -844,6 +844,7 @@ function guestSmokeCommand(
       : '',
     options.settingsSmoke || options.assistantRouteSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
+    options.guideScreenshots ? '--guide-screenshots' : '',
   ].join(' ');
   return ['set -euo pipefail', ...sourceArchiveEnv, smokeArgs].join('\n');
 }

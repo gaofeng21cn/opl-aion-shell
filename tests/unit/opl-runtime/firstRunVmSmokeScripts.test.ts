@@ -396,7 +396,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toThrow(/assistant route smoke/);
   });
 
-  it('accepts the release workflow guide screenshot toggle as a host-side flag', () => {
+  it('forwards the release workflow guide screenshot toggle into the guest smoke', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
       'clean-vm',
@@ -416,7 +416,17 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/guest/artifacts',
       '/tmp/guest/codex-api-key.txt'
     );
-    expect(command).not.toContain('--guide-screenshots');
+    expect(command).toContain('--guide-screenshots');
+    expect(
+      vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--guide-screenshots']).guideScreenshots
+    ).toBe(true);
+    expect(
+      vmSmoke.isGuideScreenshotEntryReady({
+        status: 'captured',
+        finder_window_setup: { status: 'failed_nonblocking', stderr: 'Finder AppleEvent timed out' },
+      })
+    ).toBe(true);
+    expect(vmSmoke.isGuideScreenshotEntryReady({ status: 'failed' })).toBe(false);
   });
 
   it('passes Codex functional check through the Tart host command and plan', () => {
