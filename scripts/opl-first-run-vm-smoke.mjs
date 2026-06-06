@@ -406,9 +406,13 @@ function captureGuideDmgWindow(dmgPath, target) {
             },
     };
   } finally {
-    spawnSync('osascript', ['-e', `tell application "Finder" to close window ${JSON.stringify(path.basename(mountPoint))}`], {
-      stdio: 'ignore',
-    });
+    spawnSync(
+      'osascript',
+      ['-e', `tell application "Finder" to close window ${JSON.stringify(path.basename(mountPoint))}`],
+      {
+        stdio: 'ignore',
+      }
+    );
     detachGuideDmg(mountPoint);
   }
 }
@@ -1238,7 +1242,8 @@ function dismissGuideScreenCapturePermissionPrompt() {
 }
 
 function captureGuideBrowserReleaseScreenshot(target) {
-  const releaseUrl = process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest';
+  const releaseUrl =
+    process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest';
   dismissGuideScreenCapturePermissionPrompt();
   run('open', ['-a', 'Safari', releaseUrl]);
   run('osascript', [
@@ -1282,7 +1287,8 @@ function writeGuideScreenshotsSummary(options, entries, secret, diagnostics = {}
     surface_id: 'opl_user_guide_vm_screenshots',
     status: entries.every(isGuideScreenshotEntryReady) ? 'passed' : 'partial',
     source: 'macos_tart_vm_1920x1080_zh',
-    release_url: process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest',
+    release_url:
+      process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest',
     diagnostics,
     screenshots: entries,
   };

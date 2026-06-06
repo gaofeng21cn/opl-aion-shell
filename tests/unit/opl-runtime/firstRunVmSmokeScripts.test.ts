@@ -417,9 +417,7 @@ describe('OPL first-run VM smoke scripts', () => {
       '/tmp/guest/codex-api-key.txt'
     );
     expect(command).toContain('--guide-screenshots');
-    expect(
-      vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--guide-screenshots']).guideScreenshots
-    ).toBe(true);
+    expect(vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--guide-screenshots']).guideScreenshots).toBe(true);
     expect(
       vmSmoke.isGuideScreenshotEntryReady({
         status: 'captured',
