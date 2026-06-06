@@ -113,7 +113,6 @@ export type RuntimePerformancePolicy = {
 
 export type RuntimeDefaultReadSurfacePolicy = {
   defaultProjection?: string;
-  compatibilityProjection?: string;
   normalStateSurface?: string;
   fullRuntimeDrilldownSurface?: string;
   rawRuntimeProjectionPolicy?: string;

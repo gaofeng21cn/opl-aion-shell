@@ -19,7 +19,6 @@ export type OplAppState = {
   actions?: unknown[];
   ui_defaults?: JsonRecord;
   opl_flow_context?: JsonRecord;
-  opl_agent_codex_context?: JsonRecord;
 };
 
 function isRecord(value: unknown): value is JsonRecord {

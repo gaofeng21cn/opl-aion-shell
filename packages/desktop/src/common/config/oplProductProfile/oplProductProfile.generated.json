@@ -844,7 +844,7 @@
       ],
       "active_project_line_projection": {
         "source": "app_state.operator.workbench.activity_center.active_projects + app_state.operator.visual_ref_groups.active_project_refs",
-        "display_policy": "queued_or_escalated_owner_handled_project_lines_count_as_active_projects_without_claiming_active_worker_run",
+        "display_policy": "active_project_refs_define_user_visible_active_lines_queued_or_escalated_drilldown_items_preserve_status_without_becoming_active_worker_runs",
         "status_preservation_required": true,
         "must_preserve_fields": ["status", "active_run_id", "next_visible_step", "next_owner"]
       },

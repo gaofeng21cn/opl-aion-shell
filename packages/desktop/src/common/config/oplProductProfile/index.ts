@@ -129,11 +129,6 @@ export type OplDeveloperProfileSettings = {
   opt_in_policy: string;
   capability_axes: OplDeveloperProfileCapabilityAxis[];
   capabilities: Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>;
-  legacy_developer_mode_alias: {
-    state_source: string;
-    display_policy: string;
-    must_not_display_as: string;
-  };
   state_keys: Record<string, string>;
 };
 
@@ -413,11 +408,6 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
     opt_in_policy: developerProfile.opt_in_policy,
     capability_axes: capabilityAxes,
     capabilities: capabilityEntries,
-    legacy_developer_mode_alias: {
-      state_source: 'app_state.developer_mode',
-      display_policy: 'show_as_profile_summary_not_primary_switch',
-      must_not_display_as: 'single_global_toggle',
-    },
     state_keys: readStringRecord(developerProfile.state_keys, 'settings.developer_profile.state_keys'),
   };
 }
@@ -1365,7 +1355,6 @@ export function getOplDeveloperProfileSettings(): OplDeveloperProfileSettings {
     capabilities: Object.fromEntries(
       developerProfile.capability_axes.map((axis) => [axis, { ...developerProfile.capabilities[axis] }])
     ) as Record<OplDeveloperProfileCapabilityAxis, OplDeveloperProfileCapability>,
-    legacy_developer_mode_alias: { ...developerProfile.legacy_developer_mode_alias },
     state_keys: { ...developerProfile.state_keys },
   };
 }

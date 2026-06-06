@@ -241,8 +241,6 @@ function readDefaultReadSurfacePolicy(value: unknown): RuntimeDefaultReadSurface
   const shellContract = firstRecord(policy.shell_contract);
   return {
     defaultProjection: asString(policy.default_projection) ?? asString(policy.default_operator_payload),
-    compatibilityProjection:
-      asString(policy.compatibility_projection) ?? asString(policy.compatibility_operator_payload),
     normalStateSurface: asString(policy.normal_state_surface),
     fullRuntimeDrilldownSurface: asString(policy.full_runtime_drilldown_surface),
     rawRuntimeProjectionPolicy: asString(policy.raw_runtime_projection_policy) ?? asString(policy.raw_refs_policy),

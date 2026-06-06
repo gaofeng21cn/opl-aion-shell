@@ -33,10 +33,8 @@ describe('OPL runtime bridge command whitelist', () => {
       readsArtifactBody: false,
       readsMemoryBody: false,
       defaultOperatorPayload: 'current_owner_delta',
-      compatibilityOperatorPayload: 'compact_owner_delta_projection',
       defaultReadSurfacePolicy: {
         defaultProjection: 'opl_current_owner_delta',
-        compatibilityProjection: 'opl_compact_owner_delta_projection',
         sourcePath: 'app_state.operator.default_read_surface_policy',
         fullDetailPolicy: 'explicit_full_detail_or_lazy_diagnostic_only',
         rawRefsPolicy: 'raw_refs_require_explicit_full_detail',

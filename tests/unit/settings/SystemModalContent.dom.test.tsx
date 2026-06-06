@@ -196,9 +196,6 @@ describe('SystemModalContent OPL App state', () => {
             workspace_root_path: '/Users/example/OPL Workspace',
             logs_dir: '/Users/example/.opl/logs',
           },
-          opl_agent_codex_context: {
-            contract_ref: 'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system',
-          },
         },
       },
     });
@@ -209,9 +206,10 @@ describe('SystemModalContent OPL App state', () => {
 
     expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('settings.unavailable');
     expect(screen.getByTestId('opl-developer-profile-row')).not.toHaveTextContent('blocked');
+    expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.unavailable');
   });
 
-  it('keeps rendering legacy OPL Agent Codex context while the app_state projection migrates', async () => {
+  it('does not render legacy OPL Agent Codex context without current OPL Flow context', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -237,8 +235,7 @@ describe('SystemModalContent OPL App state', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
-    expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent(
-      'one-person-lab-app/contracts/app-gui-product-contract.json#pages.settings_system'
-    );
+    expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.unavailable');
+    expect(screen.getByTestId('opl-flow-context-row')).not.toHaveTextContent('pages.settings_system');
   });
 });

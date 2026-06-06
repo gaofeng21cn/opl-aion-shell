@@ -49,7 +49,6 @@ const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
   'source_channel_opt_in',
   'developer_limited',
   'developer_ready',
-  'unknown',
 ]);
 
 function normalizeDeveloperProfileState(state: string): string {
@@ -89,14 +88,12 @@ const SystemModalContent: React.FC = () => {
   const appLogsDir = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir);
   const developerProfileSettings = getOplDeveloperProfileSettings();
   const appDeveloperProfile = oplRecord(appState.developer_profile);
-  const appDeveloperMode = oplRecord(appState.developer_mode);
-  const appDeveloperCapabilities = oplRecord(appDeveloperProfile.capabilities ?? appDeveloperMode.capabilities);
+  const appDeveloperCapabilities = oplRecord(appDeveloperProfile.capabilities);
   const developerProfileState =
     oplString(appDeveloperProfile.profile_id) ??
     oplString(appDeveloperProfile.level) ??
     oplString(appDeveloperProfile.status) ??
-    oplString(appDeveloperMode.effective_state) ??
-    'unknown';
+    'unavailable';
   const developerProfileDisplayState = normalizeDeveloperProfileState(developerProfileState);
   const developerProfileDescription = t(developerProfileSettings.description_key);
   const developerProfileCapabilities = developerProfileSettings.capability_axes
@@ -301,17 +298,11 @@ const SystemModalContent: React.FC = () => {
   }, []);
 
   const oplFlowContext = oplRecord(appState.opl_flow_context);
-  const legacyOplAgentCodexContext = oplRecord(appState.opl_agent_codex_context);
   const oplFlowContextDisplay =
     oplString(oplFlowContext.flow_id) ??
     oplString(oplFlowContext.contract_ref) ??
-    oplString(legacyOplAgentCodexContext.flow_id) ??
-    oplString(legacyOplAgentCodexContext.contract_ref) ??
     t('settings.unavailable');
-  const oplFlowContextSource =
-    oplString(oplFlowContext.source) ??
-    oplString(legacyOplAgentCodexContext.source) ??
-    oplString(legacyOplAgentCodexContext.contract_ref);
+  const oplFlowContextSource = oplString(oplFlowContext.source);
   const systemInfo = {
     cacheDir: oplString(appPaths.cache_root) ?? '',
     workDir: appWorkspaceRoot ?? '',
