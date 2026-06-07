@@ -458,7 +458,9 @@ function readCodexModelDisplayOptions(
       `gui.home.codex_model_display_options.visible_models[${index}].reasoning_effort`
     );
     if (!id || !labelZh || !labelEn || labelZh === id || labelEn === id || reasoningEffort !== defaultReasoningEffort) {
-      throw new Error(`Invalid OPL product profile: Codex model display option ${id || index} must use friendly labels`);
+      throw new Error(
+        `Invalid OPL product profile: Codex model display option ${id || index} must use friendly labels`
+      );
     }
     return {
       id,

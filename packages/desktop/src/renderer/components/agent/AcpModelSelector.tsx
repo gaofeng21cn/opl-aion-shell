@@ -178,7 +178,8 @@ const AcpModelSelector: React.FC<{
             <Menu.Item key='__auto' className='bg-2!'>
               <div className='flex flex-col gap-2px w-full'>
                 <span className='font-medium'>
-                  {autoModelDisplay?.label ?? t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}
+                  {autoModelDisplay?.label ??
+                    t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}
                 </span>
                 {autoModelDisplay?.description && (
                   <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>

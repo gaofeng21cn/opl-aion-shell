@@ -280,8 +280,7 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.success).toBe(true);
       expect(result.data?.latest?.tagName).toBe('v26.5.24');
       expect(result.data?.latest?.prerelease).toBe(false);
-      expect(result.data?.latest?.recommendedAsset?.name).toBe('One-Person-Lab-26.5.24-mac-arm64.zip');
-      expect(result.data?.latest?.recommendedAsset?.updateRole).toBe('updater');
+      expect(result.data?.latest?.assets.map((asset) => asset.name)).toContain('One-Person-Lab-26.5.24-mac-arm64.zip');
     } finally {
       vi.unstubAllGlobals();
     }

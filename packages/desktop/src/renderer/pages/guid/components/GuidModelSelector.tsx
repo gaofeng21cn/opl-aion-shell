@@ -246,7 +246,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                 className={selectedAcpModel === null ? '!bg-2' : ''}
                 onClick={() => setSelectedAcpModel(null)}
               >
-                <div className={useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'}>
+                <div
+                  className={
+                    useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
+                  }
+                >
                   <span className={useOplCodexModelDisplay ? 'font-medium' : ''}>
                     {useOplCodexModelDisplay
                       ? autoModelDisplay.label
@@ -285,7 +289,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     className={model.id === selectedAcpModel ? '!bg-2' : ''}
                     onClick={() => setSelectedAcpModel(model.id)}
                   >
-                    <div className={useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'}>
+                    <div
+                      className={
+                        useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
+                      }
+                    >
                       {healthStatus !== 'unknown' && (
                         <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
                       )}

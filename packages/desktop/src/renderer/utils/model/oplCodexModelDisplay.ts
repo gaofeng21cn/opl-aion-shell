@@ -30,7 +30,11 @@ function resolveLocaleKey(localeKey: OplModelDisplayLocale): OplModelDisplayLoca
   return localeKey === 'en-US' ? 'en-US' : 'zh-CN';
 }
 
-function friendlyCodexModelLabel(modelId: string, fallbackLabel: string | null | undefined, localeKey: OplModelDisplayLocale): string {
+function friendlyCodexModelLabel(
+  modelId: string,
+  fallbackLabel: string | null | undefined,
+  localeKey: OplModelDisplayLocale
+): string {
   const options = getOplCodexModelDisplayOptions();
   const matched = options.visible_models.find((model) => model.id === modelId);
   if (matched) {
@@ -61,7 +65,8 @@ export function formatOplCodexReasoningLabel(
 export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): OplCodexModelDisplay {
   const localeKey = resolveLocaleKey(input.localeKey);
   const options = getOplCodexModelDisplayOptions();
-  const reasoningEffort = input.reasoningEffort ?? getOplDefaultCodexReasoningEffort() ?? options.default_reasoning_effort;
+  const reasoningEffort =
+    input.reasoningEffort ?? getOplDefaultCodexReasoningEffort() ?? options.default_reasoning_effort;
   const modelLabel = friendlyCodexModelLabel(input.id, input.label, localeKey);
   const reasoningLabel = formatOplCodexReasoningLabel(reasoningEffort, localeKey);
   return {
