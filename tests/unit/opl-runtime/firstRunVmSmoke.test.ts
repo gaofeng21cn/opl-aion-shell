@@ -516,6 +516,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('Advanced Details');
     expect(expression).toContain('高级详情');
     expect(expression).toContain('aria-expanded');
+    expect(expression).toContain('safeActionsReady');
+    expect(expression).toContain("toggle\n        ? toggle.getAttribute('aria-expanded') === 'true'");
     expect(expression).toContain('toggle.click()');
     expect(expression).toContain('Safe Action Routes');
     expect(expression).toContain('安全动作');

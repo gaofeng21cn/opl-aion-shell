@@ -2663,12 +2663,16 @@ function runtimeActionEvidenceExpression() {
     const safeActionPattern = /Safe Action Routes|安全动作/;
     const toggle = [...document.querySelectorAll('button, [role="button"], .arco-collapse-item-header, .arco-collapse-header')]
       .find((candidate) => advancedDetailsPattern.test(candidate.textContent || '') && visible(candidate));
-    const safeActionsVisible = [...document.querySelectorAll('main, section, .arco-card, [class*="runtime"], .arco-collapse-item-content')]
-      .some((node) => safeActionPattern.test(node.textContent || '') && visible(node));
+    const safeActionContainers = [...document.querySelectorAll('main, section, .arco-card, [class*="runtime"], .arco-collapse-item-content')]
+      .filter((node) => safeActionPattern.test(node.textContent || '') && visible(node));
+    const safeActionsReady = safeActionContainers.some((node) =>
+      [...node.querySelectorAll('button')].some((candidate) => /Dry Run|试运行/.test(candidate.textContent || '') && visible(candidate))
+    );
     const expanded =
-      toggle?.getAttribute('aria-expanded') === 'true' ||
-      toggle?.closest('.arco-collapse-item')?.className?.includes('active') ||
-      safeActionsVisible;
+      toggle
+        ? toggle.getAttribute('aria-expanded') === 'true' ||
+          toggle.closest('.arco-collapse-item')?.className?.includes('active')
+        : safeActionsReady;
     if (toggle && !expanded) {
       toggle.click();
       await wait(500);
