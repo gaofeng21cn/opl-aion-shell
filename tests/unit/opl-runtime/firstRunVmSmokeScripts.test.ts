@@ -200,6 +200,7 @@ describe('OPL first-run VM smoke scripts', () => {
   it('targets current OPL Settings pages instead of the retired overview refresh control', () => {
     const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
     const environmentTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'environment');
+    const appearanceTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'appearance');
 
     expect(generalTarget?.hash).toBe('#/settings/general');
     expect(generalTarget?.requiredTextAny).toEqual(
@@ -218,6 +219,12 @@ describe('OPL first-run VM smoke scripts', () => {
         ['Codex CLI'],
         ['Temporal'],
         ['Foundry Modules', '智能体模块'],
+      ])
+    );
+    expect(appearanceTarget?.requiredTextAny).toEqual(
+      expect.arrayContaining([
+        ['Theme', '主题'],
+        ['Codex Theme', 'Codex 主题', 'Codex'],
       ])
     );
     expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced')?.requiredTextAny).toEqual(

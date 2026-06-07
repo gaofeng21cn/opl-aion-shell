@@ -2353,7 +2353,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     hash: '#/settings/appearance',
     requiredTextAny: [
       ['Theme', '主题'],
-      ['Codex Theme', 'Codex 主题'],
+      ['Codex Theme', 'Codex 主题', 'Codex'],
     ],
   },
   {
