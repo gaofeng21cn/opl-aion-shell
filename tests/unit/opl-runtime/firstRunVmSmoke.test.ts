@@ -513,6 +513,10 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(__test.RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS).toBe(45_000);
     expect(expression).toContain("window.location.hash = '#/runtime'");
+    expect(expression).toContain('Advanced Details');
+    expect(expression).toContain('高级详情');
+    expect(expression).toContain('aria-expanded');
+    expect(expression).toContain('toggle.click()');
     expect(expression).toContain('Safe Action Routes');
     expect(expression).toContain('安全动作');
     expect(expression).toContain('Dry Run');
@@ -521,6 +525,56 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('动作结果');
     expect(expression).toContain('Dry run completed');
     expect(expression).toContain('试运行完成');
+  });
+
+  it('writes App release runtime evidence with the stable payload-free action fixture', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-release-runtime-evidence-'));
+    const calls: string[][] = [];
+    try {
+      const result = __test.collectAppReleaseRuntimeEvidence(
+        {
+          artifacts,
+          timeoutMs: 1_000,
+          __testHooks: {
+            runOplJson: (args: string[]) => {
+              calls.push(args);
+              return JSON.stringify({ command: args, ok: true });
+            },
+          },
+        },
+        null
+      );
+
+      expect(__test.RELEASE_EVIDENCE_ACTION_ID).toBe('developer_supervisor_refresh');
+      expect(result).toEqual({
+        status: 'passed',
+        action_id: 'developer_supervisor_refresh',
+        artifacts: [
+          'app-state-summary.json',
+          'app-state-full.json',
+          'drilldown-full.json',
+          'action-dry-run-result.json',
+          'action-execute-result.json',
+        ],
+      });
+      expect(calls).toEqual([
+        ['app', 'state', '--profile', 'fast', '--json'],
+        ['app', 'state', '--profile', 'full', '--json'],
+        ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+        ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--dry-run', '--json'],
+        ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--json'],
+      ]);
+      expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'action-dry-run-result.json'), 'utf8'))).toEqual({
+        command: ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--dry-run', '--json'],
+        ok: true,
+      });
+      expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'app-release-runtime-evidence-summary.json'), 'utf8'))).toMatchObject({
+        status: 'passed',
+        action_id: 'developer_supervisor_refresh',
+      });
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('keeps Settings smoke passed when Runtime action evidence is unavailable', async () => {

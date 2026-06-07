@@ -61,6 +61,7 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
+const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
   action: path.join('screenshots', 'action.png'),
@@ -1090,6 +1091,60 @@ function runOplJson(args, options = {}) {
     throw new Error(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`);
   }
   return result.stdout;
+}
+
+function parseOplJsonResult(raw, args) {
+  if (raw && typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(String(raw ?? ''));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`opl ${args.join(' ')} returned invalid JSON: ${message}`);
+  }
+}
+
+function collectAppReleaseRuntimeEvidence(options, secret) {
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const artifacts = [
+    {
+      path: 'app-state-summary.json',
+      args: ['app', 'state', '--profile', 'fast', '--json'],
+    },
+    {
+      path: 'app-state-full.json',
+      args: ['app', 'state', '--profile', 'full', '--json'],
+    },
+    {
+      path: 'drilldown-full.json',
+      args: ['runtime', 'app-operator-drilldown', '--detail', 'full', '--json'],
+    },
+    {
+      path: 'action-dry-run-result.json',
+      args: ['app', 'action', 'execute', '--action', RELEASE_EVIDENCE_ACTION_ID, '--dry-run', '--json'],
+    },
+    {
+      path: 'action-execute-result.json',
+      args: ['app', 'action', 'execute', '--action', RELEASE_EVIDENCE_ACTION_ID, '--json'],
+    },
+  ];
+  const written = [];
+  for (const artifact of artifacts) {
+    const raw = runOplJsonImpl(artifact.args, { timeoutMs: options.timeoutMs });
+    writeJsonArtifact(path.join(options.artifacts, artifact.path), parseOplJsonResult(raw, artifact.args), secret);
+    written.push(artifact.path);
+  }
+  const summary = {
+    surface_id: 'opl_app_release_runtime_evidence',
+    status: 'passed',
+    action_id: RELEASE_EVIDENCE_ACTION_ID,
+    artifacts: written,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'app-release-runtime-evidence-summary.json'), summary, secret);
+  return {
+    status: summary.status,
+    action_id: summary.action_id,
+    artifacts: written,
+  };
 }
 
 function firstRunAccessibilityExpectedLabels() {
@@ -2604,8 +2659,23 @@ function runtimeActionEvidenceExpression() {
       const style = window.getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
+    const advancedDetailsPattern = /Advanced Details|高级信息|高级详情/;
+    const safeActionPattern = /Safe Action Routes|安全动作/;
+    const toggle = [...document.querySelectorAll('button, [role="button"], .arco-collapse-item-header, .arco-collapse-header')]
+      .find((candidate) => advancedDetailsPattern.test(candidate.textContent || '') && visible(candidate));
+    const safeActionsVisible = [...document.querySelectorAll('main, section, .arco-card, [class*="runtime"], .arco-collapse-item-content')]
+      .some((node) => safeActionPattern.test(node.textContent || '') && visible(node));
+    const expanded =
+      toggle?.getAttribute('aria-expanded') === 'true' ||
+      toggle?.closest('.arco-collapse-item')?.className?.includes('active') ||
+      safeActionsVisible;
+    if (toggle && !expanded) {
+      toggle.click();
+      await wait(500);
+      return false;
+    }
     const actionSection = [...document.querySelectorAll('main, section, .arco-card, [class*="runtime"]')]
-      .find((node) => /Safe Action Routes|安全动作/.test(node.textContent || ''));
+      .find((node) => safeActionPattern.test(node.textContent || '') && visible(node));
     const button = [...(actionSection || document).querySelectorAll('button')]
       .find((candidate) => /Dry Run|试运行/.test(candidate.textContent || '') && visible(candidate));
     if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') {
@@ -3217,6 +3287,7 @@ async function main() {
       );
     }
 
+    let appReleaseRuntimeEvidence = null;
     if (shouldVerifyFullFirstRunEquivalence(options.runtimeProfile)) {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
@@ -3228,6 +3299,15 @@ async function main() {
       );
       writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
       writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+      appReleaseRuntimeEvidence = await runSmokePhase(
+        writeSmokeEvent,
+        'app_release_runtime_evidence',
+        () => collectAppReleaseRuntimeEvidence(options, codexApiKey),
+        {
+          action_id: RELEASE_EVIDENCE_ACTION_ID,
+          timeout_ms: options.timeoutMs,
+        }
+      );
     }
     captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
@@ -3281,6 +3361,7 @@ async function main() {
         : null,
       codex_functional_check: codexFunctionalCheck,
       codex_ai_self_check: codexAiSelfCheck,
+      app_release_runtime_evidence: appReleaseRuntimeEvidence,
       guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
@@ -3291,6 +3372,7 @@ async function main() {
       assistant_route_smoke: summary.assistant_route_smoke?.status ?? null,
       codex_functional_check: summary.codex_functional_check?.status ?? null,
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
+      app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
     });
     process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   } catch (error) {
@@ -3312,6 +3394,7 @@ export const __test =
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,
         isMainModule,
+        RELEASE_EVIDENCE_ACTION_ID,
         RELEASE_EVIDENCE_SCREENSHOTS,
         RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
         runtimeShellExecutable,
@@ -3354,6 +3437,7 @@ export const __test =
         buildSkippedCodexAiSelfCheckReceipt,
         buildCodexAiSelfCheckReceipt,
         runCodexAiSelfCheck,
+        collectAppReleaseRuntimeEvidence,
         parseCodexJsonOutput,
         probeCodexCli,
         unwrapBackendResponseEnvelope,
