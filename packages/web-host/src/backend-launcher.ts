@@ -14,15 +14,28 @@ import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
 import type { AppMetadata, BackendBinaryResolver } from './types.js';
 
 type BackendStatus = 'stopped' | 'starting' | 'running' | 'error';
-type BackendStartupStage = 'resolve_binary' | 'find_port' | 'spawn' | 'spawn_error' | 'early_exit' | 'health_timeout';
+type BackendStartupStage =
+  | 'resolve_binary'
+  | 'find_port'
+  | 'spawn'
+  | 'spawn_error'
+  | 'early_exit'
+  | 'listen_timeout'
+  | 'health_timeout';
 
 type HealthCheckDiagnostics = {
   healthCheckAttempts: number;
   healthCheckUrl?: string;
   healthCheckTimeoutMs?: number;
   healthCheckIntervalMs?: number;
+  healthCheckExpectedAttempts?: number;
+  healthCheckAttemptDeficit?: number;
   healthCheckElapsedMs?: number;
   healthCheckLastAttemptAfterMs?: number;
+  healthCheckLastAttemptGapMs?: number;
+  healthCheckMaxAttemptGapMs?: number;
+  healthCheckTimeoutOverrunMs?: number;
+  healthCheckPollingDelayed?: boolean;
   healthCheckLastError?: string;
   healthCheckLastErrorName?: string;
   healthCheckLastErrorCauseMessage?: string;
@@ -40,6 +53,11 @@ type HealthCheckDiagnostics = {
 type HealthCheckResult = {
   ok: boolean;
   diagnostics: HealthCheckDiagnostics;
+};
+
+type ParsedBackendBoundaryError = {
+  code: string;
+  stage?: string;
 };
 
 type SpawnConfig = {
@@ -90,6 +108,8 @@ export type BackendStartupErrorDetails = {
   exitCode?: number;
   signal?: NodeJS.Signals | string;
   causeMessage?: string;
+  backendBoundaryCode?: string;
+  backendBoundaryStage?: string;
   stdoutTail?: string;
   stderrTail?: string;
   resourcesPath?: string;
@@ -107,8 +127,14 @@ export type BackendStartupErrorDetails = {
   healthCheckUrl?: string;
   healthCheckTimeoutMs?: number;
   healthCheckIntervalMs?: number;
+  healthCheckExpectedAttempts?: number;
+  healthCheckAttemptDeficit?: number;
   healthCheckElapsedMs?: number;
   healthCheckLastAttemptAfterMs?: number;
+  healthCheckLastAttemptGapMs?: number;
+  healthCheckMaxAttemptGapMs?: number;
+  healthCheckTimeoutOverrunMs?: number;
+  healthCheckPollingDelayed?: boolean;
   healthCheckLastError?: string;
   healthCheckLastErrorName?: string;
   healthCheckLastErrorCauseMessage?: string;
@@ -164,6 +190,7 @@ export function buildSpawnArgs(config: SpawnConfig): string[] {
     '--app-version',
     config.appVersion,
   ];
+  if (config.isPackaged) args.push('--managed-resources-mode', 'bundled');
   if (config.logDir) args.push('--log-dir', config.logDir);
   if (config.workDir) args.push('--work-dir', config.workDir);
   if (config.local) args.push('--local');
@@ -194,6 +221,8 @@ const FETCH_FORBIDDEN_PORTS = new Set([
 ]);
 
 const FETCH_COMPATIBLE_PORT_MAX_ATTEMPTS = 50;
+const AIONCORE_LISTENING_PREFIX = 'AIONCORE_LISTENING ';
+const BACKEND_PORT_REPORT_TIMEOUT_MS = 30_000;
 
 function isFetchForbiddenPort(port: number): boolean {
   return FETCH_FORBIDDEN_PORTS.has(port);
@@ -281,6 +310,18 @@ function getErrorCause(error: unknown): unknown {
   return (error as { cause?: unknown }).cause;
 }
 
+function parseBackendBoundaryError(text: string): ParsedBackendBoundaryError | undefined {
+  const lines = text.split(/\r?\n/).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i];
+    const match = /^(BOOTSTRAP_[A-Z0-9_]+|CLI_[A-Z0-9_]+|MCP_[A-Z0-9_]+)\b(?:[^\n]*?\bstage=([^:\s]+))?/.exec(line);
+    if (match) {
+      return { code: match[1], stage: match[2] };
+    }
+  }
+  return undefined;
+}
+
 function applyHealthCheckErrorDiagnostics(diagnostics: HealthCheckDiagnostics, error: unknown): void {
   const cause = getErrorCause(error);
   diagnostics.healthCheckLastError = getErrorMessage(error);
@@ -294,6 +335,18 @@ function clearHealthCheckErrorDiagnostics(diagnostics: HealthCheckDiagnostics): 
   delete diagnostics.healthCheckLastErrorName;
   delete diagnostics.healthCheckLastErrorCauseMessage;
   delete diagnostics.healthCheckLastErrorCauseCode;
+}
+
+function parseAioncoreListeningPort(line: string): number | undefined {
+  if (!line.startsWith(AIONCORE_LISTENING_PREFIX)) return undefined;
+  try {
+    const parsed = JSON.parse(line.slice(AIONCORE_LISTENING_PREFIX.length)) as { port?: unknown };
+    if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port)) return undefined;
+    if (parsed.port <= 0 || parsed.port > 65535) return undefined;
+    return parsed.port;
+  } catch {
+    return undefined;
+  }
 }
 
 function getResolveDiagnostics(error: unknown): Partial<BackendStartupErrorDetails> | undefined {
@@ -386,6 +439,7 @@ export class BackendLifecycleManager {
   private _lastDbPath = '';
   private _lastLogDir?: string;
   private _lastDirs?: BackendDirConfig;
+  private _lastOptions?: BackendStartOptions;
   private restartCount = 0;
   private restartWindowStart = 0;
   private readonly maxRestarts = 3;
@@ -432,29 +486,12 @@ export class BackendLifecycleManager {
         error
       );
     }
-    try {
-      this._port = await findAvailablePort(preferredPort);
-    } catch (error) {
-      throw new BackendStartupError(
-        'aioncore startup failed while finding an available port',
-        {
-          stage: 'find_port',
-          appVersion,
-          isPackaged: this.appMeta.isPackaged,
-          binaryPath,
-          port: preferredPort,
-          dataDir: dbPath,
-          logDir,
-          workDir: dirs?.workDir,
-          causeMessage: getErrorMessage(error),
-        },
-        error
-      );
-    }
+    this._port = preferredPort ?? 0;
     this._status = 'starting';
     this._lastDbPath = dbPath;
     this._lastLogDir = logDir;
     this._lastDirs = dirs;
+    this._lastOptions = options;
     let stdoutTail = '';
     let stderrTail = '';
     let startupSettled = false;
@@ -468,8 +505,9 @@ export class BackendLifecycleManager {
       message: string,
       cause?: unknown,
       extra?: Partial<BackendStartupErrorDetails>
-    ) =>
-      new BackendStartupError(
+    ) => {
+      const boundary = parseBackendBoundaryError(stderrTail);
+      return new BackendStartupError(
         message,
         {
           stage,
@@ -482,6 +520,8 @@ export class BackendLifecycleManager {
           workDir: dirs?.workDir,
           backendPid,
           causeMessage: getErrorMessage(cause),
+          backendBoundaryCode: boundary?.code,
+          backendBoundaryStage: boundary?.stage,
           stdoutTail: stdoutTail || undefined,
           stderrTail: stderrTail || undefined,
           serverListeningObserved,
@@ -491,6 +531,7 @@ export class BackendLifecycleManager {
         },
         cause
       );
+    };
 
     const args = buildSpawnArgs({
       port: this._port,
@@ -524,51 +565,116 @@ export class BackendLifecycleManager {
     process.on('exit', killOnExit);
 
     const startupFailure = new Promise<never>((_resolve, reject) => {
+      let failureSettled = false;
+      let pendingStartupExit:
+        | {
+            code: number | null;
+            signal: NodeJS.Signals | null;
+            startupSettledAtExit: boolean;
+            statusAtExit: BackendStatus;
+          }
+        | undefined;
+      const rejectOnce = (error: unknown) => {
+        if (failureSettled) return;
+        failureSettled = true;
+        reject(error);
+      };
+
       this.childProcess?.once('error', (error) => {
         if (startupSettled) return;
         this._status = 'error';
-        reject(makeStartupError('spawn_error', 'aioncore process emitted an error before startup', error));
+        rejectOnce(makeStartupError('spawn_error', 'aioncore process emitted an error before startup', error));
       });
 
       this.childProcess?.once('exit', (code, signal) => {
         process.removeListener('exit', killOnExit);
-        if (!startupSettled) {
-          if (this._status === 'stopped') {
-            reject(new BackendStartupCancelledError('aioncore startup cancelled before health check passed'));
+        if (this._status === 'running') {
+          this.handleCrash(code, signal);
+          return;
+        }
+        pendingStartupExit = {
+          code,
+          signal,
+          startupSettledAtExit: startupSettled,
+          statusAtExit: this._status,
+        };
+        if (this._status !== 'stopped') this._status = 'error';
+      });
+
+      this.childProcess?.once('close', (code, signal) => {
+        if (!pendingStartupExit) return;
+        const exitCode = pendingStartupExit.code ?? code;
+        const exitSignal = pendingStartupExit.signal ?? signal;
+        if (!pendingStartupExit.startupSettledAtExit) {
+          if (pendingStartupExit.statusAtExit === 'stopped') {
+            rejectOnce(new BackendStartupCancelledError('aioncore startup cancelled before health check passed'));
             return;
           }
-          this._status = 'error';
-          reject(
+          rejectOnce(
             makeStartupError('early_exit', 'aioncore exited before health check passed', undefined, {
-              exitCode: code ?? undefined,
-              signal: signal ?? undefined,
+              exitCode: exitCode ?? undefined,
+              signal: exitSignal ?? undefined,
             })
           );
           return;
         }
-        if (this._status === 'starting') {
-          this._status = 'error';
+        if (pendingStartupExit.statusAtExit === 'starting') {
           void Promise.resolve(
             options?.onPendingExit?.(
               makeStartupError('early_exit', 'aioncore exited after startup health timeout', undefined, {
-                exitCode: code ?? undefined,
-                signal: signal ?? undefined,
+                exitCode: exitCode ?? undefined,
+                signal: exitSignal ?? undefined,
               })
             )
           ).catch((error) => {
             console.error('[aioncore] pending exit handler failed:', error);
           });
-          return;
         }
-        if (this._status === 'running') this.handleCrash(code, signal);
       });
+    });
+
+    let reportedPortSettled = false;
+    let reportedPortTimer: ReturnType<typeof setTimeout> | undefined;
+    let resolveReportedPort: (port: number) => void = () => {};
+    let rejectReportedPort: (error: BackendStartupError) => void = () => {};
+    const reportedPort = new Promise<number>((resolve, reject) => {
+      resolveReportedPort = (port) => {
+        if (reportedPortSettled) return;
+        reportedPortSettled = true;
+        if (reportedPortTimer) clearTimeout(reportedPortTimer);
+        resolve(port);
+      };
+      rejectReportedPort = (error) => {
+        if (reportedPortSettled) return;
+        reportedPortSettled = true;
+        reject(error);
+      };
+      reportedPortTimer = setTimeout(() => {
+        rejectReportedPort(
+          makeStartupError('listen_timeout', 'aioncore did not report its listening port before timeout', undefined, {
+            healthCheckTimeoutMs: BACKEND_PORT_REPORT_TIMEOUT_MS,
+            healthCheckElapsedMs: Date.now() - startupStartedAt,
+          })
+        );
+      }, BACKEND_PORT_REPORT_TIMEOUT_MS);
     });
 
     this.childProcess.stdout?.on('data', (data: Buffer) => {
       stdoutTail = appendOutputTail(stdoutTail, data);
       for (const line of data.toString().split('\n')) {
         const trimmed = line.trim();
-        if (!serverListeningObserved && trimmed.includes(`Server listening on 127.0.0.1:${this._port}`)) {
+        const port = parseAioncoreListeningPort(trimmed);
+        if (port !== undefined) {
+          this._port = port;
+          serverListeningObserved = true;
+          serverListeningObservedAfterMs = Date.now() - startupStartedAt;
+          serverListeningLine = trimmed;
+          resolveReportedPort(port);
+        } else if (
+          !serverListeningObserved &&
+          this._port > 0 &&
+          trimmed.includes(`Server listening on 127.0.0.1:${this._port}`)
+        ) {
           serverListeningObserved = true;
           serverListeningObservedAfterMs = Date.now() - startupStartedAt;
           serverListeningLine = trimmed;
@@ -584,7 +690,19 @@ export class BackendLifecycleManager {
       }
     });
 
-    const health = await Promise.race([this.waitForHealth(this._port), startupFailure]);
+    let port: number;
+    try {
+      port = await Promise.race([reportedPort, startupFailure]);
+    } catch (error) {
+      if (error instanceof BackendStartupError && error.details.stage === 'listen_timeout') {
+        startupSettled = true;
+        killBackendProcessTree(this.childProcess, 'SIGKILL');
+        this.childProcess = null;
+        this._status = 'error';
+      }
+      throw error;
+    }
+    const health = await Promise.race([this.waitForHealth(port), startupFailure]);
     if (!health.ok) {
       const healthTimeoutError = makeStartupError(
         'health_timeout',
@@ -648,15 +766,25 @@ export class BackendLifecycleManager {
     const start = Date.now();
     const intervalMs = 200;
     const healthCheckUrl = `http://127.0.0.1:${port}/health`;
+    const expectedAttempts = Number.isFinite(timeoutMs) ? Math.ceil(timeoutMs / intervalMs) : undefined;
     const diagnostics: HealthCheckDiagnostics = {
       healthCheckAttempts: 0,
       healthCheckUrl,
       healthCheckIntervalMs: intervalMs,
       healthCheckTimeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : undefined,
+      healthCheckExpectedAttempts: expectedAttempts,
     };
+    let previousAttemptAt: number | undefined;
     while (Date.now() - start < timeoutMs && shouldContinue()) {
+      const attemptStartedAt = Date.now();
+      if (previousAttemptAt !== undefined) {
+        const attemptGapMs = attemptStartedAt - previousAttemptAt;
+        diagnostics.healthCheckLastAttemptGapMs = attemptGapMs;
+        diagnostics.healthCheckMaxAttemptGapMs = Math.max(diagnostics.healthCheckMaxAttemptGapMs ?? 0, attemptGapMs);
+      }
+      previousAttemptAt = attemptStartedAt;
       diagnostics.healthCheckAttempts += 1;
-      diagnostics.healthCheckLastAttemptAfterMs = Date.now() - start;
+      diagnostics.healthCheckLastAttemptAfterMs = attemptStartedAt - start;
       try {
         const response = await fetch(healthCheckUrl);
         if (response.ok) {
@@ -679,6 +807,13 @@ export class BackendLifecycleManager {
       await new Promise((r) => setTimeout(r, intervalMs));
     }
     diagnostics.healthCheckElapsedMs = Date.now() - start;
+    if (Number.isFinite(timeoutMs)) {
+      diagnostics.healthCheckAttemptDeficit = Math.max(0, (expectedAttempts ?? 0) - diagnostics.healthCheckAttempts);
+      diagnostics.healthCheckTimeoutOverrunMs = Math.max(0, diagnostics.healthCheckElapsedMs - timeoutMs);
+      diagnostics.healthCheckPollingDelayed =
+        (diagnostics.healthCheckMaxAttemptGapMs ?? 0) > intervalMs * 3 ||
+        diagnostics.healthCheckTimeoutOverrunMs > intervalMs * 3;
+    }
     if (Number.isFinite(timeoutMs)) {
       Object.assign(diagnostics, await probeHealthCheckTcpConnect(port));
     }
@@ -718,11 +853,10 @@ export class BackendLifecycleManager {
     }
     this.restartCount++;
 
-    const restartPort = this._port;
     const crashContext = {
       exitCode: code ?? undefined,
       signal: signal ?? undefined,
-      port: restartPort,
+      port: this._port,
       restartCount: this.restartCount,
       maxRestarts: this.maxRestarts,
     };
@@ -742,16 +876,22 @@ export class BackendLifecycleManager {
     setTimeout(() => {
       if (this._status === 'stopped') return;
       this._status = 'starting';
-      this.start(this._lastDbPath, this._lastLogDir, this._lastDirs, undefined, restartPort).catch((error) => {
-        this._status = 'error';
-        console.error('[aioncore] restart after crash failed', {
-          port: restartPort,
-          restartCount: this.restartCount,
-          maxRestarts: this.maxRestarts,
-          delayMs: delay,
-          error: getErrorMessage(error),
+      this.start(this._lastDbPath, this._lastLogDir, this._lastDirs, this._lastOptions, this._port)
+        .then(async (port) => {
+          if (this._status === 'running') {
+            await this._lastOptions?.onReady?.(port);
+          }
+        })
+        .catch((error) => {
+          this._status = 'error';
+          console.error('[aioncore] restart after crash failed', {
+            port: this._port,
+            restartCount: this.restartCount,
+            maxRestarts: this.maxRestarts,
+            delayMs: delay,
+            error: getErrorMessage(error),
+          });
         });
-      });
     }, delay);
   }
 }

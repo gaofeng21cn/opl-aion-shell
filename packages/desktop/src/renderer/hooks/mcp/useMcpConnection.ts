@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useState, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { mcpService } from '@/common/adapter/ipcBridge';
 import type { IMcpServer } from '@/common/config/storage';
@@ -30,6 +30,7 @@ type McpErrorDetails = {
   timeout_seconds?: number;
   status?: number;
   method?: string;
+  rpc_code?: number;
 };
 
 const getMcpErrorDetails = (details: unknown): McpErrorDetails => {
@@ -159,7 +160,7 @@ export const useMcpConnection = (
       await updateServerStatus('testing');
 
       try {
-        const result = await mcpService.testMcpConnection.invoke(server);
+        const result = await mcpService.testMcpConnection.invoke({ ...server, runtime_scope_id: server.id });
         const needsAuth = result.needsAuth ?? result.needs_auth;
 
         // 检查是否需要认证

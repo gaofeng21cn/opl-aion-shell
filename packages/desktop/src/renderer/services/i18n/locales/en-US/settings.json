@@ -472,7 +472,7 @@
   "mcpAuthenticated": "Authenticated",
   "mcpDisconnected": "Not tested",
   "mcpError": "Last test failed",
-  "mcpErrorNodeCommandNotFound": "Command {{command}} was not found. Install Node.js (which includes npm/npx), restart One Person Lab, or configure this MCP server to use an absolute command path.",
+  "mcpErrorNodeCommandNotFound": "Command {{command}} could not be prepared. AionCore usually provisions its managed Node runtime automatically. Retry the connection test, check backend logs if it still fails, or configure this MCP server to use an absolute command path.",
   "mcpErrorBunCommandNotFound": "Command {{command}} was not found. Install Bun (which includes bun/bunx), restart One Person Lab, or configure this MCP server to use an absolute command path.",
   "mcpErrorUvCommandNotFound": "Command {{command}} was not found. Install uv, restart One Person Lab, or configure this MCP server to use an absolute command path.",
   "mcpErrorPythonCommandNotFound": "Command {{command}} was not found. Install Python, restart One Person Lab, or configure this MCP server to use an absolute command path.",
@@ -1349,5 +1349,32 @@
     "defaultTheme": "Default Theme",
     "themeSaved": "Appearance theme updated",
     "themeSaveFailed": "Failed to update appearance theme"
+  },
+  "retry": "Retry",
+  "runtimeStatus": {
+    "waitingForLock": "Waiting for another task to finish preparing {{resource}}.",
+    "downloading": "Preparing {{resource}}.",
+    "extracting": "Preparing {{resource}}.",
+    "validating": "Validating {{resource}}.",
+    "ready": "{{resource}} is ready.",
+    "failedTimeout": "Preparing {{resource}} timed out. Restart the app and try again. If it continues, reinstall the app or download a fresh package.",
+    "failedDownload": "Preparing {{resource}} failed. Restart the app and try again. If it continues, reinstall the app or download a fresh package.",
+    "failedHttp": "Preparing {{resource}} failed. Restart the app and try again. If it continues, reinstall the app or download a fresh package.",
+    "failedValidation": "Validating {{resource}} failed. Restart the app and try again. If it continues, reinstall the app or download a fresh package.",
+    "failedBundled": "Preparing {{resource}} failed because the bundled component files are invalid. Reinstall the app or download a fresh package and try again.",
+    "failedUnsupported": "{{resource}} is not supported on this platform.",
+    "failedUnknown": "Preparing {{resource}} failed. Restart the app and try again. If it continues, reinstall the app or download a fresh package.",
+    "failedChecksum": "Verifying {{resource}} failed because the component files may be corrupted. Reinstall the app or download a fresh package and try again."
+  },
+  "runtimeResource": {
+    "node": "the managed Node runtime",
+    "acpTool": "the managed ACP tool",
+    "codexAcp": "the Codex ACP runtime component",
+    "claudeAgentAcp": "the Claude ACP runtime component"
+  },
+  "runtimeScope": {
+    "conversation": "Conversation",
+    "mcp": "MCP",
+    "customAgent": "Custom Agent"
   }
 }

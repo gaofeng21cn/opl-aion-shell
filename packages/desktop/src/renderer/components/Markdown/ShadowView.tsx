@@ -8,7 +8,7 @@ import { theme } from '@office-ai/platform';
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { addImportantToAll } from '@renderer/utils/theme/customCssProcessor';
-import { configService } from '@/common/config/configService';
+import { ipcBridge } from '@/common';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
 /**
@@ -85,8 +85,9 @@ const createInitStyle = (
     margin-bottom: 12px;
   }
   code span{
-    font-size:13px;
+    font-size:var(--code-font-size, 13px);
     line-height:20px;
+    font-family: var(--font-mono);
   }
 
   .markdown-shadow-body>p:last-child{
@@ -109,8 +110,8 @@ const createInitStyle = (
     color: var(--text-primary);
     padding: 2px 6px;
     border-radius: 4px;
-    font-size: 0.92em;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
   }
   blockquote {
     border-left: 3px solid var(--bg-3);
@@ -266,27 +267,19 @@ const ShadowView = ({ children }: { children: React.ReactNode }) => {
   const isMobile = layout?.isMobile ?? false;
 
   React.useEffect(() => {
-    const css = configService.get('customCss');
-    if (css) {
-      setCustomCss(addImportantToAll(css));
-    } else {
-      setCustomCss('');
-    }
-
-    // Listen to custom CSS update events
-    const handleCustomCssUpdate = (e: CustomEvent) => {
-      if (e.detail?.customCss !== undefined) {
-        const css = e.detail.customCss || '';
-        // Use unified utility to auto-add !important
-        const processedCss = addImportantToAll(css);
-        setCustomCss(processedCss);
-      }
+    let mounted = true;
+    const applyCss = (t: { css?: string } | null) => {
+      if (!mounted) return;
+      setCustomCss(t?.css ? addImportantToAll(t.css) : '');
     };
-
-    window.addEventListener('custom-css-updated', handleCustomCssUpdate as EventListener);
-
+    ipcBridge.theme.requestCurrent
+      .invoke()
+      .then(applyCss)
+      .catch(() => {});
+    const off = ipcBridge.theme.changed.on((t) => applyCss(t));
     return () => {
-      window.removeEventListener('custom-css-updated', handleCustomCssUpdate as EventListener);
+      mounted = false;
+      off?.();
     };
   }, []);
 

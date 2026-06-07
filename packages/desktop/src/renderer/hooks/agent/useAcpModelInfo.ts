@@ -8,13 +8,12 @@ import { ipcBridge } from '@/common';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { isOplCodexCliFixedExecutor, shouldShowOplCodexModelList } from '@/common/config/oplProductProfile';
-import type { TChatConversation } from '@/common/config/storage';
 import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import useSWR, { mutate as mutateGlobal } from 'swr';
+import useSWR from 'swr';
 
 type AcpModelInfoKey = readonly ['acp-model-info', string];
 type AcpModelInfoFetchResult = {
@@ -427,9 +426,14 @@ export const useAcpModelInfo = ({
       });
 
       void (async () => {
+        let confirmedModelInfo: AcpModelInfo | null = null;
         try {
           await prepareRuntime?.();
-          await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
+          const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
+          confirmedModelInfo = confirmed.model_info ?? null;
+          if (confirmedModelInfo) {
+            updateModelInfo(confirmedModelInfo);
+          }
         } catch (error) {
           hasUserChangedModel.current = false;
           logAcpModelInfo('select_model_failed', {
@@ -449,10 +453,11 @@ export const useAcpModelInfo = ({
           return;
         }
 
-        logAcpModelInfo('select_model_accepted', {
+        logAcpModelInfo('select_model_confirmed', {
           conversation_id,
           backend,
           requested_model_id: model_id,
+          confirmed_model_info: summarizeModelInfo(confirmedModelInfo),
         });
         const refreshed = await reloadModelInfo().catch(() => false);
         logAcpModelInfo('select_model_refresh_completed', {
@@ -480,38 +485,23 @@ export const useAcpModelInfo = ({
             };
           }, false);
         }
-        onSelectModelSuccess?.(model_id);
+
+        const confirmedModelId =
+          confirmedModelInfo?.current_model_id || modelInfoRef.current?.current_model_id || model_id;
+        onSelectModelSuccess?.(confirmedModelId);
 
         // Persist only after the active ACP session accepts the model switch.
         if (backend) {
-          void savePreferredModelId(backend, model_id);
+          void savePreferredModelId(backend, confirmedModelId);
         }
-        await ipcBridge.conversation.update.invoke({
-          id: conversation_id,
-          updates: { extra: { current_model_id: model_id } as TChatConversation['extra'] },
-          merge_extra: true,
-        });
-        logAcpModelInfo('select_model_persisted', {
+        logAcpModelInfo('select_model_preference_save_queued', {
           conversation_id,
           backend,
           requested_model_id: model_id,
+          confirmed_model_id: confirmedModelId,
         });
-        void mutateGlobal(
-          `conversation/${conversation_id}`,
-          (current: TChatConversation | null | undefined) => {
-            if (!current) return current;
-            return {
-              ...current,
-              extra: {
-                ...current.extra,
-                current_model_id: model_id,
-              },
-            };
-          },
-          false
-        );
       })().catch((error) => {
-        console.error('[useAcpModelInfo] Failed to persist current_model_id:', error);
+        console.error('[useAcpModelInfo] Failed to finalize model selection:', error);
       });
     },
     [

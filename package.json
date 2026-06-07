@@ -1,6 +1,6 @@
 {
   "name": "one-person-lab-aion-shell",
-  "version": "2.1.10",
+  "version": "2.1.12",
   "description": "One Person Lab App desktop shell adapter.",
   "keywords": [],
   "license": "Apache-2.0",
@@ -78,6 +78,10 @@
     "@codemirror/lang-html": "^6.4.11",
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/search": "^6.7.0",
+    "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.38.6",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -86,7 +90,10 @@
     "@google/genai": "^1.16.0",
     "@grammyjs/transformer-throttler": "^1.2.1",
     "@icon-park/react": "^1.4.2",
+    "@iconify-json/vscode-icons": "^1.2.53",
+    "@iconify/react": "^6.0.2",
     "@larksuiteoapi/node-sdk": "^1.58.0",
+    "@lezer/highlight": "^1.2.3",
     "@modelcontextprotocol/sdk": "^1.20.0",
     "@monaco-editor/react": "^4.7.0",
     "@office-ai/aioncli-core": "^0.30.6",
@@ -219,6 +226,7 @@
     "electron-winstaller": "^5.4.0"
   },
   "resolutions": {
+    "@codemirror/language": "6.12.3",
     "body-parser": "^2.2.1",
     "hono": "^4.11.7",
     "jws": "4.0.1",
@@ -229,6 +237,7 @@
     "tmp": "^0.2.5"
   },
   "overrides": {
+    "@codemirror/language": "6.12.3",
     "body-parser": "^2.2.1",
     "hono": "^4.11.7",
     "jws@<4": "3.2.3",
@@ -251,7 +260,7 @@
   "engines": {
     "node": ">=22 <25"
   },
-  "aioncoreVersion": "v0.1.19",
+  "aioncoreVersion": "v0.1.22",
   "electronRebuild": {
     "electronVersion": "^37.3.1"
   },

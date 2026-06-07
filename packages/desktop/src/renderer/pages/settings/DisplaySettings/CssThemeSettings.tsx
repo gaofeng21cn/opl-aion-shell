@@ -5,21 +5,19 @@
  */
 
 import { configService } from '@/common/config/configService';
-import type { ICssTheme } from '@/common/config/storage';
+import type { Theme } from '@/common/theme/types';
+import { ipcBridge } from '@/common';
 import { uuid } from '@/common/utils';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext.tsx';
-import {
-  normalizeOplActiveThemeId,
-  resolveCssByActiveTheme,
-  setExtensionThemesCache,
-} from '@renderer/utils/theme/themeCssSync';
 import { Button, Message, Modal } from '@arco-design/web-react';
-import { EditTwo, CheckOne } from '@icon-park/react';
+import { EditTwo, Plus, CheckOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CssThemeModal from './CssThemeModal.tsx';
-import { PRESET_THEMES, DEFAULT_THEME_ID } from './presets.ts';
+import { BUILTIN_THEMES, DEFAULT_THEME_ID } from './presets.ts';
 import { BACKGROUND_BLOCK_START, injectBackgroundCssBlock } from './backgroundUtils.ts';
+import { resolveExtensionAssetUrl } from '@renderer/utils/platform.ts';
+import { LIGHT_THEME_ID } from '@/common/theme/constants';
 
 interface ThemePreviewPalette {
   appBg: string;
@@ -213,9 +211,11 @@ const ThemeLayoutPreview: React.FC<{ palette: ThemePreviewPalette }> = ({ palett
   );
 };
 
-const ensureBackgroundCss = <T extends { id?: string; cover?: string; css: string }>(theme: T): T => {
-  // 跳过 Default 主题，不注入背景图 CSS / Skip Default theme, do not inject background CSS
-  if (theme.id === DEFAULT_THEME_ID) {
+const ensureBackgroundCss = <T extends { id?: string; cover?: string; css?: string; builtin?: boolean }>(
+  theme: T
+): T => {
+  // Skip builtin themes (Light/Dark have no decorative css to inject)
+  if (theme.builtin) {
     return theme;
   }
   if (theme.cover && theme.css && !theme.css.includes(BACKGROUND_BLOCK_START)) {
@@ -224,34 +224,20 @@ const ensureBackgroundCss = <T extends { id?: string; cover?: string; css: strin
   return theme;
 };
 
-const normalizeUserThemes = (themes: ICssTheme[]): { normalized: ICssTheme[]; updated: boolean } => {
-  let updated = false;
-  const normalized = themes.map((theme) => {
-    const nextTheme = ensureBackgroundCss(theme);
-    if (nextTheme !== theme) {
-      updated = true;
-    }
-    return nextTheme;
-  });
-  return { normalized, updated };
-};
-
-const dispatchCustomCssUpdated = (css: string) => {
-  window.dispatchEvent(new CustomEvent('custom-css-updated', { detail: { customCss: css } }));
-};
-
 /**
  * CSS 主题设置组件 / CSS Theme Settings Component
  * 用于管理和切换 CSS 皮肤主题 / For managing and switching CSS skin themes
  */
 const CssThemeSettings: React.FC = () => {
   const { t } = useTranslation();
-  const { theme: currentTheme } = useThemeContext();
-  const [themes, setThemes] = useState<ICssTheme[]>([]);
-  const [activeThemeId, setActiveThemeId] = useState<string>('');
+  const { theme: currentTheme, activeTheme, selectTheme } = useThemeContext();
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingTheme, setEditingTheme] = useState<ICssTheme | null>(null);
+  const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
   const [hoveredThemeId, setHoveredThemeId] = useState<string | null>(null);
+
+  const activeThemeId = activeTheme?.id ?? DEFAULT_THEME_ID;
+
   const themePreviewPalettes = useMemo(() => {
     const map = new Map<string, ThemePreviewPalette>();
     themes.forEach((cssTheme) => {
@@ -259,63 +245,46 @@ const CssThemeSettings: React.FC = () => {
     });
     return map;
   }, [themes, currentTheme]);
-  // 加载主题列表和激活状态 / Load theme list and active state
+
+  // 加载主题列表 / Load theme list
   useEffect(() => {
     const loadThemes = async () => {
       try {
-        const savedThemes = configService.get('css.themes') || [];
-        const { normalized, updated } = normalizeUserThemes(savedThemes);
-        const activeId = configService.get('css.activeThemeId');
+        const userThemes = (configService.get('theme.userThemes') as Theme[]) ?? [];
 
-        if (updated) {
-          await configService.set(
-            'css.themes',
-            normalized.filter((t) => !t.is_preset)
-          );
+        // Apply background CSS to user themes that have cover images
+        const normalizedUserThemes = userThemes.map((theme) => ensureBackgroundCss(theme));
+
+        // 加载扩展主题 / Load extension-contributed themes
+        let extensionThemes: Theme[] = [];
+        try {
+          const loadedExtensionThemes = await ipcBridge.extensions.getThemes.invoke();
+          // Map extension themes to Theme shape (css-only, builtin: true, appearance inferred as 'light')
+          extensionThemes = loadedExtensionThemes.map((theme) => ({
+            id: theme.id,
+            name: theme.name,
+            cover: resolveExtensionAssetUrl(theme.cover),
+            css: theme.css,
+            appearance: 'light' as const,
+            builtin: true,
+            created_at: theme.created_at ?? 0,
+            updated_at: theme.updated_at ?? 0,
+          }));
+        } catch {
+          // Extensions not available (e.g., WebUI mode or not initialized yet)
         }
 
-        // 对预设主题也应用背景图 CSS 处理 / Apply background CSS processing to preset themes as well
-        const normalizedPresets = PRESET_THEMES.map((theme) => ensureBackgroundCss(theme));
-
-        setExtensionThemesCache([]);
-
-        // 合并预设主题、扩展主题和用户主题，按 ID 去重（先出现的优先）
-        // Merge preset, extension, and user themes; deduplicate by ID (first occurrence wins)
+        // 合并主题，按 ID 去重（先出现的优先）
+        // Merge builtin, extension, and user themes; deduplicate by ID (first occurrence wins)
         const seenIds = new Set<string>();
-        const allThemes: ICssTheme[] = [];
-        for (const theme of normalizedPresets) {
+        const allThemes: Theme[] = [];
+        for (const theme of [...BUILTIN_THEMES, ...extensionThemes, ...normalizedUserThemes]) {
           if (!theme?.id || seenIds.has(theme.id)) continue;
           seenIds.add(theme.id);
           allThemes.push(theme);
         }
 
-        const resolvedActiveId = normalizeOplActiveThemeId(activeId || DEFAULT_THEME_ID);
-        const activeTheme = allThemes.find((theme) => theme.id === resolvedActiveId);
-        if (activeId !== resolvedActiveId) {
-          await configService.set('css.activeThemeId', resolvedActiveId);
-        }
-
-        // 如果激活主题不存在（扩展被移除等），回退到默认主题
-        // If active theme no longer exists (extension removed etc.), fall back to default
-        let effectiveActiveId = resolvedActiveId;
-        if (!activeTheme && resolvedActiveId !== DEFAULT_THEME_ID) {
-          effectiveActiveId = DEFAULT_THEME_ID;
-          // Persist the fallback so we don't repeat this on every mount
-          await configService.set('css.activeThemeId', effectiveActiveId);
-        }
-
-        const expectedCss = resolveCssByActiveTheme(effectiveActiveId, []);
-
         setThemes(allThemes);
-        setActiveThemeId(effectiveActiveId);
-
-        // Self-heal potential split-brain state (activeThemeId != customCss) caused by partial IPC write failures.
-        const savedCustomCss = configService.get('customCss') || '';
-        if (savedCustomCss !== expectedCss) {
-          await configService.set('customCss', expectedCss);
-          // Only dispatch when CSS actually changed to avoid redundant re-renders
-          dispatchCustomCssUpdated(expectedCss);
-        }
       } catch (error) {
         console.error('Failed to load CSS themes:', error);
       }
@@ -324,64 +293,32 @@ const CssThemeSettings: React.FC = () => {
   }, []);
 
   /**
-   * 应用主题 CSS / Apply theme CSS
-   */
-  // Serial queue to process theme changes in strict order without drops
-  const applyQueue = React.useRef<Promise<void>>(Promise.resolve());
-
-  const applyThemeCss = useCallback((css: string, themeId: string) => {
-    const task = async () => {
-      try {
-        // Queued Concurrent Writes: Not strictly atomic, but eliminates client-side async interleaving.
-        // True atomicity would require a single RPC/key batch in the main process.
-        await Promise.all([configService.set('customCss', css), configService.set('css.activeThemeId', themeId)]);
-
-        // Pessimistic UI update to avoid transient flash to previous theme.
-        setActiveThemeId(themeId);
-        dispatchCustomCssUpdated(css);
-      } catch (error) {
-        console.error('Failed to apply theme (IPC/Storage Error). Initiating source-of-truth recovery:', error);
-
-        // Recover state unconditionally from what is actually in storage
-        try {
-          const realId = configService.get('css.activeThemeId') || DEFAULT_THEME_ID;
-          const realCss = configService.get('customCss') || '';
-
-          // Unconditionally align UI state with the real storage state
-          setActiveThemeId(realId);
-          dispatchCustomCssUpdated(realCss);
-        } catch (syncError) {
-          console.error('Fallback sync failed:', syncError);
-        }
-        throw error;
-      }
-    };
-
-    applyQueue.current = applyQueue.current.then(task, task);
-    return applyQueue.current;
-  }, []);
-  /**
    * 选择主题 / Select theme
    */
   const handleSelectTheme = useCallback(
-    async (theme: ICssTheme) => {
+    async (theme: Theme) => {
       try {
-        const normalizedCss = resolveCssByActiveTheme(theme.id, []);
-        // Use queued, best-effort write function
-        await applyThemeCss(normalizedCss, theme.id);
+        await selectTheme(theme.id);
         Message.success(t('settings.cssTheme.applied', { name: theme.name }));
-      } catch (error) {
-        // applyThemeCss internally handles the UI state recovery now.
+      } catch {
         Message.error(t('settings.cssTheme.applyFailed'));
       }
     },
-    [applyThemeCss, themes, t]
+    [selectTheme, t]
   );
+
+  /**
+   * 打开添加主题弹窗 / Open add theme modal
+   */
+  const handleAddTheme = useCallback(() => {
+    setEditingTheme(null);
+    setModalVisible(true);
+  }, []);
 
   /**
    * 打开编辑主题弹窗 / Open edit theme modal
    */
-  const handleEditTheme = useCallback((theme: ICssTheme, e: React.MouseEvent) => {
+  const handleEditTheme = useCallback((theme: Theme, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingTheme(theme);
     setModalVisible(true);
@@ -391,34 +328,41 @@ const CssThemeSettings: React.FC = () => {
    * 保存主题 / Save theme
    */
   const handleSaveTheme = useCallback(
-    async (themeData: Omit<ICssTheme, 'id' | 'created_at' | 'updated_at' | 'is_preset'>) => {
+    async (themeData: Omit<Theme, 'id' | 'created_at' | 'updated_at' | 'builtin'>) => {
       try {
         const now = Date.now();
-        let updatedThemes: ICssTheme[];
-        const normalizedThemeData = ensureBackgroundCss(themeData);
+        let updatedThemes: Theme[];
+        const normalizedThemeData = ensureBackgroundCss({ ...themeData, builtin: false });
 
-        if (editingTheme && !editingTheme.is_preset) {
+        let savedId: string | undefined;
+        if (editingTheme && !editingTheme.builtin) {
           // 更新现有用户主题 / Update existing user theme
-          updatedThemes = themes.map((t) =>
-            t.id === editingTheme.id ? { ...t, ...normalizedThemeData, updated_at: now } : t
-          );
+          savedId = editingTheme.id;
+          updatedThemes = themes.map((t) => (t.id === savedId ? { ...t, ...normalizedThemeData, updated_at: now } : t));
         } else {
-          // 添加新主题（包括从预设主题编辑创建副本）/ Add new theme (including copy from preset)
-          const newTheme: ICssTheme = {
+          // 添加新主题 / Add new theme
+          const newTheme: Theme = {
             id: uuid(),
             ...normalizedThemeData,
-            is_preset: false,
+            tokens: undefined,
+            builtin: false,
             created_at: now,
             updated_at: now,
           };
           updatedThemes = [...themes, newTheme];
         }
 
-        // 只保存用户主题 / Only save user themes
-        const userThemes = updatedThemes.filter((t) => !t.is_preset);
-        await configService.set('css.themes', userThemes);
+        // 只保存用户主题 / Only save user themes — persist BEFORE re-applying so selectTheme reads updated css
+        const userThemes = updatedThemes.filter((t) => !t.builtin);
+        await configService.set('theme.userThemes', userThemes);
 
         setThemes(updatedThemes);
+
+        // If the saved theme is the active one, re-apply to pick up changes
+        if (savedId !== undefined && activeThemeId === savedId) {
+          await selectTheme(savedId);
+        }
+
         setModalVisible(false);
         setEditingTheme(null);
         Message.success(t('common.saveSuccess'));
@@ -427,7 +371,7 @@ const CssThemeSettings: React.FC = () => {
         Message.error(t('common.saveFailed'));
       }
     },
-    [editingTheme, themes, t]
+    [editingTheme, themes, activeThemeId, selectTheme, t]
   );
 
   /**
@@ -442,13 +386,12 @@ const CssThemeSettings: React.FC = () => {
         onOk: async () => {
           try {
             const updatedThemes = themes.filter((t) => t.id !== themeId);
-            const userThemes = updatedThemes.filter((t) => !t.is_preset);
-            await configService.set('css.themes', userThemes);
+            const userThemes = updatedThemes.filter((t) => !t.builtin);
+            await configService.set('theme.userThemes', userThemes);
 
-            // 如果删除的是当前激活主题，清除激活状态 / If deleting active theme, clear active state
+            // 如果删除的是当前激活主题，回退到 Light / If deleting active theme, fall back to Light
             if (activeThemeId === themeId) {
-              // 删除操作也使用强一致性的状态重置 / Use strongly consistent state reset for delete too
-              await applyThemeCss('', '');
+              await selectTheme(LIGHT_THEME_ID);
             }
 
             setThemes(updatedThemes);
@@ -462,7 +405,7 @@ const CssThemeSettings: React.FC = () => {
         },
       });
     },
-    [themes, activeThemeId, applyThemeCss, t]
+    [themes, activeThemeId, selectTheme, t]
   );
 
   return (
@@ -470,6 +413,15 @@ const CssThemeSettings: React.FC = () => {
       {/* 标题栏 / Header */}
       <div className='flex items-start md:items-center justify-between gap-8px flex-wrap'>
         <span className='text-14px text-t-secondary leading-22px'>{t('settings.cssTheme.selectOrCustomize')}</span>
+        <Button
+          type='outline'
+          size='small'
+          className='rd-18px h-34px px-14px !m-0'
+          icon={<Plus theme='outline' size='14' />}
+          onClick={handleAddTheme}
+        >
+          {t('settings.cssTheme.addManually')}
+        </Button>
       </div>
 
       {/* 主题卡片列表 / Theme card list */}
@@ -506,8 +458,8 @@ const CssThemeSettings: React.FC = () => {
               {/* 底部渐变遮罩与名称、编辑按钮 / Bottom gradient overlay with name and edit button */}
               <div className='absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between p-8px'>
                 <span className='text-13px text-white truncate flex-1'>{theme.name}</span>
-                {/* 编辑按钮 / Edit button */}
-                {hoveredThemeId === theme.id && !theme.is_preset && (
+                {/* 编辑按钮（仅用户主题） / Edit button (user themes only) */}
+                {hoveredThemeId === theme.id && !theme.builtin && (
                   <div
                     className='p-4px rounded-6px bg-white/20 cursor-pointer hover:bg-white/40 transition-colors ml-8px'
                     onClick={(e) => handleEditTheme(theme, e)}
@@ -537,7 +489,7 @@ const CssThemeSettings: React.FC = () => {
           setEditingTheme(null);
         }}
         onSave={handleSaveTheme}
-        onDelete={editingTheme && !editingTheme.is_preset ? () => handleDeleteTheme(editingTheme.id) : undefined}
+        onDelete={editingTheme && !editingTheme.builtin ? () => handleDeleteTheme(editingTheme.id) : undefined}
       />
     </div>
   );

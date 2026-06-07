@@ -44,7 +44,8 @@ import {
   DEFAULT_CODEX_REASONING_EFFORT,
   selectDefaultCodexModelId,
 } from '@/common/types/codex/codexModels';
-import { normalizeOplActiveThemeId, OPL_LEGACY_CODEX_THEME_ID } from '@/renderer/utils/theme/themeCssSync';
+import { migrateThemeConfig } from '@/common/theme/migrateThemeConfig';
+import { LIGHT_THEME_ID } from '@/common/theme/constants';
 
 describe('OPL generated product profile', () => {
   it('exposes the App-generated Codex default model profile', () => {
@@ -66,8 +67,12 @@ describe('OPL generated product profile', () => {
     expect(getOplDefaultExecutorAgentKey()).toBe('codex');
     expect(getOplGuiDefaultCssThemeId()).toBe('default-theme');
     expect(shouldDefaultCodexCssTheme()).toBe(false);
-    expect(normalizeOplActiveThemeId('')).toBe('default-theme');
-    expect(normalizeOplActiveThemeId(OPL_LEGACY_CODEX_THEME_ID)).toBe('default-theme');
+    expect(migrateThemeConfig({ theme: 'light', 'css.activeThemeId': '', 'css.themes': [] })['theme.activeId']).toBe(
+      LIGHT_THEME_ID
+    );
+    expect(
+      migrateThemeConfig({ theme: 'light', 'css.activeThemeId': 'codex', 'css.themes': [] })['theme.activeId']
+    ).toBe(LIGHT_THEME_ID);
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
     expect(isOplCodexCliFixedExecutor()).toBe(true);
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
