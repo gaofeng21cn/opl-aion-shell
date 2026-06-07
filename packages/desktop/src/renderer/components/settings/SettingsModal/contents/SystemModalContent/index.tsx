@@ -299,9 +299,7 @@ const SystemModalContent: React.FC = () => {
 
   const oplFlowContext = oplRecord(appState.opl_flow_context);
   const oplFlowContextDisplay =
-    oplString(oplFlowContext.flow_id) ??
-    oplString(oplFlowContext.contract_ref) ??
-    t('settings.unavailable');
+    oplString(oplFlowContext.flow_id) ?? oplString(oplFlowContext.contract_ref) ?? t('settings.unavailable');
   const oplFlowContextSource = oplString(oplFlowContext.source);
   const systemInfo = {
     cacheDir: oplString(appPaths.cache_root) ?? '',

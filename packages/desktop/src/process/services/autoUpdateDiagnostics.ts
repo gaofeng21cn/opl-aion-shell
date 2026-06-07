@@ -92,9 +92,7 @@ function normalizeVersion(version: string | undefined): string | null {
 }
 
 function findLastDownloadedVersion(events: AutoUpdateDiagnosticEvent[]): string | undefined {
-  return events
-    .toReversed()
-    .find((event) => event.status === 'downloaded' && typeof event.version === 'string')
+  return events.toReversed().find((event) => event.status === 'downloaded' && typeof event.version === 'string')
     ?.version;
 }
 
