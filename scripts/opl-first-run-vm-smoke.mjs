@@ -63,6 +63,16 @@ const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
   action: path.join('screenshots', 'action.png'),
 };
+const GUIDE_SCREENSHOTS = {
+  release: '01-download-release.png',
+  dmgInstall: '02-install-dmg.png',
+  firstRun: '03-codex-config-needed.png',
+  ready: '04-first-run-checking.png',
+  researchEntry: '05-opl-ready-research-entry.png',
+  environment: '06-research-data-folder.png',
+  firstResearch: '07-first-research-entry.png',
+  runtimeStatus: '08-opl-runtime-status.png',
+};
 
 function usage() {
   process.stdout.write(`Usage:
@@ -107,6 +117,7 @@ Options:
                          Use this only for Full/runtime first-run flows that intentionally
                          expose the wizard. Standard DMG smokes treat the wizard as an
                          observed optional path.
+  --guide-screenshots    Capture extra 1920x1080 VM screenshots for the user guide.
   --assert-clean         Fail if OPL state/log or app-local GUI state already exists before launch.
   --help                 Show this message.
 `);
@@ -131,6 +142,7 @@ function parseArgs(argv) {
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     requireCodexConfigWizard: false,
     assertClean: false,
+    guideScreenshots: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -164,6 +176,10 @@ function parseArgs(argv) {
       options.codexAiSelfCheck = true;
       options.codexFunctionalCheck = true;
       options.assistantRouteSmoke = true;
+      continue;
+    }
+    if (arg === '--guide-screenshots') {
+      options.guideScreenshots = true;
       continue;
     }
     const value = argv[index + 1];
@@ -306,6 +322,21 @@ function detachDmg(mountPoint) {
   fs.rmSync(mountPoint, { recursive: true, force: true });
 }
 
+function mountGuideDmg(dmgPath) {
+  const stdout = run('hdiutil', ['attach', dmgPath, '-readonly']);
+  const mountPoint = stdout
+    .split(/\r?\n/)
+    .map((line) => line.match(/(\/Volumes\/.+)$/)?.[1])
+    .filter(Boolean)
+    .at(-1);
+  if (!mountPoint) throw new Error(`Could not resolve mounted DMG volume for ${dmgPath}`);
+  return mountPoint;
+}
+
+function detachGuideDmg(mountPoint) {
+  spawnSync('hdiutil', ['detach', mountPoint], { stdio: 'ignore' });
+}
+
 function installDmgApp(dmgPath, installDir) {
   const mountPoint = mountDmg(dmgPath);
   try {
@@ -318,6 +349,71 @@ function installDmgApp(dmgPath, installDir) {
     return targetApp;
   } finally {
     detachDmg(mountPoint);
+  }
+}
+
+function captureGuideDmgWindow(dmgPath, target) {
+  const mountPoint = mountGuideDmg(dmgPath);
+  try {
+    const mountedApp = findAppBundle(mountPoint);
+    if (!mountedApp) throw new Error(`No .app bundle found in ${dmgPath}`);
+    run('open', [mountPoint]);
+    const finderWindowSetup = spawnSync(
+      'osascript',
+      [
+        '-e',
+        [
+          'with timeout of 8 seconds',
+          'tell application "Finder"',
+          'activate',
+          `open POSIX file ${JSON.stringify(mountPoint)}`,
+          'delay 1',
+          'set targetWindow to front window',
+          'set bounds of targetWindow to {160, 120, 1760, 960}',
+          'set current view of targetWindow to icon view',
+          'set icon size of icon view options of targetWindow to 128',
+          'set arrangement of icon view options of targetWindow to not arranged',
+          'delay 1',
+          'end tell',
+          'end timeout',
+        ].join('\n'),
+      ],
+      { encoding: 'utf8', timeout: 15_000 }
+    );
+    const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
+    if (result.status !== 0) {
+      throw new Error(`screencapture exited with ${result.status}`);
+    }
+    const systemPromptCleanup = [
+      dismissGuideScreenCapturePermissionPrompt(),
+      dismissGuideScreenCapturePermissionPrompt(),
+    ];
+    return {
+      status: 'captured',
+      target,
+      source: mountPoint,
+      system_prompt_cleanup: systemPromptCleanup,
+      finder_window_setup:
+        finderWindowSetup.status === 0
+          ? { status: 'passed' }
+          : {
+              status: 'failed_nonblocking',
+              exit_status: finderWindowSetup.status,
+              signal: finderWindowSetup.signal ?? null,
+              error: finderWindowSetup.error?.message ?? null,
+              stdout: finderWindowSetup.stdout ?? '',
+              stderr: finderWindowSetup.stderr ?? '',
+            },
+    };
+  } finally {
+    spawnSync(
+      'osascript',
+      ['-e', `tell application "Finder" to close window ${JSON.stringify(path.basename(mountPoint))}`],
+      {
+        stdio: 'ignore',
+      }
+    );
+    detachGuideDmg(mountPoint);
   }
 }
 
@@ -1112,6 +1208,129 @@ function captureMacScreenArtifact(target) {
 
   const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
   return { status: result.status === 0 ? 'captured' : 'skipped', target };
+}
+
+function warmGuideScreenCapturePermission(guideDir) {
+  const target = path.join(guideDir, '.screencapture-warmup.png');
+  spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
+  fs.rmSync(target, { force: true });
+  const cleanup = dismissGuideScreenCapturePermissionPrompt();
+  return { status: 'completed', cleanup };
+}
+
+function dismissGuideScreenCapturePermissionPrompt() {
+  const result = spawnSync('pkill', ['-x', 'UserNotificationCenter'], {
+    encoding: 'utf8',
+    timeout: 2_000,
+  });
+  if (result.status === 0) {
+    return { status: 'dismissed', method: 'pkill', process: 'UserNotificationCenter' };
+  }
+  if (result.status === 1) {
+    return { status: 'not_found', method: 'pkill', process: 'UserNotificationCenter' };
+  }
+  return {
+    status: 'failed_nonblocking',
+    exit_status: result.status,
+    signal: result.signal ?? null,
+    error: result.error?.message ?? null,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    method: 'pkill',
+    process: 'UserNotificationCenter',
+  };
+}
+
+function captureGuideBrowserReleaseScreenshot(target) {
+  const releaseUrl =
+    process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest';
+  dismissGuideScreenCapturePermissionPrompt();
+  run('open', ['-a', 'Safari', releaseUrl]);
+  run('osascript', [
+    '-e',
+    [
+      'tell application "Safari"',
+      'activate',
+      'delay 4',
+      'if (count of windows) > 0 then set bounds of front window to {0, 0, 1920, 1080}',
+      'delay 1',
+      'end tell',
+    ].join('\n'),
+  ]);
+  const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
+  if (result.status !== 0) {
+    throw new Error(`screencapture exited with ${result.status}`);
+  }
+  const systemPromptCleanup = dismissGuideScreenCapturePermissionPrompt();
+  return {
+    status: 'captured',
+    target,
+    source: releaseUrl,
+    system_prompt_cleanup: systemPromptCleanup,
+  };
+}
+
+function copyGuideScreenshot(source, target) {
+  if (!source || !fs.existsSync(source)) {
+    return { status: 'missing_source', source, target };
+  }
+  copyArtifact(source, target);
+  return { status: 'copied', source, target };
+}
+
+function isGuideScreenshotEntryReady(entry) {
+  return ['captured', 'copied'].includes(entry?.status);
+}
+
+function writeGuideScreenshotsSummary(options, entries, secret, diagnostics = {}) {
+  const summary = {
+    surface_id: 'opl_user_guide_vm_screenshots',
+    status: entries.every(isGuideScreenshotEntryReady) ? 'passed' : 'partial',
+    source: 'macos_tart_vm_1920x1080_zh',
+    release_url:
+      process.env.OPL_GUIDE_RELEASE_URL || 'https://github.com/gaofeng21cn/one-person-lab-app/releases/latest',
+    diagnostics,
+    screenshots: entries,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'guide-screenshots-summary.json'), summary, secret);
+  return summary;
+}
+
+async function captureGuideScreenshots(options, sources, secret) {
+  const guideDir = path.join(options.artifacts, 'guide-screenshots');
+  fs.mkdirSync(guideDir, { recursive: true });
+  const screenCaptureWarmup = warmGuideScreenCapturePermission(guideDir);
+  const entries = [];
+  const capture = (name, operation) => {
+    const target = path.join(guideDir, name);
+    try {
+      dismissGuideScreenCapturePermissionPrompt();
+      entries.push({ name, ...operation(target) });
+      dismissGuideScreenCapturePermissionPrompt();
+    } catch (error) {
+      entries.push({
+        name,
+        status: 'failed',
+        target,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  capture(GUIDE_SCREENSHOTS.release, (target) => captureGuideBrowserReleaseScreenshot(target));
+  if (options.dmg) {
+    capture(GUIDE_SCREENSHOTS.dmgInstall, (target) => captureGuideDmgWindow(options.dmg, target));
+  }
+  capture(GUIDE_SCREENSHOTS.firstRun, (target) => copyGuideScreenshot(sources.firstRunBeginner, target));
+  capture(GUIDE_SCREENSHOTS.ready, (target) => copyGuideScreenshot(sources.firstRunReady, target));
+  capture(GUIDE_SCREENSHOTS.researchEntry, (target) => copyGuideScreenshot(sources.assistantMas, target));
+  capture(GUIDE_SCREENSHOTS.environment, (target) => copyGuideScreenshot(sources.settingsEnvironment, target));
+  capture(GUIDE_SCREENSHOTS.firstResearch, (target) => copyGuideScreenshot(sources.assistantMas, target));
+  capture(GUIDE_SCREENSHOTS.runtimeStatus, (target) => copyGuideScreenshot(sources.runtimeStatus, target));
+
+  return writeGuideScreenshotsSummary(options, entries, secret, {
+    screen_capture_warmup: screenCaptureWarmup,
+  });
 }
 
 function submitCodexWizard(processName, apiKey) {
@@ -2442,6 +2661,7 @@ async function runSettingsSmoke(options, secret) {
         runtimeRefresh: await (hooks.exerciseRuntimeRefresh ?? exerciseRuntimeRefresh)(client, '#/runtime'),
       },
     });
+    await captureCdpScreenshot(client, path.join(options.artifacts, 'settings-pages', 'runtime-status.png'));
     try {
       runtimeActionEvidence = await (hooks.captureRuntimeActionEvidence ?? captureRuntimeActionEvidence)(
         client,
@@ -2897,6 +3117,28 @@ async function main() {
         )
       : null;
 
+    const guideScreenshots = options.guideScreenshots
+      ? await runSmokePhase(
+          writeSmokeEvent,
+          'guide_screenshots',
+          () =>
+            captureGuideScreenshots(
+              options,
+              {
+                firstRunBeginner: path.join(options.artifacts, 'first-run-beginner.png'),
+                firstRunReady: path.join(options.artifacts, 'first-run-beginner.png'),
+                assistantMas: path.join(options.artifacts, 'assistant-route-smoke', 'mas.png'),
+                settingsEnvironment: path.join(options.artifacts, 'settings-pages', 'environment.png'),
+                runtimeStatus: path.join(options.artifacts, 'settings-pages', 'runtime-status.png'),
+              },
+              codexApiKey
+            ),
+          {
+            output_dir: path.join(options.artifacts, 'guide-screenshots'),
+          }
+        )
+      : null;
+
     if (fs.existsSync(firstRunLog)) {
       writeTextArtifact(
         path.join(options.artifacts, 'first-run.jsonl'),
@@ -2969,6 +3211,7 @@ async function main() {
         : null,
       codex_functional_check: codexFunctionalCheck,
       codex_ai_self_check: codexAiSelfCheck,
+      guide_screenshots: guideScreenshots,
     };
     writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
@@ -3043,6 +3286,9 @@ export const __test =
         probeCodexCli,
         unwrapBackendResponseEnvelope,
         buildAssistantRouteSmokeFailureSummary,
+        dismissGuideScreenCapturePermissionPrompt,
+        warmGuideScreenCapturePermission,
+        isGuideScreenshotEntryReady,
         visibleHomeAssistantControlSelector,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
