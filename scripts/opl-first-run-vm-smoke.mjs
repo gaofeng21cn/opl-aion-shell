@@ -1721,11 +1721,8 @@ async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
           timeout_ms: probeTimeoutMs,
         }
       );
-      await runFullRuntimeEquivalenceProbe(
-        options.writeSmokeEvent,
-        attempt,
-        'assert_equivalence',
-        () => assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw)
+      await runFullRuntimeEquivalenceProbe(options.writeSmokeEvent, attempt, 'assert_equivalence', () =>
+        assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw)
       );
       return {
         systemInitializeRaw: lastSystemInitializeRaw,
