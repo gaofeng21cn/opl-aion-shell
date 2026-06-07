@@ -6,6 +6,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import semver from 'semver';
 import type { AutoUpdateStatus } from './autoUpdaterService';
 
 const AUTO_UPDATE_DIAGNOSTICS_FILE = 'auto-update-diagnostics.json';
@@ -13,9 +14,11 @@ const MAX_AUTO_UPDATE_EVENTS = 20;
 
 export type AutoUpdateDiagnosticEvent = {
   at: string;
+  currentVersion?: string;
   error?: string;
   progressPercent?: number;
-  status: AutoUpdateStatus['status'] | 'quit-and-install';
+  reason?: string;
+  status: AutoUpdateStatus['status'] | 'quit-and-install' | 'install-not-applied';
   total?: number;
   transferred?: number;
   version?: string;
@@ -32,6 +35,11 @@ type AutoUpdateDiagnosticOptions = {
   currentAppVersion: string;
   now?: () => Date;
   userDataPath: string;
+};
+
+type InstallNotAppliedOptions = {
+  currentAppVersion: string;
+  now?: () => Date;
 };
 
 function getAutoUpdateDiagnosticsPath(userDataPath: string): string {
@@ -78,6 +86,55 @@ export function appendAutoUpdateDiagnosticEvent(
   };
 }
 
+function normalizeVersion(version: string | undefined): string | null {
+  if (!version) return null;
+  return semver.valid(version) || semver.coerce(version)?.version || null;
+}
+
+function findLastDownloadedVersion(events: AutoUpdateDiagnosticEvent[]): string | undefined {
+  return events
+    .toReversed()
+    .find((event) => event.status === 'downloaded' && typeof event.version === 'string')
+    ?.version;
+}
+
+export function appendInstallNotAppliedDiagnosticIfNeeded(
+  state: AutoUpdateDiagnostics,
+  options: InstallNotAppliedOptions
+): AutoUpdateDiagnostics {
+  const targetVersion = findLastDownloadedVersion(state.events);
+  const currentVersion = options.currentAppVersion;
+  const normalizedTarget = normalizeVersion(targetVersion);
+  const normalizedCurrent = normalizeVersion(currentVersion);
+  if (
+    !state.lastQuitAndInstallAt ||
+    !targetVersion ||
+    !normalizedTarget ||
+    !normalizedCurrent ||
+    semver.gte(normalizedCurrent, normalizedTarget) ||
+    state.lastEvent?.status === 'install-not-applied'
+  ) {
+    return {
+      ...state,
+      currentAppVersion: currentVersion,
+    };
+  }
+  const at = (options.now ?? (() => new Date()))().toISOString();
+  return appendAutoUpdateDiagnosticEvent(
+    {
+      ...state,
+      currentAppVersion: currentVersion,
+    },
+    {
+      at,
+      currentVersion,
+      reason: 'current_version_lower_than_downloaded_after_quit_and_install',
+      status: 'install-not-applied',
+      version: targetVersion,
+    }
+  );
+}
+
 function eventFromStatus(status: AutoUpdateStatus, at: string): AutoUpdateDiagnosticEvent {
   return {
     at,
@@ -116,6 +173,19 @@ export function recordAutoUpdateStatus(status: AutoUpdateStatus, options: AutoUp
 export function recordAutoUpdateQuitAndInstall(options: AutoUpdateDiagnosticOptions): void {
   const at = (options.now ?? (() => new Date()))().toISOString();
   updateAutoUpdateDiagnostics({ at, status: 'quit-and-install' }, options);
+}
+
+export function recordAutoUpdateInstallNotAppliedIfNeeded(options: AutoUpdateDiagnosticOptions): void {
+  const filePath = getAutoUpdateDiagnosticsPath(options.userDataPath);
+  const previous = readDiagnosticsFile(filePath);
+  if (!previous) return;
+  writeDiagnosticsFile(
+    filePath,
+    appendInstallNotAppliedDiagnosticIfNeeded(previous, {
+      currentAppVersion: options.currentAppVersion,
+      now: options.now,
+    })
+  );
 }
 
 export function readAutoUpdateDiagnostics(userDataPath: string): AutoUpdateDiagnostics | undefined {

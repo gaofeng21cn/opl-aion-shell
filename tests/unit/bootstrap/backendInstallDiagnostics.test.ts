@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { collectBackendInstallDiagnostics } from '@/process/startup/backendInstallDiagnostics';
-import { appendAutoUpdateDiagnosticEvent } from '@/process/services/autoUpdateDiagnostics';
+import {
+  appendAutoUpdateDiagnosticEvent,
+  appendInstallNotAppliedDiagnosticIfNeeded,
+} from '@/process/services/autoUpdateDiagnostics';
 
 describe('collectBackendInstallDiagnostics', () => {
   it('records packaged runtime manifest and missing backend binary metadata', () => {
@@ -104,6 +107,74 @@ describe('appendAutoUpdateDiagnosticEvent', () => {
         status: 'quit-and-install',
       },
       lastQuitAndInstallAt: '2026-05-30T08:01:00.000Z',
+    });
+  });
+
+  it('records when a downloaded update still is not applied after quitAndInstall', () => {
+    const state = {
+      currentAppVersion: '26.6.3',
+      events: [
+        {
+          at: '2026-06-07T01:30:00.000Z',
+          status: 'downloaded' as const,
+          version: '26.6.5',
+        },
+        {
+          at: '2026-06-07T01:31:00.000Z',
+          status: 'quit-and-install' as const,
+        },
+      ],
+      lastEvent: {
+        at: '2026-06-07T01:31:00.000Z',
+        status: 'quit-and-install' as const,
+      },
+      lastQuitAndInstallAt: '2026-06-07T01:31:00.000Z',
+    };
+
+    const next = appendInstallNotAppliedDiagnosticIfNeeded(state, {
+      currentAppVersion: '26.6.3',
+      now: () => new Date('2026-06-07T01:34:00.000Z'),
+    });
+
+    expect(next.lastEvent).toEqual({
+      at: '2026-06-07T01:34:00.000Z',
+      status: 'install-not-applied',
+      version: '26.6.5',
+      currentVersion: '26.6.3',
+      reason: 'current_version_lower_than_downloaded_after_quit_and_install',
+    });
+    expect(next.events.at(-1)).toEqual(next.lastEvent);
+  });
+
+  it('does not record install-not-applied after the app reaches the downloaded version', () => {
+    const state = {
+      currentAppVersion: '26.6.5',
+      events: [
+        {
+          at: '2026-06-07T01:30:00.000Z',
+          status: 'downloaded' as const,
+          version: '26.6.5',
+        },
+        {
+          at: '2026-06-07T01:31:00.000Z',
+          status: 'quit-and-install' as const,
+        },
+      ],
+      lastEvent: {
+        at: '2026-06-07T01:31:00.000Z',
+        status: 'quit-and-install' as const,
+      },
+      lastQuitAndInstallAt: '2026-06-07T01:31:00.000Z',
+    };
+
+    const next = appendInstallNotAppliedDiagnosticIfNeeded(state, {
+      currentAppVersion: '26.6.5',
+      now: () => new Date('2026-06-07T01:34:00.000Z'),
+    });
+
+    expect(next).toEqual({
+      ...state,
+      currentAppVersion: '26.6.5',
     });
   });
 });
