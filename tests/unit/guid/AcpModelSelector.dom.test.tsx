@@ -64,6 +64,7 @@ vi.mock('swr', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'zh-CN' },
     t: (key: string, options?: Record<string, unknown>) => {
       if (key === 'conversation.welcome.autoModel') return `Auto (${String(options?.model)})`;
       if (key === 'common.defaultModel') return 'Default Model';
@@ -125,12 +126,15 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /GPT-5\.5（超高）/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · GPT-5\.5 · 推理超高/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByRole('menuitem', { name: 'GPT-5.5（超高）' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: 'GPT-5.4' }));
+    expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
+      '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
+    );
+    expect(screen.getByText('GPT-5.5 · 推理超高').closest('[role="menuitem"]')).toHaveTextContent('固定此模型');
+    fireEvent.click(screen.getByText('GPT-5.4 · 推理超高').closest('[role="menuitem"]')!);
 
     await waitFor(() => {
       expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
@@ -142,12 +146,13 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /GPT-5\.5（超高）/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · GPT-5\.5 · 推理超高/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByRole('menuitem', { name: 'GPT-5.5（超高）' })).toBeInTheDocument();
-    expect(await screen.findByRole('menuitem', { name: 'gpt-5.4' })).toBeInTheDocument();
+    expect(await screen.findByText('GPT-5.5 · 推理超高')).toBeInTheDocument();
+    expect(await screen.findByText('GPT-5.4 · 推理超高')).toBeInTheDocument();
+    expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
   });
 });

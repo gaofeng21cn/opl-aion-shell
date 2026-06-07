@@ -10,10 +10,17 @@ import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupCo
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { iconColors } from '@/renderer/styles/colors';
 import {
+  getOplCodexModelDisplayOptions,
+  getOplDefaultCodexReasoningEffort,
   isOplCodexCliFixedExecutor,
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
 } from '@/common/config/oplProductProfile';
+import {
+  buildOplCodexAutoModelOption,
+  formatOplCodexModelDisplay,
+  type OplModelDisplayLocale,
+} from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Brain, Down } from '@icon-park/react';
 import React, { useCallback } from 'react';
@@ -38,7 +45,7 @@ const AcpModelSelector: React.FC<{
   /** Wait for ACP warmup before reading runtime model info. */
   waitForWarmup?: boolean;
 }> = ({ conversation_id, backend, initialModelId, waitForWarmup = false }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
@@ -51,8 +58,15 @@ const AcpModelSelector: React.FC<{
     onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
   });
   const hideCodexModelList = backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
+  const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const showCodexAutoOption =
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
+  const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
+  const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
+  const codexAutoLabel =
+    localeKey === 'en-US'
+      ? getOplCodexModelDisplayOptions().auto_option.label_en
+      : getOplCodexModelDisplayOptions().auto_option.label_zh;
 
   const defaultModelLabel = t('common.defaultModel');
   const rawDisplayLabel =
@@ -62,10 +76,23 @@ const AcpModelSelector: React.FC<{
     model_info?.current_model_id ||
     '';
   const selectedModelValue = model_info?.current_model_id;
+  const oplCurrentModelDisplay =
+    useOplCodexModelDisplay && selectedModelValue
+      ? formatOplCodexModelDisplay({
+          id: selectedModelValue,
+          label: rawDisplayLabel,
+          reasoningEffort: defaultCodexReasoningEffort,
+          localeKey,
+        })
+      : null;
   const selectedModelLabel =
-    hideCodexModelList && rawDisplayLabel
-      ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
-      : rawDisplayLabel;
+    useOplCodexModelDisplay && oplCurrentModelDisplay
+      ? showCodexAutoOption
+        ? `${codexAutoLabel} · ${oplCurrentModelDisplay.modelLabel} · ${oplCurrentModelDisplay.reasoningLabel}`
+        : oplCurrentModelDisplay.label
+      : hideCodexModelList && rawDisplayLabel
+        ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
+        : rawDisplayLabel;
   const display_label = getModelDisplayLabel({
     selected_value: selectedModelValue,
     selectedLabel: selectedModelLabel,
@@ -73,6 +100,15 @@ const AcpModelSelector: React.FC<{
     fallbackLabel: t('conversation.welcome.useCliModel'),
   });
   const tooltipContent = display_label;
+  const autoModelDisplay =
+    showCodexAutoOption && selectedModelValue
+      ? buildOplCodexAutoModelOption({
+          currentModelId: selectedModelValue,
+          currentModelLabel: rawDisplayLabel,
+          reasoningEffort: defaultCodexReasoningEffort,
+          localeKey,
+        })
+      : null;
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
 
@@ -140,22 +176,40 @@ const AcpModelSelector: React.FC<{
         <Menu selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}>
           {showCodexAutoOption && (
             <Menu.Item key='__auto' className='bg-2!'>
-              <div className='flex items-center gap-8px w-full'>
-                <span>{t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}</span>
+              <div className='flex flex-col gap-2px w-full'>
+                <span className='font-medium'>
+                  {autoModelDisplay?.label ?? t('conversation.welcome.autoModel', { model: rawDisplayLabel || display_label })}
+                </span>
+                {autoModelDisplay?.description && (
+                  <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
+                )}
               </div>
             </Menu.Item>
           )}
-          {model_info.available_models.map((model) => (
-            <Menu.Item
-              key={model.id}
-              className={model.id === model_info.current_model_id ? 'bg-2!' : ''}
-              onClick={() => selectModel(model.id)}
-            >
-              <div className='flex items-center gap-8px w-full'>
-                <span>{model.label || model.id}</span>
-              </div>
-            </Menu.Item>
-          ))}
+          {model_info.available_models.map((model) => {
+            const modelDisplay = useOplCodexModelDisplay
+              ? formatOplCodexModelDisplay({
+                  id: model.id,
+                  label: model.label,
+                  reasoningEffort: defaultCodexReasoningEffort,
+                  localeKey,
+                })
+              : null;
+            return (
+              <Menu.Item
+                key={model.id}
+                className={model.id === model_info.current_model_id ? 'bg-2!' : ''}
+                onClick={() => selectModel(model.id)}
+              >
+                <div className='flex flex-col gap-2px w-full'>
+                  <span>{modelDisplay?.label ?? (model.label || model.id)}</span>
+                  {modelDisplay?.description && (
+                    <span className='text-12px text-t-secondary'>{modelDisplay.description}</span>
+                  )}
+                </div>
+              </Menu.Item>
+            );
+          })}
         </Menu>
       }
     >

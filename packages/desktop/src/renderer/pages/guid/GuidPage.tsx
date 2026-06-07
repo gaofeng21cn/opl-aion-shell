@@ -626,6 +626,7 @@ const GuidPage: React.FC = () => {
         currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
         selectedAcpModel={agentSelection.selectedAcpModel}
         setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+        backend={effectiveAgentType}
       />
     ) : null;
 

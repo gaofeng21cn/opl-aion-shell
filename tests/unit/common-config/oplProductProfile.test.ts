@@ -3,6 +3,7 @@ import {
   getOplCodexSessionContext,
   getOplCommandLineToolsInstallMessage,
   getOplCodexDefaultPermissionMode,
+  getOplCodexModelDisplayOptions,
   getOplFlowContextPolicy,
   getOplAssistantSkillProfile,
   getOplAssistantSkillProfiles,
@@ -97,6 +98,21 @@ describe('OPL generated product profile', () => {
     );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
+    expect(getOplCodexModelDisplayOptions()).toMatchObject({
+      display_policy: 'friendly_model_name_and_reasoning_for_every_visible_option',
+      raw_model_id_visible_in_ordinary_ui: false,
+      reasoning_effort_visible_for_every_option: true,
+      auto_option: {
+        label_zh: '自动（推荐）',
+        description_zh: '当前 GPT-5.5 · 推理超高 · 跟随最新最强',
+      },
+      visible_models: [
+        { id: 'gpt-5.5', label_zh: 'GPT-5.5', reasoning_effort: 'xhigh' },
+        { id: 'gpt-5.4', label_zh: 'GPT-5.4', reasoning_effort: 'xhigh' },
+        { id: 'gpt-5.3-codex', label_zh: 'GPT-5.3 Codex', reasoning_effort: 'xhigh' },
+        { id: 'gpt-5.2', label_zh: 'GPT-5.2', reasoning_effort: 'xhigh' },
+      ],
+    });
     expect(getOplRetiredCodexModels()).toEqual(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
   });
 

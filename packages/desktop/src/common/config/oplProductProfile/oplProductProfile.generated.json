@@ -81,6 +81,58 @@
         "selection_persists_into_conversation": true,
         "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
       },
+      "codex_model_display_options": {
+        "display_policy": "friendly_model_name_and_reasoning_for_every_visible_option",
+        "raw_model_id_visible_in_ordinary_ui": false,
+        "reasoning_effort_visible_for_every_option": true,
+        "default_reasoning_effort": "xhigh",
+        "auto_option": {
+          "id": "__auto",
+          "label_zh": "自动（推荐）",
+          "label_en": "Auto (recommended)",
+          "description_zh": "当前 GPT-5.5 · 推理超高 · 跟随最新最强",
+          "description_en": "Current GPT-5.5 · Ultra reasoning · follows latest strongest",
+          "resolved_model": "gpt-5.5",
+          "resolved_model_label_zh": "GPT-5.5",
+          "resolved_model_label_en": "GPT-5.5",
+          "resolved_reasoning_effort": "xhigh",
+          "follows_latest_strongest": true
+        },
+        "fixed_model_description_zh": "固定此模型",
+        "fixed_model_description_en": "Use this model",
+        "reasoning_labels": {
+          "xhigh": {
+            "zh": "推理超高",
+            "en": "Ultra reasoning"
+          }
+        },
+        "visible_models": [
+          {
+            "id": "gpt-5.5",
+            "label_zh": "GPT-5.5",
+            "label_en": "GPT-5.5",
+            "reasoning_effort": "xhigh"
+          },
+          {
+            "id": "gpt-5.4",
+            "label_zh": "GPT-5.4",
+            "label_en": "GPT-5.4",
+            "reasoning_effort": "xhigh"
+          },
+          {
+            "id": "gpt-5.3-codex",
+            "label_zh": "GPT-5.3 Codex",
+            "label_en": "GPT-5.3 Codex",
+            "reasoning_effort": "xhigh"
+          },
+          {
+            "id": "gpt-5.2",
+            "label_zh": "GPT-5.2",
+            "label_en": "GPT-5.2",
+            "reasoning_effort": "xhigh"
+          }
+        ]
+      },
       "home_purpose_entries": [
         {
           "id": "research",
@@ -709,7 +761,7 @@
         "label_zh": "高级",
         "label_en": "Advanced",
         "role": "developer_and_diagnostic_controls",
-        "primary_question": "Which Developer Profile capabilities, raw paths, logs, and diagnostics are exposed?"
+        "primary_question": "Which Developer Profile capabilities, raw paths, logs, and developer diagnostics are exposed?"
       },
       "about": {
         "label_zh": "关于与更新",
@@ -844,7 +896,7 @@
       ],
       "active_project_line_projection": {
         "source": "app_state.operator.workbench.activity_center.active_projects + app_state.operator.visual_ref_groups.active_project_refs",
-        "display_policy": "active_project_refs_define_user_visible_active_lines_queued_or_escalated_drilldown_items_preserve_status_without_becoming_active_worker_runs",
+        "display_policy": "queued_or_escalated_owner_handled_project_lines_count_as_active_projects_without_claiming_active_worker_run",
         "status_preservation_required": true,
         "must_preserve_fields": ["status", "active_run_id", "next_visible_step", "next_owner"]
       },

@@ -97,6 +97,36 @@ type OplCodexSessionContext = {
   'en-US': string[];
 };
 
+export type OplCodexModelDisplayModel = {
+  id: string;
+  label_zh: string;
+  label_en: string;
+  reasoning_effort: OplCodexReasoningEffort;
+};
+
+export type OplCodexModelDisplayOptions = {
+  display_policy: 'friendly_model_name_and_reasoning_for_every_visible_option';
+  raw_model_id_visible_in_ordinary_ui: false;
+  reasoning_effort_visible_for_every_option: true;
+  default_reasoning_effort: OplCodexReasoningEffort;
+  auto_option: {
+    id: '__auto';
+    label_zh: string;
+    label_en: string;
+    description_zh: string;
+    description_en: string;
+    resolved_model: string;
+    resolved_model_label_zh: string;
+    resolved_model_label_en: string;
+    resolved_reasoning_effort: OplCodexReasoningEffort;
+    follows_latest_strongest: true;
+  };
+  fixed_model_description_zh: string;
+  fixed_model_description_en: string;
+  reasoning_labels: Record<OplCodexReasoningEffort, { zh: string; en: string }>;
+  visible_models: OplCodexModelDisplayModel[];
+};
+
 type OplPostInstallAiSelfCheckEntry = {
   trigger: string;
   target_route: '/guid';
@@ -179,6 +209,7 @@ type AppProductProfile = {
         selection_persists_into_conversation: true;
         frontier_model_preference_order: string[];
       };
+      codex_model_display_options: OplCodexModelDisplayOptions;
       home_purpose_entries: OplHomePurposeEntry[];
       retired_codex_models_must_not_be_exposed: string[];
     };
@@ -325,6 +356,14 @@ function readReasoningEffort(value: unknown, context: string): OplCodexReasoning
   return value as OplCodexReasoningEffort;
 }
 
+function readRequiredReasoningEffort(value: unknown, context: string): OplCodexReasoningEffort {
+  const reasoningEffort = readReasoningEffort(value, context);
+  if (!reasoningEffort) {
+    throw new Error(`Invalid OPL product profile: ${context} must be non-null`);
+  }
+  return reasoningEffort;
+}
+
 function readStringRecord(value: unknown, context: string): Record<string, string> {
   if (!isRecord(value)) {
     throw new Error(`Invalid OPL product profile: ${context} must be an object`);
@@ -346,6 +385,125 @@ function readStringArrayRecord(value: unknown, context: string): Record<string, 
       return entry[1].every((item) => typeof item === 'string' && item.trim().length > 0);
     })
   );
+}
+
+function readCodexModelDisplayOptions(
+  guiHome: Record<string, unknown>,
+  defaultReasoningEffort: OplCodexReasoningEffort | null,
+  defaultModel: string,
+  frontierModelPreferenceOrder: string[]
+): OplCodexModelDisplayOptions {
+  if (!defaultReasoningEffort) {
+    throw new Error('Invalid OPL product profile: Codex model display options require non-null reasoning effort');
+  }
+  const value = guiHome.codex_model_display_options;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: gui.home.codex_model_display_options must be declared');
+  }
+  if (
+    value.display_policy !== 'friendly_model_name_and_reasoning_for_every_visible_option' ||
+    value.raw_model_id_visible_in_ordinary_ui !== false ||
+    value.reasoning_effort_visible_for_every_option !== true ||
+    value.fixed_model_description_zh !== '固定此模型' ||
+    value.fixed_model_description_en !== 'Use this model'
+  ) {
+    throw new Error('Invalid OPL product profile: Codex model display options must use friendly labels');
+  }
+
+  const displayDefaultReasoningEffort = readRequiredReasoningEffort(
+    value.default_reasoning_effort,
+    'gui.home.codex_model_display_options.default_reasoning_effort'
+  );
+  if (displayDefaultReasoningEffort !== defaultReasoningEffort) {
+    throw new Error('Invalid OPL product profile: Codex model display default reasoning must match Codex default');
+  }
+
+  const autoOption = isRecord(value.auto_option) ? value.auto_option : null;
+  if (
+    !autoOption ||
+    autoOption.id !== '__auto' ||
+    autoOption.label_zh !== '自动（推荐）' ||
+    autoOption.label_en !== 'Auto (recommended)' ||
+    autoOption.resolved_model !== defaultModel ||
+    autoOption.follows_latest_strongest !== true
+  ) {
+    throw new Error('Invalid OPL product profile: Codex auto model display option is invalid');
+  }
+  const autoReasoningEffort = readRequiredReasoningEffort(
+    autoOption.resolved_reasoning_effort,
+    'gui.home.codex_model_display_options.auto_option.resolved_reasoning_effort'
+  );
+  if (autoReasoningEffort !== defaultReasoningEffort) {
+    throw new Error('Invalid OPL product profile: Codex auto model display reasoning must match Codex default');
+  }
+
+  const reasoningLabels = isRecord(value.reasoning_labels) ? value.reasoning_labels : null;
+  const xhighReasoningLabel = isRecord(reasoningLabels?.xhigh) ? reasoningLabels.xhigh : null;
+  if (xhighReasoningLabel?.zh !== '推理超高' || xhighReasoningLabel.en !== 'Ultra reasoning') {
+    throw new Error('Invalid OPL product profile: Codex model display options must label xhigh reasoning');
+  }
+
+  if (!Array.isArray(value.visible_models)) {
+    throw new Error('Invalid OPL product profile: Codex model display visible_models must be an array');
+  }
+  const visibleModels = value.visible_models.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: Codex model display visible_models[${index}] must be an object`);
+    }
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    const labelZh = typeof entry.label_zh === 'string' ? entry.label_zh.trim() : '';
+    const labelEn = typeof entry.label_en === 'string' ? entry.label_en.trim() : '';
+    const reasoningEffort = readRequiredReasoningEffort(
+      entry.reasoning_effort,
+      `gui.home.codex_model_display_options.visible_models[${index}].reasoning_effort`
+    );
+    if (!id || !labelZh || !labelEn || labelZh === id || labelEn === id || reasoningEffort !== defaultReasoningEffort) {
+      throw new Error(`Invalid OPL product profile: Codex model display option ${id || index} must use friendly labels`);
+    }
+    return {
+      id,
+      label_zh: labelZh,
+      label_en: labelEn,
+      reasoning_effort: reasoningEffort,
+    };
+  });
+  if (JSON.stringify(visibleModels.map((model) => model.id)) !== JSON.stringify(frontierModelPreferenceOrder)) {
+    throw new Error('Invalid OPL product profile: Codex model display options must match frontier preference order');
+  }
+
+  return {
+    display_policy: 'friendly_model_name_and_reasoning_for_every_visible_option',
+    raw_model_id_visible_in_ordinary_ui: false,
+    reasoning_effort_visible_for_every_option: true,
+    default_reasoning_effort: displayDefaultReasoningEffort,
+    auto_option: {
+      id: '__auto',
+      label_zh: '自动（推荐）',
+      label_en: 'Auto (recommended)',
+      description_zh: typeof autoOption.description_zh === 'string' ? autoOption.description_zh : '',
+      description_en: typeof autoOption.description_en === 'string' ? autoOption.description_en : '',
+      resolved_model: defaultModel,
+      resolved_model_label_zh:
+        typeof autoOption.resolved_model_label_zh === 'string' ? autoOption.resolved_model_label_zh : defaultModel,
+      resolved_model_label_en:
+        typeof autoOption.resolved_model_label_en === 'string' ? autoOption.resolved_model_label_en : defaultModel,
+      resolved_reasoning_effort: autoReasoningEffort,
+      follows_latest_strongest: true,
+    },
+    fixed_model_description_zh: '固定此模型',
+    fixed_model_description_en: 'Use this model',
+    reasoning_labels: {
+      ...Object.fromEntries(
+        Object.entries(reasoningLabels ?? {}).flatMap(([key, label]) => {
+          if (!CODEX_REASONING_EFFORTS.has(key) || !isRecord(label)) return [];
+          if (typeof label.zh !== 'string' || typeof label.en !== 'string') return [];
+          return [[key, { zh: label.zh.trim(), en: label.en.trim() }]];
+        })
+      ),
+      xhigh: { zh: '推理超高', en: 'Ultra reasoning' },
+    } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
+    visible_models: visibleModels,
+  };
 }
 
 function readDeveloperProfileCapability(
@@ -906,7 +1064,17 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   ) {
     throw new Error('Invalid OPL product profile: GUI home Codex model policy must expose model override and restore');
   }
-  readStringArray(autoModelSelection, 'frontier_model_preference_order', 'gui.home.codex_auto_model_selection');
+  const frontierModelPreferenceOrder = readStringArray(
+    autoModelSelection,
+    'frontier_model_preference_order',
+    'gui.home.codex_auto_model_selection'
+  );
+  const codexModelDisplayOptions = readCodexModelDisplayOptions(
+    guiHome,
+    codexReasoningEffort,
+    codexModel,
+    frontierModelPreferenceOrder
+  );
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
@@ -1042,12 +1210,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           user_can_override_model: true,
           user_can_restore_auto: true,
           selection_persists_into_conversation: true,
-          frontier_model_preference_order: readStringArray(
-            autoModelSelection,
-            'frontier_model_preference_order',
-            'gui.home.codex_auto_model_selection'
-          ),
+          frontier_model_preference_order: frontierModelPreferenceOrder,
         },
+        codex_model_display_options: codexModelDisplayOptions,
         home_purpose_entries: homePurposeEntries,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
@@ -1148,6 +1313,21 @@ export function getOplRetiredCodexModels(): string[] {
 
 export function getOplCodexFrontierModelPreferenceOrder(): string[] {
   return [...OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.frontier_model_preference_order];
+}
+
+export function getOplCodexModelDisplayOptions(): OplCodexModelDisplayOptions {
+  return {
+    ...OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options,
+    auto_option: {
+      ...OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.auto_option,
+    },
+    reasoning_labels: {
+      ...OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.reasoning_labels,
+    },
+    visible_models: OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.visible_models.map((model) => ({
+      ...model,
+    })),
+  };
 }
 
 export function shouldShowOplCodexModelSelector(): boolean {

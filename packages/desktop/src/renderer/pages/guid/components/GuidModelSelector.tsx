@@ -5,8 +5,18 @@
  */
 
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
+import {
+  getOplCodexModelDisplayOptions,
+  getOplDefaultCodexReasoningEffort,
+  isOplCodexCliFixedExecutor,
+} from '@/common/config/oplProductProfile';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
+import {
+  buildOplCodexAutoModelOption,
+  formatOplCodexModelDisplay,
+  type OplModelDisplayLocale,
+} from '@/renderer/utils/model/oplCodexModelDisplay';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
@@ -27,6 +37,7 @@ type GuidModelSelectorProps = {
   currentAcpCachedModelInfo: AcpModelInfo | null;
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
+  backend?: string;
 };
 
 const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
@@ -37,10 +48,18 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   currentAcpCachedModelInfo,
   selectedAcpModel,
   setSelectedAcpModel,
+  backend,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const defaultModelLabel = t('common.defaultModel');
+  const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
+  const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
+  const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
+  const codexAutoLabel =
+    localeKey === 'en-US'
+      ? getOplCodexModelDisplayOptions().auto_option.label_en
+      : getOplCodexModelDisplayOptions().auto_option.label_zh;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -66,12 +85,30 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
 
   const acpSelectedLabel = React.useMemo(() => {
     if (selectedAcpModel === null && currentAcpCachedModelInfo?.current_model_id) {
+      if (useOplCodexModelDisplay) {
+        const modelDisplay = formatOplCodexModelDisplay({
+          id: currentAcpCachedModelInfo.current_model_id,
+          label: currentAcpCachedModelInfo.current_model_label,
+          reasoningEffort: defaultCodexReasoningEffort,
+          localeKey,
+        });
+        return `${codexAutoLabel} · ${modelDisplay.modelLabel} · ${modelDisplay.reasoningLabel}`;
+      }
       return t('conversation.welcome.autoModel', {
         model: currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
       });
     }
+    const selectedModel = currentAcpCachedModelInfo?.available_models?.find((m) => m.id === selectedAcpModel);
+    if (useOplCodexModelDisplay && selectedModel) {
+      return formatOplCodexModelDisplay({
+        id: selectedModel.id,
+        label: selectedModel.label,
+        reasoningEffort: defaultCodexReasoningEffort,
+        localeKey,
+      }).label;
+    }
     return (
-      currentAcpCachedModelInfo?.available_models?.find((m) => m.id === selectedAcpModel)?.label ||
+      selectedModel?.label ||
       currentAcpCachedModelInfo?.current_model_label ||
       currentAcpCachedModelInfo?.current_model_id ||
       ''
@@ -80,8 +117,12 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     currentAcpCachedModelInfo?.available_models,
     currentAcpCachedModelInfo?.current_model_id,
     currentAcpCachedModelInfo?.current_model_label,
+    codexAutoLabel,
+    defaultCodexReasoningEffort,
+    localeKey,
     t,
     selectedAcpModel,
+    useOplCodexModelDisplay,
   ]);
 
   const acpButtonLabel = React.useMemo(() => {
@@ -189,6 +230,12 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   // ACP cached model selector
   if (currentAcpCachedModelInfo && currentAcpCachedModelInfo.available_models?.length > 0) {
     if (currentAcpCachedModelInfo.available_models.length > 0) {
+      const autoModelDisplay = buildOplCodexAutoModelOption({
+        currentModelId: currentAcpCachedModelInfo.current_model_id,
+        currentModelLabel: currentAcpCachedModelInfo.current_model_label,
+        reasoningEffort: defaultCodexReasoningEffort,
+        localeKey,
+      });
       return (
         <Dropdown
           trigger='click'
@@ -199,13 +246,18 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                 className={selectedAcpModel === null ? '!bg-2' : ''}
                 onClick={() => setSelectedAcpModel(null)}
               >
-                <div className='flex items-center gap-8px w-full'>
-                  <span>
-                    {t('conversation.welcome.autoModel', {
-                      model:
-                        currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
-                    })}
+                <div className={useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'}>
+                  <span className={useOplCodexModelDisplay ? 'font-medium' : ''}>
+                    {useOplCodexModelDisplay
+                      ? autoModelDisplay.label
+                      : t('conversation.welcome.autoModel', {
+                          model:
+                            currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
+                        })}
                   </span>
+                  {useOplCodexModelDisplay && (
+                    <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
+                  )}
                 </div>
               </Menu.Item>
               {currentAcpCachedModelInfo.available_models.map((model) => {
@@ -218,6 +270,14 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     : healthStatus === 'unhealthy'
                       ? 'bg-red-500'
                       : 'bg-gray-400';
+                const modelDisplay = useOplCodexModelDisplay
+                  ? formatOplCodexModelDisplay({
+                      id: model.id,
+                      label: model.label,
+                      reasoningEffort: defaultCodexReasoningEffort,
+                      localeKey,
+                    })
+                  : null;
 
                 return (
                   <Menu.Item
@@ -225,11 +285,18 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     className={model.id === selectedAcpModel ? '!bg-2' : ''}
                     onClick={() => setSelectedAcpModel(model.id)}
                   >
-                    <div className='flex items-center gap-8px w-full'>
+                    <div className={useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'}>
                       {healthStatus !== 'unknown' && (
                         <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
                       )}
-                      <span>{model.label}</span>
+                      {useOplCodexModelDisplay ? (
+                        <>
+                          <span>{modelDisplay?.label}</span>
+                          <span className='text-12px text-t-secondary'>{modelDisplay?.description}</span>
+                        </>
+                      ) : (
+                        <span>{model.label}</span>
+                      )}
                     </div>
                   </Menu.Item>
                 );

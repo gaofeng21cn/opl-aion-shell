@@ -5,6 +5,8 @@ import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
 import {
   filterOplOrdinaryMcpStatuses,
   filterOplOrdinarySkillNames,
+  getOplCodexModelDisplayOptions,
+  getOplDefaultCodexReasoningEffort,
   isOplCodexCliFixedExecutor,
   getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
@@ -47,6 +49,11 @@ import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
 import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
+import {
+  buildOplCodexAutoModelOption,
+  formatOplCodexModelDisplay,
+  type OplModelDisplayLocale,
+} from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
 import { Brain, MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -118,7 +125,14 @@ const AcpSendBox: React.FC<{
   const { t, i18n } = useTranslation();
   const teamPermission = useTeamPermission();
   const showOplCodexModelStatus = backend === 'codex' && isOplCodexCliFixedExecutor();
+  const useOplCodexModelDisplay = showOplCodexModelStatus;
   const oplCodexModelStatusText = getOplModelStatusDisplayText(resolveLocaleKey(i18n.language));
+  const modelDisplayLocale = resolveLocaleKey(i18n.language) as OplModelDisplayLocale;
+  const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
+  const codexAutoLabel =
+    modelDisplayLocale === 'en-US'
+      ? getOplCodexModelDisplayOptions().auto_option.label_en
+      : getOplCodexModelDisplayOptions().auto_option.label_zh;
   const showModeSelector =
     backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
@@ -434,16 +448,50 @@ Please check your local CLI tool authentication status`,
         }))
       : [];
 
-    const modelOptions: MobileActionSheetOption[] = canSwitchModel
-      ? (model_info?.available_models ?? []).map((model) => ({
-          key: model.id,
-          label: model.label || model.id,
-          active: model_info?.current_model_id === model.id,
-        }))
+    const autoModelOption =
+      useOplCodexModelDisplay && model_info?.current_model_id
+        ? buildOplCodexAutoModelOption({
+            currentModelId: model_info.current_model_id,
+            currentModelLabel: model_info.current_model_label,
+            reasoningEffort: defaultCodexReasoningEffort,
+            localeKey: modelDisplayLocale,
+          })
+        : null;
+    const fixedModelOptions: MobileActionSheetOption[] = canSwitchModel
+      ? (model_info?.available_models ?? []).map((model) => {
+          const modelDisplay = useOplCodexModelDisplay
+            ? formatOplCodexModelDisplay({
+                id: model.id,
+                label: model.label,
+                reasoningEffort: defaultCodexReasoningEffort,
+                localeKey: modelDisplayLocale,
+              })
+            : null;
+          return {
+            key: model.id,
+            label: modelDisplay?.label ?? (model.label || model.id),
+            description: modelDisplay?.description,
+            active: model_info?.current_model_id === model.id,
+          };
+        })
       : [];
+    const modelOptions: MobileActionSheetOption[] =
+      autoModelOption && canSwitchModel
+        ? [
+            {
+              key: '__auto',
+              label: autoModelOption.label,
+              description: autoModelOption.description,
+              active: true,
+            },
+            ...fixedModelOptions,
+          ]
+        : fixedModelOptions;
 
     const currentModelLabel =
-      model_info?.current_model_label || model_info?.current_model_id || t('conversation.welcome.useCliModel');
+      useOplCodexModelDisplay && autoModelOption
+        ? `${codexAutoLabel} · ${autoModelOption.modelLabel} · ${autoModelOption.reasoningLabel}`
+        : model_info?.current_model_label || model_info?.current_model_id || t('conversation.welcome.useCliModel');
     const currentModeLabel =
       modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
 
@@ -460,7 +508,10 @@ Please check your local CLI tool authentication status`,
         submenu: {
           title: t('common.model', { defaultValue: 'Model' }),
           options: modelOptions,
-          onSelect: (id) => selectModel(id),
+          onSelect: (id) => {
+            if (id === '__auto') return;
+            selectModel(id);
+          },
         },
       });
     }
