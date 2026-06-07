@@ -568,7 +568,9 @@ describe('packaged first-run VM smoke helpers', () => {
         command: ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--dry-run', '--json'],
         ok: true,
       });
-      expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'app-release-runtime-evidence-summary.json'), 'utf8'))).toMatchObject({
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'app-release-runtime-evidence-summary.json'), 'utf8'))
+      ).toMatchObject({
         status: 'passed',
         action_id: 'developer_supervisor_refresh',
       });
