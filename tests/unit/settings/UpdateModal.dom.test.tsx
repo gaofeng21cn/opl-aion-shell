@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import UpdateModal from '@/renderer/components/settings/UpdateModal';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -50,6 +50,9 @@ vi.mock('react-i18next', () => ({
         'update.checking': '正在检查更新',
         'update.availableTitle': '发现新版本',
         'update.downloadButton': '下载',
+        'update.readyToInstall': '准备安装',
+        'update.installWarning': '安装期间请勿手动打开应用，应用将自动重启。',
+        'update.installNow': '立即安装',
       };
       return translations[key] ?? key;
     },
@@ -177,5 +180,78 @@ describe('UpdateModal checking layout', () => {
 
     expect(await screen.findByText('English release notes')).toBeInTheDocument();
     expect(screen.queryByText('中文更新说明')).not.toBeInTheDocument();
+  });
+
+  it('passes downloaded updater zip path to the App-managed installer', async () => {
+    let progressListener: ((event: unknown) => void) | undefined;
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({ success: true, data: { checked: true } });
+    bridgeMocks.updateDownloadProgressOn.mockImplementation((listener: (event: unknown) => void) => {
+      progressListener = listener;
+      return () => undefined;
+    });
+    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: {
+        currentVersion: '26.6.3',
+        updateAvailable: true,
+        latest: {
+          tagName: 'v26.6.5',
+          version: '26.6.5',
+          name: 'v26.6.5',
+          body: '',
+          htmlUrl: 'https://example.test/releases/v26.6.5',
+          prerelease: false,
+          draft: false,
+          assets: [],
+          recommendedAsset: {
+            name: 'One-Person-Lab-26.6.5-mac-arm64.zip',
+            url: 'https://example.test/One-Person-Lab-26.6.5-mac-arm64.zip',
+            size: 1024,
+            updateRole: 'updater',
+          },
+        },
+      },
+    });
+    bridgeMocks.updateDownloadInvoke.mockResolvedValue({
+      success: true,
+      data: {
+        downloadId: 'download-1',
+        file_path: '/Users/test/Downloads/One-Person-Lab-26.6.5-mac-arm64.zip',
+        updateRole: 'updater',
+      },
+    });
+
+    render(<UpdateModal />);
+    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
+
+    fireEvent.click(await screen.findByText('下载'));
+    await waitFor(() => {
+      expect(bridgeMocks.updateDownloadInvoke).toHaveBeenCalledWith({
+        url: 'https://example.test/One-Person-Lab-26.6.5-mac-arm64.zip',
+        fallbackUrl: undefined,
+        file_name: 'One-Person-Lab-26.6.5-mac-arm64.zip',
+        updateRole: 'updater',
+      });
+    });
+    await waitFor(() => {
+      expect(bridgeMocks.updateDownloadProgressOn.mock.calls.length).toBeGreaterThan(1);
+    });
+
+    await act(async () => {
+      progressListener?.({
+        downloadId: 'download-1',
+        status: 'completed',
+        receivedBytes: 1024,
+        totalBytes: 1024,
+        percent: 100,
+        file_path: '/Users/test/Downloads/One-Person-Lab-26.6.5-mac-arm64.zip',
+      });
+    });
+
+    fireEvent.click(await screen.findByText('立即安装'));
+    expect(bridgeMocks.autoUpdateQuitAndInstallInvoke).toHaveBeenCalledWith({
+      file_path: '/Users/test/Downloads/One-Person-Lab-26.6.5-mac-arm64.zip',
+      version: '26.6.5',
+    });
   });
 });

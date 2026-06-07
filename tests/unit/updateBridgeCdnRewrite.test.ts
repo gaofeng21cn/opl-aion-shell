@@ -117,6 +117,13 @@ const makeStableAndNightlyReleaseResponse = () => [
         size: 123,
         content_type: 'application/x-apple-diskimage',
       },
+      {
+        name: 'One-Person-Lab-26.5.24-mac-arm64.zip',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.24/One-Person-Lab-26.5.24-mac-arm64.zip',
+        size: 124,
+        content_type: 'application/zip',
+      },
     ],
   },
   {
@@ -134,6 +141,13 @@ const makeStableAndNightlyReleaseResponse = () => [
           'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.27-nightly.20260527/One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.dmg',
         size: 456,
         content_type: 'application/x-apple-diskimage',
+      },
+      {
+        name: 'One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.zip',
+        browser_download_url:
+          'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.5.27-nightly.20260527/One-Person-Lab-26.5.27-nightly.20260527-mac-arm64.zip',
+        size: 457,
+        content_type: 'application/zip',
       },
       {
         name: 'One-Person-Lab-26.5.27-nightly.20260527-linux-amd64.deb',
@@ -162,6 +176,29 @@ const getCheckHandler = async () => {
 describe('updateBridge CDN URL rewriting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('prefers macOS zip assets for App-managed updater installs', async () => {
+    vi.resetModules();
+    const { pickRecommendedAsset } = await import('@/process/bridge/updateBridge');
+    const asset = pickRecommendedAsset(
+      [
+        {
+          name: 'One-Person-Lab-26.6.5-mac-arm64.dmg',
+          url: 'https://static.aionui.com/releases/26.6.5/One-Person-Lab-26.6.5-mac-arm64.dmg',
+          size: 123,
+        },
+        {
+          name: 'One-Person-Lab-26.6.5-mac-arm64.zip',
+          url: 'https://static.aionui.com/releases/26.6.5/One-Person-Lab-26.6.5-mac-arm64.zip',
+          size: 124,
+        },
+      ],
+      { platform: 'darwin', arch: 'arm64' }
+    );
+
+    expect(asset?.name).toBe('One-Person-Lab-26.6.5-mac-arm64.zip');
+    expect(asset?.updateRole).toBe('updater');
   });
 
   it('checks the One Person Lab App release repo by default', async () => {
@@ -243,6 +280,8 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.success).toBe(true);
       expect(result.data?.latest?.tagName).toBe('v26.5.24');
       expect(result.data?.latest?.prerelease).toBe(false);
+      expect(result.data?.latest?.recommendedAsset?.name).toBe('One-Person-Lab-26.5.24-mac-arm64.zip');
+      expect(result.data?.latest?.recommendedAsset?.updateRole).toBe('updater');
     } finally {
       vi.unstubAllGlobals();
     }

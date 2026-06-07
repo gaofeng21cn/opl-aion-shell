@@ -12,6 +12,7 @@ export interface GitHubReleaseAsset {
   fallbackUrl?: string;
   size: number;
   contentType?: string;
+  updateRole?: 'installer' | 'updater';
 }
 
 export interface UpdateReleaseInfo {
@@ -48,11 +49,18 @@ export interface UpdateDownloadRequest {
   /** Fallback URL tried when the primary URL fails (e.g. CDN down). */
   fallbackUrl?: string;
   file_name?: string;
+  updateRole?: 'installer' | 'updater';
 }
 
 export interface UpdateDownloadResult {
   downloadId: string;
   file_path: string;
+  updateRole?: 'installer' | 'updater';
+}
+
+export interface AutoUpdateInstallRequest {
+  file_path?: string;
+  version?: string;
 }
 
 export type UpdateDownloadStatus = 'starting' | 'downloading' | 'completed' | 'error' | 'cancelled';

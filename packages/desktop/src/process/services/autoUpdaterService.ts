@@ -9,11 +9,16 @@ import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import { app } from 'electron';
 import log from 'electron-log';
 import { EventEmitter } from 'events';
+import * as path from 'node:path';
 import {
   recordAutoUpdateInstallNotAppliedIfNeeded,
   recordAutoUpdateQuitAndInstall,
   recordAutoUpdateStatus,
 } from './autoUpdateDiagnostics';
+import {
+  launchLocalAuthorizedMacosInstaller,
+  resolveLocalAuthorizedMacosUpdatePlan,
+} from './localAuthorizedMacosUpdater';
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
@@ -318,12 +323,30 @@ class AutoUpdaterService extends EventEmitter {
     }
   }
 
-  quitAndInstall(): void {
+  quitAndInstall(params?: { file_path?: string; version?: string }): void {
     log.info('Quitting and installing update...');
     recordAutoUpdateQuitAndInstall({
       currentAppVersion: app.getVersion(),
       userDataPath: app.getPath('userData'),
     });
+    if (process.platform === 'darwin' && params?.file_path) {
+      const executablePath = app.getPath('exe');
+      const appBundlePath = executablePath.includes('.app/Contents/MacOS')
+        ? executablePath.slice(0, executablePath.indexOf('.app/Contents/MacOS') + '.app'.length)
+        : path.resolve(executablePath, '..', '..', '..');
+      const plan = resolveLocalAuthorizedMacosUpdatePlan({
+        appPath: appBundlePath,
+        currentPid: process.pid,
+        updateZipPath: params.file_path,
+        userDataPath: app.getPath('userData'),
+        version: params.version || app.getVersion(),
+      });
+      launchLocalAuthorizedMacosInstaller(plan);
+      setTimeout(() => {
+        app.exit(0);
+      }, 250);
+      return;
+    }
     // On macOS, autoUpdater.quitAndInstall() closes all windows but the
     // 'window-all-closed' handler does NOT call app.quit() (standard macOS
     // behavior + close-to-tray). This leaves the process alive and Squirrel

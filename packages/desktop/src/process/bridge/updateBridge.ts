@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type {
+  AutoUpdateInstallRequest,
   UpdateCheckResult,
   UpdateDownloadProgressEvent,
   UpdateDownloadRequest,
@@ -169,8 +170,8 @@ const scoreAsset = (asset: GitHubReleaseAsset, runtime?: RuntimePlatformInfo): n
     if (ext === '.msi') score += 90;
     if (ext === '.zip') score += 50;
   } else if (platform === 'darwin') {
-    if (ext === '.dmg') score += 100;
-    if (ext === '.zip') score += 70;
+    if (ext === '.zip') score += 100;
+    if (ext === '.dmg') score += 70;
   } else {
     if (ext === '.deb') score += 100;
     if (ext === '.rpm') score += 80;
@@ -191,7 +192,13 @@ export const pickRecommendedAsset = (
     .filter((item) => item.score >= 0)
     .toSorted((a, b) => b.score - a.score);
 
-  return scored[0]?.asset;
+  const asset = scored[0]?.asset;
+  if (!asset) return undefined;
+  const { platform } = getPlatformHints(runtime);
+  return {
+    ...asset,
+    updateRole: platform === 'darwin' && path.extname(asset.name).toLowerCase() === '.zip' ? 'updater' : 'installer',
+  };
 };
 
 const resolveRepo = (requestRepo?: string): string => {
@@ -607,7 +614,14 @@ export function initUpdateBridge(): void {
         // Start background download, but return immediately so the UI stays responsive.
         void startDownloadInBackground(downloadId, params.url, targetPath, abortController, params.fallbackUrl);
 
-        return Promise.resolve({ success: true, data: { downloadId, file_path: targetPath } });
+        return Promise.resolve({
+          success: true,
+          data: {
+            downloadId,
+            file_path: targetPath,
+            updateRole: params.updateRole,
+          },
+        });
       } catch (err: unknown) {
         return Promise.resolve({ success: false, msg: err instanceof Error ? err.message : String(err) });
       }
@@ -662,9 +676,9 @@ export function initUpdateBridge(): void {
     }
   });
 
-  ipcBridge.autoUpdate.quitAndInstall.provider(async (): Promise<void> => {
+  ipcBridge.autoUpdate.quitAndInstall.provider(async (params: AutoUpdateInstallRequest): Promise<void> => {
     try {
-      autoUpdaterService.quitAndInstall();
+      autoUpdaterService.quitAndInstall(params);
     } catch (err: unknown) {
       console.error('quitAndInstall failed:', err);
     }

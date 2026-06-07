@@ -55,6 +55,7 @@ import type {
 } from '../types/team/teamTypes';
 import type {
   AutoUpdateStatus,
+  AutoUpdateInstallRequest,
   UpdateCheckRequest,
   UpdateCheckResult,
   UpdateDownloadProgressEvent,
@@ -530,7 +531,7 @@ export const autoUpdate = {
     { channel?: 'stable' | 'nightly'; includeNightly?: boolean; includePrerelease?: boolean }
   >('auto-update.check'),
   download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
-  quitAndInstall: bridge.buildProvider<void, void>('auto-update.quit-and-install'),
+  quitAndInstall: bridge.buildProvider<void, AutoUpdateInstallRequest>('auto-update.quit-and-install'),
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
 };
 

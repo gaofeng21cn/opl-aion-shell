@@ -75,6 +75,7 @@ const UpdateModal: React.FC = () => {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [currentVersion, setCurrentVersion] = useState<string>('');
   const [downloadId, setDownloadId] = useState<string | null>(null);
+  const [downloadUpdateRole, setDownloadUpdateRole] = useState<'installer' | 'updater'>('installer');
   const [progress, setProgress] = useState({ percent: 0, speed: '', total: 0, transferred: 0 });
   const [errorMsg, setErrorMsg] = useState('');
   const [downloadPath, setDownloadPath] = useState('');
@@ -94,6 +95,7 @@ const UpdateModal: React.FC = () => {
     setUpdateInfo(null);
     setCurrentVersion('');
     setDownloadId(null);
+    setDownloadUpdateRole('installer');
     setProgress({ percent: 0, speed: '', total: 0, transferred: 0 });
     setErrorMsg('');
     setDownloadPath('');
@@ -200,12 +202,14 @@ const UpdateModal: React.FC = () => {
           url: asset.url,
           fallbackUrl: asset.fallbackUrl,
           file_name: asset.name,
+          updateRole: asset.updateRole,
         });
         if (!res?.success || !res.data) {
           throw new Error(res?.msg || t('update.downloadStartFailed'));
         }
         setDownloadId(res.data.downloadId);
         setDownloadPath(res.data.file_path);
+        setDownloadUpdateRole(res.data.updateRole || 'installer');
         return;
       }
 
@@ -228,7 +232,10 @@ const UpdateModal: React.FC = () => {
 
   const quitAndInstall = async () => {
     try {
-      await ipcBridge.autoUpdate.quitAndInstall.invoke();
+      await ipcBridge.autoUpdate.quitAndInstall.invoke({
+        file_path: downloadPath || undefined,
+        version: updateInfo?.version || autoUpdateInfo?.version,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('Install failed:', err);
@@ -324,10 +331,10 @@ const UpdateModal: React.FC = () => {
       });
 
       if (evt.status === 'completed') {
-        setStatus('success');
         if (evt.file_path) {
           setDownloadPath(evt.file_path);
         }
+        setStatus(downloadUpdateRole === 'updater' ? 'downloaded' : 'success');
       } else if (evt.status === 'error' || evt.status === 'cancelled') {
         setStatus('error');
         setErrorMsg(evt.error || t('update.downloadFailed'));
@@ -337,7 +344,7 @@ const UpdateModal: React.FC = () => {
     return () => {
       removeProgressListener();
     };
-  }, [downloadId, t]);
+  }, [downloadId, downloadUpdateRole, t]);
 
   const handleClose = () => {
     setVisible(false);
