@@ -323,6 +323,18 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('uses the canonical Connect modules surface with bounded OPL probes during Full VM smoke', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+
+    expect(vmSmoke.OPL_CONNECT_MODULES_ARGS).toEqual(['connect', 'modules', '--json']);
+    expect(scriptSource).toContain("const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json']");
+    expect(scriptSource).toContain('runOplJson(OPL_CONNECT_MODULES_ARGS');
+    expect(scriptSource).toContain("['modules.json', OPL_CONNECT_MODULES_ARGS]");
+    expect(scriptSource).not.toContain("runOplJson(['modules'])");
+    expect(scriptSource).not.toContain("['modules.json', ['modules']]");
+    expect(scriptSource).toContain('timeout: resolveOplProbeTimeoutMs(options.timeoutMs)');
+  });
+
   it('does not require the Codex config wizard for standard VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

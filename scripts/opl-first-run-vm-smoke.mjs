@@ -28,6 +28,8 @@ const DEFAULT_LABELS = {
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
+const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
+const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
 const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
   'officecli',
   'officecli-docx',
@@ -223,6 +225,11 @@ function parseArgs(argv) {
 
 function shouldVerifyFullFirstRunEquivalence(runtimeProfile) {
   return runtimeProfile === 'full';
+}
+
+function resolveOplProbeTimeoutMs(timeoutMs) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return DEFAULT_OPL_PROBE_TIMEOUT_MS;
+  return Math.max(1_000, Math.min(DEFAULT_OPL_PROBE_TIMEOUT_MS, Math.floor(timeoutMs)));
 }
 
 function readCodexApiKey(options) {
@@ -1052,7 +1059,7 @@ function runCodexAiSelfCheck(input = {}) {
   });
 }
 
-function runOplJson(args) {
+function runOplJson(args, options = {}) {
   const runtimeHome = findLatestFullRuntimeHome();
   const command = [
     buildFullRuntimeCommandPrefix(runtimeHome),
@@ -1064,7 +1071,20 @@ function runOplJson(args) {
   const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json' },
+    timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
   });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(
+      [
+        `opl ${args.join(' ')} timed out after ${resolveOplProbeTimeoutMs(options.timeoutMs)}ms.`,
+        result.stdout ? `stdout:\n${result.stdout}` : '',
+        result.stderr ? `stderr:\n${result.stderr}` : '',
+        `command: ${command}`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
   if (result.status !== 0) {
     const output = result.stderr || result.stdout || `status=${result.status} signal=${result.signal ?? 'none'}`;
     throw new Error(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`);
@@ -1644,16 +1664,69 @@ async function runSmokePhase(writeSmokeEvent, phase, operation, details = {}) {
   }
 }
 
-async function waitForFullFirstRunEquivalence(timeoutMs) {
+function recordFullRuntimeEquivalenceProbe(writeSmokeEvent, attempt, probe, status, details = {}) {
+  if (!writeSmokeEvent) return;
+  writeSmokeEventSafely(writeSmokeEvent, 'full_runtime_equivalence_probe', status, {
+    attempt,
+    probe,
+    ...details,
+  });
+}
+
+async function runFullRuntimeEquivalenceProbe(writeSmokeEvent, attempt, probe, operation, details = {}) {
+  const started = Date.now();
+  recordFullRuntimeEquivalenceProbe(writeSmokeEvent, attempt, probe, 'started', details);
+  try {
+    const result = await operation();
+    recordFullRuntimeEquivalenceProbe(writeSmokeEvent, attempt, probe, 'passed', {
+      duration_ms: Date.now() - started,
+    });
+    return result;
+  } catch (error) {
+    recordFullRuntimeEquivalenceProbe(writeSmokeEvent, attempt, probe, 'failed', {
+      duration_ms: Date.now() - started,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
   const started = Date.now();
   let lastError = null;
   let lastSystemInitializeRaw = '';
   let lastModulesRaw = '';
+  let attempt = 0;
   while (Date.now() - started < timeoutMs) {
+    attempt += 1;
+    const remainingMs = timeoutMs - (Date.now() - started);
+    if (remainingMs <= 1_000) break;
+    const probeTimeoutMs = resolveOplProbeTimeoutMs(remainingMs - 1_000);
     try {
-      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
-      lastModulesRaw = runOplJson(['modules']);
-      assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw);
+      lastSystemInitializeRaw = await runFullRuntimeEquivalenceProbe(
+        options.writeSmokeEvent,
+        attempt,
+        'system_initialize',
+        () => runOplJson(['system', 'initialize', '--json'], { timeoutMs: probeTimeoutMs }),
+        {
+          timeout_ms: probeTimeoutMs,
+        }
+      );
+      lastModulesRaw = await runFullRuntimeEquivalenceProbe(
+        options.writeSmokeEvent,
+        attempt,
+        'connect_modules',
+        () => runOplJson(OPL_CONNECT_MODULES_ARGS, { timeoutMs: probeTimeoutMs }),
+        {
+          timeout_ms: probeTimeoutMs,
+        }
+      );
+      await runFullRuntimeEquivalenceProbe(
+        options.writeSmokeEvent,
+        attempt,
+        'assert_equivalence',
+        () => assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw)
+      );
       return {
         systemInitializeRaw: lastSystemInitializeRaw,
         modulesRaw: lastModulesRaw,
@@ -2868,7 +2941,7 @@ function collectFailureArtifacts(options, codexApiKey) {
 
   for (const [name, args] of [
     ['system-initialize.json', ['system', 'initialize', '--json']],
-    ['modules.json', ['modules']],
+    ['modules.json', OPL_CONNECT_MODULES_ARGS],
   ]) {
     try {
       writeTextArtifact(path.join(options.artifacts, name), runOplJson(args), codexApiKey);
@@ -3151,7 +3224,7 @@ async function main() {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
         'full_runtime_equivalence',
-        () => waitForFullFirstRunEquivalence(options.timeoutMs),
+        () => waitForFullFirstRunEquivalence(options.timeoutMs, { writeSmokeEvent }),
         {
           timeout_ms: options.timeoutMs,
         }
@@ -3245,6 +3318,8 @@ export const __test =
         RELEASE_EVIDENCE_SCREENSHOTS,
         RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
         runtimeShellExecutable,
+        OPL_CONNECT_MODULES_ARGS,
+        resolveOplProbeTimeoutMs,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,
         cdpProbeTimeoutMs,
