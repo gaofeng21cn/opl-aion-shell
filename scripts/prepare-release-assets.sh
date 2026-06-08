@@ -28,7 +28,11 @@ is_macos_arm64_distributable() {
   return 1
 }
 
-mapfile -t ALL_DISTRIBUTABLES < <(find "$ARTIFACTS_DIR" -type f \( \
+# macOS GitHub runners still invoke Bash 3 for `shell: bash`; avoid Bash 4-only mapfile/readarray.
+ALL_DISTRIBUTABLES=()
+while IFS= read -r file; do
+  ALL_DISTRIBUTABLES+=("$file")
+done < <(find "$ARTIFACTS_DIR" -type f \( \
   -name "*.dmg" -o \
   -name "*.zip" -o \
   -name "*.blockmap" -o \
