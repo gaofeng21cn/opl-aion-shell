@@ -15,6 +15,7 @@ type StatusCard = {
   key: string;
   title: string;
   status: string;
+  statusLabel?: string;
   detail: string;
   tone: 'green' | 'orange';
 };
@@ -91,6 +92,7 @@ export const AccessSettingsContent: React.FC = () => {
       key: 'permission',
       title: t('settings.accessPage.cards.permission.title'),
       status: permissionMode,
+      statusLabel: t(`agentMode.${permissionMode}`, { defaultValue: permissionMode }),
       detail: t('settings.accessPage.cards.permission.detail'),
       tone: 'green',
     },
@@ -110,7 +112,7 @@ export const AccessSettingsContent: React.FC = () => {
             <div className='flex flex-col gap-8px min-w-0'>
               <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
               <Tag color={card.tone}>
-                {t(`settings.oplEnvironmentPage.status.${card.status}`, { status: card.status })}
+                {card.statusLabel ?? t(`settings.oplEnvironmentPage.status.${card.status}`, { status: card.status })}
               </Tag>
               <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
             </div>

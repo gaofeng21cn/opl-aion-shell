@@ -55,8 +55,9 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
         'settings.oplEnvironmentPage.status.ready': 'ready',
+        'agentMode.full-access': 'Full Access',
       };
-      return labels[key] ?? options?.status ?? key;
+      return labels[key] ?? options?.status ?? options?.defaultValue ?? key;
     },
   }),
 }));
@@ -73,7 +74,8 @@ describe('AccessSettingsContent', () => {
     expect(screen.getByText('Provider Access')).toBeInTheDocument();
     expect(screen.getByText(/127\.0\.0\.1:7233/)).toBeInTheDocument();
     expect(screen.getByText('Permission Mode')).toBeInTheDocument();
-    expect(screen.getByText('full-access')).toBeInTheDocument();
+    expect(screen.getByText('Full Access')).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
     const firstReadinessCard = screen.getByText('Codex CLI');
     const remoteControls = screen.getByTestId('webui-content');
