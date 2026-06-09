@@ -51,7 +51,7 @@ jobs:
         run: prek run --from-ref origin/${{ github.base_ref }} --to-ref HEAD
 
   unit-tests-macos:
-    name: Unit Tests (macos-14)
+    name: Unit Tests (macos-latest)
     runs-on: ubuntu-latest
     steps:
       - run: echo "Docs-only PR, skipping unit tests."

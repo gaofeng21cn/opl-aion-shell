@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14]
+        os: [macos-latest]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -268,7 +268,7 @@ jobs:
       matrix:
         include:
           - platform: 'macos-arm64'
-            os: 'macos-14'
+            os: 'macos-latest'
             arch: 'arm64'
             build_args: '--mac --arm64'
 
