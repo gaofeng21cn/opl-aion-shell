@@ -529,6 +529,35 @@ describe('OPL first-run VM smoke scripts', () => {
     ).rejects.toThrow(/test-long-running-child timed out after 50ms/);
   });
 
+  it('summarizes Tart host stage timings without depending on VM execution', () => {
+    const at = (startedAtMs: number, stage: string) => ({
+      stage,
+      startedAtMs,
+      startedAt: new Date(startedAtMs).toISOString(),
+    });
+
+    const summary = tartSmoke.buildStageTimingSummary(
+      [at(1_000, 'clone_vm'), at(3_500, 'homebrew_cask_install'), at(9_000, 'run_guest_smoke')],
+      12_500
+    );
+
+    expect(summary).toMatchObject({
+      status: 'available',
+      total_elapsed_ms: 11_500,
+      last_stage: 'run_guest_smoke',
+      stages: [
+        { stage: 'clone_vm', duration_ms: 2_500 },
+        { stage: 'homebrew_cask_install', duration_ms: 5_500 },
+        { stage: 'run_guest_smoke', duration_ms: 3_500 },
+      ],
+      slowest_stages: [
+        { stage: 'homebrew_cask_install', duration_ms: 5_500 },
+        { stage: 'run_guest_smoke', duration_ms: 3_500 },
+        { stage: 'clone_vm', duration_ms: 2_500 },
+      ],
+    });
+  });
+
   it('requires the guest Codex functional check receipt when requested', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
@@ -701,6 +730,10 @@ describe('OPL first-run VM smoke scripts', () => {
           status: 'passed',
           runtime_action_evidence_status: 'blocked',
         },
+      });
+      expect(summary.stage_timing).toMatchObject({
+        status: expect.stringMatching(/^(available|missing)$/),
+        stages: expect.any(Array),
       });
       expect(summary.guest_summary.status).toBe('failed');
     } finally {

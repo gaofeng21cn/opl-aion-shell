@@ -47,10 +47,12 @@ const HOMEBREW_CONFLICTING_CASKS = new Map([
   ['one-person-lab-full', ['one-person-lab', 'one-person-lab-nightly']],
   ['one-person-lab-nightly', ['one-person-lab', 'one-person-lab-full']],
 ]);
+const STAGE_TIMING_SLOWEST_LIMIT = 5;
 
 const runtimeState = {
   options: null,
   stage: 'starting',
+  stageEvents: [],
   vmLogPath: '',
   tartProcess: null,
   currentChild: null,
@@ -499,7 +501,56 @@ function appendRuntimeLog(message) {
   }
 }
 
+function recordStageEvent(stage, timestampMs = Date.now()) {
+  runtimeState.stageEvents.push({
+    stage,
+    startedAtMs: timestampMs,
+    startedAt: new Date(timestampMs).toISOString(),
+  });
+}
+
+function buildStageTimingSummary(stageEvents = runtimeState.stageEvents, completedAtMs = Date.now()) {
+  const events = Array.isArray(stageEvents)
+    ? stageEvents
+        .filter((event) => event && typeof event.stage === 'string' && Number.isFinite(event.startedAtMs))
+        .sort((left, right) => left.startedAtMs - right.startedAtMs)
+    : [];
+  if (events.length === 0) {
+    return {
+      status: 'missing',
+      stages: [],
+      total_elapsed_ms: null,
+      current_stage: runtimeState.stage,
+      last_stage: null,
+      slowest_stages: [],
+    };
+  }
+  const effectiveCompletedAtMs = Math.max(completedAtMs, events.at(-1).startedAtMs);
+  const stages = events.map((event, index) => {
+    const endedAtMs = events[index + 1]?.startedAtMs ?? effectiveCompletedAtMs;
+    const durationMs = Math.max(0, endedAtMs - event.startedAtMs);
+    return {
+      stage: event.stage,
+      started_at: event.startedAt,
+      ended_at: new Date(endedAtMs).toISOString(),
+      duration_ms: durationMs,
+    };
+  });
+  return {
+    status: 'available',
+    total_elapsed_ms: Math.max(0, effectiveCompletedAtMs - events[0].startedAtMs),
+    current_stage: runtimeState.stage,
+    last_stage: events.at(-1).stage,
+    stages,
+    slowest_stages: [...stages]
+      .sort((left, right) => right.duration_ms - left.duration_ms)
+      .slice(0, STAGE_TIMING_SLOWEST_LIMIT)
+      .map(({ stage, duration_ms }) => ({ stage, duration_ms })),
+  };
+}
+
 function setStage(stage) {
+  recordStageEvent(stage);
   runtimeState.stage = stage;
   appendRuntimeLog(`stage=${stage}`);
 }
@@ -769,6 +820,7 @@ function writeInterruptedSummary(signal) {
       guest_artifacts: runtimeState.guestArtifactDir || null,
       host_artifacts: options.artifacts,
       copied_guest_artifacts: runtimeState.copiedArtifacts,
+      stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     };
     fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   } catch (_) {
@@ -1050,6 +1102,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
@@ -1081,6 +1134,7 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
@@ -1216,6 +1270,7 @@ export const __test =
   process.env.NODE_ENV === 'test'
     ? {
         assertGuestSmokeSummary,
+        buildStageTimingSummary,
         buildDryRunPlan,
         frameworkInstallScriptFinalizeCommand,
         frameworkSourceArchivePlan,
@@ -1226,6 +1281,7 @@ export const __test =
         homebrewTrustedCaskRefs,
         isMainModule,
         parseArgs,
+        recordStageEvent,
         resolveGuestSmokeScriptPath,
         runAsync,
         writeFailedSummary,
