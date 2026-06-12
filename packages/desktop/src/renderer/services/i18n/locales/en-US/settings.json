@@ -969,14 +969,14 @@
   },
   "addSkillsTitle": "Add Skills",
   "developerProfile": "OPL Developer Profile",
-  "developerProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the stable package channel unless they explicitly opt into a checkout source.",
+  "developerProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the managed GHCR agent package channel unless they explicitly opt into a checkout source.",
   "developerProfileStateStandard": "Standard user",
   "developerProfileStateSourceChannel": "Source channel selected",
   "developerProfileStateLimited": "Developer limited",
   "developerProfileStateReady": "Developer ready",
   "unavailable": "Unavailable",
   "oplDeveloperProfile": "OPL Developer Profile",
-  "oplDeveloperProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the stable package channel unless they explicitly opt into a checkout source.",
+  "oplDeveloperProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the managed GHCR agent package channel unless they explicitly opt into a checkout source.",
   "oplFlowContext": "OPL Flow Context",
   "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
   "oplDeveloperProfileStates": {
@@ -1274,6 +1274,13 @@
     "status": {
       "unknown": "Unknown",
       "ready": "Ready",
+      "current": "Current",
+      "update_available": "Update available",
+      "staged": "Staged",
+      "needs_restart": "Restart needed",
+      "needs_reload": "Reload needed",
+      "failed_with_repair": "Repair needed",
+      "skipped_manual_required": "Manual step required",
       "compatible": "Compatible",
       "installed": "Installed",
       "notInstalled": "Not installed",
@@ -1336,6 +1343,43 @@
         "missing": "No managed or developer checkout was found",
         "invalidCheckout": "Path exists but is not a valid git checkout",
         "unknown": "Module discovery did not declare an origin"
+      }
+    },
+    "updates": {
+      "title": "Updates & Maintenance",
+      "description": "Unified OPL update status for the desktop app, runtime toolchain, managed agent package channel, and visible capability exposure.",
+      "channel": "Channel: {{channel}}",
+      "lockStatus": "Lock: {{status}}",
+      "operationMode": "Mode: {{mode}}",
+      "executionStatus": "Execution: {{status}}",
+      "receiptRef": "Receipt: {{ref}}",
+      "repairAction": "Repair action: {{action}}",
+      "rollbackRef": "Rollback: {{ref}}",
+      "needsRestart": "Restart required",
+      "needsReload": "Reload required",
+      "components": {
+        "app_binary": "App binary",
+        "runtime_toolchain": "Runtime/toolchain",
+        "agent_package_channel": "Agent packages",
+        "capability_exposure": "Capability exposure"
+      },
+      "actions": {
+        "refreshStatus": "Refresh status",
+        "check": "Check",
+        "plan": "Plan",
+        "applySelected": "Apply selected",
+        "repair": "Repair",
+        "rollback": "Rollback"
+      },
+      "messages": {
+        "readComplete": "Update status refreshed",
+        "actionComplete": "Update action completed"
+      },
+      "background": {
+        "lastRunAt": "Last run: {{value}}",
+        "nextRunAt": "Next run: {{value}}",
+        "lastFailure": "Last failure: {{value}}",
+        "noFailure": "None"
       }
     },
     "codexContext": {

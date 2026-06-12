@@ -3,11 +3,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import { resetManagedUpdateMaintenanceForTest } from '@/renderer/services/managedUpdateMaintenance';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
   getDrilldownInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
+  getUpdateStatusInvoke: vi.fn(),
+  runUpdateCheckInvoke: vi.fn(),
+  getUpdatePlanInvoke: vi.fn(),
+  applyUpdateComponentInvoke: vi.fn(),
+  repairUpdateInvoke: vi.fn(),
+  rollbackUpdateComponentInvoke: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -18,6 +25,12 @@ vi.mock('@/common', () => ({
       runInstallPrep: { invoke: vi.fn() },
       getDrilldown: { invoke: bridgeMocks.getDrilldownInvoke },
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
+      getUpdateStatus: { invoke: bridgeMocks.getUpdateStatusInvoke },
+      runUpdateCheck: { invoke: bridgeMocks.runUpdateCheckInvoke },
+      getUpdatePlan: { invoke: bridgeMocks.getUpdatePlanInvoke },
+      applyUpdateComponent: { invoke: bridgeMocks.applyUpdateComponentInvoke },
+      repairUpdate: { invoke: bridgeMocks.repairUpdateInvoke },
+      rollbackUpdateComponent: { invoke: bridgeMocks.rollbackUpdateComponentInvoke },
     },
     shell: {
       openFolderWith: { invoke: vi.fn() },
@@ -89,11 +102,118 @@ const appStateResult = {
   },
 };
 
+const managedUpdateStatusResult = {
+  surface: 'update_status',
+  command: 'opl update status --json',
+  stdout: '{}',
+  parsed: {
+    managed_update: {
+      operation: 'status',
+      operation_mode: 'read_only_projection',
+      update_channel: 'stable',
+      idempotency_lock: { status: 'free' },
+      components: [
+        {
+          component_id: 'app_binary',
+          display_group: 'App binary',
+          state: 'current',
+          conditions: [{ type: 'Available', status: 'True', reason: 'Current', message: 'App bundle is current' }],
+          receipt: { last_receipt_ref: 'receipt://app-binary/current' },
+          needs_restart: false,
+        },
+        {
+          component_id: 'runtime_toolchain',
+          display_group: 'Runtime/toolchain',
+          state: 'update_available',
+          safe_to_apply: true,
+          conditions: [
+            {
+              type: 'ReadyToApply',
+              status: 'True',
+              reason: 'Verified',
+              message: 'Runtime update is verified',
+            },
+          ],
+          receipt: {
+            last_receipt_ref: 'receipt://runtime_toolchain/latest',
+            rollback_ref: 'rollback://runtime_toolchain/previous',
+            repair_action: 'runtime_toolchain_repair_only',
+          },
+          needs_restart: true,
+          reload_guidance: 'Restart the app after apply.',
+        },
+        {
+          component_id: 'agent_package_channel',
+          display_group: 'Agent packages',
+          state: 'failed_with_repair',
+          conditions: [
+            {
+              type: 'PostApplySync',
+              status: 'False',
+              reason: 'SyncFailed',
+              message: 'Skill sync needs repair',
+            },
+          ],
+          receipt: {
+            last_receipt_ref: 'receipt://agent_package_channel/failed-sync',
+            repair_action: 'agent_package_reconcile_and_skill_sync_only',
+          },
+          needs_reload: true,
+          reload_guidance: 'Reload Codex plugin cache after repair.',
+        },
+        {
+          component_id: 'capability_exposure',
+          display_group: 'Capability exposure',
+          state: 'needs_reload',
+          conditions: [
+            {
+              type: 'Visible',
+              status: 'Unknown',
+              reason: 'CacheStale',
+              message: 'Capability exposure cache is stale',
+            },
+          ],
+          receipt: { last_receipt_ref: 'receipt://capability_exposure/cache' },
+          needs_reload: true,
+          reload_guidance: 'Reload the app to refresh visible capabilities.',
+        },
+      ],
+      repair_actions: [
+        {
+          component_id: 'agent_package_channel',
+          receipt_ref: 'receipt://agent_package_channel/failed-sync',
+          action_ref: 'repair://agent_package_channel/sync',
+        },
+      ],
+      reload_guidance: 'Restart or reload only when a component reports it.',
+    },
+  },
+};
+
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
+    resetManagedUpdateMaintenanceForTest();
     vi.clearAllMocks();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResult);
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValue(managedUpdateStatusResult);
+    bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateStatusResult);
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdateStatusResult);
+    bridgeMocks.applyUpdateComponentInvoke.mockResolvedValue({
+      ...managedUpdateStatusResult,
+      surface: 'update_apply',
+      command: 'opl update apply --component runtime_toolchain --json',
+    });
+    bridgeMocks.repairUpdateInvoke.mockResolvedValue({
+      ...managedUpdateStatusResult,
+      surface: 'update_repair',
+      command: 'opl update repair --receipt receipt://agent_package_channel/failed-sync --json',
+    });
+    bridgeMocks.rollbackUpdateComponentInvoke.mockResolvedValue({
+      ...managedUpdateStatusResult,
+      surface: 'update_rollback',
+      command: 'opl update rollback --component runtime_toolchain --json',
+    });
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve(
         detail === 'summary'
@@ -209,6 +329,71 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
     );
     expect(screen.queryByText('settings.oplEnvironmentPage.status.attention_needed')).not.toBeInTheDocument();
+  });
+
+  it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
+    expect(screen.getByTestId('opl-managed-update-app_binary')).toHaveTextContent('App binary');
+    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime/toolchain');
+    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent('Agent packages');
+    expect(screen.getByTestId('opl-managed-update-capability_exposure')).toHaveTextContent('Capability exposure');
+    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
+    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
+      'receipt://runtime_toolchain/latest'
+    );
+    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
+      'Reload Codex plugin cache after repair.'
+    );
+
+    fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
+    await waitFor(() =>
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
+    );
+    fireEvent.click(screen.getByTestId('opl-managed-update-repair-agent_package_channel'));
+    await waitFor(() =>
+      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
+        componentId: 'agent_package_channel',
+        receiptId: 'receipt://agent_package_channel/failed-sync',
+      })
+    );
+    fireEvent.click(screen.getByTestId('opl-managed-update-rollback-runtime_toolchain'));
+    await waitFor(() =>
+      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
+    );
+  });
+
+  it('projects background managed update maintenance timestamps and failures into Settings Runtime', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      ...managedUpdateStatusResult,
+      ok: false,
+      error: { message: 'managed update lock is held' },
+    });
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastRunAt');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.nextRunAt');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastFailure');
+    expect(backgroundStatus).toHaveTextContent('managed update lock is held');
+
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.actions.check'));
+
+    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-managed-update-background-status')).toHaveTextContent(
+        'settings.oplEnvironmentPage.updates.background.noFailure'
+      )
+    );
   });
 
   it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {

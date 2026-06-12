@@ -24,6 +24,12 @@ const OPL_APP_LATEST_RELEASE_URL = `${OPL_APP_REPO_URL}/releases/latest`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
 const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
 const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
+const ABOUT_UPDATE_COMPONENT_IDS = [
+  'app_binary',
+  'runtime_toolchain',
+  'agent_package_channel',
+  'capability_exposure',
+] as const;
 
 type AppVersions = {
   appVersion: string;
@@ -40,6 +46,14 @@ function formatReleaseChannel(
 ) {
   const normalized = channel?.trim() || 'stable';
   return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
+}
+
+function updateComponentStateLabel(
+  component: Record<string, unknown>,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  const state = oplString(component.state) ?? oplString(component.status) ?? 'unknown';
+  return t(`settings.oplEnvironmentPage.status.${state}`, { status: state });
 }
 
 const AboutModalContent: React.FC = () => {
@@ -59,6 +73,8 @@ const AboutModalContent: React.FC = () => {
   }, []);
 
   const release = oplRecord(appStateQuery.appState.release);
+  const managedUpdatePlane = oplRecord(appStateQuery.appState.managed_update_plane);
+  const managedUpdateComponents = oplRecord(managedUpdatePlane.components);
   const appVersions: AppVersions | null = appStateQuery.payload
     ? {
         appVersion: __OPL_RELEASE_VERSION__ || __APP_VERSION__,
@@ -188,6 +204,21 @@ const AboutModalContent: React.FC = () => {
                 <Button type='primary' long onClick={checkUpdate}>
                   {t('settings.checkForUpdates')}
                 </Button>
+                <div className='w-full flex flex-col gap-4px' data-testid='about-managed-update-summary'>
+                  {ABOUT_UPDATE_COMPONENT_IDS.map((componentId) => {
+                    const component = oplRecord(managedUpdateComponents[componentId]);
+                    return (
+                      <div key={componentId} className='flex items-center justify-between gap-8px text-12px'>
+                        <Typography.Text className='text-t-secondary'>
+                          {t(`settings.oplEnvironmentPage.updates.components.${componentId}`)}
+                        </Typography.Text>
+                        <Typography.Text className='text-t-primary'>
+                          {updateComponentStateLabel(component, t)}
+                        </Typography.Text>
+                      </div>
+                    );
+                  })}
+                </div>
                 <div className='flex items-center justify-between w-full'>
                   <Typography.Text className='text-12px text-t-secondary'>
                     {t('settings.includeNightlyUpdates')}

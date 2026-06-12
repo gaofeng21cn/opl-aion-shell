@@ -81,6 +81,7 @@ import { mutate as swrMutate } from 'swr';
 import { ipcBridge } from '@/common';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents } from './utils/model/agentTypes';
 import { repairAllCronJobTimeZonesOnce } from '@renderer/pages/cron/repairCronJobTimeZone';
+import { startManagedUpdateMaintenanceScheduler } from './services/managedUpdateMaintenance';
 
 // Components and utilities
 import Layout from './components/layout/Layout';
@@ -246,6 +247,11 @@ const Main = () => {
     if (!ready) return;
     void repairAllCronJobTimeZonesOnce();
   }, [ready]);
+
+  useEffect(() => {
+    if (!ready || !configReady) return;
+    return startManagedUpdateMaintenanceScheduler();
+  }, [ready, configReady]);
 
   if (!ready || !configReady) {
     return null;

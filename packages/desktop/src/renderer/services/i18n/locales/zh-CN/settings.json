@@ -1275,6 +1275,13 @@
     "status": {
       "unknown": "未知",
       "ready": "就绪",
+      "current": "已是最新",
+      "update_available": "有可用更新",
+      "staged": "已暂存",
+      "needs_restart": "需要重启",
+      "needs_reload": "需要重新加载",
+      "failed_with_repair": "需要修复",
+      "skipped_manual_required": "需要手动处理",
       "compatible": "兼容",
       "installed": "已安装",
       "notInstalled": "未安装",
@@ -1337,6 +1344,43 @@
         "missing": "托管目录和开发目录都未找到",
         "invalidCheckout": "检测到路径但不是有效 git checkout",
         "unknown": "模块发现结果未声明来源"
+      }
+    },
+    "updates": {
+      "title": "更新与维护",
+      "description": "统一展示桌面 App、运行时工具链、托管智能体包通道和可见能力暴露的 OPL 更新状态。",
+      "channel": "通道：{{channel}}",
+      "lockStatus": "锁：{{status}}",
+      "operationMode": "模式：{{mode}}",
+      "executionStatus": "执行：{{status}}",
+      "receiptRef": "回执：{{ref}}",
+      "repairAction": "修复动作：{{action}}",
+      "rollbackRef": "回滚：{{ref}}",
+      "needsRestart": "需要重启",
+      "needsReload": "需要重新加载",
+      "components": {
+        "app_binary": "桌面 App",
+        "runtime_toolchain": "运行时工具链",
+        "agent_package_channel": "智能体包通道",
+        "capability_exposure": "能力暴露"
+      },
+      "actions": {
+        "refreshStatus": "刷新状态",
+        "check": "检查",
+        "plan": "计划",
+        "applySelected": "应用所选",
+        "repair": "修复",
+        "rollback": "回滚"
+      },
+      "messages": {
+        "readComplete": "更新状态已刷新",
+        "actionComplete": "更新动作已完成"
+      },
+      "background": {
+        "lastRunAt": "上次运行：{{value}}",
+        "nextRunAt": "下次运行：{{value}}",
+        "lastFailure": "上次失败：{{value}}",
+        "noFailure": "无"
       }
     },
     "codexContext": {
