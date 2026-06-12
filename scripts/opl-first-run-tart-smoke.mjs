@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,6 +59,7 @@ const runtimeState = {
   codexApiKeyFile: null,
   ip: '',
   guestArtifactDir: '',
+  guestNodeStaging: null,
   copiedArtifacts: false,
   cleanupStarted: false,
 };
@@ -390,10 +391,58 @@ function buildDryRunPlan(options) {
     require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
+    guest_node_staging: guestNodeStagingPlan(options),
     framework_source_archive: frameworkSourceArchivePlan(options),
     guide_screenshots: options.guideScreenshots,
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
+  };
+}
+
+function hashDirectoryContents(root) {
+  const hash = createHash('sha256');
+  const visit = (relativeDir) => {
+    const absoluteDir = path.join(root, relativeDir);
+    const entries = fs.readdirSync(absoluteDir, { withFileTypes: true }).sort((left, right) => {
+      return left.name.localeCompare(right.name);
+    });
+    for (const entry of entries) {
+      const relativePath = path.join(relativeDir, entry.name);
+      const absolutePath = path.join(root, relativePath);
+      const stats = fs.lstatSync(absolutePath);
+      const normalizedPath = relativePath.split(path.sep).join('/');
+      hash.update(`${normalizedPath}\0${stats.mode & 0o777}\0`);
+      if (entry.isSymbolicLink()) {
+        hash.update(`symlink\0${fs.readlinkSync(absolutePath)}\0`);
+      } else if (entry.isDirectory()) {
+        hash.update('directory\0');
+        visit(relativePath);
+      } else if (entry.isFile()) {
+        hash.update(`file\0${stats.size}\0`);
+        hash.update(fs.readFileSync(absolutePath));
+        hash.update('\0');
+      } else {
+        hash.update(`${entry.isBlockDevice() ? 'block' : entry.isCharacterDevice() ? 'char' : 'other'}\0`);
+      }
+    }
+  };
+  visit('');
+  return hash.digest('hex');
+}
+
+function guestNodeStagingPlan(options) {
+  if (!options.guestNodeRoot || options.guestNodeCommand) return null;
+  const contentHash = hashDirectoryContents(options.guestNodeRoot);
+  const cacheRoot = `${options.guestWorkdir}-node-cache`;
+  const guestRoot = `${cacheRoot}/${contentHash}`;
+  return {
+    strategy: 'reuse_by_content_hash',
+    host_path: options.guestNodeRoot,
+    content_hash: contentHash,
+    cache_root: cacheRoot,
+    guest_root: guestRoot,
+    guest_node_command: `${guestRoot}/bin/node`,
+    cache_hit: null,
   };
 }
 
@@ -522,6 +571,7 @@ function buildStageTimingSummary(stageEvents = runtimeState.stageEvents, complet
       total_elapsed_ms: null,
       current_stage: runtimeState.stage,
       last_stage: null,
+      guest_node_staging: runtimeState.guestNodeStaging,
       slowest_stages: [],
     };
   }
@@ -541,6 +591,7 @@ function buildStageTimingSummary(stageEvents = runtimeState.stageEvents, complet
     total_elapsed_ms: Math.max(0, effectiveCompletedAtMs - events[0].startedAtMs),
     current_stage: runtimeState.stage,
     last_stage: events.at(-1).stage,
+    guest_node_staging: runtimeState.guestNodeStaging,
     stages,
     slowest_stages: [...stages]
       .sort((left, right) => right.duration_ms - left.duration_ms)
@@ -722,13 +773,35 @@ async function scpFromGuest(options, ip, sourceDir, targetDir) {
 
 async function copyHostNodeRootToGuest(options, ip) {
   if (!options.guestNodeRoot) return null;
-  const guestNodeRoot = `${options.guestWorkdir}/host-node-${path.basename(options.guestNodeRoot)}`;
-  await ssh(options, ip, `rm -rf ${shellQuote(guestNodeRoot)} && mkdir -p ${shellQuote(guestNodeRoot)}`);
+  const staging = guestNodeStagingPlan(options);
+  runtimeState.guestNodeStaging = staging;
+  await ssh(options, ip, `mkdir -p ${shellQuote(staging.cache_root)}`);
+  const cacheStatus = (
+    await ssh(options, ip, `if [ -x ${shellQuote(staging.guest_node_command)} ]; then printf hit; else printf miss; fi`)
+  ).trim();
+  if (cacheStatus === 'hit') {
+    staging.cache_hit = true;
+    appendRuntimeLog(`guest_node_staging cache_hit=true content_hash=${staging.content_hash}`);
+    return staging.guest_node_command;
+  }
+  staging.cache_hit = false;
+  const tmpRoot = `${staging.guest_root}.tmp-${process.pid}`;
+  await ssh(options, ip, `rm -rf ${shellQuote(tmpRoot)} && mkdir -p ${shellQuote(tmpRoot)}`);
   await runPipe('tar', ['-C', options.guestNodeRoot, '-cf', '-', '.'], 'ssh', [
     ...sshBaseArgs(options, ip),
-    `tar -C ${shellQuote(guestNodeRoot)} -xf -`,
+    `tar -C ${shellQuote(tmpRoot)} -xf -`,
   ]);
-  return `${guestNodeRoot}/bin/node`;
+  await ssh(
+    options,
+    ip,
+    [
+      `test -x ${shellQuote(`${tmpRoot}/bin/node`)}`,
+      `rm -rf ${shellQuote(staging.guest_root)}`,
+      `mv ${shellQuote(tmpRoot)} ${shellQuote(staging.guest_root)}`,
+    ].join(' && ')
+  );
+  appendRuntimeLog(`guest_node_staging cache_hit=false content_hash=${staging.content_hash}`);
+  return staging.guest_node_command;
 }
 
 function sleep(ms) {
@@ -820,6 +893,7 @@ function writeInterruptedSummary(signal) {
       guest_artifacts: runtimeState.guestArtifactDir || null,
       host_artifacts: options.artifacts,
       copied_guest_artifacts: runtimeState.copiedArtifacts,
+      guest_node_staging: runtimeState.guestNodeStaging,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     };
     fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
@@ -961,6 +1035,9 @@ if [ -z "$BREW_BIN" ]; then
   exit 85
 fi
 eval "$("$BREW_BIN" shellenv)"
+export HOMEBREW_NO_AUTO_UPDATE=1
+export HOMEBREW_NO_INSTALL_CLEANUP=1
+export HOMEBREW_NO_ENV_HINTS=1
 "$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
 if "$BREW_BIN" trust --help >/dev/null 2>&1; then
 ${homebrewTrustedCaskRefs(options)
@@ -1102,6 +1179,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    guest_node_staging: runtimeState.guestNodeStaging,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
@@ -1134,6 +1212,7 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    guest_node_staging: runtimeState.guestNodeStaging,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
@@ -1276,6 +1355,7 @@ export const __test =
         frameworkSourceArchivePlan,
         guestFrameworkSourceArchivePath,
         guestHomebrewInstallCommand,
+        guestNodeStagingPlan,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
         homebrewTrustedCaskRefs,

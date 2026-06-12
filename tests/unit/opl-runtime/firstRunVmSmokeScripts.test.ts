@@ -883,6 +883,41 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('plans guest node root staging as a content-hash reusable VM cache', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-node-cache-'));
+    try {
+      const nodeRoot = path.join(root, 'node-v22.21.1');
+      writeFile(path.join(nodeRoot, 'bin', 'node'), '#!/bin/sh\n', 0o755);
+      writeFile(path.join(nodeRoot, 'lib', 'node_modules', 'npm', 'package.json'), '{"name":"npm"}\n');
+
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--guest-node-root',
+        nodeRoot,
+        '--guest-workdir',
+        '/tmp/guest',
+        '--dry-run',
+      ]);
+      const staging = tartSmoke.guestNodeStagingPlan(options);
+
+      expect(staging).toMatchObject({
+        strategy: 'reuse_by_content_hash',
+        cache_root: '/tmp/guest-node-cache',
+        cache_hit: null,
+        host_path: fs.realpathSync(nodeRoot),
+      });
+      expect(staging.content_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(staging.guest_root).toBe(`/tmp/guest-node-cache/${staging.content_hash}`);
+      expect(staging.guest_node_command).toBe(`/tmp/guest-node-cache/${staging.content_hash}/bin/node`);
+      expect(tartSmoke.buildDryRunPlan(options).guest_node_staging).toEqual(staging);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('uses the canonical Homebrew binary path when SSH does not provide a login PATH', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
@@ -909,6 +944,9 @@ describe('OPL first-run VM smoke scripts', () => {
     const command = tartSmoke.guestHomebrewInstallCommand(options);
     expect(command).toContain('/opt/homebrew/bin/brew');
     expect(command).toContain('"$BREW_BIN" shellenv');
+    expect(command).toContain('export HOMEBREW_NO_AUTO_UPDATE=1');
+    expect(command).toContain('export HOMEBREW_NO_INSTALL_CLEANUP=1');
+    expect(command).toContain('export HOMEBREW_NO_ENV_HINTS=1');
     expect(command).toContain('"$BREW_BIN" tap');
     expect(command).toContain('"$BREW_BIN" trust --cask \'gaofeng21cn/one-person-lab/one-person-lab\'');
     expect(command).toContain('"$BREW_BIN" trust --cask \'gaofeng21cn/one-person-lab/one-person-lab-full\'');

@@ -8,6 +8,7 @@
  * - Incremental builds: use --skip-vite to skip Vite compilation if out/ exists
  * - Skip native rebuild: use --skip-native to skip native module rebuilding
  * - Packaging only: use --pack-only to skip electron-builder distributable creation
+ * - Directory-only packaging: use --dir-only to produce the unpacked app bundle
  */
 
 const { execSync, spawnSync } = require('child_process');
@@ -378,13 +379,22 @@ const archList = ['x64', 'arm64', 'ia32', 'armv7l'];
 const skipVite = args.includes('--skip-vite');
 const skipNative = args.includes('--skip-native');
 const packOnly = args.includes('--pack-only');
+const dirOnly = args.includes('--dir-only');
 const forceBuild = args.includes('--force');
 
 const builderArgs = args
   .filter((arg) => {
     // Filter out 'auto', architecture flags, and special flags
     if (arg === 'auto') return false;
-    if (arg === '--skip-vite' || arg === '--skip-native' || arg === '--pack-only' || arg === '--force') return false;
+    if (
+      arg === '--skip-vite' ||
+      arg === '--skip-native' ||
+      arg === '--pack-only' ||
+      arg === '--dir-only' ||
+      arg === '--force'
+    )
+      return false;
+    if (dirOnly && ['--mac', '--win', '--linux', '--all'].includes(arg)) return false;
     if (archList.includes(arg)) return false;
     if (arg.startsWith('--') && archList.includes(arg.slice(2))) return false;
     return true;
@@ -460,6 +470,7 @@ console.log(`📋 Builder arguments: ${builderArgs || '(none)'}`);
 if (skipVite) console.log('⚡ --skip-vite: Will skip Vite compilation if output exists');
 if (skipNative) console.log('⚡ --skip-native: Will skip native module rebuilding');
 if (packOnly) console.log('⚡ --pack-only: Will skip electron-builder distributable creation');
+if (dirOnly) console.log('⚡ --dir-only: Will produce the unpacked app bundle without DMG/ZIP distributables');
 if (forceBuild) console.log('⚡ --force: Force full rebuild');
 
 const packageJsonPath = path.resolve(__dirname, '../package.json');
@@ -627,8 +638,9 @@ try {
     cleanupWindowsPackOutput();
   }
 
+  const builderTargetArgs = dirOnly ? '--dir' : [builderArgs, nsisInclude].filter(Boolean).join(' ');
   const builderCommand =
-    `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderArgs} ${archFlag} ${nsisInclude} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
+    `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
