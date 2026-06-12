@@ -12,9 +12,53 @@ import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplCodexSessionContext } from '@/common/config/oplProductProfile';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  executeManagedUpdateMutation,
+  executeManagedUpdateRead,
+  useManagedUpdateMaintenance,
+  type ManagedUpdateMaintenanceSnapshot,
+} from '@/renderer/services/managedUpdateMaintenance';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 type RuntimeModuleItem = Record<string, unknown>;
+
+type ManagedUpdateComponentId = 'app_binary' | 'runtime_toolchain' | 'agent_package_channel' | 'capability_exposure';
+
+type ManagedUpdateCondition = {
+  id: string;
+  type: string;
+  status: string;
+  reason?: string;
+  message?: string;
+};
+
+type ManagedUpdateComponent = {
+  id: ManagedUpdateComponentId;
+  label: string;
+  state: string;
+  conditions: ManagedUpdateCondition[];
+  receiptRef?: string;
+  repairAction?: string;
+  repairReceiptId?: string;
+  rollbackRef?: string;
+  needsRestart: boolean;
+  needsReload: boolean;
+  reloadGuidance?: string;
+  manualGuidance?: string;
+  safeToApply: boolean;
+  repairAllowed: boolean;
+  rollbackAllowed: boolean;
+};
+
+type ManagedUpdatePlane = {
+  operation?: string;
+  operationMode?: string;
+  updateChannel?: string;
+  lockStatus?: string;
+  summary?: string;
+  reloadGuidance?: string;
+  components: ManagedUpdateComponent[];
+};
 
 const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   medautoscience: 'Med Auto Science',
@@ -24,6 +68,18 @@ const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
 };
 
 const OPL_RUNTIME_MODULE_IDS = ['medautoscience', 'medautogrant', 'redcube', 'oplmetaagent'];
+const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = [
+  'app_binary',
+  'runtime_toolchain',
+  'agent_package_channel',
+  'capability_exposure',
+];
+const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
+  app_binary: 'App binary',
+  runtime_toolchain: 'Runtime/toolchain',
+  agent_package_channel: 'Agent packages',
+  capability_exposure: 'Capability exposure',
+};
 
 type RuntimeSettingsProps = {
   withWrapper?: boolean;
@@ -48,6 +104,18 @@ function compactToolDetail(parts: Array<string | null | undefined>, fallback: st
 
 function oplPathString(value: unknown): string | null {
   return oplString(value) ?? oplString(oplRecord(value).selected_path);
+}
+
+function oplBoolean(value: unknown): boolean {
+  return value === true || value === 'true';
+}
+
+function firstOplString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const stringValue = oplString(value);
+    if (stringValue) return stringValue;
+  }
+  return undefined;
 }
 
 function formatReleaseChannel(
@@ -143,18 +211,329 @@ function formatModuleAction(action: string, t: (key: string, options?: Record<st
 }
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
-  return Boolean(result?.parsed || result?.stdout);
+  return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function managedUpdateRoot(parsed: unknown, appState: Record<string, unknown>): Record<string, unknown> {
+  const parsedRecord = oplRecord(parsed);
+  const parsedAppState = oplRecord(parsedRecord.app_state);
+  return oplRecord(
+    parsedRecord.managed_update ??
+      parsedRecord.managed_update_plane ??
+      parsedAppState.managed_update_plane ??
+      appState.managed_update_plane
+  );
+}
+
+function managedUpdateComponentRecords(root: Record<string, unknown>): Record<string, unknown>[] {
+  const rawComponents = root.components ?? root.planes ?? root.items;
+  if (Array.isArray(rawComponents)) return oplRecordList(rawComponents);
+  const componentMap = oplRecord(rawComponents);
+  return Object.entries(componentMap).map(([id, value]) => ({ ...oplRecord(value), component_id: id }));
+}
+
+function findRepairAction(root: Record<string, unknown>, componentId: string): Record<string, unknown> {
+  return (
+    oplRecordList(root.repair_actions).find(
+      (action) => firstOplString(action.component_id, action.componentId) === componentId
+    ) ?? {}
+  );
+}
+
+function readManagedUpdateConditions(value: unknown, componentId: string): ManagedUpdateCondition[] {
+  return oplRecordList(value).map((condition, index) => {
+    const type = firstOplString(condition.type, condition.condition_type, condition.id) ?? `condition-${index + 1}`;
+    const status = firstOplString(condition.status, condition.state) ?? 'Unknown';
+    return {
+      id: `${componentId}-${type}-${index + 1}`,
+      type,
+      status,
+      reason: firstOplString(condition.reason),
+      message: firstOplString(condition.message, condition.description),
+    };
+  });
+}
+
+function readManagedUpdatePlane(parsed: unknown, appState: Record<string, unknown>): ManagedUpdatePlane {
+  const root = managedUpdateRoot(parsed, appState);
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const component of managedUpdateComponentRecords(root)) {
+    const id = firstOplString(component.component_id, component.componentId, component.id);
+    if (id) byId.set(id, component);
+  }
+  const components = MANAGED_UPDATE_COMPONENT_IDS.map((id) => {
+    const component = byId.get(id) ?? {};
+    const receipt = oplRecord(component.receipt ?? component.receipts);
+    const repairAction = findRepairAction(root, id);
+    const state = firstOplString(component.state, component.status, component.health_status) ?? 'unknown';
+    const receiptRef = firstOplString(
+      component.receipt_ref,
+      component.last_receipt_ref,
+      receipt.last_receipt_ref,
+      receipt.receipt_ref,
+      receipt.ref
+    );
+    const repairReceiptId = firstOplString(
+      component.repair_receipt_ref,
+      receipt.repair_receipt_ref,
+      repairAction.receipt_ref,
+      repairAction.receiptId,
+      receiptRef
+    );
+    const rollbackRef = firstOplString(
+      component.rollback_ref,
+      component.rollbackRef,
+      receipt.rollback_ref,
+      receipt.rollbackRef
+    );
+    const repairActionRef = firstOplString(
+      component.repair_action,
+      receipt.repair_action,
+      repairAction.action_ref,
+      repairAction.ref
+    );
+    const safeToApply =
+      oplBoolean(component.safe_to_apply) || oplBoolean(component.apply_allowed) || oplBoolean(component.can_apply);
+    const repairAllowed =
+      oplBoolean(component.repair_allowed) ||
+      oplBoolean(component.can_repair) ||
+      state === 'failed_with_repair' ||
+      Boolean(repairActionRef);
+    const rollbackAllowed =
+      oplBoolean(component.rollback_allowed) || oplBoolean(component.can_rollback) || Boolean(rollbackRef);
+    return {
+      id,
+      label: firstOplString(component.display_group, component.label, component.name) ?? MANAGED_UPDATE_LABELS[id],
+      state,
+      conditions: readManagedUpdateConditions(component.conditions, id),
+      receiptRef,
+      repairAction: repairActionRef,
+      repairReceiptId,
+      rollbackRef,
+      needsRestart: oplBoolean(component.needs_restart) || oplBoolean(component.restart_required),
+      needsReload: oplBoolean(component.needs_reload) || oplBoolean(component.reload_required),
+      reloadGuidance: firstOplString(component.reload_guidance, component.restart_guidance, root.reload_guidance),
+      manualGuidance: firstOplString(
+        component.manual_guidance,
+        component.rollback_manual_guidance,
+        component.repair_manual_guidance
+      ),
+      safeToApply,
+      repairAllowed,
+      rollbackAllowed,
+    };
+  });
+  return {
+    operation: firstOplString(root.operation),
+    operationMode: firstOplString(root.operation_mode, root.operationMode),
+    updateChannel: firstOplString(root.update_channel, root.channel),
+    lockStatus: firstOplString(oplRecord(root.idempotency_lock).status, oplRecord(root.lock).status),
+    summary: firstOplString(oplRecord(root.summary).message, root.summary),
+    reloadGuidance: firstOplString(root.reload_guidance),
+    components,
+  };
+}
+
+function ManagedUpdatesPanel({
+  plane,
+  maintenance,
+  onRefresh,
+  onCheck,
+  onPlan,
+  onApply,
+  onRepair,
+  onRollback,
+  t,
+}: {
+  plane: ManagedUpdatePlane;
+  maintenance: ManagedUpdateMaintenanceSnapshot;
+  onRefresh: () => void;
+  onCheck: () => void;
+  onPlan: () => void;
+  onApply: (component: ManagedUpdateComponent) => void;
+  onRepair: (component: ManagedUpdateComponent) => void;
+  onRollback: (component: ManagedUpdateComponent) => void;
+  t: (key: string, options?: Record<string, string | number>) => string;
+}) {
+  const loading = maintenance.running;
+  const busyAction = maintenance.busyAction;
+
+  return (
+    <Card bordered className='rd-8px' data-testid='opl-managed-updates'>
+      <div className='flex flex-col gap-14px'>
+        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+          <div className='min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.updates.title')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.updates.description')}
+            </Typography.Text>
+            <Space wrap size='mini' className='mt-8px'>
+              {plane.updateChannel && (
+                <Tag>{t('settings.oplEnvironmentPage.updates.channel', { channel: plane.updateChannel })}</Tag>
+              )}
+              {plane.lockStatus && (
+                <Tag>{t('settings.oplEnvironmentPage.updates.lockStatus', { status: plane.lockStatus })}</Tag>
+              )}
+              {plane.operationMode && (
+                <Tag>{t('settings.oplEnvironmentPage.updates.operationMode', { mode: plane.operationMode })}</Tag>
+              )}
+              {maintenance.executionStatus !== 'idle' && (
+                <Tag>
+                  {t('settings.oplEnvironmentPage.updates.executionStatus', {
+                    status: maintenance.executionStatus,
+                  })}
+                </Tag>
+              )}
+            </Space>
+          </div>
+          <Space wrap>
+            <Button
+              data-testid='opl-managed-update-refresh'
+              icon={<UpdateRotation theme='outline' />}
+              loading={loading}
+              onClick={onRefresh}
+            >
+              {t('settings.oplEnvironmentPage.updates.actions.refreshStatus')}
+            </Button>
+            <Button loading={loading} onClick={onCheck}>
+              {t('settings.oplEnvironmentPage.updates.actions.check')}
+            </Button>
+            <Button loading={loading} onClick={onPlan}>
+              {t('settings.oplEnvironmentPage.updates.actions.plan')}
+            </Button>
+          </Space>
+        </div>
+
+        {plane.summary && <Alert type='info' content={plane.summary} />}
+        {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}
+
+        <div
+          className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px text-t-secondary'
+          data-testid='opl-managed-update-background-status'
+        >
+          <span className='break-words'>
+            {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
+              value: maintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+            })}
+          </span>
+          <span className='break-words'>
+            {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
+              value: maintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+            })}
+          </span>
+          <span className='break-words'>
+            {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
+              value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
+            })}
+          </span>
+        </div>
+
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+          {plane.components.map((component) => (
+            <div
+              key={component.id}
+              className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'
+              data-testid={`opl-managed-update-${component.id}`}
+            >
+              <div className='flex flex-col gap-10px'>
+                <div className='flex items-center justify-between gap-12px'>
+                  <Typography.Text className='font-600 text-t-primary break-words'>
+                    {t(`settings.oplEnvironmentPage.updates.components.${component.id}`, {
+                      defaultValue: component.label,
+                    })}
+                  </Typography.Text>
+                  <Tag color={component.state === 'current' ? 'green' : 'orange'}>
+                    {formatStatus(component.state, t)}
+                  </Tag>
+                </div>
+
+                {component.conditions.length > 0 && (
+                  <div className='flex flex-col gap-6px'>
+                    {component.conditions.map((condition) => (
+                      <div key={condition.id} className='text-12px text-t-secondary break-words'>
+                        <Tag size='small'>{condition.status}</Tag>
+                        <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
+                        {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
+                        {condition.message && <span className='ml-6px'>{condition.message}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className='flex flex-col gap-4px text-12px text-t-secondary break-words'>
+                  {component.receiptRef && (
+                    <span>{t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}</span>
+                  )}
+                  {component.repairAction && (
+                    <span>
+                      {t('settings.oplEnvironmentPage.updates.repairAction', { action: component.repairAction })}
+                    </span>
+                  )}
+                  {component.rollbackRef && (
+                    <span>{t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}</span>
+                  )}
+                  {component.needsRestart && <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>}
+                  {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
+                  {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
+                  {component.manualGuidance && <span>{component.manualGuidance}</span>}
+                </div>
+
+                <Space wrap size='small'>
+                  {component.safeToApply && (
+                    <Button
+                      data-testid={`opl-managed-update-apply-${component.id}`}
+                      size='small'
+                      type='primary'
+                      loading={busyAction === `apply:${component.id}`}
+                      onClick={() => onApply(component)}
+                    >
+                      {t('settings.oplEnvironmentPage.updates.actions.applySelected')}
+                    </Button>
+                  )}
+                  {component.repairAllowed && (
+                    <Button
+                      data-testid={`opl-managed-update-repair-${component.id}`}
+                      size='small'
+                      loading={busyAction === `repair:${component.id}`}
+                      onClick={() => onRepair(component)}
+                    >
+                      {t('settings.oplEnvironmentPage.updates.actions.repair')}
+                    </Button>
+                  )}
+                  {component.rollbackAllowed && (
+                    <Button
+                      data-testid={`opl-managed-update-rollback-${component.id}`}
+                      size='small'
+                      loading={busyAction === `rollback:${component.id}`}
+                      onClick={() => onRollback(component)}
+                    >
+                      {t('settings.oplEnvironmentPage.updates.actions.rollback')}
+                    </Button>
+                  )}
+                </Space>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const messageRef = useRef(message);
+  const tRef = useRef(t);
   const appStateQuery = useOplAppState('fast');
+  const managedUpdateMaintenance = useManagedUpdateMaintenance();
 
   React.useEffect(() => {
     messageRef.current = message;
-  }, [message]);
+    tRef.current = t;
+  }, [message, t]);
 
   const appState = appStateQuery.appState;
   const core = oplRecord(appState.core);
@@ -168,6 +547,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const modulesPayload = oplRecord(appState.modules);
   const modulesSourcePayload = oplRecord(modulesPayload.source);
   const release = oplRecord(appState.release);
+  const managedUpdatePlane = useMemo(
+    () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appState),
+    [appState, managedUpdateMaintenance.result]
+  );
   const familyWorkspaceRoot = oplPathString(paths.family_workspace_root);
   const workspaceRoot =
     oplString(paths.workspace_root_path) ?? oplPathString(paths.workspace_root) ?? familyWorkspaceRoot;
@@ -279,6 +662,60 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     });
   }, [appStateQuery.load, t]);
 
+  const runManagedUpdateRead = useCallback(async (operation: 'status' | 'check' | 'plan') => {
+    try {
+      const translate = tRef.current;
+      const result = await executeManagedUpdateRead(operation, {
+        trigger:
+          operation === 'check'
+            ? 'manual_check_updates'
+            : operation === 'plan'
+              ? 'manual_plan'
+              : 'manual_refresh_status',
+      });
+      if (!bridgeResultSucceeded(result)) {
+        messageRef.current.error(
+          result?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
+        );
+        return;
+      }
+      if (operation !== 'status') {
+        messageRef.current.success(translate('settings.oplEnvironmentPage.updates.messages.readComplete'));
+      }
+    } catch {
+      messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+    }
+  }, []);
+
+  const runManagedUpdateMutation = useCallback(
+    async (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => {
+      try {
+        const translate = tRef.current;
+        const result = await executeManagedUpdateMutation(kind, {
+          componentId: component.id,
+          receiptId: component.repairReceiptId,
+        });
+        if (!bridgeResultSucceeded(result)) {
+          messageRef.current.error(
+            result?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
+          );
+          return;
+        }
+        messageRef.current.success(translate('settings.oplEnvironmentPage.updates.messages.actionComplete'));
+        await appStateQuery.load('fast', { showRefreshing: true });
+      } catch {
+        messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+      }
+    },
+    [appStateQuery.load]
+  );
+
+  React.useEffect(() => {
+    if (!managedUpdateMaintenance.result && !managedUpdateMaintenance.running) {
+      void runManagedUpdateRead('status');
+    }
+  }, [managedUpdateMaintenance.result, managedUpdateMaintenance.running, runManagedUpdateRead]);
+
   const runOplCommand = useCallback(
     async (args: string[], actionId: string, successText: string) => {
       try {
@@ -380,6 +817,18 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             </Button>
           </div>
         </Card>
+
+        <ManagedUpdatesPanel
+          plane={managedUpdatePlane}
+          maintenance={managedUpdateMaintenance}
+          onRefresh={() => void runManagedUpdateRead('status')}
+          onCheck={() => void runManagedUpdateRead('check')}
+          onPlan={() => void runManagedUpdateRead('plan')}
+          onApply={(component) => void runManagedUpdateMutation('apply', component)}
+          onRepair={(component) => void runManagedUpdateMutation('repair', component)}
+          onRollback={(component) => void runManagedUpdateMutation('rollback', component)}
+          t={t}
+        />
 
         <div className='grid grid-cols-1 md:grid-cols-4 gap-14px'>
           {runtimeCards.map((card) => (

@@ -69,6 +69,13 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl system configure-codex --api-key-stdin --json',
         'opl system startup-maintenance --json',
         'opl system reconcile-modules --json',
+        'opl update status --json',
+        'opl update check --json',
+        'opl update plan --json',
+        'opl update apply --component <component_id> --json',
+        'opl update repair --receipt <receipt_id> --json',
+        'opl update repair --component <component_id> --json',
+        'opl update rollback --component <component_id> --json',
       ],
       forbiddenTruthSources: [
         'direct_domain_repo_reads',
@@ -152,6 +159,45 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'reconcile_modules',
       args: ['system', 'reconcile-modules', '--json'],
     });
+  });
+
+  it('builds the managed update command surface without allowing arbitrary update arguments', () => {
+    expect(__oplRuntimeBridgeTest.buildUpdateStatusCommand()).toEqual({
+      surface: 'update_status',
+      args: ['update', 'status', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildUpdateCheckCommand()).toEqual({
+      surface: 'update_check',
+      args: ['update', 'check', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildUpdatePlanCommand()).toEqual({
+      surface: 'update_plan',
+      args: ['update', 'plan', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_toolchain' })).toEqual({
+      surface: 'update_apply',
+      args: ['update', 'apply', '--component', 'runtime_toolchain', '--json'],
+    });
+    expect(
+      __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime_toolchain/latest' })
+    ).toEqual({
+      surface: 'update_repair',
+      args: ['update', 'repair', '--receipt', 'receipt://runtime_toolchain/latest', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'agent_package_channel' })).toEqual({
+      surface: 'update_repair',
+      args: ['update', 'repair', '--component', 'agent_package_channel', '--json'],
+    });
+    expect(__oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'runtime_toolchain' })).toEqual({
+      surface: 'update_rollback',
+      args: ['update', 'rollback', '--component', 'runtime_toolchain', '--json'],
+    });
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_toolchain;rm -rf /' })).toThrow(
+      /Invalid OPL update component id/
+    );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime latest' })).toThrow(
+      /Invalid OPL update receipt id/
+    );
   });
 
   it('limits App-managed bootstrap to first-run and maintenance command surfaces', () => {

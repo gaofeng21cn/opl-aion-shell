@@ -15,6 +15,8 @@ import type {
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
   IOplRuntimeDetailLevel,
+  IOplUpdateComponentRequest,
+  IOplUpdateRepairRequest,
 } from '@/common/adapter/ipcBridge';
 
 type RuntimeCommandSpec = {
@@ -81,6 +83,13 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
     'opl system reconcile-modules --json',
+    'opl update status --json',
+    'opl update check --json',
+    'opl update plan --json',
+    'opl update apply --component <component_id> --json',
+    'opl update repair --receipt <receipt_id> --json',
+    'opl update repair --component <component_id> --json',
+    'opl update rollback --component <component_id> --json',
   ],
   forbiddenTruthSources: [
     'direct_domain_repo_reads',
@@ -115,6 +124,22 @@ function assertActionId(actionId: string): string {
   const normalized = actionId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
     throw new Error('Invalid OPL runtime action id');
+  }
+  return normalized;
+}
+
+function assertUpdateComponentId(componentId: string): string {
+  const normalized = componentId.trim();
+  if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
+    throw new Error('Invalid OPL update component id');
+  }
+  return normalized;
+}
+
+function assertUpdateReceiptId(receiptId: string): string {
+  const normalized = receiptId.trim();
+  if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
+    throw new Error('Invalid OPL update receipt id');
   }
   return normalized;
 }
@@ -184,6 +209,48 @@ function buildStartupMaintenanceCommand(): RuntimeCommandSpec {
 
 function buildReconcileModulesCommand(): RuntimeCommandSpec {
   return { surface: 'reconcile_modules', args: ['system', 'reconcile-modules', '--json'] };
+}
+
+function buildUpdateStatusCommand(): RuntimeCommandSpec {
+  return { surface: 'update_status', args: ['update', 'status', '--json'] };
+}
+
+function buildUpdateCheckCommand(): RuntimeCommandSpec {
+  return { surface: 'update_check', args: ['update', 'check', '--json'] };
+}
+
+function buildUpdatePlanCommand(): RuntimeCommandSpec {
+  return { surface: 'update_plan', args: ['update', 'plan', '--json'] };
+}
+
+function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
+  return {
+    surface: 'update_apply',
+    args: ['update', 'apply', '--component', assertUpdateComponentId(request.componentId), '--json'],
+  };
+}
+
+function buildUpdateRepairCommand(request: IOplUpdateRepairRequest): RuntimeCommandSpec {
+  if (request.receiptId) {
+    return {
+      surface: 'update_repair',
+      args: ['update', 'repair', '--receipt', assertUpdateReceiptId(request.receiptId), '--json'],
+    };
+  }
+  if (request.componentId) {
+    return {
+      surface: 'update_repair',
+      args: ['update', 'repair', '--component', assertUpdateComponentId(request.componentId), '--json'],
+    };
+  }
+  throw new Error('OPL update repair requires a receipt or component id.');
+}
+
+function buildUpdateRollbackCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
+  return {
+    surface: 'update_rollback',
+    args: ['update', 'rollback', '--component', assertUpdateComponentId(request.componentId), '--json'],
+  };
 }
 
 function parseJson(stdout: string): unknown {
@@ -526,11 +593,21 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.runReconcileModules.provider(() => runOplCommand(buildReconcileModulesCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
+  ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
+  ipcBridge.oplRuntime.runUpdateCheck.provider(() => runOplCommand(buildUpdateCheckCommand()));
+  ipcBridge.oplRuntime.getUpdatePlan.provider(() => runOplCommand(buildUpdatePlanCommand()));
+  ipcBridge.oplRuntime.applyUpdateComponent.provider((request) => runOplCommand(buildUpdateApplyCommand(request)));
+  ipcBridge.oplRuntime.repairUpdate.provider((request) => runOplCommand(buildUpdateRepairCommand(request)));
+  ipcBridge.oplRuntime.rollbackUpdateComponent.provider((request) =>
+    runOplCommand(buildUpdateRollbackCommand(request))
+  );
 }
 
 export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
+  assertUpdateComponentId,
+  assertUpdateReceiptId,
   buildActionCommand,
   buildAppStateCommand,
   buildConfigureCodexCommand,
@@ -538,6 +615,12 @@ export const __oplRuntimeBridgeTest = {
   buildInitializeCommand,
   buildInstallPrepCommand,
   buildReconcileModulesCommand,
+  buildUpdateApplyCommand,
+  buildUpdateCheckCommand,
+  buildUpdatePlanCommand,
+  buildUpdateRepairCommand,
+  buildUpdateRollbackCommand,
+  buildUpdateStatusCommand,
   buildFullRuntimeBridgeEnv,
   buildOplCommandEnv,
   buildStartupMaintenanceCommand,

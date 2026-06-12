@@ -479,6 +479,15 @@ export type IOplConfigureCodexRequest = {
   apiKey: string;
 };
 
+export type IOplUpdateComponentRequest = {
+  componentId: string;
+};
+
+export type IOplUpdateRepairRequest = {
+  componentId?: string;
+  receiptId?: string;
+};
+
 export type IOplRuntimeCommandResult = {
   surface:
     | 'app_state_fast'
@@ -490,7 +499,13 @@ export type IOplRuntimeCommandResult = {
     | 'install_prep'
     | 'configure_codex'
     | 'startup_maintenance'
-    | 'reconcile_modules';
+    | 'reconcile_modules'
+    | 'update_status'
+    | 'update_check'
+    | 'update_plan'
+    | 'update_apply'
+    | 'update_repair'
+    | 'update_rollback';
   command: string;
   stdout: string;
   parsed: unknown;
@@ -523,6 +538,18 @@ export const oplRuntime = {
     'opl-runtime.get-drilldown'
   ),
   executeAction: bridge.buildProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>('opl-runtime.execute-action'),
+  getUpdateStatus: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-status'),
+  runUpdateCheck: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-check'),
+  getUpdatePlan: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-plan'),
+  applyUpdateComponent: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
+    'opl-runtime.run-managed-update-apply'
+  ),
+  repairUpdate: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateRepairRequest>(
+    'opl-runtime.run-managed-update-repair'
+  ),
+  rollbackUpdateComponent: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
+    'opl-runtime.run-managed-update-rollback'
+  ),
 };
 
 // ---------------------------------------------------------------------------
