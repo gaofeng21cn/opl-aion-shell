@@ -7,10 +7,12 @@
 import { ipcBridge } from '@/common';
 import { isErrorTipMessage, transformMessage } from '@/common/chat/chatLib';
 import type { AvailableCommand } from '@/common/chat/chatLib';
+import { mapAcpCommandsToSlashCommands } from '@/common/chat/slash/acpMapping';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TokenUsageData } from '@/common/config/storage';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';
+import { logStreamTerminalObserved } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { isConversationProcessing } from '@/renderer/pages/conversation/utils/conversationRuntime';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
@@ -260,6 +262,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
           break;
         case 'finish':
           {
+            logStreamTerminalObserved(conversation_id, message.turn_id, 'acp', message.type);
             // Mark turn as finished to prevent auto-recover from late messages
             turnFinishedRef.current = true;
             // Immediate state reset (notification is handled by centralized hook)
@@ -395,15 +398,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
         case 'available_commands': {
           const cmdData = message.data as { commands?: AvailableCommand[] };
           if (cmdData?.commands && Array.isArray(cmdData.commands)) {
-            setSlashCommands(
-              cmdData.commands.map((c) => ({
-                name: c.name,
-                description: c.description,
-                kind: 'template' as const,
-                source: 'acp' as const,
-                selectionBehavior: 'insert' as const,
-              }))
-            );
+            setSlashCommands(mapAcpCommandsToSlashCommands(cmdData.commands));
           }
           break;
         }
@@ -435,6 +430,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
           }
           break;
         case 'error':
+          logStreamTerminalObserved(conversation_id, message.turn_id, 'acp', message.type);
           // Stop all loading states when error occurs
           turnFinishedRef.current = true;
           setRunning(false);
@@ -579,15 +575,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
       .then((result) => {
         if (cancelled) return;
         if (!result || !Array.isArray(result) || result.length === 0) return;
-        setSlashCommands(
-          result.map((c) => ({
-            name: c.command,
-            description: c.description,
-            kind: 'template' as const,
-            source: 'acp' as const,
-            selectionBehavior: 'insert' as const,
-          }))
-        );
+        setSlashCommands(mapAcpCommandsToSlashCommands(result));
       })
       .catch(() => {});
     return () => {
@@ -613,15 +601,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
       .invoke({ conversation_id })
       .then((result) => {
         if (!result || !Array.isArray(result) || result.length === 0) return;
-        setSlashCommands(
-          result.map((c) => ({
-            name: c.command,
-            description: c.description,
-            kind: 'template' as const,
-            source: 'acp' as const,
-            selectionBehavior: 'insert' as const,
-          }))
-        );
+        setSlashCommands(mapAcpCommandsToSlashCommands(result));
       })
       .catch(() => {});
   }, [conversation_id]);

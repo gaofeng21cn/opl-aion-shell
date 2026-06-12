@@ -113,7 +113,7 @@ function buildOplAssistantRouteReceipt(
 }
 
 /**
- * Hook that manages the send logic for all conversation types (openclaw/nanobot/acp).
+ * Hook that manages the send logic for ACP and Aion CLI conversations.
  */
 export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
   const {

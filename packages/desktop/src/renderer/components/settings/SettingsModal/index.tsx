@@ -18,7 +18,7 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AboutModalContent from './contents/AboutModalContent';
-import DisplayModalContent from './contents/DisplayModalContent';
+import AppearanceModalContent from './contents/AppearanceModalContent';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SystemModalContent from './contents/SystemModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
@@ -354,7 +354,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       case 'appearance':
       case 'display':
       case 'pet':
-        return <DisplayModalContent />;
+        return <AppearanceModalContent />;
       case 'advanced':
       case 'system':
         return <SystemModalContent />;

@@ -21,6 +21,7 @@ import { initMainAdapterWithWindow } from './common/adapter/main';
 import { ipcBridge } from './common';
 import { initializeProcess } from './process';
 import { startBackendOrExit } from './process/startup/backendStartup';
+import { assertStartupArchitectureCompatible } from './process/startup/architectureCompatibility';
 import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
 import { installQuitCleanup } from './process/startup/quitCleanup';
 import { initializeTrayForDesktopMode } from './process/startup/trayStartup';
@@ -558,6 +559,11 @@ const handleAppReady = async (): Promise<void> => {
   // close it before the backend touches the same file.
   const backendStartup = await startBackendOrExit({
     startBackend: async () => {
+      assertStartupArchitectureCompatible({
+        arch: process.arch,
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+      });
       const { getDataPath } = await import('./process/utils/utils');
       const { getSystemDir } = await import('./process/utils/initStorage');
       const sysDir = getSystemDir();

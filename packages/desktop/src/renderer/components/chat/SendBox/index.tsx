@@ -43,6 +43,7 @@ import UploadProgressBar from '@renderer/components/media/UploadProgressBar';
 import { allSupportedExts } from '@renderer/services/FileService';
 import SpeechInputButton from '@/renderer/components/chat/SpeechInputButton';
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
+import { createChainedDispatch, useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { getConversationInputHistory, isCaretOnFirstLine } from '@/renderer/utils/chat/messageHistory';
 import './sendbox.css';
 
@@ -221,7 +222,7 @@ const SendBox: React.FC<{
   const effectiveDefaultMultiLine = defaultMultiLine && !isMobileCompact;
   const conversationContext = useConversationContextSafe();
   const teamPermission = useTeamPermission();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [isSingleLine, setIsSingleLine] = useState(!effectiveDefaultMultiLine);
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -452,12 +453,10 @@ const SendBox: React.FC<{
         kind: 'builtin',
         source: 'builtin',
       });
-      commands.push({
-        name: 'export',
-        description: t('messages.export.commandDescription'),
-        kind: 'builtin',
-        source: 'builtin',
-      });
+      // The `/export` slash command is intentionally not registered (kanban #14)
+      // so it never appears in the command list and cannot open the export flow.
+      // The `name === 'export'` branch below and the conversationExport hook are
+      // kept intact for a future per-platform re-enable.
     }
     return commands;
   }, [conversationContext?.conversation_id, enableBtw, onSlashBuiltinCommand, t]);
@@ -834,33 +833,6 @@ const SendBox: React.FC<{
     [conversationContext?.type, handleExternalSelectionAppend]
   );
   useAddEventListener(
-    'remote.selected.file.append',
-    (items: FileSelectionItem[]) => {
-      if (conversationContext?.type === 'remote') {
-        handleExternalSelectionAppend(items);
-      }
-    },
-    [conversationContext?.type, handleExternalSelectionAppend]
-  );
-  useAddEventListener(
-    'openclaw-gateway.selected.file.append',
-    (items: FileSelectionItem[]) => {
-      if (conversationContext?.type === 'openclaw-gateway') {
-        handleExternalSelectionAppend(items);
-      }
-    },
-    [conversationContext?.type, handleExternalSelectionAppend]
-  );
-  useAddEventListener(
-    'nanobot.selected.file.append',
-    (items: FileSelectionItem[]) => {
-      if (conversationContext?.type === 'nanobot') {
-        handleExternalSelectionAppend(items);
-      }
-    },
-    [conversationContext?.type, handleExternalSelectionAppend]
-  );
-  useAddEventListener(
     'codex.selected.file.append',
     (items: FileSelectionItem[]) => {
       if (conversationContext?.type === 'codex') {
@@ -878,15 +850,6 @@ const SendBox: React.FC<{
           break;
         case 'acp':
           emitter.emit('acp.selected.file.append', [item]);
-          break;
-        case 'remote':
-          emitter.emit('remote.selected.file.append', [item]);
-          break;
-        case 'openclaw-gateway':
-          emitter.emit('openclaw-gateway.selected.file.append', [item]);
-          break;
-        case 'nanobot':
-          emitter.emit('nanobot.selected.file.append', [item]);
           break;
         case 'codex':
           emitter.emit('codex.selected.file.append', [item]);
@@ -1268,14 +1231,29 @@ const SendBox: React.FC<{
     }
   };
 
-  const handleSpeechTranscript = useCallback(
-    (transcript: string) => {
-      const current_value = latestInputRef.current;
-      setInputRef.current(appendSpeechTranscript(current_value, transcript));
-    },
+  // SendBox is controlled (`value`/`onChange`): adapt the plain value setter
+  // into a functional-update dispatch. Same-tick updates (live-region restore
+  // followed by the terminal transcript append) must chain through a pending
+  // value — the committed `input` prop only catches up on the next render.
+  const speechDispatch = useMemo(
+    () =>
+      createChainedDispatch(
+        () => latestInputRef.current,
+        (value) => setInputRef.current(value)
+      ),
     [latestInputRef, setInputRef]
   );
-  const speechLocale = i18n?.language || 'en-US';
+  useEffect(() => {
+    // The committed input caught up (or the user typed) — drop the chain.
+    speechDispatch.reset();
+  }, [input, speechDispatch]);
+  const handleSpeechTranscript = useCallback(
+    (transcript: string) => {
+      speechDispatch.dispatch((prev) => appendSpeechTranscript(prev, transcript));
+    },
+    [speechDispatch]
+  );
+  const { handleLiveTranscript } = useLiveTranscriptInsertion(speechDispatch.dispatch);
 
   const hasDraftToSend = input.trim().length > 0 || domSnippets.length > 0;
 
@@ -1345,7 +1323,7 @@ const SendBox: React.FC<{
   const renderedSpeechButton = isMobileCompact ? null : (
     <SpeechInputButton
       disabled={disabled || isLoading || loading || isUploading}
-      locale={speechLocale}
+      onLiveTranscript={handleLiveTranscript}
       onTranscript={handleSpeechTranscript}
     />
   );

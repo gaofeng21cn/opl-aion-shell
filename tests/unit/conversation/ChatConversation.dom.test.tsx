@@ -65,19 +65,19 @@ vi.mock('@/renderer/pages/conversation/components/ChatSlider.tsx', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
-  default: () => <div data-testid='acp-chat' />,
-}));
-
-vi.mock('@/renderer/pages/conversation/platforms/nanobot/NanobotChat', () => ({
-  default: () => <div data-testid='nanobot-chat' />,
-}));
-
-vi.mock('@/renderer/pages/conversation/platforms/openclaw/OpenClawChat', () => ({
-  default: () => <div data-testid='openclaw-chat' />,
-}));
-
-vi.mock('@/renderer/pages/conversation/platforms/remote/RemoteChat', () => ({
-  default: () => <div data-testid='remote-chat' />,
+  default: ({
+    loadedMcpServers,
+    loadedMcpStatuses,
+  }: {
+    loadedMcpServers?: string[];
+    loadedMcpStatuses?: Array<{ id: string; name: string; status: string }>;
+  }) => (
+    <div
+      data-testid='acp-chat'
+      data-mcp-servers={JSON.stringify(loadedMcpServers ?? [])}
+      data-mcp-statuses={JSON.stringify(loadedMcpStatuses ?? [])}
+    />
+  ),
 }));
 
 vi.mock('@/renderer/pages/conversation/platforms/aionrs/AionrsChat', () => ({
@@ -90,10 +90,6 @@ vi.mock('@/renderer/pages/conversation/platforms/aionrs/AionrsModelSelector', ()
 
 vi.mock('@/renderer/pages/conversation/platforms/aionrs/useAionrsModelSelection', () => ({
   useAionrsModelSelection: () => ({}),
-}));
-
-vi.mock('@/renderer/pages/conversation/platforms/openclaw/StarOfficeMonitorCard.tsx', () => ({
-  default: () => <div data-testid='staroffice-monitor' />,
 }));
 
 vi.mock('@/renderer/components/agent/AcpModelSelector', () => ({
@@ -133,5 +129,28 @@ describe('ChatConversation Codex model surface', () => {
 
     expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'claude');
     expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'claude-opus-4.5');
+  });
+
+  it('does not pass AionUI Team MCP snapshots into ordinary ACP conversations', () => {
+    const conversation = acpConversation('codex');
+    conversation.extra = {
+      ...conversation.extra,
+      mcp_servers: ['aionui-team', 'team_list_models'],
+      mcp_statuses: [
+        { id: 'aionui-team', name: 'aionui-team', status: 'loaded' },
+        { id: 'mcp__aionui-team-team_members', name: 'team_members', status: 'failed' },
+      ],
+      session_mcp_servers: [
+        { id: 'aionui-team', name: 'aionui-team', transport: { type: 'stdio', command: 'mcp-team-stdio' } },
+      ],
+      team_mcp_stdio_config: { port: 62520 },
+      team_id: 'team-1',
+      teamId: 'team-1',
+    };
+
+    render(<ChatConversation conversation={conversation} />);
+
+    expect(screen.getByTestId('acp-chat')).toHaveAttribute('data-mcp-servers', '[]');
+    expect(screen.getByTestId('acp-chat')).toHaveAttribute('data-mcp-statuses', '[]');
   });
 });

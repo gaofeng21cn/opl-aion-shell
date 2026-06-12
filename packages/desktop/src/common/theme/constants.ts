@@ -7,3 +7,5 @@
 export const LIGHT_THEME_ID = 'default-theme';
 export const DARK_THEME_ID = 'dark';
 export const CODEX_THEME_ID = 'codex';
+/** Sentinel id stored in `theme.activeId`: resolve to Light/Dark from the OS appearance. */
+export const SYSTEM_THEME_ID = 'system';

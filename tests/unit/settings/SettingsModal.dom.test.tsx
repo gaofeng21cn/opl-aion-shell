@@ -45,7 +45,7 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent
   default: () => <div data-testid='webui-content'>Can Codex CLI and providers work now?</div>,
 }));
 
-vi.mock('@/renderer/components/settings/SettingsModal/contents/DisplayModalContent', () => ({
+vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent', () => ({
   default: () => <div data-testid='appearance-content'>Appearance</div>,
 }));
 

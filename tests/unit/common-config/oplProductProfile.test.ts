@@ -25,7 +25,9 @@ import {
   getOplRetiredCodexModels,
   getOplSkillPriority,
   isOplCodexCliFixedExecutor,
+  isOplForbiddenTeamMcpName,
   OPL_PRODUCT_PROFILE,
+  sanitizeOplOrdinaryConversationExtra,
   shouldDefaultCodexCssTheme,
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
@@ -140,6 +142,47 @@ describe('OPL generated product profile', () => {
       pet: 'appearance',
     });
     expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'oma', 'app']);
+  });
+
+  it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {
+    expect(isOplForbiddenTeamMcpName('aionui-team')).toBe(true);
+    expect(isOplForbiddenTeamMcpName('team_list_models')).toBe(true);
+    expect(isOplForbiddenTeamMcpName('mcp__aionui-team-team_members')).toBe(true);
+    expect(isOplForbiddenTeamMcpName('mas')).toBe(false);
+
+    const extra = sanitizeOplOrdinaryConversationExtra({
+      workspace: '/tmp/opl',
+      backend: 'codex',
+      mcp_servers: ['aionui-team', 'team_list_models', 'unknown-mcp'],
+      mcp_statuses: [
+        { id: 'aionui-team', name: 'aionui-team', status: 'loaded' as const },
+        { id: 'mcp__aionui-team-team_members', name: 'team_members', status: 'failed' as const },
+        { id: 'unknown-mcp', name: 'Unknown MCP', status: 'loaded' as const },
+      ],
+      session_mcp_servers: [
+        { id: 'aionui-team', name: 'aionui-team', transport: { type: 'stdio' as const, command: 'mcp-team-stdio' } },
+      ],
+      team_mcp_stdio_config: { port: 62520 },
+      team_id: 'team-1',
+      teamId: 'team-1',
+      team_lead_team_id: 'team-1',
+      team_lead_team_slot_id: 'slot-1',
+      tl: 1,
+    });
+
+    expect(extra).toMatchObject({
+      workspace: '/tmp/opl',
+      backend: 'codex',
+      mcp_servers: [],
+      mcp_statuses: [],
+      session_mcp_servers: [],
+    });
+    expect(extra).not.toHaveProperty('team_mcp_stdio_config');
+    expect(extra).not.toHaveProperty('team_id');
+    expect(extra).not.toHaveProperty('teamId');
+    expect(extra).not.toHaveProperty('team_lead_team_id');
+    expect(extra).not.toHaveProperty('team_lead_team_slot_id');
+    expect(extra).not.toHaveProperty('tl');
   });
 
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {

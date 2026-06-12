@@ -5,7 +5,7 @@
  */
 
 import generatedProfile from './oplProductProfile.generated.json';
-import type { IConversationMcpStatus, IMcpServer } from '@/common/config/storage';
+import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
 
 export type OplCodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
@@ -1457,12 +1457,78 @@ export function filterOplOrdinarySkillCatalog<T extends { name: string }>(skills
 
 export function filterOplOrdinaryMcpServers<T extends Pick<IMcpServer, 'id' | 'name'>>(servers: T[]): T[] {
   const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
-  return servers.filter((server) => allowlist.has(server.id) || allowlist.has(server.name));
+  return servers.filter(
+    (server) =>
+      (allowlist.has(server.id) || allowlist.has(server.name)) &&
+      !isOplForbiddenTeamMcpName(server.id) &&
+      !isOplForbiddenTeamMcpName(server.name)
+  );
 }
 
 export function filterOplOrdinaryMcpStatuses<T extends IConversationMcpStatus>(statuses: T[]): T[] {
   const allowlist = new Set(getOplOrdinaryMcpServerAllowlist());
-  return statuses.filter((status) => allowlist.has(status.id) || allowlist.has(status.name));
+  return statuses.filter(
+    (status) =>
+      (allowlist.has(status.id) || allowlist.has(status.name)) &&
+      !isOplForbiddenTeamMcpName(status.id) &&
+      !isOplForbiddenTeamMcpName(status.name)
+  );
+}
+
+export function isOplForbiddenTeamMcpName(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === 'aionui-team' ||
+    normalized.startsWith('team_') ||
+    normalized.startsWith('mcp__aionui-team') ||
+    normalized.includes('aionui-team')
+  );
+}
+
+export function filterOplOrdinarySessionMcpServers<T extends Pick<ISessionMcpServer, 'id' | 'name'>>(
+  servers: T[]
+): T[] {
+  return filterOplOrdinaryMcpServers(servers).filter(
+    (server) => !isOplForbiddenTeamMcpName(server.id) && !isOplForbiddenTeamMcpName(server.name)
+  );
+}
+
+export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, unknown> | undefined>(
+  extra: T
+): T {
+  if (!extra) return extra;
+  const sanitized: Record<string, unknown> = { ...extra };
+  const mcpServers = Array.isArray(sanitized.mcp_servers) ? (sanitized.mcp_servers as string[]) : undefined;
+  const mcpStatuses = Array.isArray(sanitized.mcp_statuses)
+    ? (sanitized.mcp_statuses as IConversationMcpStatus[])
+    : undefined;
+  const sessionMcpServers = Array.isArray(sanitized.session_mcp_servers)
+    ? (sanitized.session_mcp_servers as ISessionMcpServer[])
+    : undefined;
+
+  if (mcpServers) {
+    sanitized.mcp_servers = filterOplOrdinaryMcpServers(mcpServers.map((name) => ({ id: name, name }))).map(
+      (server) => server.name
+    );
+  }
+  if (mcpStatuses) {
+    sanitized.mcp_statuses = filterOplOrdinaryMcpStatuses(mcpStatuses).filter(
+      (status) => !isOplForbiddenTeamMcpName(status.id) && !isOplForbiddenTeamMcpName(status.name)
+    );
+  }
+  if (sessionMcpServers) {
+    sanitized.session_mcp_servers = filterOplOrdinarySessionMcpServers(sessionMcpServers);
+  }
+
+  delete sanitized.team_mcp_stdio_config;
+  delete sanitized.team_id;
+  delete sanitized.teamId;
+  delete sanitized.team_lead_team_id;
+  delete sanitized.team_lead_team_slot_id;
+  delete sanitized.tl;
+
+  return sanitized as T;
 }
 
 export function getOplFlowContextPolicy(): OplFlowContextPolicy {

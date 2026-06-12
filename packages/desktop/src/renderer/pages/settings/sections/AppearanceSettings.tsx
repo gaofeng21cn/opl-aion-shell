@@ -5,12 +5,12 @@
  */
 
 import React from 'react';
-import DisplayModalContent from '@/renderer/components/settings/SettingsModal/contents/DisplayModalContent';
+import AppearanceModalContent from '@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 const AppearanceSettings: React.FC = () => (
   <SettingsPageWrapper contentClassName='max-w-980px'>
-    <DisplayModalContent />
+    <AppearanceModalContent />
   </SettingsPageWrapper>
 );
 

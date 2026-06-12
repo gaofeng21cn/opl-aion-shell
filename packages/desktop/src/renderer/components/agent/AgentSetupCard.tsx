@@ -21,6 +21,10 @@ import { applyDefaultConversationName } from '@/renderer/pages/conversation/util
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
+import {
+  filterOplOrdinarySessionMcpServers,
+  sanitizeOplOrdinaryConversationExtra,
+} from '@/common/config/oplProductProfile';
 
 type AgentSetupCardProps = {
   conversation_id: string;
@@ -73,11 +77,17 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
           setSwitching(false);
           return;
         }
+        const sourceExtra = sanitizeOplOrdinaryConversationExtra(
+          conversation.extra as Record<string, unknown> | undefined
+        );
+        const sessionMcpServers = Array.isArray(sourceExtra?.session_mcp_servers)
+          ? filterOplOrdinarySessionMcpServers(
+              sourceExtra.session_mcp_servers as ICreateConversationParams['extra']['selected_session_mcp_servers']
+            )
+          : undefined;
 
-        // Determine conversation type based on agent
-        // Codex uses 'codex' type, others use 'acp' type
-        const isCodex = agent.backend === 'codex';
-        const conversation_type = isCodex ? 'codex' : 'acp';
+        // New agent conversations use ACP; the concrete provider stays in extra.backend.
+        const conversation_type = 'acp';
         const defaultConversationName = t('conversation.welcome.newConversation');
 
         const createParams: ICreateConversationParams = {
@@ -100,15 +110,8 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
             // Source conversation's skill list is intentionally not carried over —
             // switch-agent is semantically a new conversation.
             preset_assistant_id: conversation.extra?.preset_assistant_id,
-            selected_mcp_server_ids: Array.isArray((conversation.extra as Record<string, unknown>)?.mcp_server_ids)
-              ? ((conversation.extra as Record<string, unknown>).mcp_server_ids as string[])
-              : undefined,
-            selected_session_mcp_servers: Array.isArray(
-              (conversation.extra as Record<string, unknown>)?.session_mcp_servers
-            )
-              ? ((conversation.extra as Record<string, unknown>)
-                  .session_mcp_servers as ICreateConversationParams['extra']['selected_session_mcp_servers'])
-              : undefined,
+            selected_mcp_server_ids: undefined,
+            selected_session_mcp_servers: sessionMcpServers?.length ? sessionMcpServers : undefined,
           },
         };
 
@@ -128,11 +131,7 @@ const AgentSetupCard: React.FC<AgentSetupCardProps> = ({
         // 存储初始消息，让新会话自动发送
         if (initialMessage) {
           const messageData = { input: initialMessage, files: [] as string[] };
-          if (isCodex) {
-            sessionStorage.setItem(`codex_initial_message_${newConversation.id}`, JSON.stringify(messageData));
-          } else {
-            sessionStorage.setItem(`acp_initial_message_${newConversation.id}`, JSON.stringify(messageData));
-          }
+          sessionStorage.setItem(`acp_initial_message_${newConversation.id}`, JSON.stringify(messageData));
         }
 
         // Show success notification and navigate

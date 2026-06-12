@@ -88,15 +88,23 @@ const requiredAgentErrorCodes = [
   'USER_LLM_PROVIDER_EMPTY_RESPONSE',
 ] as const;
 
+const requiredAgentTipCodes = [
+  'ACP_EMPTY_TURN',
+  'ACP_EMPTY_TURN_MAX_TOKENS',
+  'ACP_EMPTY_TURN_MAX_TURN_REQUESTS',
+  'ACP_EMPTY_TURN_REFUSAL',
+] as const;
+
 const buildTips = (
   type: IMessageTips['content']['type'],
   content = 'boom',
-  error?: AgentStreamErrorInfo
+  error?: AgentStreamErrorInfo,
+  extra?: Pick<IMessageTips['content'], 'code' | 'params'>
 ): IMessageTips =>
   ({
     id: 'tip-1',
     type: 'tips',
-    content: { type, content, ...(error ? { error } : {}) },
+    content: { type, content, ...(error ? { error } : {}), ...extra },
   }) as IMessageTips;
 
 describe('MessageTips — FeedbackButton wiring', () => {
@@ -115,6 +123,11 @@ describe('MessageTips — FeedbackButton wiring', () => {
 
   it('does not render FeedbackButton on warning tips', () => {
     render(<MessageTips message={buildTips('warning')} />);
+    expect(screen.queryByText('settings.oneClickFeedback')).not.toBeInTheDocument();
+  });
+
+  it('does not render FeedbackButton on info tips', () => {
+    render(<MessageTips message={buildTips('info')} />);
     expect(screen.queryByText('settings.oneClickFeedback')).not.toBeInTheDocument();
   });
 
@@ -195,6 +208,47 @@ describe('MessageTips — FeedbackButton wiring', () => {
 
     expect(container.querySelector('strong')).not.toBeInTheDocument();
     expect(screen.getByText('<strong>boom</strong>')).toBeInTheDocument();
+  });
+
+  it('renders localized info tips as plain text without icon or feedback', () => {
+    const { container } = render(
+      <MessageTips
+        message={buildTips('info', '', undefined, {
+          code: 'ACP_EMPTY_TURN',
+          params: { provider: 'OpenCode' },
+        })}
+      />
+    );
+
+    expect(screen.getByText('This request produced no visible reply.')).toBeInTheDocument();
+    expect(screen.queryByText('settings.oneClickFeedback')).not.toBeInTheDocument();
+    expect(container.querySelector('svg')).not.toBeInTheDocument();
+  });
+
+  it('renders the same localized copy for command empty turns', () => {
+    render(
+      <MessageTips
+        message={buildTips('info', '', undefined, {
+          code: 'ACP_EMPTY_TURN',
+        })}
+      />
+    );
+
+    expect(screen.getByText('This request produced no visible reply.')).toBeInTheDocument();
+  });
+
+  it('renders localized warning tips from code-only payloads', () => {
+    render(
+      <MessageTips
+        message={buildTips('warning', '', undefined, {
+          code: 'ACP_EMPTY_TURN_MAX_TOKENS',
+        })}
+      />
+    );
+
+    expect(
+      screen.getByText("This request hit the model's output token limit before any visible reply was produced.")
+    ).toBeInTheDocument();
   });
 
   it('renders classified provider errors with friendly copy and feedback', () => {
@@ -279,6 +333,20 @@ describe('MessageTips — FeedbackButton wiring', () => {
 });
 
 describe('agent error locale copy', () => {
+  it('defines empty-turn info tip copy in every locale', () => {
+    const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
+    const localeNames = ['zh-CN', 'en-US', 'ja-JP', 'zh-TW', 'ko-KR', 'tr-TR', 'ru-RU', 'uk-UA', 'pt-BR'];
+
+    for (const localeName of localeNames) {
+      const locale = JSON.parse(readFileSync(path.join(localeDir, localeName, 'conversation.json'), 'utf8'));
+
+      for (const code of requiredAgentTipCodes) {
+        expect(locale.agentTip.codes[code]?.body, `${localeName} ${code} body`).toEqual(expect.any(String));
+        expect(locale.agentTip.codes[code]?.body.trim(), `${localeName} ${code} body`).not.toBe('');
+      }
+    }
+  });
+
   it('defines title and body copy for newly classified agent error codes in every locale', () => {
     const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
 

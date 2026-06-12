@@ -13,6 +13,7 @@ import FeedbackButton from '@/renderer/components/base/FeedbackButton';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { iconColors } from '@/renderer/styles/colors';
+import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Alert, Button, Collapse, Form, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderSearch } from '@icon-park/react';
@@ -22,6 +23,7 @@ import { useSettingsViewMode } from '../../settingsViewContext';
 import DevSettings from './DevSettings';
 import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
+import VoiceInputSection from './VoiceInputSection';
 
 type PreferenceItem = {
   key: string;
@@ -199,7 +201,10 @@ const SystemModalContent: React.FC = () => {
           .then((result) => {
             if (result.success && result.data) {
               setGpuStatus(result.data);
-              ipcBridge.application.restart.invoke().catch(() => {});
+              ipcBridge.application.restart
+                .invoke()
+                .then((restartResult) => notifyManualRestartRequired(restartResult, t))
+                .catch(() => {});
             } else {
               setGpuStatus(previous);
               Message.error(t('settings.hardwareAccelerationUpdateFailed'));
@@ -320,7 +325,7 @@ const SystemModalContent: React.FC = () => {
   useEffect(() => {
     if (systemInfo.workDir) {
       initializingRef.current = true;
-      form.setFieldsValue({ workDir: systemInfo.workDir });
+      form.setFieldsValue({ workDir: systemInfo.workDir, logDir: systemInfo.logDir });
       requestAnimationFrame(() => {
         initializingRef.current = false;
       });
@@ -403,7 +408,7 @@ const SystemModalContent: React.FC = () => {
     },
   ];
 
-  const saveDirConfigValidate = (_values: { workDir: string }): Promise<unknown> => {
+  const saveDirConfigValidate = (_values: { workDir: string; logDir: string }): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       modal.confirm({
         title: t('settings.updateConfirm'),
@@ -426,7 +431,7 @@ const SystemModalContent: React.FC = () => {
       savingRef.current = true;
       setError(null);
       try {
-        await saveDirConfigValidate({ workDir });
+        await saveDirConfigValidate({ workDir, logDir: systemInfo.logDir });
         await ipcBridge.oplRuntime.executeAction.invoke({
           actionId: 'workspace_root_set',
           dryRun: false,
@@ -435,7 +440,7 @@ const SystemModalContent: React.FC = () => {
         await appStateQuery.load('fast', { showRefreshing: true });
         message.success(t('settings.oplEnvironmentPage.messages.workspaceRootSaved'));
       } catch (caughtError: unknown) {
-        form.setFieldValue('workDir', systemInfo.workDir);
+        form.setFieldsValue({ workDir: systemInfo.workDir, logDir: systemInfo.logDir });
         if (caughtError) {
           setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
         }
@@ -515,7 +520,7 @@ const SystemModalContent: React.FC = () => {
                       type='text'
                       style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
                       icon={<FolderSearch theme='outline' size='18' fill={iconColors.primary} />}
-                      onClick={(e) => {
+                      onClick={(e: Event) => {
                         e.stopPropagation();
                         handleOpenLogDir();
                       }}

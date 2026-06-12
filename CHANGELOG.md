@@ -1,5 +1,158 @@
 # Changelog
 
+## [2.1.17](https://github.com/iOfficeAI/AionUi/compare/v2.1.16...v2.1.17) (2026-06-11)
+
+### Desktop
+
+#### Features
+
+- **settings:** voice input settings revamp and home page mic button (#3283)
+- **titlebar:** add global feedback/report entry to toolbar
+- **theme:** add Follow System theme mode to gallery (#3282)
+- **settings:** support multi-select models when adding a model platform
+
+#### Bug Fixes
+
+- **webui:** normalize Windows verbatim paths from directory picker (#3286)
+- **model-selector:** keep sticky platform title above scrolling items
+- **settings:** allow editing Base URL when editing a model platform
+- **stt:** send multipart request matching backend /api/stt contract (#3274)
+
+#### Styling
+
+- **model-selector:** sticky platform group titles in scrollable dropdown
+
+### Core ([v0.1.28](https://github.com/iOfficeAI/AionCore/releases/tag/v0.1.28))
+
+#### Bug Fixes
+
+- **auth:** allow same-origin framing on office preview proxy routes ([#454](https://github.com/iOfficeAI/AionCore/issues/454))
+- **file:** strip Windows verbatim prefix from /api/fs/browse paths ([#453](https://github.com/iOfficeAI/AionCore/issues/453))
+- **stt:** STT compatibility fixes for Groq Whisper and AionUI web frontend ([#400](https://github.com/iOfficeAI/AionCore/issues/400))
+- **stt:** treat blank base_url as unset and log malformed config ([#448](https://github.com/iOfficeAI/AionCore/issues/448))
+
+---
+
+## [2.1.16](https://github.com/iOfficeAI/AionUi/compare/v2.1.15...v2.1.16) (2026-06-10)
+
+### Desktop
+
+#### Bug Fixes
+
+- **preview:** point OfficeCLI install help to official releases (#3264)
+- **http:** read error response body once to avoid double consumption (#3262)
+- **ci:** handle empty release prefix check (#3263)
+
+### Core ([v0.1.27](https://github.com/iOfficeAI/AionCore/releases/tag/v0.1.27))
+
+#### Bug Fixes
+
+- **ai-agent:** auto approve team mcp permissions ([#447](https://github.com/iOfficeAI/AionCore/issues/447))
+- **ai-agent:** trim stderr buffer at UTF-8 char boundary ([#443](https://github.com/iOfficeAI/AionCore/issues/443))
+- **office:** resolve officecli shim from node_modules/.bin after npm prefix install ([#440](https://github.com/iOfficeAI/AionCore/issues/440))
+- **office:** restore OfficeCLI installer resolution ([#444](https://github.com/iOfficeAI/AionCore/issues/444))
+
+---
+
+## [2.1.15](https://github.com/iOfficeAI/AionUi/compare/v2.1.14...v2.1.15) (2026-06-09)
+
+### Desktop
+
+#### Features
+
+- enforce agent runtime policy and turn-aware UI state (#3253)
+- render localized ACP empty-turn info tips (#3251)
+- **conversation:** hide all conversation export UI entries
+- make log directory configurable (#3233)
+
+#### Bug Fixes
+
+- **conversation:** align header model label with selector (#3257)
+- **sendbox:** stop button glow clipped by mobile panel corner
+- **login:** move mobile language selector to its own row to avoid logo overlap
+- **desktop:** pass parent pid to bundled backend (#3250)
+
+### Core ([v0.1.26](https://github.com/iOfficeAI/AionCore/releases/tag/v0.1.26))
+
+#### Features
+
+- enforce agent runtime policy and turn-aware state ([#436](https://github.com/iOfficeAI/AionCore/issues/436))
+
+#### Bug Fixes
+
+- **app:** use process synchronize access for parent watcher ([#438](https://github.com/iOfficeAI/AionCore/issues/438))
+- **acp:** preserve confirmed model selection ([#437](https://github.com/iOfficeAI/AionCore/issues/437))
+- **app:** stop backend when desktop exits ([#433](https://github.com/iOfficeAI/AionCore/issues/433))
+
+---
+
+## [2.1.14](https://github.com/iOfficeAI/AionUi/compare/v2.1.13...v2.1.14) (2026-06-08)
+
+### Desktop
+
+#### Bug Fixes
+
+- **bootstrap:** block wrong macOS package architecture at startup (#3232)
+
+### Core ([v0.1.24](https://github.com/iOfficeAI/AionCore/releases/tag/v0.1.24))
+
+#### Bug Fixes
+
+- **acp:** prefer config options catalogs ([#425](https://github.com/iOfficeAI/AionCore/issues/425))
+- expose managed resource preparation failure details ([#430](https://github.com/iOfficeAI/AionCore/issues/430))
+- handle Hermes yolo fallback correctly ([#428](https://github.com/iOfficeAI/AionCore/issues/428))
+- harden managed ACP bundle preparation and builtin CLI availability ([#426](https://github.com/iOfficeAI/AionCore/issues/426))
+- scope bundled ACP output under tool directories ([#431](https://github.com/iOfficeAI/AionCore/issues/431))
+- **shell:** support UNC paths in Windows terminal ([#411](https://github.com/iOfficeAI/AionCore/issues/411))
+- validate managed ACP packages via real entrypoints ([#429](https://github.com/iOfficeAI/AionCore/issues/429))
+
+#### Refactoring
+
+- **app:** organize CLI command boundaries ([#423](https://github.com/iOfficeAI/AionCore/issues/423))
+
+---
+
+## [2.1.13](https://github.com/iOfficeAI/AionUi/compare/v2.1.12...v2.1.13) (2026-06-07)
+
+### Desktop
+
+#### Features
+
+- **appearance:** configurable font sizes & display→appearance rename (#3223)
+- **theme:** unify theme system into a single Theme concept (#3219)
+
+#### Bug Fixes
+
+- **messages:** keep message list scrollbar flush to window edge (#3226)
+- **preview:** default zoom to 100% and hide snapshot/history entry (#3222)
+- **bootstrap:** preserve backend startup error codes (#3218)
+- **runtime:** validate packaged node runtime layout (#3221)
+- **runtime:** align installation integrity dialogs (#3220)
+- **realtime:** canonicalize boundary errors (#3217)
+
+#### Refactoring
+
+- stabilize conversation runtime view contract (#3224)
+
+### Core ([v0.1.23](https://github.com/iOfficeAI/AionCore/releases/tag/v0.1.23))
+
+#### Features
+
+- **cli:** canonicalize CLI and bootstrap boundary errors ([#417](https://github.com/iOfficeAI/AionCore/issues/417))
+
+#### Bug Fixes
+
+- **error:** canonicalize boundary errors ([#415](https://github.com/iOfficeAI/AionCore/issues/415))
+- **runtime:** report bundled resource installation failures ([#420](https://github.com/iOfficeAI/AionCore/issues/420))
+- **team:** inherit workspace for spawned agents ([#413](https://github.com/iOfficeAI/AionCore/issues/413))
+
+#### Refactoring
+
+- centralize agent runtime session context building ([#419](https://github.com/iOfficeAI/AionCore/issues/419))
+- centralize runtime turn lifecycle ([#421](https://github.com/iOfficeAI/AionCore/issues/421))
+
+---
+
 ## [2.1.12](https://github.com/iOfficeAI/AionUi/compare/v2.1.11...v2.1.12) (2026-06-05)
 
 ### Desktop

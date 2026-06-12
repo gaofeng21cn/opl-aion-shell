@@ -1,6 +1,6 @@
 {
   "name": "one-person-lab-aion-shell",
-  "version": "2.1.12",
+  "version": "2.1.17",
   "description": "One Person Lab App desktop shell adapter.",
   "keywords": [],
   "license": "Apache-2.0",
@@ -260,7 +260,7 @@
   "engines": {
     "node": ">=22 <25"
   },
-  "aioncoreVersion": "v0.1.22",
+  "aioncoreVersion": "v0.1.28",
   "electronRebuild": {
     "electronVersion": "^37.3.1"
   },
