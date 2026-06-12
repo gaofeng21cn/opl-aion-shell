@@ -20,6 +20,7 @@ import {
   getOplHomeModelStatusLabel,
   getOplModelStatusDisplayText,
   getOplRuntimeEnvironmentItems,
+  getOplOrdinaryForbiddenCapabilityPolicy,
   getOplReadyToLaunchCoreItems,
   getOplReadyToLaunchNonBlockingItems,
   getOplRetiredCodexModels,
@@ -145,9 +146,24 @@ describe('OPL generated product profile', () => {
   });
 
   it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {
+    expect(getOplOrdinaryForbiddenCapabilityPolicy()).toEqual({
+      exact: ['aionui-team'],
+      prefixes: ['team_', 'mcp__aionui-team'],
+      contains: ['aionui-team'],
+      extra_keys: [
+        'team_mcp_stdio_config',
+        'team_id',
+        'teamId',
+        'team_lead_team_id',
+        'team_lead_team_slot_id',
+        'team_lead_conversation_id',
+        'tl',
+      ],
+    });
     expect(isOplForbiddenTeamMcpName('aionui-team')).toBe(true);
     expect(isOplForbiddenTeamMcpName('team_list_models')).toBe(true);
     expect(isOplForbiddenTeamMcpName('mcp__aionui-team-team_members')).toBe(true);
+    expect(isOplForbiddenTeamMcpName('custom-aionui-team-shadow')).toBe(true);
     expect(isOplForbiddenTeamMcpName('mas')).toBe(false);
 
     const extra = sanitizeOplOrdinaryConversationExtra({
@@ -167,6 +183,7 @@ describe('OPL generated product profile', () => {
       teamId: 'team-1',
       team_lead_team_id: 'team-1',
       team_lead_team_slot_id: 'slot-1',
+      team_lead_conversation_id: 'conversation-1',
       tl: 1,
     });
 
@@ -182,6 +199,7 @@ describe('OPL generated product profile', () => {
     expect(extra).not.toHaveProperty('teamId');
     expect(extra).not.toHaveProperty('team_lead_team_id');
     expect(extra).not.toHaveProperty('team_lead_team_slot_id');
+    expect(extra).not.toHaveProperty('team_lead_conversation_id');
     expect(extra).not.toHaveProperty('tl');
   });
 

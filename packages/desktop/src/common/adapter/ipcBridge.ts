@@ -65,6 +65,7 @@ import type {
 } from '../update/updateTypes';
 import type { Theme } from '@/common/theme/types';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
+import { TEAM_MODE_ENABLED } from '../config/constants';
 import { fromApiConversation, fromApiPaginatedConversations, toApiModelOptional } from './apiModelMapper';
 import {
   httpDelete,
@@ -94,6 +95,24 @@ import {
   fromBackendWorkspaceList,
   type RawWorkspaceFlatFile,
 } from './workspaceMapper';
+
+type BridgeProvider<Data, Params> = {
+  provider: (handler: (params: Params) => Promise<Data>) => void;
+  invoke: Params extends undefined ? () => Promise<Data> : (params: Params) => Promise<Data>;
+};
+
+function disabledTeamMutation<Data, Params>(inner: BridgeProvider<Data, Params>): BridgeProvider<Data, Params> {
+  if (TEAM_MODE_ENABLED) {
+    return inner;
+  }
+  const invoke = async () => {
+    throw new Error('Team mode is disabled for ordinary OPL App');
+  };
+  return {
+    provider: () => {},
+    invoke: invoke as unknown as BridgeProvider<Data, Params>['invoke'],
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Shell — routed to POST /api/shell/*
@@ -1885,13 +1904,15 @@ export const hub = {
 export type { IAddTeamAgentParams, ICreateTeamParams } from './teamMapper';
 
 export const team = {
-  create: withResponseMap(
-    httpPost<TTeam, ICreateTeamParams>('/api/teams', (p) => ({
-      name: p.name,
-      agents: p.agents.map(toBackendAgent),
-      ...(p.workspace ? { workspace: p.workspace } : {}),
-    })),
-    fromBackendTeam
+  create: disabledTeamMutation(
+    withResponseMap(
+      httpPost<TTeam, ICreateTeamParams>('/api/teams', (p) => ({
+        name: p.name,
+        agents: p.agents.map(toBackendAgent),
+        ...(p.workspace ? { workspace: p.workspace } : {}),
+      })),
+      fromBackendTeam
+    )
   ),
   list: withResponseMap(
     httpGet<TTeam[], { user_id: string }>((p) => `/api/teams?user_id=${encodeURIComponent(p.user_id)}`),
@@ -1901,30 +1922,38 @@ export const team = {
     httpGet<TTeam | null, { id: string }>((p) => `/api/teams/${p.id}`),
     fromBackendTeamOptional
   ),
-  remove: httpDelete<void, { id: string }>((p) => `/api/teams/${p.id}`),
-  addAgent: withResponseMap(
-    httpPost<TeamAgent, IAddTeamAgentParams>(
-      (p) => `/api/teams/${p.team_id}/agents`,
-      (p) => toBackendAgent(p.agent)
+  remove: disabledTeamMutation(httpDelete<void, { id: string }>((p) => `/api/teams/${p.id}`)),
+  addAgent: disabledTeamMutation(
+    withResponseMap(
+      httpPost<TeamAgent, IAddTeamAgentParams>(
+        (p) => `/api/teams/${p.team_id}/agents`,
+        (p) => toBackendAgent(p.agent)
+      ),
+      fromBackendAgent
+    )
+  ),
+  removeAgent: disabledTeamMutation(
+    httpDelete<void, { team_id: string; slot_id: string }>((p) => `/api/teams/${p.team_id}/agents/${p.slot_id}`)
+  ),
+  stop: disabledTeamMutation(httpDelete<void, { team_id: string }>((p) => `/api/teams/${p.team_id}/session`)),
+  ensureSession: disabledTeamMutation(httpPost<void, { team_id: string }>((p) => `/api/teams/${p.team_id}/session`)),
+  renameAgent: disabledTeamMutation(
+    httpPatch<void, { team_id: string; slot_id: string; new_name: string }>(
+      (p) => `/api/teams/${p.team_id}/agents/${p.slot_id}/name`,
+      (p) => ({ name: p.new_name })
+    )
+  ),
+  renameTeam: disabledTeamMutation(
+    httpPatch<void, { id: string; name: string }>(
+      (p) => `/api/teams/${p.id}/name`,
+      (p) => ({ name: p.name })
+    )
+  ),
+  setSessionMode: disabledTeamMutation(
+    httpPost<void, { team_id: string; session_mode: string }>(
+      (p) => `/api/teams/${p.team_id}/session-mode`,
+      (p) => ({ session_mode: p.session_mode })
     ),
-    fromBackendAgent
-  ),
-  removeAgent: httpDelete<void, { team_id: string; slot_id: string }>(
-    (p) => `/api/teams/${p.team_id}/agents/${p.slot_id}`
-  ),
-  stop: httpDelete<void, { team_id: string }>((p) => `/api/teams/${p.team_id}/session`),
-  ensureSession: httpPost<void, { team_id: string }>((p) => `/api/teams/${p.team_id}/session`),
-  renameAgent: httpPatch<void, { team_id: string; slot_id: string; new_name: string }>(
-    (p) => `/api/teams/${p.team_id}/agents/${p.slot_id}/name`,
-    (p) => ({ name: p.new_name })
-  ),
-  renameTeam: httpPatch<void, { id: string; name: string }>(
-    (p) => `/api/teams/${p.id}/name`,
-    (p) => ({ name: p.name })
-  ),
-  setSessionMode: httpPost<void, { team_id: string; session_mode: string }>(
-    (p) => `/api/teams/${p.team_id}/session-mode`,
-    (p) => ({ session_mode: p.session_mode })
   ),
   agentStatusChanged: wsEmitter<ITeamAgentStatusEvent>('team.agent.status'),
   agentSpawned: wsEmitter<ITeamAgentSpawnedEvent>('team.agent.spawned'),

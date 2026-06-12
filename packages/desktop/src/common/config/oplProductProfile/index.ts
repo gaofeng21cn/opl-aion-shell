@@ -82,6 +82,22 @@ export type OplOrdinaryCapabilitySelectorPolicy = {
   conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids';
   forbidden_skill_examples: string[];
   forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist';
+  forbidden_mcp_examples: string[];
+  conversation_snapshot_policy: 'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations';
+  forbidden_mcp_matchers: {
+    exact: string[];
+    prefixes: string[];
+    contains: string[];
+  };
+  scrub_extra_keys: string[];
+  required_scrub_targets: string[];
+};
+
+export type OplOrdinaryForbiddenCapabilityPolicy = {
+  exact: string[];
+  prefixes: string[];
+  contains: string[];
+  extra_keys: string[];
 };
 
 export type OplFlowContextPolicy = {
@@ -282,6 +298,26 @@ const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[]
   'agent_automation',
   'runtime_mutation_scope',
 ];
+const REQUIRED_ORDINARY_FORBIDDEN_CAPABILITY_POLICY: OplOrdinaryForbiddenCapabilityPolicy = {
+  exact: ['aionui-team'],
+  prefixes: ['team_', 'mcp__aionui-team'],
+  contains: ['aionui-team'],
+  extra_keys: [
+    'team_mcp_stdio_config',
+    'team_id',
+    'teamId',
+    'team_lead_team_id',
+    'team_lead_team_slot_id',
+    'team_lead_conversation_id',
+    'tl',
+  ],
+};
+const REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS = [
+  'mcp_servers entries matching forbidden_mcp_matchers',
+  'mcp_statuses entries matching forbidden_mcp_matchers',
+  'session_mcp_servers entries matching forbidden_mcp_matchers',
+  'scrub_extra_keys',
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
@@ -307,6 +343,25 @@ function readStringArray(
     throw new Error(`Invalid OPL product profile: ${context}.${key} must not contain duplicate non-empty entries`);
   }
   return normalized;
+}
+
+function readForbiddenCapabilityPolicy(value: Record<string, unknown>): OplOrdinaryForbiddenCapabilityPolicy {
+  const matchers = value.forbidden_mcp_matchers;
+  if (!isRecord(matchers)) {
+    throw new Error(
+      'Invalid OPL product profile: gui.ordinary_capability_selector_policy.forbidden_mcp_matchers must be an object'
+    );
+  }
+  const policy = {
+    exact: readStringArray(matchers, 'exact', 'gui.ordinary_capability_selector_policy.forbidden_mcp_matchers'),
+    prefixes: readStringArray(matchers, 'prefixes', 'gui.ordinary_capability_selector_policy.forbidden_mcp_matchers'),
+    contains: readStringArray(matchers, 'contains', 'gui.ordinary_capability_selector_policy.forbidden_mcp_matchers'),
+    extra_keys: readStringArray(value, 'scrub_extra_keys', 'gui.ordinary_capability_selector_policy'),
+  };
+  if (JSON.stringify(policy) !== JSON.stringify(REQUIRED_ORDINARY_FORBIDDEN_CAPABILITY_POLICY)) {
+    throw new Error('Invalid OPL product profile: ordinary forbidden Team MCP policy changed unexpectedly');
+  }
+  return policy;
 }
 
 function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): OplPostInstallAiSelfCheckEntry {
@@ -821,6 +876,9 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     'forbidden_skill_examples',
     'gui.ordinary_capability_selector_policy'
   );
+  const forbiddenMcpExamples = readStringArray(value, 'forbidden_mcp_examples', 'gui.ordinary_capability_selector_policy');
+  const requiredScrubTargets = readStringArray(value, 'required_scrub_targets', 'gui.ordinary_capability_selector_policy');
+  const forbiddenPolicy = readForbiddenCapabilityPolicy(value);
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
     value.authority !== 'app_owned_opl_allowlist' ||
@@ -831,7 +889,9 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     value.mcp_menu_policy !== 'empty_until_app_explicitly_whitelists_opl_mcp_servers' ||
     value.conversation_loaded_mcp_display_policy !== 'filter_to_visible_mcp_server_ids' ||
     value.forbidden_mcp_policy !==
-      'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist'
+      'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist' ||
+    value.conversation_snapshot_policy !==
+      'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations'
   ) {
     throw new Error('Invalid OPL product profile: ordinary capability selector policy is unsupported');
   }
@@ -839,6 +899,14 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     if (!forbiddenSkillExamples.includes(forbidden)) {
       throw new Error(`Invalid OPL product profile: ordinary selector forbidden examples must include ${forbidden}`);
     }
+  }
+  for (const forbidden of ['aionui-team', 'team_*', 'mcp__aionui-team*', 'team_mcp_stdio_config', 'team_id/teamId']) {
+    if (!forbiddenMcpExamples.includes(forbidden)) {
+      throw new Error(`Invalid OPL product profile: ordinary selector forbidden MCP examples must include ${forbidden}`);
+    }
+  }
+  if (JSON.stringify(requiredScrubTargets) !== JSON.stringify(REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS)) {
+    throw new Error('Invalid OPL product profile: ordinary selector Team scrub targets are unsupported');
   }
   return {
     scope: 'home_composer_and_ordinary_conversation',
@@ -852,6 +920,16 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     conversation_loaded_mcp_display_policy: 'filter_to_visible_mcp_server_ids',
     forbidden_skill_examples: forbiddenSkillExamples,
     forbidden_mcp_policy: 'do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist',
+    forbidden_mcp_examples: forbiddenMcpExamples,
+    conversation_snapshot_policy:
+      'scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations',
+    forbidden_mcp_matchers: {
+      exact: forbiddenPolicy.exact,
+      prefixes: forbiddenPolicy.prefixes,
+      contains: forbiddenPolicy.contains,
+    },
+    scrub_extra_keys: forbiddenPolicy.extra_keys,
+    required_scrub_targets: requiredScrubTargets,
   };
 }
 
@@ -1430,6 +1508,14 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
     ...policy,
     visible_mcp_server_ids: [...policy.visible_mcp_server_ids],
     forbidden_skill_examples: [...policy.forbidden_skill_examples],
+    forbidden_mcp_examples: [...policy.forbidden_mcp_examples],
+    forbidden_mcp_matchers: {
+      exact: [...policy.forbidden_mcp_matchers.exact],
+      prefixes: [...policy.forbidden_mcp_matchers.prefixes],
+      contains: [...policy.forbidden_mcp_matchers.contains],
+    },
+    scrub_extra_keys: [...policy.scrub_extra_keys],
+    required_scrub_targets: [...policy.required_scrub_targets],
   };
 }
 
@@ -1443,6 +1529,16 @@ export function getOplOrdinarySkillAllowlist(): string[] {
 
 export function getOplOrdinaryMcpServerAllowlist(): string[] {
   return [...OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy.visible_mcp_server_ids];
+}
+
+export function getOplOrdinaryForbiddenCapabilityPolicy(): OplOrdinaryForbiddenCapabilityPolicy {
+  const policy = OPL_PRODUCT_PROFILE.gui.ordinary_capability_selector_policy;
+  return {
+    exact: [...policy.forbidden_mcp_matchers.exact],
+    prefixes: [...policy.forbidden_mcp_matchers.prefixes],
+    contains: [...policy.forbidden_mcp_matchers.contains],
+    extra_keys: [...policy.scrub_extra_keys],
+  };
 }
 
 export function filterOplOrdinarySkillNames(names: string[]): string[] {
@@ -1478,11 +1574,11 @@ export function filterOplOrdinaryMcpStatuses<T extends IConversationMcpStatus>(s
 export function isOplForbiddenTeamMcpName(value: unknown): boolean {
   if (typeof value !== 'string') return false;
   const normalized = value.trim().toLowerCase();
+  const policy = getOplOrdinaryForbiddenCapabilityPolicy();
   return (
-    normalized === 'aionui-team' ||
-    normalized.startsWith('team_') ||
-    normalized.startsWith('mcp__aionui-team') ||
-    normalized.includes('aionui-team')
+    policy.exact.includes(normalized) ||
+    policy.prefixes.some((prefix) => normalized.startsWith(prefix)) ||
+    policy.contains.some((fragment) => normalized.includes(fragment))
   );
 }
 
@@ -1519,12 +1615,9 @@ export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, un
     sanitized.session_mcp_servers = filterOplOrdinarySessionMcpServers(sessionMcpServers);
   }
 
-  delete sanitized.team_mcp_stdio_config;
-  delete sanitized.team_id;
-  delete sanitized.teamId;
-  delete sanitized.team_lead_team_id;
-  delete sanitized.team_lead_team_slot_id;
-  delete sanitized.tl;
+  for (const key of getOplOrdinaryForbiddenCapabilityPolicy().extra_keys) {
+    delete sanitized[key];
+  }
 
   return sanitized as T;
 }
