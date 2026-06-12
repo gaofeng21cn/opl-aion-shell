@@ -857,16 +857,30 @@ describe('OPL first-run VM smoke scripts', () => {
       '--install-mode',
       'homebrew-cask',
       '--homebrew-cask',
-      'one-person-lab',
+      'gaofeng21cn/one-person-lab/one-person-lab',
       '--smoke-profile',
       'homebrew-standard-cask',
       '--dry-run',
     ]);
 
+    expect(tartSmoke.buildDryRunPlan(options).homebrew_trusted_casks).toEqual([
+      'gaofeng21cn/one-person-lab/one-person-lab',
+      'gaofeng21cn/one-person-lab/one-person-lab-full',
+      'gaofeng21cn/one-person-lab/one-person-lab-nightly',
+    ]);
+    expect(tartSmoke.homebrewTrustedCaskRefs(options)).toEqual([
+      'gaofeng21cn/one-person-lab/one-person-lab',
+      'gaofeng21cn/one-person-lab/one-person-lab-full',
+      'gaofeng21cn/one-person-lab/one-person-lab-nightly',
+    ]);
     const command = tartSmoke.guestHomebrewInstallCommand(options);
     expect(command).toContain('/opt/homebrew/bin/brew');
     expect(command).toContain('"$BREW_BIN" shellenv');
     expect(command).toContain('"$BREW_BIN" tap');
+    expect(command).toContain('"$BREW_BIN" trust --cask \'gaofeng21cn/one-person-lab/one-person-lab\'');
+    expect(command).toContain('"$BREW_BIN" trust --cask \'gaofeng21cn/one-person-lab/one-person-lab-full\'');
+    expect(command).toContain('"$BREW_BIN" trust --cask \'gaofeng21cn/one-person-lab/one-person-lab-nightly\'');
+    expect(command).not.toContain('"$BREW_BIN" trust gaofeng21cn/one-person-lab');
     expect(command).toContain('"$BREW_BIN" install --cask');
     expect(command).toContain('xattr -dr com.apple.quarantine "/Applications/One Person Lab.app"');
   });

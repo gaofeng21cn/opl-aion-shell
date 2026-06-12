@@ -42,6 +42,11 @@ const SMOKE_PROFILES = new Map([
     },
   ],
 ]);
+const HOMEBREW_CONFLICTING_CASKS = new Map([
+  ['one-person-lab', ['one-person-lab-full', 'one-person-lab-nightly']],
+  ['one-person-lab-full', ['one-person-lab', 'one-person-lab-nightly']],
+  ['one-person-lab-nightly', ['one-person-lab', 'one-person-lab-full']],
+]);
 
 const runtimeState = {
   options: null,
@@ -366,6 +371,7 @@ function buildDryRunPlan(options) {
     dmg: options.dmg || null,
     homebrew_tap: options.homebrewTap,
     homebrew_cask: options.homebrewCask,
+    homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
     display: options.display,
@@ -387,6 +393,27 @@ function buildDryRunPlan(options) {
     no_graphics: options.noGraphics,
     keep_vm: options.keepVm,
   };
+}
+
+function homebrewCaskToken(caskRef) {
+  return caskRef.split('/').filter(Boolean).at(-1) || caskRef;
+}
+
+function homebrewQualifiedCaskRef(tap, caskTokenOrRef) {
+  if (caskTokenOrRef.includes('/')) return caskTokenOrRef;
+  return `${tap}/${caskTokenOrRef}`;
+}
+
+function homebrewTrustedCaskRefs(options) {
+  if (options.installMode !== 'homebrew-cask') return [];
+  const caskToken = homebrewCaskToken(options.homebrewCask);
+  const relatedCasks = HOMEBREW_CONFLICTING_CASKS.get(caskToken) || [];
+  return Array.from(
+    new Set([
+      homebrewQualifiedCaskRef(options.homebrewTap, options.homebrewCask),
+      ...relatedCasks.map((relatedCask) => homebrewQualifiedCaskRef(options.homebrewTap, relatedCask)),
+    ])
+  );
 }
 
 function guestFrameworkSourceArchivePath(options) {
@@ -883,6 +910,11 @@ if [ -z "$BREW_BIN" ]; then
 fi
 eval "$("$BREW_BIN" shellenv)"
 "$BREW_BIN" tap ${shellQuote(options.homebrewTap)}
+if "$BREW_BIN" trust --help >/dev/null 2>&1; then
+${homebrewTrustedCaskRefs(options)
+  .map((caskRef) => `  "$BREW_BIN" trust --cask ${shellQuote(caskRef)}`)
+  .join('\n')}
+fi
 "$BREW_BIN" install --cask ${shellQuote(options.homebrewCask)}
 test -d "/Applications/One Person Lab.app"
 xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || sudo xattr -dr com.apple.quarantine "/Applications/One Person Lab.app" 2>/dev/null || true
@@ -1191,6 +1223,7 @@ export const __test =
         guestHomebrewInstallCommand,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
+        homebrewTrustedCaskRefs,
         isMainModule,
         parseArgs,
         resolveGuestSmokeScriptPath,
