@@ -1953,7 +1953,7 @@ export const team = {
     httpPost<void, { team_id: string; session_mode: string }>(
       (p) => `/api/teams/${p.team_id}/session-mode`,
       (p) => ({ session_mode: p.session_mode })
-    ),
+    )
   ),
   agentStatusChanged: wsEmitter<ITeamAgentStatusEvent>('team.agent.status'),
   agentSpawned: wsEmitter<ITeamAgentSpawnedEvent>('team.agent.spawned'),

@@ -51,6 +51,25 @@ const ACTIONS_ARTIFACT_TARGETS = {
   },
 };
 
+function getActionsArtifactTarget(platform, arch) {
+  return ACTIONS_ARTIFACT_TARGETS[`${platform}-${arch}`] || null;
+}
+
+function getActionsArtifactName(platform, arch) {
+  return getActionsArtifactTarget(platform, arch)?.artifactName || null;
+}
+
+function getActionsArtifactMissingMessage({ runId, platform, arch, expectedArtifactName, availableArtifactNames }) {
+  const manualPlatform = getActionsArtifactTarget(platform, arch)?.manualPlatform || `${platform}-${arch}`;
+  const availableArtifacts =
+    Array.isArray(availableArtifactNames) && availableArtifactNames.length ? availableArtifactNames.join(', ') : 'none';
+  return [
+    `AionCore run ${runId} does not contain artifact [ ${expectedArtifactName} ] required for [ ${platform}-${arch} ].`,
+    `Available artifacts: ${availableArtifacts}.`,
+    `Re-run AionCore Manual Build with platform [ ${manualPlatform} ] or all.`,
+  ].join(' ');
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -562,6 +581,8 @@ function prepareAioncore(options) {
 }
 
 module.exports = {
+  getActionsArtifactName,
+  getActionsArtifactMissingMessage,
   prepareAioncore,
   __test__: {
     downloadFile,

@@ -876,8 +876,16 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
     'forbidden_skill_examples',
     'gui.ordinary_capability_selector_policy'
   );
-  const forbiddenMcpExamples = readStringArray(value, 'forbidden_mcp_examples', 'gui.ordinary_capability_selector_policy');
-  const requiredScrubTargets = readStringArray(value, 'required_scrub_targets', 'gui.ordinary_capability_selector_policy');
+  const forbiddenMcpExamples = readStringArray(
+    value,
+    'forbidden_mcp_examples',
+    'gui.ordinary_capability_selector_policy'
+  );
+  const requiredScrubTargets = readStringArray(
+    value,
+    'required_scrub_targets',
+    'gui.ordinary_capability_selector_policy'
+  );
   const forbiddenPolicy = readForbiddenCapabilityPolicy(value);
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
@@ -902,7 +910,9 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   }
   for (const forbidden of ['aionui-team', 'team_*', 'mcp__aionui-team*', 'team_mcp_stdio_config', 'team_id/teamId']) {
     if (!forbiddenMcpExamples.includes(forbidden)) {
-      throw new Error(`Invalid OPL product profile: ordinary selector forbidden MCP examples must include ${forbidden}`);
+      throw new Error(
+        `Invalid OPL product profile: ordinary selector forbidden MCP examples must include ${forbidden}`
+      );
     }
   }
   if (JSON.stringify(requiredScrubTargets) !== JSON.stringify(REQUIRED_ORDINARY_TEAM_SCRUB_TARGETS)) {

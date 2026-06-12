@@ -335,9 +335,8 @@ describe('MessageTips — FeedbackButton wiring', () => {
 describe('agent error locale copy', () => {
   it('defines empty-turn info tip copy in every locale', () => {
     const localeDir = path.join(process.cwd(), 'packages/desktop/src/renderer/services/i18n/locales');
-    const localeNames = ['zh-CN', 'en-US', 'ja-JP', 'zh-TW', 'ko-KR', 'tr-TR', 'ru-RU', 'uk-UA', 'pt-BR'];
 
-    for (const localeName of localeNames) {
+    for (const localeName of supportedLocaleNames) {
       const locale = JSON.parse(readFileSync(path.join(localeDir, localeName, 'conversation.json'), 'utf8'));
 
       for (const code of requiredAgentTipCodes) {
