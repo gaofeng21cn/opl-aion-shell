@@ -3,7 +3,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
-import { resetManagedUpdateMaintenanceForTest } from '@/renderer/services/managedUpdateMaintenance';
+import {
+  executeManagedUpdateRead,
+  resetManagedUpdateMaintenanceForTest,
+} from '@/renderer/services/managedUpdateMaintenance';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
@@ -186,6 +189,42 @@ const managedUpdateStatusResult = {
         },
       ],
       reload_guidance: 'Restart or reload only when a component reports it.',
+    },
+  },
+};
+
+const managedUpdateAutoApplyPlanResult = {
+  surface: 'update_plan',
+  command: 'opl update plan --json',
+  stdout: '{}',
+  parsed: {
+    managed_update: {
+      operation: 'plan',
+      idempotency_lock: { status: 'released' },
+      execution: { status: 'completed' },
+      reload_guidance: 'Reload visible OPL capabilities after background maintenance.',
+      components: [
+        {
+          component_id: 'runtime_toolchain',
+          state: 'update_available',
+          safe_to_apply: true,
+          needs_restart: true,
+          reload_guidance: 'Restart the app before the new runtime is visible.',
+        },
+        {
+          component_id: 'agent_package_channel',
+          state: 'update_available',
+          safe_to_apply: true,
+          reload_guidance: 'Reload Codex plugin cache after agent package sync.',
+        },
+        {
+          component_id: 'capability_exposure',
+          state: 'staged',
+          safe_to_apply: true,
+          needs_reload: true,
+          reload_guidance: 'Reload the app to refresh visible capabilities.',
+        },
+      ],
     },
   },
 };
@@ -394,6 +433,46 @@ describe('RuntimeSettings app state bridge usage', () => {
         'settings.oplEnvironmentPage.updates.background.noFailure'
       )
     );
+  });
+
+  it('projects background managed update auto-apply action, skip reason, and reload guidance', async () => {
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce(managedUpdateAutoApplyPlanResult);
+    bridgeMocks.applyUpdateComponentInvoke.mockImplementation(({ componentId }: { componentId: string }) =>
+      Promise.resolve({
+        surface: 'update_apply',
+        command: `opl update apply --component ${componentId} --json`,
+        stdout: '{}',
+        parsed: {
+          managed_update: {
+            operation: 'apply',
+            idempotency_lock: { status: 'released' },
+            execution: { status: 'completed' },
+            reload_guidance: `Reload after applying ${componentId}.`,
+          },
+        },
+      })
+    );
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await executeManagedUpdateRead('plan', {
+        background: true,
+        trigger: 'daily_background_maintenance',
+      });
+    });
+
+    await waitFor(() => expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(2));
+
+    const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
+    expect(backgroundStatus).toHaveTextContent('auto_apply capability_exposure completed');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastSkipReason');
+    expect(backgroundStatus).toHaveTextContent('runtime_toolchain: restart_required');
+    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.reloadGuidance');
+    expect(backgroundStatus).toHaveTextContent('Reload after applying capability_exposure.');
   });
 
   it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {

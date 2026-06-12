@@ -1494,9 +1494,7 @@ export function filterOplOrdinarySessionMcpServers<T extends Pick<ISessionMcpSer
   );
 }
 
-export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, unknown> | undefined>(
-  extra: T
-): T {
+export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, unknown> | undefined>(extra: T): T {
   if (!extra) return extra;
   const sanitized: Record<string, unknown> = { ...extra };
   const mcpServers = Array.isArray(sanitized.mcp_servers) ? (sanitized.mcp_servers as string[]) : undefined;

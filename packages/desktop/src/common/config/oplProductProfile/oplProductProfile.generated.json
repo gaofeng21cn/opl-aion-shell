@@ -693,7 +693,7 @@
       ],
       "capabilities": {
         "source_channel": {
-          "standard_default": "stable_package_channel",
+          "standard_default": "agent_latest_package_channel",
           "developer_opt_in": "github_repo_or_local_checkout",
           "display_policy": "show_package_channel_first_then_checkout_override"
         },
@@ -708,7 +708,7 @@
           "display_policy": "show_repo_authority_without_hiding_user_confirmation"
         },
         "agent_automation": {
-          "standard_default": "user_confirmed_app_actions",
+          "standard_default": "silent_background_agent_package_updates",
           "developer_opt_in": "developer_enabled_agent_automation",
           "display_policy": "show_automation_scope_and_confirmation_policy"
         },

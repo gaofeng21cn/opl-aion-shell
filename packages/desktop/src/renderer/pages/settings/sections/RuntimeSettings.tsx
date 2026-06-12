@@ -428,6 +428,29 @@ function ManagedUpdatesPanel({
               value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
             })}
           </span>
+          {maintenance.lastAction && (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.background.lastAction', {
+                action: maintenance.lastAction.kind,
+                componentId: maintenance.lastAction.componentId,
+                status: maintenance.lastAction.status,
+              })}
+            </span>
+          )}
+          {maintenance.lastSkipReason && (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.background.lastSkipReason', {
+                reason: maintenance.lastSkipReason,
+              })}
+            </span>
+          )}
+          {maintenance.reloadGuidance && (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.background.reloadGuidance', {
+                guidance: maintenance.reloadGuidance,
+              })}
+            </span>
+          )}
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>

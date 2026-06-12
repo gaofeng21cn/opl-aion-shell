@@ -1402,6 +1402,9 @@
         "lastRunAt": "上次运行：{{value}}",
         "nextRunAt": "下次运行：{{value}}",
         "lastFailure": "上次失败：{{value}}",
+        "lastAction": "最近动作：{{action}} {{componentId}} {{status}}",
+        "lastSkipReason": "已跳过：{{reason}}",
+        "reloadGuidance": "重新加载指引：{{guidance}}",
         "noFailure": "无"
       }
     },

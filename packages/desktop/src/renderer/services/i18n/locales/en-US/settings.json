@@ -1401,6 +1401,9 @@
         "lastRunAt": "Last run: {{value}}",
         "nextRunAt": "Next run: {{value}}",
         "lastFailure": "Last failure: {{value}}",
+        "lastAction": "Last action: {{action}} {{componentId}} {{status}}",
+        "lastSkipReason": "Skipped: {{reason}}",
+        "reloadGuidance": "Reload guidance: {{guidance}}",
         "noFailure": "None"
       }
     },

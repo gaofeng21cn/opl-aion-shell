@@ -106,8 +106,8 @@ describe('SystemModalContent OPL App state', () => {
               source_channel: {
                 status: 'ready',
                 level: 'managed_package_channel',
-                source: 'stable_package_channel',
-                impact: 'This module uses the stable managed package channel.',
+                source: 'agent_latest_package_channel',
+                impact: 'This module uses the managed GHCR agent package channel.',
               },
               workspace_trust: {
                 status: 'ready',
