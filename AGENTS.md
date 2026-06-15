@@ -91,8 +91,11 @@ See [docs/architecture/overview.md](docs/architecture/overview.md) for details.
 **Framework**: Vitest 4 (`vitest.config.ts`). Coverage target ≥ 80%.
 
 ```bash
-bun run test              # run all tests
-bun run test:coverage     # with coverage report
+bun run test              # default fast Vitest lane (node unit + contract)
+bun run test:dom          # jsdom component/hook tests
+bun run test:integration  # integration tests
+bun run test:full         # full Vitest lane (unit + DOM + integration/regression)
+bun run test:coverage     # full Vitest lane with coverage report
 ```
 
 See the `testing` skill (`.claude/skills/testing/SKILL.md`) for complete workflow and quality rules.

@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import path from 'path';
 
+const includeIntegration = process.env.VITEST_INCLUDE_INTEGRATION === '1';
+const includeDom = process.env.VITEST_INCLUDE_DOM === '1';
+
 const aliases = {
   '@/': path.resolve(__dirname, './packages/desktop/src') + '/',
   '@process/': path.resolve(__dirname, './packages/desktop/src/process') + '/',
@@ -29,23 +32,27 @@ export default defineConfig({
           include: [
             'tests/unit/**/*.test.ts',
             'tests/unit/**/test_*.ts',
-            'tests/integration/**/*.test.ts',
-            'tests/regression/**/*.test.ts',
+            'tests/contract/**/*.test.ts',
+            ...(includeIntegration ? ['tests/integration/**/*.test.ts', 'tests/regression/**/*.test.ts'] : []),
           ],
           exclude: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
           setupFiles: ['./tests/vitest.setup.ts'],
         },
       },
-      // jsdom environment tests (React component/hook tests)
-      {
-        extends: true,
-        test: {
-          name: 'dom',
-          environment: 'jsdom',
-          include: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
-          setupFiles: ['./tests/vitest.dom.setup.ts'],
-        },
-      },
+      ...(includeDom
+        ? [
+            // jsdom environment tests (React component/hook tests)
+            {
+              extends: true,
+              test: {
+                name: 'dom',
+                environment: 'jsdom',
+                include: ['tests/unit/**/*.dom.test.ts', 'tests/unit/**/*.dom.test.tsx'],
+                setupFiles: ['./tests/vitest.dom.setup.ts'],
+              },
+            },
+          ]
+        : []),
     ],
     benchmark: {
       include: ['tests/bench/**/*.bench.ts'],

@@ -85,8 +85,9 @@ List scenarios most likely to produce bugs. Write those first. Coverage is the o
 ### Step 3: Run Tests
 
 ```bash
-bun run test              # Run all tests (REQUIRED before every commit)
-bun run test:coverage     # Check coverage (before opening a PR)
+bun run test              # Run default fast tests (node unit + contract)
+bun run test:full         # Run full Vitest tests (unit + DOM + integration/regression)
+bun run test:coverage     # Check full-lane coverage (before opening a PR)
 ```
 
 ### Step 4: Verify Coverage
@@ -121,7 +122,8 @@ Before submitting code:
 
 - [ ] New features have corresponding test cases
 - [ ] Modified logic has updated tests
-- [ ] `bun run test` passes
+- [ ] `bun run test` passes for default fast coverage
+- [ ] `bun run test:dom`, `bun run test:integration`, or `bun run test:full` passes when the change touches those lanes
 - [ ] Tests describe **behavior**, not implementation
 - [ ] At least one failure path per describe block
 - [ ] New source files are not accidentally excluded by `coverage.exclude`

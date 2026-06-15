@@ -50,7 +50,7 @@ bun run i18n:types
 node scripts/check-i18n.js
 
 # 5. Tests
-bunx vitest run
+bun run test
 ```
 
 ### One-command alternative
@@ -59,7 +59,7 @@ This replicates the exact CI quality check, then runs tests:
 
 ```bash
 prek run --from-ref origin/main --to-ref HEAD
-bunx vitest run
+bun run test
 ```
 
 > `prek` runs format-check + lint + tsc in read-only mode. If it reports issues, run the auto-fix commands above first, then re-run prek.
@@ -72,7 +72,9 @@ bunx vitest run
 | Lint errors   | `bun run lint:fix` for auto-fixable issues; fix the rest manually    |
 | Type errors   | Fix the TypeScript issue, then re-run `bunx tsc --noEmit`            |
 | i18n errors   | Check for missing keys; run `bun run i18n:types` to regenerate types |
-| Test failures | Fix the failing test or implementation; re-run `bunx vitest run`     |
+| Test failures | Fix the failing test or implementation; re-run `bun run test`        |
+
+Run `bun run test:full` when your change touches DOM, integration, or regression coverage. E2E, VM smoke, packaged-runtime, and benchmark evidence remain explicit lanes (`bun run test:e2e`, `bun run test:opl-first-run-vm`, `bun run validate:opl-package`, `bun run bench:*`).
 
 ### Claude Code shortcut
 

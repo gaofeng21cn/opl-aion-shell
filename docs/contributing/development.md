@@ -80,17 +80,18 @@ bun start
 
 ### Testing
 
-| Command                      | Description                                       |
-| ---------------------------- | ------------------------------------------------- |
-| `bun run test`               | Run all unit tests (vitest)                       |
-| `bun run test:watch`         | Run tests in watch mode                           |
-| `bun run test:coverage`      | Run tests with coverage report                    |
-| `bun run test:contract`      | Run contract tests                                |
-| `bun run test:integration`   | Run integration tests                             |
-| `bun run test:bun`           | Run Bun-specific database driver tests            |
-| `bun run test:e2e`           | Run end-to-end tests (Playwright)                 |
-| `bun run test:packaged:i18n` | Run i18n integration tests against packaged build |
-| `bun run test:packaged:bun`  | Run Bun packaged integration tests                |
+| Command                      | Description                                          |
+| ---------------------------- | ---------------------------------------------------- |
+| `bun run test`               | Run default fast Vitest tests (node unit + contract) |
+| `bun run test:watch`         | Run default fast tests in watch mode                 |
+| `bun run test:dom`           | Run jsdom component/hook tests                       |
+| `bun run test:full`          | Run full Vitest tests (unit + DOM + integration)     |
+| `bun run test:coverage`      | Run full Vitest tests with coverage report           |
+| `bun run test:contract`      | Run contract tests                                   |
+| `bun run test:integration`   | Run integration tests                                |
+| `bun run test:bun`           | Run Bun-specific database driver tests               |
+| `bun run test:e2e`           | Run end-to-end tests (Playwright)                    |
+| `bun run test:packaged:i18n` | Run i18n integration tests against packaged build    |
 
 ### Debug
 

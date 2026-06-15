@@ -50,7 +50,7 @@ bun run i18n:types
 node scripts/check-i18n.js
 
 # 5. 测试
-bunx vitest run
+bun run test
 ```
 
 ### 一条命令替代
@@ -59,7 +59,7 @@ bunx vitest run
 
 ```bash
 prek run --from-ref origin/main --to-ref HEAD
-bunx vitest run
+bun run test
 ```
 
 > `prek` 以只读模式运行 format-check + lint + tsc。如果报错，先运行上面的自动修复命令，再重新运行 prek。
@@ -72,7 +72,9 @@ bunx vitest run
 | Lint 错误 | `bun run lint:fix` 修复可自动修复的部分，其余手动修复  |
 | 类型错误  | 修复 TypeScript 问题，重新运行 `bunx tsc --noEmit`     |
 | i18n 错误 | 检查缺失的 key，运行 `bun run i18n:types` 重新生成类型 |
-| 测试失败  | 修复失败的测试或实现，重新运行 `bunx vitest run`       |
+| 测试失败  | 修复失败的测试或实现，重新运行 `bun run test`          |
+
+如果改动触及 DOM、integration 或 regression 覆盖，运行 `bun run test:full`。E2E、VM smoke、packaged-runtime 和 benchmark 证据保持显式 lane：`bun run test:e2e`、`bun run test:opl-first-run-vm`、`bun run validate:opl-package`、`bun run bench:*`。
 
 ### Claude Code 快捷方式
 
