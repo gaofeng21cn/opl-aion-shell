@@ -255,15 +255,17 @@ describe('OPL first-run VM smoke scripts', () => {
 
   it('terminates existing packaged app instances before launching a fresh smoke target', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
 
     expect(scriptSource).toContain('terminate_existing_app');
     expect(scriptSource).toContain('OPL_FIRST_RUN_KEEP_EXISTING_APP');
     expect(scriptSource).toContain('terminateExistingApp(options.processName)');
-    expect(scriptSource.indexOf('terminate_existing_app')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
+    expect(mainSource.indexOf('terminate_existing_app')).toBeLessThan(mainSource.indexOf("'launch_app'"));
   });
 
   it('checks Gatekeeper launch policy before opening the packaged app', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
 
     expect(scriptSource).toContain('verify_gatekeeper_launch_policy');
     expect(scriptSource).toContain("spctl', ['--assess', '--type', 'execute', '--verbose=4'");
@@ -276,7 +278,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('Stable local authorization failed to clear quarantine before first launch.');
     expect(scriptSource).not.toContain('if (codesign.status !== 0)');
     expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
-    expect(scriptSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(scriptSource.indexOf("'launch_app'"));
+    expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
   });
 
   it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
@@ -527,6 +529,104 @@ describe('OPL first-run VM smoke scripts', () => {
         timeoutMs: 50,
       })
     ).rejects.toThrow(/test-long-running-child timed out after 50ms/);
+  });
+
+  it('passes Codex phase timeouts through Tart host plans and guest smoke commands', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--smoke-timeout-ms',
+      '900000',
+      '--codex-install-phase-timeout-ms',
+      '240000',
+      '--codex-readiness-phase-timeout-ms',
+      '360000',
+      '--dry-run',
+    ]);
+
+    expect(options.codexInstallPhaseTimeoutMs).toBe(240_000);
+    expect(options.codexReadinessPhaseTimeoutMs).toBe(360_000);
+    expect(tartSmoke.buildDryRunPlan(options).timeouts).toEqual({
+      vm_boot_and_ssh_ms: 600_000,
+      guest_smoke_ms: 900_000,
+      codex_install_phase_ms: 240_000,
+      codex_readiness_phase_ms: 360_000,
+    });
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain("--codex-install-phase-timeout-ms '240000'");
+    expect(command).toContain("--codex-readiness-phase-timeout-ms '360000'");
+  });
+
+  it('defaults Codex phase timeouts from the guest smoke timeout and rejects invalid phase budgets', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--smoke-timeout-ms',
+      '900000',
+      '--dry-run',
+    ]);
+
+    expect(options.codexInstallPhaseTimeoutMs).toBe(900_000);
+    expect(options.codexReadinessPhaseTimeoutMs).toBe(900_000);
+    expect(() =>
+      tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--codex-install-phase-timeout-ms',
+        '0',
+        '--dry-run',
+      ])
+    ).toThrow(/codex-install-phase-timeout-ms/);
+    expect(() =>
+      tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--codex-readiness-phase-timeout-ms',
+        '-1',
+        '--dry-run',
+      ])
+    ).toThrow(/codex-readiness-phase-timeout-ms/);
+  });
+
+  it('parses guest Codex phase timeouts and shares a phase deadline across commands', () => {
+    const options = vmSmoke.parseArgs([
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--timeout-ms',
+      '900000',
+      '--codex-install-phase-timeout-ms',
+      '240000',
+      '--codex-readiness-phase-timeout-ms',
+      '360000',
+    ]);
+
+    expect(options.codexInstallPhaseTimeoutMs).toBe(240_000);
+    expect(options.codexReadinessPhaseTimeoutMs).toBe(360_000);
+    expect(
+      vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--timeout-ms', '42']).codexInstallPhaseTimeoutMs
+    ).toBe(42);
+    expect(() =>
+      vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--codex-readiness-phase-timeout-ms', '0'])
+    ).toThrow(/codex-readiness-phase-timeout-ms/);
+
+    const deadlineMs = vmSmoke.phaseDeadlineMs(10_000);
+    expect(vmSmoke.remainingPhaseTimeoutMs(deadlineMs, 'install_dmg')).toBeLessThanOrEqual(10_000);
+    expect(() => vmSmoke.remainingPhaseTimeoutMs(Date.now() - 1, 'install_dmg')).toThrow(/install_dmg timed out/);
   });
 
   it('summarizes Tart host stage timings without depending on VM execution', () => {

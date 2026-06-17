@@ -79,6 +79,12 @@ Options:
   --process-name <name>    macOS process name. Default: One Person Lab.
   --timeout-ms <n>         VM boot and SSH timeout. Default: 600000.
   --smoke-timeout-ms <n>   Guest GUI smoke timeout. Default: 180000.
+  --codex-install-phase-timeout-ms <n>
+                           Guest App install/first-launch Codex setup phase timeout.
+                           Defaults to --smoke-timeout-ms.
+  --codex-readiness-phase-timeout-ms <n>
+                           Guest Codex readiness/initialize phase timeout.
+                           Defaults to --smoke-timeout-ms.
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
@@ -141,6 +147,8 @@ function parseArgs(argv) {
     processName: 'One Person Lab',
     timeoutMs: 600_000,
     smokeTimeoutMs: 180_000,
+    codexInstallPhaseTimeoutMs: null,
+    codexReadinessPhaseTimeoutMs: null,
     display: '1920x1080px',
     smokeProfile: 'full-gate',
     settingsSmoke: false,
@@ -262,6 +270,12 @@ function parseArgs(argv) {
     } else if (arg === '--smoke-timeout-ms') {
       options.smokeTimeoutMs = Number(value);
       explicit.add('smokeTimeoutMs');
+    } else if (arg === '--codex-install-phase-timeout-ms') {
+      options.codexInstallPhaseTimeoutMs = Number(value);
+      explicit.add('codexInstallPhaseTimeoutMs');
+    } else if (arg === '--codex-readiness-phase-timeout-ms') {
+      options.codexReadinessPhaseTimeoutMs = Number(value);
+      explicit.add('codexReadinessPhaseTimeoutMs');
     } else if (arg === '--display') {
       options.display = value;
       explicit.add('display');
@@ -326,6 +340,14 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.smokeTimeoutMs) || options.smokeTimeoutMs <= 0) {
     throw new Error('--smoke-timeout-ms must be positive.');
   }
+  if (options.codexInstallPhaseTimeoutMs === null) options.codexInstallPhaseTimeoutMs = options.smokeTimeoutMs;
+  if (options.codexReadinessPhaseTimeoutMs === null) options.codexReadinessPhaseTimeoutMs = options.smokeTimeoutMs;
+  if (!Number.isFinite(options.codexInstallPhaseTimeoutMs) || options.codexInstallPhaseTimeoutMs <= 0) {
+    throw new Error('--codex-install-phase-timeout-ms must be positive.');
+  }
+  if (!Number.isFinite(options.codexReadinessPhaseTimeoutMs) || options.codexReadinessPhaseTimeoutMs <= 0) {
+    throw new Error('--codex-readiness-phase-timeout-ms must be positive.');
+  }
   if (!/^\d+x\d+(?:pt|px)?$/.test(options.display)) {
     throw new Error('--display must be a Tart display resolution like 1920x1080px.');
   }
@@ -377,6 +399,12 @@ function buildDryRunPlan(options) {
     homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
+    timeouts: {
+      vm_boot_and_ssh_ms: options.timeoutMs,
+      guest_smoke_ms: options.smokeTimeoutMs,
+      codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+      codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+    },
     display: options.display,
     settings_smoke: options.settingsSmoke,
     assistant_route_smoke: options.assistantRouteSmoke,
@@ -987,6 +1015,8 @@ function guestSmokeCommand(
     '--assert-clean',
     `--process-name ${shellQuote(options.processName)}`,
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
+    `--codex-install-phase-timeout-ms ${shellQuote(String(options.codexInstallPhaseTimeoutMs))}`,
+    `--codex-readiness-phase-timeout-ms ${shellQuote(String(options.codexReadinessPhaseTimeoutMs))}`,
     options.settingsSmoke ? '--settings-smoke' : '',
     options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
     options.codexFunctionalCheck ? '--codex-functional-check' : '',
@@ -1168,6 +1198,12 @@ function writeSummary(options, ip, guestArtifactDir) {
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     framework_source_archive: frameworkSourceArchivePlan(options),
+    timeouts: {
+      vm_boot_and_ssh_ms: options.timeoutMs,
+      guest_smoke_ms: options.smokeTimeoutMs,
+      codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+      codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+    },
     guest_ip: ip,
     guest_artifacts: guestArtifactDir,
     host_artifacts: options.artifacts,
@@ -1201,6 +1237,12 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     framework_source_archive: frameworkSourceArchivePlan(options),
+    timeouts: {
+      vm_boot_and_ssh_ms: options.timeoutMs,
+      guest_smoke_ms: options.smokeTimeoutMs,
+      codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+      codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+    },
     guest_ip: ip || null,
     guest_artifacts: guestArtifactDir || null,
     host_artifacts: options.artifacts,

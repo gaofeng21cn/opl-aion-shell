@@ -89,6 +89,12 @@ Options:
   --artifacts <path>     Artifact output directory. Default: ./artifacts/opl-first-run-<timestamp>.
   --process-name <name>  macOS process name. Default: One Person Lab.
   --timeout-ms <n>       Wait timeout for UI labels and logs. Default: 180000.
+  --codex-install-phase-timeout-ms <n>
+                         Timeout for App install and first-launch setup commands.
+                         Defaults to --timeout-ms.
+  --codex-readiness-phase-timeout-ms <n>
+                         Timeout for Codex readiness and opl initialize checks.
+                         Defaults to --timeout-ms.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
                          Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
@@ -134,6 +140,8 @@ function parseArgs(argv) {
     artifacts: null,
     processName: DEFAULT_PROCESS_NAME,
     timeoutMs: 180_000,
+    codexInstallPhaseTimeoutMs: null,
+    codexReadinessPhaseTimeoutMs: null,
     settingsSmoke: false,
     assistantRouteSmoke: false,
     codexFunctionalCheck: false,
@@ -194,6 +202,8 @@ function parseArgs(argv) {
     else if (arg === '--artifacts') options.artifacts = path.resolve(value);
     else if (arg === '--process-name') options.processName = value;
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
+    else if (arg === '--codex-install-phase-timeout-ms') options.codexInstallPhaseTimeoutMs = Number(value);
+    else if (arg === '--codex-readiness-phase-timeout-ms') options.codexReadinessPhaseTimeoutMs = Number(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
@@ -205,6 +215,14 @@ function parseArgs(argv) {
   if (options.app && options.dmg) throw new Error('Use only one of --app or --dmg.');
   if (!options.app && !options.dmg) throw new Error('One of --app or --dmg is required.');
   if (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0) throw new Error('--timeout-ms must be positive.');
+  if (options.codexInstallPhaseTimeoutMs === null) options.codexInstallPhaseTimeoutMs = options.timeoutMs;
+  if (options.codexReadinessPhaseTimeoutMs === null) options.codexReadinessPhaseTimeoutMs = options.timeoutMs;
+  if (!Number.isFinite(options.codexInstallPhaseTimeoutMs) || options.codexInstallPhaseTimeoutMs <= 0) {
+    throw new Error('--codex-install-phase-timeout-ms must be positive.');
+  }
+  if (!Number.isFinite(options.codexReadinessPhaseTimeoutMs) || options.codexReadinessPhaseTimeoutMs <= 0) {
+    throw new Error('--codex-readiness-phase-timeout-ms must be positive.');
+  }
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
   }
@@ -233,6 +251,10 @@ function resolveOplProbeTimeoutMs(timeoutMs) {
   return Math.max(1_000, Math.min(DEFAULT_OPL_PROBE_TIMEOUT_MS, Math.floor(timeoutMs)));
 }
 
+function withPhaseTimeout(options, timeoutMs) {
+  return { ...options, timeoutMs };
+}
+
 function readCodexApiKey(options) {
   if (!options.codexApiKeyFile) return null;
   const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
@@ -246,7 +268,19 @@ function run(command, args, options = {}) {
     stdio: options.stdio ?? 'pipe',
     env: options.env ?? process.env,
     cwd: options.cwd ?? process.cwd(),
+    timeout: options.timeout,
   });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(
+      [
+        `${command} ${args.join(' ')} timed out after ${options.timeout}ms`,
+        result.stdout ? `stdout:\n${result.stdout}` : '',
+        result.stderr ? `stderr:\n${result.stderr}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
   if (result.status !== 0) {
     throw new Error(
       [
@@ -259,6 +293,21 @@ function run(command, args, options = {}) {
     );
   }
   return result.stdout ?? '';
+}
+
+function phaseDeadlineMs(timeoutMs) {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? Date.now() + timeoutMs : null;
+}
+
+function remainingPhaseTimeoutMs(deadlineMs, label) {
+  if (!deadlineMs) return undefined;
+  const remainingMs = Math.max(0, deadlineMs - Date.now());
+  if (remainingMs <= 0) throw new Error(`${label} timed out before starting the next command.`);
+  return remainingMs;
+}
+
+function runWithDeadline(command, args, deadlineMs, label) {
+  return run(command, args, { timeout: remainingPhaseTimeoutMs(deadlineMs, label) });
 }
 
 function shellQuote(value) {
@@ -319,9 +368,14 @@ function findAppBundle(root) {
   return app ? path.join(root, app.name) : null;
 }
 
-function mountDmg(dmgPath) {
+function mountDmg(dmgPath, options = {}) {
   const mountPoint = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-dmg-'));
-  run('hdiutil', ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountPoint]);
+  runWithDeadline(
+    'hdiutil',
+    ['attach', dmgPath, '-nobrowse', '-readonly', '-mountpoint', mountPoint],
+    options.deadlineMs,
+    'install_dmg'
+  );
   return mountPoint;
 }
 
@@ -345,14 +399,15 @@ function detachGuideDmg(mountPoint) {
   spawnSync('hdiutil', ['detach', mountPoint], { stdio: 'ignore' });
 }
 
-function installDmgApp(dmgPath, installDir) {
-  const mountPoint = mountDmg(dmgPath);
+function installDmgApp(dmgPath, installDir, options = {}) {
+  const deadlineMs = options.deadlineMs ?? phaseDeadlineMs(options.timeout);
+  const mountPoint = mountDmg(dmgPath, { deadlineMs });
   try {
     const mountedApp = findAppBundle(mountPoint);
     if (!mountedApp) throw new Error(`No .app bundle found in ${dmgPath}`);
     const targetApp = path.join(installDir, path.basename(mountedApp));
     fs.rmSync(targetApp, { recursive: true, force: true });
-    run('ditto', [mountedApp, targetApp]);
+    runWithDeadline('ditto', [mountedApp, targetApp], deadlineMs, 'install_dmg');
     spawnSync('xattr', ['-dr', 'com.apple.quarantine', targetApp], { stdio: 'ignore' });
     return targetApp;
   } finally {
@@ -456,8 +511,9 @@ function buildLaunchAppArgs(appPath, options) {
 }
 
 function launchApp(appPath, options) {
-  run('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)]);
-  run('open', buildLaunchAppArgs(appPath, options));
+  const deadlineMs = phaseDeadlineMs(options.codexInstallPhaseTimeoutMs);
+  runWithDeadline('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)], deadlineMs, 'launch_app');
+  runWithDeadline('open', buildLaunchAppArgs(appPath, options), deadlineMs, 'launch_app');
 }
 
 function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
@@ -3047,6 +3103,11 @@ async function main() {
       cdp_port: options.cdpPort,
       assert_clean: options.assertClean,
       codex_ai_self_check: options.codexAiSelfCheck,
+      timeouts: {
+        smoke_ms: options.timeoutMs,
+        codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+        codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+      },
     });
     if (options.assertClean) {
       await runSmokePhase(writeSmokeEvent, 'assert_clean_state', () => assertCleanFirstRunState(options.processName));
@@ -3056,10 +3117,14 @@ async function main() {
     const appPath = await runSmokePhase(
       writeSmokeEvent,
       options.dmg ? 'install_dmg' : 'resolve_app',
-      () => (options.dmg ? installDmgApp(options.dmg, options.installDir) : options.app),
+      () =>
+        options.dmg
+          ? installDmgApp(options.dmg, options.installDir, { timeout: options.codexInstallPhaseTimeoutMs })
+          : options.app,
       {
         dmg: options.dmg,
         install_dir: options.installDir,
+        timeout_ms: options.codexInstallPhaseTimeoutMs,
       }
     );
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
@@ -3085,6 +3150,7 @@ async function main() {
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
       app_path: appPath,
       cdp_port: options.cdpPort,
+      timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
@@ -3116,7 +3182,10 @@ async function main() {
       }
     }
     if (!guidEntry && shouldWaitForCoreFirstLaunchReady(options)) {
-      coreFirstLaunch = await waitForCoreFirstLaunchReady(options, codexApiKey);
+      coreFirstLaunch = await waitForCoreFirstLaunchReady(
+        withPhaseTimeout(options, options.codexReadinessPhaseTimeoutMs),
+        codexApiKey
+      );
       writeTextArtifact(
         path.join(options.artifacts, 'system-initialize.json'),
         coreFirstLaunch.systemInitializeRaw,
@@ -3131,13 +3200,13 @@ async function main() {
           waitForFirstRunCompletion(
             firstRunLog,
             options.processName,
-            options.timeoutMs,
+            options.codexReadinessPhaseTimeoutMs,
             codexApiKey,
             options.artifacts,
             launchStartedAtMs
           ),
         {
-          timeout_ms: options.timeoutMs,
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
       );
     }
@@ -3167,10 +3236,14 @@ async function main() {
       (await runSmokePhase(
         writeSmokeEvent,
         'wait_guid_entry',
-        () => waitForUsableGuidEntry({ ...options, writeSmokeEvent }, codexApiKey),
+        () =>
+          waitForUsableGuidEntry(
+            withPhaseTimeout({ ...options, writeSmokeEvent }, options.codexReadinessPhaseTimeoutMs),
+            codexApiKey
+          ),
         {
-          timeout_ms: options.timeoutMs,
-          cdp_probe_timeout_ms: cdpProbeTimeoutMs(options),
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
+          cdp_probe_timeout_ms: cdpProbeTimeoutMs(withPhaseTimeout(options, options.codexReadinessPhaseTimeoutMs)),
         }
       ));
     if (guidEntry.tree.length > 0) {
@@ -3296,9 +3369,9 @@ async function main() {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
         'full_runtime_equivalence',
-        () => waitForFullFirstRunEquivalence(options.timeoutMs, { writeSmokeEvent }),
+        () => waitForFullFirstRunEquivalence(options.codexReadinessPhaseTimeoutMs, { writeSmokeEvent }),
         {
-          timeout_ms: options.timeoutMs,
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
       );
       writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
@@ -3342,6 +3415,11 @@ async function main() {
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
+      timeouts: {
+        smoke_ms: options.timeoutMs,
+        codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+        codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+      },
       existing_launch_fallback: firstRun.existingLaunchFallback === true,
       guid_entry_probe: guidEntry.mode,
       labels: guidEntry.labels,
@@ -3419,6 +3497,8 @@ export const __test =
         summarizeCoreFirstLaunch,
         parseSystemInitialize,
         parseArgs,
+        phaseDeadlineMs,
+        remainingPhaseTimeoutMs,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
         firstRunBeginnerUxExpression,
