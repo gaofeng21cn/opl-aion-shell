@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
@@ -95,6 +96,12 @@ Options:
   --codex-readiness-phase-timeout-ms <n>
                          Timeout for Codex readiness and opl initialize checks.
                          Defaults to --timeout-ms.
+  --codex-package-tarball <path>
+                         Optional local Codex npm package tarball to expose to
+                         the packaged app during first-run install.
+  --codex-npm-cache-dir <path>
+                         Optional npm cache directory to expose to the packaged
+                         app during first-run Codex install via NPM_CONFIG_CACHE.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
                          Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
@@ -142,6 +149,8 @@ function parseArgs(argv) {
     timeoutMs: 180_000,
     codexInstallPhaseTimeoutMs: null,
     codexReadinessPhaseTimeoutMs: null,
+    codexPackageTarball: null,
+    codexNpmCacheDir: null,
     settingsSmoke: false,
     assistantRouteSmoke: false,
     codexFunctionalCheck: false,
@@ -204,6 +213,8 @@ function parseArgs(argv) {
     else if (arg === '--timeout-ms') options.timeoutMs = Number(value);
     else if (arg === '--codex-install-phase-timeout-ms') options.codexInstallPhaseTimeoutMs = Number(value);
     else if (arg === '--codex-readiness-phase-timeout-ms') options.codexReadinessPhaseTimeoutMs = Number(value);
+    else if (arg === '--codex-package-tarball') options.codexPackageTarball = path.resolve(value);
+    else if (arg === '--codex-npm-cache-dir') options.codexNpmCacheDir = path.resolve(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
@@ -223,6 +234,7 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.codexReadinessPhaseTimeoutMs) || options.codexReadinessPhaseTimeoutMs <= 0) {
     throw new Error('--codex-readiness-phase-timeout-ms must be positive.');
   }
+  validateCodexInstallPreseedOptions(options);
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
   }
@@ -260,6 +272,115 @@ function readCodexApiKey(options) {
   const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
   if (!key) throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
   return key;
+}
+
+function validateCodexInstallPreseedOptions(options) {
+  if (options.codexPackageTarball) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexPackageTarball);
+    } catch (_) {
+      throw new Error(`--codex-package-tarball does not exist: ${options.codexPackageTarball}`);
+    }
+    if (!stats.isFile()) {
+      throw new Error(`--codex-package-tarball must be a file: ${options.codexPackageTarball}`);
+    }
+  }
+  if (options.codexNpmCacheDir) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexNpmCacheDir);
+    } catch (_) {
+      throw new Error(`--codex-npm-cache-dir does not exist: ${options.codexNpmCacheDir}`);
+    }
+    if (!stats.isDirectory()) {
+      throw new Error(`--codex-npm-cache-dir must be a directory: ${options.codexNpmCacheDir}`);
+    }
+  }
+}
+
+function hashFile(filePath) {
+  const hash = createHash('sha256');
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest('hex');
+}
+
+function directorySizeBytes(root) {
+  if (!root || !fs.existsSync(root)) return null;
+  let total = 0;
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stats = fs.lstatSync(current);
+    if (stats.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        stack.push(path.join(current, entry));
+      }
+    } else if (stats.isFile()) {
+      total += stats.size;
+    }
+  }
+  return total;
+}
+
+function safePreseedFileDiagnostics(filePath, expectedKind) {
+  if (!filePath) {
+    return {
+      present: false,
+      basename: null,
+      type: null,
+      size_bytes: null,
+      sha256: null,
+    };
+  }
+  const stats = fs.statSync(filePath);
+  const isFile = stats.isFile();
+  const isDirectory = stats.isDirectory();
+  return {
+    present: expectedKind === 'file' ? isFile : isDirectory,
+    basename: path.basename(filePath),
+    type: isFile ? 'file' : isDirectory ? 'directory' : 'other',
+    size_bytes: isFile ? stats.size : directorySizeBytes(filePath),
+    sha256: isFile ? hashFile(filePath) : null,
+  };
+}
+
+function codexInstallPreseedDiagnostics(options) {
+  const packageTarball = safePreseedFileDiagnostics(options.codexPackageTarball, 'file');
+  const npmCacheDir = safePreseedFileDiagnostics(options.codexNpmCacheDir, 'directory');
+  return {
+    schema: 'opl_codex_install_preseed.v1',
+    requested: Boolean(options.codexPackageTarball || options.codexNpmCacheDir),
+    package_tarball: packageTarball,
+    npm_cache_dir: npmCacheDir,
+    env: {
+      opl_first_run_codex_package_tarball: Boolean(options.codexPackageTarball),
+      opl_first_run_codex_npm_cache_dir: Boolean(options.codexNpmCacheDir),
+      npm_config_cache: Boolean(options.codexNpmCacheDir),
+    },
+  };
+}
+
+function buildCodexInstallPreseedEnv(options) {
+  const env = {};
+  if (options.codexPackageTarball) {
+    env.OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL = options.codexPackageTarball;
+  }
+  if (options.codexNpmCacheDir) {
+    env.OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR = options.codexNpmCacheDir;
+    env.NPM_CONFIG_CACHE = options.codexNpmCacheDir;
+    env.npm_config_cache = options.codexNpmCacheDir;
+  }
+  return env;
+}
+
+function installCodexPreseedLaunchEnvironment(options) {
+  const env = buildCodexInstallPreseedEnv(options);
+  const deadlineMs = phaseDeadlineMs(options.codexInstallPhaseTimeoutMs);
+  for (const [key, value] of Object.entries(env)) {
+    runWithDeadline('launchctl', ['setenv', key, value], deadlineMs, 'codex_install_preseed');
+  }
+  return codexInstallPreseedDiagnostics(options);
 }
 
 function run(command, args, options = {}) {
@@ -306,8 +427,8 @@ function remainingPhaseTimeoutMs(deadlineMs, label) {
   return remainingMs;
 }
 
-function runWithDeadline(command, args, deadlineMs, label) {
-  return run(command, args, { timeout: remainingPhaseTimeoutMs(deadlineMs, label) });
+function runWithDeadline(command, args, deadlineMs, label, options = {}) {
+  return run(command, args, { ...options, timeout: remainingPhaseTimeoutMs(deadlineMs, label) });
 }
 
 function shellQuote(value) {
@@ -510,10 +631,23 @@ function buildLaunchAppArgs(appPath, options) {
   return ['-n', appPath, '--args', ...args];
 }
 
+function buildLaunchAppEnv(options) {
+  return {
+    ...process.env,
+    ...buildCodexInstallPreseedEnv(options),
+  };
+}
+
 function launchApp(appPath, options) {
   const deadlineMs = phaseDeadlineMs(options.codexInstallPhaseTimeoutMs);
+  const preseedEnv = buildCodexInstallPreseedEnv(options);
   runWithDeadline('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)], deadlineMs, 'launch_app');
-  runWithDeadline('open', buildLaunchAppArgs(appPath, options), deadlineMs, 'launch_app');
+  for (const [key, value] of Object.entries(preseedEnv)) {
+    runWithDeadline('launchctl', ['setenv', key, value], deadlineMs, 'launch_app');
+  }
+  runWithDeadline('open', buildLaunchAppArgs(appPath, options), deadlineMs, 'launch_app', {
+    env: buildLaunchAppEnv(options),
+  });
 }
 
 function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
@@ -3094,6 +3228,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const codexApiKey = readCodexApiKey(options);
   const writeSmokeEvent = createSmokeEventWriter(options.artifacts, codexApiKey);
+  let codexInstallPreseed = codexInstallPreseedDiagnostics(options);
   try {
     fs.mkdirSync(options.artifacts, { recursive: true });
     writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'started', {
@@ -3103,6 +3238,7 @@ async function main() {
       cdp_port: options.cdpPort,
       assert_clean: options.assertClean,
       codex_ai_self_check: options.codexAiSelfCheck,
+      codex_install_preseed: codexInstallPreseed,
       timeouts: {
         smoke_ms: options.timeoutMs,
         codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
@@ -3113,6 +3249,18 @@ async function main() {
       await runSmokePhase(writeSmokeEvent, 'assert_clean_state', () => assertCleanFirstRunState(options.processName));
     }
     writeSmokeEventSafely(writeSmokeEvent, 'preflight', 'passed');
+
+    if (codexInstallPreseed.requested) {
+      codexInstallPreseed = await runSmokePhase(
+        writeSmokeEvent,
+        'codex_install_preseed',
+        () => installCodexPreseedLaunchEnvironment(options),
+        {
+          timeout_ms: options.codexInstallPhaseTimeoutMs,
+          preseed: codexInstallPreseed,
+        }
+      );
+    }
 
     const appPath = await runSmokePhase(
       writeSmokeEvent,
@@ -3415,6 +3563,7 @@ async function main() {
       codex_config_wizard_seen: firstRun.sawCodexWizard,
       codex_config_wizard_submitted: firstRun.submittedCodexWizard,
       codex_api_key_present: Boolean(codexApiKey),
+      codex_install_preseed: codexInstallPreseed,
       timeouts: {
         smoke_ms: options.timeoutMs,
         codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
@@ -3497,6 +3646,8 @@ export const __test =
         summarizeCoreFirstLaunch,
         parseSystemInitialize,
         parseArgs,
+        buildCodexInstallPreseedEnv,
+        codexInstallPreseedDiagnostics,
         phaseDeadlineMs,
         remainingPhaseTimeoutMs,
         guidEntryReadinessExpression,

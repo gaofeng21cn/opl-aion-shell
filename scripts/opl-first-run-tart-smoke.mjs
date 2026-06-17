@@ -85,6 +85,12 @@ Options:
   --codex-readiness-phase-timeout-ms <n>
                            Guest Codex readiness/initialize phase timeout.
                            Defaults to --smoke-timeout-ms.
+  --codex-package-tarball <path>
+                           Optional host Codex npm package tarball copied into
+                           the guest and exposed to the guest smoke.
+  --codex-npm-cache-dir <path>
+                           Optional host npm cache directory copied into the
+                           guest and exposed through NPM_CONFIG_CACHE.
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
@@ -149,6 +155,8 @@ function parseArgs(argv) {
     smokeTimeoutMs: 180_000,
     codexInstallPhaseTimeoutMs: null,
     codexReadinessPhaseTimeoutMs: null,
+    codexPackageTarball: '',
+    codexNpmCacheDir: '',
     display: '1920x1080px',
     smokeProfile: 'full-gate',
     settingsSmoke: false,
@@ -276,6 +284,12 @@ function parseArgs(argv) {
     } else if (arg === '--codex-readiness-phase-timeout-ms') {
       options.codexReadinessPhaseTimeoutMs = Number(value);
       explicit.add('codexReadinessPhaseTimeoutMs');
+    } else if (arg === '--codex-package-tarball') {
+      options.codexPackageTarball = path.resolve(value);
+      explicit.add('codexPackageTarball');
+    } else if (arg === '--codex-npm-cache-dir') {
+      options.codexNpmCacheDir = path.resolve(value);
+      explicit.add('codexNpmCacheDir');
     } else if (arg === '--display') {
       options.display = value;
       explicit.add('display');
@@ -348,6 +362,7 @@ function parseArgs(argv) {
   if (!Number.isFinite(options.codexReadinessPhaseTimeoutMs) || options.codexReadinessPhaseTimeoutMs <= 0) {
     throw new Error('--codex-readiness-phase-timeout-ms must be positive.');
   }
+  validateCodexInstallPreseedOptions(options);
   if (!/^\d+x\d+(?:pt|px)?$/.test(options.display)) {
     throw new Error('--display must be a Tart display resolution like 1920x1080px.');
   }
@@ -405,6 +420,7 @@ function buildDryRunPlan(options) {
       codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
       codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
     },
+    codex_install_preseed: codexInstallPreseedPlan(options),
     display: options.display,
     settings_smoke: options.settingsSmoke,
     assistant_route_smoke: options.assistantRouteSmoke,
@@ -655,6 +671,95 @@ function run(command, args, options = {}) {
   return result.stdout ?? '';
 }
 
+function validateCodexInstallPreseedOptions(options) {
+  if (options.codexPackageTarball) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexPackageTarball);
+    } catch (_) {
+      throw new Error(`--codex-package-tarball does not exist: ${options.codexPackageTarball}`);
+    }
+    if (!stats.isFile()) {
+      throw new Error(`--codex-package-tarball must be a file: ${options.codexPackageTarball}`);
+    }
+  }
+  if (options.codexNpmCacheDir) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexNpmCacheDir);
+    } catch (_) {
+      throw new Error(`--codex-npm-cache-dir does not exist: ${options.codexNpmCacheDir}`);
+    }
+    if (!stats.isDirectory()) {
+      throw new Error(`--codex-npm-cache-dir must be a directory: ${options.codexNpmCacheDir}`);
+    }
+  }
+}
+
+function directorySizeBytes(root) {
+  if (!root || !fs.existsSync(root)) return null;
+  let total = 0;
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stats = fs.lstatSync(current);
+    if (stats.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        stack.push(path.join(current, entry));
+      }
+    } else if (stats.isFile()) {
+      total += stats.size;
+    }
+  }
+  return total;
+}
+
+function hashFile(filePath) {
+  const hash = createHash('sha256');
+  hash.update(fs.readFileSync(filePath));
+  return hash.digest('hex');
+}
+
+function guestCodexPackageTarballPath(options) {
+  if (!options.codexPackageTarball) return null;
+  return `${options.guestWorkdir}/${path.basename(options.codexPackageTarball)}`;
+}
+
+function guestCodexNpmCacheDir(options) {
+  if (!options.codexNpmCacheDir) return null;
+  return `${options.guestWorkdir}/codex-npm-cache`;
+}
+
+function codexInstallPreseedPlan(options) {
+  const tarballStats = options.codexPackageTarball ? fs.statSync(options.codexPackageTarball) : null;
+  const cacheStats = options.codexNpmCacheDir ? fs.statSync(options.codexNpmCacheDir) : null;
+  return {
+    schema: 'opl_codex_install_preseed.v1',
+    requested: Boolean(options.codexPackageTarball || options.codexNpmCacheDir),
+    package_tarball: {
+      present: Boolean(tarballStats?.isFile()),
+      basename: options.codexPackageTarball ? path.basename(options.codexPackageTarball) : null,
+      guest_path: guestCodexPackageTarballPath(options),
+      type: tarballStats ? (tarballStats.isFile() ? 'file' : tarballStats.isDirectory() ? 'directory' : 'other') : null,
+      size_bytes: tarballStats?.isFile() ? tarballStats.size : null,
+      sha256: tarballStats?.isFile() ? hashFile(options.codexPackageTarball) : null,
+    },
+    npm_cache_dir: {
+      present: Boolean(cacheStats?.isDirectory()),
+      basename: options.codexNpmCacheDir ? path.basename(options.codexNpmCacheDir) : null,
+      guest_path: guestCodexNpmCacheDir(options),
+      type: cacheStats ? (cacheStats.isFile() ? 'file' : cacheStats.isDirectory() ? 'directory' : 'other') : null,
+      size_bytes: cacheStats?.isDirectory() ? directorySizeBytes(options.codexNpmCacheDir) : null,
+      sha256: null,
+    },
+    env: {
+      opl_first_run_codex_package_tarball: Boolean(options.codexPackageTarball),
+      opl_first_run_codex_npm_cache_dir: Boolean(options.codexNpmCacheDir),
+      npm_config_cache: Boolean(options.codexNpmCacheDir),
+    },
+  };
+}
+
 function runAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -832,6 +937,18 @@ async function copyHostNodeRootToGuest(options, ip) {
   return staging.guest_node_command;
 }
 
+async function copyCodexNpmCacheDirToGuest(options, ip) {
+  if (!options.codexNpmCacheDir) return;
+  const guestCacheDir = guestCodexNpmCacheDir(options);
+  const tmpDir = `${guestCacheDir}.tmp-${process.pid}`;
+  await ssh(options, ip, `rm -rf ${shellQuote(tmpDir)} ${shellQuote(guestCacheDir)} && mkdir -p ${shellQuote(tmpDir)}`);
+  await runPipe('tar', ['-C', options.codexNpmCacheDir, '-cf', '-', '.'], 'ssh', [
+    ...sshBaseArgs(options, ip),
+    `tar -C ${shellQuote(tmpDir)} -xf -`,
+  ]);
+  await ssh(options, ip, `mv ${shellQuote(tmpDir)} ${shellQuote(guestCacheDir)}`);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -921,6 +1038,7 @@ function writeInterruptedSummary(signal) {
       guest_artifacts: runtimeState.guestArtifactDir || null,
       host_artifacts: options.artifacts,
       copied_guest_artifacts: runtimeState.copiedArtifacts,
+      codex_install_preseed: codexInstallPreseedPlan(options),
       guest_node_staging: runtimeState.guestNodeStaging,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     };
@@ -1017,6 +1135,8 @@ function guestSmokeCommand(
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     `--codex-install-phase-timeout-ms ${shellQuote(String(options.codexInstallPhaseTimeoutMs))}`,
     `--codex-readiness-phase-timeout-ms ${shellQuote(String(options.codexReadinessPhaseTimeoutMs))}`,
+    options.codexPackageTarball ? `--codex-package-tarball ${shellQuote(guestCodexPackageTarballPath(options))}` : '',
+    options.codexNpmCacheDir ? `--codex-npm-cache-dir ${shellQuote(guestCodexNpmCacheDir(options))}` : '',
     options.settingsSmoke ? '--settings-smoke' : '',
     options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
     options.codexFunctionalCheck ? '--codex-functional-check' : '',
@@ -1198,6 +1318,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     framework_source_archive: frameworkSourceArchivePlan(options),
+    codex_install_preseed: codexInstallPreseedPlan(options),
     timeouts: {
       vm_boot_and_ssh_ms: options.timeoutMs,
       guest_smoke_ms: options.smokeTimeoutMs,
@@ -1237,6 +1358,7 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     framework_source_archive: frameworkSourceArchivePlan(options),
+    codex_install_preseed: codexInstallPreseedPlan(options),
     timeouts: {
       vm_boot_and_ssh_ms: options.timeoutMs,
       guest_smoke_ms: options.smokeTimeoutMs,
@@ -1316,9 +1438,14 @@ async function main() {
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
     const guestInputs = [resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
     if (options.dmg) guestInputs.unshift(options.dmg);
+    if (options.codexPackageTarball) guestInputs.push(options.codexPackageTarball);
     if (options.frameworkSourceArchive) guestInputs.push(options.frameworkSourceArchive);
     if (options.frameworkInstallScript) guestInputs.push(options.frameworkInstallScript);
     await scpToGuest(options, ip, guestInputs, options.guestWorkdir);
+    if (options.codexNpmCacheDir) {
+      setStage('copy_codex_npm_cache_dir');
+      await copyCodexNpmCacheDirToGuest(options, ip);
+    }
     if (options.frameworkInstallScript) {
       setStage('prepare_framework_install_script');
       await ssh(options, ip, frameworkInstallScriptFinalizeCommand(options));
@@ -1392,9 +1519,12 @@ export const __test =
     ? {
         assertGuestSmokeSummary,
         buildStageTimingSummary,
+        codexInstallPreseedPlan,
         buildDryRunPlan,
         frameworkInstallScriptFinalizeCommand,
         frameworkSourceArchivePlan,
+        guestCodexNpmCacheDir,
+        guestCodexPackageTarballPath,
         guestFrameworkSourceArchivePath,
         guestHomebrewInstallCommand,
         guestNodeStagingPlan,

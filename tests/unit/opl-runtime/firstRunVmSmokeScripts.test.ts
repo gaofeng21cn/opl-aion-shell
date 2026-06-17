@@ -629,6 +629,157 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(() => vmSmoke.remainingPhaseTimeoutMs(Date.now() - 1, 'install_dmg')).toThrow(/install_dmg timed out/);
   });
 
+  it('parses and validates guest Codex install preseed inputs without leaking full paths in diagnostics', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-preseed-'));
+    try {
+      const tarball = path.join(root, 'codex-package.tgz');
+      const cacheDir = path.join(root, 'npm-cache');
+      writeFile(tarball, 'codex package tarball\n');
+      writeFile(path.join(cacheDir, '_cacache', 'index-v5', 'entry'), 'cache entry\n');
+
+      const options = vmSmoke.parseArgs([
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--codex-package-tarball',
+        tarball,
+        '--codex-npm-cache-dir',
+        cacheDir,
+      ]);
+
+      expect(options.codexPackageTarball).toBe(tarball);
+      expect(options.codexNpmCacheDir).toBe(cacheDir);
+      expect(vmSmoke.buildCodexInstallPreseedEnv(options)).toMatchObject({
+        OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: tarball,
+        OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: cacheDir,
+        NPM_CONFIG_CACHE: cacheDir,
+        npm_config_cache: cacheDir,
+      });
+      const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+      const launchAppSource = scriptSource.slice(
+        scriptSource.indexOf('function launchApp('),
+        scriptSource.indexOf('function verifyGatekeeperLaunchPolicy(')
+      );
+      expect(launchAppSource).toContain('buildCodexInstallPreseedEnv(options)');
+      expect(launchAppSource).toContain("runWithDeadline('launchctl', ['setenv', key, value]");
+      expect(launchAppSource).toContain('env: buildLaunchAppEnv(options)');
+
+      const diagnostics = vmSmoke.codexInstallPreseedDiagnostics(options);
+      expect(diagnostics).toMatchObject({
+        requested: true,
+        package_tarball: {
+          present: true,
+          basename: 'codex-package.tgz',
+          type: 'file',
+          size_bytes: Buffer.byteLength('codex package tarball\n'),
+        },
+        npm_cache_dir: {
+          present: true,
+          basename: 'npm-cache',
+          type: 'directory',
+        },
+      });
+      expect(diagnostics.package_tarball.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(diagnostics.npm_cache_dir.size_bytes).toBeGreaterThan(0);
+      expect(JSON.stringify(diagnostics)).not.toContain(root);
+
+      expect(() =>
+        vmSmoke.parseArgs([
+          '--dmg',
+          '/tmp/One-Person-Lab.dmg',
+          '--codex-package-tarball',
+          path.join(root, 'missing.tgz'),
+        ])
+      ).toThrow(/codex-package-tarball/);
+      expect(() => vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--codex-npm-cache-dir', tarball])).toThrow(
+        /codex-npm-cache-dir/
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('forwards Codex install preseed inputs through Tart plans and guest smoke commands', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-codex-preseed-'));
+    try {
+      const tarball = path.join(root, 'codex-package.tgz');
+      const cacheDir = path.join(root, 'npm-cache');
+      writeFile(tarball, 'codex package tarball\n');
+      writeFile(path.join(cacheDir, '_cacache', 'entry'), 'cache entry\n');
+
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--guest-workdir',
+        '/tmp/guest',
+        '--codex-package-tarball',
+        tarball,
+        '--codex-npm-cache-dir',
+        cacheDir,
+        '--dry-run',
+      ]);
+
+      expect(options.codexPackageTarball).toBe(tarball);
+      expect(options.codexNpmCacheDir).toBe(cacheDir);
+
+      const plan = tartSmoke.buildDryRunPlan(options);
+      expect(plan.codex_install_preseed).toMatchObject({
+        requested: true,
+        package_tarball: {
+          present: true,
+          basename: 'codex-package.tgz',
+          guest_path: '/tmp/guest/codex-package.tgz',
+          type: 'file',
+        },
+        npm_cache_dir: {
+          present: true,
+          basename: 'npm-cache',
+          guest_path: '/tmp/guest/codex-npm-cache',
+          type: 'directory',
+        },
+      });
+      expect(JSON.stringify(plan.codex_install_preseed)).not.toContain(root);
+
+      const command = tartSmoke.guestSmokeCommand(
+        options,
+        '/tmp/guest/One-Person-Lab.dmg',
+        '/tmp/guest/opl-first-run-vm-smoke.mjs',
+        '/tmp/guest/artifacts',
+        '/tmp/guest/codex-api-key.txt'
+      );
+      expect(command).toContain("--codex-package-tarball '/tmp/guest/codex-package.tgz'");
+      expect(command).toContain("--codex-npm-cache-dir '/tmp/guest/codex-npm-cache'");
+
+      expect(() =>
+        tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--install-mode',
+          'homebrew-cask',
+          '--homebrew-cask',
+          'one-person-lab',
+          '--codex-package-tarball',
+          path.join(root, 'missing.tgz'),
+        ])
+      ).toThrow(/codex-package-tarball/);
+      expect(() =>
+        tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--install-mode',
+          'homebrew-cask',
+          '--homebrew-cask',
+          'one-person-lab',
+          '--codex-npm-cache-dir',
+          tarball,
+        ])
+      ).toThrow(/codex-npm-cache-dir/);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('summarizes Tart host stage timings without depending on VM execution', () => {
     const at = (startedAtMs: number, stage: string) => ({
       stage,
