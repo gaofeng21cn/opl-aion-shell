@@ -45,7 +45,10 @@ export function getDefaultAutoUpdateCacheRoot(options: DefaultAutoUpdateCacheRoo
     return path.join(homeDir, 'Library', 'Caches', options.appCacheDirName);
   }
   if (platform === 'win32') {
-    return path.join(env.LOCALAPPDATA || env.APPDATA || path.join(homeDir, 'AppData', 'Local'), options.appCacheDirName);
+    return path.join(
+      env.LOCALAPPDATA || env.APPDATA || path.join(homeDir, 'AppData', 'Local'),
+      options.appCacheDirName
+    );
   }
   return path.join(env.XDG_CACHE_HOME || path.join(homeDir, '.cache'), options.appCacheDirName);
 }
@@ -106,9 +109,7 @@ function isUpdatePackage(filePath: string): boolean {
   return UPDATE_PACKAGE_NAMES.has(path.basename(filePath)) || UPDATE_PACKAGE_EXTENSIONS.has(path.extname(filePath));
 }
 
-export function resolveAutoUpdateCacheCleanupPlan(
-  options: AutoUpdateCacheCleanupOptions
-): AutoUpdateCacheCleanupPlan {
+export function resolveAutoUpdateCacheCleanupPlan(options: AutoUpdateCacheCleanupOptions): AutoUpdateCacheCleanupPlan {
   const cacheRoot = path.resolve(options.cacheRoot);
   const protectedPaths = new Set<string>();
   protectedPaths.add(path.join(cacheRoot, 'pending', UPDATE_METADATA_FILE));
