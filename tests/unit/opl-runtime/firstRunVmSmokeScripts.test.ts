@@ -123,6 +123,12 @@ function createFullRuntimeEquivalenceFixture() {
       modulePath: path.join('modules', 'meta-agent'),
       payloadPaths: ['agent', 'contracts', path.join('runtime', 'authority_functions')],
     },
+    {
+      moduleId: 'oplbookforge',
+      repoName: 'opl-bookforge',
+      modulePath: path.join('modules', 'bookforge'),
+      payloadPaths: ['contracts'],
+    },
   ]) {
     writeRuntimeModule(runtimeHome, moduleFixture);
   }

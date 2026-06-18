@@ -332,6 +332,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(runtimeHome, 'modules', 'mag'));
     expect(env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(runtimeHome, 'modules', 'rca'));
     expect(env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(runtimeHome, 'modules', 'meta-agent'));
+    expect(env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(runtimeHome, 'modules', 'bookforge'));
     expect(env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
     expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
       path.join(runtimeHome, 'bin'),

@@ -82,6 +82,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(installed?.env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(expectedHome, 'modules', 'mag'));
     expect(installed?.env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(expectedHome, 'modules', 'rca'));
     expect(installed?.env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(expectedHome, 'modules', 'meta-agent'));
+    expect(installed?.env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(expectedHome, 'modules', 'bookforge'));
     expect(installed?.env.OPL_CODEX_BIN).toBe(path.join(expectedHome, 'bin', 'codex'));
     expect(installed?.env.OPL_HERMES_BIN).toBeUndefined();
     expect(installed?.env.PATH?.split(path.delimiter).slice(0, 4)).toEqual([

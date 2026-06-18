@@ -54,6 +54,7 @@ const FULL_RUNTIME_MODULES = [
     path.join('modules', 'meta-agent'),
     ['agent', 'contracts', path.join('runtime', 'authority_functions')],
   ],
+  ['oplbookforge', 'opl-bookforge', path.join('modules', 'bookforge'), ['contracts']],
 ];
 const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   { id: 'mas', badge: '@MAS', shortName: 'MAS' },
@@ -797,6 +798,7 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'mag')))}`,
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'rca')))}`,
     `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'meta-agent')))}`,
+    `export OPL_MODULE_PATH_OPLBOOKFORGE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'bookforge')))}`,
     `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'bin', 'codex')))}`,
     fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(toRuntimeShellPath(hermesBin))}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,

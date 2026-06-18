@@ -399,6 +399,8 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
     OPL_MODULE_PATH_REDCUBE: baseEnv.OPL_MODULE_PATH_REDCUBE?.trim() || path.join(runtimeHome, 'modules', 'rca'),
     OPL_MODULE_PATH_OPLMETAAGENT:
       baseEnv.OPL_MODULE_PATH_OPLMETAAGENT?.trim() || path.join(runtimeHome, 'modules', 'meta-agent'),
+    OPL_MODULE_PATH_OPLBOOKFORGE:
+      baseEnv.OPL_MODULE_PATH_OPLBOOKFORGE?.trim() || path.join(runtimeHome, 'modules', 'bookforge'),
     ...(fs.existsSync(hermesBin) ? { OPL_HERMES_BIN: hermesBin } : {}),
     PATH: pathEntries,
   };
