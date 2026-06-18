@@ -19,6 +19,7 @@ import {
   launchLocalAuthorizedMacosInstaller,
   resolveLocalAuthorizedMacosUpdatePlan,
 } from './localAuthorizedMacosUpdater';
+import { cleanupAutoUpdateCache, getDefaultAutoUpdateCacheRoot } from './autoUpdateCacheCleanup';
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
@@ -79,6 +80,9 @@ class AutoUpdaterService extends EventEmitter {
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
+  private readonly _updaterCacheRoot = getDefaultAutoUpdateCacheRoot({
+    appCacheDirName: 'one-person-lab-aion-shell-updater',
+  });
 
   constructor() {
     super();
@@ -106,6 +110,7 @@ class AutoUpdaterService extends EventEmitter {
   initialize(statusBroadcastCallback?: StatusBroadcastCallback): void {
     this._statusBroadcastCallback = statusBroadcastCallback ?? null;
     this._isInitialized = true;
+    this.cleanupDownloadedUpdateCache();
     recordAutoUpdateInstallNotAppliedIfNeeded({
       currentAppVersion: app.getVersion(),
       userDataPath: app.getPath('userData'),
@@ -274,6 +279,22 @@ class AutoUpdaterService extends EventEmitter {
     }
   }
 
+  private cleanupDownloadedUpdateCache(keepPaths: string[] = []): void {
+    try {
+      const result = cleanupAutoUpdateCache({
+        cacheRoot: this._updaterCacheRoot,
+        keepPaths,
+      });
+      if (result.removedFiles.length > 0) {
+        log.info(
+          `Cleaned auto-update cache: removed ${result.removedFiles.length} file(s), ${result.removedBytes} byte(s)`
+        );
+      }
+    } catch (error) {
+      log.warn('Auto-update cache cleanup skipped:', error);
+    }
+  }
+
   async checkForUpdates(): Promise<{ success: boolean; updateInfo?: UpdateInfo; error?: string }> {
     try {
       if (!this._isInitialized) {
@@ -329,6 +350,7 @@ class AutoUpdaterService extends EventEmitter {
       currentAppVersion: app.getVersion(),
       userDataPath: app.getPath('userData'),
     });
+    this.cleanupDownloadedUpdateCache(params?.file_path ? [params.file_path] : []);
     if (process.platform === 'darwin' && params?.file_path) {
       const executablePath = app.getPath('exe');
       const appBundlePath = executablePath.includes('.app/Contents/MacOS')
