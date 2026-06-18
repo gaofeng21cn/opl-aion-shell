@@ -100,6 +100,9 @@ Options:
   --codex-package-tarball <path>
                          Optional local Codex npm package tarball to expose to
                          the packaged app during first-run install.
+  --codex-platform-package-tarball <path>
+                         Optional local Codex macOS platform package tarball to
+                         expose during first-run install.
   --codex-npm-cache-dir <path>
                          Optional npm cache directory to expose to the packaged
                          app during first-run Codex install via NPM_CONFIG_CACHE.
@@ -151,6 +154,7 @@ function parseArgs(argv) {
     codexInstallPhaseTimeoutMs: null,
     codexReadinessPhaseTimeoutMs: null,
     codexPackageTarball: null,
+    codexPlatformPackageTarball: null,
     codexNpmCacheDir: null,
     settingsSmoke: false,
     assistantRouteSmoke: false,
@@ -215,6 +219,7 @@ function parseArgs(argv) {
     else if (arg === '--codex-install-phase-timeout-ms') options.codexInstallPhaseTimeoutMs = Number(value);
     else if (arg === '--codex-readiness-phase-timeout-ms') options.codexReadinessPhaseTimeoutMs = Number(value);
     else if (arg === '--codex-package-tarball') options.codexPackageTarball = path.resolve(value);
+    else if (arg === '--codex-platform-package-tarball') options.codexPlatformPackageTarball = path.resolve(value);
     else if (arg === '--codex-npm-cache-dir') options.codexNpmCacheDir = path.resolve(value);
     else if (arg === '--cdp-port') options.cdpPort = Number(value);
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
@@ -287,6 +292,17 @@ function validateCodexInstallPreseedOptions(options) {
       throw new Error(`--codex-package-tarball must be a file: ${options.codexPackageTarball}`);
     }
   }
+  if (options.codexPlatformPackageTarball) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexPlatformPackageTarball);
+    } catch (_) {
+      throw new Error(`--codex-platform-package-tarball does not exist: ${options.codexPlatformPackageTarball}`);
+    }
+    if (!stats.isFile()) {
+      throw new Error(`--codex-platform-package-tarball must be a file: ${options.codexPlatformPackageTarball}`);
+    }
+  }
   if (options.codexNpmCacheDir) {
     let stats;
     try {
@@ -348,14 +364,17 @@ function safePreseedFileDiagnostics(filePath, expectedKind) {
 
 function codexInstallPreseedDiagnostics(options) {
   const packageTarball = safePreseedFileDiagnostics(options.codexPackageTarball, 'file');
+  const platformPackageTarball = safePreseedFileDiagnostics(options.codexPlatformPackageTarball, 'file');
   const npmCacheDir = safePreseedFileDiagnostics(options.codexNpmCacheDir, 'directory');
   return {
     schema: 'opl_codex_install_preseed.v1',
-    requested: Boolean(options.codexPackageTarball || options.codexNpmCacheDir),
+    requested: Boolean(options.codexPackageTarball || options.codexPlatformPackageTarball || options.codexNpmCacheDir),
     package_tarball: packageTarball,
+    platform_package_tarball: platformPackageTarball,
     npm_cache_dir: npmCacheDir,
     env: {
       opl_first_run_codex_package_tarball: Boolean(options.codexPackageTarball),
+      opl_first_run_codex_platform_package_tarball: Boolean(options.codexPlatformPackageTarball),
       opl_first_run_codex_npm_cache_dir: Boolean(options.codexNpmCacheDir),
       npm_config_cache: Boolean(options.codexNpmCacheDir),
     },
@@ -366,6 +385,9 @@ function buildCodexInstallPreseedEnv(options) {
   const env = {};
   if (options.codexPackageTarball) {
     env.OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL = options.codexPackageTarball;
+  }
+  if (options.codexPlatformPackageTarball) {
+    env.OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL = options.codexPlatformPackageTarball;
   }
   if (options.codexNpmCacheDir) {
     env.OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR = options.codexNpmCacheDir;

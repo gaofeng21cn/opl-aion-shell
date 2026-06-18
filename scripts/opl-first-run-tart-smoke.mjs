@@ -88,6 +88,9 @@ Options:
   --codex-package-tarball <path>
                            Optional host Codex npm package tarball copied into
                            the guest and exposed to the guest smoke.
+  --codex-platform-package-tarball <path>
+                           Optional host Codex macOS platform package tarball
+                           copied into the guest and exposed to the guest smoke.
   --codex-npm-cache-dir <path>
                            Optional host npm cache directory copied into the
                            guest and exposed through NPM_CONFIG_CACHE.
@@ -156,6 +159,7 @@ function parseArgs(argv) {
     codexInstallPhaseTimeoutMs: null,
     codexReadinessPhaseTimeoutMs: null,
     codexPackageTarball: '',
+    codexPlatformPackageTarball: '',
     codexNpmCacheDir: '',
     display: '1920x1080px',
     smokeProfile: 'full-gate',
@@ -287,6 +291,9 @@ function parseArgs(argv) {
     } else if (arg === '--codex-package-tarball') {
       options.codexPackageTarball = path.resolve(value);
       explicit.add('codexPackageTarball');
+    } else if (arg === '--codex-platform-package-tarball') {
+      options.codexPlatformPackageTarball = path.resolve(value);
+      explicit.add('codexPlatformPackageTarball');
     } else if (arg === '--codex-npm-cache-dir') {
       options.codexNpmCacheDir = path.resolve(value);
       explicit.add('codexNpmCacheDir');
@@ -683,6 +690,17 @@ function validateCodexInstallPreseedOptions(options) {
       throw new Error(`--codex-package-tarball must be a file: ${options.codexPackageTarball}`);
     }
   }
+  if (options.codexPlatformPackageTarball) {
+    let stats;
+    try {
+      stats = fs.statSync(options.codexPlatformPackageTarball);
+    } catch (_) {
+      throw new Error(`--codex-platform-package-tarball does not exist: ${options.codexPlatformPackageTarball}`);
+    }
+    if (!stats.isFile()) {
+      throw new Error(`--codex-platform-package-tarball must be a file: ${options.codexPlatformPackageTarball}`);
+    }
+  }
   if (options.codexNpmCacheDir) {
     let stats;
     try {
@@ -725,6 +743,11 @@ function guestCodexPackageTarballPath(options) {
   return `${options.guestWorkdir}/${path.basename(options.codexPackageTarball)}`;
 }
 
+function guestCodexPlatformPackageTarballPath(options) {
+  if (!options.codexPlatformPackageTarball) return null;
+  return `${options.guestWorkdir}/${path.basename(options.codexPlatformPackageTarball)}`;
+}
+
 function guestCodexNpmCacheDir(options) {
   if (!options.codexNpmCacheDir) return null;
   return `${options.guestWorkdir}/codex-npm-cache`;
@@ -732,10 +755,13 @@ function guestCodexNpmCacheDir(options) {
 
 function codexInstallPreseedPlan(options) {
   const tarballStats = options.codexPackageTarball ? fs.statSync(options.codexPackageTarball) : null;
+  const platformTarballStats = options.codexPlatformPackageTarball
+    ? fs.statSync(options.codexPlatformPackageTarball)
+    : null;
   const cacheStats = options.codexNpmCacheDir ? fs.statSync(options.codexNpmCacheDir) : null;
   return {
     schema: 'opl_codex_install_preseed.v1',
-    requested: Boolean(options.codexPackageTarball || options.codexNpmCacheDir),
+    requested: Boolean(options.codexPackageTarball || options.codexPlatformPackageTarball || options.codexNpmCacheDir),
     package_tarball: {
       present: Boolean(tarballStats?.isFile()),
       basename: options.codexPackageTarball ? path.basename(options.codexPackageTarball) : null,
@@ -743,6 +769,16 @@ function codexInstallPreseedPlan(options) {
       type: tarballStats ? (tarballStats.isFile() ? 'file' : tarballStats.isDirectory() ? 'directory' : 'other') : null,
       size_bytes: tarballStats?.isFile() ? tarballStats.size : null,
       sha256: tarballStats?.isFile() ? hashFile(options.codexPackageTarball) : null,
+    },
+    platform_package_tarball: {
+      present: Boolean(platformTarballStats?.isFile()),
+      basename: options.codexPlatformPackageTarball ? path.basename(options.codexPlatformPackageTarball) : null,
+      guest_path: guestCodexPlatformPackageTarballPath(options),
+      type: platformTarballStats
+        ? (platformTarballStats.isFile() ? 'file' : platformTarballStats.isDirectory() ? 'directory' : 'other')
+        : null,
+      size_bytes: platformTarballStats?.isFile() ? platformTarballStats.size : null,
+      sha256: platformTarballStats?.isFile() ? hashFile(options.codexPlatformPackageTarball) : null,
     },
     npm_cache_dir: {
       present: Boolean(cacheStats?.isDirectory()),
@@ -754,6 +790,7 @@ function codexInstallPreseedPlan(options) {
     },
     env: {
       opl_first_run_codex_package_tarball: Boolean(options.codexPackageTarball),
+      opl_first_run_codex_platform_package_tarball: Boolean(options.codexPlatformPackageTarball),
       opl_first_run_codex_npm_cache_dir: Boolean(options.codexNpmCacheDir),
       npm_config_cache: Boolean(options.codexNpmCacheDir),
     },
@@ -1136,6 +1173,9 @@ function guestSmokeCommand(
     `--codex-install-phase-timeout-ms ${shellQuote(String(options.codexInstallPhaseTimeoutMs))}`,
     `--codex-readiness-phase-timeout-ms ${shellQuote(String(options.codexReadinessPhaseTimeoutMs))}`,
     options.codexPackageTarball ? `--codex-package-tarball ${shellQuote(guestCodexPackageTarballPath(options))}` : '',
+    options.codexPlatformPackageTarball
+      ? `--codex-platform-package-tarball ${shellQuote(guestCodexPlatformPackageTarballPath(options))}`
+      : '',
     options.codexNpmCacheDir ? `--codex-npm-cache-dir ${shellQuote(guestCodexNpmCacheDir(options))}` : '',
     options.settingsSmoke ? '--settings-smoke' : '',
     options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
@@ -1439,6 +1479,7 @@ async function main() {
     const guestInputs = [resolveGuestSmokeScriptPath(), codexApiKeyFile.path];
     if (options.dmg) guestInputs.unshift(options.dmg);
     if (options.codexPackageTarball) guestInputs.push(options.codexPackageTarball);
+    if (options.codexPlatformPackageTarball) guestInputs.push(options.codexPlatformPackageTarball);
     if (options.frameworkSourceArchive) guestInputs.push(options.frameworkSourceArchive);
     if (options.frameworkInstallScript) guestInputs.push(options.frameworkInstallScript);
     await scpToGuest(options, ip, guestInputs, options.guestWorkdir);
@@ -1524,6 +1565,7 @@ export const __test =
         frameworkInstallScriptFinalizeCommand,
         frameworkSourceArchivePlan,
         guestCodexNpmCacheDir,
+        guestCodexPlatformPackageTarballPath,
         guestCodexPackageTarballPath,
         guestFrameworkSourceArchivePath,
         guestHomebrewInstallCommand,

@@ -639,8 +639,10 @@ describe('OPL first-run VM smoke scripts', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-preseed-'));
     try {
       const tarball = path.join(root, 'codex-package.tgz');
+      const platformTarball = path.join(root, 'codex-platform-package.tgz');
       const cacheDir = path.join(root, 'npm-cache');
       writeFile(tarball, 'codex package tarball\n');
+      writeFile(platformTarball, 'codex platform package tarball\n');
       writeFile(path.join(cacheDir, '_cacache', 'index-v5', 'entry'), 'cache entry\n');
 
       const options = vmSmoke.parseArgs([
@@ -648,14 +650,18 @@ describe('OPL first-run VM smoke scripts', () => {
         '/tmp/One-Person-Lab.dmg',
         '--codex-package-tarball',
         tarball,
+        '--codex-platform-package-tarball',
+        platformTarball,
         '--codex-npm-cache-dir',
         cacheDir,
       ]);
 
       expect(options.codexPackageTarball).toBe(tarball);
+      expect(options.codexPlatformPackageTarball).toBe(platformTarball);
       expect(options.codexNpmCacheDir).toBe(cacheDir);
       expect(vmSmoke.buildCodexInstallPreseedEnv(options)).toMatchObject({
         OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: tarball,
+        OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: platformTarball,
         OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: cacheDir,
         NPM_CONFIG_CACHE: cacheDir,
         npm_config_cache: cacheDir,
@@ -678,6 +684,12 @@ describe('OPL first-run VM smoke scripts', () => {
           type: 'file',
           size_bytes: Buffer.byteLength('codex package tarball\n'),
         },
+        platform_package_tarball: {
+          present: true,
+          basename: 'codex-platform-package.tgz',
+          type: 'file',
+          size_bytes: Buffer.byteLength('codex platform package tarball\n'),
+        },
         npm_cache_dir: {
           present: true,
           basename: 'npm-cache',
@@ -685,6 +697,7 @@ describe('OPL first-run VM smoke scripts', () => {
         },
       });
       expect(diagnostics.package_tarball.sha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(diagnostics.platform_package_tarball.sha256).toMatch(/^[a-f0-9]{64}$/);
       expect(diagnostics.npm_cache_dir.size_bytes).toBeGreaterThan(0);
       expect(JSON.stringify(diagnostics)).not.toContain(root);
 
@@ -696,6 +709,14 @@ describe('OPL first-run VM smoke scripts', () => {
           path.join(root, 'missing.tgz'),
         ])
       ).toThrow(/codex-package-tarball/);
+      expect(() =>
+        vmSmoke.parseArgs([
+          '--dmg',
+          '/tmp/One-Person-Lab.dmg',
+          '--codex-platform-package-tarball',
+          path.join(root, 'missing-platform.tgz'),
+        ])
+      ).toThrow(/codex-platform-package-tarball/);
       expect(() => vmSmoke.parseArgs(['--dmg', '/tmp/One-Person-Lab.dmg', '--codex-npm-cache-dir', tarball])).toThrow(
         /codex-npm-cache-dir/
       );
@@ -708,8 +729,10 @@ describe('OPL first-run VM smoke scripts', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-codex-preseed-'));
     try {
       const tarball = path.join(root, 'codex-package.tgz');
+      const platformTarball = path.join(root, 'codex-platform-package.tgz');
       const cacheDir = path.join(root, 'npm-cache');
       writeFile(tarball, 'codex package tarball\n');
+      writeFile(platformTarball, 'codex platform package tarball\n');
       writeFile(path.join(cacheDir, '_cacache', 'entry'), 'cache entry\n');
 
       const options = tartSmoke.parseArgs([
@@ -721,12 +744,15 @@ describe('OPL first-run VM smoke scripts', () => {
         '/tmp/guest',
         '--codex-package-tarball',
         tarball,
+        '--codex-platform-package-tarball',
+        platformTarball,
         '--codex-npm-cache-dir',
         cacheDir,
         '--dry-run',
       ]);
 
       expect(options.codexPackageTarball).toBe(tarball);
+      expect(options.codexPlatformPackageTarball).toBe(platformTarball);
       expect(options.codexNpmCacheDir).toBe(cacheDir);
 
       const plan = tartSmoke.buildDryRunPlan(options);
@@ -736,6 +762,12 @@ describe('OPL first-run VM smoke scripts', () => {
           present: true,
           basename: 'codex-package.tgz',
           guest_path: '/tmp/guest/codex-package.tgz',
+          type: 'file',
+        },
+        platform_package_tarball: {
+          present: true,
+          basename: 'codex-platform-package.tgz',
+          guest_path: '/tmp/guest/codex-platform-package.tgz',
           type: 'file',
         },
         npm_cache_dir: {
@@ -755,6 +787,7 @@ describe('OPL first-run VM smoke scripts', () => {
         '/tmp/guest/codex-api-key.txt'
       );
       expect(command).toContain("--codex-package-tarball '/tmp/guest/codex-package.tgz'");
+      expect(command).toContain("--codex-platform-package-tarball '/tmp/guest/codex-platform-package.tgz'");
       expect(command).toContain("--codex-npm-cache-dir '/tmp/guest/codex-npm-cache'");
 
       expect(() =>
@@ -769,6 +802,18 @@ describe('OPL first-run VM smoke scripts', () => {
           path.join(root, 'missing.tgz'),
         ])
       ).toThrow(/codex-package-tarball/);
+      expect(() =>
+        tartSmoke.parseArgs([
+          '--source-vm',
+          'clean-vm',
+          '--install-mode',
+          'homebrew-cask',
+          '--homebrew-cask',
+          'one-person-lab',
+          '--codex-platform-package-tarball',
+          path.join(root, 'missing-platform.tgz'),
+        ])
+      ).toThrow(/codex-platform-package-tarball/);
       expect(() =>
         tartSmoke.parseArgs([
           '--source-vm',
