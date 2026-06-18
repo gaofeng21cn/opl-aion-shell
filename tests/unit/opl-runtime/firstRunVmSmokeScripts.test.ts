@@ -139,7 +139,7 @@ function createFullRuntimeEquivalenceFixture() {
 }
 
 describe('OPL first-run VM smoke scripts', () => {
-  it('verifies Full runtime equivalence only for the full runtime profile', () => {
+  it('separates Full runtime equivalence from Codex-keyed core first-launch readiness', () => {
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('standard')).toBe(false);
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('full')).toBe(true);
     expect(
@@ -179,7 +179,7 @@ describe('OPL first-run VM smoke scripts', () => {
         requireCodexConfigWizard: false,
         codexApiKeyFile: '/tmp/codex-api-key.txt',
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {
