@@ -775,7 +775,11 @@ function codexInstallPreseedPlan(options) {
       basename: options.codexPlatformPackageTarball ? path.basename(options.codexPlatformPackageTarball) : null,
       guest_path: guestCodexPlatformPackageTarballPath(options),
       type: platformTarballStats
-        ? (platformTarballStats.isFile() ? 'file' : platformTarballStats.isDirectory() ? 'directory' : 'other')
+        ? platformTarballStats.isFile()
+          ? 'file'
+          : platformTarballStats.isDirectory()
+            ? 'directory'
+            : 'other'
         : null,
       size_bytes: platformTarballStats?.isFile() ? platformTarballStats.size : null,
       sha256: platformTarballStats?.isFile() ? hashFile(options.codexPlatformPackageTarball) : null,
