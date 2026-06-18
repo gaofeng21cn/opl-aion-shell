@@ -1744,7 +1744,7 @@ function shouldWaitForFirstRunCompletion(options) {
 }
 
 function shouldWaitForCoreFirstLaunchReady(options) {
-  return options.requireCodexConfigWizard === true || Boolean(options.codexApiKeyFile);
+  return options.requireCodexConfigWizard === true || options.runtimeProfile === 'full';
 }
 
 function shouldCheckFirstRunBeginnerUx(options) {

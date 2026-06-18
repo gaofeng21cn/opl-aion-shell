@@ -173,6 +173,30 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(false);
   });
 
+  it('waits for core CLI readiness only for Full or explicit Codex wizard first-run gates', () => {
+    expect(
+      __test.shouldWaitForCoreFirstLaunchReady({
+        runtimeProfile: 'standard',
+        codexApiKeyFile: '/tmp/codex-api-key',
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(false);
+    expect(
+      __test.shouldWaitForCoreFirstLaunchReady({
+        runtimeProfile: 'full',
+        codexApiKeyFile: '/tmp/codex-api-key',
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(true);
+    expect(
+      __test.shouldWaitForCoreFirstLaunchReady({
+        runtimeProfile: 'standard',
+        codexApiKeyFile: null,
+        requireCodexConfigWizard: true,
+      })
+    ).toBe(true);
+  });
+
   it('maps clean Full first-run screenshots to release evidence paths only for Full gates', () => {
     expect(__test.RELEASE_EVIDENCE_SCREENSHOTS).toEqual({
       full: path.join('screenshots', 'full.png'),
