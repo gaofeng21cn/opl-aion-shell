@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   cleanupAutoUpdateCache,
+  cleanupAutoUpdateCaches,
   getDefaultAutoUpdateCacheRoot,
   resolveAutoUpdateCacheCleanupPlan,
 } from '@/process/services/autoUpdateCacheCleanup';
@@ -144,5 +145,51 @@ describe('cleanupAutoUpdateCache', () => {
     expect(exists(metadata)).toBe(true);
     expect(exists(staleZip)).toBe(false);
     expect(exists(updateZip)).toBe(false);
+  });
+});
+
+describe('cleanupAutoUpdateCaches', () => {
+  beforeEach(() => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-auto-update-cache-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  it('preserves current pending packages while removing retired legacy updater packages', () => {
+    const currentCacheRoot = path.join(tempRoot, 'one-person-lab-aion-shell-updater');
+    const legacyCacheRoot = path.join(tempRoot, 'aionui-updater');
+    const currentPendingZip = path.join(currentCacheRoot, 'pending', 'One-Person-Lab-26.6.18-mac-x64.zip');
+    const currentStaleZip = path.join(currentCacheRoot, 'update.zip');
+    const legacyPendingZip = path.join(legacyCacheRoot, 'pending', 'AionUi-1.9.2-mac-x64.zip');
+    const legacyStaleZip = path.join(legacyCacheRoot, 'update.zip');
+    const legacyNotes = path.join(legacyCacheRoot, 'notes.txt');
+    const currentMetadata = path.join(currentCacheRoot, 'pending', 'update-info.json');
+    const legacyMetadata = path.join(legacyCacheRoot, 'pending', 'update-info.json');
+    writeFile(currentPendingZip, 'current-pending');
+    writeFile(currentStaleZip, 'current-stale');
+    writeFile(legacyPendingZip, 'legacy-pending');
+    writeFile(legacyStaleZip, 'legacy-stale');
+    writeFile(legacyNotes, 'not-an-updater-package');
+    writeFile(currentMetadata, JSON.stringify({ fileName: path.basename(currentPendingZip), sha512: 'test-sha512' }));
+    writeFile(legacyMetadata, JSON.stringify({ fileName: path.basename(legacyPendingZip), sha512: 'test-sha512' }));
+
+    const result = cleanupAutoUpdateCaches({
+      cacheRoots: [currentCacheRoot],
+      retiredCacheRoots: [legacyCacheRoot],
+    });
+
+    expect(result.removedFiles.sort()).toEqual([currentStaleZip, legacyPendingZip, legacyStaleZip].sort());
+    expect(result.removedBytes).toBe(
+      Buffer.byteLength('current-stale') + Buffer.byteLength('legacy-pending') + Buffer.byteLength('legacy-stale')
+    );
+    expect(exists(currentStaleZip)).toBe(false);
+    expect(exists(currentPendingZip)).toBe(true);
+    expect(exists(legacyStaleZip)).toBe(false);
+    expect(exists(legacyPendingZip)).toBe(false);
+    expect(exists(currentMetadata)).toBe(true);
+    expect(exists(legacyMetadata)).toBe(true);
+    expect(exists(legacyNotes)).toBe(true);
   });
 });

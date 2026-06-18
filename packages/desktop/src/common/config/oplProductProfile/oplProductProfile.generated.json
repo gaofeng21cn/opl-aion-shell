@@ -11,7 +11,7 @@
     "primary_surface": "desktop_workbench",
     "supported_release_platforms": ["macos-arm64"],
     "positioning": "purpose_first_codex_app_wrapper",
-    "primary_user_path": "chat_first_codex_cli_with_builtin_mas_mag_rca_purpose_entries"
+    "primary_user_path": "chat_first_codex_cli_with_builtin_mas_mag_rca_bookforge_purpose_entries"
   },
   "contract_refs": {
     "active_shell": "contracts/app-shell-adapter.json",
@@ -63,7 +63,7 @@
         "composer_position": "pinned_bottom",
         "composer_primary": true,
         "workspace_selector_visible": true,
-        "purpose_entries_visible": ["research", "grant", "ppt"],
+        "purpose_entries_visible": ["research", "grant", "ppt", "book"],
         "workspace_session_rail_default_state": "collapsed",
         "right_context_inspector_default_state": "collapsed",
         "must_not_show": [
@@ -157,6 +157,14 @@
           "target_assistant_short_name": "RCA",
           "display_policy": "purpose_first",
           "home_entry_policy": "visible_click_to_start"
+        },
+        {
+          "id": "book",
+          "primary_label": "写书",
+          "target_assistant_id": "bookforge",
+          "target_assistant_short_name": "BookForge",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start"
         }
       ],
       "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"],
@@ -236,7 +244,7 @@
     },
     "builtin_assistant_route_receipt_policy": {
       "scope": "home_purpose_entry_to_conversation",
-      "required_for_assistants": ["mas", "mag", "rca"],
+      "required_for_assistants": ["mas", "mag", "rca", "bookforge"],
       "route_kind": "builtin_capability",
       "executor": "codex_cli",
       "source": "opl_app_home",
@@ -341,6 +349,27 @@
           "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
           "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
         }
+      },
+      {
+        "id": "bookforge",
+        "display_name": "OPL BookForge",
+        "short_name": "BookForge",
+        "home_purpose_label": "写书",
+        "home_entry_display_policy": "purpose_first",
+        "role": "book_authoring_agent",
+        "home_entry_policy": "purpose_entry_target",
+        "avatar": "BOOK",
+        "description_i18n": {
+          "zh-CN": "推进书籍故事线、章节写作、插图表格、风格检查、排版验收和导出交接。",
+          "en-US": "Advance book storylines, chapter drafting, figure and table planning, style checks, layout review, and export handoff."
+        },
+        "prompts_i18n": {
+          "zh-CN": ["把这批材料整理成一本书的故事线和章节框架", "把已确认的故事线推进成书稿包并检查图表、风格和排版"],
+          "en-US": [
+            "Turn these materials into a book storyline and chapter outline",
+            "Materialize the approved storyline into a manuscript package and check figures, style, and layout"
+          ]
+        }
       }
     ],
     "assistant_skill_profiles": [
@@ -364,6 +393,14 @@
         "assistant_id": "rca",
         "required_skills": ["rca"],
         "optional_skills": ["officecli-pptx", "ui-ux-pro-max"],
+        "required_skill_policy": "checked_locked",
+        "optional_skill_policy": "unchecked_user_selectable",
+        "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
+      },
+      {
+        "assistant_id": "bookforge",
+        "required_skills": ["opl-bookforge"],
+        "optional_skills": ["officecli-docx", "pdf", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -404,6 +441,7 @@
       "mas",
       "mag",
       "rca",
+      "opl-bookforge",
       "superpowers",
       "cron",
       "officecli",
@@ -422,6 +460,7 @@
       "mas",
       "mag",
       "rca",
+      "opl-bookforge",
       "superpowers",
       "cron",
       "officecli",
@@ -452,6 +491,7 @@
       "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
       "- 基金、标书、申请书：使用 MAG。",
       "- PPT、演示、视觉交付物：使用 RCA。",
+      "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL BookForge。",
       "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
       "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
     ],
@@ -472,6 +512,7 @@
         "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
         "- 基金、标书、申请书：使用 MAG。",
         "- PPT、演示、视觉交付物：使用 RCA。",
+        "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL BookForge。",
         "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
         "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
       ],
@@ -492,7 +533,8 @@
         "- Use MAG for grants, proposals, and funding applications.",
         "- Use RCA for PPT, presentations, and visual deliverables.",
         "- For general One Person Lab usage, engineering collaboration, or OPL Agent development, keep the default Codex/OPL entry.",
-        "- If the user explicitly names a Foundry Agent or route, follow that request. Do not require the user to type @MAS/@MAG/@RCA."
+        "- If the user explicitly names a Foundry Agent or route, follow that request. Do not require the user to type @MAS/@MAG/@RCA.",
+        "- Book writing, manuscripts, chapters, figures, tables, layout, and export handoff: use OPL BookForge."
       ]
     }
   },
@@ -690,7 +732,7 @@
     }
   },
   "settings": {
-    "visible_tabs": ["general", "access", "capabilities", "environment", "appearance", "advanced", "about"],
+    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced", "about"],
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",
@@ -779,6 +821,12 @@
         "role": "local_runtime_foundation",
         "primary_question": "Are Codex CLI, Temporal, modules, paths, and updates ready?"
       },
+      "storage": {
+        "label_zh": "存储",
+        "label_en": "Storage",
+        "role": "local_data_lifecycle_inventory_and_cleanup",
+        "primary_question": "Which local data roots are using space, and which cleanup actions are safe?"
+      },
       "appearance": {
         "label_zh": "外观",
         "label_en": "Appearance",
@@ -809,17 +857,19 @@
     },
     "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
     "tools": ["officecli", "mineru-open-api"],
-    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent"],
-    "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent"],
+    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent", "opl-bookforge"],
+    "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent", "opl-bookforge"],
     "management_authority": {
       "officecli": "app_or_cli_managed",
       "mineru": "app_or_cli_managed",
-      "opl-meta-agent": "app_or_cli_managed"
+      "opl-meta-agent": "app_or_cli_managed",
+      "opl-bookforge": "app_or_cli_managed"
     },
     "default_packaged_codex_skill_ids": [
       "mas",
       "mag",
       "rca",
+      "opl-bookforge",
       "superpowers",
       "cron",
       "officecli",
@@ -850,7 +900,7 @@
       "mineru-document-extractor",
       "ui-ux-pro-max"
     ],
-    "domain_plugin_skill_ids": ["mas", "mag", "rca"],
+    "domain_plugin_skill_ids": ["mas", "mag", "rca", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "domain_exposure": [
       {
@@ -874,6 +924,12 @@
       {
         "domain_id": "oma",
         "codex_visible_entry": "opl-meta-agent",
+        "preferred_app_distribution": "opl_generated_codex_plugin_surface",
+        "direct_skill_semantics_required": true
+      },
+      {
+        "domain_id": "bookforge",
+        "codex_visible_entry": "opl-bookforge",
         "preferred_app_distribution": "opl_generated_codex_plugin_surface",
         "direct_skill_semantics_required": true
       }
@@ -947,7 +1003,7 @@
       "must_not_imply": [
         "stable_latest_promotion",
         "App release-ready without promotion decision",
-        "MAS/MAG/RCA domain readiness",
+        "MAS/MAG/RCA/BookForge domain readiness",
         "OPL family production readiness"
       ]
     }

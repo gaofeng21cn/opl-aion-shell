@@ -15,6 +15,13 @@ const UPDATE_PACKAGE_NAMES = new Set(['update.zip']);
 export type AutoUpdateCacheCleanupOptions = {
   cacheRoot: string;
   keepPaths?: string[];
+  protectPendingPackages?: boolean;
+};
+
+export type AutoUpdateCacheCleanupRootsOptions = {
+  cacheRoots: string[];
+  retiredCacheRoots?: string[];
+  keepPaths?: string[];
 };
 
 export type AutoUpdateCacheCleanupPlan = {
@@ -27,6 +34,12 @@ export type AutoUpdateCacheCleanupResult = {
   cacheRoot: string;
   removedBytes: number;
   removedFiles: string[];
+};
+
+export type AutoUpdateCacheCleanupRootsResult = {
+  removedBytes: number;
+  removedFiles: string[];
+  results: AutoUpdateCacheCleanupResult[];
 };
 
 export type DefaultAutoUpdateCacheRootOptions = {
@@ -114,8 +127,10 @@ export function resolveAutoUpdateCacheCleanupPlan(options: AutoUpdateCacheCleanu
   const protectedPaths = new Set<string>();
   protectedPaths.add(path.join(cacheRoot, 'pending', UPDATE_METADATA_FILE));
 
-  for (const pendingPackage of readPendingUpdatePackages(cacheRoot)) {
-    protectedPaths.add(pendingPackage);
+  if (options.protectPendingPackages ?? true) {
+    for (const pendingPackage of readPendingUpdatePackages(cacheRoot)) {
+      protectedPaths.add(pendingPackage);
+    }
   }
 
   for (const keepPath of options.keepPaths ?? []) {
@@ -156,5 +171,30 @@ export function cleanupAutoUpdateCache(options: AutoUpdateCacheCleanupOptions): 
     cacheRoot: plan.cacheRoot,
     removedBytes,
     removedFiles,
+  };
+}
+
+export function cleanupAutoUpdateCaches(
+  options: AutoUpdateCacheCleanupRootsOptions
+): AutoUpdateCacheCleanupRootsResult {
+  const currentResults = options.cacheRoots.map((cacheRoot) =>
+    cleanupAutoUpdateCache({
+      cacheRoot,
+      keepPaths: options.keepPaths,
+      protectPendingPackages: true,
+    })
+  );
+  const retiredResults = (options.retiredCacheRoots ?? []).map((cacheRoot) =>
+    cleanupAutoUpdateCache({
+      cacheRoot,
+      protectPendingPackages: false,
+    })
+  );
+  const results = [...currentResults, ...retiredResults];
+
+  return {
+    removedBytes: results.reduce((total, result) => total + result.removedBytes, 0),
+    removedFiles: results.flatMap((result) => result.removedFiles),
+    results,
   };
 }

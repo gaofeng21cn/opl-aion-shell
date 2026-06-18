@@ -1190,6 +1190,7 @@
   "general": "通用",
   "access": "访问",
   "environment": "本机运行环境",
+  "storage": "存储",
   "appearance": "外观",
   "advanced": "高级",
   "groupOverview": "概览",
@@ -1227,6 +1228,95 @@
       "beta": "测试版",
       "dev": "开发版"
     }
+  },
+  "storagePage": {
+    "title": "存储",
+    "description": "基于本地数据生命周期 inventory、dry-run 计划和回执管理本地数据。破坏性操作必须等必要证明存在后才可执行。",
+    "sections": {
+      "updater": {
+        "title": "更新缓存",
+        "description": "只针对安装包缓存。"
+      },
+      "conversations": {
+        "title": "对话产物",
+        "description": "对话文件必须先有归档和恢复证明，才能清理。"
+      },
+      "runtime": {
+        "title": "运行时/工具链",
+        "description": "基于指针的运行时目录必须先生成 dry-run prune 计划。"
+      },
+      "logs": {
+        "title": "日志",
+        "description": "日志轮转和对话产物清理是两个不同入口。"
+      }
+    },
+    "inventory": {
+      "bytes": "大小：{{bytes}}",
+      "cleanupMode": "清理模式：{{mode}}",
+      "rootCount": "根路径：{{count}}",
+      "rootDetail": "{{exists}} · {{bytes}}",
+      "exists": "存在",
+      "missing": "缺失",
+      "noRoots": "没有上报根路径。",
+      "notLoaded": "inventory 尚未加载。",
+      "silentDeleteAllowed": "允许静默删除",
+      "silentDeleteBlocked": "禁止静默删除"
+    },
+    "actions": {
+      "refresh": "刷新",
+      "archive": "归档对话",
+      "restoreProof": "恢复证明",
+      "deleteWithReceipt": "凭回执删除",
+      "dryRunRuntime": "Dry-run 运行时清理",
+      "executeRuntime": "执行运行时清理",
+      "dryRunLogs": "Dry-run 日志轮转",
+      "executeLogs": "执行日志轮转",
+      "dryRunUpdater": "Dry-run 更新缓存清理",
+      "executeUpdater": "清理更新缓存"
+    },
+    "conversations": {
+      "title": "对话归档与恢复证明",
+      "detail": "只有存在归档或恢复证明回执时，删除按钮才会启用。",
+      "receiptRequired": "请先归档对话，必要时再恢复证明。清理不会静默执行。",
+      "proofReceipt": "证明回执：{{receipt}}"
+    },
+    "runtime": {
+      "title": "运行时清理",
+      "detail": "必须先生成 dry-run 计划。执行时使用同一个计划，不会静默重新发现路径。"
+    },
+    "logs": {
+      "title": "日志轮转",
+      "detail": "日志文件通过显式 dry-run 后轮转。日志不是对话产物。",
+      "candidate": "{{path}} · {{reason}} · {{bytes}}",
+      "reasons": {
+        "older_than_retention_days": "超过保留天数",
+        "exceeds_retained_file_count": "超过保留文件数",
+        "exceeds_total_log_bytes": "超过日志总大小"
+      }
+    },
+    "updater": {
+      "title": "更新安装包缓存",
+      "detail": "这里只针对过期安装包缓存，不处理对话产物、运行时目录或日志。"
+    },
+    "plans": {
+      "runtime": {
+        "required": "必须先 dry-run，才能执行运行时清理。",
+        "summary": "运行时清理计划：{{count}} 个候选，{{bytes}}。"
+      },
+      "logs": {
+        "required": "必须先 dry-run，才能执行日志轮转。",
+        "summary": "日志轮转计划：{{count}} 个候选，{{bytes}}。"
+      },
+      "updater": {
+        "required": "必须先 dry-run，才能执行更新缓存清理。",
+        "summary": "更新缓存清理计划：{{count}} 个候选，{{bytes}}。"
+      }
+    },
+    "messages": {
+      "actionComplete": "存储操作已完成",
+      "actionFailed": "存储操作失败"
+    },
+    "receipt": "{{operation}} 回执：{{receipt}}"
   },
   "accessPage": {
     "title": "访问权限",

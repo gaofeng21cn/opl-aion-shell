@@ -8,6 +8,7 @@ const FirstRun = React.lazy(() => import('@renderer/pages/FirstRun'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
 const OverviewSettings = React.lazy(() => import('@renderer/pages/settings/sections/OverviewSettings'));
 const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/sections/RuntimeSettings'));
+const StorageSettings = React.lazy(() => import('@renderer/pages/settings/StorageSettings'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
 const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
@@ -63,6 +64,7 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/overview' element={<Navigate to='/settings/general' replace />} />
           <Route path='/settings/environment' element={withRouteFallback(RuntimeSettings)} />
           <Route path='/settings/runtime' element={<Navigate to='/settings/environment' replace />} />
+          <Route path='/settings/storage' element={withRouteFallback(StorageSettings)} />
           <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
           <Route path='/settings/access' element={withRouteFallback(AccessSettings)} />
           <Route path='/settings/appearance' element={withRouteFallback(AppearanceSettings)} />

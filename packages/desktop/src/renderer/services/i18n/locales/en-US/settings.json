@@ -1189,6 +1189,7 @@
   "general": "General",
   "access": "Access",
   "environment": "Local Environment",
+  "storage": "Storage",
   "appearance": "Appearance",
   "advanced": "Advanced",
   "groupOverview": "Overview",
@@ -1226,6 +1227,95 @@
       "beta": "Beta",
       "dev": "Developer"
     }
+  },
+  "storagePage": {
+    "title": "Storage",
+    "description": "Manage local data from lifecycle inventory, dry-run plans, and receipts. Destructive actions stay locked until the required proof exists.",
+    "sections": {
+      "updater": {
+        "title": "Updater cache",
+        "description": "Installer package cache only."
+      },
+      "conversations": {
+        "title": "Conversation artifacts",
+        "description": "Conversation files require archive and restore proof before cleanup."
+      },
+      "runtime": {
+        "title": "Runtime/toolchain",
+        "description": "Pointer-based runtime roots require a dry-run prune plan."
+      },
+      "logs": {
+        "title": "Logs",
+        "description": "Log rotation is separate from conversation artifacts."
+      }
+    },
+    "inventory": {
+      "bytes": "Bytes: {{bytes}}",
+      "cleanupMode": "Cleanup mode: {{mode}}",
+      "rootCount": "Roots: {{count}}",
+      "rootDetail": "{{exists}} · {{bytes}}",
+      "exists": "exists",
+      "missing": "missing",
+      "noRoots": "No roots reported.",
+      "notLoaded": "Inventory not loaded yet.",
+      "silentDeleteAllowed": "silent delete allowed",
+      "silentDeleteBlocked": "silent delete blocked"
+    },
+    "actions": {
+      "refresh": "Refresh",
+      "archive": "Archive conversations",
+      "restoreProof": "Restore proof",
+      "deleteWithReceipt": "Delete with receipt",
+      "dryRunRuntime": "Dry-run runtime prune",
+      "executeRuntime": "Execute runtime prune",
+      "dryRunLogs": "Dry-run log rotation",
+      "executeLogs": "Execute log rotation",
+      "dryRunUpdater": "Dry-run updater cache cleanup",
+      "executeUpdater": "Clean updater cache"
+    },
+    "conversations": {
+      "title": "Conversation archive and restore proof",
+      "detail": "Delete is disabled until an archive or restore proof receipt is available.",
+      "receiptRequired": "Archive conversations first, then restore proof if needed. Cleanup is never silent.",
+      "proofReceipt": "Proof receipt: {{receipt}}"
+    },
+    "runtime": {
+      "title": "Runtime prune",
+      "detail": "Run a dry-run plan first. Execute uses that exact plan instead of discovering new paths silently."
+    },
+    "logs": {
+      "title": "Log rotation",
+      "detail": "Rotate log files with an explicit dry-run. Logs are not conversation artifacts.",
+      "candidate": "{{path}} · {{reason}} · {{bytes}}",
+      "reasons": {
+        "older_than_retention_days": "older than retention days",
+        "exceeds_retained_file_count": "exceeds retained file count",
+        "exceeds_total_log_bytes": "exceeds total log bytes"
+      }
+    },
+    "updater": {
+      "title": "Updater installer package cache",
+      "detail": "This only targets stale installer package cache, not conversation artifacts, runtime roots, or logs."
+    },
+    "plans": {
+      "runtime": {
+        "required": "Dry-run required before runtime prune can execute.",
+        "summary": "Runtime prune plan: {{count}} candidate(s), {{bytes}}."
+      },
+      "logs": {
+        "required": "Dry-run required before log rotation can execute.",
+        "summary": "Log rotation plan: {{count}} candidate(s), {{bytes}}."
+      },
+      "updater": {
+        "required": "Dry-run required before updater cache cleanup can execute.",
+        "summary": "Updater cache cleanup plan: {{count}} candidate(s), {{bytes}}."
+      }
+    },
+    "messages": {
+      "actionComplete": "Storage action completed",
+      "actionFailed": "Storage action failed"
+    },
+    "receipt": "{{operation}} receipt: {{receipt}}"
   },
   "accessPage": {
     "title": "Access",

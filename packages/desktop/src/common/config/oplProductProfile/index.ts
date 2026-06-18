@@ -658,14 +658,14 @@ function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurpos
     };
   });
 
-  if (entries.map((entry) => entry.id).join(',') !== ['research', 'grant', 'ppt'].join(',')) {
-    throw new Error('Invalid OPL product profile: purpose entries must be research, grant, and ppt');
+  if (entries.map((entry) => entry.id).join(',') !== ['research', 'grant', 'ppt', 'book'].join(',')) {
+    throw new Error('Invalid OPL product profile: purpose entries must be research, grant, ppt, and book');
   }
-  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', '演示'].join(',')) {
+  if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', '演示', '写书'].join(',')) {
     throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
   }
-  if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca'].join(',')) {
-    throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, and RCA');
+  if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',')) {
+    throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, RCA, and BookForge');
   }
   return entries;
 }
@@ -717,7 +717,7 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
   if (new Set(ids).size !== ids.length) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must not contain duplicate ids');
   }
-  for (const required of ['mas', 'mag', 'rca']) {
+  for (const required of ['mas', 'mag', 'rca', 'bookforge']) {
     if (!ids.includes(required)) {
       throw new Error(`Invalid OPL product profile: gui.default_assistants must include ${required}`);
     }
@@ -729,7 +729,7 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
     throw new Error('Invalid OPL product profile: gui.default_assistants must not include mds');
   }
   const purposeLabels = assistants.map((assistant) => assistant.home_purpose_label);
-  if (purposeLabels.join(',') !== ['科研', '基金', '演示'].join(',')) {
+  if (purposeLabels.join(',') !== ['科研', '基金', '演示', '写书'].join(',')) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must expose purpose-first labels');
   }
   return assistants;
@@ -807,11 +807,17 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
     };
   });
 
-  if (profiles.map((profile) => profile.assistant_id).join(',') !== ['mas', 'mag', 'rca'].join(',')) {
-    throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, and RCA');
+  if (profiles.map((profile) => profile.assistant_id).join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',')) {
+    throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, RCA, and BookForge');
   }
   for (const profile of profiles) {
-    if (profile.required_skills.join(',') !== profile.assistant_id) {
+    const requiredSkillsByAssistant: Record<string, string[]> = {
+      mas: ['mas'],
+      mag: ['mag'],
+      rca: ['rca'],
+      bookforge: ['opl-bookforge'],
+    };
+    if (profile.required_skills.join(',') !== (requiredSkillsByAssistant[profile.assistant_id] ?? []).join(',')) {
       throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must require its matching skill`);
     }
     if ('hidden_home_skill_names' in profile) {
@@ -833,7 +839,7 @@ function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): O
   );
   const requiredFields = readStringArray(value, 'required_fields', 'gui.builtin_assistant_route_receipt_policy');
   if (
-    requiredForAssistants.join(',') !== ['mas', 'mag', 'rca'].join(',') ||
+    requiredForAssistants.join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',') ||
     value.scope !== 'home_purpose_entry_to_conversation' ||
     value.route_kind !== 'builtin_capability' ||
     value.executor !== 'codex_cli' ||
@@ -1007,7 +1013,16 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
-  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced', 'about'];
+  const expectedTabs = [
+    'general',
+    'access',
+    'capabilities',
+    'environment',
+    'storage',
+    'appearance',
+    'advanced',
+    'about',
+  ];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }

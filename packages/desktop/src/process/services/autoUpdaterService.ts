@@ -19,7 +19,7 @@ import {
   launchLocalAuthorizedMacosInstaller,
   resolveLocalAuthorizedMacosUpdatePlan,
 } from './localAuthorizedMacosUpdater';
-import { cleanupAutoUpdateCache, getDefaultAutoUpdateCacheRoot } from './autoUpdateCacheCleanup';
+import { cleanupAutoUpdateCaches, getDefaultAutoUpdateCacheRoot } from './autoUpdateCacheCleanup';
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
@@ -83,6 +83,11 @@ class AutoUpdaterService extends EventEmitter {
   private readonly _updaterCacheRoot = getDefaultAutoUpdateCacheRoot({
     appCacheDirName: 'one-person-lab-aion-shell-updater',
   });
+  private readonly _retiredUpdaterCacheRoots = [
+    getDefaultAutoUpdateCacheRoot({
+      appCacheDirName: 'aionui-updater',
+    }),
+  ];
 
   constructor() {
     super();
@@ -281,8 +286,9 @@ class AutoUpdaterService extends EventEmitter {
 
   private cleanupDownloadedUpdateCache(keepPaths: string[] = []): void {
     try {
-      const result = cleanupAutoUpdateCache({
-        cacheRoot: this._updaterCacheRoot,
+      const result = cleanupAutoUpdateCaches({
+        cacheRoots: [this._updaterCacheRoot],
+        retiredCacheRoots: this._retiredUpdaterCacheRoots,
         keepPaths,
       });
       if (result.removedFiles.length > 0) {

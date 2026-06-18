@@ -2,6 +2,7 @@ import {
   Communication,
   Dashboard,
   Earth,
+  FolderSearch,
   Info,
   Lightning,
   Puzzle,
@@ -14,15 +15,15 @@ import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
-export const BUILTIN_TAB_IDS = getOplGuiSettingsVisibleTabs() as [
-  'general',
-  'access',
-  'capabilities',
-  'environment',
-  'appearance',
-  'advanced',
-  'about',
-];
+const profileTabIds = getOplGuiSettingsVisibleTabs();
+const storageInsertIndex = profileTabIds.indexOf('environment');
+const storageInsertionPoint = storageInsertIndex >= 0 ? storageInsertIndex + 1 : profileTabIds.length;
+
+export const BUILTIN_TAB_IDS = (
+  profileTabIds.includes('storage')
+    ? profileTabIds
+    : [...profileTabIds.slice(0, storageInsertionPoint), 'storage', ...profileTabIds.slice(storageInsertionPoint)]
+) as ['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced', 'about'];
 
 export type BuiltinSettingsTabId = (typeof BUILTIN_TAB_IDS)[number];
 
@@ -53,6 +54,7 @@ export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefine
   access: undefined,
   capabilities: undefined,
   environment: 'settings.groupRuntime',
+  storage: undefined,
   appearance: undefined,
   advanced: 'settings.groupAdvanced',
   about: 'settings.groupAbout',
@@ -102,6 +104,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       label: t('settings.environment', { defaultValue: 'Local Environment' }),
       icon: <Toolkit />,
       path: 'environment',
+    },
+    storage: {
+      id: 'storage',
+      label: t('settings.storage', { defaultValue: 'Storage' }),
+      icon: <FolderSearch />,
+      path: 'storage',
     },
     appearance: {
       id: 'appearance',

@@ -49,4 +49,28 @@ describe('OPL runtime IPC channel contract', () => {
     );
     expect(channels).not.toEqual(expect.arrayContaining(['opl-runtime.update-status', 'opl-runtime.update-apply']));
   });
+
+  it('declares local data lifecycle channels for Storage inventory, receipts, and dry-run execution', async () => {
+    vi.resetModules();
+    platformMocks.buildProvider.mockClear();
+
+    await import('@/common/adapter/ipcBridge');
+
+    const channels = platformMocks.buildProvider.mock.calls.map(([channel]) => channel);
+    expect(channels).toEqual(
+      expect.arrayContaining([
+        'local-data-lifecycle.get-inventory',
+        'local-data-lifecycle.archive-conversations',
+        'local-data-lifecycle.restore-conversation-proof',
+        'local-data-lifecycle.delete-conversation-artifacts',
+        'local-data-lifecycle.plan-runtime-prune',
+        'local-data-lifecycle.execute-runtime-prune',
+        'local-data-lifecycle.plan-log-rotation',
+        'local-data-lifecycle.execute-log-rotation',
+        'local-data-lifecycle.plan-updater-cache-cleanup',
+        'local-data-lifecycle.execute-updater-cache-cleanup',
+      ])
+    );
+    expect(channels).not.toEqual(expect.arrayContaining(['local-data-lifecycle.delete-silently']));
+  });
 });

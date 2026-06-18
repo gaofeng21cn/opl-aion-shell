@@ -571,6 +571,177 @@ export const oplRuntime = {
   ),
 };
 
+export type LocalDataLifecycleSectionId = 'updater_cache' | 'conversation_artifacts' | 'runtime_toolchain' | 'logs';
+
+export type LocalDataCleanupMode =
+  | 'stale_installer_package_cleanup_allowed'
+  | 'archive_required_before_cleanup'
+  | 'pointer_based_dry_run_required'
+  | 'bounded_rotation_dry_run_required';
+
+export type LocalDataLifecycleInventoryRoot = {
+  path: string;
+  exists: boolean;
+  bytes: number;
+};
+
+export type LocalDataLifecycleInventorySection = {
+  id: LocalDataLifecycleSectionId;
+  cleanup_mode: LocalDataCleanupMode;
+  silent_delete_allowed: boolean;
+  roots: LocalDataLifecycleInventoryRoot[];
+  bytes: number;
+};
+
+export type LocalDataLifecycleInventory = {
+  schema: 'opl_local_data_lifecycle_inventory.v1';
+  total_bytes: number;
+  sections: LocalDataLifecycleInventorySection[];
+};
+
+export type LocalDataLifecycleReceipt =
+  | LocalDataLifecycleConversationArchiveReceipt
+  | LocalDataLifecycleConversationDeleteReceipt
+  | LocalDataLifecycleRuntimePruneReceipt
+  | LocalDataLifecycleLogRotationReceipt
+  | LocalDataLifecycleUpdaterCacheReceipt;
+
+export type LocalDataLifecycleConversationArchiveReceipt = {
+  schema: 'opl_conversation_archive_receipt.v1';
+  conversation_id: string;
+  source_paths: string[];
+  archive_path: string;
+  archive_sha256: string;
+  manifest_path: string;
+  restore_probe_path: string;
+  receipt_path: string;
+  created_at: string;
+};
+
+export type LocalDataLifecycleConversationDeleteReceipt = {
+  schema: 'opl_conversation_delete_receipt.v1';
+  conversation_id: string;
+  deleted_paths: string[];
+  archive_receipt_path: string;
+  confirmed_at: string;
+  receipt_path: string;
+  created_at: string;
+};
+
+export type LocalDataLifecycleRuntimePruneCandidate = {
+  path: string;
+  bytes: number;
+  reason: 'unreferenced_runtime_root' | 'unreferenced_staged_runtime';
+};
+
+export type LocalDataLifecycleRuntimePrunePlan = {
+  schema: 'opl_runtime_pointer_prune_plan.v1';
+  mode: 'dry_run';
+  plan_id: string;
+  plan_hash: string;
+  runtime_root: string;
+  protected_paths: string[];
+  remove_candidates: LocalDataLifecycleRuntimePruneCandidate[];
+  remove_bytes: number;
+  created_at: string;
+};
+
+export type LocalDataLifecycleRuntimePruneReceipt = {
+  schema: 'opl_runtime_pointer_prune_receipt.v1';
+  runtime_root: string;
+  dry_run_plan_id: string;
+  protected_paths: string[];
+  deleted_paths: string[];
+  deleted_bytes: number;
+  receipt_path: string;
+  created_at: string;
+};
+
+export type LocalDataLifecycleLogRetentionCandidate = {
+  path: string;
+  bytes: number;
+  reason: 'older_than_retention_days' | 'exceeds_retained_file_count' | 'exceeds_total_log_bytes';
+};
+
+export type LocalDataLifecycleLogRetentionPlan = {
+  schema: 'opl_log_retention_plan.v1';
+  mode: 'dry_run';
+  plan_id: string;
+  plan_hash: string;
+  logs_root: string;
+  keep_paths: string[];
+  remove_candidates: LocalDataLifecycleLogRetentionCandidate[];
+  remove_bytes: number;
+  created_at: string;
+};
+
+export type LocalDataLifecycleLogRotationReceipt = {
+  schema: 'opl_log_rotation_receipt.v1';
+  logs_root: string;
+  dry_run_plan_id: string;
+  deleted_paths: string[];
+  deleted_bytes: number;
+  receipt_path: string;
+  created_at: string;
+};
+
+export type LocalDataLifecycleUpdaterCachePlan = {
+  schema: 'opl_updater_cache_cleanup_plan.v1';
+  mode: 'dry_run';
+  plan_id: string;
+  plan_hash: string;
+  cache_roots: string[];
+  keep_paths: string[];
+  remove_candidates: Array<{ path: string; bytes: number; reason: 'stale_installer_package' }>;
+  remove_bytes: number;
+  created_at: string;
+};
+
+export type LocalDataLifecycleUpdaterCacheReceipt = {
+  schema: 'opl_updater_cache_cleanup_receipt.v1';
+  dry_run_plan_id: string;
+  cache_roots: string[];
+  deleted_paths: string[];
+  deleted_bytes: number;
+  receipt_path: string;
+  created_at: string;
+};
+
+export const localDataLifecycle = {
+  getInventory: bridge.buildProvider<LocalDataLifecycleInventory, void>('local-data-lifecycle.get-inventory'),
+  archiveConversations: bridge.buildProvider<LocalDataLifecycleConversationArchiveReceipt, void>(
+    'local-data-lifecycle.archive-conversations'
+  ),
+  restoreConversationProof: bridge.buildProvider<LocalDataLifecycleConversationArchiveReceipt, { receiptPath: string }>(
+    'local-data-lifecycle.restore-conversation-proof'
+  ),
+  deleteConversationArtifacts: bridge.buildProvider<
+    LocalDataLifecycleConversationDeleteReceipt,
+    { receiptPath: string; confirmation: string }
+  >('local-data-lifecycle.delete-conversation-artifacts'),
+  planRuntimePrune: bridge.buildProvider<LocalDataLifecycleRuntimePrunePlan, void>(
+    'local-data-lifecycle.plan-runtime-prune'
+  ),
+  executeRuntimePrune: bridge.buildProvider<
+    LocalDataLifecycleRuntimePruneReceipt,
+    { plan: LocalDataLifecycleRuntimePrunePlan; planHash?: string }
+  >('local-data-lifecycle.execute-runtime-prune'),
+  planLogRotation: bridge.buildProvider<LocalDataLifecycleLogRetentionPlan, void>(
+    'local-data-lifecycle.plan-log-rotation'
+  ),
+  executeLogRotation: bridge.buildProvider<
+    LocalDataLifecycleLogRotationReceipt,
+    { plan: LocalDataLifecycleLogRetentionPlan; planHash?: string }
+  >('local-data-lifecycle.execute-log-rotation'),
+  planUpdaterCacheCleanup: bridge.buildProvider<LocalDataLifecycleUpdaterCachePlan, void>(
+    'local-data-lifecycle.plan-updater-cache-cleanup'
+  ),
+  executeUpdaterCacheCleanup: bridge.buildProvider<
+    LocalDataLifecycleUpdaterCacheReceipt,
+    { plan: LocalDataLifecycleUpdaterCachePlan; planHash?: string }
+  >('local-data-lifecycle.execute-updater-cache-cleanup'),
+};
+
 // ---------------------------------------------------------------------------
 // Update — stays IPC (Electron-native auto-updater)
 // ---------------------------------------------------------------------------
