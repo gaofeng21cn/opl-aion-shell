@@ -125,6 +125,7 @@ describe('OPL generated product profile', () => {
       'access',
       'capabilities',
       'environment',
+      'storage',
       'appearance',
       'advanced',
       'about',
@@ -206,22 +207,25 @@ describe('OPL generated product profile', () => {
   it('exposes App-owned default home assistants without AionUI legacy entries', () => {
     const assistants = getOplDefaultHomeAssistants();
 
-    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
+    expect(assistants.map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
     expect(assistants.map((assistant) => assistant.display_name)).toEqual([
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
+      'OPL BookForge',
     ]);
-    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示']);
+    expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示', '写书']);
     expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
       'research',
       'grant',
       'ppt',
+      'book',
     ]);
     expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.target_assistant_id)).toEqual([
       'mas',
       'mag',
       'rca',
+      'bookforge',
     ]);
     expect(
       OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
@@ -235,17 +239,18 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.non_default_assistants[0]?.home_entry_policy).toBe('explicit_or_settings_only');
 
     assistants.push({ ...assistants[0], id: 'caller-local-assistant' });
-    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca']);
+    expect(getOplDefaultHomeAssistants().map((assistant) => assistant.id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
   });
 
   it('exposes assistant-scoped home skill profiles from the App contract', () => {
     const profiles = getOplAssistantSkillProfiles();
 
-    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca']);
+    expect(profiles.map((profile) => profile.assistant_id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
     expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
       mas: ['mas'],
       mag: ['mag'],
       rca: ['rca'],
+      bookforge: ['opl-bookforge'],
     });
     expect(getOplAssistantSkillProfile('builtin-mag')?.required_skills).toEqual(['mag']);
     expect(getOplAssistantSkillProfile('rca')?.optional_skills).toEqual(['officecli-pptx', 'ui-ux-pro-max']);
@@ -269,7 +274,7 @@ describe('OPL generated product profile', () => {
   it('exposes the built-in assistant route receipt policy', () => {
     const policy = getOplBuiltinAssistantRouteReceiptPolicy();
 
-    expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca']);
+    expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca', 'bookforge']);
     expect(policy.route_kind).toBe('builtin_capability');
     expect(policy.executor).toBe('codex_cli');
     expect(policy.source).toBe('opl_app_home');
@@ -282,7 +287,12 @@ describe('OPL generated product profile', () => {
     ]);
 
     policy.required_for_assistants.push('caller-local-assistant');
-    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual(['mas', 'mag', 'rca']);
+    expect(getOplBuiltinAssistantRouteReceiptPolicy().required_for_assistants).toEqual([
+      'mas',
+      'mag',
+      'rca',
+      'bookforge',
+    ]);
   });
 
   it('exposes App-managed OPL Flow context policy without allowing caller mutation', () => {
@@ -342,6 +352,7 @@ describe('OPL generated product profile', () => {
       'mas',
       'mag',
       'rca',
+      'opl-bookforge',
       'superpowers',
       'cron',
       'officecli',
@@ -365,6 +376,7 @@ describe('OPL generated product profile', () => {
       'mas',
       'mag',
       'rca',
+      'opl-bookforge',
       'superpowers',
       'cron',
       'officecli',
