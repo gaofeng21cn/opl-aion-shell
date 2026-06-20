@@ -1258,6 +1258,57 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).toContain('xattr -dr com.apple.quarantine "/Applications/One Person Lab.app"');
   });
 
+  it('classifies transient Homebrew cask download failures for a bounded retry', () => {
+    const partialDownload = new Error(
+      'ssh homebrew_cask_install runner@127.0.0.1 exited with 1\nstderr:\ncurl: (18) Transferred a partial file'
+    );
+    const runtimeFailure = new Error('Timed out waiting for OPL core first-launch readiness');
+
+    expect(tartSmoke.isRetryableHomebrewInstallError(partialDownload)).toBe(true);
+    expect(tartSmoke.isRetryableHomebrewInstallError(runtimeFailure)).toBe(false);
+  });
+
+  it('writes structured OPL command diagnostics beside human-readable failure artifacts', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-command-diagnostics-'));
+    try {
+      const error = new vmSmoke.OplJsonCommandError('opl system initialize --json failed', {
+        schema: 'opl_vm_smoke_opl_command_error.v1',
+        args: ['system', 'initialize', '--json'],
+        command: 'opl system initialize --json',
+        shell_command: 'command -v opl >/dev/null && opl system initialize --json',
+        runtime_home: '/tmp/runtime/current',
+        shell_executable: '/bin/zsh',
+        status: 1,
+        signal: null,
+        timed_out: false,
+        timeout_ms: 90_000,
+        stdout: '{"partial":true}\n',
+        stderr: 'runtime state not ready\n',
+        error: null,
+      });
+      const basePath = path.join(artifacts, 'system-initialize.json');
+
+      vmSmoke.writeOplJsonCommandErrorArtifacts(basePath, error, 'secret-token');
+
+      expect(fs.readFileSync(`${basePath}.error.txt`, 'utf8')).toContain('opl system initialize --json failed');
+      expect(JSON.parse(fs.readFileSync(`${basePath}.error.json`, 'utf8'))).toMatchObject({
+        schema: 'opl_vm_smoke_opl_command_error_artifact.v1',
+        message: 'opl system initialize --json failed',
+        diagnostics: {
+          schema: 'opl_vm_smoke_opl_command_error.v1',
+          args: ['system', 'initialize', '--json'],
+          command: 'opl system initialize --json',
+          status: 1,
+          timed_out: false,
+          stdout: '{"partial":true}\n',
+          stderr: 'runtime state not ready\n',
+        },
+      });
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('validates assistant route smoke independently from Settings smoke', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

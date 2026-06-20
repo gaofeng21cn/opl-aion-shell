@@ -829,6 +829,14 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     .join(' && ');
 }
 
+class OplJsonCommandError extends Error {
+  constructor(message, diagnostics) {
+    super(message);
+    this.name = 'OplJsonCommandError';
+    this.diagnostics = diagnostics;
+  }
+}
+
 function listStringValues(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
 }
@@ -1288,8 +1296,23 @@ function runOplJson(args, options = {}) {
     env: { ...process.env, OPL_OUTPUT: 'json' },
     timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
   });
+  const diagnostics = {
+    schema: 'opl_vm_smoke_opl_command_error.v1',
+    args,
+    command: `opl ${args.join(' ')}`,
+    shell_command: command,
+    runtime_home: runtimeHome,
+    shell_executable: runtimeShellExecutable(),
+    status: result.status,
+    signal: result.signal ?? null,
+    timed_out: result.error?.code === 'ETIMEDOUT',
+    timeout_ms: resolveOplProbeTimeoutMs(options.timeoutMs),
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+    error: result.error?.message ?? null,
+  };
   if (result.error?.code === 'ETIMEDOUT') {
-    throw new Error(
+    throw new OplJsonCommandError(
       [
         `opl ${args.join(' ')} timed out after ${resolveOplProbeTimeoutMs(options.timeoutMs)}ms.`,
         result.stdout ? `stdout:\n${result.stdout}` : '',
@@ -1297,12 +1320,13 @@ function runOplJson(args, options = {}) {
         `command: ${command}`,
       ]
         .filter(Boolean)
-        .join('\n')
+        .join('\n'),
+      diagnostics
     );
   }
   if (result.status !== 0) {
     const output = result.stderr || result.stdout || `status=${result.status} signal=${result.signal ?? 'none'}`;
-    throw new Error(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`);
+    throw new OplJsonCommandError(`opl ${args.join(' ')} failed:\n${output}\ncommand: ${command}`, diagnostics);
   }
   return result.stdout;
 }
@@ -1479,6 +1503,20 @@ function writeTextArtifact(target, content, secret) {
 
 function writeJsonArtifact(target, value, secret) {
   writeTextArtifact(target, `${JSON.stringify(value, null, 2)}\n`, secret);
+}
+
+function oplJsonCommandDiagnostics(error) {
+  const diagnostics = error instanceof OplJsonCommandError && error.diagnostics ? error.diagnostics : null;
+  return {
+    schema: 'opl_vm_smoke_opl_command_error_artifact.v1',
+    message: error instanceof Error ? error.message : String(error),
+    diagnostics,
+  };
+}
+
+function writeOplJsonCommandErrorArtifacts(basePath, error, secret) {
+  writeTextArtifact(`${basePath}.error.txt`, error instanceof Error ? error.message : String(error), secret);
+  writeJsonArtifact(`${basePath}.error.json`, oplJsonCommandDiagnostics(error), secret);
 }
 
 function captureMacScreenArtifact(target) {
@@ -3233,11 +3271,7 @@ function collectFailureArtifacts(options, codexApiKey) {
     try {
       writeTextArtifact(path.join(options.artifacts, name), runOplJson(args), codexApiKey);
     } catch (error) {
-      fs.writeFileSync(
-        path.join(options.artifacts, `${name}.error.txt`),
-        error instanceof Error ? error.message : String(error),
-        'utf8'
-      );
+      writeOplJsonCommandErrorArtifacts(path.join(options.artifacts, name), error, codexApiKey);
     }
   }
 
@@ -3656,6 +3690,9 @@ export const __test =
         RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS,
         runtimeShellExecutable,
         OPL_CONNECT_MODULES_ARGS,
+        OplJsonCommandError,
+        oplJsonCommandDiagnostics,
+        writeOplJsonCommandErrorArtifacts,
         resolveOplProbeTimeoutMs,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,

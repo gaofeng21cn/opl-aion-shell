@@ -48,6 +48,16 @@ const HOMEBREW_CONFLICTING_CASKS = new Map([
   ['one-person-lab-nightly', ['one-person-lab', 'one-person-lab-full']],
 ]);
 const STAGE_TIMING_SLOWEST_LIMIT = 5;
+const HOMEBREW_INSTALL_RETRYABLE_PATTERNS = [
+  /curl:\s*\(18\)/i,
+  /Transferred a partial file/i,
+  /curl:\s*\(56\)/i,
+  /Connection reset by peer/i,
+  /Operation timed out/i,
+  /Failed to connect/i,
+];
+const DEFAULT_HOMEBREW_INSTALL_MAX_ATTEMPTS = 3;
+const DEFAULT_HOMEBREW_INSTALL_RETRY_DELAY_MS = 15_000;
 
 const runtimeState = {
   options: null,
@@ -62,6 +72,7 @@ const runtimeState = {
   guestNodeStaging: null,
   copiedArtifacts: false,
   cleanupStarted: false,
+  homebrewInstallAttempts: [],
 };
 
 function usage() {
@@ -599,6 +610,74 @@ function appendRuntimeLog(message) {
   } catch (_) {
     // Best-effort diagnostics must not mask the real smoke failure.
   }
+}
+
+function summarizeError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    message,
+    retryable_homebrew_transport: isRetryableHomebrewInstallError(error),
+  };
+}
+
+function isRetryableHomebrewInstallError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return HOMEBREW_INSTALL_RETRYABLE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
+function homebrewInstallRetryDelayMs() {
+  const raw = Number(process.env.OPL_HOMEBREW_INSTALL_RETRY_DELAY_MS);
+  if (Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+  return DEFAULT_HOMEBREW_INSTALL_RETRY_DELAY_MS;
+}
+
+async function installHomebrewCaskWithRetry(options, ip) {
+  const attempts = [];
+  const maxAttemptsRaw = Number(process.env.OPL_HOMEBREW_INSTALL_MAX_ATTEMPTS);
+  const maxAttempts =
+    Number.isFinite(maxAttemptsRaw) && maxAttemptsRaw > 0
+      ? Math.floor(maxAttemptsRaw)
+      : DEFAULT_HOMEBREW_INSTALL_MAX_ATTEMPTS;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = new Date().toISOString();
+    appendRuntimeLog(`homebrew_cask_install_attempt=${attempt}/${maxAttempts}`);
+    try {
+      await sshWithRunOptions(options, ip, guestHomebrewInstallCommand(options), {
+        label: `ssh homebrew_cask_install ${options.guestUser}@${ip}`,
+        timeoutMs: options.timeoutMs,
+      });
+      const record = {
+        attempt,
+        status: 'passed',
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        retryable_homebrew_transport: false,
+      };
+      attempts.push(record);
+      runtimeState.homebrewInstallAttempts = attempts;
+      return record;
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableHomebrewInstallError(error);
+      const record = {
+        attempt,
+        status: 'failed',
+        started_at: startedAt,
+        completed_at: new Date().toISOString(),
+        retryable_homebrew_transport: retryable,
+        error: error instanceof Error ? error.message : String(error),
+      };
+      attempts.push(record);
+      runtimeState.homebrewInstallAttempts = attempts;
+      appendRuntimeLog(`homebrew_cask_install_attempt_failed attempt=${attempt}/${maxAttempts} retryable=${retryable}`);
+      if (!retryable || attempt >= maxAttempts) break;
+      const delayMs = homebrewInstallRetryDelayMs();
+      appendRuntimeLog(`homebrew_cask_install_retry_sleep_ms=${delayMs}`);
+      await sleep(delayMs);
+    }
+  }
+  throw lastError ?? new Error('Homebrew cask install failed without an error record.');
 }
 
 function recordStageEvent(stage, timestampMs = Date.now()) {
@@ -1381,6 +1460,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
+    homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
@@ -1421,6 +1501,8 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
+    homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
+    error_classification: summarizeError(error),
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
   };
@@ -1507,10 +1589,7 @@ async function main() {
       setStage('assert_clean_state_before_homebrew_install');
       await ssh(options, ip, guestCleanStateProbeCommand());
       setStage('homebrew_cask_install');
-      await sshWithRunOptions(options, ip, guestHomebrewInstallCommand(options), {
-        label: `ssh homebrew_cask_install ${options.guestUser}@${ip}`,
-        timeoutMs: options.timeoutMs,
-      });
+      await installHomebrewCaskWithRetry(options, ip);
     }
     setStage('run_guest_smoke');
     await sshWithRunOptions(
@@ -1573,6 +1652,9 @@ export const __test =
         guestCodexPackageTarballPath,
         guestFrameworkSourceArchivePath,
         guestHomebrewInstallCommand,
+        guestNodeStagingPlan,
+        installHomebrewCaskWithRetry,
+        isRetryableHomebrewInstallError,
         guestNodeStagingPlan,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
