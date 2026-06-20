@@ -223,6 +223,7 @@ const FirstRun: React.FC = () => {
     () => readInitializePayload(initializeResult?.parsed),
     [initializeResult]
   );
+  const initializePending = initializeLoading && !initializeResult;
   const readyToLaunch =
     initialize?.setup_flow?.ready_to_launch === true || initialize?.readiness?.launch_ready === true;
   const codexConfigBlocked = hasCodexConfigBlocker(initialize);
@@ -233,20 +234,20 @@ const FirstRun: React.FC = () => {
   const blockingItems = initialize?.setup_flow?.blocking_items ?? [];
   const maintenanceItems = initialize?.setup_flow?.maintenance_items ?? [];
   const hasBlockingItems = blockingItems.length > 0;
-  const currentPhase =
-    initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown');
+  const currentPhase = initializePending
+    ? t('settings.firstRun.initializePending.phase')
+    : (initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown'));
   const userFacingError = formatFirstRunError(error, codexConfigBlocked, hasBlockingItems, t);
   const rawNextVisibleStep = findNextVisibleStep(initialize);
   const nextVisibleStep =
     formatNextVisibleStep(initialize, t) ?? (rawNextVisibleStep ? t('settings.firstRun.nextSteps.generic') : null);
   const codexProfile = initialize?.codex_default_profile;
-  const coreStatusColor = initializeLoading && !initializeResult ? 'blue' : readyToLaunch ? 'green' : 'red';
-  const coreStatusLabel =
-    initializeLoading && !initializeResult
-      ? t('settings.firstRun.status.initializing')
-      : readyToLaunch
-        ? t('settings.firstRun.ready')
-        : t('settings.firstRun.needsSetup');
+  const coreStatusColor = initializePending ? 'blue' : readyToLaunch ? 'green' : 'red';
+  const coreStatusLabel = initializePending
+    ? t('settings.firstRun.status.initializing')
+    : readyToLaunch
+      ? t('settings.firstRun.ready')
+      : t('settings.firstRun.needsSetup');
 
   const refreshInitialize = useCallback(async () => {
     setInitializeLoading(true);
@@ -379,9 +380,15 @@ const FirstRun: React.FC = () => {
               <div className={styles.firstRunProgressPercent}>{progressPercent}%</div>
               <div className={styles.firstRunProgressStack}>
                 <Progress percent={progressPercent} />
-                <p data-testid='opl-first-run-core-progress'>
-                  {t('settings.firstRun.coreProgress', { progress: progressText })}
-                </p>
+                {initializePending ? (
+                  <p data-testid='opl-first-run-initialize-pending'>
+                    {t('settings.firstRun.initializePending.progress')}
+                  </p>
+                ) : (
+                  <p data-testid='opl-first-run-core-progress'>
+                    {t('settings.firstRun.coreProgress', { progress: progressText })}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -394,11 +401,23 @@ const FirstRun: React.FC = () => {
                   <div>
                     <div className={styles.firstRunItemTitle}>{formatItemLabel(item, label, t)}</div>
                     <div className={styles.firstRunItemSummary}>
-                      {formatItemSummary(item, t('settings.firstRun.status.pending'), t)}
+                      {formatItemSummary(
+                        item,
+                        initializePending
+                          ? t('settings.firstRun.initializePending.itemSummary')
+                          : t('settings.firstRun.status.pending'),
+                        t
+                      )}
                     </div>
                   </div>
-                  <Tag size='small' color={itemStatusColor(item)}>
-                    {formatItemStatus(item, t('settings.firstRun.status.unknown'), t)}
+                  <Tag size='small' color={initializePending && !item ? 'blue' : itemStatusColor(item)}>
+                    {formatItemStatus(
+                      item,
+                      initializePending
+                        ? t('settings.firstRun.status.initializing')
+                        : t('settings.firstRun.status.unknown'),
+                      t
+                    )}
                   </Tag>
                 </div>
               ))}

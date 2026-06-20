@@ -184,6 +184,14 @@ type AppProductProfile = {
   purpose: 'app_owned_product_profile';
   state: string;
   app_repo: 'gaofeng21cn/one-person-lab-app';
+  product: {
+    id: 'one_person_lab_app';
+    display_name: 'One Person Lab App';
+    primary_surface: string;
+    supported_release_platforms: string[];
+    positioning: string;
+    primary_user_path: string;
+  };
   default_session_profile: {
     provider: 'gflab';
     base_url: 'https://gflabtoken.cn/v1';
@@ -627,6 +635,31 @@ function readDeveloperProfileSettings(settings: Record<string, unknown>): OplDev
   };
 }
 
+function readProductProfile(value: Record<string, unknown>): AppProductProfile['product'] {
+  const product = value.product;
+  if (!isRecord(product)) {
+    throw new Error('Invalid OPL product profile: product must be declared');
+  }
+  const supportedReleasePlatforms = readStringArray(product, 'supported_release_platforms', 'product');
+  if (
+    product.id !== 'one_person_lab_app' ||
+    product.display_name !== 'One Person Lab App' ||
+    typeof product.primary_surface !== 'string' ||
+    typeof product.positioning !== 'string' ||
+    typeof product.primary_user_path !== 'string'
+  ) {
+    throw new Error('Invalid OPL product profile: product identity must match One Person Lab App');
+  }
+  return {
+    id: 'one_person_lab_app',
+    display_name: 'One Person Lab App',
+    primary_surface: product.primary_surface,
+    supported_release_platforms: supportedReleasePlatforms,
+    positioning: product.positioning,
+    primary_user_path: product.primary_user_path,
+  };
+}
+
 function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurposeEntry[] {
   const value = guiHome.home_purpose_entries;
   if (!Array.isArray(value) || value.length === 0) {
@@ -990,6 +1023,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     throw new Error('Invalid OPL product profile: app_repo must point to one-person-lab-app');
   }
 
+  const product = readProductProfile(value);
   const defaultSession = value.default_session_profile;
   const gui = value.gui;
   const codex = value.codex;
@@ -1275,6 +1309,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     purpose: 'app_owned_product_profile',
     state: typeof value.state === 'string' ? value.state : '',
     app_repo: 'gaofeng21cn/one-person-lab-app',
+    product,
     default_session_profile: {
       provider: 'gflab',
       base_url: 'https://gflabtoken.cn/v1',
@@ -1387,6 +1422,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
 }
 
 export const OPL_PRODUCT_PROFILE = validateOplProductProfile(generatedProfile);
+
+export function getOplProductDisplayName(): string {
+  return OPL_PRODUCT_PROFILE.product.display_name;
+}
 
 export function getOplDefaultCodexModel(): string {
   return OPL_PRODUCT_PROFILE.codex.default_model;

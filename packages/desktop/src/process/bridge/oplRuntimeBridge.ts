@@ -113,6 +113,13 @@ type SpawnCommandSpec = {
   redactedCommand: string;
 };
 
+type ResolvedOplCli = {
+  command: string;
+  argsPrefix: string[];
+  env: NodeJS.ProcessEnv;
+  source: string;
+};
+
 type BuildStandardBootstrapEnvInput = {
   baseEnv?: NodeJS.ProcessEnv;
   homeDir?: string;
@@ -335,6 +342,115 @@ function shouldIncludeManagedNodeBin(nodeBin: string | null): nodeBin is string 
   return !fs.existsSync(shimPath) || hasHealthyOplShim(nodeBin);
 }
 
+function pathExistsFile(file: string): boolean {
+  return fs.existsSync(file) && fs.statSync(file).isFile();
+}
+
+function candidatePathsFromPath(pathValue: string | undefined, commandName: string): string[] {
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of (pathValue ?? '').split(path.delimiter)) {
+    const trimmed = entry.trim();
+    if (!trimmed) continue;
+    const candidate = path.join(trimmed, commandName);
+    if (seen.has(candidate)) continue;
+    seen.add(candidate);
+    if (pathExistsFile(candidate)) candidates.push(candidate);
+  }
+  return candidates;
+}
+
+function realpathIfPossible(file: string): string {
+  try {
+    return fs.realpathSync(file);
+  } catch {
+    return file;
+  }
+}
+
+function findAncestorWithOplCli(startPath: string): string | null {
+  let current = fs.statSync(startPath).isDirectory() ? startPath : path.dirname(startPath);
+  while (true) {
+    if (pathExistsFile(path.join(current, 'src', 'cli.ts')) || pathExistsFile(path.join(current, 'dist', 'cli.js'))) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+function resolveOplPackageRootFromExecutable(executablePath: string): string | null {
+  const siblingFullRuntimePackageRoot = path.resolve(path.dirname(executablePath), '..', 'opl');
+  if (
+    pathExistsFile(path.join(siblingFullRuntimePackageRoot, 'src', 'cli.ts')) ||
+    pathExistsFile(path.join(siblingFullRuntimePackageRoot, 'dist', 'cli.js'))
+  ) {
+    return siblingFullRuntimePackageRoot;
+  }
+  const realExecutablePath = realpathIfPossible(executablePath);
+  return findAncestorWithOplCli(realExecutablePath);
+}
+
+function resolveNodeCommand(env: NodeJS.ProcessEnv): {
+  command: string;
+  env: NodeJS.ProcessEnv;
+} {
+  const nodePath = candidatePathsFromPath(env.PATH, 'node')[0];
+  if (nodePath) return { command: nodePath, env };
+  return {
+    command: process.execPath,
+    env: process.versions.electron ? { ...env, ELECTRON_RUN_AS_NODE: '1' } : env,
+  };
+}
+
+function hasManagedUpdateKernel(packageRoot: string): boolean {
+  return (
+    pathExistsFile(path.join(packageRoot, 'src', 'managed-update-kernel.ts')) ||
+    pathExistsFile(path.join(packageRoot, 'dist', 'managed-update-kernel.js'))
+  );
+}
+
+function packageSupportsCommand(packageRoot: string, spec: RuntimeCommandSpec): boolean {
+  if (spec.surface.startsWith('update_')) {
+    return hasManagedUpdateKernel(packageRoot);
+  }
+  return true;
+}
+
+function resolveOplCliFromPackageRoot(packageRoot: string, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
+  const nodeCommand = resolveNodeCommand(env);
+  const sourceCli = path.join(packageRoot, 'src', 'cli.ts');
+  if (pathExistsFile(sourceCli)) {
+    return {
+      command: nodeCommand.command,
+      argsPrefix: ['--experimental-strip-types', sourceCli],
+      env: nodeCommand.env,
+      source: sourceCli,
+    };
+  }
+  const distCli = path.join(packageRoot, 'dist', 'cli.js');
+  if (pathExistsFile(distCli)) {
+    return {
+      command: nodeCommand.command,
+      argsPrefix: [distCli],
+      env: nodeCommand.env,
+      source: distCli,
+    };
+  }
+  return null;
+}
+
+function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
+  for (const candidate of candidatePathsFromPath(env.PATH, 'opl')) {
+    const packageRoot = resolveOplPackageRootFromExecutable(candidate);
+    if (!packageRoot || !packageSupportsCommand(packageRoot, spec)) continue;
+    const resolved = resolveOplCliFromPackageRoot(packageRoot, env);
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
 function normalizePathEntries(entries: Array<string | undefined | null>): string {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -525,6 +641,17 @@ function buildOplSpawnCommand(
   env: NodeJS.ProcessEnv;
   stdin?: string;
 } {
+  const resolved = resolveOplCli(spec, env);
+  if (resolved) {
+    return {
+      surface: spec.surface,
+      command: resolved.command,
+      args: [...resolved.argsPrefix, ...spec.args],
+      stdin: spec.stdin,
+      env: resolved.env,
+      redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
+    };
+  }
   return {
     surface: spec.surface,
     command: 'opl',
@@ -625,10 +752,13 @@ export const __oplRuntimeBridgeTest = {
   buildUpdateStatusCommand,
   buildFullRuntimeBridgeEnv,
   buildOplCommandEnv,
+  buildOplSpawnCommand,
   buildStartupMaintenanceCommand,
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
   commandFailureResult,
+  resolveOplCli,
+  resolveOplPackageRootFromExecutable,
   parseJson,
   runOplCommand,
   shouldAutoBootstrapOplCommand,

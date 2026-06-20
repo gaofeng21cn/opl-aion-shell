@@ -8,12 +8,27 @@ const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
 }));
 
+const managedUpdateMocks = vi.hoisted(() => ({
+  executeManagedUpdateRead: vi.fn(),
+  snapshot: {
+    running: false,
+    result: null as null | {
+      parsed?: unknown;
+    },
+  },
+}));
+
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
     },
   },
+}));
+
+vi.mock('@/renderer/services/managedUpdateMaintenance', () => ({
+  executeManagedUpdateRead: managedUpdateMocks.executeManagedUpdateRead,
+  useManagedUpdateMaintenance: () => managedUpdateMocks.snapshot,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -38,6 +53,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.oplEnvironmentPage.updates.components.capability_exposure') return 'Capability exposure';
       if (key === 'settings.oplEnvironmentPage.status.current') return 'Current';
       if (key === 'settings.oplEnvironmentPage.status.needs_reload') return 'Needs reload';
+      if (key === 'settings.oplEnvironmentPage.status.update_available') return 'Update available';
+      if (key === 'settings.oplEnvironmentPage.status.unknown') return 'Unknown';
       return key;
     },
   }),
@@ -52,6 +69,19 @@ describe('AboutModalContent OPL release metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    managedUpdateMocks.snapshot.running = false;
+    managedUpdateMocks.snapshot.result = {
+      parsed: {
+        managed_update: {
+          components: [
+            { component_id: 'app_binary', state: 'current', current_version: '26.5.27' },
+            { component_id: 'runtime_toolchain', state: 'current', current_version: 'toolchain-1' },
+            { component_id: 'agent_package_channel', state: 'current', current_version: 'packages-1' },
+            { component_id: 'capability_exposure', state: 'needs_reload', current_version: 'capabilities-1' },
+          ],
+        },
+      },
+    };
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -59,18 +89,10 @@ describe('AboutModalContent OPL release metadata', () => {
       parsed: {
         app_state: {
           release: {
-            app_version: '26.4.27',
+            version: '26.4.27',
             channel: 'stable',
             opl_framework_version: '0.1.0',
             opl_framework_revision: 'abc123def456',
-          },
-          managed_update_plane: {
-            components: {
-              app_binary: { state: 'current' },
-              runtime_toolchain: { state: 'current' },
-              agent_package_channel: { state: 'current' },
-              capability_exposure: { state: 'needs_reload' },
-            },
           },
         },
       },
@@ -132,5 +154,48 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Agent packages');
     expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Capability exposure');
     expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Needs reload');
+    expect(screen.getByTestId('about-managed-update-summary')).not.toHaveTextContent('Unknown');
+  });
+
+  it('refreshes managed update status when no maintenance projection has been read yet', async () => {
+    managedUpdateMocks.snapshot.result = null;
+
+    renderWithFreshSWR();
+
+    await waitFor(() =>
+      expect(managedUpdateMocks.executeManagedUpdateRead).toHaveBeenCalledWith('status', {
+        trigger: 'manual_refresh_status',
+        background: true,
+      })
+    );
+  });
+
+  it('does not label an older release.version as the latest stable version', async () => {
+    renderWithFreshSWR();
+
+    await screen.findByText('应用版本 26.5.27');
+
+    expect(screen.queryByText('GitHub 最新稳定版 26.4.27')).not.toBeInTheDocument();
+  });
+
+  it('shows latest stable only when the release projection is newer than the packaged App version', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      surface: 'app_state_fast',
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: {
+        app_state: {
+          release: {
+            version: '26.6.20',
+            channel: 'stable',
+            opl_framework_revision: 'abc123def456',
+          },
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    expect(await screen.findByText('GitHub 最新稳定版 26.6.20')).toBeInTheDocument();
   });
 });

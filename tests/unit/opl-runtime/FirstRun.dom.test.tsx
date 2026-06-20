@@ -206,6 +206,39 @@ describe('FirstRun readiness page', () => {
     expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
   });
 
+  it('shows initialization progress while the initialize command is still pending', async () => {
+    let resolveInitialize: (value: typeof initializeResult) => void = () => {};
+    bridgeMocks.getInitializeInvoke.mockReturnValueOnce(
+      new Promise<typeof initializeResult>((resolve) => {
+        resolveInitialize = resolve;
+      })
+    );
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('opl-first-run-window')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-progress')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-beginner-summary')).toHaveTextContent(
+      'settings.firstRun.beginner.summaryChecking'
+    );
+    expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent(
+      'settings.firstRun.initializePending.progress'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
+      'settings.firstRun.initializePending.itemSummary'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent(
+      'settings.firstRun.stage reading_initialize_state'
+    );
+    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
+      'settings.firstRun.maintenance.title'
+    );
+
+    resolveInitialize(initializeResult);
+    await waitFor(() => expect(screen.queryByTestId('opl-first-run-initialize-pending')).not.toBeInTheDocument());
+  });
+
   it('loads initialize state and lets users enter /guid only after Core is ready', async () => {
     render(<FirstRun />);
 

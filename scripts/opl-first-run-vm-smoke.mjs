@@ -26,6 +26,7 @@ const DEFAULT_LABELS = {
   primaryAction: 'opl-first-run-primary-action',
   backgroundMaintenance: 'opl-first-run-background-maintenance-secondary',
   technicalDetailsToggle: 'opl-first-run-technical-details-toggle',
+  startupPreflight: 'opl-startup-preflight',
 };
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
@@ -2432,6 +2433,43 @@ function firstRunBeginnerUxExpression() {
   })()`;
 }
 
+function startupPreflightExpression() {
+  return `(() => {
+    const preflightNode = document.querySelector('[data-testid="opl-startup-preflight"]');
+    const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
+    const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    if (preflightNode && visible(preflightNode)) {
+      const text = preflightNode.innerText || '';
+      const expectedText = [
+        /Starting One Person Lab|正在启动 One Person Lab/,
+        /Desktop session|桌面会话/,
+        /App configuration|应用配置/,
+        /Initialization status|初始化状态/,
+      ];
+      const missingText = expectedText.filter((pattern) => !pattern.test(text)).map(String);
+      return missingText.length === 0
+        ? {
+            hash: window.location.hash,
+            startupPreflightVisible: true,
+            textLength: text.length,
+          }
+        : false;
+    }
+    return firstRunWindow || guidEntry
+      ? {
+          hash: window.location.hash,
+          startupPreflightSkippedBy: firstRunWindow ? 'first_run' : 'guid',
+        }
+      : false;
+  })()`;
+}
+
 async function captureCdpScreenshot(client, target) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const screenshot = await client.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -2452,6 +2490,13 @@ async function waitForGuidEntryViaCdp(options, secret) {
   try {
     await client.send('Runtime.enable');
     await client.send('Page.enable');
+    const startupPreflight = await waitForCdpPredicate(
+      client,
+      startupPreflightExpression(),
+      Math.min(options.timeoutMs, 10_000),
+      'OPL startup did not expose a preflight, first-run, or Guid surface'
+    );
+    writeJsonArtifact(path.join(options.artifacts, 'startup-preflight.json'), startupPreflight, secret);
     const firstRunBeginnerUx = shouldCheckFirstRunBeginnerUx(options)
       ? await waitForCdpPredicate(
           client,
@@ -2474,7 +2519,7 @@ async function waitForGuidEntryViaCdp(options, secret) {
       options.timeoutMs,
       'OPL Guid entry did not become ready in the packaged app'
     );
-    return { state, firstRunBeginnerUx, labels: [DEFAULT_LABELS.guidEntry] };
+    return { state, startupPreflight, firstRunBeginnerUx, labels: [DEFAULT_LABELS.guidEntry] };
   } finally {
     client.close();
   }
@@ -3715,6 +3760,7 @@ export const __test =
         remainingPhaseTimeoutMs,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
+        startupPreflightExpression,
         firstRunBeginnerUxExpression,
         firstRunAccessibilityExpectedLabels,
         runOplJson,

@@ -5,6 +5,7 @@ import {
   getOplCodexDefaultPermissionMode,
   getOplCodexModelDisplayOptions,
   getOplFlowContextPolicy,
+  getOplProductDisplayName,
   getOplAssistantSkillProfile,
   getOplAssistantSkillProfiles,
   getOplBuiltinAssistantRouteReceiptPolicy,
@@ -52,6 +53,11 @@ import { migrateThemeConfig } from '@/common/theme/migrateThemeConfig';
 import { LIGHT_THEME_ID } from '@/common/theme/constants';
 
 describe('OPL generated product profile', () => {
+  it('exposes the App-owned visible product name', () => {
+    expect(getOplProductDisplayName()).toBe('One Person Lab App');
+    expect(OPL_PRODUCT_PROFILE.product.display_name).toBe('One Person Lab App');
+  });
+
   it('exposes the App-generated Codex default model profile', () => {
     expect(getOplDefaultCodexModel()).toBe('gpt-5.5');
     expect(getOplDefaultCodexReasoningEffort()).toBe('xhigh');

@@ -1,0 +1,85 @@
+.appLoader {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-2);
+  color: var(--text-primary);
+  padding: 24px;
+}
+
+.appLoaderPanel {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  padding: 22px;
+}
+
+.appLoaderHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.appLoaderTitle {
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.appLoaderDescription {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.appLoaderSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 2px;
+}
+
+.appLoaderStep {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.appLoaderStep[data-state='active'] {
+  color: var(--text-primary);
+}
+
+.appLoaderStep[data-state='complete'] {
+  color: var(--text-secondary);
+}
+
+.appLoaderStepMarker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--border-base);
+  background: var(--bg-2);
+}
+
+.appLoaderStep[data-state='active'] .appLoaderStepMarker {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.appLoaderStep[data-state='complete'] .appLoaderStepMarker {
+  border-color: var(--success);
+  background: var(--success);
+}

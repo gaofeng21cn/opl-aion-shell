@@ -13,6 +13,12 @@ import { useSettingsViewMode } from '../settingsViewContext';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import FeedbackReportModal from './FeedbackReportModal';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { executeManagedUpdateRead, useManagedUpdateMaintenance } from '@/renderer/services/managedUpdateMaintenance';
+import {
+  MANAGED_UPDATE_COMPONENT_IDS,
+  readManagedUpdatePlane,
+  type ManagedUpdateComponent,
+} from '@/renderer/services/managedUpdateProjection';
 
 type LinkItem =
   | { title: string; url: string; icon: React.ReactNode; onClick?: never }
@@ -24,12 +30,6 @@ const OPL_APP_LATEST_RELEASE_URL = `${OPL_APP_REPO_URL}/releases/latest`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
 const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
 const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
-const ABOUT_UPDATE_COMPONENT_IDS = [
-  'app_binary',
-  'runtime_toolchain',
-  'agent_package_channel',
-  'capability_exposure',
-] as const;
 
 type AppVersions = {
   appVersion: string;
@@ -40,6 +40,10 @@ type AppVersions = {
   latestStableVersion: string;
 };
 
+function localAppVersion(): string {
+  return __OPL_RELEASE_VERSION__ || __APP_VERSION__;
+}
+
 function formatReleaseChannel(
   channel: string | undefined,
   t: (key: string, options?: Record<string, string>) => string
@@ -49,11 +53,39 @@ function formatReleaseChannel(
 }
 
 function updateComponentStateLabel(
-  component: Record<string, unknown>,
+  component: ManagedUpdateComponent,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
-  const state = oplString(component.state) ?? oplString(component.status) ?? 'unknown';
-  return t(`settings.oplEnvironmentPage.status.${state}`, { status: state });
+  const state = component.state || 'unknown';
+  const label = t(`settings.oplEnvironmentPage.status.${state}`, { status: state });
+  return component.versionDetail ? `${label} · ${component.versionDetail}` : label;
+}
+
+function parseVersionParts(version: string | undefined): number[] | null {
+  const normalized = version?.trim().replace(/^v/i, '');
+  if (!normalized) return null;
+  const parts = normalized.split('.');
+  if (parts.length < 2 || parts.length > 4) return null;
+  const numbers = parts.map((part) => {
+    if (!/^\d+$/.test(part)) return Number.NaN;
+    return Number(part);
+  });
+  if (numbers.some((part) => !Number.isSafeInteger(part))) return null;
+  return numbers;
+}
+
+function isNewerVersion(candidate: string | undefined, current: string): boolean {
+  const candidateParts = parseVersionParts(candidate);
+  const currentParts = parseVersionParts(current);
+  if (!candidateParts || !currentParts) return false;
+  const length = Math.max(candidateParts.length, currentParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const candidatePart = candidateParts[index] ?? 0;
+    const currentPart = currentParts[index] ?? 0;
+    if (candidatePart > currentPart) return true;
+    if (candidatePart < currentPart) return false;
+  }
+  return false;
 }
 
 const AboutModalContent: React.FC = () => {
@@ -65,6 +97,7 @@ const AboutModalContent: React.FC = () => {
   const [includeNightly, setIncludeNightly] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const appStateQuery = useOplAppState('fast');
+  const managedUpdateMaintenance = useManagedUpdateMaintenance();
 
   useEffect(() => {
     const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
@@ -73,25 +106,33 @@ const AboutModalContent: React.FC = () => {
   }, []);
 
   const release = oplRecord(appStateQuery.appState.release);
-  const managedUpdatePlane = oplRecord(appStateQuery.appState.managed_update_plane);
-  const managedUpdateComponents = oplRecord(managedUpdatePlane.components);
-  const appVersions: AppVersions | null = appStateQuery.payload
-    ? {
-        appVersion: __OPL_RELEASE_VERSION__ || __APP_VERSION__,
-        guiVersion: __SHELL_VERSION__,
-        frameworkRevision:
-          oplString(release.opl_framework_revision) ??
-          oplString(release.framework_revision) ??
-          oplString(release.opl_framework_commit) ??
-          oplString(release.framework_commit) ??
-          oplString(release.opl_framework_date) ??
-          oplString(release.framework_date) ??
-          '-',
-        releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
-        releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
-        latestStableVersion: oplString(release.app_version) ?? oplString(release.version) ?? '',
-      }
-    : null;
+  const managedUpdatePlane = readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appStateQuery.appState);
+  const managedUpdateComponents = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
+  const currentAppVersion = localAppVersion();
+  const latestStableCandidate = oplString(release.app_version) ?? oplString(release.version) ?? '';
+  const appVersions: AppVersions = {
+    appVersion: currentAppVersion,
+    guiVersion: __SHELL_VERSION__,
+    frameworkRevision:
+      oplString(release.opl_framework_revision) ??
+      oplString(release.framework_revision) ??
+      oplString(release.opl_framework_commit) ??
+      oplString(release.framework_commit) ??
+      oplString(release.opl_framework_date) ??
+      oplString(release.framework_date) ??
+      '-',
+    releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
+    releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
+    latestStableVersion: isNewerVersion(latestStableCandidate, currentAppVersion) ? latestStableCandidate : '',
+  };
+
+  useEffect(() => {
+    if (!isElectron || managedUpdateMaintenance.result || managedUpdateMaintenance.running) return;
+    void executeManagedUpdateRead('status', {
+      trigger: 'manual_refresh_status',
+      background: true,
+    });
+  }, [isElectron, managedUpdateMaintenance.result, managedUpdateMaintenance.running]);
 
   const handleNightlyChange = (val: boolean) => {
     setIncludeNightly(val);
@@ -166,12 +207,10 @@ const AboutModalContent: React.FC = () => {
             </Typography.Text>
             <div className='flex items-center justify-center gap-8px mb-16px'>
               <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                {appVersions
-                  ? t('settings.aboutVersionBadge', {
-                      version: appVersions.appVersion,
-                      channel: formatReleaseChannel(appVersions.releaseChannel, t),
-                    })
-                  : t('common.loading')}
+                {t('settings.aboutVersionBadge', {
+                  version: appVersions.appVersion,
+                  channel: formatReleaseChannel(appVersions.releaseChannel, t),
+                })}
               </span>
               <div
                 className='text-t-primary cursor-pointer hover:text-t-secondary transition-colors p-4px'
@@ -182,21 +221,17 @@ const AboutModalContent: React.FC = () => {
                 <Github theme='outline' size='20' />
               </div>
             </div>
-            {appVersions && (
-              <div className='flex flex-col items-center gap-4px mb-16px text-12px text-t-secondary'>
+            <div className='flex flex-col items-center gap-4px mb-16px text-12px text-t-secondary'>
+              <Typography.Text>{t('settings.aboutShellVersion', { version: appVersions.guiVersion })}</Typography.Text>
+              <Typography.Text>
+                {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
+              </Typography.Text>
+              {appVersions.latestStableVersion && (
                 <Typography.Text>
-                  {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
+                  {t('settings.aboutLatestStableVersion', { version: appVersions.latestStableVersion })}
                 </Typography.Text>
-                <Typography.Text>
-                  {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
-                </Typography.Text>
-                {appVersions.latestStableVersion && appVersions.latestStableVersion !== appVersions.appVersion && (
-                  <Typography.Text>
-                    {t('settings.aboutLatestStableVersion', { version: appVersions.latestStableVersion })}
-                  </Typography.Text>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Check Update Section */}
             {isElectron && (
@@ -205,8 +240,9 @@ const AboutModalContent: React.FC = () => {
                   {t('settings.checkForUpdates')}
                 </Button>
                 <div className='w-full flex flex-col gap-4px' data-testid='about-managed-update-summary'>
-                  {ABOUT_UPDATE_COMPONENT_IDS.map((componentId) => {
-                    const component = oplRecord(managedUpdateComponents[componentId]);
+                  {MANAGED_UPDATE_COMPONENT_IDS.map((componentId) => {
+                    const component = managedUpdateComponents.get(componentId);
+                    if (!component) return null;
                     return (
                       <div key={componentId} className='flex items-center justify-between gap-8px text-12px'>
                         <Typography.Text className='text-t-secondary'>

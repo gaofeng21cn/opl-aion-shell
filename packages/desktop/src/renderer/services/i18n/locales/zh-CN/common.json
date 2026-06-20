@@ -70,6 +70,15 @@
   "tray.checkUpdate": "检查更新",
   "tray.recentChats": "最近对话",
   "tray.untitled": "未命名",
+  "startupPreflight": {
+    "title": "正在启动 One Person Lab",
+    "description": "正在准备桌面会话，随后会进入初始化检查。",
+    "steps": {
+      "desktopSession": "桌面会话",
+      "appConfig": "应用配置",
+      "firstRunStatus": "初始化状态"
+    }
+  },
   "backendStartup": {
     "incompatibleRuntime": {
       "title": "当前系统不支持内置后端",

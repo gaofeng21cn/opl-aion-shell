@@ -341,6 +341,55 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
+  it('resolves managed update commands to an OPL CLI that supports the update kernel instead of Codex passthrough wrappers', () => {
+    const homeDir = makeTempRoot('opl-update-bridge-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const compatibleRoot = path.join(homeDir, 'compatible-opl');
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(compatibleRoot, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'cli.js'), 'console.log("old")\n', 'utf8');
+    fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(compatibleRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'cli.js'), 'console.log("new")\n', 'utf8');
+    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'managed-update-kernel.js'), 'export {}\n', 'utf8');
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: `${path.join(compatibleRoot, 'bin')}:/usr/bin:/bin`,
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const updateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+      env
+    );
+    expect(updateCommand.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
+    expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
+    expect(updateCommand.args).not.toContain(path.join(runtimeHome, 'opl', 'dist', 'cli.js'));
+    expect(updateCommand.redactedCommand).toBe('opl update status --json');
+
+    const appStateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+      env
+    );
+    expect(appStateCommand.args).toEqual([
+      path.join(runtimeHome, 'opl', 'dist', 'cli.js'),
+      'app',
+      'state',
+      '--profile',
+      'fast',
+      '--json',
+    ]);
+  });
+
   it('sends Codex API keys only through stdin and keeps the command redacted', () => {
     expect(__oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: ' secret-key ' })).toEqual({
       surface: 'configure_codex',

@@ -1037,6 +1037,11 @@
     "technicalDetails": "Technical details",
     "lastAction": "Last action result",
     "noActionYet": "No maintenance action has run in this window.",
+    "initializePending": {
+      "phase": "reading_initialize_state",
+      "progress": "Reading the initialization status now. This can take a few seconds on first launch.",
+      "itemSummary": "Waiting for the initialization check to report this item."
+    },
     "beginner": {
       "title": "Checking the essentials",
       "readyTitle": "Ready to start",

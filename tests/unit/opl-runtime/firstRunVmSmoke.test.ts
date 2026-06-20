@@ -152,6 +152,19 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
   });
 
+  it('checks startup preflight visibility before accepting first-run or Guid readiness', () => {
+    const expression = __test.startupPreflightExpression();
+
+    expect(expression).toContain('[data-testid="opl-startup-preflight"]');
+    expect(expression).toContain('Starting One Person Lab');
+    expect(expression).toContain('正在启动 One Person Lab');
+    expect(expression).toContain('Desktop session');
+    expect(expression).toContain('App configuration');
+    expect(expression).toContain('Initialization status');
+    expect(expression).toContain('[data-testid="opl-first-run-window"]');
+    expect(expression).toContain('[data-testid="opl-guid-entry"]');
+  });
+
   it('requires the beginner first-run layout only for clean first-run probes', () => {
     expect(
       __test.shouldCheckFirstRunBeginnerUx({

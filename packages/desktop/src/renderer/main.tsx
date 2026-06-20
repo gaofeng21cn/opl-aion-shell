@@ -100,6 +100,7 @@ import {
   getRuntimeComponentInstallationDescription,
   showInstallationIntegrityModal,
 } from './components/layout/InstallationIntegrityDialog';
+import AppLoader, { type AppLoaderStep } from './components/layout/AppLoader';
 
 const arcoLocales: Record<string, typeof enUS> = {
   'zh-CN': zhCN,
@@ -223,6 +224,7 @@ const Config: React.FC<PropsWithChildren> = ({ children }) => {
 };
 
 const Main = () => {
+  const { t } = useTranslation();
   const { ready } = useAuth();
   const [configReady, setConfigReady] = useState(false);
 
@@ -255,7 +257,28 @@ const Main = () => {
   }, [ready, configReady]);
 
   if (!ready || !configReady) {
-    return null;
+    const steps: AppLoaderStep[] = [
+      {
+        label: t('common.startupPreflight.steps.desktopSession'),
+        state: ready ? 'complete' : 'active',
+      },
+      {
+        label: t('common.startupPreflight.steps.appConfig'),
+        state: !ready ? 'pending' : configReady ? 'complete' : 'active',
+      },
+      {
+        label: t('common.startupPreflight.steps.firstRunStatus'),
+        state: ready && configReady ? 'active' : 'pending',
+      },
+    ];
+    return (
+      <AppLoader
+        title={t('common.startupPreflight.title')}
+        description={t('common.startupPreflight.description')}
+        steps={steps}
+        testId='opl-startup-preflight'
+      />
+    );
   }
 
   return (

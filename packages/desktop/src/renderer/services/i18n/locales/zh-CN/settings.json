@@ -1038,6 +1038,11 @@
     "technicalDetails": "技术详情",
     "lastAction": "上次操作结果",
     "noActionYet": "此窗口内尚未运行维护操作。",
+    "initializePending": {
+      "phase": "reading_initialize_state",
+      "progress": "正在读取初始化状态，首次启动可能需要几秒。",
+      "itemSummary": "等待初始化检查返回此项状态。"
+    },
     "beginner": {
       "title": "正在准备",
       "readyTitle": "可以开始使用",
