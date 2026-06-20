@@ -4,6 +4,13 @@
 
 Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
 
+Current GUI policy is fixed at the App layer: this repository is the active
+AionUI mainline implementation carrier. Hermes Desktop / `hermes-codex` is the
+only foreground alternative and is developed in its own candidate shell repo.
+AGUI / `agui-codex` is archived technical proof only; do not port it into the
+AionUI mainline, use it as a validation baseline, or continue AGUI polish from
+this repository unless the user explicitly requests AGUI replay.
+
 ## Ownership Boundary
 
 This repository may own:

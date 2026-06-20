@@ -8,6 +8,12 @@ This repository is the OPL-maintained AionUI shell implementation. It carries
 the concrete renderer, process, package metadata, tests, shell release hooks, and
 upstream AionUI intake work for the currently active One Person Lab App GUI.
 
+The current App GUI route is fixed by the App repo: AionUI is the active
+mainline implementation carrier, Hermes Desktop / `hermes-codex` is the only
+foreground alternative, and AGUI / `agui-codex` is archived technical proof.
+Do not treat AGUI as a default candidate, upstream source, validation baseline,
+or polish lane unless the user explicitly requests AGUI replay.
+
 The source of truth for what the One Person Lab App GUI should be is
 `/Users/gaofeng/workspace/one-person-lab-app`. App-level GUI product decisions,
 page-state expectations, model-selection policy, onboarding behavior, screenshots,
