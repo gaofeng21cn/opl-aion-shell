@@ -1655,7 +1655,6 @@ export const __test =
         guestNodeStagingPlan,
         installHomebrewCaskWithRetry,
         isRetryableHomebrewInstallError,
-        guestNodeStagingPlan,
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
         homebrewTrustedCaskRefs,
