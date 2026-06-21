@@ -15,6 +15,72 @@ describe('packaged first-run VM smoke helpers', () => {
       '--force-renderer-accessibility',
       '--aionui-cdp-port=9239',
     ]);
+    expect(__test.buildLaunchExecutableArgs({ cdpPort: 9239 })).toEqual([
+      '--force-renderer-accessibility',
+      '--aionui-cdp-port=9239',
+    ]);
+  });
+
+  it('launches packaged apps with explicit CDP environment without changing packaged app identity', () => {
+    const previousCdpPort = process.env.AIONUI_CDP_PORT;
+    const previousMultiInstance = process.env.AIONUI_MULTI_INSTANCE;
+    try {
+      process.env.AIONUI_CDP_PORT = '0';
+      process.env.AIONUI_MULTI_INSTANCE = '1';
+
+      const env = __test.buildLaunchAppEnv({ cdpPort: 9239 });
+
+      expect(env.AIONUI_CDP_PORT).toBe('9239');
+      expect(__test.launchEnvDiagnostics(env)).toMatchObject({
+        AIONUI_CDP_PORT: '9239',
+      });
+      expect(__test.launchEnvDiagnostics(env)).not.toHaveProperty('AIONUI_MULTI_INSTANCE');
+    } finally {
+      if (previousCdpPort === undefined) {
+        delete process.env.AIONUI_CDP_PORT;
+      } else {
+        process.env.AIONUI_CDP_PORT = previousCdpPort;
+      }
+      if (previousMultiInstance === undefined) {
+        delete process.env.AIONUI_MULTI_INSTANCE;
+      } else {
+        process.env.AIONUI_MULTI_INSTANCE = previousMultiInstance;
+      }
+    }
+  });
+
+  it('resolves the executable inside a packaged .app from Info.plist', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-executable-'));
+    try {
+      const appPath = path.join(root, 'One Person Lab.app');
+      const macosDir = path.join(appPath, 'Contents', 'MacOS');
+      fs.mkdirSync(macosDir, { recursive: true });
+      fs.mkdirSync(path.join(appPath, 'Contents'), { recursive: true });
+      fs.writeFileSync(
+        path.join(appPath, 'Contents', 'Info.plist'),
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          '<plist version="1.0">',
+          '<dict>',
+          '<key>CFBundleExecutable</key>',
+          '<string>One Person Lab</string>',
+          '</dict>',
+          '</plist>',
+        ].join('\n')
+      );
+      const executablePath = path.join(macosDir, 'One Person Lab');
+      fs.writeFileSync(executablePath, '#!/bin/sh\n');
+      fs.chmodSync(executablePath, 0o755);
+
+      expect(
+        __test.parseCfBundleExecutableFromPlistText(
+          fs.readFileSync(path.join(appPath, 'Contents', 'Info.plist'), 'utf8')
+        )
+      ).toBe('One Person Lab');
+      expect(__test.resolveAppExecutablePath(appPath)).toBe(executablePath);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('terminates stale packaged app instances by default before launch', () => {

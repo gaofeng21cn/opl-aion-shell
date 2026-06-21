@@ -770,7 +770,10 @@ describe('OPL first-run VM smoke scripts', () => {
       );
       expect(launchAppSource).toContain('buildCodexInstallPreseedEnv(options)');
       expect(launchAppSource).toContain("runWithDeadline('launchctl', ['setenv', key, value]");
-      expect(launchAppSource).toContain('env: buildLaunchAppEnv(options)');
+      expect(launchAppSource).toContain('resolveAppExecutablePath(appPath)');
+      expect(launchAppSource).toContain('buildLaunchExecutableArgs(options)');
+      expect(launchAppSource).toContain('env: launchEnv');
+      expect(launchAppSource).toContain("strategy: 'direct_app_executable'");
 
       const diagnostics = vmSmoke.codexInstallPreseedDiagnostics(options);
       expect(diagnostics).toMatchObject({

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -485,6 +485,63 @@ function runWithDeadline(command, args, deadlineMs, label, options = {}) {
   return run(command, args, { ...options, timeout: remainingPhaseTimeoutMs(deadlineMs, label) });
 }
 
+function decodeXmlEntities(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function parseCfBundleExecutableFromPlistText(text) {
+  const keyIndex = text.indexOf('<key>CFBundleExecutable</key>');
+  if (keyIndex < 0) return null;
+  const afterKey = text.slice(keyIndex + '<key>CFBundleExecutable</key>'.length);
+  const match = afterKey.match(/<string>([\s\S]*?)<\/string>/);
+  const value = match?.[1]?.trim();
+  return value ? decodeXmlEntities(value) : null;
+}
+
+function readCfBundleExecutable(plistPath) {
+  try {
+    const parsed = parseCfBundleExecutableFromPlistText(fs.readFileSync(plistPath, 'utf8'));
+    if (parsed) return parsed;
+  } catch (_) {
+    // Continue to the platform plist reader below.
+  }
+  if (process.platform === 'darwin') {
+    const result = spawnSync('plutil', ['-extract', 'CFBundleExecutable', 'raw', '-o', '-', plistPath], {
+      encoding: 'utf8',
+      timeout: 5_000,
+    });
+    const value = result.status === 0 ? result.stdout?.trim() : '';
+    if (value) return value;
+  }
+  return null;
+}
+
+function resolveAppExecutablePath(appPath) {
+  const plistPath = path.join(appPath, 'Contents', 'Info.plist');
+  const executableName = readCfBundleExecutable(plistPath);
+  const fallbackName = path.basename(appPath, '.app');
+  const candidates = [executableName, fallbackName]
+    .filter((name, index, names) => Boolean(name) && names.indexOf(name) === index)
+    .map((name) => path.join(appPath, 'Contents', 'MacOS', name));
+  const executablePath = candidates.find((candidate) => {
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
+  if (executablePath) return executablePath;
+  throw new Error(
+    `Could not resolve executable for ${appPath}. Checked:\n${candidates.length ? candidates.join('\n') : plistPath}`
+  );
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
@@ -526,6 +583,10 @@ function defaultOplRuntimeRoot() {
 
 function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
   return path.join(os.homedir(), 'Library', 'Application Support', processName);
+}
+
+function defaultCdpRegistryPath() {
+  return path.join(os.homedir(), '.opl-cdp-registry.json');
 }
 
 function assertCleanFirstRunState(processName = DEFAULT_PROCESS_NAME) {
@@ -680,27 +741,76 @@ function countQuarantineAttributes(target) {
 }
 
 function buildLaunchAppArgs(appPath, options) {
-  const args = ['--force-renderer-accessibility'];
-  args.push(`--aionui-cdp-port=${options.cdpPort}`);
+  const args = buildLaunchExecutableArgs(options);
   return ['-n', appPath, '--args', ...args];
+}
+
+function buildLaunchExecutableArgs(options) {
+  return ['--force-renderer-accessibility', `--aionui-cdp-port=${options.cdpPort}`];
 }
 
 function buildLaunchAppEnv(options) {
   return {
     ...process.env,
+    AIONUI_CDP_PORT: String(options.cdpPort),
     ...buildCodexInstallPreseedEnv(options),
+  };
+}
+
+function launchEnvDiagnostics(env) {
+  return {
+    AIONUI_CDP_PORT: env.AIONUI_CDP_PORT ?? null,
+    OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: Boolean(env.OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL),
+    OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: Boolean(env.OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL),
+    OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: Boolean(env.OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR),
+    NPM_CONFIG_CACHE: Boolean(env.NPM_CONFIG_CACHE),
   };
 }
 
 function launchApp(appPath, options) {
   const deadlineMs = phaseDeadlineMs(options.codexInstallPhaseTimeoutMs);
-  const preseedEnv = buildCodexInstallPreseedEnv(options);
-  runWithDeadline('launchctl', ['setenv', 'AIONUI_CDP_PORT', String(options.cdpPort)], deadlineMs, 'launch_app');
-  for (const [key, value] of Object.entries(preseedEnv)) {
+  const launchEnv = buildLaunchAppEnv(options);
+  for (const [key, value] of Object.entries(launchEnvDiagnostics(launchEnv)).filter(
+    ([, value]) => typeof value === 'string'
+  )) {
     runWithDeadline('launchctl', ['setenv', key, value], deadlineMs, 'launch_app');
   }
-  runWithDeadline('open', buildLaunchAppArgs(appPath, options), deadlineMs, 'launch_app', {
-    env: buildLaunchAppEnv(options),
+  for (const [key, value] of Object.entries(buildCodexInstallPreseedEnv(options))) {
+    runWithDeadline('launchctl', ['setenv', key, value], deadlineMs, 'launch_app');
+  }
+  const executablePath = resolveAppExecutablePath(appPath);
+  const launchArgs = buildLaunchExecutableArgs(options);
+  const launchLogDir = path.join(options.artifacts, 'launch-app');
+  fs.mkdirSync(launchLogDir, { recursive: true });
+  const stdoutPath = path.join(launchLogDir, 'stdout.log');
+  const stderrPath = path.join(launchLogDir, 'stderr.log');
+  const stdout = fs.openSync(stdoutPath, 'a');
+  const stderr = fs.openSync(stderrPath, 'a');
+  let child;
+  try {
+    child = spawn(executablePath, launchArgs, {
+      cwd: path.dirname(executablePath),
+      detached: true,
+      env: launchEnv,
+      stdio: ['ignore', stdout, stderr],
+    });
+  } finally {
+    fs.closeSync(stdout);
+    fs.closeSync(stderr);
+  }
+  child.unref();
+  writeJsonArtifact(path.join(launchLogDir, 'launch.json'), {
+    schema: 'opl_packaged_gui_launch.v1',
+    strategy: 'direct_app_executable',
+    app_path: appPath,
+    executable_path: executablePath,
+    args: launchArgs,
+    open_args_reference: buildLaunchAppArgs(appPath, options),
+    pid: child.pid ?? null,
+    detached: true,
+    env: launchEnvDiagnostics(launchEnv),
+    stdout_path: stdoutPath,
+    stderr_path: stderrPath,
   });
 }
 
@@ -3667,8 +3777,62 @@ function collectFileListing(root, target) {
   fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
 }
 
+function commandDiagnostic(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    timeout: options.timeout ?? 10_000,
+  });
+  return {
+    command: [command, ...args].join(' '),
+    status: result.status,
+    signal: result.signal ?? null,
+    error: result.error?.message ?? null,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+function collectLaunchDiagnostics(options, secret) {
+  const launchLogDir = path.join(options.artifacts, 'launch-app');
+  fs.mkdirSync(launchLogDir, { recursive: true });
+  const diagnostics = {
+    schema: 'opl_packaged_gui_launch_diagnostics.v1',
+    process_name: options.processName,
+    cdp_port: options.cdpPort,
+    launch_json_present: fs.existsSync(path.join(launchLogDir, 'launch.json')),
+    launchctl_env: {
+      AIONUI_CDP_PORT: commandDiagnostic('launchctl', ['getenv', 'AIONUI_CDP_PORT']),
+      OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: commandDiagnostic('launchctl', [
+        'getenv',
+        'OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL',
+      ]),
+      OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: commandDiagnostic('launchctl', [
+        'getenv',
+        'OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL',
+      ]),
+      OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: commandDiagnostic('launchctl', [
+        'getenv',
+        'OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR',
+      ]),
+    },
+    process: commandDiagnostic('/bin/ps', ['axo', 'pid,ppid,comm,args']),
+    cdp_listener: commandDiagnostic('lsof', ['-nP', `-iTCP:${options.cdpPort}`, '-sTCP:LISTEN']),
+    cdp_targets: commandDiagnostic('/usr/bin/curl', [
+      '-sS',
+      '--connect-timeout',
+      '2',
+      '--max-time',
+      '3',
+      `http://127.0.0.1:${options.cdpPort}/json/list`,
+    ]),
+  };
+  writeJsonArtifact(path.join(launchLogDir, 'diagnostics.json'), diagnostics, secret);
+  copyTextFileIfExists(defaultCdpRegistryPath(), path.join(launchLogDir, 'cdp-registry.json'), secret);
+}
+
 function collectFailureArtifacts(options, codexApiKey) {
   fs.mkdirSync(options.artifacts, { recursive: true });
+  collectLaunchDiagnostics(options, codexApiKey);
   try {
     writeJsonArtifact(
       path.join(options.artifacts, 'failure-accessibility-tree.json'),
@@ -4190,6 +4354,12 @@ export const __test =
         buildOplJsonShellCommand,
         resolveOplCommandPath,
         buildLaunchAppArgs,
+        buildLaunchExecutableArgs,
+        buildLaunchAppEnv,
+        launchEnvDiagnostics,
+        parseCfBundleExecutableFromPlistText,
+        resolveAppExecutablePath,
+        collectLaunchDiagnostics,
         verifyGatekeeperLaunchPolicy,
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
