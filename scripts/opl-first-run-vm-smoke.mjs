@@ -3637,6 +3637,24 @@ async function main() {
     );
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
     options.appPath = appPath;
+    const installedAppOptions = { ...options, appPath };
+
+    if (codexApiKey) {
+      const codexConfigure = await runSmokePhase(
+        writeSmokeEvent,
+        'configure_codex_api_key',
+        () =>
+          configureCodexApiKeyForSmoke(
+            withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
+            codexApiKey
+          ),
+        {
+          source: 'codex_api_key_file',
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
+        }
+      );
+      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), codexConfigure, codexApiKey);
+    }
 
     if (shouldTerminateExistingApp()) {
       await runSmokePhase(
@@ -3656,28 +3674,11 @@ async function main() {
       verifyGatekeeperLaunchPolicy(appPath, options.artifacts)
     );
     const launchStartedAtMs = Date.now() - 1_000;
-    const installedAppOptions = { ...options, appPath };
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
       app_path: appPath,
       cdp_port: options.cdpPort,
       timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
-    if (codexApiKey) {
-      const codexConfigure = await runSmokePhase(
-        writeSmokeEvent,
-        'configure_codex_api_key',
-        () =>
-          configureCodexApiKeyForSmoke(
-            withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
-            codexApiKey
-          ),
-        {
-          source: 'codex_api_key_file',
-          timeout_ms: options.codexReadinessPhaseTimeoutMs,
-        }
-      );
-      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), codexConfigure, codexApiKey);
-    }
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;

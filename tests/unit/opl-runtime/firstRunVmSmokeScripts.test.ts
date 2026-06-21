@@ -367,6 +367,16 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
   });
 
+  it('configures Codex from the API key file before the first packaged App launch', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
+
+    expect(scriptSource).toContain('configureCodexApiKeyForSmoke');
+    expect(mainSource.indexOf("'install_dmg'")).toBeLessThan(mainSource.indexOf("'configure_codex_api_key'"));
+    expect(mainSource.indexOf("'configure_codex_api_key'")).toBeLessThan(mainSource.indexOf("'launch_app'"));
+    expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
+  });
+
   it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
     const expression = vmSmoke.visibleRuntimeRefreshButtonExpression();
 
