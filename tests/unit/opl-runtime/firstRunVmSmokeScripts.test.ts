@@ -158,6 +158,22 @@ function createPackagedFullRuntimeAppFixture() {
   return { root, appPath, runtimeHome };
 }
 
+function createPackagedAppWithMainEntry(content: string) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-packaged-main-entry-'));
+  const appPath = path.join(root, 'One Person Lab.app');
+  const mainEntryPath = path.join(appPath, 'Contents', 'Resources', 'app.asar', 'out', 'main', 'index.js');
+  writeFile(mainEntryPath, content);
+  return { root, appPath, mainEntryPath };
+}
+
+function createPackagedAppAsarArchive(content: string) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-packaged-main-asar-'));
+  const appPath = path.join(root, 'One Person Lab.app');
+  const appAsarPath = path.join(appPath, 'Contents', 'Resources', 'app.asar');
+  writeFile(appAsarPath, content);
+  return { root, appPath, appAsarPath };
+}
+
 describe('OPL first-run VM smoke scripts', () => {
   it('separates Full runtime equivalence from Codex-keyed core first-launch readiness', () => {
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('standard')).toBe(false);
@@ -223,6 +239,71 @@ describe('OPL first-run VM smoke scripts', () => {
         '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
     });
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
+  });
+
+  it('fails fast when the packaged App does not contain the main bootstrap fatal marker', () => {
+    const current = createPackagedAppWithMainEntry(
+      "console.log('aionui.main_bootstrap_fatal.v1');\nimport('./index-original.js');\n"
+    );
+    const old = createPackagedAppWithMainEntry("import('./index-original.js');\n");
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bootstrap-marker-artifacts-'));
+    try {
+      expect(vmSmoke.detectPackagedMainBootstrap(current.appPath)).toMatchObject({
+        schema: 'opl_packaged_app_bootstrap_marker.v1',
+        app_path: current.appPath,
+        app_asar_type: 'directory',
+        main_entry_path: current.mainEntryPath,
+        main_entry_present: true,
+        fatal_marker: 'aionui.main_bootstrap_fatal.v1',
+        fatal_marker_present: true,
+      });
+      expect(vmSmoke.assertPackagedMainBootstrap(current.appPath, artifacts)).toMatchObject({
+        fatal_marker_present: true,
+      });
+      expect(vmSmoke.detectPackagedMainBootstrap(old.appPath)).toMatchObject({
+        main_entry_present: true,
+        fatal_marker_present: false,
+      });
+      expect(() => vmSmoke.assertPackagedMainBootstrap(old.appPath, artifacts)).toThrow(
+        /main bootstrap fatal diagnostics marker/
+      );
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'packaged-app-bootstrap-marker.json'), 'utf8'))
+      ).toMatchObject({
+        main_entry_present: true,
+        fatal_marker_present: false,
+      });
+    } finally {
+      fs.rmSync(current.root, { recursive: true, force: true });
+      fs.rmSync(old.root, { recursive: true, force: true });
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('detects the main bootstrap fatal marker inside an archived app.asar file', () => {
+    const current = createPackagedAppAsarArchive(
+      `fake asar bytes before marker ${'aionui.main_bootstrap_fatal.v1'} after marker`
+    );
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bootstrap-marker-archive-artifacts-'));
+    try {
+      expect(vmSmoke.detectPackagedMainBootstrap(current.appPath)).toMatchObject({
+        app_asar_path: current.appAsarPath,
+        app_asar_present: true,
+        app_asar_type: 'file',
+        app_asar_size_bytes: expect.any(Number),
+        main_entry_present: true,
+        main_entry_size_bytes: null,
+        main_entry_sha256: null,
+        fatal_marker_present: true,
+      });
+      expect(vmSmoke.assertPackagedMainBootstrap(current.appPath, artifacts)).toMatchObject({
+        app_asar_type: 'file',
+        fatal_marker_present: true,
+      });
+    } finally {
+      fs.rmSync(current.root, { recursive: true, force: true });
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('resolves Full VM smoke commands from installed App packaged runtime resources', () => {

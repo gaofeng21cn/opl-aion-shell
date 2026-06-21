@@ -36,6 +36,7 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
 const FULL_RUNTIME_MANIFEST = 'full-package-manifest.json';
+const MAIN_BOOTSTRAP_FATAL_MARKER = 'aionui.main_bootstrap_fatal.v1';
 const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
 const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
   'officecli',
@@ -690,6 +691,95 @@ function installDmgApp(dmgPath, installDir, options = {}) {
   } finally {
     detachDmg(mountPoint);
   }
+}
+
+function readTextFileSnippet(filePath, maxBytes = 256 * 1024) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(maxBytes);
+    const bytesRead = fs.readSync(fd, buffer, 0, maxBytes, 0);
+    return buffer.subarray(0, bytesRead).toString('utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function fileContainsText(filePath, needle, chunkSize = 1024 * 1024) {
+  const fd = fs.openSync(filePath, 'r');
+  try {
+    const needleBuffer = Buffer.from(needle);
+    const buffer = Buffer.alloc(chunkSize);
+    let carry = Buffer.alloc(0);
+    let position = 0;
+    for (;;) {
+      const bytesRead = fs.readSync(fd, buffer, 0, chunkSize, position);
+      if (bytesRead <= 0) return false;
+      const haystack = Buffer.concat([carry, buffer.subarray(0, bytesRead)]);
+      if (haystack.includes(needleBuffer)) return true;
+      carry = haystack.subarray(Math.max(0, haystack.length - needleBuffer.length + 1));
+      position += bytesRead;
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+function detectPackagedMainBootstrap(appPath) {
+  const appAsarPath = path.join(appPath, 'Contents', 'Resources', 'app.asar');
+  const mainEntryPath = path.join(appPath, 'Contents', 'Resources', 'app.asar', 'out', 'main', 'index.js');
+  const diagnostics = {
+    schema: 'opl_packaged_app_bootstrap_marker.v1',
+    app_path: appPath,
+    app_asar_path: appAsarPath,
+    app_asar_present: false,
+    app_asar_type: null,
+    app_asar_size_bytes: null,
+    main_entry_path: mainEntryPath,
+    main_entry_present: false,
+    main_entry_size_bytes: null,
+    main_entry_sha256: null,
+    fatal_marker: MAIN_BOOTSTRAP_FATAL_MARKER,
+    fatal_marker_present: false,
+  };
+  try {
+    const appAsarStats = fs.statSync(appAsarPath);
+    diagnostics.app_asar_present = true;
+    diagnostics.app_asar_type = appAsarStats.isDirectory() ? 'directory' : appAsarStats.isFile() ? 'file' : 'other';
+    diagnostics.app_asar_size_bytes = appAsarStats.isFile() ? appAsarStats.size : null;
+    if (appAsarStats.isDirectory()) {
+      const stats = fs.statSync(mainEntryPath);
+      diagnostics.main_entry_present = stats.isFile();
+      diagnostics.main_entry_size_bytes = stats.isFile() ? stats.size : null;
+      if (stats.isFile()) {
+        diagnostics.main_entry_sha256 = hashFile(mainEntryPath);
+        diagnostics.fatal_marker_present = readTextFileSnippet(mainEntryPath).includes(MAIN_BOOTSTRAP_FATAL_MARKER);
+      }
+    } else if (appAsarStats.isFile()) {
+      diagnostics.main_entry_present = true;
+      diagnostics.fatal_marker_present = fileContainsText(appAsarPath, MAIN_BOOTSTRAP_FATAL_MARKER);
+    }
+  } catch (error) {
+    diagnostics.error = error instanceof Error ? error.message : String(error);
+  }
+  return diagnostics;
+}
+
+function assertPackagedMainBootstrap(appPath, artifactsDir) {
+  const diagnostics = detectPackagedMainBootstrap(appPath);
+  writeJsonArtifact(path.join(artifactsDir, 'packaged-app-bootstrap-marker.json'), diagnostics);
+  if (!diagnostics.main_entry_present) {
+    throw new Error(`Packaged App main entry is missing: ${diagnostics.main_entry_path}`);
+  }
+  if (!diagnostics.fatal_marker_present) {
+    throw new Error(
+      [
+        'Packaged App does not include the main bootstrap fatal diagnostics marker.',
+        `marker=${diagnostics.fatal_marker}`,
+        `main_entry=${diagnostics.main_entry_path}`,
+      ].join('\n')
+    );
+  }
+  return diagnostics;
 }
 
 function captureGuideDmgWindow(dmgPath, target) {
@@ -4384,6 +4474,10 @@ async function main() {
     options.appPath = appPath;
     const installedAppOptions = { ...options, appPath };
 
+    await runSmokePhase(writeSmokeEvent, 'verify_packaged_main_bootstrap', () =>
+      assertPackagedMainBootstrap(appPath, options.artifacts)
+    );
+
     if (codexApiKey) {
       const codexConfigure = await runSmokePhase(
         writeSmokeEvent,
@@ -4804,6 +4898,8 @@ export const __test =
         buildOplJsonShellCommand,
         resolveOplCommandPath,
         buildLaunchAppArgs,
+        detectPackagedMainBootstrap,
+        assertPackagedMainBootstrap,
         buildLaunchExecutableArgs,
         buildPackagedAppLaunchBaseEnv,
         buildLaunchAppEnv,
