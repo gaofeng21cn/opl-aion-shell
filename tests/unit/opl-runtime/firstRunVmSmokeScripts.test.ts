@@ -772,8 +772,10 @@ describe('OPL first-run VM smoke scripts', () => {
       expect(launchAppSource).toContain("runWithDeadline('launchctl', ['setenv', key, value]");
       expect(launchAppSource).toContain('resolveAppExecutablePath(appPath)');
       expect(launchAppSource).toContain('buildLaunchExecutableArgs(options)');
+      expect(launchAppSource).toContain('buildLaunchAppEnv(options)');
       expect(launchAppSource).toContain('env: launchEnv');
       expect(launchAppSource).toContain("strategy: 'direct_app_executable'");
+      expect(scriptSource).toContain('buildPackagedAppLaunchBaseEnv(sourceEnv)');
 
       const diagnostics = vmSmoke.codexInstallPreseedDiagnostics(options);
       expect(diagnostics).toMatchObject({
@@ -1419,6 +1421,22 @@ describe('OPL first-run VM smoke scripts', () => {
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('collects bounded macOS launch diagnostics when packaged GUI boot never reaches CDP', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+
+    expect(scriptSource).toContain("commandDiagnostic('/usr/bin/sample'");
+    expect(scriptSource).toContain("commandDiagnostic('launchctl', ['print', `gui/${uid}`]");
+    expect(scriptSource).toContain("commandDiagnostic('/usr/sbin/scutil', ['show', 'State:/Users/ConsoleUser']");
+    expect(scriptSource).toContain('collectDiagnosticReports(options, codexApiKey)');
+    expect(scriptSource).toContain("path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports')");
+    expect(scriptSource).toContain("path.join('/Library', 'Logs', 'DiagnosticReports')");
+    expect(scriptSource).toContain("path.join(defaultAppSupportPath(options.processName), 'logs')");
+    expect(scriptSource).toContain("path.join(os.homedir(), 'Library', 'Logs', 'cn.onepersonlab.opl')");
+    expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('LaunchServices');
+    expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('runningboard');
+    expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('syspolicyd');
   });
 
   it('validates assistant route smoke independently from Settings smoke', () => {

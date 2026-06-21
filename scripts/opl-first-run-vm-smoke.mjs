@@ -68,6 +68,38 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
   { id: 'rca', badge: '@RCA', shortName: 'RCA' },
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
+const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
+  'HOME',
+  'USER',
+  'LOGNAME',
+  'SHELL',
+  'TMPDIR',
+  'PATH',
+  'LANG',
+  'TERM',
+  '__CF_USER_TEXT_ENCODING',
+  'SSH_AUTH_SOCK',
+  'AIONUI_CDP_PORT',
+]);
+const PACKAGED_APP_LAUNCH_ENV_PREFIX_ALLOWLIST = ['LC_'];
+const PACKAGED_APP_LAUNCH_ENV_BLOCKLIST = new Set([
+  'AIONUI_MULTI_INSTANCE',
+  'AIONUI_DATA_DIR',
+  'AIONUI_BACKEND_BIN',
+  'AIONUI_BACKEND_BUNDLED_DIR',
+  'AIONUI_STATIC_DIR',
+  'AIONUI_RENDERER_URL',
+  'ELECTRON_RUN_AS_NODE',
+  'ELECTRON_ENABLE_LOGGING',
+  'ELECTRON_NO_ATTACH_CONSOLE',
+  'ELECTRON_RENDERER_URL',
+  'NODE_ENV',
+  'NODE_OPTIONS',
+  'CI',
+  'GITHUB_ACTIONS',
+  'RUNNER_TEMP',
+  'RUNNER_TOOL_CACHE',
+]);
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
 const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
 const HOST_DEADLINE_SAFETY_MARGIN_MS = 120_000;
@@ -749,21 +781,42 @@ function buildLaunchExecutableArgs(options) {
   return ['--force-renderer-accessibility', `--aionui-cdp-port=${options.cdpPort}`];
 }
 
-function buildLaunchAppEnv(options) {
+function shouldPreservePackagedLaunchEnvKey(key) {
+  return (
+    PACKAGED_APP_LAUNCH_ENV_ALLOWLIST.has(key) ||
+    PACKAGED_APP_LAUNCH_ENV_PREFIX_ALLOWLIST.some((prefix) => key.startsWith(prefix))
+  );
+}
+
+function buildPackagedAppLaunchBaseEnv(sourceEnv = process.env) {
+  const env = {};
+  for (const [key, value] of Object.entries(sourceEnv)) {
+    if (PACKAGED_APP_LAUNCH_ENV_BLOCKLIST.has(key)) continue;
+    if (!shouldPreservePackagedLaunchEnvKey(key)) continue;
+    if (typeof value !== 'string') continue;
+    env[key] = value;
+  }
+  return env;
+}
+
+function buildLaunchAppEnv(options, sourceEnv = process.env) {
   return {
-    ...process.env,
+    ...buildPackagedAppLaunchBaseEnv(sourceEnv),
     AIONUI_CDP_PORT: String(options.cdpPort),
     ...buildCodexInstallPreseedEnv(options),
   };
 }
 
 function launchEnvDiagnostics(env) {
+  const inheritedKeys = Object.keys(env).sort();
   return {
     AIONUI_CDP_PORT: env.AIONUI_CDP_PORT ?? null,
     OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: Boolean(env.OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL),
     OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: Boolean(env.OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL),
     OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: Boolean(env.OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR),
     NPM_CONFIG_CACHE: Boolean(env.NPM_CONFIG_CACHE),
+    inherited_keys: inheritedKeys,
+    blocked_keys_present: [...PACKAGED_APP_LAUNCH_ENV_BLOCKLIST].filter((key) => Object.hasOwn(env, key)).sort(),
   };
 }
 
@@ -3722,11 +3775,29 @@ async function runAssistantRouteSmoke(options, secret) {
   return results;
 }
 
+function unifiedLogPredicate(processName) {
+  const escapedProcessName = processName.replace(/"/g, '\\"');
+  return [
+    `process == "${escapedProcessName}"`,
+    `eventMessage CONTAINS[c] "${escapedProcessName}"`,
+    'process CONTAINS[c] "Electron"',
+    'subsystem CONTAINS[c] "LaunchServices"',
+    'subsystem CONTAINS[c] "runningboard"',
+    'subsystem CONTAINS[c] "TCC"',
+    'process == "syspolicyd"',
+  ].join(' OR ');
+}
+
 function captureUnifiedLog(processName, target) {
-  const predicate = `process == "${processName.replace(/"/g, '\\"')}"`;
-  const result = spawnSync('log', ['show', '--last', '10m', '--style', 'compact', '--predicate', predicate], {
-    encoding: 'utf8',
-  });
+  const result = spawnSync(
+    'log',
+    ['show', '--last', '10m', '--style', 'compact', '--predicate', unifiedLogPredicate(processName)],
+    {
+      encoding: 'utf8',
+      timeout: 20_000,
+      maxBuffer: 10 * 1024 * 1024,
+    }
+  );
   fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
 }
 
@@ -3749,6 +3820,9 @@ function collectAppLogArtifacts(options, secret) {
     path.dirname(defaultFirstRunLogPath()),
     path.join(os.homedir(), 'Library', 'Logs', 'AionUi'),
     path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab'),
+    path.join(os.homedir(), 'Library', 'Logs', 'cn.onepersonlab.opl'),
+    path.join(defaultAppSupportPath(options.processName), 'logs'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi', 'logs'),
   ];
   const seen = new Set();
   const targetDir = path.join(options.artifacts, 'app-logs');
@@ -3777,10 +3851,65 @@ function collectFileListing(root, target) {
   fs.writeFileSync(target, result.stdout || result.stderr || '', 'utf8');
 }
 
+function parseProcessRows(psOutput, processName) {
+  const rows = [];
+  for (const line of String(psOutput || '')
+    .split('\n')
+    .slice(1)) {
+    const trimmed = line.trim();
+    if (!trimmed || !trimmed.includes(processName)) continue;
+    if (/\/grep\s+/.test(trimmed)) continue;
+    const match = /^(\d+)\s+(\d+)\s+(.*)$/.exec(trimmed);
+    if (!match) continue;
+    rows.push({
+      pid: Number(match[1]),
+      ppid: Number(match[2]),
+      args: match[3],
+    });
+  }
+  return rows;
+}
+
+function writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret) {
+  const seenPids = new Set();
+  for (const row of processRows) {
+    if (!Number.isInteger(row.pid) || row.pid <= 0 || seenPids.has(row.pid)) continue;
+    seenPids.add(row.pid);
+    const prefix = path.join(launchLogDir, `process-${row.pid}`);
+    const sample = commandDiagnostic('/usr/bin/sample', [String(row.pid), '5', '-file', `${prefix}-sample.txt`], {
+      timeout: 8_000,
+    });
+    writeJsonArtifact(`${prefix}-sample-command.json`, sample, secret);
+    const lsof = commandDiagnostic('lsof', ['-nP', '-p', String(row.pid)], { timeout: 8_000 });
+    writeOptionalTextArtifact(`${prefix}-lsof.txt`, lsof.stdout || lsof.stderr || '', secret);
+  }
+}
+
+function collectDiagnosticReports(options, secret) {
+  const targetDir = path.join(options.artifacts, 'diagnostic-reports');
+  const reportRoots = [
+    path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports'),
+    path.join('/Library', 'Logs', 'DiagnosticReports'),
+  ];
+  const namePattern = /(One Person Lab|AionUi|cn\.onepersonlab\.opl|Electron)/i;
+  for (const root of reportRoots) {
+    if (!fs.existsSync(root)) continue;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isFile() || !namePattern.test(entry.name)) continue;
+      fs.mkdirSync(targetDir, { recursive: true });
+      const source = path.join(root, entry.name);
+      const safeRootName = `${path.basename(path.dirname(root))}-${path.basename(root)}`;
+      const safeName = `${safeRootName}-${entry.name}`.replace(/[^A-Za-z0-9_.-]/g, '_');
+      copyTextFileIfExists(source, path.join(targetDir, safeName), secret);
+    }
+  }
+}
+
 function commandDiagnostic(command, args, options = {}) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     timeout: options.timeout ?? 10_000,
+    maxBuffer: options.maxBuffer ?? 5 * 1024 * 1024,
   });
   return {
     command: [command, ...args].join(' '),
@@ -3795,11 +3924,20 @@ function commandDiagnostic(command, args, options = {}) {
 function collectLaunchDiagnostics(options, secret) {
   const launchLogDir = path.join(options.artifacts, 'launch-app');
   fs.mkdirSync(launchLogDir, { recursive: true });
+  const processList = commandDiagnostic('/bin/ps', ['axo', 'pid,ppid,args']);
+  const processRows = parseProcessRows(processList.stdout, options.processName);
+  const uid = String(os.userInfo().uid);
   const diagnostics = {
     schema: 'opl_packaged_gui_launch_diagnostics.v1',
     process_name: options.processName,
     cdp_port: options.cdpPort,
     launch_json_present: fs.existsSync(path.join(launchLogDir, 'launch.json')),
+    aqua_session: {
+      console_user: commandDiagnostic('/usr/sbin/scutil', ['show', 'State:/Users/ConsoleUser']),
+      dev_console_owner: commandDiagnostic('/usr/bin/stat', ['-f', '%Su', '/dev/console']),
+      launchctl_gui: commandDiagnostic('launchctl', ['print', `gui/${uid}`], { timeout: 10_000 }),
+      who: commandDiagnostic('/usr/bin/who', []),
+    },
     launchctl_env: {
       AIONUI_CDP_PORT: commandDiagnostic('launchctl', ['getenv', 'AIONUI_CDP_PORT']),
       OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: commandDiagnostic('launchctl', [
@@ -3815,7 +3953,8 @@ function collectLaunchDiagnostics(options, secret) {
         'OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR',
       ]),
     },
-    process: commandDiagnostic('/bin/ps', ['axo', 'pid,ppid,comm,args']),
+    process: processList,
+    app_processes: processRows,
     cdp_listener: commandDiagnostic('lsof', ['-nP', `-iTCP:${options.cdpPort}`, '-sTCP:LISTEN']),
     cdp_targets: commandDiagnostic('/usr/bin/curl', [
       '-sS',
@@ -3827,6 +3966,7 @@ function collectLaunchDiagnostics(options, secret) {
     ]),
   };
   writeJsonArtifact(path.join(launchLogDir, 'diagnostics.json'), diagnostics, secret);
+  writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret);
   copyTextFileIfExists(defaultCdpRegistryPath(), path.join(launchLogDir, 'cdp-registry.json'), secret);
 }
 
@@ -3855,7 +3995,12 @@ function collectFailureArtifacts(options, codexApiKey) {
     path.join(os.homedir(), 'Library', 'Application Support', 'AionUi'),
     path.join(options.artifacts, 'aionui-app-support-files.txt')
   );
+  collectFileListing(
+    path.join(os.homedir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
+    path.join(options.artifacts, 'bundle-id-app-support-files.txt')
+  );
   collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));
+  collectDiagnosticReports(options, codexApiKey);
 
   for (const [name, args] of [
     ['system-initialize.json', ['system', 'initialize', '--json']],
@@ -4355,8 +4500,11 @@ export const __test =
         resolveOplCommandPath,
         buildLaunchAppArgs,
         buildLaunchExecutableArgs,
+        buildPackagedAppLaunchBaseEnv,
         buildLaunchAppEnv,
         launchEnvDiagnostics,
+        parseProcessRows,
+        unifiedLogPredicate,
         parseCfBundleExecutableFromPlistText,
         resolveAppExecutablePath,
         collectLaunchDiagnostics,

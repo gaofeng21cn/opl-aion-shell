@@ -22,31 +22,113 @@ describe('packaged first-run VM smoke helpers', () => {
   });
 
   it('launches packaged apps with explicit CDP environment without changing packaged app identity', () => {
-    const previousCdpPort = process.env.AIONUI_CDP_PORT;
-    const previousMultiInstance = process.env.AIONUI_MULTI_INSTANCE;
-    try {
-      process.env.AIONUI_CDP_PORT = '0';
-      process.env.AIONUI_MULTI_INSTANCE = '1';
+    const env = __test.buildPackagedAppLaunchBaseEnv({
+      HOME: '/Users/admin',
+      USER: 'admin',
+      PATH: '/usr/bin:/bin',
+      LANG: 'en_US.UTF-8',
+      LC_CTYPE: 'UTF-8',
+      AIONUI_CDP_PORT: '0',
+      AIONUI_MULTI_INSTANCE: '1',
+      ELECTRON_RUN_AS_NODE: '1',
+      ELECTRON_RENDERER_URL: 'http://localhost:5173',
+      NODE_OPTIONS: '--require /tmp/hook.js',
+      GITHUB_ACTIONS: 'true',
+      CI: 'true',
+      OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: '/tmp/codex.tgz',
+    });
 
-      const env = __test.buildLaunchAppEnv({ cdpPort: 9239 });
+    expect(env).toMatchObject({
+      HOME: '/Users/admin',
+      USER: 'admin',
+      PATH: '/usr/bin:/bin',
+      LANG: 'en_US.UTF-8',
+      LC_CTYPE: 'UTF-8',
+      AIONUI_CDP_PORT: '0',
+    });
+    expect(env).not.toHaveProperty('AIONUI_MULTI_INSTANCE');
+    expect(env).not.toHaveProperty('ELECTRON_RUN_AS_NODE');
+    expect(env).not.toHaveProperty('ELECTRON_RENDERER_URL');
+    expect(env).not.toHaveProperty('NODE_OPTIONS');
+    expect(env).not.toHaveProperty('GITHUB_ACTIONS');
+    expect(env).not.toHaveProperty('CI');
+    expect(env).not.toHaveProperty('OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL');
 
-      expect(env.AIONUI_CDP_PORT).toBe('9239');
-      expect(__test.launchEnvDiagnostics(env)).toMatchObject({
-        AIONUI_CDP_PORT: '9239',
-      });
-      expect(__test.launchEnvDiagnostics(env)).not.toHaveProperty('AIONUI_MULTI_INSTANCE');
-    } finally {
-      if (previousCdpPort === undefined) {
-        delete process.env.AIONUI_CDP_PORT;
-      } else {
-        process.env.AIONUI_CDP_PORT = previousCdpPort;
+    const diagnostics = __test.launchEnvDiagnostics({
+      ...env,
+      AIONUI_CDP_PORT: '9239',
+      OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: '/tmp/codex.tgz',
+      OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: '/tmp/platform.tgz',
+      OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: '/tmp/npm-cache',
+      NPM_CONFIG_CACHE: '/tmp/npm-cache',
+    });
+    expect(diagnostics).toMatchObject({
+      AIONUI_CDP_PORT: '9239',
+      OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: true,
+      OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: true,
+      OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: true,
+      NPM_CONFIG_CACHE: true,
+      blocked_keys_present: [],
+    });
+    expect(diagnostics.inherited_keys).toContain('HOME');
+    expect(diagnostics.inherited_keys).toContain('AIONUI_CDP_PORT');
+    expect(diagnostics.inherited_keys).not.toContain('NODE_OPTIONS');
+
+    const launchEnv = __test.buildLaunchAppEnv(
+      {
+        cdpPort: 9239,
+        codexPackageTarball: '/tmp/codex.tgz',
+        codexPlatformPackageTarball: '/tmp/platform.tgz',
+        codexNpmCacheDir: '/tmp/npm-cache',
+      },
+      {
+        HOME: '/Users/admin',
+        PATH: '/usr/bin:/bin',
+        AIONUI_CDP_PORT: '0',
+        AIONUI_MULTI_INSTANCE: '1',
+        ELECTRON_RUN_AS_NODE: '1',
+        NODE_OPTIONS: '--require /tmp/hook.js',
+        GITHUB_ACTIONS: 'true',
       }
-      if (previousMultiInstance === undefined) {
-        delete process.env.AIONUI_MULTI_INSTANCE;
-      } else {
-        process.env.AIONUI_MULTI_INSTANCE = previousMultiInstance;
-      }
-    }
+    );
+    expect(launchEnv).toMatchObject({
+      HOME: '/Users/admin',
+      PATH: '/usr/bin:/bin',
+      AIONUI_CDP_PORT: '9239',
+      OPL_FIRST_RUN_CODEX_PACKAGE_TARBALL: '/tmp/codex.tgz',
+      OPL_FIRST_RUN_CODEX_PLATFORM_PACKAGE_TARBALL: '/tmp/platform.tgz',
+      OPL_FIRST_RUN_CODEX_NPM_CACHE_DIR: '/tmp/npm-cache',
+      NPM_CONFIG_CACHE: '/tmp/npm-cache',
+    });
+    expect(launchEnv).not.toHaveProperty('AIONUI_MULTI_INSTANCE');
+    expect(launchEnv).not.toHaveProperty('ELECTRON_RUN_AS_NODE');
+    expect(launchEnv).not.toHaveProperty('NODE_OPTIONS');
+    expect(launchEnv).not.toHaveProperty('GITHUB_ACTIONS');
+  });
+
+  it('parses packaged app process rows for launch diagnostics', () => {
+    expect(
+      __test.parseProcessRows(
+        [
+          '  PID  PPID ARGS',
+          ' 1234     1 /Applications/One Person Lab.app/Contents/MacOS/One Person Lab /Applications/One Person Lab.app/Contents/MacOS/One Person Lab --force-renderer-accessibility --aionui-cdp-port=9230',
+          ' 2234  1234 /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper --type=renderer',
+          ' 3333     1 /usr/bin/grep grep One Person Lab',
+        ].join('\n'),
+        'One Person Lab'
+      )
+    ).toEqual([
+      {
+        pid: 1234,
+        ppid: 1,
+        args: '/Applications/One Person Lab.app/Contents/MacOS/One Person Lab /Applications/One Person Lab.app/Contents/MacOS/One Person Lab --force-renderer-accessibility --aionui-cdp-port=9230',
+      },
+      {
+        pid: 2234,
+        ppid: 1234,
+        args: '/Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper --type=renderer',
+      },
+    ]);
   });
 
   it('resolves the executable inside a packaged .app from Info.plist', () => {
