@@ -1,10 +1,12 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const configPath = resolve(__dirname, '../../../packages/desktop/electron-builder.yml');
 const packagedRuntime = await import('../../../scripts/validate-packaged-runtime.js');
+const requireFromHere = createRequire(import.meta.url);
 
 function readRules(): string[] {
   return readFileSync(configPath, 'utf8')
@@ -30,6 +32,44 @@ function hasNegativeRule(rules: string[], packageName: string): boolean {
 
     return false;
   });
+}
+
+function resolvePackageJson(packageName: string): string | null {
+  try {
+    return requireFromHere.resolve(`${packageName}/package.json`);
+  } catch (_) {
+    // Some packages intentionally do not export package.json. Fall back to the
+    // physical package symlink under root node_modules, which is what builder
+    // rules package.
+  }
+
+  const physicalPath = resolve(__dirname, '../../../node_modules', packageName, 'package.json');
+  return existsSync(physicalPath) ? realpathSync(physicalPath) : null;
+}
+
+function runtimeDependencyClosure(rootPackages: string[]): string[] {
+  const seen = new Set<string>();
+  const queue = [...rootPackages];
+
+  while (queue.length > 0) {
+    const packageName = queue.shift();
+    if (!packageName || seen.has(packageName)) continue;
+    seen.add(packageName);
+    const packageJsonPath = resolvePackageJson(packageName);
+    expect(packageJsonPath, `${packageName} package.json must be resolvable`).toBeTruthy();
+    const packageJson = JSON.parse(readFileSync(packageJsonPath as string, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      peerDependencies?: Record<string, string>;
+    };
+    const dependencies = Object.keys(packageJson.dependencies ?? {});
+    const peerDependencies =
+      packageName === '@office-ai/platform' ? Object.keys(packageJson.peerDependencies ?? {}) : [];
+    for (const dependencyName of [...dependencies, ...peerDependencies]) {
+      if (!seen.has(dependencyName)) queue.push(dependencyName);
+    }
+  }
+
+  return [...seen].sort();
 }
 
 describe('electron-builder files rules', () => {
@@ -131,5 +171,11 @@ describe('electron-builder files rules', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('keeps packaged runtime validator aligned with @office-ai/platform runtime dependency closure', () => {
+    expect([...packagedRuntime.REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES].sort()).toEqual(
+      runtimeDependencyClosure(['@office-ai/platform'])
+    );
   });
 });
