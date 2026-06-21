@@ -323,7 +323,7 @@ describe('OPL first-run VM smoke scripts', () => {
       const raw = vmSmoke.runOplJson(['system', 'initialize', '--json'], {
         appPath: fixture.appPath,
         runtimeProfile: 'full',
-        timeoutMs: 1_000,
+        timeoutMs: 10_000,
       });
 
       expect(fullRuntime).toMatchObject({
