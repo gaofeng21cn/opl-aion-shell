@@ -55,6 +55,7 @@ import {
   showAndFocusMainWindow,
   showOrCreateMainWindow,
 } from './process/utils/mainWindowLifecycle';
+import { resolveRendererIndexPath } from './process/utils/rendererPath';
 import {
   loadUserWebUIConfig,
   resolveRemoteAccess,
@@ -431,7 +432,7 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
 
   // Load the renderer: dev server URL in development, built HTML file in production
   const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
-  const fallbackFile = path.join(__dirname, '../renderer/index.html');
+  const fallbackFile = resolveRendererIndexPath(__dirname);
 
   if (!app.isPackaged && rendererUrl) {
     console.log(`[AionUi] Loading renderer URL: ${rendererUrl}`);

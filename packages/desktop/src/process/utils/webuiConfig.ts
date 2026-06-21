@@ -12,6 +12,7 @@ import { getSystemDir } from './initStorage';
 import { httpRequest } from '@/common/adapter/httpBridge';
 import { startWebHost, type WebHostHandle } from '@aionui/web-host';
 import { getDataPath } from './utils';
+import { resolveRendererOutDir } from './rendererPath';
 
 const WEBUI_CONFIG_FILE = 'webui.config.json';
 const DESKTOP_WEBUI_ENABLED_KEY = 'webui.desktop.enabled';
@@ -243,8 +244,7 @@ export async function startDesktopWebUI(opts: { port?: number; allowRemote?: boo
       // path-with-spaces issues under Application Support.
       userDataPath: getDataPath(),
     },
-    // After bundling, this file is out/main/index.js — renderer assets live at ../renderer.
-    staticDir: path.join(__dirname, '../renderer'),
+    staticDir: resolveRendererOutDir(__dirname),
     port: preferredPort,
     allowRemote,
     // Must align with the desktop IPC path's backend dataDir (src/index.ts), otherwise
