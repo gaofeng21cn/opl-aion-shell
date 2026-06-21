@@ -44,6 +44,7 @@ describe('electron-builder files rules', () => {
       'serve-handler',
       'semver',
       'i18next',
+      'eventemitter3',
     ]) {
       expect(hasPositiveRule(rules, packageName), `${packageName} should be included for main runtime`).toBe(true);
       expect(hasNegativeRule(rules, packageName), `${packageName} must not be excluded`).toBe(false);

@@ -60,12 +60,13 @@ files:
   - node_modules/semver/**/*
   - node_modules/serve-handler/**/*
   - node_modules/@office-ai/platform/**/*
+  - node_modules/eventemitter3/**/*
   # Renderer-only or esbuild-bundled dependencies must not be duplicated in app.asar.
   - '!**/node_modules/{@arco-design,@codemirror,@dnd-kit,@floating-ui,@icon-park,@iconify,@lezer,@monaco-editor,@uiw}/**'
   - '!**/node_modules/{react,react-dom,react-i18next,react-markdown,react-router,react-router-dom,react-syntax-highlighter,react-virtuoso}/**'
   - '!**/node_modules/{streamdown,unified,remark-breaks,remark-gfm,remark-math,rehype-katex,rehype-raw,remark-parse,remark-rehype}/**'
   - '!**/node_modules/{micromark*,mdast-*,hast-*,property-information,space-separated-tokens,comma-separated-tokens,decode-named-character-reference,devlop,bail,is-plain-obj}/**'
-  - '!**/node_modules/{monaco-editor,katex,mermaid,diff,diff2html,classnames,dayjs,eventemitter3,qrcode.react,swr}/**'
+  - '!**/node_modules/{monaco-editor,katex,mermaid,diff,diff2html,classnames,dayjs,qrcode.react,swr}/**'
   - '!**/node_modules/{@anthropic-ai,@aws-sdk,@google,@smithy}/**'
   - '!**/node_modules/{openai,jsonrepair,docx,mammoth,officeparser,pptx2json,xlsx-republish,turndown,turndown-plugin-gfm}/**'
   - '!**/node_modules/{@agentclientprotocol,@modelcontextprotocol,zod}/**'
