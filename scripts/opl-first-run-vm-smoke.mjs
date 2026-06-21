@@ -782,6 +782,23 @@ function collectLaunchLogText(launchLogDir) {
   return output;
 }
 
+function collectNativeModalText(nativeWindow, bootstrapFatalText, launchLogText) {
+  const output = [];
+  for (const entry of Array.isArray(nativeWindow?.likely_alert_text) ? nativeWindow.likely_alert_text : []) {
+    appendUniqueDiagnosticText(output, entry?.text, entry?.source || 'native_likely_alert');
+  }
+  for (const entry of Array.isArray(nativeWindow?.window_title_text) ? nativeWindow.window_title_text : []) {
+    appendUniqueDiagnosticText(output, entry?.text, entry?.source || 'native_window_title');
+  }
+  for (const entry of Array.isArray(bootstrapFatalText) ? bootstrapFatalText : []) {
+    appendUniqueDiagnosticText(output, entry?.text, entry?.source || 'main_bootstrap_fatal');
+  }
+  for (const entry of Array.isArray(launchLogText) ? launchLogText : []) {
+    appendUniqueDiagnosticText(output, entry?.text, entry?.source || 'launch_log');
+  }
+  return output;
+}
+
 function fileContainsText(filePath, needle, chunkSize = 1024 * 1024) {
   const fd = fs.openSync(filePath, 'r');
   try {
@@ -4728,10 +4745,11 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
   const windowTitleText = Array.isArray(nativeWindow.window_title_text) ? nativeWindow.window_title_text : [];
   const bootstrapFatalText = collectBootstrapFatalText(mainBootstrapFatalArtifacts);
   const launchLogText = collectLaunchLogText(launchLogDir);
+  const nativeModalText = collectNativeModalText(nativeWindow, bootstrapFatalText, launchLogText);
 
   return {
     schema: 'opl_packaged_gui_native_modal_launch_blocker.v1',
-    detected: Boolean(cdpAbsent && appPids.length > 0 && noNativeWindowSurface && nsalertSamplePaths.length > 0),
+    detected: Boolean(cdpAbsent && appPids.length > 0 && nsalertSamplePaths.length > 0),
     cdp_absent: Boolean(cdpAbsent),
     app_process_alive: appPids.length > 0,
     no_native_window_surface: Boolean(noNativeWindowSurface),
@@ -4742,6 +4760,19 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
     window_title_text: windowTitleText,
     bootstrap_fatal_text: bootstrapFatalText,
     launch_log_text: launchLogText,
+    native_modal_text: nativeModalText,
+    evidence_contract: {
+      blocker_detection_rule: 'cdp_absent_and_app_process_alive_and_nsalert_run_modal_sample_found',
+      text_sources: [
+        'accessibility_likely_alert',
+        'frontmost_window_title',
+        'main_bootstrap_fatal.error.message',
+        'main_bootstrap_fatal.error.stack',
+        'launch_stderr',
+        'launch_stdout',
+      ],
+      alert_text_required_when_accessibility_available: true,
+    },
     native_window_diagnostics: nativeWindow,
     main_bootstrap_fatal_artifacts: mainBootstrapFatalArtifacts,
   };
