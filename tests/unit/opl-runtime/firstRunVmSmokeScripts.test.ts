@@ -1586,6 +1586,22 @@ describe('OPL first-run VM smoke scripts', () => {
         '2603 -[NSAlert runModal]  (in AppKit) + 196\n',
         'utf8'
       );
+      fs.writeFileSync(
+        path.join(launchLogDir, 'stderr.log'),
+        'A JavaScript error occurred in the main process\n',
+        'utf8'
+      );
+      fs.writeFileSync(
+        path.join(launchLogDir, 'main-bootstrap-fatal-One_Person_Lab.jsonl'),
+        `${JSON.stringify({
+          schema: 'aionui.main_bootstrap_fatal.v1',
+          error: {
+            message: 'Cannot find module ./main/index.js',
+            stack: 'Error: Cannot find module ./main/index.js\n    at bootstrap',
+          },
+        })}\n`,
+        'utf8'
+      );
 
       const result = vmSmoke.detectNativeModalLaunchBlocker(
         { artifacts },
@@ -1602,12 +1618,19 @@ describe('OPL first-run VM smoke scripts', () => {
             target_process_found: true,
             target_process_window_count: 0,
             target_process_ui_element_count: 0,
+            likely_alert_text: [
+              { source: 'accessibility_likely_alert', text: 'A JavaScript error occurred in the main process' },
+            ],
+            window_title_text: [{ source: 'frontmost_window_title', text: 'Error' }],
           },
           main_bootstrap_fatal_artifacts: {
             schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
             candidates: ['/Users/runner/Library/Application Support/One Person Lab/main-bootstrap-fatal.jsonl'],
             copied: [
-              { source: 'main-bootstrap-fatal.jsonl', target: 'launch-app/main-bootstrap-fatal-One_Person_Lab.jsonl' },
+              {
+                source: 'main-bootstrap-fatal.jsonl',
+                target: path.join(launchLogDir, 'main-bootstrap-fatal-One_Person_Lab.jsonl'),
+              },
             ],
             copied_count: 1,
           },
@@ -1624,6 +1647,18 @@ describe('OPL first-run VM smoke scripts', () => {
         app_pids: [8503],
       });
       expect(result.nsalert_sample_paths[0]).toContain('process-8503-sample.txt');
+      expect(result.likely_alert_text).toEqual([
+        { source: 'accessibility_likely_alert', text: 'A JavaScript error occurred in the main process' },
+      ]);
+      expect(result.window_title_text).toEqual([{ source: 'frontmost_window_title', text: 'Error' }]);
+      expect(result.bootstrap_fatal_text).toEqual(
+        expect.arrayContaining([
+          { source: 'main_bootstrap_fatal.error.message', text: 'Cannot find module ./main/index.js' },
+        ])
+      );
+      expect(result.launch_log_text).toEqual([
+        { source: 'launch_stderr', text: 'A JavaScript error occurred in the main process' },
+      ]);
       expect(result.main_bootstrap_fatal_artifacts.copied_count).toBe(1);
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });

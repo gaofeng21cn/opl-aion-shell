@@ -162,7 +162,11 @@ describe('packaged first-run VM smoke helpers', () => {
       target_process_found: true,
       target_process_window_count: 1,
       target_process_ui_element_count: 1,
-      likely_alert_text: ['A JavaScript error occurred in the main process', 'OK'],
+      likely_alert_text: [
+        { source: 'accessibility_likely_alert', text: 'A JavaScript error occurred in the main process' },
+        { source: 'accessibility_likely_alert', text: 'OK' },
+      ],
+      window_title_text: [{ source: 'frontmost_window_title', text: 'Error' }],
     });
     expect(summary.frontmost_processes).toEqual(
       expect.arrayContaining([

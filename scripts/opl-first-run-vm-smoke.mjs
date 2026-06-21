@@ -704,6 +704,55 @@ function readTextFileSnippet(filePath, maxBytes = 256 * 1024) {
   }
 }
 
+function compactDiagnosticText(value, maxLength = 1000) {
+  const text = String(value ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function appendUniqueDiagnosticText(output, value, source, maxEntries = 24) {
+  const text = compactDiagnosticText(value);
+  if (!text || output.some((entry) => entry.text === text && entry.source === source)) return;
+  output.push({ source, text });
+  if (output.length > maxEntries) output.length = maxEntries;
+}
+
+function collectBootstrapFatalText(mainBootstrapFatalArtifacts) {
+  const output = [];
+  const copied = Array.isArray(mainBootstrapFatalArtifacts?.copied) ? mainBootstrapFatalArtifacts.copied : [];
+  for (const entry of copied) {
+    const target = entry?.target;
+    if (!target || !fs.existsSync(target)) continue;
+    const lines = readTextFileSnippet(target, 512 * 1024).split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const record = JSON.parse(line);
+        appendUniqueDiagnosticText(output, record?.error?.message, 'main_bootstrap_fatal.error.message');
+        appendUniqueDiagnosticText(output, record?.error?.stack, 'main_bootstrap_fatal.error.stack');
+      } catch (_) {
+        appendUniqueDiagnosticText(output, line, 'main_bootstrap_fatal.raw');
+      }
+    }
+  }
+  return output;
+}
+
+function collectLaunchLogText(launchLogDir) {
+  const output = [];
+  for (const [fileName, source] of [
+    ['stderr.log', 'launch_stderr'],
+    ['stdout.log', 'launch_stdout'],
+  ]) {
+    const filePath = path.join(launchLogDir, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    appendUniqueDiagnosticText(output, readTextFileSnippet(filePath, 128 * 1024), source, 8);
+  }
+  return output;
+}
+
 function fileContainsText(filePath, needle, chunkSize = 1024 * 1024) {
   const fd = fs.openSync(filePath, 'r');
   try {
@@ -4244,6 +4293,18 @@ function summarizeNativeWindowDiagnostics(diagnostics) {
   const result = diagnostics?.result;
   const targetProcess = result?.target_process;
   const likelyAlertNodes = Array.isArray(result?.likely_alert_nodes) ? result.likely_alert_nodes : [];
+  const frontmostProcesses = Array.isArray(result?.frontmost_processes) ? result.frontmost_processes.slice(0, 8) : [];
+  const windowTitleText = [];
+  for (const processSummary of frontmostProcesses) {
+    if (!Array.isArray(processSummary?.window_titles)) continue;
+    for (const title of processSummary.window_titles) {
+      appendUniqueDiagnosticText(windowTitleText, title, 'frontmost_window_title', 12);
+    }
+  }
+  const likelyAlertText = [];
+  for (const node of likelyAlertNodes) {
+    appendUniqueDiagnosticText(likelyAlertText, node?.text, 'accessibility_likely_alert', 12);
+  }
   return {
     status: result ? 'passed' : 'failed',
     osascript_status: diagnostics?.osascript?.status ?? null,
@@ -4253,11 +4314,9 @@ function summarizeNativeWindowDiagnostics(diagnostics) {
     target_process_ui_element_count: Array.isArray(targetProcess?.top_level_ui_elements)
       ? targetProcess.top_level_ui_elements.length
       : null,
-    frontmost_processes: Array.isArray(result?.frontmost_processes) ? result.frontmost_processes.slice(0, 8) : [],
-    likely_alert_text: likelyAlertNodes
-      .map((node) => node.text)
-      .filter(Boolean)
-      .slice(0, 12),
+    frontmost_processes: frontmostProcesses,
+    window_title_text: windowTitleText,
+    likely_alert_text: likelyAlertText,
   };
 }
 
@@ -4344,6 +4403,16 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
       nsalertSamplePaths.push(samplePath);
     }
   }
+  const mainBootstrapFatalArtifacts = diagnostics?.main_bootstrap_fatal_artifacts ?? {
+    schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
+    candidates: defaultMainBootstrapFatalLogCandidates(options.processName),
+    copied: [],
+    copied_count: 0,
+  };
+  const likelyAlertText = Array.isArray(nativeWindow.likely_alert_text) ? nativeWindow.likely_alert_text : [];
+  const windowTitleText = Array.isArray(nativeWindow.window_title_text) ? nativeWindow.window_title_text : [];
+  const bootstrapFatalText = collectBootstrapFatalText(mainBootstrapFatalArtifacts);
+  const launchLogText = collectLaunchLogText(launchLogDir);
 
   return {
     schema: 'opl_packaged_gui_native_modal_launch_blocker.v1',
@@ -4354,13 +4423,12 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
     nsalert_run_modal_sample_found: nsalertSamplePaths.length > 0,
     app_pids: appPids,
     nsalert_sample_paths: nsalertSamplePaths,
+    likely_alert_text: likelyAlertText,
+    window_title_text: windowTitleText,
+    bootstrap_fatal_text: bootstrapFatalText,
+    launch_log_text: launchLogText,
     native_window_diagnostics: nativeWindow,
-    main_bootstrap_fatal_artifacts: diagnostics?.main_bootstrap_fatal_artifacts ?? {
-      schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
-      candidates: defaultMainBootstrapFatalLogCandidates(options.processName),
-      copied: [],
-      copied_count: 0,
-    },
+    main_bootstrap_fatal_artifacts: mainBootstrapFatalArtifacts,
   };
 }
 
