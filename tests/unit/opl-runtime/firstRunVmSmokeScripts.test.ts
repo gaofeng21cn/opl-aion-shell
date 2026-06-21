@@ -1427,6 +1427,13 @@ describe('OPL first-run VM smoke scripts', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
 
     expect(scriptSource).toContain("commandDiagnostic('/usr/bin/sample'");
+    expect(scriptSource).toContain('captureNativeWindowDiagnostics(options.processName)');
+    expect(scriptSource).toContain("path.join(launchLogDir, 'native-window-diagnostics.json')");
+    expect(scriptSource).toContain(
+      'native_window_diagnostics: summarizeNativeWindowDiagnostics(nativeWindowDiagnostics)'
+    );
+    expect(scriptSource).toContain('opl_packaged_gui_native_window_diagnostics.v1');
+    expect(scriptSource).toContain('likely_alert_text');
     expect(scriptSource).toContain("commandDiagnostic('launchctl', ['print', `gui/${uid}`]");
     expect(scriptSource).toContain("commandDiagnostic('/usr/sbin/scutil', ['show', 'State:/Users/ConsoleUser']");
     expect(scriptSource).toContain('collectDiagnosticReports(options, codexApiKey)');

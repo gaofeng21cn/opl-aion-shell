@@ -867,11 +867,12 @@ function launchApp(appPath, options) {
   });
 }
 
-function verifyGatekeeperLaunchPolicy(appPath, artifactsDir) {
-  const codesign = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
+function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
+  const runCommand = hooks.spawnSync ?? spawnSync;
+  const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     encoding: 'utf8',
   });
-  const spctl = spawnSync('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
+  const spctl = runCommand('spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath], {
     encoding: 'utf8',
   });
   const quarantineAttributeCount = countQuarantineAttributes(appPath);
@@ -3921,12 +3922,216 @@ function commandDiagnostic(command, args, options = {}) {
   };
 }
 
+function nativeWindowDiagnosticsScript(processName) {
+  return `
+const procName = ${JSON.stringify(processName)};
+const systemEvents = Application('System Events');
+const maxDepth = 8;
+const maxNodes = 400;
+const alertRolePattern = /(AXAlert|AXDialog|AXSheet|AXWindow|AXStaticText|AXButton|AXGroup)/;
+function tryRead(fn) {
+  try {
+    const value = fn();
+    if (value === undefined || value === null) return null;
+    return String(value);
+  } catch (_) {
+    return null;
+  }
+}
+function readElement(element, depth) {
+  const role = tryRead(() => element.role());
+  return {
+    role,
+    subrole: tryRead(() => element.subrole()),
+    name: tryRead(() => element.name()),
+    description: tryRead(() => element.description()),
+    title: tryRead(() => element.title()),
+    value: tryRead(() => element.value()),
+    help: tryRead(() => element.help()),
+    position: tryRead(() => element.position()),
+    size: tryRead(() => element.size()),
+    depth,
+  };
+}
+function nodeText(node) {
+  return [node.name, node.description, node.title, node.value, node.help]
+    .filter((value) => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join(' | ');
+}
+function walk(element, depth, output) {
+  if (depth > maxDepth || output.length >= maxNodes) return;
+  const node = readElement(element, depth);
+  output.push(node);
+  let children = [];
+  try {
+    children = element.uiElements();
+  } catch (_) {
+    children = [];
+  }
+  for (const child of children) {
+    if (output.length >= maxNodes) break;
+    walk(child, depth + 1, output);
+  }
+}
+function readCollection(collection) {
+  const branches = [];
+  for (let index = 0; index < collection.length; index += 1) {
+    branches.push({
+      index,
+      nodes: readBranch(collection[index]),
+    });
+  }
+  return branches;
+}
+function readBranch(element) {
+  const nodes = [];
+  walk(element, 0, nodes);
+  return nodes;
+}
+function readProcess(processRef) {
+  const result = {
+    found: true,
+    name: tryRead(() => processRef.name()),
+    unix_id: tryRead(() => processRef.unixId()),
+    frontmost: tryRead(() => processRef.frontmost()),
+    visible: tryRead(() => processRef.visible()),
+    windows: [],
+    top_level_ui_elements: [],
+    errors: [],
+  };
+  try {
+    result.windows = readCollection(processRef.windows());
+  } catch (error) {
+    result.errors.push({ surface: 'windows', message: String(error) });
+  }
+  try {
+    result.top_level_ui_elements = readCollection(processRef.uiElements());
+  } catch (error) {
+    result.errors.push({ surface: 'uiElements', message: String(error) });
+  }
+  return result;
+}
+function readVisibleProcessSummary(processRef) {
+  const name = tryRead(() => processRef.name());
+  const frontmost = tryRead(() => processRef.frontmost());
+  const visible = tryRead(() => processRef.visible());
+  let windowCount = null;
+  let windowTitles = [];
+  try {
+    const windows = processRef.windows();
+    windowCount = windows.length;
+    for (let index = 0; index < windows.length && index < 8; index += 1) {
+      const windowNode = readElement(windows[index], 0);
+      windowTitles.push(nodeText(windowNode));
+    }
+  } catch (_) {
+    windowCount = null;
+  }
+  return { name, frontmost, visible, window_count: windowCount, window_titles: windowTitles.filter(Boolean) };
+}
+let targetProcess = { found: false, name: procName };
+try {
+  const matchingProcesses = systemEvents.processes.whose({ name: procName })();
+  if (matchingProcesses.length > 0) {
+    targetProcess = readProcess(matchingProcesses[0]);
+  }
+} catch (error) {
+  targetProcess = { found: false, name: procName, error: String(error) };
+}
+let frontmostProcesses = [];
+try {
+  const processes = systemEvents.processes.whose({ frontmost: true })();
+  for (let index = 0; index < processes.length && frontmostProcesses.length < 8; index += 1) {
+    const summary = readVisibleProcessSummary(processes[index]);
+    frontmostProcesses.push(summary);
+  }
+} catch (_) {
+  frontmostProcesses = [];
+}
+const allNodes = [];
+if (targetProcess.found) {
+  const branches = targetProcess.windows.concat(targetProcess.top_level_ui_elements);
+  for (const branch of branches) {
+    for (const node of branch.nodes || []) allNodes.push(node);
+  }
+}
+const likelyAlertNodes = allNodes
+  .map((node) => ({ role: node.role, subrole: node.subrole, text: nodeText(node), depth: node.depth }))
+  .filter((node) => node.text && alertRolePattern.test(String(node.role || node.subrole || '')))
+  .slice(0, 80);
+JSON.stringify({
+  schema: 'opl_packaged_gui_native_window_snapshot.v1',
+  process_name: procName,
+  target_process: targetProcess,
+  frontmost_processes: frontmostProcesses,
+  likely_alert_nodes: likelyAlertNodes,
+});
+`;
+}
+
+function captureNativeWindowDiagnostics(processName) {
+  const script = nativeWindowDiagnosticsScript(processName);
+  const result = spawnSync('osascript', ['-l', 'JavaScript', '-e', script], {
+    encoding: 'utf8',
+    timeout: 15_000,
+    maxBuffer: 5 * 1024 * 1024,
+  });
+  let parsed = null;
+  let parseError = null;
+  if (result.status === 0 && result.stdout) {
+    try {
+      parsed = JSON.parse(result.stdout);
+    } catch (error) {
+      parseError = error instanceof Error ? error.message : String(error);
+    }
+  }
+  return {
+    schema: 'opl_packaged_gui_native_window_diagnostics.v1',
+    process_name: processName,
+    collected_at: new Date().toISOString(),
+    osascript: {
+      command: 'osascript -l JavaScript -e <native-window-diagnostics>',
+      status: result.status,
+      signal: result.signal ?? null,
+      error: result.error?.message ?? null,
+      stderr: result.stderr ?? '',
+      stdout_length: result.stdout?.length ?? 0,
+      parse_error: parseError,
+    },
+    result: parsed,
+  };
+}
+
+function summarizeNativeWindowDiagnostics(diagnostics) {
+  const result = diagnostics?.result;
+  const targetProcess = result?.target_process;
+  const likelyAlertNodes = Array.isArray(result?.likely_alert_nodes) ? result.likely_alert_nodes : [];
+  return {
+    status: result ? 'passed' : 'failed',
+    osascript_status: diagnostics?.osascript?.status ?? null,
+    osascript_error: diagnostics?.osascript?.error ?? null,
+    target_process_found: targetProcess?.found === true,
+    target_process_window_count: Array.isArray(targetProcess?.windows) ? targetProcess.windows.length : null,
+    target_process_ui_element_count: Array.isArray(targetProcess?.top_level_ui_elements)
+      ? targetProcess.top_level_ui_elements.length
+      : null,
+    frontmost_processes: Array.isArray(result?.frontmost_processes) ? result.frontmost_processes.slice(0, 8) : [],
+    likely_alert_text: likelyAlertNodes
+      .map((node) => node.text)
+      .filter(Boolean)
+      .slice(0, 12),
+  };
+}
+
 function collectLaunchDiagnostics(options, secret) {
   const launchLogDir = path.join(options.artifacts, 'launch-app');
   fs.mkdirSync(launchLogDir, { recursive: true });
   const processList = commandDiagnostic('/bin/ps', ['axo', 'pid,ppid,args']);
   const processRows = parseProcessRows(processList.stdout, options.processName);
   const uid = String(os.userInfo().uid);
+  const nativeWindowDiagnostics = captureNativeWindowDiagnostics(options.processName);
   const diagnostics = {
     schema: 'opl_packaged_gui_launch_diagnostics.v1',
     process_name: options.processName,
@@ -3964,7 +4169,9 @@ function collectLaunchDiagnostics(options, secret) {
       '3',
       `http://127.0.0.1:${options.cdpPort}/json/list`,
     ]),
+    native_window_diagnostics: summarizeNativeWindowDiagnostics(nativeWindowDiagnostics),
   };
+  writeJsonArtifact(path.join(launchLogDir, 'native-window-diagnostics.json'), nativeWindowDiagnostics, secret);
   writeJsonArtifact(path.join(launchLogDir, 'diagnostics.json'), diagnostics, secret);
   writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret);
   copyTextFileIfExists(defaultCdpRegistryPath(), path.join(launchLogDir, 'cdp-registry.json'), secret);
@@ -4504,6 +4711,8 @@ export const __test =
         buildLaunchAppEnv,
         launchEnvDiagnostics,
         parseProcessRows,
+        nativeWindowDiagnosticsScript,
+        summarizeNativeWindowDiagnostics,
         unifiedLogPredicate,
         parseCfBundleExecutableFromPlistText,
         resolveAppExecutablePath,

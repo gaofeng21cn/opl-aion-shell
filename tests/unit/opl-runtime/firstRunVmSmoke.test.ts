@@ -131,6 +131,49 @@ describe('packaged first-run VM smoke helpers', () => {
     ]);
   });
 
+  it('summarizes native modal text from launch diagnostics artifacts', () => {
+    const summary = __test.summarizeNativeWindowDiagnostics({
+      schema: 'opl_packaged_gui_native_window_diagnostics.v1',
+      osascript: { status: 0 },
+      result: {
+        schema: 'opl_packaged_gui_native_window_snapshot.v1',
+        target_process: {
+          found: true,
+          windows: [{ index: 0, nodes: [] }],
+          top_level_ui_elements: [{ index: 0, nodes: [] }],
+        },
+        frontmost_processes: [
+          { name: 'One Person Lab', frontmost: 'true', visible: 'true', window_count: 1, window_titles: ['Error'] },
+        ],
+        likely_alert_nodes: [
+          {
+            role: 'AXStaticText',
+            subrole: null,
+            text: 'A JavaScript error occurred in the main process',
+            depth: 1,
+          },
+          { role: 'AXButton', subrole: null, text: 'OK', depth: 1 },
+        ],
+      },
+    });
+
+    expect(summary).toMatchObject({
+      status: 'passed',
+      target_process_found: true,
+      target_process_window_count: 1,
+      target_process_ui_element_count: 1,
+      likely_alert_text: ['A JavaScript error occurred in the main process', 'OK'],
+    });
+    expect(summary.frontmost_processes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'One Person Lab',
+          window_titles: ['Error'],
+        }),
+      ])
+    );
+  });
+
   it('resolves the executable inside a packaged .app from Info.plist', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-executable-'));
     try {
@@ -462,17 +505,14 @@ describe('packaged first-run VM smoke helpers', () => {
 
   it('records unsigned spctl rejection as local authorization diagnostic after codesign passes', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-'));
-    const previousPath = process.env.PATH;
-    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-bin-'));
     const appPath = path.join(os.tmpdir(), 'One Person Lab.app');
     try {
-      fs.writeFileSync(path.join(binDir, 'codesign'), '#!/bin/sh\nexit 0\n');
-      fs.writeFileSync(path.join(binDir, 'spctl'), '#!/bin/sh\necho "$1: rejected" >&2\nexit 3\n');
-      fs.chmodSync(path.join(binDir, 'codesign'), 0o755);
-      fs.chmodSync(path.join(binDir, 'spctl'), 0o755);
-      process.env.PATH = `${binDir}:${previousPath}`;
+      const spawnSync = (command) =>
+        command === 'codesign'
+          ? { status: 0, stdout: '', stderr: '' }
+          : { status: 3, stdout: '', stderr: `${appPath}: rejected\n` };
 
-      expect(() => __test.verifyGatekeeperLaunchPolicy(appPath, artifacts)).not.toThrow();
+      expect(() => __test.verifyGatekeeperLaunchPolicy(appPath, artifacts, { spawnSync })).not.toThrow();
       const policy = JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8'));
       expect(policy).toMatchObject({
         schema: 'opl_gatekeeper_launch_policy.v1',
@@ -485,24 +525,21 @@ describe('packaged first-run VM smoke helpers', () => {
       });
       expect(policy.spctl.stderr).toContain('rejected');
     } finally {
-      process.env.PATH = previousPath;
       fs.rmSync(artifacts, { recursive: true, force: true });
-      fs.rmSync(binDir, { recursive: true, force: true });
     }
   });
 
   it('records codesign verification failure as unsigned local authorization diagnostic', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-'));
-    const previousPath = process.env.PATH;
-    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-fail-bin-'));
     try {
-      fs.writeFileSync(path.join(binDir, 'codesign'), '#!/bin/sh\necho codesign-failed >&2\nexit 1\n');
-      fs.writeFileSync(path.join(binDir, 'spctl'), '#!/bin/sh\nexit 0\n');
-      fs.chmodSync(path.join(binDir, 'codesign'), 0o755);
-      fs.chmodSync(path.join(binDir, 'spctl'), 0o755);
-      process.env.PATH = `${binDir}:${previousPath}`;
+      const spawnSync = (command) =>
+        command === 'codesign'
+          ? { status: 1, stdout: '', stderr: 'codesign-failed\n' }
+          : { status: 0, stdout: '', stderr: '' };
 
-      expect(() => __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts)).not.toThrow();
+      expect(() =>
+        __test.verifyGatekeeperLaunchPolicy('/tmp/One Person Lab.app', artifacts, { spawnSync })
+      ).not.toThrow();
       const policy = JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8'));
       expect(policy).toMatchObject({
         schema: 'opl_gatekeeper_launch_policy.v1',
@@ -517,9 +554,7 @@ describe('packaged first-run VM smoke helpers', () => {
       });
       expect(policy.codesign.stderr).toContain('codesign-failed');
     } finally {
-      process.env.PATH = previousPath;
       fs.rmSync(artifacts, { recursive: true, force: true });
-      fs.rmSync(binDir, { recursive: true, force: true });
     }
   });
 
