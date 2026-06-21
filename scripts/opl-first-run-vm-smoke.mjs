@@ -31,6 +31,9 @@ const DEFAULT_LABELS = {
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
 const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
+const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
+const MANAGED_NODE_VERSION = 'v22.21.1';
+const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
 const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
   'officecli',
@@ -1283,26 +1286,157 @@ function runCodexAiSelfCheck(input = {}) {
   });
 }
 
-function runOplJson(args, options = {}) {
+function resolveManagedOplBin(homeDir = os.homedir()) {
+  return path.join(homeDir, '.opl', 'one-person-lab', 'bin');
+}
+
+function resolveManagedNodeBin(homeDir = os.homedir(), platform = process.platform, arch = process.arch) {
+  if (platform !== 'darwin') return null;
+  const nodeArch = arch === 'arm64' ? 'arm64' : arch === 'x64' ? 'x64' : null;
+  if (!nodeArch) return null;
+  const nodeBin = path.join(homeDir, '.opl', 'toolchain', `node-${MANAGED_NODE_VERSION}-darwin-${nodeArch}`, 'bin');
+  return fs.existsSync(path.join(nodeBin, 'node')) && fs.existsSync(path.join(nodeBin, 'npm')) ? nodeBin : null;
+}
+
+function normalizePathEntries(entries) {
+  const seen = new Set();
+  const normalized = [];
+  for (const entry of entries) {
+    if (!entry) continue;
+    for (const part of String(entry).split(path.delimiter)) {
+      const trimmed = part.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      normalized.push(trimmed);
+    }
+  }
+  return normalized.join(path.delimiter);
+}
+
+function buildStandardBootstrapPathPrefix(homeDir = os.homedir()) {
+  return normalizePathEntries([
+    resolveManagedOplBin(homeDir),
+    resolveManagedNodeBin(homeDir),
+    path.join(homeDir, '.npm-global', 'bin'),
+    path.join(homeDir, '.local', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    process.env.PATH,
+  ]);
+}
+
+function resolvePackagedStandardInstaller(appPath) {
+  if (!appPath) return null;
+  const installerPath = path.join(appPath, 'Contents', 'Resources', STANDARD_BOOTSTRAP_RESOURCE);
+  return fs.existsSync(installerPath) && fs.statSync(installerPath).isFile() ? installerPath : null;
+}
+
+function buildStandardBootstrapCommand(installerPath) {
+  return {
+    command: '/bin/bash',
+    args: [
+      installerPath,
+      '--complete',
+      '--skip-modules',
+      '--skip-gui-open',
+      '--skip-native-helper-repair',
+      '--no-online-runtime',
+    ],
+    redactedCommand:
+      '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+  };
+}
+
+function runPackagedStandardBootstrapForSmoke(appPath, options = {}) {
+  const installerPath = resolvePackagedStandardInstaller(appPath);
+  if (!installerPath) {
+    return {
+      status: 'missing_installer',
+      app_path: appPath ?? null,
+      installer_path: appPath ? path.join(appPath, 'Contents', 'Resources', STANDARD_BOOTSTRAP_RESOURCE) : null,
+    };
+  }
+
+  const bootstrap = buildStandardBootstrapCommand(installerPath);
+  const result = spawnSync(bootstrap.command, bootstrap.args, {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      ...buildCodexInstallPreseedEnv(options),
+      PATH: buildStandardBootstrapPathPrefix(),
+    },
+    timeout: Math.max(OPL_BOOTSTRAP_TIMEOUT_MS, Number(options.timeoutMs) || 0),
+  });
+  return {
+    status: result.status === 0 ? 'passed' : 'failed',
+    command: bootstrap.redactedCommand,
+    installer_path: installerPath,
+    exit_status: result.status,
+    signal: result.signal ?? null,
+    timed_out: result.error?.code === 'ETIMEDOUT',
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? result.error?.message ?? '',
+  };
+}
+
+function buildOplJsonShellCommand(args) {
   const runtimeHome = findLatestFullRuntimeHome();
+  const pathPrefix = buildStandardBootstrapPathPrefix();
   const command = [
+    pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
     buildFullRuntimeCommandPrefix(runtimeHome),
-    'command -v opl >/dev/null',
+    'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
     ['opl', ...args].map(shellQuote).join(' '),
   ]
     .filter(Boolean)
     .join(' && ');
+  return { command, runtimeHome };
+}
+
+function resolveOplCommandPath() {
+  const result = spawnSync(runtimeShellExecutable(), ['-lc', 'command -v opl'], {
+    encoding: 'utf8',
+    env: { ...process.env, PATH: buildStandardBootstrapPathPrefix() },
+    timeout: 5_000,
+  });
+  return result.status === 0 ? result.stdout.trim() || null : null;
+}
+
+function runOplJsonOnce(args, options = {}) {
+  const { command, runtimeHome } = buildOplJsonShellCommand(args);
   const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
-    env: { ...process.env, OPL_OUTPUT: 'json' },
+    env: { ...process.env, OPL_OUTPUT: 'json', PATH: buildStandardBootstrapPathPrefix() },
     timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
   });
+  return { command, runtimeHome, result };
+}
+
+function runOplJson(args, options = {}) {
+  let bootstrapAttempt = null;
+  let probe = runOplJsonOnce(args, options);
+  if (probe.result.status !== 0 && !probe.runtimeHome && options.appPath) {
+    bootstrapAttempt = runPackagedStandardBootstrapForSmoke(options.appPath, options);
+    if (bootstrapAttempt.status === 'passed') {
+      probe = runOplJsonOnce(args, options);
+    }
+  }
+
+  const { command, runtimeHome, result } = probe;
   const diagnostics = {
     schema: 'opl_vm_smoke_opl_command_error.v1',
     args,
     command: `opl ${args.join(' ')}`,
     shell_command: command,
     runtime_home: runtimeHome,
+    standard_bootstrap: bootstrapAttempt,
+    managed_opl_bin: resolveManagedOplBin(),
+    managed_node_bin: resolveManagedNodeBin(),
+    opl_path: resolveOplCommandPath(),
     shell_executable: runtimeShellExecutable(),
     status: result.status,
     signal: result.signal ?? null,
@@ -1807,9 +1941,7 @@ function shouldWaitForFirstRunCompletion(options) {
 }
 
 function shouldWaitForCoreFirstLaunchReady(options) {
-  return (
-    options.requireCodexConfigWizard === true || options.runtimeProfile === 'full' || Boolean(options.codexApiKeyFile)
-  );
+  return options.requireCodexConfigWizard === true || options.runtimeProfile === 'full';
 }
 
 function shouldCheckFirstRunBeginnerUx(options) {
@@ -1892,7 +2024,10 @@ async function waitForCoreFirstLaunchReady(options, codexApiKey) {
       if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
     }
     try {
-      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json']);
+      lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json'], {
+        ...options,
+        appPath: options.appPath,
+      });
       const initialize = parseSystemInitialize(lastSystemInitializeRaw);
       if (isCoreFirstLaunchReady(initialize)) {
         return {
@@ -3314,7 +3449,7 @@ function collectFailureArtifacts(options, codexApiKey) {
     ['modules.json', OPL_CONNECT_MODULES_ARGS],
   ]) {
     try {
-      writeTextArtifact(path.join(options.artifacts, name), runOplJson(args), codexApiKey);
+      writeTextArtifact(path.join(options.artifacts, name), runOplJson(args, options), codexApiKey);
     } catch (error) {
       writeOplJsonCommandErrorArtifacts(path.join(options.artifacts, name), error, codexApiKey);
     }
@@ -3400,6 +3535,7 @@ async function main() {
       verifyGatekeeperLaunchPolicy(appPath, options.artifacts)
     );
     const launchStartedAtMs = Date.now() - 1_000;
+    const installedAppOptions = { ...options, appPath };
     await runSmokePhase(writeSmokeEvent, 'launch_app', () => launchApp(appPath, options), {
       app_path: appPath,
       cdp_port: options.cdpPort,
@@ -3416,7 +3552,7 @@ async function main() {
           'wait_guid_existing_state_probe',
           () =>
             waitForUsableGuidEntry({
-              ...options,
+              ...installedAppOptions,
               timeoutMs: existingStateGuidProbeTimeoutMs(options),
               writeSmokeEvent,
             }),
@@ -3436,7 +3572,7 @@ async function main() {
     }
     if (!guidEntry && shouldWaitForCoreFirstLaunchReady(options)) {
       coreFirstLaunch = await waitForCoreFirstLaunchReady(
-        withPhaseTimeout(options, options.codexReadinessPhaseTimeoutMs),
+        withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
         codexApiKey
       );
       writeTextArtifact(
@@ -3491,7 +3627,7 @@ async function main() {
         'wait_guid_entry',
         () =>
           waitForUsableGuidEntry(
-            withPhaseTimeout({ ...options, writeSmokeEvent }, options.codexReadinessPhaseTimeoutMs),
+            withPhaseTimeout({ ...installedAppOptions, writeSmokeEvent }, options.codexReadinessPhaseTimeoutMs),
             codexApiKey
           ),
         {
@@ -3764,6 +3900,14 @@ export const __test =
         firstRunBeginnerUxExpression,
         firstRunAccessibilityExpectedLabels,
         runOplJson,
+        resolveManagedOplBin,
+        resolveManagedNodeBin,
+        buildStandardBootstrapPathPrefix,
+        resolvePackagedStandardInstaller,
+        buildStandardBootstrapCommand,
+        runPackagedStandardBootstrapForSmoke,
+        buildOplJsonShellCommand,
+        resolveOplCommandPath,
         buildLaunchAppArgs,
         verifyGatekeeperLaunchPolicy,
         shouldTerminateExistingApp,

@@ -185,7 +185,30 @@ describe('OPL first-run VM smoke scripts', () => {
         requireCodexConfigWizard: false,
         codexApiKeyFile: '/tmp/codex-api-key.txt',
       })
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it('uses the packaged standard installer as the VM smoke bootstrap carrier', () => {
+    const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-smoke-app-'));
+    const appPath = path.join(appRoot, 'One Person Lab.app');
+    const installerPath = path.join(appPath, 'Contents', 'Resources', 'opl-install.sh');
+    writeFile(installerPath, '#!/usr/bin/env bash\nexit 0\n', 0o755);
+
+    expect(vmSmoke.resolvePackagedStandardInstaller(appPath)).toBe(installerPath);
+    expect(vmSmoke.buildStandardBootstrapCommand(installerPath)).toEqual({
+      command: '/bin/bash',
+      args: [
+        installerPath,
+        '--complete',
+        '--skip-modules',
+        '--skip-gui-open',
+        '--skip-native-helper-repair',
+        '--no-online-runtime',
+      ],
+      redactedCommand:
+        '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+    });
+    expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {
@@ -1277,6 +1300,14 @@ describe('OPL first-run VM smoke scripts', () => {
         command: 'opl system initialize --json',
         shell_command: 'command -v opl >/dev/null && opl system initialize --json',
         runtime_home: '/tmp/runtime/current',
+        standard_bootstrap: {
+          status: 'passed',
+          command:
+            '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
+        },
+        managed_opl_bin: '/Users/tester/.opl/one-person-lab/bin',
+        managed_node_bin: null,
+        opl_path: '/Users/tester/.opl/one-person-lab/bin/opl',
         shell_executable: '/bin/zsh',
         status: 1,
         signal: null,
@@ -1299,6 +1330,10 @@ describe('OPL first-run VM smoke scripts', () => {
           args: ['system', 'initialize', '--json'],
           command: 'opl system initialize --json',
           status: 1,
+          standard_bootstrap: {
+            status: 'passed',
+          },
+          opl_path: '/Users/tester/.opl/one-person-lab/bin/opl',
           timed_out: false,
           stdout: '{"partial":true}\n',
           stderr: 'runtime state not ready\n',
