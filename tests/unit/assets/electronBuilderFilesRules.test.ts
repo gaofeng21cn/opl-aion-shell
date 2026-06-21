@@ -17,7 +17,7 @@ function hasPositiveRule(rules: string[], packageName: string): boolean {
 
 function hasNegativeRule(rules: string[], packageName: string): boolean {
   return rules.some((rule) => {
-    if (!rule.startsWith('- \'!')) return false;
+    if (!rule.startsWith("- '!")) return false;
     if (rule.includes(`node_modules/${packageName}/**`)) return true;
 
     const groups = rule.matchAll(/\{([^}]+)\}/g);
