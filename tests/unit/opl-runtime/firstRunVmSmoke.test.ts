@@ -89,6 +89,19 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(__test.remainingGuidFallbackTimeoutMs(180_000, 181_000)).toBe(0);
   });
 
+  it('bounds guest waits before the host SSH deadline can kill diagnostics', () => {
+    const nowMs = 1_000_000;
+    const hostDeadlineMs = nowMs + 300_000;
+
+    expect(__test.boundTimeoutToHostDeadline(900_000, hostDeadlineMs, 'wait_guid_entry', nowMs)).toBe(
+      300_000 - __test.HOST_DEADLINE_SAFETY_MARGIN_MS
+    );
+    expect(__test.boundTimeoutToHostDeadline(30_000, hostDeadlineMs, 'wait_guid_entry', nowMs)).toBe(30_000);
+    expect(() => __test.boundTimeoutToHostDeadline(900_000, nowMs + 1_000, 'wait_guid_entry', nowMs)).toThrow(
+      /host SSH deadline safety margin/
+    );
+  });
+
   it('writes JSONL smoke events without leaking secrets', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-events-'));
     try {

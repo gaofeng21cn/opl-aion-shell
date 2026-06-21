@@ -627,7 +627,7 @@ describe('OPL first-run VM smoke scripts', () => {
     ).rejects.toThrow(/test-long-running-child timed out after 50ms/);
   });
 
-  it('passes Codex phase timeouts through Tart host plans and guest smoke commands', () => {
+  it('passes Codex phase and host deadline budgets through Tart host plans and guest smoke commands', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
       'clean-vm',
@@ -647,19 +647,26 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(tartSmoke.buildDryRunPlan(options).timeouts).toEqual({
       vm_boot_and_ssh_ms: 600_000,
       guest_smoke_ms: 900_000,
+      guest_smoke_host_ms: 1_020_000,
+      guest_smoke_host_grace_ms: 120_000,
       codex_install_phase_ms: 240_000,
       codex_readiness_phase_ms: 360_000,
     });
+    expect(tartSmoke.guestSmokeHostDeadlineEpochMs(options, 1_000_000)).toBe(2_020_000);
 
     const command = tartSmoke.guestSmokeCommand(
       options,
       '/tmp/guest/One-Person-Lab.dmg',
       '/tmp/guest/opl-first-run-vm-smoke.mjs',
       '/tmp/guest/artifacts',
-      '/tmp/guest/codex-api-key.txt'
+      '/tmp/guest/codex-api-key.txt',
+      null,
+      null,
+      2_020_000
     );
     expect(command).toContain("--codex-install-phase-timeout-ms '240000'");
     expect(command).toContain("--codex-readiness-phase-timeout-ms '360000'");
+    expect(command).toContain("--host-deadline-epoch-ms '2020000'");
   });
 
   it('defaults Codex phase timeouts from the guest smoke timeout and rejects invalid phase budgets', () => {

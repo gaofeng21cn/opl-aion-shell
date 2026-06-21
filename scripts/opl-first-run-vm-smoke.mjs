@@ -70,6 +70,7 @@ const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
 const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
+const HOST_DEADLINE_SAFETY_MARGIN_MS = 120_000;
 const RELEASE_EVIDENCE_SCREENSHOTS = {
   full: path.join('screenshots', 'full.png'),
   action: path.join('screenshots', 'action.png'),
@@ -130,6 +131,10 @@ Options:
   --codex-ai-self-check-timeout-ms <n>
                          Codex AI self-check timeout. Default: 120000.
   --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
+  --host-deadline-epoch-ms <n>
+                         Optional absolute host SSH deadline in Unix epoch milliseconds.
+                         Guest phase waits are shortened by a safety margin so
+                         failures are reported before the host kills the SSH process.
   --runtime-profile <profile>
                          First-run package profile to verify: full or standard. Default: full.
                          The full profile verifies bundled runtime/module/skill equivalence.
@@ -169,6 +174,9 @@ function parseArgs(argv) {
     codexAiSelfCheckMode: 'diagnose',
     codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
+    hostDeadlineEpochMs: process.env.OPL_FIRST_RUN_HOST_DEADLINE_EPOCH_MS
+      ? Number(process.env.OPL_FIRST_RUN_HOST_DEADLINE_EPOCH_MS)
+      : null,
     runtimeProfile: 'full',
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
     requireCodexConfigWizard: false,
@@ -231,6 +239,7 @@ function parseArgs(argv) {
     else if (arg === '--runtime-profile') options.runtimeProfile = value;
     else if (arg === '--codex-ai-self-check-mode') options.codexAiSelfCheckMode = value;
     else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
+    else if (arg === '--host-deadline-epoch-ms') options.hostDeadlineEpochMs = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
     else throw new Error(`Unsupported argument: ${arg}`);
   }
@@ -249,6 +258,12 @@ function parseArgs(argv) {
   validateCodexInstallPreseedOptions(options);
   if (!Number.isInteger(options.cdpPort) || options.cdpPort < 1024 || options.cdpPort > 65535) {
     throw new Error('--cdp-port must be an integer TCP port between 1024 and 65535.');
+  }
+  if (
+    options.hostDeadlineEpochMs !== null &&
+    (!Number.isFinite(options.hostDeadlineEpochMs) || options.hostDeadlineEpochMs <= 0)
+  ) {
+    throw new Error('--host-deadline-epoch-ms must be a positive Unix epoch millisecond timestamp.');
   }
   if (!RUNTIME_PROFILES.has(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
@@ -275,8 +290,18 @@ function resolveOplProbeTimeoutMs(timeoutMs) {
   return Math.max(1_000, Math.min(DEFAULT_OPL_PROBE_TIMEOUT_MS, Math.floor(timeoutMs)));
 }
 
-function withPhaseTimeout(options, timeoutMs) {
-  return { ...options, timeoutMs };
+function boundTimeoutToHostDeadline(timeoutMs, hostDeadlineEpochMs, label = 'phase', nowMs = Date.now()) {
+  if (!Number.isFinite(hostDeadlineEpochMs) || hostDeadlineEpochMs <= 0) return timeoutMs;
+  const remainingMs = Math.floor(hostDeadlineEpochMs - nowMs - HOST_DEADLINE_SAFETY_MARGIN_MS);
+  if (remainingMs <= 0) {
+    throw new Error(`${label} timed out before starting because the host SSH deadline safety margin was exhausted.`);
+  }
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return remainingMs;
+  return Math.min(timeoutMs, remainingMs);
+}
+
+function withPhaseTimeout(options, timeoutMs, label = 'phase') {
+  return { ...options, timeoutMs: boundTimeoutToHostDeadline(timeoutMs, options.hostDeadlineEpochMs, label) };
 }
 
 function readCodexApiKey(options) {
@@ -3707,6 +3732,8 @@ async function main() {
         smoke_ms: options.timeoutMs,
         codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
         codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+        host_deadline_epoch_ms: options.hostDeadlineEpochMs,
+        host_deadline_safety_margin_ms: options.hostDeadlineEpochMs ? HOST_DEADLINE_SAFETY_MARGIN_MS : null,
       },
     });
     if (options.assertClean) {
@@ -4055,6 +4082,8 @@ async function main() {
         smoke_ms: options.timeoutMs,
         codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
         codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+        host_deadline_epoch_ms: options.hostDeadlineEpochMs,
+        host_deadline_safety_margin_ms: options.hostDeadlineEpochMs ? HOST_DEADLINE_SAFETY_MARGIN_MS : null,
       },
       existing_launch_fallback: firstRun.existingLaunchFallback === true,
       guid_entry_probe: guidEntry.mode,
@@ -4139,6 +4168,8 @@ export const __test =
         parseArgs,
         buildCodexInstallPreseedEnv,
         codexInstallPreseedDiagnostics,
+        boundTimeoutToHostDeadline,
+        HOST_DEADLINE_SAFETY_MARGIN_MS,
         phaseDeadlineMs,
         remainingPhaseTimeoutMs,
         guidEntryReadinessExpression,

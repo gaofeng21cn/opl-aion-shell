@@ -435,6 +435,8 @@ function buildDryRunPlan(options) {
     timeouts: {
       vm_boot_and_ssh_ms: options.timeoutMs,
       guest_smoke_ms: options.smokeTimeoutMs,
+      guest_smoke_host_ms: guestSmokeHostTimeoutMs(options),
+      guest_smoke_host_grace_ms: GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS,
       codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
       codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
     },
@@ -951,6 +953,10 @@ function guestSmokeHostTimeoutMs(options) {
   return options.smokeTimeoutMs + GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS;
 }
 
+function guestSmokeHostDeadlineEpochMs(options, nowMs = Date.now()) {
+  return nowMs + guestSmokeHostTimeoutMs(options);
+}
+
 function runPipe(leftCommand, leftArgs, rightCommand, rightArgs) {
   return new Promise((resolve, reject) => {
     const left = spawn(leftCommand, leftArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -1227,7 +1233,8 @@ function guestSmokeCommand(
   guestArtifactDir,
   guestCodexApiKeyPath,
   guestFrameworkSourceArchivePath = null,
-  guestFrameworkInstallScriptPath = null
+  guestFrameworkInstallScriptPath = null,
+  guestHostDeadlineEpochMs = guestSmokeHostDeadlineEpochMs(options)
 ) {
   const nodeCommand = shellQuote(options.guestNodeCommand);
   const sourceArchiveUrl = guestFrameworkSourceArchivePath ? `file://${guestFrameworkSourceArchivePath}` : null;
@@ -1255,6 +1262,7 @@ function guestSmokeCommand(
     `--timeout-ms ${shellQuote(String(options.smokeTimeoutMs))}`,
     `--codex-install-phase-timeout-ms ${shellQuote(String(options.codexInstallPhaseTimeoutMs))}`,
     `--codex-readiness-phase-timeout-ms ${shellQuote(String(options.codexReadinessPhaseTimeoutMs))}`,
+    `--host-deadline-epoch-ms ${shellQuote(String(guestHostDeadlineEpochMs))}`,
     options.codexPackageTarball ? `--codex-package-tarball ${shellQuote(guestCodexPackageTarballPath(options))}` : '',
     options.codexPlatformPackageTarball
       ? `--codex-platform-package-tarball ${shellQuote(guestCodexPlatformPackageTarballPath(options))}`
@@ -1592,6 +1600,8 @@ async function main() {
       await installHomebrewCaskWithRetry(options, ip);
     }
     setStage('run_guest_smoke');
+    const guestHostTimeoutMs = guestSmokeHostTimeoutMs(options);
+    const guestHostDeadlineEpochMs = guestSmokeHostDeadlineEpochMs(options);
     await sshWithRunOptions(
       options,
       ip,
@@ -1602,11 +1612,12 @@ async function main() {
         guestArtifactDir,
         guestCodexApiKeyPath,
         guestFrameworkArchivePath,
-        guestFrameworkInstallerPath
+        guestFrameworkInstallerPath,
+        guestHostDeadlineEpochMs
       ),
       {
         label: `ssh run_guest_smoke ${options.guestUser}@${ip}`,
-        timeoutMs: guestSmokeHostTimeoutMs(options),
+        timeoutMs: guestHostTimeoutMs,
       }
     );
     setStage('copy_guest_artifacts');
@@ -1653,6 +1664,7 @@ export const __test =
         guestFrameworkSourceArchivePath,
         guestHomebrewInstallCommand,
         guestNodeStagingPlan,
+        guestSmokeHostDeadlineEpochMs,
         installHomebrewCaskWithRetry,
         isRetryableHomebrewInstallError,
         guestSmokeHostTimeoutMs,
