@@ -3099,6 +3099,20 @@ async function waitForUsableGuidEntry(options, secret) {
       fallback_timeout_ms: fallbackTimeoutMs,
       error: error instanceof Error ? error.message : String(error),
     });
+    const launchDiagnostics = collectLaunchDiagnostics(options, secret);
+    const nativeModalSignature = detectNativeModalLaunchBlocker(options, launchDiagnostics);
+    if (nativeModalSignature.detected) {
+      writeJsonArtifact(path.join(options.artifacts, 'native-modal-launch-blocker.json'), nativeModalSignature, secret);
+      writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp_native_modal', 'failed', nativeModalSignature);
+      throw new Error(
+        [
+          'Packaged app launch is blocked by a native modal before CDP/window readiness.',
+          `cdp_error=${error instanceof Error ? error.message : String(error)}`,
+          `app_pids=${nativeModalSignature.app_pids.join(',') || 'none'}`,
+          `sample_paths=${nativeModalSignature.nsalert_sample_paths.join(',') || 'none'}`,
+        ].join('\n')
+      );
+    }
     if (fallbackTimeoutMs <= 0) {
       throw error;
     }
@@ -4175,6 +4189,49 @@ function collectLaunchDiagnostics(options, secret) {
   writeJsonArtifact(path.join(launchLogDir, 'diagnostics.json'), diagnostics, secret);
   writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret);
   copyTextFileIfExists(defaultCdpRegistryPath(), path.join(launchLogDir, 'cdp-registry.json'), secret);
+  return diagnostics;
+}
+
+function detectNativeModalLaunchBlocker(options, diagnostics) {
+  const launchLogDir = path.join(options.artifacts, 'launch-app');
+  const appPids = (Array.isArray(diagnostics?.app_processes) ? diagnostics.app_processes : [])
+    .map((row) => row?.pid)
+    .filter((pid) => Number.isInteger(pid) && pid > 0);
+  const nativeWindow = diagnostics?.native_window_diagnostics ?? {};
+  const cdpAbsent =
+    diagnostics?.cdp_listener?.status !== 0 &&
+    /Timed out waiting for packaged app CDP target|Failed to connect|Couldn.t connect|ECONNREFUSED/i.test(
+      `${diagnostics?.cdp_targets?.stderr ?? ''}\n${diagnostics?.cdp_targets?.error ?? ''}`
+    );
+  const noNativeWindowSurface =
+    nativeWindow.target_process_found === true &&
+    nativeWindow.target_process_window_count === 0 &&
+    nativeWindow.target_process_ui_element_count === 0;
+  const nsalertSamplePaths = [];
+  for (const pid of appPids) {
+    const samplePath = path.join(launchLogDir, `process-${pid}-sample.txt`);
+    let sample = '';
+    try {
+      sample = fs.readFileSync(samplePath, 'utf8');
+    } catch {
+      sample = '';
+    }
+    if (/\-\[NSAlert runModal\]/.test(sample)) {
+      nsalertSamplePaths.push(samplePath);
+    }
+  }
+
+  return {
+    schema: 'opl_packaged_gui_native_modal_launch_blocker.v1',
+    detected: Boolean(cdpAbsent && appPids.length > 0 && noNativeWindowSurface && nsalertSamplePaths.length > 0),
+    cdp_absent: Boolean(cdpAbsent),
+    app_process_alive: appPids.length > 0,
+    no_native_window_surface: Boolean(noNativeWindowSurface),
+    nsalert_run_modal_sample_found: nsalertSamplePaths.length > 0,
+    app_pids: appPids,
+    nsalert_sample_paths: nsalertSamplePaths,
+    native_window_diagnostics: nativeWindow,
+  };
 }
 
 function collectFailureArtifacts(options, codexApiKey) {
@@ -4713,6 +4770,7 @@ export const __test =
         parseProcessRows,
         nativeWindowDiagnosticsScript,
         summarizeNativeWindowDiagnostics,
+        detectNativeModalLaunchBlocker,
         unifiedLogPredicate,
         parseCfBundleExecutableFromPlistText,
         resolveAppExecutablePath,

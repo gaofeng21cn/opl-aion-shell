@@ -1446,6 +1446,77 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('syspolicyd');
   });
 
+  it('detects the native modal launch blocker signature from launch diagnostics and process samples', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-modal-blocker-'));
+    try {
+      const launchLogDir = path.join(artifacts, 'launch-app');
+      fs.mkdirSync(launchLogDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(launchLogDir, 'process-8503-sample.txt'),
+        '2603 -[NSAlert runModal]  (in AppKit) + 196\n',
+        'utf8'
+      );
+
+      const result = vmSmoke.detectNativeModalLaunchBlocker(
+        { artifacts },
+        {
+          app_processes: [
+            { pid: 8503, ppid: 714, args: '/Applications/One Person Lab.app/Contents/MacOS/One Person Lab' },
+          ],
+          cdp_listener: { status: 1 },
+          cdp_targets: {
+            status: 7,
+            stderr: "curl: (7) Failed to connect to 127.0.0.1 port 9230: Couldn't connect to server\n",
+          },
+          native_window_diagnostics: {
+            target_process_found: true,
+            target_process_window_count: 0,
+            target_process_ui_element_count: 0,
+          },
+        }
+      );
+
+      expect(result).toMatchObject({
+        schema: 'opl_packaged_gui_native_modal_launch_blocker.v1',
+        detected: true,
+        cdp_absent: true,
+        app_process_alive: true,
+        no_native_window_surface: true,
+        nsalert_run_modal_sample_found: true,
+        app_pids: [8503],
+      });
+      expect(result.nsalert_sample_paths[0]).toContain('process-8503-sample.txt');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('does not classify ordinary CDP startup delays as native modal blockers without an NSAlert sample', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-modal-negative-'));
+    try {
+      fs.mkdirSync(path.join(artifacts, 'launch-app'), { recursive: true });
+
+      const result = vmSmoke.detectNativeModalLaunchBlocker(
+        { artifacts },
+        {
+          app_processes: [{ pid: 8503 }],
+          cdp_listener: { status: 1 },
+          cdp_targets: { stderr: 'connect ECONNREFUSED 127.0.0.1:9230' },
+          native_window_diagnostics: {
+            target_process_found: true,
+            target_process_window_count: 0,
+            target_process_ui_element_count: 0,
+          },
+        }
+      );
+
+      expect(result.detected).toBe(false);
+      expect(result.nsalert_run_modal_sample_found).toBe(false);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('validates assistant route smoke independently from Settings smoke', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
