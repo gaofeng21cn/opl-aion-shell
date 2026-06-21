@@ -217,6 +217,54 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(true);
   });
 
+  it('configures Codex from the VM smoke API key file before core readiness probing', () => {
+    const calls: Array<{ args: string[]; options: Record<string, unknown> }> = [];
+    const result = __test.configureCodexApiKeyForSmoke(
+      {
+        timeoutMs: 12_000,
+        appPath: '/Applications/One Person Lab.app',
+        __testHooks: {
+          runOplJson: (args: string[], options: Record<string, unknown>) => {
+            calls.push({ args, options });
+            return JSON.stringify({ status: 'configured', provider_base_url: 'https://gflabtoken.cn/v1' });
+          },
+        },
+      },
+      'sk-test-secret'
+    );
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args).toEqual(['system', 'configure-codex', '--api-key-stdin', '--json']);
+    expect(calls[0].options.input).toBe('sk-test-secret\n');
+    expect(JSON.stringify(result)).not.toContain('sk-test-secret');
+    expect(result).toMatchObject({
+      status: 'configured',
+      command: 'opl system configure-codex --api-key-stdin --json',
+      result: {
+        status: 'configured',
+        provider_base_url: 'https://gflabtoken.cn/v1',
+      },
+    });
+  });
+
+  it('skips programmatic Codex configuration when no VM smoke API key is available', () => {
+    expect(
+      __test.configureCodexApiKeyForSmoke(
+        {
+          __testHooks: {
+            runOplJson: () => {
+              throw new Error('runOplJson should not be called without an API key');
+            },
+          },
+        },
+        null
+      )
+    ).toEqual({
+      status: 'skipped',
+      reason: 'missing_codex_api_key',
+    });
+  });
+
   it('maps clean Full first-run screenshots to release evidence paths only for Full gates', () => {
     expect(__test.RELEASE_EVIDENCE_SCREENSHOTS).toEqual({
       full: path.join('screenshots', 'full.png'),

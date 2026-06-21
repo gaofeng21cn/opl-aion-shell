@@ -1496,6 +1496,7 @@ function runOplJsonOnce(args, options = {}) {
   const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json', PATH: buildStandardBootstrapPathPrefix() },
+    input: options.input ?? undefined,
     timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
   });
   return { command, runtimeHome, fullRuntime, result };
@@ -1560,6 +1561,27 @@ function parseOplJsonResult(raw, args) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`opl ${args.join(' ')} returned invalid JSON: ${message}`);
   }
+}
+
+function configureCodexApiKeyForSmoke(options, codexApiKey) {
+  if (!codexApiKey) {
+    return {
+      status: 'skipped',
+      reason: 'missing_codex_api_key',
+    };
+  }
+  const args = ['system', 'configure-codex', '--api-key-stdin', '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const raw = runOplJsonImpl(args, {
+    ...options,
+    input: `${codexApiKey}\n`,
+  });
+  const parsed = parseOplJsonResult(raw, args);
+  return {
+    status: 'configured',
+    command: 'opl system configure-codex --api-key-stdin --json',
+    result: parsed,
+  };
 }
 
 function collectAppReleaseRuntimeEvidence(options, secret) {
@@ -3640,6 +3662,22 @@ async function main() {
       cdp_port: options.cdpPort,
       timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
+    if (codexApiKey) {
+      const codexConfigure = await runSmokePhase(
+        writeSmokeEvent,
+        'configure_codex_api_key',
+        () =>
+          configureCodexApiKeyForSmoke(
+            withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
+            codexApiKey
+          ),
+        {
+          source: 'codex_api_key_file',
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
+        }
+      );
+      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), codexConfigure, codexApiKey);
+    }
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
@@ -3987,6 +4025,7 @@ export const __test =
         shouldWaitForFirstRunCompletion,
         waitForFullFirstRunEquivalence,
         shouldWaitForCoreFirstLaunchReady,
+        configureCodexApiKeyForSmoke,
         shouldCaptureFullReleaseScreenshot,
         shouldCheckFirstRunBeginnerUx,
         waitForCoreFirstLaunchReady,
