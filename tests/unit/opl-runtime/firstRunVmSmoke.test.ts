@@ -576,14 +576,21 @@ describe('packaged first-run VM smoke helpers', () => {
   it('writes App release runtime evidence with the stable payload-free action fixture', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-release-runtime-evidence-'));
     const calls: string[][] = [];
+    const callOptions: Array<{ appPath?: string; runtimeProfile?: string; timeoutMs?: number }> = [];
     try {
       const result = __test.collectAppReleaseRuntimeEvidence(
         {
           artifacts,
+          appPath: '/Applications/One Person Lab.app',
+          runtimeProfile: 'full',
           timeoutMs: 1_000,
           __testHooks: {
-            runOplJson: (args: string[]) => {
+            runOplJson: (
+              args: string[],
+              options: { appPath?: string; runtimeProfile?: string; timeoutMs?: number }
+            ) => {
               calls.push(args);
+              callOptions.push(options);
               return JSON.stringify({ command: args, ok: true });
             },
           },
@@ -610,6 +617,17 @@ describe('packaged first-run VM smoke helpers', () => {
         ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--dry-run', '--json'],
         ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--json'],
       ]);
+      expect(callOptions).toEqual(
+        Array.from({ length: 5 }, () => ({
+          artifacts,
+          appPath: '/Applications/One Person Lab.app',
+          runtimeProfile: 'full',
+          timeoutMs: 1_000,
+          __testHooks: {
+            runOplJson: expect.any(Function),
+          },
+        }))
+      );
       expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'action-dry-run-result.json'), 'utf8'))).toEqual({
         command: ['app', 'action', 'execute', '--action', 'developer_supervisor_refresh', '--dry-run', '--json'],
         ok: true,

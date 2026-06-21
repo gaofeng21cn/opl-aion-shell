@@ -144,6 +144,20 @@ function createFullRuntimeEquivalenceFixture() {
   return { root, codexHome, runtimeHome };
 }
 
+function createPackagedFullRuntimeAppFixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-packaged-full-app-'));
+  const appPath = path.join(root, 'One Person Lab.app');
+  const payloadRoot = path.join(appPath, 'Contents', 'Resources', 'opl-full-runtime');
+  const runtimeHome = path.join(payloadRoot, 'runtime', 'current');
+  fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
+  writeFile(
+    path.join(payloadRoot, 'manifest', 'full-package-manifest.json'),
+    `${JSON.stringify({ version: '26.6.21' })}\n`
+  );
+  return { root, appPath, runtimeHome };
+}
+
 describe('OPL first-run VM smoke scripts', () => {
   it('separates Full runtime equivalence from Codex-keyed core first-launch readiness', () => {
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('standard')).toBe(false);
@@ -209,6 +223,49 @@ describe('OPL first-run VM smoke scripts', () => {
         '/bin/bash <packaged-opl-install.sh> --complete --skip-modules --skip-gui-open --skip-native-helper-repair --no-online-runtime',
     });
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
+  });
+
+  it('resolves Full VM smoke commands from installed App packaged runtime resources', () => {
+    const fixture = createPackagedFullRuntimeAppFixture();
+    try {
+      writeFile(
+        path.join(fixture.runtimeHome, 'bin', 'opl'),
+        '#!/usr/bin/env bash\nprintf \'{"ok":true,"args":["%s","%s","%s"]}\\n\' "$1" "$2" "$3"\n',
+        0o755
+      );
+
+      const fullRuntime = vmSmoke.describePackagedFullRuntime(fixture.appPath);
+      const command = vmSmoke.buildOplJsonShellCommand(['system', 'initialize', '--json'], {
+        appPath: fixture.appPath,
+        runtimeProfile: 'full',
+      });
+      const raw = vmSmoke.runOplJson(['system', 'initialize', '--json'], {
+        appPath: fixture.appPath,
+        runtimeProfile: 'full',
+        timeoutMs: 1_000,
+      });
+
+      expect(fullRuntime).toMatchObject({
+        status: 'found',
+        runtime_home: fixture.runtimeHome,
+        opl_path: path.join(fixture.runtimeHome, 'bin', 'opl'),
+        missing_reason: null,
+      });
+      expect(command.runtimeHome).toBe(fixture.runtimeHome);
+      expect(command.fullRuntime).toMatchObject({
+        source: 'packaged_app_resource',
+        runtime_home: fixture.runtimeHome,
+      });
+      expect(command.command).toContain(path.join(fixture.runtimeHome, 'bin', 'opl'));
+      expect(command.command).toContain('system');
+      expect(command.command).not.toContain('command -v opl');
+      expect(JSON.parse(raw)).toEqual({
+        ok: true,
+        args: ['system', 'initialize', '--json'],
+      });
+    } finally {
+      fs.rmSync(fixture.root, { recursive: true, force: true });
+    }
   });
 
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {

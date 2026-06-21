@@ -34,6 +34,8 @@ const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
+const FULL_RUNTIME_RESOURCE_DIR = 'opl-full-runtime';
+const FULL_RUNTIME_MANIFEST = 'full-package-manifest.json';
 const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
 const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
   'officecli',
@@ -790,6 +792,83 @@ function findLatestFullRuntimeHome(runtimeRoot = defaultOplRuntimeRoot()) {
   return candidates[0] ?? null;
 }
 
+function readJsonRecord(filePath) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function isUsableFullRuntimeHome(runtimeHome) {
+  return Boolean(runtimeHome && fs.existsSync(path.join(runtimeHome, 'bin', 'opl')));
+}
+
+function resolveManifestRuntimeHome(payloadRoot, manifest) {
+  const candidates = [];
+  for (const key of ['runtime_home', 'runtimeHome']) {
+    const value = typeof manifest?.[key] === 'string' ? manifest[key].trim() : '';
+    if (value) {
+      candidates.push(path.isAbsolute(value) ? value : path.join(payloadRoot, value));
+    }
+  }
+  for (const key of ['runtime_path', 'runtimePath']) {
+    const value = typeof manifest?.[key] === 'string' ? manifest[key].trim() : '';
+    if (value) candidates.push(path.join(payloadRoot, value));
+  }
+  return candidates.find(isUsableFullRuntimeHome) ?? null;
+}
+
+function describePackagedFullRuntime(appPath) {
+  const payloadRoot = appPath ? path.join(appPath, 'Contents', 'Resources', FULL_RUNTIME_RESOURCE_DIR) : null;
+  const manifestPath = payloadRoot ? path.join(payloadRoot, 'manifest', FULL_RUNTIME_MANIFEST) : null;
+  const manifest = manifestPath ? readJsonRecord(manifestPath) : null;
+  const directRuntimeHome = payloadRoot ? path.join(payloadRoot, 'runtime', 'current') : null;
+  const manifestRuntimeHome = payloadRoot && manifest ? resolveManifestRuntimeHome(payloadRoot, manifest) : null;
+  const runtimeHome = [directRuntimeHome, manifestRuntimeHome].find(isUsableFullRuntimeHome) ?? null;
+  const oplPath = runtimeHome ? path.join(runtimeHome, 'bin', 'opl') : null;
+  let missingReason = null;
+  if (runtimeHome) {
+    missingReason = null;
+  } else if (!appPath) {
+    missingReason = 'missing_app_path';
+  } else if (!fs.existsSync(appPath)) {
+    missingReason = 'missing_app_bundle';
+  } else if (!payloadRoot || !fs.existsSync(payloadRoot)) {
+    missingReason = 'missing_full_runtime_resource';
+  } else if (!manifest) {
+    missingReason = 'missing_or_invalid_manifest';
+  } else {
+    missingReason = 'missing_runtime_current_opl';
+  }
+
+  return {
+    status: runtimeHome ? 'found' : 'missing',
+    app_path: appPath ?? null,
+    resource_root: payloadRoot,
+    manifest_path: manifestPath,
+    manifest_present: Boolean(manifest),
+    runtime_home: runtimeHome,
+    opl_path: oplPath,
+    missing_reason: missingReason,
+  };
+}
+
+function resolveFullRuntimeForSmoke(options = {}) {
+  const packaged = describePackagedFullRuntime(options.appPath);
+  if (packaged.runtime_home) return { ...packaged, source: 'packaged_app_resource' };
+  if (options.appPath) return { ...packaged, source: null };
+  const activeRuntimeHome = findLatestFullRuntimeHome();
+  return {
+    ...packaged,
+    status: activeRuntimeHome ? 'found' : packaged.status,
+    source: activeRuntimeHome ? 'activated_runtime_home' : null,
+    runtime_home: activeRuntimeHome,
+    opl_path: activeRuntimeHome ? path.join(activeRuntimeHome, 'bin', 'opl') : packaged.opl_path,
+  };
+}
+
 function resolvePythonBin(runtimeHome) {
   const pythonRoot = path.join(runtimeHome, 'python');
   if (!fs.existsSync(pythonRoot)) return null;
@@ -1383,21 +1462,27 @@ function runPackagedStandardBootstrapForSmoke(appPath, options = {}) {
   };
 }
 
-function buildOplJsonShellCommand(args) {
-  const runtimeHome = findLatestFullRuntimeHome();
+function buildOplJsonShellCommand(args, options = {}) {
+  const runtimeProfile = options.runtimeProfile ?? 'standard';
+  const fullRuntime = runtimeProfile === 'full' ? resolveFullRuntimeForSmoke(options) : null;
+  const runtimeHome = fullRuntime?.runtime_home ?? null;
   const pathPrefix = buildStandardBootstrapPathPrefix();
-  const command = [
-    pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
-    buildFullRuntimeCommandPrefix(runtimeHome),
-    'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
-    ['opl', ...args].map(shellQuote).join(' '),
-  ]
-    .filter(Boolean)
-    .join(' && ');
-  return { command, runtimeHome };
+  const commandArgs = [runtimeHome ? toRuntimeShellPath(path.join(runtimeHome, 'bin', 'opl')) : 'opl', ...args];
+  const command = runtimeHome
+    ? [buildFullRuntimeCommandPrefix(runtimeHome), commandArgs.map(shellQuote).join(' ')].filter(Boolean).join(' && ')
+    : [
+        pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
+        'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
+        commandArgs.map(shellQuote).join(' '),
+      ]
+        .filter(Boolean)
+        .join(' && ');
+  return { command, runtimeHome, fullRuntime };
 }
 
-function resolveOplCommandPath() {
+function resolveOplCommandPath(options = {}) {
+  const fullRuntime = options.runtimeProfile === 'full' ? resolveFullRuntimeForSmoke(options) : null;
+  if (fullRuntime?.opl_path) return fullRuntime.opl_path;
   const result = spawnSync(runtimeShellExecutable(), ['-lc', 'command -v opl'], {
     encoding: 'utf8',
     env: { ...process.env, PATH: buildStandardBootstrapPathPrefix() },
@@ -1407,19 +1492,19 @@ function resolveOplCommandPath() {
 }
 
 function runOplJsonOnce(args, options = {}) {
-  const { command, runtimeHome } = buildOplJsonShellCommand(args);
+  const { command, runtimeHome, fullRuntime } = buildOplJsonShellCommand(args, options);
   const result = spawnSync(runtimeShellExecutable(), ['-lc', command], {
     encoding: 'utf8',
     env: { ...process.env, OPL_OUTPUT: 'json', PATH: buildStandardBootstrapPathPrefix() },
     timeout: resolveOplProbeTimeoutMs(options.timeoutMs),
   });
-  return { command, runtimeHome, result };
+  return { command, runtimeHome, fullRuntime, result };
 }
 
 function runOplJson(args, options = {}) {
   let bootstrapAttempt = null;
   let probe = runOplJsonOnce(args, options);
-  if (probe.result.status !== 0 && !probe.runtimeHome && options.appPath) {
+  if (probe.result.status !== 0 && !probe.runtimeHome && options.appPath && options.runtimeProfile !== 'full') {
     bootstrapAttempt = runPackagedStandardBootstrapForSmoke(options.appPath, options);
     if (bootstrapAttempt.status === 'passed') {
       probe = runOplJsonOnce(args, options);
@@ -1433,10 +1518,11 @@ function runOplJson(args, options = {}) {
     command: `opl ${args.join(' ')}`,
     shell_command: command,
     runtime_home: runtimeHome,
+    full_packaged_runtime: probe.fullRuntime ?? null,
     standard_bootstrap: bootstrapAttempt,
     managed_opl_bin: resolveManagedOplBin(),
     managed_node_bin: resolveManagedNodeBin(),
-    opl_path: resolveOplCommandPath(),
+    opl_path: resolveOplCommandPath(options),
     shell_executable: runtimeShellExecutable(),
     status: result.status,
     signal: result.signal ?? null,
@@ -1502,7 +1588,7 @@ function collectAppReleaseRuntimeEvidence(options, secret) {
   ];
   const written = [];
   for (const artifact of artifacts) {
-    const raw = runOplJsonImpl(artifact.args, { timeoutMs: options.timeoutMs });
+    const raw = runOplJsonImpl(artifact.args, { ...options, timeoutMs: options.timeoutMs });
     writeJsonArtifact(path.join(options.artifacts, artifact.path), parseOplJsonResult(raw, artifact.args), secret);
     written.push(artifact.path);
   }
@@ -2152,7 +2238,11 @@ async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
         options.writeSmokeEvent,
         attempt,
         'system_initialize',
-        () => runOplJson(['system', 'initialize', '--json'], { timeoutMs: probeTimeoutMs }),
+        () =>
+          runOplJson(['system', 'initialize', '--json'], {
+            ...options,
+            timeoutMs: probeTimeoutMs,
+          }),
         {
           timeout_ms: probeTimeoutMs,
         }
@@ -2161,13 +2251,19 @@ async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
         options.writeSmokeEvent,
         attempt,
         'connect_modules',
-        () => runOplJson(OPL_CONNECT_MODULES_ARGS, { timeoutMs: probeTimeoutMs }),
+        () =>
+          runOplJson(OPL_CONNECT_MODULES_ARGS, {
+            ...options,
+            timeoutMs: probeTimeoutMs,
+          }),
         {
           timeout_ms: probeTimeoutMs,
         }
       );
       await runFullRuntimeEquivalenceProbe(options.writeSmokeEvent, attempt, 'assert_equivalence', () =>
-        assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw)
+        assertFullFirstRunEquivalence(lastSystemInitializeRaw, lastModulesRaw, {
+          runtimeHome: resolveFullRuntimeForSmoke(options).runtime_home,
+        })
       );
       return {
         systemInitializeRaw: lastSystemInitializeRaw,
@@ -3516,6 +3612,7 @@ async function main() {
       }
     );
     if (!fs.existsSync(appPath)) throw new Error(`App bundle does not exist: ${appPath}`);
+    options.appPath = appPath;
 
     if (shouldTerminateExistingApp()) {
       await runSmokePhase(
@@ -3758,7 +3855,11 @@ async function main() {
       const { systemInitializeRaw, modulesRaw } = await runSmokePhase(
         writeSmokeEvent,
         'full_runtime_equivalence',
-        () => waitForFullFirstRunEquivalence(options.codexReadinessPhaseTimeoutMs, { writeSmokeEvent }),
+        () =>
+          waitForFullFirstRunEquivalence(
+            options.codexReadinessPhaseTimeoutMs,
+            withPhaseTimeout({ ...installedAppOptions, writeSmokeEvent }, options.codexReadinessPhaseTimeoutMs)
+          ),
         {
           timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
@@ -3768,7 +3869,7 @@ async function main() {
       appReleaseRuntimeEvidence = await runSmokePhase(
         writeSmokeEvent,
         'app_release_runtime_evidence',
-        () => collectAppReleaseRuntimeEvidence(options, codexApiKey),
+        () => collectAppReleaseRuntimeEvidence(installedAppOptions, codexApiKey),
         {
           action_id: RELEASE_EVIDENCE_ACTION_ID,
           timeout_ms: options.timeoutMs,
@@ -3900,6 +4001,8 @@ export const __test =
         firstRunBeginnerUxExpression,
         firstRunAccessibilityExpectedLabels,
         runOplJson,
+        describePackagedFullRuntime,
+        resolveFullRuntimeForSmoke,
         resolveManagedOplBin,
         resolveManagedNodeBin,
         buildStandardBootstrapPathPrefix,
