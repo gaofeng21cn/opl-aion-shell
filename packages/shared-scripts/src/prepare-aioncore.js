@@ -131,7 +131,13 @@ function nodeExecutableRelativePath(platform) {
 }
 
 function removePathIfPresent(targetPath) {
-  if (!fs.existsSync(targetPath)) return false;
+  try {
+    fs.lstatSync(targetPath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  }
+
   fs.rmSync(targetPath, { recursive: true, force: true });
   return true;
 }

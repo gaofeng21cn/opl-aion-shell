@@ -112,6 +112,33 @@ describe('prepare-aioncore managed Node pruning', () => {
     );
   });
 
+  it.skipIf(process.platform === 'win32')(
+    'removes dangling package-manager symlinks after their payloads are pruned',
+    () => {
+      const dir = makeTempDir();
+      const managedResourcesDir = path.join(dir, 'managed-resources');
+      const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-darwin-arm64');
+
+      fs.mkdirSync(path.join(nodeVersionDir, 'bin'), { recursive: true });
+      fs.mkdirSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack', 'dist'), { recursive: true });
+      fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'node'), 'node');
+      fs.writeFileSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack', 'dist', 'corepack.js'), 'corepack');
+      fs.symlinkSync('../lib/node_modules/corepack/dist/corepack.js', path.join(nodeVersionDir, 'bin', 'corepack'));
+
+      const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'darwin');
+
+      expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'node'))).toBe(true);
+      expect(() => fs.lstatSync(path.join(nodeVersionDir, 'bin', 'corepack'))).toThrow();
+      expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack'))).toBe(false);
+      expect(result.pruned).toEqual(
+        expect.arrayContaining([
+          'node/node-v24.11.0-darwin-arm64/lib/node_modules/corepack',
+          'node/node-v24.11.0-darwin-arm64/bin/corepack',
+        ])
+      );
+    }
+  );
+
   it('removes Windows package-manager payloads while keeping node.exe', () => {
     const dir = makeTempDir();
     const managedResourcesDir = path.join(dir, 'managed-resources');

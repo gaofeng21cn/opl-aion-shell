@@ -44,6 +44,30 @@ function isFile(filePath) {
   return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
 }
 
+function addDanglingSymlinks(root, baseDir, runtimeKey, missing) {
+  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return;
+
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const absolutePath = path.join(root, entry.name);
+    if (entry.isSymbolicLink()) {
+      try {
+        fs.statSync(absolutePath);
+      } catch (error) {
+        if (error?.code === 'ENOENT') {
+          missing.push(bundledPath(runtimeKey, path.relative(baseDir, absolutePath)));
+          continue;
+        }
+        throw error;
+      }
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      addDanglingSymlinks(absolutePath, baseDir, runtimeKey, missing);
+    }
+  }
+}
+
 function directorySizeBytes(root) {
   if (!fs.existsSync(root)) return 0;
   const stat = fs.statSync(root);
@@ -90,6 +114,8 @@ function requireManagedNode(baseDir, runtimeKey, platform, checked, missing) {
   if (!executableFound) {
     missing.push(relativePath);
   }
+
+  addDanglingSymlinks(nodeRoot, baseDir, runtimeKey, missing);
 }
 
 function readManifest(manifestPath) {

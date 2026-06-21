@@ -38,6 +38,75 @@ function withOutBundleBackup<T>(callback: () => T): T {
 }
 
 describe('build-with-builder', () => {
+  it('builds macOS standard distributables with both DMG and ZIP targets', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'aionui-macos-targets-build-test-'));
+    const hookPath = join(tempDir, 'hook.cjs');
+    const commandsPath = join(tempDir, 'commands.json');
+
+    writeFileSync(
+      hookPath,
+      `
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const Module = require('node:module');
+const path = require('node:path');
+
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request.endsWith('packages/shared-scripts/src/prepare-aioncore.js')) {
+    return { prepareAioncore: () => ({ prepared: true, dir: 'mock-bundled-aioncore', sourceType: 'mock' }) };
+  }
+  if (request === './resolveAioncoreVersion.js' || request.endsWith('/resolveAioncoreVersion.js')) {
+    return { resolveAioncoreVersion: () => 'v-test' };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+function record(command) {
+  const commandsPath = process.env.AIONUI_COMMANDS_FILE;
+  const commands = fs.existsSync(commandsPath) ? JSON.parse(fs.readFileSync(commandsPath, 'utf8')) : [];
+  commands.push(String(command));
+  fs.writeFileSync(commandsPath, JSON.stringify(commands));
+}
+
+childProcess.execSync = function mockedExecSync(command) {
+  const commandText = String(command);
+  record(commandText);
+  if (commandText.includes('electron-vite build')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  return Buffer.from('');
+};
+`,
+      'utf8'
+    );
+
+    try {
+      const result = withOutBundleBackup(() => {
+        return spawnSync(process.execPath, ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--force'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            AIONUI_COMMANDS_FILE: commandsPath,
+            NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+          },
+        });
+      });
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      const commands = JSON.parse(readFileSync(commandsPath, 'utf8')) as string[];
+      const builderCommand = commands.find((command) => command.includes('electron-builder'));
+      expect(builderCommand).toContain('--mac dmg zip --arm64');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('supports dir-only packaging for Full App-owned DMG creation', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'aionui-dir-only-build-test-'));
     const hookPath = join(tempDir, 'hook.cjs');

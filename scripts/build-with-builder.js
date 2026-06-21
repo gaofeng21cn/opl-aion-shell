@@ -401,6 +401,18 @@ const builderArgs = args
   })
   .join(' ');
 
+function normalizeBuilderTargetArgs(rawBuilderArgs) {
+  const parts = rawBuilderArgs.split(/\s+/).filter(Boolean);
+  const macIndex = parts.indexOf('--mac');
+  if (macIndex === -1) return rawBuilderArgs;
+
+  const hasExplicitMacTarget = parts.slice(macIndex + 1).some((part) => !part.startsWith('--'));
+  if (hasExplicitMacTarget) return rawBuilderArgs;
+
+  parts.splice(macIndex + 1, 0, 'dmg', 'zip');
+  return parts.join(' ');
+}
+
 // Get target architecture from electron-builder.yml
 function getTargetArchFromConfig(platform) {
   try {
@@ -638,7 +650,8 @@ try {
     cleanupWindowsPackOutput();
   }
 
-  const builderTargetArgs = dirOnly ? '--dir' : [builderArgs, nsisInclude].filter(Boolean).join(' ');
+  const normalizedBuilderArgs = normalizeBuilderTargetArgs(builderArgs);
+  const builderTargetArgs = dirOnly ? '--dir' : [normalizedBuilderArgs, nsisInclude].filter(Boolean).join(' ');
   const builderCommand =
     `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
   try {
