@@ -470,6 +470,23 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(mainSource.indexOf("'bootstrap_launch_diagnostics'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
   });
 
+  it('captures early bootstrap launch diagnostics on the full release gate before readiness waits', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
+
+    expect(scriptSource).toContain('captureEarlyLaunchDiagnostics');
+    expect(scriptSource).toContain("'capture_early_launch_diagnostics'");
+    expect(scriptSource).toContain('blocking_release_gate: false');
+    expect(scriptSource).toContain('release_gate_captures_early_bootstrap_diagnostics_before_full_readiness_checks');
+    expect(scriptSource).toContain('bootstrap-launch-diagnostics.json');
+    expect(mainSource.indexOf("'launch_app'")).toBeLessThan(
+      mainSource.indexOf("'capture_early_launch_diagnostics'")
+    );
+    expect(mainSource.indexOf("'capture_early_launch_diagnostics'")).toBeLessThan(
+      mainSource.indexOf("'wait_guid_entry'")
+    );
+  });
+
   it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
     const expression = vmSmoke.visibleRuntimeRefreshButtonExpression();
 

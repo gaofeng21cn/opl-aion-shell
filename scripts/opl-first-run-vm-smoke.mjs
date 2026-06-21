@@ -3521,6 +3521,21 @@ async function waitForBootstrapLaunchDiagnostics(options, secret) {
   }
 }
 
+async function captureEarlyLaunchDiagnostics(options, secret) {
+  try {
+    return await waitForBootstrapLaunchDiagnostics(options, secret);
+  } catch (error) {
+    return {
+      schema: 'opl_bootstrap_launch_diagnostics_probe.v1',
+      status: 'captured_failure',
+      error: error instanceof Error ? error.message : String(error),
+      artifact: 'bootstrap-launch-diagnostics.json',
+      blocking_release_gate: false,
+      rule: 'release_gate_captures_early_bootstrap_diagnostics_before_full_readiness_checks',
+    };
+  }
+}
+
 async function waitForUsableGuidEntry(options, secret) {
   const started = Date.now();
   try {
@@ -5029,6 +5044,16 @@ async function main() {
       process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
       return;
     }
+    await runSmokePhase(
+      writeSmokeEvent,
+      'capture_early_launch_diagnostics',
+      () => captureEarlyLaunchDiagnostics(installedAppOptions, codexApiKey),
+      {
+        timeout_ms: cdpProbeTimeoutMs(installedAppOptions),
+        cdp_port: options.cdpPort,
+        blocking_release_gate: false,
+      }
+    );
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;
