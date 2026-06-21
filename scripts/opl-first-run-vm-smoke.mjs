@@ -602,33 +602,37 @@ function assertMacOS() {
   }
 }
 
+function userHomeDir() {
+  return process.env.HOME || os.homedir();
+}
+
 function defaultFirstRunLogPath() {
-  return path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab', 'first-run.jsonl');
+  return path.join(userHomeDir(), 'Library', 'Logs', 'One Person Lab', 'first-run.jsonl');
 }
 
 function defaultOplStatePath() {
-  return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'state');
+  return path.join(userHomeDir(), 'Library', 'Application Support', 'OPL', 'state');
 }
 
 function defaultOplRuntimeRoot() {
-  return path.join(os.homedir(), 'Library', 'Application Support', 'OPL', 'runtime');
+  return path.join(userHomeDir(), 'Library', 'Application Support', 'OPL', 'runtime');
 }
 
 function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
-  return path.join(os.homedir(), 'Library', 'Application Support', processName);
+  return path.join(userHomeDir(), 'Library', 'Application Support', processName);
 }
 
 function defaultMainBootstrapFatalLogCandidates(processName = DEFAULT_PROCESS_NAME) {
   const roots = [
     defaultAppSupportPath(processName),
-    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi'),
-    path.join(os.homedir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
+    path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi'),
+    path.join(userHomeDir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
   ];
   return [...new Set(roots)].map((root) => path.join(root, 'main-bootstrap-fatal.jsonl'));
 }
 
 function defaultCdpRegistryPath() {
-  return path.join(os.homedir(), '.opl-cdp-registry.json');
+  return path.join(userHomeDir(), '.opl-cdp-registry.json');
 }
 
 function assertCleanFirstRunState(processName = DEFAULT_PROCESS_NAME) {
@@ -4004,11 +4008,11 @@ function collectMainBootstrapFatalArtifacts(options, secret, targetDir = path.jo
 function collectAppLogArtifacts(options, secret) {
   const logRoots = [
     path.dirname(defaultFirstRunLogPath()),
-    path.join(os.homedir(), 'Library', 'Logs', 'AionUi'),
-    path.join(os.homedir(), 'Library', 'Logs', 'One Person Lab'),
-    path.join(os.homedir(), 'Library', 'Logs', 'cn.onepersonlab.opl'),
+    path.join(userHomeDir(), 'Library', 'Logs', 'AionUi'),
+    path.join(userHomeDir(), 'Library', 'Logs', 'One Person Lab'),
+    path.join(userHomeDir(), 'Library', 'Logs', 'cn.onepersonlab.opl'),
     path.join(defaultAppSupportPath(options.processName), 'logs'),
-    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi', 'logs'),
+    path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi', 'logs'),
   ];
   const seen = new Set();
   const targetDir = path.join(options.artifacts, 'app-logs');
@@ -4074,7 +4078,7 @@ function writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret) {
 function collectDiagnosticReports(options, secret) {
   const targetDir = path.join(options.artifacts, 'diagnostic-reports');
   const reportRoots = [
-    path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports'),
+    path.join(userHomeDir(), 'Library', 'Logs', 'DiagnosticReports'),
     path.join('/Library', 'Logs', 'DiagnosticReports'),
   ];
   const namePattern = /(One Person Lab|AionUi|cn\.onepersonlab\.opl|Electron)/i;
@@ -4455,11 +4459,11 @@ function collectFailureArtifacts(options, codexApiKey) {
   collectAppLogArtifacts(options, codexApiKey);
   collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
   collectFileListing(
-    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi'),
+    path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi'),
     path.join(options.artifacts, 'aionui-app-support-files.txt')
   );
   collectFileListing(
-    path.join(os.homedir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
+    path.join(userHomeDir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
     path.join(options.artifacts, 'bundle-id-app-support-files.txt')
   );
   collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));

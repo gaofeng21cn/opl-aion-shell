@@ -1226,6 +1226,61 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('writes interrupted Tart summary after signal artifact recovery state is updated', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-tart-interrupted-summary-'));
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--settings-smoke',
+      '--artifacts',
+      artifacts,
+      '--dry-run',
+    ]);
+
+    try {
+      fs.mkdirSync(path.join(artifacts, 'artifacts'), { recursive: true });
+      fs.writeFileSync(
+        path.join(artifacts, 'artifacts', 'smoke-summary.json'),
+        `${JSON.stringify({
+          status: 'failed',
+          runtime_profile: 'standard',
+          labels: ['launch-app'],
+        })}\n`
+      );
+
+      tartSmoke.__setRuntimeStateForTest({
+        options,
+        stage: 'run_guest_smoke',
+        ip: '192.168.64.10',
+        guestArtifactDir: '/tmp/guest/artifacts',
+        copiedArtifacts: true,
+      });
+      tartSmoke.writeInterruptedSummary('SIGTERM');
+      const summary = JSON.parse(fs.readFileSync(path.join(artifacts, 'tart-smoke-summary.json'), 'utf8'));
+
+      expect(summary).toMatchObject({
+        surface_id: 'opl_tart_gui_first_run_smoke',
+        status: 'interrupted',
+        signal: 'SIGTERM',
+        stage: 'run_guest_smoke',
+        guest_ip: '192.168.64.10',
+        guest_artifacts: '/tmp/guest/artifacts',
+        copied_guest_artifacts: true,
+      });
+      expect(summary.guest_summary).toMatchObject({
+        status: 'failed',
+        labels: ['launch-app'],
+      });
+    } finally {
+      tartSmoke.__resetRuntimeStateForTest();
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('does not require the Codex config wizard for full VM smokes by default', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
@@ -1518,10 +1573,10 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain("commandDiagnostic('launchctl', ['print', `gui/${uid}`]");
     expect(scriptSource).toContain("commandDiagnostic('/usr/sbin/scutil', ['show', 'State:/Users/ConsoleUser']");
     expect(scriptSource).toContain('collectDiagnosticReports(options, codexApiKey)');
-    expect(scriptSource).toContain("path.join(os.homedir(), 'Library', 'Logs', 'DiagnosticReports')");
+    expect(scriptSource).toContain("path.join(userHomeDir(), 'Library', 'Logs', 'DiagnosticReports')");
     expect(scriptSource).toContain("path.join('/Library', 'Logs', 'DiagnosticReports')");
     expect(scriptSource).toContain("path.join(defaultAppSupportPath(options.processName), 'logs')");
-    expect(scriptSource).toContain("path.join(os.homedir(), 'Library', 'Logs', 'cn.onepersonlab.opl')");
+    expect(scriptSource).toContain("path.join(userHomeDir(), 'Library', 'Logs', 'cn.onepersonlab.opl')");
     expect(scriptSource).toContain('collectMainBootstrapFatalArtifacts(options, secret, launchLogDir)');
     expect(scriptSource).toContain("path.join(targetDir, 'main-bootstrap-fatal-candidates.json')");
     expect(scriptSource).toContain('main_bootstrap_fatal_artifacts: mainBootstrapFatalArtifacts');

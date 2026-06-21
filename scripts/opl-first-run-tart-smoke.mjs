@@ -58,6 +58,7 @@ const HOMEBREW_INSTALL_RETRYABLE_PATTERNS = [
 ];
 const DEFAULT_HOMEBREW_INSTALL_MAX_ATTEMPTS = 3;
 const DEFAULT_HOMEBREW_INSTALL_RETRY_DELAY_MS = 15_000;
+const SIGNAL_GUEST_ARTIFACT_COPY_TIMEOUT_MS = 30_000;
 
 const runtimeState = {
   options: null,
@@ -74,6 +75,20 @@ const runtimeState = {
   cleanupStarted: false,
   homebrewInstallAttempts: [],
 };
+
+const initialRuntimeState = { ...runtimeState };
+
+function resetRuntimeStateForTest() {
+  Object.assign(runtimeState, {
+    ...initialRuntimeState,
+    stageEvents: [],
+    homebrewInstallAttempts: [],
+  });
+}
+
+function setRuntimeStateForTest(state) {
+  Object.assign(runtimeState, state);
+}
 
 function usage() {
   process.stdout.write(`Usage:
@@ -1030,6 +1045,35 @@ async function scpFromGuest(options, ip, sourceDir, targetDir) {
   await runAsync('scp', args);
 }
 
+async function copyGuestArtifactsForSignal(options) {
+  if (!runtimeState.ip || !runtimeState.guestArtifactDir || runtimeState.copiedArtifacts) {
+    return;
+  }
+  if (runtimeState.currentChild && !runtimeState.currentChild.killed) {
+    runtimeState.currentChild.kill('SIGTERM');
+    await sleep(1_000);
+  }
+  try {
+    await scpFromGuestWithRunOptions(options, runtimeState.ip, runtimeState.guestArtifactDir, options.artifacts, {
+      label: `scp signal_guest_artifacts ${options.guestUser}@${runtimeState.ip}`,
+      timeoutMs: SIGNAL_GUEST_ARTIFACT_COPY_TIMEOUT_MS,
+    });
+    runtimeState.copiedArtifacts = true;
+    appendRuntimeLog('copied_guest_artifacts_after_signal');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    appendRuntimeLog(`artifact_copy_after_signal_failed ${message}`);
+  }
+}
+
+async function scpFromGuestWithRunOptions(options, ip, sourceDir, targetDir, runOptions) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  const args = ['-r', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
+  if (options.sshKey) args.push('-o', 'IdentitiesOnly=yes', '-i', options.sshKey);
+  args.push(`${options.guestUser}@${ip}:${sourceDir}/`, targetDir);
+  await runAsync('scp', args, runOptions);
+}
+
 async function copyHostNodeRootToGuest(options, ip) {
   if (!options.guestNodeRoot) return null;
   const staging = guestNodeStagingPlan(options);
@@ -1167,6 +1211,7 @@ function writeInterruptedSummary(signal) {
       codex_install_preseed: codexInstallPreseedPlan(options),
       guest_node_staging: runtimeState.guestNodeStaging,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
+      guest_summary: readGuestSmokeSummary(options.artifacts),
     };
     fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   } catch (_) {
@@ -1208,10 +1253,14 @@ if (process.env.NODE_ENV !== 'test') {
   for (const signal of SIGNAL_EXIT_CODES.keys()) {
     process.once(signal, () => {
       appendRuntimeLog(`received_signal signal=${signal}`);
-      writeInterruptedSummary(signal);
-      cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` }).finally(() => {
-        process.exit(SIGNAL_EXIT_CODES.get(signal));
-      });
+      copyGuestArtifactsForSignal(runtimeState.options)
+        .finally(() => {
+          writeInterruptedSummary(signal);
+          return cleanupRuntime({ copyGuestArtifacts: false, reason: `signal:${signal}` });
+        })
+        .finally(() => {
+          process.exit(SIGNAL_EXIT_CODES.get(signal));
+        });
     });
   }
 }
@@ -1653,6 +1702,8 @@ export const __test =
   process.env.NODE_ENV === 'test'
     ? {
         assertGuestSmokeSummary,
+        __resetRuntimeStateForTest: resetRuntimeStateForTest,
+        __setRuntimeStateForTest: setRuntimeStateForTest,
         buildStageTimingSummary,
         codexInstallPreseedPlan,
         buildDryRunPlan,
@@ -1675,6 +1726,7 @@ export const __test =
         recordStageEvent,
         resolveGuestSmokeScriptPath,
         runAsync,
+        writeInterruptedSummary,
         writeFailedSummary,
         writeSummary,
       }
