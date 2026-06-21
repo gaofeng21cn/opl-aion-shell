@@ -617,6 +617,15 @@ function defaultAppSupportPath(processName = DEFAULT_PROCESS_NAME) {
   return path.join(os.homedir(), 'Library', 'Application Support', processName);
 }
 
+function defaultMainBootstrapFatalLogCandidates(processName = DEFAULT_PROCESS_NAME) {
+  const roots = [
+    defaultAppSupportPath(processName),
+    path.join(os.homedir(), 'Library', 'Application Support', 'AionUi'),
+    path.join(os.homedir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
+  ];
+  return [...new Set(roots)].map((root) => path.join(root, 'main-bootstrap-fatal.jsonl'));
+}
+
 function defaultCdpRegistryPath() {
   return path.join(os.homedir(), '.opl-cdp-registry.json');
 }
@@ -3110,6 +3119,8 @@ async function waitForUsableGuidEntry(options, secret) {
           `cdp_error=${error instanceof Error ? error.message : String(error)}`,
           `app_pids=${nativeModalSignature.app_pids.join(',') || 'none'}`,
           `sample_paths=${nativeModalSignature.nsalert_sample_paths.join(',') || 'none'}`,
+          `main_bootstrap_fatal_copied=${nativeModalSignature.main_bootstrap_fatal_artifacts.copied_count}`,
+          `main_bootstrap_fatal_candidates=${nativeModalSignature.main_bootstrap_fatal_artifacts.candidates.join(',')}`,
         ].join('\n')
       );
     }
@@ -3830,6 +3841,27 @@ function copyTextFileIfExists(source, target, secret) {
   writeOptionalTextArtifact(target, fs.readFileSync(source, 'utf8'), secret);
 }
 
+function collectMainBootstrapFatalArtifacts(options, secret, targetDir = path.join(options.artifacts, 'launch-app')) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  const candidates = defaultMainBootstrapFatalLogCandidates(options.processName);
+  const copied = [];
+  for (const [index, source] of candidates.entries()) {
+    if (!fs.existsSync(source)) continue;
+    const parent = path.basename(path.dirname(source)).replace(/[^A-Za-z0-9_.-]/g, '_') || `candidate-${index + 1}`;
+    const target = path.join(targetDir, `main-bootstrap-fatal-${parent}.jsonl`);
+    copyTextFileIfExists(source, target, secret);
+    copied.push({ source, target });
+  }
+  const summary = {
+    schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
+    candidates,
+    copied,
+    copied_count: copied.length,
+  };
+  writeJsonArtifact(path.join(targetDir, 'main-bootstrap-fatal-candidates.json'), summary, secret);
+  return summary;
+}
+
 function collectAppLogArtifacts(options, secret) {
   const logRoots = [
     path.dirname(defaultFirstRunLogPath()),
@@ -4146,6 +4178,7 @@ function collectLaunchDiagnostics(options, secret) {
   const processRows = parseProcessRows(processList.stdout, options.processName);
   const uid = String(os.userInfo().uid);
   const nativeWindowDiagnostics = captureNativeWindowDiagnostics(options.processName);
+  const mainBootstrapFatalArtifacts = collectMainBootstrapFatalArtifacts(options, secret, launchLogDir);
   const diagnostics = {
     schema: 'opl_packaged_gui_launch_diagnostics.v1',
     process_name: options.processName,
@@ -4184,6 +4217,7 @@ function collectLaunchDiagnostics(options, secret) {
       `http://127.0.0.1:${options.cdpPort}/json/list`,
     ]),
     native_window_diagnostics: summarizeNativeWindowDiagnostics(nativeWindowDiagnostics),
+    main_bootstrap_fatal_artifacts: mainBootstrapFatalArtifacts,
   };
   writeJsonArtifact(path.join(launchLogDir, 'native-window-diagnostics.json'), nativeWindowDiagnostics, secret);
   writeJsonArtifact(path.join(launchLogDir, 'diagnostics.json'), diagnostics, secret);
@@ -4231,6 +4265,12 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
     app_pids: appPids,
     nsalert_sample_paths: nsalertSamplePaths,
     native_window_diagnostics: nativeWindow,
+    main_bootstrap_fatal_artifacts: diagnostics?.main_bootstrap_fatal_artifacts ?? {
+      schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
+      candidates: defaultMainBootstrapFatalLogCandidates(options.processName),
+      copied: [],
+      copied_count: 0,
+    },
   };
 }
 
@@ -4253,6 +4293,7 @@ function collectFailureArtifacts(options, codexApiKey) {
 
   const firstRunLog = defaultFirstRunLogPath();
   copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey);
+  collectMainBootstrapFatalArtifacts(options, codexApiKey);
   collectAppLogArtifacts(options, codexApiKey);
   collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
   collectFileListing(
@@ -4770,6 +4811,8 @@ export const __test =
         parseProcessRows,
         nativeWindowDiagnosticsScript,
         summarizeNativeWindowDiagnostics,
+        collectMainBootstrapFatalArtifacts,
+        defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,
         unifiedLogPredicate,
         parseCfBundleExecutableFromPlistText,

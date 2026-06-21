@@ -66,7 +66,7 @@ function normalizeError(error: unknown): EarlyFatalRecord['error'] {
 
   return {
     name: typeof error,
-    message: typeof error === 'string' ? error : JSON.stringify(error),
+    message: typeof error === 'string' ? error : (JSON.stringify(error) ?? String(error)),
     stack: null,
   };
 }

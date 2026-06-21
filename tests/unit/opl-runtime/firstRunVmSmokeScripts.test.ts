@@ -1441,9 +1441,58 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain("path.join('/Library', 'Logs', 'DiagnosticReports')");
     expect(scriptSource).toContain("path.join(defaultAppSupportPath(options.processName), 'logs')");
     expect(scriptSource).toContain("path.join(os.homedir(), 'Library', 'Logs', 'cn.onepersonlab.opl')");
+    expect(scriptSource).toContain('collectMainBootstrapFatalArtifacts(options, secret, launchLogDir)');
+    expect(scriptSource).toContain("path.join(targetDir, 'main-bootstrap-fatal-candidates.json')");
+    expect(scriptSource).toContain('main_bootstrap_fatal_artifacts: mainBootstrapFatalArtifacts');
     expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('LaunchServices');
     expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('runningboard');
     expect(vmSmoke.unifiedLogPredicate('One Person Lab')).toContain('syspolicyd');
+  });
+
+  it('collects early main bootstrap fatal logs from app support candidates', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bootstrap-fatal-artifacts-'));
+    const originalHome = process.env.HOME;
+    try {
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-bootstrap-fatal-home-'));
+      process.env.HOME = home;
+      const fatalLog = path.join(
+        home,
+        'Library',
+        'Application Support',
+        'One Person Lab',
+        'main-bootstrap-fatal.jsonl'
+      );
+      fs.mkdirSync(path.dirname(fatalLog), { recursive: true });
+      fs.writeFileSync(
+        fatalLog,
+        `${JSON.stringify({
+          schema: 'aionui.main_bootstrap_fatal.v1',
+          type: 'uncaughtException',
+          error: { message: 'startup failure before BrowserWindow' },
+        })}\n`,
+        'utf8'
+      );
+
+      const summary = vmSmoke.collectMainBootstrapFatalArtifacts(
+        { artifacts, processName: 'One Person Lab' },
+        'secret'
+      );
+      expect(summary).toMatchObject({
+        schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
+        copied_count: 1,
+      });
+      expect(summary.candidates).toContain(fatalLog);
+      expect(summary.copied[0].target).toContain('main-bootstrap-fatal-One_Person_Lab.jsonl');
+      expect(fs.readFileSync(summary.copied[0].target, 'utf8')).toContain('startup failure before BrowserWindow');
+      expect(fs.existsSync(path.join(artifacts, 'launch-app', 'main-bootstrap-fatal-candidates.json'))).toBe(true);
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('detects the native modal launch blocker signature from launch diagnostics and process samples', () => {
@@ -1473,6 +1522,14 @@ describe('OPL first-run VM smoke scripts', () => {
             target_process_window_count: 0,
             target_process_ui_element_count: 0,
           },
+          main_bootstrap_fatal_artifacts: {
+            schema: 'aionui.main_bootstrap_fatal_artifacts.v1',
+            candidates: ['/Users/runner/Library/Application Support/One Person Lab/main-bootstrap-fatal.jsonl'],
+            copied: [
+              { source: 'main-bootstrap-fatal.jsonl', target: 'launch-app/main-bootstrap-fatal-One_Person_Lab.jsonl' },
+            ],
+            copied_count: 1,
+          },
         }
       );
 
@@ -1486,6 +1543,7 @@ describe('OPL first-run VM smoke scripts', () => {
         app_pids: [8503],
       });
       expect(result.nsalert_sample_paths[0]).toContain('process-8503-sample.txt');
+      expect(result.main_bootstrap_fatal_artifacts.copied_count).toBe(1);
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
