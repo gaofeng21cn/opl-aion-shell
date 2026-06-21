@@ -3254,9 +3254,11 @@ async function waitForGuidEntryViaCdp(options, secret) {
 }
 
 async function waitForBootstrapLaunchDiagnostics(options, secret) {
-  const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
-  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  let target = null;
+  let client = null;
   try {
+    target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
+    client = await openCdpClient(target.webSocketDebuggerUrl);
     await client.send('Runtime.enable');
     await client.send('Page.enable');
     const startupPreflight = await waitForCdpPredicate(
@@ -3280,8 +3282,39 @@ async function waitForBootstrapLaunchDiagnostics(options, secret) {
     };
     writeJsonArtifact(path.join(options.artifacts, 'bootstrap-launch-diagnostics.json'), summary, secret);
     return summary;
+  } catch (error) {
+    const launchDiagnostics = collectLaunchDiagnostics(options, secret);
+    const nativeModalSignature = detectNativeModalLaunchBlocker(options, launchDiagnostics);
+    const summary = {
+      schema: 'opl_bootstrap_launch_diagnostics.v1',
+      status: 'failed',
+      mode: 'cdp',
+      cdp_port: options.cdpPort,
+      target: target
+        ? {
+            id: target.id ?? null,
+            type: target.type ?? null,
+            title: target.title ?? null,
+            url: target.url ?? null,
+          }
+        : null,
+      error: error instanceof Error ? error.message : String(error),
+      native_modal_launch_blocker: nativeModalSignature,
+      launch_diagnostics: {
+        app_processes: launchDiagnostics.app_processes ?? [],
+        cdp_listener: launchDiagnostics.cdp_listener ?? null,
+        cdp_targets: launchDiagnostics.cdp_targets ?? null,
+        native_window_diagnostics: launchDiagnostics.native_window_diagnostics ?? null,
+        main_bootstrap_fatal_artifacts: launchDiagnostics.main_bootstrap_fatal_artifacts ?? null,
+      },
+    };
+    writeJsonArtifact(path.join(options.artifacts, 'bootstrap-launch-diagnostics.json'), summary, secret);
+    if (nativeModalSignature.detected) {
+      writeJsonArtifact(path.join(options.artifacts, 'native-modal-launch-blocker.json'), nativeModalSignature, secret);
+    }
+    throw error;
   } finally {
-    client.close();
+    client?.close();
   }
 }
 
@@ -4652,16 +4685,67 @@ async function main() {
       timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
     if (options.bootstrapLaunchDiagnostics) {
-      const bootstrapLaunchDiagnostics = await runSmokePhase(
-        writeSmokeEvent,
-        'bootstrap_launch_diagnostics',
-        () => waitForBootstrapLaunchDiagnostics(installedAppOptions, codexApiKey),
-        {
-          timeout_ms: cdpProbeTimeoutMs(installedAppOptions),
-          cdp_port: options.cdpPort,
+      let bootstrapLaunchDiagnostics = null;
+      try {
+        bootstrapLaunchDiagnostics = await runSmokePhase(
+          writeSmokeEvent,
+          'bootstrap_launch_diagnostics',
+          () => waitForBootstrapLaunchDiagnostics(installedAppOptions, codexApiKey),
+          {
+            timeout_ms: cdpProbeTimeoutMs(installedAppOptions),
+            cdp_port: options.cdpPort,
+          }
+        );
+      } catch (error) {
+        const diagnosticsPath = path.join(options.artifacts, 'bootstrap-launch-diagnostics.json');
+        if (fs.existsSync(diagnosticsPath)) {
+          try {
+            bootstrapLaunchDiagnostics = JSON.parse(fs.readFileSync(diagnosticsPath, 'utf8'));
+          } catch (_) {
+            bootstrapLaunchDiagnostics = null;
+          }
         }
-      );
-      collectLaunchDiagnostics(options, codexApiKey);
+        const failedSummary = {
+          surface_id: 'opl_packaged_gui_first_run_smoke',
+          status: 'failed',
+          diagnostic_scope: 'bootstrap_launch_diagnostics',
+          app_path: appPath,
+          artifacts: options.artifacts,
+          runtime_profile: options.runtimeProfile,
+          bootstrap_launch_diagnostics: bootstrapLaunchDiagnostics ?? {
+            schema: 'opl_bootstrap_launch_diagnostics.v1',
+            status: 'failed',
+            mode: 'cdp',
+            cdp_port: options.cdpPort,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          codex_config_wizard_seen: false,
+          codex_config_wizard_submitted: false,
+          codex_api_key_present: Boolean(codexApiKey),
+          codex_install_preseed: codexInstallPreseed,
+          timeouts: {
+            smoke_ms: options.timeoutMs,
+            codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+            codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+            host_deadline_epoch_ms: options.hostDeadlineEpochMs,
+            host_deadline_safety_margin_ms: options.hostDeadlineEpochMs ? HOST_DEADLINE_SAFETY_MARGIN_MS : null,
+          },
+          labels: [],
+          settings_smoke: null,
+          assistant_route_smoke: null,
+          codex_functional_check: null,
+          codex_ai_self_check: null,
+          app_release_runtime_evidence: null,
+        };
+        writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), failedSummary, codexApiKey);
+        writeSmokeEventSafely(writeSmokeEvent, 'summary', 'failed', {
+          diagnostic_scope: 'bootstrap_launch_diagnostics',
+          error: error instanceof Error ? error.message : String(error),
+          bootstrap_launch_diagnostics: failedSummary.bootstrap_launch_diagnostics,
+        });
+        process.stdout.write(`${JSON.stringify(failedSummary, null, 2)}\n`);
+        throw error;
+      }
       const summary = {
         surface_id: 'opl_packaged_gui_first_run_smoke',
         status: 'passed',
@@ -5085,6 +5169,7 @@ export const __test =
         parseProcessRows,
         nativeWindowDiagnosticsScript,
         summarizeNativeWindowDiagnostics,
+        collectLaunchLogText,
         collectMainBootstrapFatalArtifacts,
         defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,

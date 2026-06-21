@@ -12,6 +12,17 @@ const REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES = [
   '@temporalio/worker',
   '@temporalio/workflow',
 ];
+const REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES = [
+  '@office-ai/platform',
+  'axios',
+  'eventemitter3',
+  'follow-redirects',
+  'form-data',
+  'proxy-from-env',
+  'react',
+  'rxjs',
+  'tslib',
+];
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -49,6 +60,56 @@ function readJsonFile(filePath) {
   } catch {
     return null;
   }
+}
+
+function packagePathSegments(packageName) {
+  return packageName.split('/').filter(Boolean);
+}
+
+function packageJsonRelativePath(packageName) {
+  return path.join('node_modules', ...packagePathSegments(packageName), 'package.json').replace(/\\/g, '/');
+}
+
+function loadAsar() {
+  try {
+    return require('@electron/asar');
+  } catch {
+    return null;
+  }
+}
+
+function appAsarContainsPackage(appAsarPath, packageName) {
+  const relativePackageJson = packageJsonRelativePath(packageName);
+  const stats = fs.statSync(appAsarPath);
+  if (stats.isDirectory()) {
+    return fs.existsSync(path.join(appAsarPath, relativePackageJson));
+  }
+  if (!stats.isFile()) return false;
+
+  const asar = loadAsar();
+  if (!asar?.listPackage) {
+    throw new Error('@electron/asar is required to validate packaged app.asar archives');
+  }
+  const entries = asar.listPackage(appAsarPath).map((entry) => entry.replace(/^\/+/, ''));
+  return entries.includes(relativePackageJson);
+}
+
+function validateMainProcessRuntimeDependencies(resourcesRoot) {
+  const appAsarPath = path.join(resourcesRoot, 'app.asar');
+  const issues = [];
+  if (!fs.existsSync(appAsarPath)) {
+    return { checked: false, resourcesRoot, issues: [`missing app.asar under ${resourcesRoot}`] };
+  }
+
+  for (const packageName of REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES) {
+    if (!appAsarContainsPackage(appAsarPath, packageName)) {
+      issues.push(
+        `packaged app.asar is missing main-process runtime dependency ${packageJsonRelativePath(packageName)}`
+      );
+    }
+  }
+
+  return { checked: true, resourcesRoot, issues };
 }
 
 function listProductionNodeModulePaths(packageLock) {
@@ -161,6 +222,17 @@ function main() {
   let hasFailure = false;
   for (const resourcesRoot of resourcesRoots) {
     console.log(`Runtime resource check: ${resourcesRoot}`);
+    const mainProcessRuntime = validateMainProcessRuntimeDependencies(resourcesRoot);
+    if (mainProcessRuntime.issues.length > 0) {
+      hasFailure = true;
+      console.error(`  ${mainProcessRuntime.issues.length} main-process runtime dependency issue(s):`);
+      for (const issue of mainProcessRuntime.issues) {
+        console.error(`   - ${issue}`);
+      }
+    } else if (mainProcessRuntime.checked) {
+      console.log('  Main-process runtime dependencies are staged.');
+    }
+
     const fullRuntime = validateFullRuntimeResources(resourcesRoot, {
       require: parsed.requireFullRuntime,
     });
@@ -197,7 +269,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES,
   REQUIRED_OPL_TEMPORAL_RUNTIME_PACKAGES,
+  packageJsonRelativePath,
   listProductionNodeModulePaths,
+  validateMainProcessRuntimeDependencies,
   validateFullRuntimeResources,
 };

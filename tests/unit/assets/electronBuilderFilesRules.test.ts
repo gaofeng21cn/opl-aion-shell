@@ -1,8 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const configPath = resolve(__dirname, '../../../packages/desktop/electron-builder.yml');
+const packagedRuntime = await import('../../../scripts/validate-packaged-runtime.js');
 
 function readRules(): string[] {
   return readFileSync(configPath, 'utf8')
@@ -44,7 +46,14 @@ describe('electron-builder files rules', () => {
       'serve-handler',
       'semver',
       'i18next',
+      'axios',
       'eventemitter3',
+      'follow-redirects',
+      'form-data',
+      'proxy-from-env',
+      'react',
+      'rxjs',
+      'tslib',
     ]) {
       expect(hasPositiveRule(rules, packageName), `${packageName} should be included for main runtime`).toBe(true);
       expect(hasNegativeRule(rules, packageName), `${packageName} must not be excluded`).toBe(false);
@@ -59,7 +68,6 @@ describe('electron-builder files rules', () => {
       '@codemirror',
       '@monaco-editor',
       '@uiw',
-      'react',
       'react-dom',
       'react-markdown',
       'streamdown',
@@ -78,6 +86,31 @@ describe('electron-builder files rules', () => {
       '@office-ai/aioncli-core',
     ]) {
       expect(hasNegativeRule(rules, packageName), `${packageName} should be excluded from app.asar`).toBe(true);
+    }
+  });
+
+  it('validates required main-process runtime packages in packaged app.asar resources', () => {
+    const root = resolve(tmpdir(), `opl-main-runtime-${process.pid}-${Date.now()}`);
+    const resourcesRoot = resolve(root, 'Contents', 'Resources');
+    const appAsarRoot = resolve(resourcesRoot, 'app.asar');
+    try {
+      for (const packageName of packagedRuntime.REQUIRED_MAIN_PROCESS_RUNTIME_PACKAGES) {
+        const packageJsonPath = resolve(appAsarRoot, packagedRuntime.packageJsonRelativePath(packageName));
+        mkdirSync(resolve(packageJsonPath, '..'), { recursive: true });
+        writeFileSync(packageJsonPath, `${JSON.stringify({ name: packageName })}\n`);
+      }
+
+      expect(packagedRuntime.validateMainProcessRuntimeDependencies(resourcesRoot)).toMatchObject({
+        checked: true,
+        issues: [],
+      });
+
+      rmSync(resolve(appAsarRoot, 'node_modules', 'react'), { recursive: true, force: true });
+      expect(packagedRuntime.validateMainProcessRuntimeDependencies(resourcesRoot).issues).toContain(
+        'packaged app.asar is missing main-process runtime dependency node_modules/react/package.json'
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });

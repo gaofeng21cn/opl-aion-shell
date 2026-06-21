@@ -60,10 +60,17 @@ files:
   - node_modules/semver/**/*
   - node_modules/serve-handler/**/*
   - node_modules/@office-ai/platform/**/*
+  - node_modules/axios/**/*
   - node_modules/eventemitter3/**/*
+  - node_modules/follow-redirects/**/*
+  - node_modules/form-data/**/*
+  - node_modules/proxy-from-env/**/*
+  - node_modules/react/**/*
+  - node_modules/rxjs/**/*
+  - node_modules/tslib/**/*
   # Renderer-only or esbuild-bundled dependencies must not be duplicated in app.asar.
   - '!**/node_modules/{@arco-design,@codemirror,@dnd-kit,@floating-ui,@icon-park,@iconify,@lezer,@monaco-editor,@uiw}/**'
-  - '!**/node_modules/{react,react-dom,react-i18next,react-markdown,react-router,react-router-dom,react-syntax-highlighter,react-virtuoso}/**'
+  - '!**/node_modules/{react-dom,react-i18next,react-markdown,react-router,react-router-dom,react-syntax-highlighter,react-virtuoso}/**'
   - '!**/node_modules/{streamdown,unified,remark-breaks,remark-gfm,remark-math,rehype-katex,rehype-raw,remark-parse,remark-rehype}/**'
   - '!**/node_modules/{micromark*,mdast-*,hast-*,property-information,space-separated-tokens,comma-separated-tokens,decode-named-character-reference,devlop,bail,is-plain-obj}/**'
   - '!**/node_modules/{monaco-editor,katex,mermaid,diff,diff2html,classnames,dayjs,qrcode.react,swr}/**'

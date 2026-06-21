@@ -178,6 +178,31 @@ describe('packaged first-run VM smoke helpers', () => {
     );
   });
 
+  it('surfaces launch stderr in bootstrap blocker diagnostics', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-launch-log-text-'));
+    try {
+      const launchLogDir = path.join(root, 'launch-app');
+      fs.mkdirSync(launchLogDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(launchLogDir, 'stderr.log'),
+        [
+          "[AionUi:bootstrap] bootstrapImportFailure: Error: Cannot find module 'react'",
+          'Require stack:',
+          '- /Applications/One Person Lab.app/Contents/Resources/app.asar/node_modules/@office-ai/platform/dist/index.js',
+        ].join('\n')
+      );
+
+      expect(__test.collectLaunchLogText(launchLogDir)).toEqual([
+        expect.objectContaining({
+          source: 'launch_stderr',
+          text: expect.stringContaining("Cannot find module 'react'"),
+        }),
+      ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('resolves the executable inside a packaged .app from Info.plist', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-executable-'));
     try {
