@@ -186,14 +186,14 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(false);
   });
 
-  it('keeps standard first-run gates on GUI readiness even when a Codex API key is available', () => {
+  it('uses core first-launch readiness for standard smoke when a Codex API key is available', () => {
     expect(
       __test.shouldWaitForCoreFirstLaunchReady({
         runtimeProfile: 'standard',
         codexApiKeyFile: '/tmp/codex-api-key',
         requireCodexConfigWizard: false,
       })
-    ).toBe(false);
+    ).toBe(true);
     expect(
       __test.shouldWaitForCoreFirstLaunchReady({
         runtimeProfile: 'standard',

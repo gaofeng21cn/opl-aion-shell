@@ -199,7 +199,7 @@ describe('OPL first-run VM smoke scripts', () => {
         requireCodexConfigWizard: false,
         codexApiKeyFile: '/tmp/codex-api-key.txt',
       })
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('uses the packaged standard installer as the VM smoke bootstrap carrier', () => {
