@@ -35,6 +35,13 @@ function verifyBundledResources(resourcesDir, electronPlatformName, targetArch) 
   }
 
   console.log(`   ✓ Bundled resources verified for ${result.runtimeKey} (${result.checked.length} checks)`);
+  const sizeSummary = result.sizeAccounting
+    .filter((entry) => entry.present)
+    .map((entry) => `${entry.label}=${(entry.bytes / 1024 / 1024).toFixed(1)}MiB`)
+    .join(', ');
+  if (sizeSummary) {
+    console.log(`   Bundled aioncore size accounting: ${sizeSummary}`);
+  }
 }
 
 module.exports = async function afterPack(context) {

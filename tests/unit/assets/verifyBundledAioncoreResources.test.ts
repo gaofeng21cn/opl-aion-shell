@@ -56,6 +56,25 @@ describe('verifyBundledAioncoreResources', () => {
 
     expect(result.runtimeKey).toBe('win32-x64');
     expect(result.missing).toEqual([]);
+    expect(result.sizeAccounting).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'managed-node',
+          path: 'bundled-aioncore/win32-x64/managed-resources/node',
+          present: true,
+        }),
+        expect.objectContaining({
+          label: 'codex-acp',
+          path: 'bundled-aioncore/win32-x64/managed-resources/acp/codex-acp',
+          present: true,
+        }),
+        expect.objectContaining({
+          label: 'claude-agent-acp',
+          path: 'bundled-aioncore/win32-x64/managed-resources/acp/claude-agent-acp',
+          present: true,
+        }),
+      ])
+    );
   });
 
   it('reports missing managed node runtime executable', () => {

@@ -23,6 +23,23 @@ const GITHUB_REPO = 'AionCore';
 const DEFAULT_DOWNLOAD_ATTEMPTS = 4;
 const DEFAULT_DOWNLOAD_RETRY_DELAY_MS = 5000;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
+const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
+  'include',
+  'share',
+  'lib/node_modules/npm',
+  'lib/node_modules/corepack',
+  'node_modules/npm',
+  'node_modules/corepack',
+  'bin/npm',
+  'bin/npx',
+  'bin/corepack',
+  'npm',
+  'npm.cmd',
+  'npx',
+  'npx.cmd',
+  'corepack',
+  'corepack.cmd',
+];
 
 const ACTIONS_ARTIFACT_TARGETS = {
   'darwin-arm64': {
@@ -109,6 +126,72 @@ function parsePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function nodeExecutableRelativePath(platform) {
+  return platform === 'win32' ? ['node.exe'] : ['bin', 'node'];
+}
+
+function removePathIfPresent(targetPath) {
+  if (!fs.existsSync(targetPath)) return false;
+  fs.rmSync(targetPath, { recursive: true, force: true });
+  return true;
+}
+
+function removeEmptyDirectoriesUpTo(startDir, stopDir) {
+  let current = startDir;
+  const resolvedStop = path.resolve(stopDir);
+
+  while (path.resolve(current).startsWith(resolvedStop) && path.resolve(current) !== resolvedStop) {
+    if (!fs.existsSync(current) || !fs.statSync(current).isDirectory()) {
+      current = path.dirname(current);
+      continue;
+    }
+    if (fs.readdirSync(current).length > 0) break;
+    fs.rmdirSync(current);
+    current = path.dirname(current);
+  }
+}
+
+function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platform) {
+  const nodeRoot = path.join(managedResourcesDir, 'node');
+  const result = {
+    pruned: [],
+    checkedExecutables: [],
+  };
+
+  if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) {
+    return result;
+  }
+
+  const executableParts = nodeExecutableRelativePath(platform);
+  const versions = fs
+    .readdirSync(nodeRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const version of versions) {
+    const versionDir = path.join(nodeRoot, version);
+    const executablePath = path.join(versionDir, ...executableParts);
+    result.checkedExecutables.push(path.relative(managedResourcesDir, executablePath).split(path.sep).join('/'));
+
+    if (!fs.existsSync(executablePath) || !fs.statSync(executablePath).isFile()) {
+      throw new Error(
+        `Managed Node runtime is missing required executable: ${path.relative(process.cwd(), executablePath)}`
+      );
+    }
+
+    for (const relativePath of MANAGED_NODE_PRUNE_RELATIVE_PATHS) {
+      const targetPath = path.join(versionDir, ...relativePath.split('/'));
+      if (removePathIfPresent(targetPath)) {
+        result.pruned.push(path.relative(managedResourcesDir, targetPath).split(path.sep).join('/'));
+        removeEmptyDirectoriesUpTo(path.dirname(targetPath), versionDir);
+      }
+    }
+  }
+
+  return result;
+}
+
 function sleepSync(ms) {
   if (!ms) return;
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -141,6 +224,10 @@ function prepareManagedResources(binaryPath, targetDir) {
   });
 
   removeDirectorySafe(dataDir);
+  const pruneResult = pruneManagedNodeRuntime(bundleOut);
+  if (pruneResult.pruned.length > 0) {
+    console.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
+  }
   return bundleOut;
 }
 
@@ -588,5 +675,6 @@ module.exports = {
     downloadFile,
     runDownloadOnce,
     parsePositiveInteger,
+    pruneManagedNodeRuntime,
   },
 };

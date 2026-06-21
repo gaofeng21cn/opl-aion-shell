@@ -70,3 +70,80 @@ describe('prepare-aioncore download retry', () => {
     expect(__test__.parsePositiveInteger('not-a-number', 4)).toBe(4);
   });
 });
+
+describe('prepare-aioncore managed Node pruning', () => {
+  it('removes package-manager payloads while keeping the runtime node executable', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-darwin-arm64');
+
+    fs.mkdirSync(path.join(nodeVersionDir, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'include', 'node'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'share', 'man'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack'), { recursive: true });
+    fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'node'), 'node');
+    fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'npm'), 'npm');
+    fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'npx'), 'npx');
+    fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'corepack'), 'corepack');
+    fs.writeFileSync(path.join(nodeVersionDir, 'include', 'node', 'node.h'), 'headers');
+    fs.writeFileSync(path.join(nodeVersionDir, 'share', 'man', 'node.1'), 'manual');
+    fs.writeFileSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'package.json'), '{}');
+    fs.writeFileSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack', 'package.json'), '{}');
+
+    const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'darwin');
+
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'node'))).toBe(true);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npx'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'corepack'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'include'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'share'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack'))).toBe(false);
+    expect(result.checkedExecutables).toEqual(['node/node-v24.11.0-darwin-arm64/bin/node']);
+    expect(result.pruned).toEqual(
+      expect.arrayContaining([
+        'node/node-v24.11.0-darwin-arm64/include',
+        'node/node-v24.11.0-darwin-arm64/share',
+        'node/node-v24.11.0-darwin-arm64/lib/node_modules/npm',
+        'node/node-v24.11.0-darwin-arm64/lib/node_modules/corepack',
+      ])
+    );
+  });
+
+  it('removes Windows package-manager payloads while keeping node.exe', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-win-x64');
+
+    fs.mkdirSync(path.join(nodeVersionDir, 'node_modules', 'npm'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'node_modules', 'corepack'), { recursive: true });
+    fs.writeFileSync(path.join(nodeVersionDir, 'node.exe'), 'node');
+    fs.writeFileSync(path.join(nodeVersionDir, 'npm.cmd'), 'npm');
+    fs.writeFileSync(path.join(nodeVersionDir, 'npx.cmd'), 'npx');
+    fs.writeFileSync(path.join(nodeVersionDir, 'corepack.cmd'), 'corepack');
+    fs.writeFileSync(path.join(nodeVersionDir, 'node_modules', 'npm', 'package.json'), '{}');
+    fs.writeFileSync(path.join(nodeVersionDir, 'node_modules', 'corepack', 'package.json'), '{}');
+
+    const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'win32');
+
+    expect(fs.existsSync(path.join(nodeVersionDir, 'node.exe'))).toBe(true);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'npm.cmd'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'npx.cmd'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'corepack.cmd'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'node_modules', 'npm'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'node_modules', 'corepack'))).toBe(false);
+    expect(result.checkedExecutables).toEqual(['node/node-v24.11.0-win-x64/node.exe']);
+  });
+
+  it('rejects a managed Node bundle that has no runtime executable', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    fs.mkdirSync(path.join(managedResourcesDir, 'node', 'node-v24.11.0-linux-x64', 'include'), { recursive: true });
+
+    expect(() => __test__.pruneManagedNodeRuntime(managedResourcesDir, 'linux')).toThrow(
+      /Managed Node runtime is missing required executable/
+    );
+  });
+});

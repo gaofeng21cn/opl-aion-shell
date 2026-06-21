@@ -44,6 +44,29 @@ function isFile(filePath) {
   return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
 }
 
+function directorySizeBytes(root) {
+  if (!fs.existsSync(root)) return 0;
+  const stat = fs.statSync(root);
+  if (stat.isFile()) return stat.size;
+  if (!stat.isDirectory()) return 0;
+
+  let total = 0;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    total += directorySizeBytes(path.join(root, entry.name));
+  }
+  return total;
+}
+
+function addSizeAccounting(accounting, runtimeKey, label, baseDir, ...parts) {
+  const absolutePath = path.join(baseDir, ...parts);
+  accounting.push({
+    label,
+    path: bundledPath(runtimeKey, ...parts),
+    bytes: directorySizeBytes(absolutePath),
+    present: fs.existsSync(absolutePath),
+  });
+}
+
 function requireManagedNode(baseDir, runtimeKey, platform, checked, missing) {
   const nodeRoot = path.join(baseDir, 'managed-resources', 'node');
   const versions = readDirectories(nodeRoot);
@@ -136,6 +159,7 @@ function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, ta
   const baseDir = path.join(resourcesDir, 'bundled-aioncore', runtimeKey);
   const checked = [];
   const missing = [];
+  const sizeAccounting = [];
 
   requireRelativePath(baseDir, runtimeKey, [backendBinaryName(electronPlatformName)], checked, missing);
   requireRelativePath(baseDir, runtimeKey, ['manifest.json'], checked, missing);
@@ -143,8 +167,20 @@ function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, ta
   requireManagedNode(baseDir, runtimeKey, electronPlatformName, checked, missing);
   requireManagedAcpTool(baseDir, runtimeKey, 'codex-acp', checked, missing);
   requireManagedAcpTool(baseDir, runtimeKey, 'claude-agent-acp', checked, missing);
+  addSizeAccounting(sizeAccounting, runtimeKey, 'aioncore-binary', baseDir, backendBinaryName(electronPlatformName));
+  addSizeAccounting(sizeAccounting, runtimeKey, 'managed-node', baseDir, 'managed-resources', 'node');
+  addSizeAccounting(sizeAccounting, runtimeKey, 'codex-acp', baseDir, 'managed-resources', 'acp', 'codex-acp');
+  addSizeAccounting(
+    sizeAccounting,
+    runtimeKey,
+    'claude-agent-acp',
+    baseDir,
+    'managed-resources',
+    'acp',
+    'claude-agent-acp'
+  );
 
-  return { runtimeKey, checked, missing };
+  return { runtimeKey, checked, missing, sizeAccounting };
 }
 
 module.exports = {
