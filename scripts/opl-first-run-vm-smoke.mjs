@@ -1640,6 +1640,7 @@ function firstRunAccessibilityExpectedLabels() {
     DEFAULT_LABELS.primaryAction,
     DEFAULT_LABELS.technicalDetailsToggle,
     DEFAULT_LABELS.guidEntry,
+    ...usableEntryAccessibilityMarkers().flatMap((marker) => marker.candidates),
   ];
 }
 
@@ -1731,6 +1732,53 @@ function treeContainsLabel(tree, label) {
   return tree.some((node) =>
     [node.name, node.description, node.title, node.value, node.help].some((value) => value === label)
   );
+}
+
+function treeNodeTextValues(node) {
+  return [node.name, node.description, node.title, node.value, node.help]
+    .filter((value) => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function treeContainsTextCandidate(tree, candidate) {
+  return tree.some((node) =>
+    treeNodeTextValues(node).some((value) => value === candidate || value.includes(candidate))
+  );
+}
+
+function usableEntryAccessibilityMarkers() {
+  return OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => ({
+    id: target.id,
+    label: target.badge,
+    candidates: [target.badge, `@${target.shortName}`, target.shortName],
+  }));
+}
+
+function detectUsableEntryAccessibility(tree) {
+  if (treeContainsLabel(tree, DEFAULT_LABELS.guidEntry)) {
+    return {
+      entryKind: 'guid',
+      labels: [DEFAULT_LABELS.guidEntry],
+    };
+  }
+
+  const assistantLabels = usableEntryAccessibilityMarkers()
+    .map((marker) => ({
+      id: marker.id,
+      label: marker.label,
+      matched: marker.candidates.find((candidate) => treeContainsTextCandidate(tree, candidate)) ?? null,
+    }))
+    .filter((marker) => marker.matched);
+  if (assistantLabels.length === OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length) {
+    return {
+      entryKind: 'assistant_home',
+      labels: assistantLabels.map((marker) => marker.label),
+      matchedLabels: assistantLabels.map((marker) => marker.matched),
+    };
+  }
+
+  return null;
 }
 
 function assertDoesNotContainSecret(label, content, secret) {
@@ -2371,15 +2419,22 @@ async function waitForGuidEntry(processName, timeoutMs) {
   while (Date.now() - started < timeoutMs) {
     try {
       lastTree = queryAccessibility(processName);
-      if (treeContainsLabel(lastTree, DEFAULT_LABELS.guidEntry)) {
-        return { tree: lastTree, labels: [DEFAULT_LABELS.guidEntry] };
+      const usableEntry = detectUsableEntryAccessibility(lastTree);
+      if (usableEntry) {
+        return { tree: lastTree, ...usableEntry };
       }
     } catch (error) {
       lastError = error;
     }
     await sleep(2_000);
   }
-  const detail = lastError instanceof Error ? lastError.message : JSON.stringify(lastTree.slice(0, 20));
+  const detail =
+    lastError instanceof Error
+      ? lastError.message
+      : JSON.stringify({
+          expected: [DEFAULT_LABELS.guidEntry, ...usableEntryAccessibilityMarkers().map((marker) => marker.label)],
+          sample: lastTree.slice(0, 20),
+        });
   throw new Error(
     [
       `Timed out waiting for OPL usable entry accessibility label in ${processName}.`,
@@ -2391,18 +2446,42 @@ async function waitForGuidEntry(processName, timeoutMs) {
 
 function guidEntryReadinessExpression() {
   return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
     const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
     const guidInput = document.querySelector('[data-testid="guid-input"]');
     const guidSendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     const hashOk = window.location.hash.startsWith('#/guid');
-    return hashOk && guidEntry && guidInput && guidSendButton && !firstRunWindow && !appLoaderVisible
+    if (hashOk && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible) {
+      return {
+        hash: window.location.hash,
+        entryKind: 'guid',
+        labels: ['opl-guid-entry'],
+        guidEntryVisible: true,
+        guidInputVisible: true,
+        guidSendButtonVisible: true,
+        hasGuidInput: true,
+        hasGuidSendButton: true,
+      };
+    }
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
+      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
+      .filter(visible);
+    return assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible
       ? {
           hash: window.location.hash,
-          guidEntryVisible: true,
-          guidInputVisible: true,
-          guidSendButtonVisible: true,
+          entryKind: 'assistant_home',
+          labels: ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.badge))},
+          assistantCardsVisible: assistantCards.map((card) => card.getAttribute('data-testid')),
+          guidEntryVisible: visible(guidEntry),
+          guidInputVisible: visible(guidInput),
+          guidSendButtonVisible: visible(guidSendButton),
           hasGuidInput: true,
           hasGuidSendButton: true,
         }
@@ -2412,20 +2491,45 @@ function guidEntryReadinessExpression() {
 
 function guidEntryNavigationExpression() {
   return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
     const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
     const guidInput = document.querySelector('[data-testid="guid-input"]');
     const guidSendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    if (window.location.hash.startsWith('#/guid') && guidEntry && guidInput && guidSendButton && !firstRunWindow && !appLoaderVisible) {
+    if (window.location.hash.startsWith('#/guid') && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible) {
       return {
         hash: window.location.hash,
+        entryKind: 'guid',
+        labels: ['opl-guid-entry'],
         guidEntryVisible: true,
         guidInputVisible: true,
         guidSendButtonVisible: true,
         hasGuidInput: true,
         hasGuidSendButton: true,
         navigatedBy: 'ready_entry',
+      };
+    }
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
+      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
+      .filter(visible);
+    if (assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible) {
+      return {
+        hash: window.location.hash,
+        entryKind: 'assistant_home',
+        labels: ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.badge))},
+        assistantCardsVisible: assistantCards.map((card) => card.getAttribute('data-testid')),
+        guidEntryVisible: visible(guidEntry),
+        guidInputVisible: true,
+        guidSendButtonVisible: true,
+        hasGuidInput: true,
+        hasGuidSendButton: true,
+        navigatedBy: 'usable_assistant_home',
       };
     }
     const readyAnchor = document.querySelector('[aria-label="opl-first-run-ready-entry"], [data-testid="opl-first-run-ready-entry"]');
@@ -2772,9 +2876,9 @@ async function waitForGuidEntryViaCdp(options, secret) {
       client,
       guidEntryNavigationExpression(),
       options.timeoutMs,
-      'OPL Guid entry did not become ready in the packaged app'
+      'OPL usable entry did not become ready in the packaged app'
     );
-    return { state, startupPreflight, firstRunBeginnerUx, labels: [DEFAULT_LABELS.guidEntry] };
+    return { state, startupPreflight, firstRunBeginnerUx, labels: state.labels ?? [DEFAULT_LABELS.guidEntry] };
   } finally {
     client.close();
   }
@@ -4039,6 +4143,7 @@ export const __test =
         remainingPhaseTimeoutMs,
         guidEntryReadinessExpression,
         guidEntryNavigationExpression,
+        detectUsableEntryAccessibility,
         startupPreflightExpression,
         firstRunBeginnerUxExpression,
         firstRunAccessibilityExpectedLabels,

@@ -121,14 +121,20 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="guid-input"]');
     expect(expression).toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).toContain('[data-testid="opl-first-run-window"]');
+    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('preset-pill-${assistantId}');
+    expect(expression).toContain("entryKind: 'assistant_home'");
   });
 
-  it('navigates through the ready entry button instead of forcing the /guid route', () => {
+  it('accepts the App-owned assistant home as a usable entry after ready navigation', () => {
     const expression = __test.guidEntryNavigationExpression();
 
     expect(expression).toContain('[aria-label="opl-first-run-ready-entry"]');
     expect(expression).toContain('readyButton.click()');
     expect(expression).toContain("navigatedBy: 'ready_entry'");
+    expect(expression).toContain("navigatedBy: 'usable_assistant_home'");
+    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('preset-pill-${assistantId}');
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
 
@@ -364,11 +370,28 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(labels).toContain('opl-first-run-primary-action');
     expect(labels).toContain('opl-first-run-technical-details-toggle');
     expect(labels).toContain('opl-guid-entry');
+    expect(labels).toContain('@MAS');
+    expect(labels).toContain('@MAG');
+    expect(labels).toContain('@RCA');
     expect(labels).not.toContain('opl-first-run-background-maintenance-secondary');
     expect(labels).not.toContain('opl-first-run-install-button');
     expect(labels).not.toContain('opl-first-run-open-environment-button');
     expect(labels).not.toContain('opl-first-run-open-modules-button');
     expect(labels).not.toContain('opl-first-run-retry-button');
+  });
+
+  it('detects Guid and assistant-home entries through the Accessibility tree', () => {
+    expect(__test.detectUsableEntryAccessibility([{ name: 'opl-guid-entry' }])).toEqual({
+      entryKind: 'guid',
+      labels: ['opl-guid-entry'],
+    });
+    expect(
+      __test.detectUsableEntryAccessibility([{ title: '@MAS' }, { name: 'MAG' }, { description: 'Run @RCA task' }])
+    ).toMatchObject({
+      entryKind: 'assistant_home',
+      labels: ['@MAS', '@MAG', '@RCA'],
+    });
+    expect(__test.detectUsableEntryAccessibility([{ title: '@MAS' }, { name: '@MAG' }])).toBeNull();
   });
 
   it('smokes the current OPL App-owned settings routes', () => {
