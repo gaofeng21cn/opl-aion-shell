@@ -429,6 +429,14 @@ describe('packaged first-run VM smoke helpers', () => {
         requireCodexConfigWizard: true,
       })
     ).toBe(true);
+    expect(
+      __test.shouldWaitForCoreFirstLaunchReady({
+        runtimeProfile: 'standard',
+        codexApiKeyFile: '/tmp/codex-api-key',
+        bootstrapLaunchDiagnostics: true,
+        requireCodexConfigWizard: false,
+      })
+    ).toBe(false);
   });
 
   it('configures Codex from the VM smoke API key file before core readiness probing', () => {

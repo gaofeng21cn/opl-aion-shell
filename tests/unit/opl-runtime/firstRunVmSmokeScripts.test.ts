@@ -453,9 +453,21 @@ describe('OPL first-run VM smoke scripts', () => {
     const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
 
     expect(scriptSource).toContain('configureCodexApiKeyForSmoke');
+    expect(scriptSource).toContain('!options.bootstrapLaunchDiagnostics');
     expect(mainSource.indexOf("'install_dmg'")).toBeLessThan(mainSource.indexOf("'configure_codex_api_key'"));
     expect(mainSource.indexOf("'configure_codex_api_key'")).toBeLessThan(mainSource.indexOf("'launch_app'"));
     expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
+  });
+
+  it('runs bootstrap-only launch diagnostics after opening the packaged app before secondary release gates', () => {
+    const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
+    const mainSource = scriptSource.slice(scriptSource.indexOf('async function main()'));
+
+    expect(scriptSource).toContain('--bootstrap-launch-diagnostics');
+    expect(scriptSource).toContain('waitForBootstrapLaunchDiagnostics');
+    expect(scriptSource).toContain('bootstrap-launch-diagnostics.json');
+    expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'bootstrap_launch_diagnostics'"));
+    expect(mainSource.indexOf("'bootstrap_launch_diagnostics'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
   });
 
   it('scopes runtime refresh button probes to visible page buttons outside toast containers', () => {
@@ -543,6 +555,40 @@ describe('OPL first-run VM smoke scripts', () => {
         settings_smoke: null,
       })
     ).not.toThrow();
+  });
+
+  it('forwards bootstrap-only launch diagnostics into the guest without secondary release smokes', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--bootstrap-launch-diagnostics',
+      '--dry-run',
+    ]);
+
+    expect(options.bootstrapLaunchDiagnostics).toBe(true);
+    const plan = tartSmoke.buildDryRunPlan(options);
+    expect(plan.bootstrap_launch_diagnostics).toBe(true);
+    expect(plan.settings_smoke).toBe(false);
+    expect(plan.assistant_route_smoke).toBe(false);
+    expect(plan.cdp_port).toBe(9230);
+
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      '/tmp/guest/One-Person-Lab.dmg',
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      '/tmp/guest/codex-api-key.txt'
+    );
+    expect(command).toContain('--bootstrap-launch-diagnostics');
+    expect(command).toContain('--cdp-port');
+    expect(command).not.toContain('--settings-smoke');
+    expect(command).not.toContain('--assistant-route-smoke');
+    expect(command).not.toContain('--codex-functional-check');
+    expect(command).not.toContain('--codex-ai-self-check');
   });
 
   it('forwards assistant route smoke into the guest and requires its passed summary', () => {

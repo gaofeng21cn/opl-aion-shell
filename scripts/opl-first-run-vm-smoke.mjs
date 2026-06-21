@@ -146,6 +146,10 @@ Options:
   --codex-npm-cache-dir <path>
                          Optional npm cache directory to expose to the packaged
                          app during first-run Codex install via NPM_CONFIG_CACHE.
+  --bootstrap-launch-diagnostics
+                         Only verify packaged bootstrap and initial renderer/CDP
+                         launch diagnostics. Skips Codex config/readiness and
+                         secondary release smokes.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
                          Click MAS/MAG/RCA purpose entries, create receipt-only conversations,
@@ -200,6 +204,7 @@ function parseArgs(argv) {
     codexPackageTarball: null,
     codexPlatformPackageTarball: null,
     codexNpmCacheDir: null,
+    bootstrapLaunchDiagnostics: false,
     settingsSmoke: false,
     assistantRouteSmoke: false,
     codexFunctionalCheck: false,
@@ -229,6 +234,10 @@ function parseArgs(argv) {
     }
     if (arg === '--require-codex-config-wizard') {
       options.requireCodexConfigWizard = true;
+      continue;
+    }
+    if (arg === '--bootstrap-launch-diagnostics') {
+      options.bootstrapLaunchDiagnostics = true;
       continue;
     }
     if (arg === '--settings-smoke') {
@@ -311,11 +320,27 @@ function parseArgs(argv) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
   }
+  assertBootstrapLaunchDiagnosticsOptions(options);
   return options;
 }
 
 function shouldVerifyFullFirstRunEquivalence(runtimeProfile) {
   return runtimeProfile === 'full';
+}
+
+function assertBootstrapLaunchDiagnosticsOptions(options) {
+  if (!options.bootstrapLaunchDiagnostics) return;
+  if (
+    options.settingsSmoke ||
+    options.assistantRouteSmoke ||
+    options.codexFunctionalCheck ||
+    options.codexAiSelfCheck
+  ) {
+    throw new Error('--bootstrap-launch-diagnostics cannot be combined with secondary release smokes.');
+  }
+  if (options.requireCodexConfigWizard) {
+    throw new Error('--bootstrap-launch-diagnostics cannot require the Codex configuration wizard.');
+  }
 }
 
 function resolveOplProbeTimeoutMs(timeoutMs) {
@@ -2438,6 +2463,9 @@ function shouldWaitForFirstRunCompletion(options) {
 }
 
 function shouldWaitForCoreFirstLaunchReady(options) {
+  if (options.bootstrapLaunchDiagnostics) {
+    return false;
+  }
   return (
     options.requireCodexConfigWizard === true || options.runtimeProfile === 'full' || Boolean(options.codexApiKeyFile)
   );
@@ -3220,6 +3248,38 @@ async function waitForGuidEntryViaCdp(options, secret) {
       'OPL usable entry did not become ready in the packaged app'
     );
     return { state, startupPreflight, firstRunBeginnerUx, labels: state.labels ?? [DEFAULT_LABELS.guidEntry] };
+  } finally {
+    client.close();
+  }
+}
+
+async function waitForBootstrapLaunchDiagnostics(options, secret) {
+  const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    await client.send('Page.enable');
+    const startupPreflight = await waitForCdpPredicate(
+      client,
+      startupPreflightExpression(),
+      Math.min(options.timeoutMs, 10_000),
+      'OPL startup did not expose a preflight, first-run, or Guid surface'
+    );
+    const summary = {
+      schema: 'opl_bootstrap_launch_diagnostics.v1',
+      status: 'passed',
+      mode: 'cdp',
+      cdp_port: options.cdpPort,
+      target: {
+        id: target.id ?? null,
+        type: target.type ?? null,
+        title: target.title ?? null,
+        url: target.url ?? null,
+      },
+      startup_preflight: startupPreflight,
+    };
+    writeJsonArtifact(path.join(options.artifacts, 'bootstrap-launch-diagnostics.json'), summary, secret);
+    return summary;
   } finally {
     client.close();
   }
@@ -4504,6 +4564,7 @@ async function main() {
       assert_clean: options.assertClean,
       codex_ai_self_check: options.codexAiSelfCheck,
       codex_install_preseed: codexInstallPreseed,
+      bootstrap_launch_diagnostics: options.bootstrapLaunchDiagnostics,
       timeouts: {
         smoke_ms: options.timeoutMs,
         codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
@@ -4550,7 +4611,7 @@ async function main() {
       assertPackagedMainBootstrap(appPath, options.artifacts)
     );
 
-    if (codexApiKey) {
+    if (codexApiKey && !options.bootstrapLaunchDiagnostics) {
       const codexConfigure = await runSmokePhase(
         writeSmokeEvent,
         'configure_codex_api_key',
@@ -4590,6 +4651,51 @@ async function main() {
       cdp_port: options.cdpPort,
       timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
+    if (options.bootstrapLaunchDiagnostics) {
+      const bootstrapLaunchDiagnostics = await runSmokePhase(
+        writeSmokeEvent,
+        'bootstrap_launch_diagnostics',
+        () => waitForBootstrapLaunchDiagnostics(installedAppOptions, codexApiKey),
+        {
+          timeout_ms: cdpProbeTimeoutMs(installedAppOptions),
+          cdp_port: options.cdpPort,
+        }
+      );
+      collectLaunchDiagnostics(options, codexApiKey);
+      const summary = {
+        surface_id: 'opl_packaged_gui_first_run_smoke',
+        status: 'passed',
+        diagnostic_scope: 'bootstrap_launch_diagnostics',
+        app_path: appPath,
+        artifacts: options.artifacts,
+        runtime_profile: options.runtimeProfile,
+        bootstrap_launch_diagnostics: bootstrapLaunchDiagnostics,
+        codex_config_wizard_seen: false,
+        codex_config_wizard_submitted: false,
+        codex_api_key_present: Boolean(codexApiKey),
+        codex_install_preseed: codexInstallPreseed,
+        timeouts: {
+          smoke_ms: options.timeoutMs,
+          codex_install_phase_ms: options.codexInstallPhaseTimeoutMs,
+          codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
+          host_deadline_epoch_ms: options.hostDeadlineEpochMs,
+          host_deadline_safety_margin_ms: options.hostDeadlineEpochMs ? HOST_DEADLINE_SAFETY_MARGIN_MS : null,
+        },
+        labels: bootstrapLaunchDiagnostics.startup_preflight?.labels ?? [],
+        settings_smoke: null,
+        assistant_route_smoke: null,
+        codex_functional_check: null,
+        codex_ai_self_check: null,
+        app_release_runtime_evidence: null,
+      };
+      writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
+      writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
+        diagnostic_scope: 'bootstrap_launch_diagnostics',
+        labels: summary.labels,
+      });
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+      return;
+    }
     const firstRunLog = defaultFirstRunLogPath();
     let firstRun = null;
     let guidEntry = null;

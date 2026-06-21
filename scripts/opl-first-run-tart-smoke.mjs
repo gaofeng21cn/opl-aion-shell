@@ -120,6 +120,9 @@ Options:
   --codex-npm-cache-dir <path>
                            Optional host npm cache directory copied into the
                            guest and exposed through NPM_CONFIG_CACHE.
+  --bootstrap-launch-diagnostics
+                           Only run packaged bootstrap and initial renderer/CDP
+                           launch diagnostics inside the guest.
   --display <resolution>   Tart display resolution, for example 1920x1080px. Default: 1920x1080px.
   --smoke-profile <name>   Host-side smoke profile: full-gate or no-clt-clean-vm. Default: full-gate.
   --settings-smoke         After first launch, run packaged Settings page smoke checks in the guest.
@@ -187,6 +190,7 @@ function parseArgs(argv) {
     codexPackageTarball: '',
     codexPlatformPackageTarball: '',
     codexNpmCacheDir: '',
+    bootstrapLaunchDiagnostics: false,
     display: '1920x1080px',
     smokeProfile: 'full-gate',
     settingsSmoke: false,
@@ -268,6 +272,11 @@ function parseArgs(argv) {
     if (arg === '--guide-screenshots') {
       options.guideScreenshots = true;
       explicit.add('guideScreenshots');
+      continue;
+    }
+    if (arg === '--bootstrap-launch-diagnostics') {
+      options.bootstrapLaunchDiagnostics = true;
+      explicit.add('bootstrapLaunchDiagnostics');
       continue;
     }
     if (arg === '--dry-run') {
@@ -429,6 +438,15 @@ function parseArgs(argv) {
     throw new Error('--codex-ai-self-check-timeout-ms must be positive.');
   }
   if (options.requireCodexConfigWizard === null) options.requireCodexConfigWizard = false;
+  if (
+    options.bootstrapLaunchDiagnostics &&
+    (options.settingsSmoke || options.assistantRouteSmoke || options.codexFunctionalCheck || options.codexAiSelfCheck)
+  ) {
+    throw new Error('--bootstrap-launch-diagnostics cannot be combined with secondary release smokes.');
+  }
+  if (options.bootstrapLaunchDiagnostics && options.requireCodexConfigWizard) {
+    throw new Error('--bootstrap-launch-diagnostics cannot require the Codex configuration wizard.');
+  }
 
   return options;
 }
@@ -456,6 +474,7 @@ function buildDryRunPlan(options) {
       codex_readiness_phase_ms: options.codexReadinessPhaseTimeoutMs,
     },
     codex_install_preseed: codexInstallPreseedPlan(options),
+    bootstrap_launch_diagnostics: options.bootstrapLaunchDiagnostics,
     display: options.display,
     settings_smoke: options.settingsSmoke,
     assistant_route_smoke: options.assistantRouteSmoke,
@@ -465,7 +484,10 @@ function buildDryRunPlan(options) {
       mode: options.codexAiSelfCheckMode,
       blocking_release_gate: false,
     },
-    cdp_port: options.settingsSmoke || options.assistantRouteSmoke ? options.cdpPort : null,
+    cdp_port:
+      options.bootstrapLaunchDiagnostics || options.settingsSmoke || options.assistantRouteSmoke
+        ? options.cdpPort
+        : null,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
     guest_node_root: options.guestNodeRoot || null,
@@ -1317,6 +1339,7 @@ function guestSmokeCommand(
       ? `--codex-platform-package-tarball ${shellQuote(guestCodexPlatformPackageTarballPath(options))}`
       : '',
     options.codexNpmCacheDir ? `--codex-npm-cache-dir ${shellQuote(guestCodexNpmCacheDir(options))}` : '',
+    options.bootstrapLaunchDiagnostics ? '--bootstrap-launch-diagnostics' : '',
     options.settingsSmoke ? '--settings-smoke' : '',
     options.assistantRouteSmoke ? '--assistant-route-smoke' : '',
     options.codexFunctionalCheck ? '--codex-functional-check' : '',
@@ -1325,7 +1348,9 @@ function guestSmokeCommand(
     options.codexAiSelfCheck
       ? `--codex-ai-self-check-timeout-ms ${shellQuote(String(options.codexAiSelfCheckTimeoutMs))}`
       : '',
-    options.settingsSmoke || options.assistantRouteSmoke ? `--cdp-port ${shellQuote(String(options.cdpPort))}` : '',
+    options.bootstrapLaunchDiagnostics || options.settingsSmoke || options.assistantRouteSmoke
+      ? `--cdp-port ${shellQuote(String(options.cdpPort))}`
+      : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
     options.guideScreenshots ? '--guide-screenshots' : '',
   ].join(' ');
@@ -1433,6 +1458,14 @@ function assertGuestSmokeSummary(options, guestSummary) {
       }`
     );
   }
+  if (options.bootstrapLaunchDiagnostics) {
+    if (guestSummary.diagnostic_scope !== 'bootstrap_launch_diagnostics') {
+      throw new Error('Guest smoke did not run bootstrap launch diagnostics.');
+    }
+    if (guestSummary.bootstrap_launch_diagnostics?.status !== 'passed') {
+      throw new Error('Guest bootstrap launch diagnostics did not pass.');
+    }
+  }
   if (options.requireCodexConfigWizard && !guestSummary.codex_config_wizard_submitted) {
     throw new Error('Guest smoke did not submit the Codex configuration wizard.');
   }
@@ -1497,6 +1530,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     display: options.display,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
+    bootstrap_launch_diagnostics: options.bootstrapLaunchDiagnostics,
     framework_source_archive: frameworkSourceArchivePlan(options),
     codex_install_preseed: codexInstallPreseedPlan(options),
     timeouts: {
@@ -1511,6 +1545,8 @@ function writeSummary(options, ip, guestArtifactDir) {
     codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
     codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
     codex_api_key_present: guestSummary?.codex_api_key_present ?? null,
+    diagnostic_scope: guestSummary?.diagnostic_scope ?? null,
+    bootstrap_launch_diagnostics_result: guestSummary?.bootstrap_launch_diagnostics ?? null,
     labels: guestSummary?.labels ?? [],
     settings_smoke: guestSummary?.settings_smoke ?? null,
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
@@ -1538,6 +1574,7 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     display: options.display,
     runtime_profile: options.runtimeProfile,
     require_codex_config_wizard: options.requireCodexConfigWizard,
+    bootstrap_launch_diagnostics: options.bootstrapLaunchDiagnostics,
     framework_source_archive: frameworkSourceArchivePlan(options),
     codex_install_preseed: codexInstallPreseedPlan(options),
     timeouts: {
@@ -1552,6 +1589,8 @@ function writeFailedSummary(options, ip, guestArtifactDir, error) {
     copied_guest_artifacts: runtimeState.copiedArtifacts,
     codex_config_wizard_seen: guestSummary?.codex_config_wizard_seen ?? null,
     codex_config_wizard_submitted: guestSummary?.codex_config_wizard_submitted ?? null,
+    diagnostic_scope: guestSummary?.diagnostic_scope ?? null,
+    bootstrap_launch_diagnostics_result: guestSummary?.bootstrap_launch_diagnostics ?? null,
     labels: guestSummary?.labels ?? [],
     settings_smoke: guestSummary?.settings_smoke ?? null,
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
