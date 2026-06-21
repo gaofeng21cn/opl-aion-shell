@@ -382,6 +382,11 @@ function parseArgs(argv) {
   for (const [key, value] of Object.entries(profile)) {
     if (!explicit.has(key)) options[key] = value;
   }
+  if (options.bootstrapLaunchDiagnostics) {
+    for (const key of ['settingsSmoke', 'assistantRouteSmoke', 'codexFunctionalCheck', 'codexAiSelfCheck']) {
+      if (!explicit.has(key)) options[key] = false;
+    }
+  }
   if (!options.sourceVm) throw new Error('--source-vm or OPL_FIRST_RUN_TART_SOURCE is required.');
   if (!['dmg', 'homebrew-cask'].includes(options.installMode)) {
     throw new Error('--install-mode must be one of: dmg, homebrew-cask.');

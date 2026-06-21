@@ -591,6 +591,44 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).not.toContain('--codex-ai-self-check');
   });
 
+  it('lets bootstrap-only diagnostics override secondary smokes enabled by the host profile', () => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--smoke-profile',
+      'no-clt-clean-vm',
+      '--bootstrap-launch-diagnostics',
+      '--dry-run',
+    ]);
+
+    expect(options.bootstrapLaunchDiagnostics).toBe(true);
+    expect(options.settingsSmoke).toBe(false);
+    expect(options.assistantRouteSmoke).toBe(false);
+    expect(options.codexFunctionalCheck).toBe(false);
+    expect(options.codexAiSelfCheck).toBe(false);
+    expect(tartSmoke.buildDryRunPlan(options).settings_smoke).toBe(false);
+  });
+
+  it('rejects bootstrap-only diagnostics when secondary release smokes are explicitly requested', () => {
+    expect(() =>
+      tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--bootstrap-launch-diagnostics',
+        '--settings-smoke',
+        '--dry-run',
+      ])
+    ).toThrow('--bootstrap-launch-diagnostics cannot be combined with secondary release smokes.');
+  });
+
   it('forwards assistant route smoke into the guest and requires its passed summary', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
