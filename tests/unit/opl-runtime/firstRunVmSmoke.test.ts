@@ -113,7 +113,10 @@ describe('packaged first-run VM smoke helpers', () => {
           '  PID  PPID ARGS',
           ' 1234     1 /Applications/One Person Lab.app/Contents/MacOS/One Person Lab /Applications/One Person Lab.app/Contents/MacOS/One Person Lab --force-renderer-accessibility --aionui-cdp-port=9230',
           ' 2234  1234 /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper --type=renderer',
+          ' 3234  1234 /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper (GPU).app/Contents/MacOS/One Person Lab Helper (GPU) --type=gpu-process',
           ' 3333     1 /usr/bin/grep grep One Person Lab',
+          ' 4333     1 /tmp/node /tmp/opl-first-run-vm-smoke.mjs --process-name One Person Lab --bootstrap-launch-diagnostics',
+          ' 5333     1 /bin/sh -c echo One Person Lab',
         ].join('\n'),
         'One Person Lab'
       )
@@ -127,6 +130,11 @@ describe('packaged first-run VM smoke helpers', () => {
         pid: 2234,
         ppid: 1234,
         args: '/Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper /Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper.app/Contents/MacOS/One Person Lab Helper --type=renderer',
+      },
+      {
+        pid: 3234,
+        ppid: 1234,
+        args: '/Applications/One Person Lab.app/Contents/Frameworks/One Person Lab Helper (GPU).app/Contents/MacOS/One Person Lab Helper (GPU) --type=gpu-process',
       },
     ]);
   });
@@ -200,6 +208,80 @@ describe('packaged first-run VM smoke helpers', () => {
       ]);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('writes renderer bootstrap diagnostics when CDP is reachable but startup surfaces are absent', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-renderer-bootstrap-diagnostics-'));
+    try {
+      const sent = [];
+      const client = {
+        send(method, params) {
+          sent.push({ method, params });
+          if (method === 'Runtime.evaluate') {
+            return Promise.resolve({
+              result: {
+                value: {
+                  schema: 'opl_renderer_bootstrap_diagnostics.v1',
+                  readyState: 'complete',
+                  bodyTextSample: 'blank shell',
+                  selectorState: {
+                    'opl-startup-preflight': { present: false },
+                    'opl-first-run-window': { present: false },
+                    'opl-guid-entry': { present: false },
+                  },
+                },
+              },
+            });
+          }
+          return Promise.resolve({});
+        },
+      };
+
+      const diagnostics = await __test.collectRendererBootstrapDiagnostics(
+        client,
+        {
+          id: 'page-1',
+          type: 'page',
+          title: 'index.html',
+          url: 'file:///Applications/One%20Person%20Lab.app/Contents/Resources/app.asar/out/main/renderer/index.html',
+        },
+        [{ source: 'Runtime.consoleAPICalled', type: 'error', text: 'renderer failed' }],
+        { artifacts },
+        null,
+        new Error('OPL startup did not expose a preflight, first-run, or Guid surface')
+      );
+
+      expect(sent[0]?.method).toBe('Runtime.evaluate');
+      expect(diagnostics).toMatchObject({
+        schema: 'opl_renderer_bootstrap_diagnostics_bundle.v1',
+        status: 'failed',
+        cdp_target: {
+          id: 'page-1',
+          type: 'page',
+          title: 'index.html',
+        },
+        error: 'OPL startup did not expose a preflight, first-run, or Guid surface',
+        events: [{ source: 'Runtime.consoleAPICalled', type: 'error', text: 'renderer failed' }],
+        snapshot: {
+          schema: 'opl_renderer_bootstrap_diagnostics.v1',
+          bodyTextSample: 'blank shell',
+        },
+      });
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'renderer-bootstrap-diagnostics.json'), 'utf8'))
+      ).toMatchObject({
+        schema: 'opl_renderer_bootstrap_diagnostics_bundle.v1',
+        snapshot: {
+          selectorState: {
+            'opl-startup-preflight': { present: false },
+          },
+        },
+      });
+      expect(__test.rendererBootstrapDiagnosticsExpression()).toContain('opl-startup-preflight');
+      expect(__test.rendererBootstrapDiagnosticsExpression()).toContain('localStorageKeys');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
     }
   });
 

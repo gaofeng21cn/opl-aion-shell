@@ -3212,6 +3212,162 @@ function copyArtifact(source, target) {
   fs.copyFileSync(source, target);
 }
 
+function serializeCdpRemoteObject(remoteObject) {
+  if (!remoteObject || typeof remoteObject !== 'object') return null;
+  if ('value' in remoteObject) return remoteObject.value;
+  if (remoteObject.unserializableValue) return String(remoteObject.unserializableValue);
+  if (remoteObject.description) return String(remoteObject.description);
+  return remoteObject.type ?? null;
+}
+
+function createRendererBootstrapDiagnosticsCollector(client) {
+  const events = [];
+  const append = (event) => {
+    events.push({
+      ...event,
+      collected_at: new Date().toISOString(),
+    });
+    if (events.length > 80) events.shift();
+  };
+  const unsubscribe = [
+    client.on?.('Runtime.consoleAPICalled', (params) => {
+      append({
+        source: 'Runtime.consoleAPICalled',
+        type: params.type ?? null,
+        text: (params.args ?? [])
+          .map(serializeCdpRemoteObject)
+          .filter((value) => value !== null)
+          .join(' '),
+        url: params.stackTrace?.callFrames?.[0]?.url ?? null,
+        line: params.stackTrace?.callFrames?.[0]?.lineNumber ?? null,
+      });
+    }),
+    client.on?.('Runtime.exceptionThrown', (params) => {
+      append({
+        source: 'Runtime.exceptionThrown',
+        text:
+          params.exceptionDetails?.exception?.description ||
+          params.exceptionDetails?.text ||
+          params.exceptionDetails?.exception?.value ||
+          null,
+        url: params.exceptionDetails?.url ?? null,
+        line: params.exceptionDetails?.lineNumber ?? null,
+        column: params.exceptionDetails?.columnNumber ?? null,
+      });
+    }),
+    client.on?.('Log.entryAdded', (params) => {
+      append({
+        source: 'Log.entryAdded',
+        level: params.entry?.level ?? null,
+        text: params.entry?.text ?? null,
+        url: params.entry?.url ?? null,
+        line: params.entry?.lineNumber ?? null,
+      });
+    }),
+  ].filter(Boolean);
+  return {
+    events,
+    stop() {
+      for (const unsubscribeEvent of unsubscribe) unsubscribeEvent();
+    },
+  };
+}
+
+function rendererBootstrapDiagnosticsExpression() {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const selectorState = {};
+    for (const id of [
+      'opl-startup-preflight',
+      'opl-first-run-window',
+      'opl-first-run-progress',
+      'opl-first-run-ready-entry',
+      'opl-guid-entry',
+      'app',
+      'root',
+    ]) {
+      const node = document.querySelector('[data-testid="' + id + '"], [aria-label="' + id + '"], #' + CSS.escape(id));
+      selectorState[id] = node
+        ? {
+            present: true,
+            visible: visible(node),
+            tagName: node.tagName,
+            className: String(node.className || ''),
+            textSample: String(node.innerText || node.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 1000),
+          }
+        : { present: false };
+    }
+    const storageKeys = (storage) => {
+      try {
+        return Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean).slice(0, 80);
+      } catch (error) {
+        return { error: String(error) };
+      }
+    };
+    const scripts = [...document.scripts].map((script) => ({
+      src: script.src || '',
+      type: script.type || '',
+      textLength: script.src ? 0 : (script.textContent || '').length,
+    })).slice(0, 80);
+    return {
+      schema: 'opl_renderer_bootstrap_diagnostics.v1',
+      location: {
+        href: window.location.href,
+        hash: window.location.hash,
+        pathname: window.location.pathname,
+      },
+      readyState: document.readyState,
+      title: document.title,
+      bodyTextLength: document.body?.innerText?.length ?? 0,
+      bodyTextSample: String(document.body?.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 2000),
+      bodyHtmlSample: String(document.body?.innerHTML || '').slice(0, 4000),
+      selectorState,
+      scripts,
+      localStorageKeys: storageKeys(window.localStorage),
+      sessionStorageKeys: storageKeys(window.sessionStorage),
+      globals: {
+        opl: typeof window.opl,
+        OPL: typeof window.OPL,
+        aionui: typeof window.aionui,
+        AionUi: typeof window.AionUi,
+        electron: typeof window.electron,
+      },
+      userAgent: navigator.userAgent,
+      language: navigator.language,
+    };
+  })()`;
+}
+
+async function collectRendererBootstrapDiagnostics(client, target, events, options, secret, error) {
+  const diagnostics = {
+    schema: 'opl_renderer_bootstrap_diagnostics_bundle.v1',
+    status: 'failed',
+    cdp_target: target
+      ? {
+          id: target.id ?? null,
+          type: target.type ?? null,
+          title: target.title ?? null,
+          url: target.url ?? null,
+        }
+      : null,
+    error: error instanceof Error ? error.message : String(error),
+    events,
+    snapshot: null,
+  };
+  try {
+    diagnostics.snapshot = await evaluateCdp(client, rendererBootstrapDiagnosticsExpression(), 10_000);
+  } catch (snapshotError) {
+    diagnostics.snapshot_error = snapshotError instanceof Error ? snapshotError.message : String(snapshotError);
+  }
+  writeJsonArtifact(path.join(options.artifacts, 'renderer-bootstrap-diagnostics.json'), diagnostics, secret);
+  return diagnostics;
+}
+
 async function waitForGuidEntryViaCdp(options, secret) {
   const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
   const client = await openCdpClient(target.webSocketDebuggerUrl);
@@ -3256,17 +3412,34 @@ async function waitForGuidEntryViaCdp(options, secret) {
 async function waitForBootstrapLaunchDiagnostics(options, secret) {
   let target = null;
   let client = null;
+  let rendererCollector = null;
+  let rendererDiagnostics = null;
   try {
     target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
     client = await openCdpClient(target.webSocketDebuggerUrl);
+    rendererCollector = createRendererBootstrapDiagnosticsCollector(client);
     await client.send('Runtime.enable');
+    await client.send('Log.enable').catch(() => null);
     await client.send('Page.enable');
-    const startupPreflight = await waitForCdpPredicate(
-      client,
-      startupPreflightExpression(),
-      Math.min(options.timeoutMs, 10_000),
-      'OPL startup did not expose a preflight, first-run, or Guid surface'
-    );
+    let startupPreflight = null;
+    try {
+      startupPreflight = await waitForCdpPredicate(
+        client,
+        startupPreflightExpression(),
+        Math.min(options.timeoutMs, 10_000),
+        'OPL startup did not expose a preflight, first-run, or Guid surface'
+      );
+    } catch (error) {
+      rendererDiagnostics = await collectRendererBootstrapDiagnostics(
+        client,
+        target,
+        rendererCollector.events,
+        options,
+        secret,
+        error
+      );
+      throw error;
+    }
     const summary = {
       schema: 'opl_bootstrap_launch_diagnostics.v1',
       status: 'passed',
@@ -3279,10 +3452,21 @@ async function waitForBootstrapLaunchDiagnostics(options, secret) {
         url: target.url ?? null,
       },
       startup_preflight: startupPreflight,
+      renderer_bootstrap_diagnostics: rendererDiagnostics,
     };
     writeJsonArtifact(path.join(options.artifacts, 'bootstrap-launch-diagnostics.json'), summary, secret);
     return summary;
   } catch (error) {
+    if (client && !rendererDiagnostics) {
+      rendererDiagnostics = await collectRendererBootstrapDiagnostics(
+        client,
+        target,
+        rendererCollector?.events ?? [],
+        options,
+        secret,
+        error
+      ).catch(() => null);
+    }
     const launchDiagnostics = collectLaunchDiagnostics(options, secret);
     const nativeModalSignature = detectNativeModalLaunchBlocker(options, launchDiagnostics);
     const summary = {
@@ -3299,6 +3483,7 @@ async function waitForBootstrapLaunchDiagnostics(options, secret) {
           }
         : null,
       error: error instanceof Error ? error.message : String(error),
+      renderer_bootstrap_diagnostics: rendererDiagnostics,
       native_modal_launch_blocker: nativeModalSignature,
       launch_diagnostics: {
         app_processes: launchDiagnostics.app_processes ?? [],
@@ -3314,6 +3499,7 @@ async function waitForBootstrapLaunchDiagnostics(options, secret) {
     }
     throw error;
   } finally {
+    rendererCollector?.stop();
     client?.close();
   }
 }
@@ -3472,12 +3658,22 @@ async function openCdpClient(webSocketDebuggerUrl) {
   }
   const socket = new WebSocket(webSocketDebuggerUrl);
   const pending = new Map();
+  const eventHandlers = new Map();
   let nextId = 1;
 
   socket.addEventListener('message', (event) => {
     const raw = typeof event.data === 'string' ? event.data : Buffer.from(event.data).toString('utf8');
     const message = JSON.parse(raw);
     if (!message.id || !pending.has(message.id)) {
+      if (message.method && eventHandlers.has(message.method)) {
+        for (const handler of eventHandlers.get(message.method)) {
+          try {
+            handler(message.params ?? {});
+          } catch {
+            // Diagnostic listeners must never break the primary smoke path.
+          }
+        }
+      }
       return;
     }
     const callbacks = pending.get(message.id);
@@ -3503,6 +3699,13 @@ async function openCdpClient(webSocketDebuggerUrl) {
           reject(new Error(`Timed out waiting for CDP response: ${method}`));
         }, timeoutMs);
       });
+    },
+    on(method, handler) {
+      if (!eventHandlers.has(method)) eventHandlers.set(method, new Set());
+      eventHandlers.get(method).add(handler);
+      return () => {
+        eventHandlers.get(method)?.delete(handler);
+      };
     },
     close() {
       socket.close();
@@ -4140,17 +4343,32 @@ function parseProcessRows(psOutput, processName) {
     .split('\n')
     .slice(1)) {
     const trimmed = line.trim();
-    if (!trimmed || !trimmed.includes(processName)) continue;
+    if (!trimmed) continue;
     if (/\/grep\s+/.test(trimmed)) continue;
     const match = /^(\d+)\s+(\d+)\s+(.*)$/.exec(trimmed);
     if (!match) continue;
+    const args = match[3];
+    if (!isPackagedAppProcessArgs(args, processName)) continue;
     rows.push({
       pid: Number(match[1]),
       ppid: Number(match[2]),
-      args: match[3],
+      args,
     });
   }
   return rows;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isPackagedAppProcessArgs(args, processName) {
+  const escapedName = escapeRegExp(processName);
+  const mainExecutable = new RegExp(`(?:^|\\s)/[^\\n]*${escapedName}\\.app/Contents/MacOS/${escapedName}(?:\\s|$)`);
+  const helperExecutable = new RegExp(
+    `(?:^|\\s)/[^\\n]*${escapedName}\\.app/Contents/Frameworks/${escapedName} Helper(?: \\([^)]*\\))?\\.app/Contents/MacOS/${escapedName} Helper(?: \\([^)]*\\))?(?:\\s|$)`
+  );
+  return mainExecutable.test(args) || helperExecutable.test(args);
 }
 
 function writeProcessDiagnosticArtifacts(launchLogDir, processRows, secret) {
@@ -5169,6 +5387,9 @@ export const __test =
         parseProcessRows,
         nativeWindowDiagnosticsScript,
         summarizeNativeWindowDiagnostics,
+        rendererBootstrapDiagnosticsExpression,
+        createRendererBootstrapDiagnosticsCollector,
+        collectRendererBootstrapDiagnostics,
         collectLaunchLogText,
         collectMainBootstrapFatalArtifacts,
         defaultMainBootstrapFatalLogCandidates,
