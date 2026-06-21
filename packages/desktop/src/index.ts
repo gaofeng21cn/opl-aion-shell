@@ -55,7 +55,7 @@ import {
   showAndFocusMainWindow,
   showOrCreateMainWindow,
 } from './process/utils/mainWindowLifecycle';
-import { resolveRendererIndexPath } from './process/utils/rendererPath';
+import { resolvePreloadScriptPath, resolveRendererIndexPath } from './process/utils/rendererPath';
 import {
   loadUserWebUIConfig,
   resolveRemoteAccess,
@@ -362,7 +362,7 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
         }
       : { frame: false }),
     webPreferences: {
-      preload: path.join(__dirname, '../preload/index.js'),
+      preload: resolvePreloadScriptPath(__dirname),
       webviewTag: true, // 启用 webview 标签用于 HTML 预览 / Enable webview tag for HTML preview
     },
   });
