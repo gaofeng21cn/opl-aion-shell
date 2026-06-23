@@ -479,9 +479,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('blocking_release_gate: false');
     expect(scriptSource).toContain('release_gate_captures_early_bootstrap_diagnostics_before_full_readiness_checks');
     expect(scriptSource).toContain('bootstrap-launch-diagnostics.json');
-    expect(mainSource.indexOf("'launch_app'")).toBeLessThan(
-      mainSource.indexOf("'capture_early_launch_diagnostics'")
-    );
+    expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'capture_early_launch_diagnostics'"));
     expect(mainSource.indexOf("'capture_early_launch_diagnostics'")).toBeLessThan(
       mainSource.indexOf("'wait_guid_entry'")
     );
