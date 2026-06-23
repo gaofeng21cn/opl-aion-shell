@@ -37,6 +37,9 @@ export type ManagedUpdateComponent = {
   needsReload: boolean;
   reloadGuidance?: string;
   manualGuidance?: string;
+  manualRequired: boolean;
+  developerCheckout: boolean;
+  dirtyCheckout: boolean;
   safeToApply: boolean;
   repairAllowed: boolean;
   rollbackAllowed: boolean;
@@ -65,6 +68,15 @@ const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
   agent_package_channel: 'Agent packages',
   capability_exposure: 'Capability exposure',
 };
+
+const DEVELOPER_CHECKOUT_SOURCES = new Set([
+  'developer_checkout',
+  'developer_mode',
+  'env_override',
+  'local_checkout',
+  'sibling_workspace',
+  'source_checkout',
+]);
 
 function oplBoolean(value: unknown): boolean {
   return value === true || value === 'true';
@@ -191,15 +203,34 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       repairAction.action_ref,
       repairAction.ref
     );
-    const safeToApply =
+    const rawSafeToApply =
       oplBoolean(component.safe_to_apply) || oplBoolean(component.apply_allowed) || oplBoolean(component.can_apply);
-    const repairAllowed =
+    const rawRepairAllowed =
       oplBoolean(component.repair_allowed) ||
       oplBoolean(component.can_repair) ||
       state === 'failed_with_repair' ||
       Boolean(repairActionRef);
-    const rollbackAllowed =
+    const rawRollbackAllowed =
       oplBoolean(component.rollback_allowed) || oplBoolean(component.can_rollback) || Boolean(rollbackRef);
+    const source = firstOplString(component.source, component.install_origin, component.checkout_source);
+    const manualGuidance = firstOplString(
+      component.manual_guidance,
+      component.rollback_manual_guidance,
+      component.repair_manual_guidance
+    );
+    const manualRequired =
+      state === 'manual_required' ||
+      state === 'skipped_manual_required' ||
+      oplBoolean(component.manual_required) ||
+      Boolean(manualGuidance);
+    const developerCheckout = Boolean(source && DEVELOPER_CHECKOUT_SOURCES.has(source));
+    const dirtyCheckout =
+      state === 'dirty' ||
+      oplBoolean(component.dirty_checkout) ||
+      oplBoolean(component.checkout_dirty) ||
+      oplBoolean(component.working_tree_dirty) ||
+      oplBoolean(oplRecord(component.git).dirty);
+    const mutationBlocked = manualRequired || developerCheckout || dirtyCheckout;
     return {
       id,
       label: firstOplString(component.display_group, component.label, component.name) ?? MANAGED_UPDATE_LABELS[id],
@@ -213,14 +244,13 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       needsRestart: oplBoolean(component.needs_restart) || oplBoolean(component.restart_required),
       needsReload: oplBoolean(component.needs_reload) || oplBoolean(component.reload_required),
       reloadGuidance: firstOplString(component.reload_guidance, component.restart_guidance, root.reload_guidance),
-      manualGuidance: firstOplString(
-        component.manual_guidance,
-        component.rollback_manual_guidance,
-        component.repair_manual_guidance
-      ),
-      safeToApply,
-      repairAllowed,
-      rollbackAllowed,
+      manualGuidance,
+      manualRequired,
+      developerCheckout,
+      dirtyCheckout,
+      safeToApply: rawSafeToApply && !mutationBlocked,
+      repairAllowed: rawRepairAllowed && !mutationBlocked,
+      rollbackAllowed: rawRollbackAllowed && !mutationBlocked,
     };
   });
   return {

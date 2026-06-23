@@ -1462,6 +1462,37 @@
         "unknown": "Module discovery did not declare an origin"
       }
     },
+    "moduleMaintenance": {
+      "title": "Agent module maintenance",
+      "description": "Keep OPL agent modules, packaged skills, and visible capabilities healthy. App updates stay in About & Updates; this area only uses the OPL managed update kernel.",
+      "moduleCount": "{{ready}} / {{total}} modules ready",
+      "modulesTitle": "Installed agent modules",
+      "actionsTitle": "Module maintenance actions",
+      "actionsDescription": "Check, apply, repair, or roll back managed agent package and capability exposure changes without bypassing OPL.",
+      "components": {
+        "agent_package_channel": "Agent package channel",
+        "capability_exposure": "Capability exposure"
+      },
+      "componentDescriptions": {
+        "agent_package_channel": "Updates packaged agent skills and module packages managed by OPL.",
+        "capability_exposure": "Refreshes which agent capabilities are visible to the app."
+      },
+      "status": {
+        "manualRequired": "Manual handling required",
+        "notSilent": "This state requires manual handling and will not be silently auto-updated."
+      },
+      "manualReasons": {
+        "developerCheckout": "Developer checkout detected. Review and update it manually.",
+        "dirtyCheckout": "Local checkout has uncommitted changes. Resolve them before managed updates.",
+        "manualRequired": "Manual handling is required for this module."
+      },
+      "actions": {
+        "check": "Check module updates",
+        "apply": "Apply",
+        "repair": "Repair",
+        "rollback": "Rollback"
+      }
+    },
     "updates": {
       "title": "Updates & Maintenance",
       "description": "Unified OPL update status for the desktop app, runtime toolchain, managed agent package channel, and visible capability exposure.",

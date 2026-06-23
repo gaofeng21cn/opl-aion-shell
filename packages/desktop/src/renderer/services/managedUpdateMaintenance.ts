@@ -53,6 +53,14 @@ const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
 const AUTO_APPLY_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
 const CONSERVATIVE_COMPONENT_IDS = new Set(['app_binary', 'runtime_toolchain']);
 const AUTO_APPLY_STATES = new Set(['update_available', 'staged', 'needs_reload']);
+const DEVELOPER_CHECKOUT_SOURCES = new Set([
+  'developer_checkout',
+  'developer_mode',
+  'env_override',
+  'local_checkout',
+  'sibling_workspace',
+  'source_checkout',
+]);
 
 let retryCount = 0;
 let schedulerStarted = false;
@@ -293,7 +301,16 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   const safeToApply =
     booleanValue(component.safe_to_apply) || booleanValue(component.apply_allowed) || booleanValue(component.can_apply);
   const needsRestart = booleanValue(component.needs_restart) || booleanValue(component.restart_required);
+  const source = stringValue(component.source ?? component.install_origin ?? component.checkout_source);
+  const dirtyCheckout =
+    state === 'dirty' ||
+    booleanValue(component.dirty_checkout) ||
+    booleanValue(component.checkout_dirty) ||
+    booleanValue(component.working_tree_dirty) ||
+    booleanValue(nestedRecord(component, 'git')?.dirty);
+  const developerCheckout = Boolean(source && DEVELOPER_CHECKOUT_SOURCES.has(source));
   const manualRequired =
+    state === 'manual_required' ||
     state === 'skipped_manual_required' ||
     booleanValue(component.manual_required) ||
     Boolean(stringValue(component.manual_guidance));
@@ -312,6 +329,12 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   }
   if (!applyRequested) {
     return null;
+  }
+  if (dirtyCheckout) {
+    return `${componentId}: dirty_checkout`;
+  }
+  if (developerCheckout) {
+    return `${componentId}: developer_checkout`;
   }
   if (manualRequired) {
     return `${componentId}: manual_required`;
@@ -346,6 +369,13 @@ function isAutoApplyCandidate(component: Record<string, unknown>): boolean {
       !booleanValue(component.needs_restart) &&
       !booleanValue(component.restart_required) &&
       !booleanValue(component.manual_required) &&
+      !booleanValue(component.dirty_checkout) &&
+      !booleanValue(component.checkout_dirty) &&
+      !booleanValue(component.working_tree_dirty) &&
+      !booleanValue(nestedRecord(component, 'git')?.dirty) &&
+      !DEVELOPER_CHECKOUT_SOURCES.has(
+        stringValue(component.source ?? component.install_origin ?? component.checkout_source) ?? ''
+      ) &&
       !stringValue(component.manual_guidance)
     );
   }
@@ -357,6 +387,13 @@ function isAutoApplyCandidate(component: Record<string, unknown>): boolean {
     !booleanValue(component.needs_restart) &&
     !booleanValue(component.restart_required) &&
     !booleanValue(component.manual_required) &&
+    !booleanValue(component.dirty_checkout) &&
+    !booleanValue(component.checkout_dirty) &&
+    !booleanValue(component.working_tree_dirty) &&
+    !booleanValue(nestedRecord(component, 'git')?.dirty) &&
+    !DEVELOPER_CHECKOUT_SOURCES.has(
+      stringValue(component.source ?? component.install_origin ?? component.checkout_source) ?? ''
+    ) &&
     !stringValue(component.manual_guidance)
   );
 }

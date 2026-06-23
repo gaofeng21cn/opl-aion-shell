@@ -1463,6 +1463,37 @@
         "unknown": "模块发现结果未声明来源"
       }
     },
+    "moduleMaintenance": {
+      "title": "智能体模块维护",
+      "description": "维护 OPL 智能体模块、打包技能和可见能力。App 更新仍在「关于与更新」中处理；这里仅通过 OPL 托管更新内核执行。",
+      "moduleCount": "{{ready}} / {{total}} 个模块就绪",
+      "modulesTitle": "已安装智能体模块",
+      "actionsTitle": "模块维护动作",
+      "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管智能体包和能力暴露变更，不绕过内核。",
+      "components": {
+        "agent_package_channel": "智能体包通道",
+        "capability_exposure": "能力暴露"
+      },
+      "componentDescriptions": {
+        "agent_package_channel": "更新由 OPL 管理的智能体技能和模块包。",
+        "capability_exposure": "刷新 App 中可见的智能体能力。"
+      },
+      "status": {
+        "manualRequired": "需要人工处理",
+        "notSilent": "该状态需要人工处理，不会静默自动更新。"
+      },
+      "manualReasons": {
+        "developerCheckout": "检测到开发 checkout，请手动确认并更新。",
+        "dirtyCheckout": "本地 checkout 有未提交改动，请先处理后再托管更新。",
+        "manualRequired": "该模块需要人工处理。"
+      },
+      "actions": {
+        "check": "检查模块更新",
+        "apply": "应用",
+        "repair": "修复",
+        "rollback": "回滚"
+      }
+    },
     "updates": {
       "title": "更新与维护",
       "description": "统一展示桌面 App、运行时工具链、托管智能体包通道和可见能力暴露的 OPL 更新状态。",

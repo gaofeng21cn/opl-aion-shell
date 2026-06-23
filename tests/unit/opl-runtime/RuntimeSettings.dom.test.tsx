@@ -95,8 +95,17 @@ const appStateResult = {
           {
             module_id: 'medautoscience',
             display_name: 'Med Auto Science',
-            status: 'attention_needed',
+            status: 'dirty',
             path: '/Users/example/workspace/med-autoscience',
+            git: { dirty: true },
+          },
+          {
+            module_id: 'oplbookforge',
+            display_name: 'BookForge',
+            status: 'ready',
+            version: 'bookforge-1.0.0',
+            install_origin: 'managed_root',
+            path: '/Users/example/workspace/modules/bookforge',
           },
         ],
       },
@@ -168,6 +177,8 @@ const managedUpdateStatusResult = {
           component_id: 'capability_exposure',
           display_group: 'Capability exposure',
           state: 'needs_reload',
+          safe_to_apply: true,
+          rollback_allowed: true,
           conditions: [
             {
               type: 'Visible',
@@ -406,6 +417,72 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() =>
       expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
     );
+  });
+
+  it('renders user-friendly agent module maintenance from app state modules and managed update actions', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    const section = screen.getByTestId('opl-module-maintenance');
+    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.title');
+    expect(section).toHaveTextContent('Med Auto Science');
+    expect(section).toHaveTextContent('OPL Meta Agent');
+    expect(section).toHaveTextContent('BookForge');
+    expect(section).toHaveTextContent('bookforge-1.0.0');
+    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired');
+    expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');
+
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-check'));
+    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-repair-agent_package_channel'));
+    await waitFor(() =>
+      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
+        componentId: 'agent_package_channel',
+        receiptId: 'receipt://agent_package_channel/failed-sync',
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-apply-capability_exposure'));
+    await waitFor(() =>
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
+        componentId: 'capability_exposure',
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-rollback-capability_exposure'));
+    await waitFor(() =>
+      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({
+        componentId: 'capability_exposure',
+      })
+    );
+  });
+
+  it('does not expose component mutation buttons for dirty managed module checkouts', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      ...managedUpdateStatusResult,
+      parsed: {
+        managed_update: {
+          ...managedUpdateStatusResult.parsed.managed_update,
+          components: managedUpdateStatusResult.parsed.managed_update.components.map((component) =>
+            component.component_id === 'agent_package_channel'
+              ? { ...component, dirty_checkout: true, safe_to_apply: true, rollback_allowed: true }
+              : component
+          ),
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    const component = screen.getByTestId('opl-module-maintenance-component-agent_package_channel');
+    expect(component).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.notSilent');
+    expect(screen.queryByTestId('opl-module-maintenance-apply-agent_package_channel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-repair-agent_package_channel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-rollback-agent_package_channel')).not.toBeInTheDocument();
   });
 
   it('projects background managed update maintenance timestamps and failures into Settings Runtime', async () => {

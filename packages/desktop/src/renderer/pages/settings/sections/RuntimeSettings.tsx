@@ -10,7 +10,7 @@ import { CheckOne, FolderSearch, Repair, UpdateRotation } from '@icon-park/react
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { getOplCodexSessionContext } from '@/common/config/oplProductProfile';
+import { getOplCodexSessionContext, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
@@ -32,9 +32,36 @@ const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   medautogrant: 'Med Auto Grant',
   redcube: 'RedCube AI',
   oplmetaagent: 'OPL Meta Agent',
+  oplbookforge: 'BookForge',
 };
 
-const OPL_RUNTIME_MODULE_IDS = ['medautoscience', 'medautogrant', 'redcube', 'oplmetaagent'];
+const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
+  mas: 'medautoscience',
+  mag: 'medautogrant',
+  rca: 'redcube',
+  bookforge: 'oplbookforge',
+};
+
+const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
+
+const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
+const DEVELOPER_MODULE_SOURCES = new Set([
+  'developer_checkout',
+  'developer_mode',
+  'env_override',
+  'local_checkout',
+  'sibling_workspace',
+  'source_checkout',
+]);
+
+const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
+  .map((assistant) => {
+    const id = OPL_HOME_ASSISTANT_MODULE_IDS[assistant.id];
+    return id ? { id, label: assistant.display_name } : null;
+  })
+  .filter((entry): entry is { id: string; label: string } => Boolean(entry));
+
+const OPL_RUNTIME_MODULE_DEFAULTS = [...PROFILE_MODULE_DEFAULTS, ...OPL_EXPLICIT_MODULE_DEFAULTS];
 
 type RuntimeSettingsProps = {
   withWrapper?: boolean;
@@ -44,6 +71,10 @@ function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
   return status;
+}
+
+function normalizeModuleId(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
 function formatStatus(status: string | undefined | null, t: (key: string, options?: Record<string, string>) => string) {
@@ -74,14 +105,14 @@ function localAppVersion(): string {
 }
 
 function moduleId(module: RuntimeModuleItem): string {
-  return (
+  const id =
     oplString(module.module_id) ??
     oplString(module.id) ??
     oplString(module.name)
       ?.replace(/[^a-z0-9]/gi, '')
       .toLowerCase() ??
-    ''
-  );
+    '';
+  return normalizeModuleId(id);
 }
 
 function normalizeModule(module: RuntimeModuleItem): RuntimeModuleItem {
@@ -93,12 +124,52 @@ function normalizeModule(module: RuntimeModuleItem): RuntimeModuleItem {
   };
 }
 
+function moduleRecords(value: unknown): RuntimeModuleItem[] {
+  if (Array.isArray(value)) return oplRecordList(value);
+  const record = oplRecord(value);
+  return Object.entries(record).map(([id, module]) => ({
+    ...oplRecord(module),
+    module_id: id,
+  }));
+}
+
 function moduleStatus(module: RuntimeModuleItem): string {
   return (
     oplString(module.status) ??
     oplString(module.health_status) ??
     (module.installed === true ? 'ready' : null) ??
     'unknown'
+  );
+}
+
+function moduleSource(module: RuntimeModuleItem): string | null {
+  const sourcePolicy = oplRecord(module.source_policy);
+  return (
+    oplString(module.source) ??
+    oplString(module.install_origin) ??
+    oplString(module.checkout_source) ??
+    oplString(sourcePolicy.source) ??
+    oplString(sourcePolicy.mode)
+  );
+}
+
+function isTruthyFlag(value: unknown): boolean {
+  return value === true || value === 'true';
+}
+
+function moduleNeedsManualHandling(module: RuntimeModuleItem): boolean {
+  const status = moduleStatus(module);
+  const source = moduleSource(module);
+  const git = oplRecord(module.git);
+  return (
+    status === 'dirty' ||
+    status === 'manual_required' ||
+    status === 'skipped_manual_required' ||
+    Boolean(source && DEVELOPER_MODULE_SOURCES.has(source)) ||
+    isTruthyFlag(module.manual_required) ||
+    isTruthyFlag(module.checkout_dirty) ||
+    isTruthyFlag(module.working_tree_dirty) ||
+    isTruthyFlag(git.dirty)
   );
 }
 
@@ -153,8 +224,209 @@ function formatModuleAction(action: string, t: (key: string, options?: Record<st
   return t(`settings.oplEnvironmentPage.moduleActions.${action}`, { action });
 }
 
+function moduleManualHandlingLabel(
+  module: RuntimeModuleItem,
+  t: (key: string, options?: Record<string, string>) => string
+) {
+  const status = moduleStatus(module);
+  const source = moduleSource(module);
+  const git = oplRecord(module.git);
+  if (
+    status === 'dirty' ||
+    isTruthyFlag(module.checkout_dirty) ||
+    isTruthyFlag(module.working_tree_dirty) ||
+    isTruthyFlag(git.dirty)
+  ) {
+    return t('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');
+  }
+  if (source && DEVELOPER_MODULE_SOURCES.has(source)) {
+    return t('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.developerCheckout');
+  }
+  return t('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.manualRequired');
+}
+
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function AgentModuleMaintenancePanel({
+  modules,
+  plane,
+  maintenance,
+  onCheck,
+  onApply,
+  onRepair,
+  onRollback,
+  t,
+}: {
+  modules: RuntimeModuleItem[];
+  plane: ManagedUpdatePlane;
+  maintenance: ManagedUpdateMaintenanceSnapshot;
+  onCheck: () => void;
+  onApply: (component: ManagedUpdateComponent) => void;
+  onRepair: (component: ManagedUpdateComponent) => void;
+  onRollback: (component: ManagedUpdateComponent) => void;
+  t: (key: string, options?: Record<string, string | number>) => string;
+}) {
+  const loading = maintenance.running;
+  const busyAction = maintenance.busyAction;
+  const moduleMaintenanceComponents = plane.components.filter((component) =>
+    MODULE_MAINTENANCE_COMPONENT_IDS.has(component.id)
+  );
+  const readyModules = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
+  const manualModules = modules.filter(moduleNeedsManualHandling);
+
+  return (
+    <Card bordered className='rd-8px' data-testid='opl-module-maintenance'>
+      <div className='flex flex-col gap-14px'>
+        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+          <div className='min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.moduleMaintenance.title')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.moduleMaintenance.description')}
+            </Typography.Text>
+            <Space wrap size='mini' className='mt-8px'>
+              <Tag color={readyModules === modules.length ? 'green' : 'orange'}>
+                {t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
+                  ready: readyModules,
+                  total: modules.length,
+                })}
+              </Tag>
+              {manualModules.length > 0 && (
+                <Tag color='orange'>{t('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired')}</Tag>
+              )}
+            </Space>
+          </div>
+          <Button
+            data-testid='opl-module-maintenance-check'
+            icon={<UpdateRotation theme='outline' />}
+            loading={loading}
+            onClick={onCheck}
+          >
+            {t('settings.oplEnvironmentPage.moduleMaintenance.actions.check')}
+          </Button>
+        </div>
+
+        <div className='grid grid-cols-1 lg:grid-cols-2 gap-12px'>
+          <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.moduleMaintenance.modulesTitle')}
+            </Typography.Text>
+            <div className='mt-10px flex flex-col divide-y divide-border-1'>
+              {modules.map((module, index) => {
+                const id = moduleId(module) || `module-${index + 1}`;
+                const status = moduleStatus(module);
+                const needsManualHandling = moduleNeedsManualHandling(module);
+                return (
+                  <div key={`module-maintenance-${id}`} className='py-10px min-w-0'>
+                    <div className='flex items-center justify-between gap-10px'>
+                      <Typography.Text className='font-600 text-t-primary break-words'>
+                        {oplString(module.label) ?? id}
+                      </Typography.Text>
+                      <Tag color={isReadyStatus(status) && !needsManualHandling ? 'green' : 'orange'}>
+                        {formatStatus(status, t)}
+                      </Tag>
+                    </div>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {moduleVersionDetail(module, t)}
+                    </Typography.Text>
+                    {needsManualHandling && (
+                      <Typography.Text className='block text-12px text-t-secondary break-words'>
+                        {moduleManualHandlingLabel(module, t)}
+                      </Typography.Text>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.moduleMaintenance.actionsTitle')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.moduleMaintenance.actionsDescription')}
+            </Typography.Text>
+            <div className='mt-10px flex flex-col gap-10px'>
+              {moduleMaintenanceComponents.map((component) => {
+                const manualHandling =
+                  component.manualRequired || component.developerCheckout || component.dirtyCheckout;
+                return (
+                  <div
+                    key={`module-maintenance-component-${component.id}`}
+                    className='border border-solid border-border-1 rd-8px bg-fill-2 p-10px min-w-0'
+                    data-testid={`opl-module-maintenance-component-${component.id}`}
+                  >
+                    <div className='flex items-center justify-between gap-10px'>
+                      <Typography.Text className='font-600 text-t-primary break-words'>
+                        {t(`settings.oplEnvironmentPage.moduleMaintenance.components.${component.id}`, {
+                          defaultValue: component.label,
+                        })}
+                      </Typography.Text>
+                      <Tag color={component.state === 'current' && !manualHandling ? 'green' : 'orange'}>
+                        {formatStatus(component.state, t)}
+                      </Tag>
+                    </div>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {t(`settings.oplEnvironmentPage.moduleMaintenance.componentDescriptions.${component.id}`, {
+                        defaultValue: component.label,
+                      })}
+                    </Typography.Text>
+                    {component.manualGuidance && (
+                      <Typography.Text className='block text-12px text-t-secondary break-words'>
+                        {component.manualGuidance}
+                      </Typography.Text>
+                    )}
+                    {manualHandling && (
+                      <Typography.Text className='block text-12px text-t-secondary break-words'>
+                        {t('settings.oplEnvironmentPage.moduleMaintenance.status.notSilent')}
+                      </Typography.Text>
+                    )}
+                    <Space wrap size='small' className='mt-8px'>
+                      {!manualHandling && component.safeToApply && (
+                        <Button
+                          data-testid={`opl-module-maintenance-apply-${component.id}`}
+                          size='small'
+                          type='primary'
+                          loading={busyAction === `apply:${component.id}`}
+                          onClick={() => onApply(component)}
+                        >
+                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.apply')}
+                        </Button>
+                      )}
+                      {!manualHandling && component.repairAllowed && (
+                        <Button
+                          data-testid={`opl-module-maintenance-repair-${component.id}`}
+                          size='small'
+                          loading={busyAction === `repair:${component.id}`}
+                          onClick={() => onRepair(component)}
+                        >
+                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.repair')}
+                        </Button>
+                      )}
+                      {!manualHandling && component.rollbackAllowed && (
+                        <Button
+                          data-testid={`opl-module-maintenance-rollback-${component.id}`}
+                          size='small'
+                          loading={busyAction === `rollback:${component.id}`}
+                          onClick={() => onRollback(component)}
+                        >
+                          {t('settings.oplEnvironmentPage.moduleMaintenance.actions.rollback')}
+                        </Button>
+                      )}
+                    </Space>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function ManagedUpdatesPanel({
@@ -407,13 +679,33 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
 
   const modules = useMemo(() => {
+    const declaredModules = moduleRecords(modulesPayload.items ?? modulesPayload.modules);
     const byId = new Map(
-      oplRecordList(modulesPayload.items ?? modulesPayload.modules).map((item) => {
+      declaredModules.map((item) => {
         const normalized = normalizeModule(item);
         return [moduleId(normalized), normalized];
       })
     );
-    return OPL_RUNTIME_MODULE_IDS.map((id) => normalizeModule({ ...byId.get(id), module_id: id }));
+    const orderedIds = new Set<string>();
+    const orderedModules: RuntimeModuleItem[] = [];
+    for (const profileModule of OPL_RUNTIME_MODULE_DEFAULTS) {
+      orderedIds.add(profileModule.id);
+      const declaredModule = byId.get(profileModule.id);
+      orderedModules.push(
+        normalizeModule({
+          ...declaredModule,
+          module_id: profileModule.id,
+          label: oplString(declaredModule?.label) ?? profileModule.label,
+        })
+      );
+    }
+    for (const module of declaredModules.map(normalizeModule)) {
+      const id = moduleId(module);
+      if (!id || orderedIds.has(id)) continue;
+      orderedIds.add(id);
+      orderedModules.push(module);
+    }
+    return orderedModules;
   }, [modulesPayload.items, modulesPayload.modules]);
 
   const moduleReady = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
@@ -663,6 +955,17 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             </Button>
           </div>
         </Card>
+
+        <AgentModuleMaintenancePanel
+          modules={modules}
+          plane={managedUpdatePlane}
+          maintenance={managedUpdateMaintenance}
+          onCheck={() => void runManagedUpdateRead('check')}
+          onApply={(component) => void runManagedUpdateMutation('apply', component)}
+          onRepair={(component) => void runManagedUpdateMutation('repair', component)}
+          onRollback={(component) => void runManagedUpdateMutation('rollback', component)}
+          t={t}
+        />
 
         <ManagedUpdatesPanel
           plane={managedUpdatePlane}
