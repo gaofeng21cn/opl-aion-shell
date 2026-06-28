@@ -65,9 +65,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const effectiveReasoningEffort = selectedReasoningEffort ?? defaultCodexReasoningEffort;
   const codexDisplayOptions = getOplCodexModelDisplayOptions();
   const codexAutoLabel =
-    localeKey === 'en-US'
-      ? codexDisplayOptions.auto_option.label_en
-      : codexDisplayOptions.auto_option.label_zh;
+    localeKey === 'en-US' ? codexDisplayOptions.auto_option.label_en : codexDisplayOptions.auto_option.label_zh;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -280,8 +278,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                       ? autoModelDisplay.label
                       : t('conversation.welcome.autoModel', {
                           model:
-                            currentAcpCachedModelInfo.current_model_label ||
-                            currentAcpCachedModelInfo.current_model_id,
+                            currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
                         })}
                   </span>
                   {useOplCodexModelDisplay && (

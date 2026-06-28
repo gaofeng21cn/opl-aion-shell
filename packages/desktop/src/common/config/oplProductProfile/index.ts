@@ -564,7 +564,13 @@ function readCodexModelDisplayOptions(
   if (JSON.stringify(visibleModels.map((model) => model.id)) !== JSON.stringify(frontierModelPreferenceOrder)) {
     throw new Error('Invalid OPL product profile: Codex model display options must match frontier preference order');
   }
-  const retiredVisibleModelIds = new Set(['gpt-5.3-codex', 'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
+  const retiredVisibleModelIds = new Set([
+    'gpt-5.3-codex',
+    'gpt-5.2',
+    'gpt-5.2-codex',
+    'gpt-5.1-codex-max',
+    'gpt-5.1-codex-mini',
+  ]);
   for (const model of visibleModels) {
     if (retiredVisibleModelIds.has(model.id)) {
       throw new Error(`Invalid OPL product profile: retired Codex model ${model.id} must not be visible`);
@@ -1231,7 +1237,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const homeModelStatusLabelEn =
     typeof guiHome.codex_home_model_status_label_en === 'string' ? guiHome.codex_home_model_status_label_en.trim() : '';
   if (homeModelStatusLabel !== 'GPT-5.5' || homeModelStatusLabelEn !== 'GPT-5.5') {
-    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 without repeated reasoning');
+    throw new Error(
+      'Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 without repeated reasoning'
+    );
   }
   const autoModelSelection = guiHome.codex_auto_model_selection;
   if (
