@@ -2245,6 +2245,15 @@ function isGuideScreenshotEntryReady(entry) {
   return ['captured', 'copied'].includes(entry?.status);
 }
 
+function guideScreenshotSources(artifactsDir) {
+  const firstRunBeginner = path.join(artifactsDir, 'first-run-beginner.png');
+  const codexWizard = path.join(artifactsDir, 'codex-config-wizard.png');
+  return {
+    firstRunAccessSetup: fs.existsSync(codexWizard) ? codexWizard : firstRunBeginner,
+    firstRunReady: firstRunBeginner,
+  };
+}
+
 function writeGuideScreenshotsSummary(options, entries, secret, diagnostics = {}) {
   const summary = {
     surface_id: 'opl_user_guide_vm_screenshots',
@@ -2284,7 +2293,7 @@ async function captureGuideScreenshots(options, sources, secret) {
   if (options.dmg) {
     capture(GUIDE_SCREENSHOTS.dmgInstall, (target) => captureGuideDmgWindow(options.dmg, target));
   }
-  capture(GUIDE_SCREENSHOTS.firstRun, (target) => copyGuideScreenshot(sources.firstRunBeginner, target));
+  capture(GUIDE_SCREENSHOTS.firstRun, (target) => copyGuideScreenshot(sources.firstRunAccessSetup, target));
   capture(GUIDE_SCREENSHOTS.ready, (target) => copyGuideScreenshot(sources.firstRunReady, target));
   capture(GUIDE_SCREENSHOTS.researchEntry, (target) => copyGuideScreenshot(sources.assistantMas, target));
   capture(GUIDE_SCREENSHOTS.environment, (target) => copyGuideScreenshot(sources.settingsEnvironment, target));
@@ -5206,8 +5215,7 @@ async function main() {
             captureGuideScreenshots(
               options,
               {
-                firstRunBeginner: path.join(options.artifacts, 'first-run-beginner.png'),
-                firstRunReady: path.join(options.artifacts, 'first-run-beginner.png'),
+                ...guideScreenshotSources(options.artifacts),
                 assistantMas: path.join(options.artifacts, 'assistant-route-smoke', 'mas.png'),
                 settingsEnvironment: path.join(options.artifacts, 'settings-pages', 'environment.png'),
                 runtimeStatus: path.join(options.artifacts, 'settings-pages', 'runtime-status.png'),
@@ -5440,6 +5448,7 @@ export const __test =
         dismissGuideScreenCapturePermissionPrompt,
         warmGuideScreenCapturePermission,
         isGuideScreenshotEntryReady,
+        guideScreenshotSources,
         visibleHomeAssistantControlSelector,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,

@@ -724,6 +724,24 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.isGuideScreenshotEntryReady({ status: 'failed' })).toBe(false);
   });
 
+  it('uses the Codex configuration wizard screenshot for the guide access setup page when available', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-guide-source-'));
+    const firstRun = path.join(root, 'first-run-beginner.png');
+    const wizard = path.join(root, 'codex-config-wizard.png');
+
+    writeFile(firstRun, 'ready');
+    expect(vmSmoke.guideScreenshotSources(root)).toEqual({
+      firstRunAccessSetup: firstRun,
+      firstRunReady: firstRun,
+    });
+
+    writeFile(wizard, 'wizard');
+    expect(vmSmoke.guideScreenshotSources(root)).toEqual({
+      firstRunAccessSetup: wizard,
+      firstRunReady: firstRun,
+    });
+  });
+
   it('passes Codex functional check through the Tart host command and plan', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',
