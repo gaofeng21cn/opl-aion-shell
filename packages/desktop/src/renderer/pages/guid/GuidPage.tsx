@@ -269,6 +269,7 @@ const GuidPage: React.FC = () => {
     is_presetAgent: agentSelection.is_presetAgent,
     selectedMode: agentSelection.selectedMode,
     selectedAcpModel: agentSelection.selectedAcpModel,
+    selectedReasoningEffort: agentSelection.selectedReasoningEffort,
     currentAcpCachedModelInfo: agentSelection.currentAcpCachedModelInfo,
     current_model: modelSelection.current_model,
 
@@ -629,6 +630,8 @@ const GuidPage: React.FC = () => {
         currentAcpCachedModelInfo={agentSelection.currentAcpCachedModelInfo}
         selectedAcpModel={agentSelection.selectedAcpModel}
         setSelectedAcpModel={agentSelection.setSelectedAcpModel}
+        selectedReasoningEffort={agentSelection.selectedReasoningEffort}
+        setSelectedReasoningEffort={agentSelection.setSelectedReasoningEffort}
         backend={effectiveAgentType}
       />
     ) : null;

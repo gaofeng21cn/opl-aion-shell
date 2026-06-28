@@ -77,6 +77,7 @@
       "codex_auto_model_selection": {
         "strategy": "codex_cli_auto_latest_available_frontier",
         "user_can_override_model": true,
+        "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
         "selection_persists_into_conversation": true,
         "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
@@ -101,11 +102,16 @@
         "fixed_model_description_zh": "固定此模型",
         "fixed_model_description_en": "Use this model",
         "reasoning_labels": {
+          "high": {
+            "zh": "推理高",
+            "en": "High reasoning"
+          },
           "xhigh": {
             "zh": "推理超高",
             "en": "Ultra reasoning"
           }
         },
+        "user_reasoning_effort_options": ["high", "xhigh"],
         "visible_models": [
           {
             "id": "gpt-5.5",

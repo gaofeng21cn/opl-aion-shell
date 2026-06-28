@@ -140,6 +140,7 @@ export type OplCodexModelDisplayOptions = {
   fixed_model_description_zh: string;
   fixed_model_description_en: string;
   reasoning_labels: Record<OplCodexReasoningEffort, { zh: string; en: string }>;
+  user_reasoning_effort_options: OplCodexReasoningEffort[];
   visible_models: OplCodexModelDisplayModel[];
 };
 
@@ -502,8 +503,25 @@ function readCodexModelDisplayOptions(
 
   const reasoningLabels = isRecord(value.reasoning_labels) ? value.reasoning_labels : null;
   const xhighReasoningLabel = isRecord(reasoningLabels?.xhigh) ? reasoningLabels.xhigh : null;
-  if (xhighReasoningLabel?.zh !== '推理超高' || xhighReasoningLabel.en !== 'Ultra reasoning') {
-    throw new Error('Invalid OPL product profile: Codex model display options must label xhigh reasoning');
+  const highReasoningLabel = isRecord(reasoningLabels?.high) ? reasoningLabels.high : null;
+  if (
+    highReasoningLabel?.zh !== '推理高' ||
+    highReasoningLabel.en !== 'High reasoning' ||
+    xhighReasoningLabel?.zh !== '推理超高' ||
+    xhighReasoningLabel.en !== 'Ultra reasoning'
+  ) {
+    throw new Error('Invalid OPL product profile: Codex model display options must label high and xhigh reasoning');
+  }
+  const userReasoningEffortOptions = Array.isArray(value.user_reasoning_effort_options)
+    ? value.user_reasoning_effort_options.map((entry, index) =>
+        readRequiredReasoningEffort(
+          entry,
+          `gui.home.codex_model_display_options.user_reasoning_effort_options[${index}]`
+        )
+      )
+    : [];
+  if (JSON.stringify(userReasoningEffortOptions) !== JSON.stringify(['high', 'xhigh'])) {
+    throw new Error('Invalid OPL product profile: Codex user reasoning effort options must be high and xhigh');
   }
 
   if (!Array.isArray(value.visible_models)) {
@@ -565,8 +583,10 @@ function readCodexModelDisplayOptions(
           return [[key, { zh: label.zh.trim(), en: label.en.trim() }]];
         })
       ),
+      high: { zh: '推理高', en: 'High reasoning' },
       xhigh: { zh: '推理超高', en: 'Ultra reasoning' },
     } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
+    user_reasoning_effort_options: userReasoningEffortOptions,
     visible_models: visibleModels,
   };
 }
@@ -1468,6 +1488,9 @@ export function getOplCodexModelDisplayOptions(): OplCodexModelDisplayOptions {
     reasoning_labels: {
       ...OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.reasoning_labels,
     },
+    user_reasoning_effort_options: [
+      ...OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.user_reasoning_effort_options,
+    ],
     visible_models: OPL_PRODUCT_PROFILE.gui.home.codex_model_display_options.visible_models.map((model) => ({
       ...model,
     })),

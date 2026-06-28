@@ -9,6 +9,9 @@ import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 const mocks = vi.hoisted(() => ({
   getModel: vi.fn(),
   setModel: vi.fn(),
+  getConfigOptions: vi.fn(),
+  setConfigOption: vi.fn(),
+  configOptions: [] as unknown[],
   conversationUpdate: vi.fn(),
   writeRendererLog: vi.fn(),
   responseStreamOn: vi.fn(),
@@ -22,6 +25,8 @@ vi.mock('@/common', () => ({
     acpConversation: {
       getModel: { invoke: mocks.getModel },
       setModel: { invoke: mocks.setModel },
+      getConfigOptions: { invoke: mocks.getConfigOptions },
+      setConfigOption: { invoke: mocks.setConfigOption },
       responseStream: { on: mocks.responseStreamOn },
     },
     conversation: {
@@ -53,6 +58,31 @@ vi.mock('swr', () => ({
         mutate: mocks.mutateModelInfo,
       };
     }
+    if (Array.isArray(key) && key[0] === 'acp-config-options') {
+      return {
+        data: [
+          {
+            id: 'reasoning_effort',
+            category: 'thought_level',
+            option_type: 'select',
+            current_value: 'xhigh',
+            options: [
+              { value: 'high', label: 'High' },
+              { value: 'xhigh', label: 'Ultra' },
+            ],
+          },
+        ],
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    }
+    if (Array.isArray(key) && key[0] === 'acp-config-options') {
+      return {
+        data: mocks.configOptions,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    }
     return {
       data: mocks.agentsData,
       isLoading: false,
@@ -70,6 +100,9 @@ vi.mock('react-i18next', () => ({
       if (key === 'common.defaultModel') return 'Default Model';
       if (key === 'conversation.welcome.useCliModel') return 'Select Model';
       if (key === 'conversation.welcome.modelSwitchNotSupported') return 'Model switch not supported';
+      if (key === 'agent.thoughtLevel.label') return 'Reasoning';
+      if (key === 'agent.thoughtLevel.switchSuccess') return 'Reasoning switched';
+      if (key === 'agent.config.failed') return 'Config failed';
       return String(options?.defaultValue ?? key);
     },
   }),
@@ -79,12 +112,55 @@ describe('AcpModelSelector Codex model switching', () => {
   beforeEach(() => {
     mocks.getModel.mockReset();
     mocks.setModel.mockReset();
+    mocks.getConfigOptions.mockReset();
+    mocks.setConfigOption.mockReset();
+    mocks.configOptions = [
+      {
+        id: 'reasoning_effort',
+        category: 'thought_level',
+        option_type: 'select',
+        current_value: 'xhigh',
+        options: [
+          { value: 'high', label: 'High' },
+          { value: 'xhigh', label: 'Ultra' },
+        ],
+      },
+    ];
     mocks.conversationUpdate.mockReset();
     mocks.writeRendererLog.mockReset();
     mocks.responseStreamOn.mockReset();
     mocks.mutateModelInfo.mockReset();
     mocks.getModel.mockRejectedValue(new Error('session not ready'));
     mocks.setModel.mockResolvedValue(undefined);
+    mocks.getConfigOptions.mockResolvedValue({
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+    mocks.setConfigOption.mockResolvedValue({
+      confirmation: 'observed',
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'high',
+          options: [
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
     mocks.conversationUpdate.mockResolvedValue(true);
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
@@ -154,5 +230,20 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(await screen.findByText('GPT-5.4 · 推理超高')).toBeInTheDocument();
     expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
+  });
+
+  it('lets users override Codex reasoning effort separately from model selection', async () => {
+    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
+
+    expect(await screen.findByTestId('opl-reasoning-effort-selector')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '高' }));
+
+    await waitFor(() => {
+      expect(mocks.setConfigOption).toHaveBeenCalledWith({
+        conversation_id: 'codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'high',
+      });
+    });
   });
 });

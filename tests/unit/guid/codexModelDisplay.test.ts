@@ -44,6 +44,8 @@ describe('oplCodexModelDisplay', () => {
   });
 
   it('uses localized reasoning labels', () => {
+    expect(formatOplCodexReasoningLabel('high', 'zh-CN')).toBe('推理高');
+    expect(formatOplCodexReasoningLabel('high', 'en-US')).toBe('High reasoning');
     expect(formatOplCodexReasoningLabel('xhigh', 'zh-CN')).toBe('推理超高');
     expect(formatOplCodexReasoningLabel('xhigh', 'en-US')).toBe('Ultra reasoning');
   });

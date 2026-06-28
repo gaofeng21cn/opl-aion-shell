@@ -12,6 +12,7 @@ import type { IProvider } from '@/common/config/storage';
 import { configService } from '@/common/config/configService';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import type { AcpSessionModes } from '@/common/types/platform/acpTypes';
+import type { OplCodexReasoningEffort } from '@/common/config/oplProductProfile';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import {
   DETECTED_AGENTS_SWR_KEY,
@@ -45,6 +46,8 @@ export type GuidAgentSelectionResult = {
   setSelectedMode: React.Dispatch<React.SetStateAction<string>>;
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
+  selectedReasoningEffort: OplCodexReasoningEffort | null;
+  setSelectedReasoningEffort: React.Dispatch<React.SetStateAction<OplCodexReasoningEffort | null>>;
   currentAcpCachedModelInfo: AcpModelInfo | null;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   getAgentKey: (agent: {
@@ -138,6 +141,7 @@ export const useGuidAgentSelection = ({
   // Guard: only run the initial restore once; user selections are never overwritten
   const initialRestoreDoneRef = useRef(false);
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<OplCodexReasoningEffort | null>(null);
 
   // Wrap setSelectedAgentKey to also save to storage
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -527,6 +531,8 @@ export const useGuidAgentSelection = ({
     setSelectedMode,
     selectedAcpModel,
     setSelectedAcpModel,
+    selectedReasoningEffort,
+    setSelectedReasoningEffort,
     currentAcpCachedModelInfo,
     currentEffectiveAgentInfo,
     getAgentKey,

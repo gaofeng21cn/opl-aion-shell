@@ -15,10 +15,12 @@ import {
   isOplCodexCliFixedExecutor,
   shouldShowOplCodexModelAutoOption,
   shouldShowOplCodexModelList,
+  type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
+  formatOplCodexReasoningLabel,
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
@@ -26,6 +28,15 @@ import { Brain, Down } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
+
+const configErrorMessageKey = (error: unknown) => {
+  if (error instanceof Error) {
+    if (error.message.includes('command_ack')) return 'agent.config.commandAck';
+    if (error.message.includes('confirmation_timeout')) return 'agent.config.timeout';
+    if (error.message.includes('config_update_in_progress')) return 'agent.config.busy';
+  }
+  return 'agent.config.failed';
+};
 
 /**
  * Model selector for ACP-based agents. Renders three states:
@@ -49,7 +60,7 @@ const AcpModelSelector: React.FC<{
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
-  const { model_info, canSwitch, selectModel } = useAcpModelInfo({
+  const { model_info, canSwitch, selectModel, thoughtLevel, setStatus, setConfigOption } = useAcpModelInfo({
     conversation_id,
     backend,
     initialModelId,
@@ -63,6 +74,8 @@ const AcpModelSelector: React.FC<{
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
   const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
+  const currentCodexReasoningEffort =
+    (thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort;
   const codexAutoLabel =
     localeKey === 'en-US'
       ? getOplCodexModelDisplayOptions().auto_option.label_en
@@ -81,7 +94,7 @@ const AcpModelSelector: React.FC<{
       ? formatOplCodexModelDisplay({
           id: selectedModelValue,
           label: rawDisplayLabel,
-          reasoningEffort: defaultCodexReasoningEffort,
+          reasoningEffort: currentCodexReasoningEffort,
           localeKey,
         })
       : null;
@@ -105,12 +118,47 @@ const AcpModelSelector: React.FC<{
       ? buildOplCodexAutoModelOption({
           currentModelId: selectedModelValue,
           currentModelLabel: rawDisplayLabel,
-          reasoningEffort: defaultCodexReasoningEffort,
+          reasoningEffort: currentCodexReasoningEffort,
           localeKey,
         })
       : null;
+  const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
+  const handleReasoningSelect = useCallback(
+    (value: string) => {
+      if (!thoughtLevel || value === thoughtLevel.currentValue || isSettingReasoning) return;
+      void setConfigOption(thoughtLevel.id, value)
+        .then(() => Message.success(t('agent.thoughtLevel.switchSuccess')))
+        .catch((error) => Message.error(t(configErrorMessageKey(error))));
+    },
+    [isSettingReasoning, setConfigOption, thoughtLevel, t]
+  );
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
+  const reasoningControl =
+    backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0 ? (
+      <div
+        aria-label={t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
+        className='flex items-center gap-2px rounded-6px bg-fill-2 p-2px shrink-0'
+        data-testid='opl-reasoning-effort-selector'
+      >
+        {thoughtLevel.options.map((option) => {
+          const selected = option.value === thoughtLevel.currentValue;
+          return (
+            <Tooltip key={option.value} content={option.description || option.label} position='top'>
+              <Button
+                className={selected ? 'bg-bg-1! text-t-primary!' : 'text-t-secondary!'}
+                size='mini'
+                shape='round'
+                disabled={isSettingReasoning}
+                onClick={() => handleReasoningSelect(option.value)}
+              >
+                {formatOplCodexReasoningLabel(option.value as never, localeKey).replace(/^推理/, '')}
+              </Button>
+            </Tooltip>
+          );
+        })}
+      </div>
+    ) : null;
 
   if (!model_info) {
     return (
@@ -192,7 +240,7 @@ const AcpModelSelector: React.FC<{
               ? formatOplCodexModelDisplay({
                   id: model.id,
                   label: model.label,
-                  reasoningEffort: defaultCodexReasoningEffort,
+                  reasoningEffort: currentCodexReasoningEffort,
                   localeKey,
                 })
               : null;
@@ -214,13 +262,16 @@ const AcpModelSelector: React.FC<{
         </Menu>
       }
     >
-      <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
-        <span className='flex items-center gap-6px min-w-0 leading-none'>
-          {renderLogo()}
-          <MarqueePillLabel>{display_label}</MarqueePillLabel>
-          <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
-        </span>
-      </Button>
+      <span className='inline-flex items-center gap-6px min-w-0'>
+        <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
+          <span className='flex items-center gap-6px min-w-0 leading-none'>
+            {renderLogo()}
+            <MarqueePillLabel>{display_label}</MarqueePillLabel>
+            <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
+          </span>
+        </Button>
+        {reasoningControl}
+      </span>
     </Dropdown>
   );
 };

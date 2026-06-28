@@ -22,6 +22,7 @@ import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
+import type { OplCodexReasoningEffort } from '@/common/config/oplProductProfile';
 
 type OplAssistantRouteReceipt = {
   route_kind: string;
@@ -49,6 +50,7 @@ export type GuidSendDeps = {
   is_presetAgent: boolean;
   selectedMode: string;
   selectedAcpModel: string | null;
+  selectedReasoningEffort: OplCodexReasoningEffort | null;
   currentAcpCachedModelInfo: AcpModelInfo | null;
   current_model: TProviderWithModel | undefined;
 
@@ -131,6 +133,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     is_presetAgent,
     selectedMode,
     selectedAcpModel,
+    selectedReasoningEffort,
     currentAcpCachedModelInfo,
     current_model,
     findAgentByKey,
@@ -401,6 +404,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           : undefined,
         session_mode: selectedMode,
         current_model_id: selectedAcpModel || currentAcpCachedModelInfo?.current_model_id || undefined,
+        config_options: selectedReasoningEffort ? { reasoning_effort: selectedReasoningEffort } : undefined,
         language,
         extra: {
           default_files: files,

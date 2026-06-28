@@ -34,7 +34,12 @@ import type {
   UpdateAssistantRequest,
 } from '../types/agent/assistantTypes';
 import type { PreviewHistoryTarget, PreviewSnapshotInfo } from '../types/office/preview';
-import type { AcpModelInfo } from '../types/platform/acpTypes';
+import type {
+  AcpModelInfo,
+  GetConfigOptionsResponse,
+  SetConfigOptionRequest,
+  SetConfigOptionResponse,
+} from '../types/platform/acpTypes';
 import type {
   CreateProviderRequest,
   FetchModelsAnonymousRequest,
@@ -1085,6 +1090,14 @@ export const acpConversation = {
   ),
   checkProviderHealth: httpPost<ProviderHealthCheckResponse, ProviderHealthCheckRequest>(
     '/api/agents/provider-health-check'
+  ),
+  getConfigOptions: httpGet<GetConfigOptionsResponse, { conversation_id: string }>(
+    (p) => `/api/conversations/${p.conversation_id}/config-options`,
+    { silentStatuses: [404] }
+  ),
+  setConfigOption: httpPut<SetConfigOptionResponse, { conversation_id: string; option_id: string; value: string }>(
+    (p) => `/api/conversations/${p.conversation_id}/config-options/${encodeURIComponent(p.option_id)}`,
+    (p): SetConfigOptionRequest => ({ value: p.value })
   ),
   setMode: httpPut<{ mode: string; initialized: boolean }, { conversation_id: string; mode: string }>(
     (p) => `/api/conversations/${p.conversation_id}/mode`,

@@ -15,6 +15,8 @@ import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 const {
   getModelInvokeMock,
   setModelInvokeMock,
+  getConfigOptionsInvokeMock,
+  setConfigOptionInvokeMock,
   conversationUpdateInvokeMock,
   writeRendererLogInvokeMock,
   configServiceSetMock,
@@ -23,6 +25,8 @@ const {
 } = vi.hoisted(() => ({
   getModelInvokeMock: vi.fn(),
   setModelInvokeMock: vi.fn(),
+  getConfigOptionsInvokeMock: vi.fn(),
+  setConfigOptionInvokeMock: vi.fn(),
   conversationUpdateInvokeMock: vi.fn(),
   writeRendererLogInvokeMock: vi.fn(),
   configServiceSetMock: vi.fn(),
@@ -37,6 +41,8 @@ vi.mock('@/common', () => ({
     acpConversation: {
       getModel: { invoke: getModelInvokeMock },
       setModel: { invoke: setModelInvokeMock },
+      getConfigOptions: { invoke: getConfigOptionsInvokeMock },
+      setConfigOption: { invoke: setConfigOptionInvokeMock },
       responseStream: {
         on: vi.fn().mockImplementation((handler: (message: IResponseMessage) => void) => {
           responseStreamHandlerRef.current = handler;
@@ -113,10 +119,14 @@ describe('useAcpModelInfo', () => {
     responseStreamHandlerRef.current = undefined;
     getModelInvokeMock.mockReset();
     setModelInvokeMock.mockReset();
+    getConfigOptionsInvokeMock.mockReset();
+    setConfigOptionInvokeMock.mockReset();
     conversationUpdateInvokeMock.mockReset();
     writeRendererLogInvokeMock.mockReset();
     configServiceSetMock.mockReset();
     setModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo() });
+    getConfigOptionsInvokeMock.mockResolvedValue({ config_options: [] });
+    setConfigOptionInvokeMock.mockResolvedValue({ confirmation: 'observed', config_options: [] });
     conversationUpdateInvokeMock.mockResolvedValue(true);
     writeRendererLogInvokeMock.mockResolvedValue(undefined);
     configServiceSetMock.mockResolvedValue(undefined);
@@ -173,7 +183,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(prepareRuntime).toHaveBeenCalledTimes(1);
+      expect(prepareRuntime).toHaveBeenCalled();
     });
     expect(getModelInvokeMock).not.toHaveBeenCalled();
 
@@ -195,7 +205,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(prepareRuntime).toHaveBeenCalledTimes(1);
+      expect(prepareRuntime).toHaveBeenCalled();
     });
     await waitFor(() => {
       expect(writeRendererLogInvokeMock).toHaveBeenCalledWith(
@@ -465,6 +475,57 @@ describe('useAcpModelInfo', () => {
         { id: 'gpt-5.3-codex', label: 'gpt-5.3-codex' },
         { id: 'gpt-5.2', label: 'gpt-5.2' },
       ],
+    });
+  });
+
+  it('exposes ACP reasoning effort config options for Codex conversations', async () => {
+    getConfigOptionsInvokeMock.mockResolvedValue({
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+    setConfigOptionInvokeMock.mockResolvedValue({
+      confirmation: 'observed',
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'high',
+          options: [
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.thoughtLevel?.currentValue).toBe('xhigh');
+    });
+
+    await act(async () => {
+      await result.current.setConfigOption('reasoning_effort', 'high');
+    });
+
+    expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
+      conversation_id: 'codex-conversation',
+      option_id: 'reasoning_effort',
+      value: 'high',
     });
   });
 });

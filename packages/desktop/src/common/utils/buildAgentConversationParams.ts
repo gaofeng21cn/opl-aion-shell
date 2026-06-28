@@ -31,6 +31,7 @@ export type BuildAgentConversationInput = {
   preset_resources?: BuildAgentConversationPresetResources;
   session_mode?: string;
   current_model_id?: string;
+  config_options?: Record<string, string>;
   language?: string;
   extra?: Partial<ICreateConversationParams['extra']>;
 };
@@ -60,6 +61,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     preset_resources,
     session_mode,
     current_model_id,
+    config_options,
     language = 'zh-CN',
     extra: extraOverrides,
   } = input;
@@ -109,6 +111,9 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
 
   if (session_mode) extra.session_mode = session_mode;
   if (current_model_id) extra.current_model_id = current_model_id;
+  if (config_options && Object.keys(config_options).length > 0) {
+    extra.pending_config_options = config_options;
+  }
 
   return {
     type,

@@ -12,6 +12,7 @@ import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import { type AcpConfigSetStatus, type AcpDerivedOption, useAcpConfigOptions } from './useAcpConfigOptions';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
 
@@ -123,6 +124,10 @@ export interface UseAcpModelInfoResult {
   canSwitch: boolean;
   /** Switch the active model and persist via IPC */
   selectModel: (model_id: string) => void;
+  /** Runtime reasoning/thought-level config exposed by ACP, when available. */
+  thoughtLevel: AcpDerivedOption | null;
+  setStatus: AcpConfigSetStatus;
+  setConfigOption: (optionId: string, value: string) => Promise<unknown>;
 }
 
 /**
@@ -149,6 +154,21 @@ export const useAcpModelInfo = ({
   onSelectModelSuccess?: (model_id: string) => void;
   onSelectModelFailed?: (model_id: string, error: unknown) => void;
 }): UseAcpModelInfoResult => {
+  const prepareRuntimePromiseRef = useRef<Promise<void> | null>(null);
+  const prepareRuntimeOnce = useCallback(async () => {
+    if (!prepareRuntime) return;
+    if (!prepareRuntimePromiseRef.current) {
+      prepareRuntimePromiseRef.current = prepareRuntime().finally(() => {
+        prepareRuntimePromiseRef.current = null;
+      });
+    }
+    await prepareRuntimePromiseRef.current;
+  }, [prepareRuntime]);
+  const { thoughtLevel, setStatus, setConfigOption } = useAcpConfigOptions({
+    conversation_id,
+    prepareRuntime: prepareRuntimeOnce,
+    enabled,
+  });
   const hasUserChangedModel = useRef(false);
   const prevConversationIdRef = useRef(conversation_id);
   const modelInfoRef = useRef<AcpModelInfo | null>(null);
@@ -223,7 +243,7 @@ export const useAcpModelInfo = ({
     async (options?: { preserveInitialModel?: boolean }): Promise<boolean> => {
       if (!enabled) return false;
       try {
-        await prepareRuntime?.();
+        await prepareRuntimeOnce();
       } catch (error) {
         logAcpModelInfo('prepare_runtime_failed_before_model_reload', {
           conversation_id,
@@ -288,7 +308,7 @@ export const useAcpModelInfo = ({
       initialModelId,
       loadFallbackModelInfo,
       modelInfoKey,
-      prepareRuntime,
+      prepareRuntimeOnce,
       updateModelInfo,
     ]
   );
@@ -525,5 +545,5 @@ export const useAcpModelInfo = ({
     !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
   );
 
-  return { model_info, canSwitch, selectModel };
+  return { model_info, canSwitch, selectModel, thoughtLevel, setStatus, setConfigOption };
 };
