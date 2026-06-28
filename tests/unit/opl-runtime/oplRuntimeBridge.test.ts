@@ -223,6 +223,35 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toBe(false);
   });
 
+  it('auto-repairs legacy Full runtime wrappers only when managed update falls through to Codex update', () => {
+    const legacyPassthrough = new Error(
+      "OPL runtime command failed (2): error: unexpected argument 'status' found\nUsage: codex update [OPTIONS]"
+    );
+    const ordinaryUpdateFailure = new Error('OPL runtime command failed (1): managed update lock is held');
+    const appStateFailure = new Error(
+      "OPL runtime command failed (2): error: unexpected argument 'state' found\nUsage: codex app [OPTIONS]"
+    );
+
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+        legacyPassthrough
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildUpdateStatusCommand(),
+        ordinaryUpdateFailure
+      )
+    ).toBe(false);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        appStateFailure
+      )
+    ).toBe(false);
+  });
+
   it('runs the packaged App installer as the standard bootstrap carrier without enabling module or GUI install loops', () => {
     expect(__oplRuntimeBridgeTest.buildStandardBootstrapCommand('/opt/One Person Lab/opl-install.sh')).toEqual({
       command: '/bin/bash',

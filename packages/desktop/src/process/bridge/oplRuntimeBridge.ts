@@ -300,6 +300,23 @@ function shouldAutoBootstrapOplCommand(spec: RuntimeCommandSpec): boolean {
   );
 }
 
+function isLegacyManagedUpdatePassthroughError(spec: RuntimeCommandSpec, error: unknown): boolean {
+  if (!spec.surface.startsWith('update_') || !(error instanceof Error)) {
+    return false;
+  }
+  return (
+    /Usage:\s+codex update/i.test(error.message) ||
+    /unexpected argument ['"]?(?:status|check|plan|apply|repair|rollback)['"]? found/i.test(error.message)
+  );
+}
+
+function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error: unknown): boolean {
+  return (
+    (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
+    isLegacyManagedUpdatePassthroughError(spec, error)
+  );
+}
+
 function resolveHomeDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.HOME?.trim() || os.homedir();
 }
@@ -686,7 +703,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
   try {
     return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildOplCommandEnv()));
   } catch (error) {
-    if (!isNoSuchOplCommandError(error) || !shouldAutoBootstrapOplCommand(spec)) {
+    if (!shouldAutoBootstrapAfterOplCommandError(spec, error)) {
       return commandFailureResult(
         spec,
         spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
@@ -761,5 +778,6 @@ export const __oplRuntimeBridgeTest = {
   resolveOplPackageRootFromExecutable,
   parseJson,
   runOplCommand,
+  shouldAutoBootstrapAfterOplCommandError,
   shouldAutoBootstrapOplCommand,
 };
