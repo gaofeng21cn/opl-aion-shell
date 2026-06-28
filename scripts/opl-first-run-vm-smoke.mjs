@@ -883,28 +883,7 @@ function captureGuideDmgWindow(dmgPath, target) {
     const mountedApp = findAppBundle(mountPoint);
     if (!mountedApp) throw new Error(`No .app bundle found in ${dmgPath}`);
     run('open', [mountPoint]);
-    const finderWindowSetup = spawnSync(
-      'osascript',
-      [
-        '-e',
-        [
-          'with timeout of 8 seconds',
-          'tell application "Finder"',
-          'activate',
-          `open POSIX file ${JSON.stringify(mountPoint)}`,
-          'delay 1',
-          'set targetWindow to front window',
-          'set bounds of targetWindow to {160, 120, 1760, 960}',
-          'set current view of targetWindow to icon view',
-          'set icon size of icon view options of targetWindow to 128',
-          'set arrangement of icon view options of targetWindow to not arranged',
-          'delay 1',
-          'end tell',
-          'end timeout',
-        ].join('\n'),
-      ],
-      { encoding: 'utf8', timeout: 15_000 }
-    );
+    run('sleep', ['2']);
     const result = spawnSync('screencapture', ['-x', target], { stdio: 'ignore' });
     if (result.status !== 0) {
       throw new Error(`screencapture exited with ${result.status}`);
@@ -918,26 +897,9 @@ function captureGuideDmgWindow(dmgPath, target) {
       target,
       source: mountPoint,
       system_prompt_cleanup: systemPromptCleanup,
-      finder_window_setup:
-        finderWindowSetup.status === 0
-          ? { status: 'passed' }
-          : {
-              status: 'failed_nonblocking',
-              exit_status: finderWindowSetup.status,
-              signal: finderWindowSetup.signal ?? null,
-              error: finderWindowSetup.error?.message ?? null,
-              stdout: finderWindowSetup.stdout ?? '',
-              stderr: finderWindowSetup.stderr ?? '',
-            },
+      finder_window_setup: { status: 'skipped', reason: 'avoid_clean_vm_automation_permission_prompt' },
     };
   } finally {
-    spawnSync(
-      'osascript',
-      ['-e', `tell application "Finder" to close window ${JSON.stringify(path.basename(mountPoint))}`],
-      {
-        stdio: 'ignore',
-      }
-    );
     detachGuideDmg(mountPoint);
   }
 }
