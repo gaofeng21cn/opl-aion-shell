@@ -60,24 +60,6 @@ vi.mock('swr', () => ({
     }
     if (Array.isArray(key) && key[0] === 'acp-config-options') {
       return {
-        data: [
-          {
-            id: 'reasoning_effort',
-            category: 'thought_level',
-            option_type: 'select',
-            current_value: 'xhigh',
-            options: [
-              { value: 'high', label: 'High' },
-              { value: 'xhigh', label: 'Ultra' },
-            ],
-          },
-        ],
-        isLoading: false,
-        mutate: vi.fn(),
-      };
-    }
-    if (Array.isArray(key) && key[0] === 'acp-config-options') {
-      return {
         data: mocks.configOptions,
         isLoading: false,
         mutate: vi.fn(),
@@ -121,6 +103,8 @@ describe('AcpModelSelector Codex model switching', () => {
         option_type: 'select',
         current_value: 'xhigh',
         options: [
+          { value: 'low', label: 'Low' },
+          { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
           { value: 'xhigh', label: 'Ultra' },
         ],
@@ -140,6 +124,8 @@ describe('AcpModelSelector Codex model switching', () => {
           option_type: 'select',
           current_value: 'xhigh',
           options: [
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
             { value: 'xhigh', label: 'Ultra' },
           ],
@@ -155,6 +141,8 @@ describe('AcpModelSelector Codex model switching', () => {
           option_type: 'select',
           current_value: 'high',
           options: [
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
             { value: 'xhigh', label: 'Ultra' },
           ],
@@ -202,15 +190,16 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · GPT-5\.5 · 推理超高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
 
     await userEvent.click(autoButton);
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
       '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
     );
-    expect(screen.getByText('GPT-5.5 · 推理超高').closest('[role="menuitem"]')).toHaveTextContent('固定此模型');
-    fireEvent.click(screen.getByText('GPT-5.4 · 推理超高').closest('[role="menuitem"]')!);
+    expect(screen.getByText('GPT-5.5').closest('[role="menuitem"]')).toHaveTextContent('固定此模型');
+    expect(screen.getByText('GPT-5.5').closest('[role="menuitem"]')).not.toHaveTextContent('推理超高');
+    fireEvent.click(screen.getByText('GPT-5.4').closest('[role="menuitem"]')!);
 
     await waitFor(() => {
       expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
@@ -222,21 +211,27 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · GPT-5\.5 · 推理超高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByText('GPT-5.5 · 推理超高')).toBeInTheDocument();
-    expect(await screen.findByText('GPT-5.4 · 推理超高')).toBeInTheDocument();
+    expect(await screen.findByText('GPT-5.5')).toBeInTheDocument();
+    expect(await screen.findByText('GPT-5.4')).toBeInTheDocument();
     expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
   });
 
-  it('lets users override Codex reasoning effort separately from model selection', async () => {
+  it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    expect(await screen.findByTestId('opl-reasoning-effort-selector')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '高' }));
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
+    expect(screen.queryByTestId('opl-reasoning-effort-selector')).not.toBeInTheDocument();
+
+    await userEvent.click(autoButton);
+
+    expect(await screen.findByRole('menuitem', { name: '低' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: '高' }));
 
     await waitFor(() => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({

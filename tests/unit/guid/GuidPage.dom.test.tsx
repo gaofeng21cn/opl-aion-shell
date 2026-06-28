@@ -340,7 +340,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByText('@MAS')).toBeInTheDocument();
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
     expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: GPT-5.5（超高）');
+    expect(screen.getByTestId('opl-home-model-status')).toHaveTextContent('模型: GPT-5.5');
     expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();

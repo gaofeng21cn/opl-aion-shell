@@ -199,7 +199,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-mode-selector')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: GPT-5.5 (Ultra)');
+    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: GPT-5.5');
   });
 
   it('keeps the permission mode selector for non-Codex ACP conversations', () => {

@@ -54,9 +54,9 @@
       "conversation_backend_selector_visible": false,
       "conversation_model_selector_visible": true,
       "conversation_permission_mode_selector_visible": false,
-      "codex_home_model_status_label": "GPT-5.5（超高）",
-      "codex_home_model_status_label_en": "GPT-5.5 (Ultra)",
-      "codex_precise_model_display_policy": "friendly_default_model_and_reasoning_visible",
+      "codex_home_model_status_label": "GPT-5.5",
+      "codex_home_model_status_label_en": "GPT-5.5",
+      "codex_precise_model_display_policy": "friendly_model_primary_reasoning_configurable_in_model_menu",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
         "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
@@ -80,12 +80,15 @@
         "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
         "selection_persists_into_conversation": true,
-        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.2"]
+        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4"]
       },
       "codex_model_display_options": {
-        "display_policy": "friendly_model_name_and_reasoning_for_every_visible_option",
+        "display_policy": "friendly_model_name_primary_reasoning_configurable_in_model_menu",
         "raw_model_id_visible_in_ordinary_ui": false,
-        "reasoning_effort_visible_for_every_option": true,
+        "reasoning_effort_visible_for_every_option": false,
+        "reasoning_effort_menu_visible": true,
+        "reasoning_effort_override_surface": "model_configuration_menu",
+        "reasoning_effort_options_source": "acp_codex_config_options_enum",
         "default_reasoning_effort": "xhigh",
         "auto_option": {
           "id": "__auto",
@@ -102,6 +105,18 @@
         "fixed_model_description_zh": "固定此模型",
         "fixed_model_description_en": "Use this model",
         "reasoning_labels": {
+          "minimal": {
+            "zh": "推理最小",
+            "en": "Minimal reasoning"
+          },
+          "low": {
+            "zh": "推理低",
+            "en": "Low reasoning"
+          },
+          "medium": {
+            "zh": "推理中",
+            "en": "Medium reasoning"
+          },
           "high": {
             "zh": "推理高",
             "en": "High reasoning"
@@ -111,31 +126,17 @@
             "en": "Ultra reasoning"
           }
         },
-        "user_reasoning_effort_options": ["high", "xhigh"],
+        "user_reasoning_effort_options": ["minimal", "low", "medium", "high", "xhigh"],
         "visible_models": [
           {
             "id": "gpt-5.5",
             "label_zh": "GPT-5.5",
-            "label_en": "GPT-5.5",
-            "reasoning_effort": "xhigh"
+            "label_en": "GPT-5.5"
           },
           {
             "id": "gpt-5.4",
             "label_zh": "GPT-5.4",
-            "label_en": "GPT-5.4",
-            "reasoning_effort": "xhigh"
-          },
-          {
-            "id": "gpt-5.3-codex",
-            "label_zh": "GPT-5.3 Codex",
-            "label_en": "GPT-5.3 Codex",
-            "reasoning_effort": "xhigh"
-          },
-          {
-            "id": "gpt-5.2",
-            "label_zh": "GPT-5.2",
-            "label_en": "GPT-5.2",
-            "reasoning_effort": "xhigh"
+            "label_en": "GPT-5.4"
           }
         ]
       },
@@ -173,7 +174,13 @@
           "home_entry_policy": "visible_click_to_start"
         }
       ],
-      "retired_codex_models_must_not_be_exposed": ["gpt-5.2-codex", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"],
+      "retired_codex_models_must_not_be_exposed": [
+        "gpt-5.3-codex",
+        "gpt-5.2",
+        "gpt-5.2-codex",
+        "gpt-5.1-codex-max",
+        "gpt-5.1-codex-mini"
+      ],
       "activity_center_policy": {
         "source": "not_rendered_on_ordinary_home",
         "authority": "app_owned_home_minimal_command_surface",
@@ -206,7 +213,7 @@
       "permission_mode_selector_visible": false,
       "provider_selector_visible": false,
       "model_status_surface": "gui.home.codex_home_model_status_label",
-      "technical_details_policy": "friendly_default_model_and_reasoning_visible"
+      "technical_details_policy": "friendly_model_primary_reasoning_configurable_in_model_menu"
     },
     "right_context_inspector": {
       "placement": "right",

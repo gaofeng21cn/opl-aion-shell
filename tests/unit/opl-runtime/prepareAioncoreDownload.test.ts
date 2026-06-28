@@ -71,6 +71,50 @@ describe('prepare-aioncore download retry', () => {
   });
 });
 
+describe('prepare-aioncore managed resources preparation', () => {
+  it('uses release-build npm fetch defaults without overriding explicit environment values', () => {
+    expect(__test__.getManagedResourcePrepareEnv({}).npm_config_fetch_timeout).toBe('600000');
+    expect(__test__.getManagedResourcePrepareEnv({}).npm_config_fetch_retries).toBe('5');
+    expect(__test__.getManagedResourcePrepareEnv({}).npm_config_audit).toBe('false');
+    expect(__test__.getManagedResourcePrepareEnv({}).npm_config_fund).toBe('false');
+
+    const env = __test__.getManagedResourcePrepareEnv({
+      npm_config_fetch_timeout: '123',
+      npm_config_fetch_retries: '2',
+      npm_config_audit: 'true',
+      npm_config_fund: 'true',
+    });
+
+    expect(env.npm_config_fetch_timeout).toBe('123');
+    expect(env.npm_config_fetch_retries).toBe('2');
+    expect(env.npm_config_audit).toBe('true');
+    expect(env.npm_config_fund).toBe('true');
+    expect(env.AIONUI_BUNDLED_MANAGED_RESOURCES).toBe('');
+  });
+
+  it('removes partial managed resources after preparation failure', () => {
+    const dir = makeTempDir();
+    const targetDir = path.join(dir, 'darwin-arm64');
+    const binaryPath = path.join(targetDir, 'aioncore');
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(binaryPath, 'binary');
+
+    expect(() =>
+      __test__.prepareManagedResources(binaryPath, targetDir, {
+        execFileSync(_command: string, args: string[]) {
+          const bundleOut = args[args.indexOf('--bundle-out') + 1];
+          fs.mkdirSync(path.join(bundleOut, 'acp'), { recursive: true });
+          fs.writeFileSync(path.join(bundleOut, 'acp', 'partial'), 'partial');
+          throw new Error('codex-acp install timed out');
+        },
+      })
+    ).toThrow(/partial managed-resources directory was removed/);
+
+    expect(fs.existsSync(path.join(targetDir, 'managed-resources'))).toBe(false);
+    expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
+  });
+});
+
 describe('prepare-aioncore managed Node pruning', () => {
   it('removes package-manager payloads while keeping the runtime node executable', () => {
     const dir = makeTempDir();

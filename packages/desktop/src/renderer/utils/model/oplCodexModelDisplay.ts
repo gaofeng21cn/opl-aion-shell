@@ -15,7 +15,7 @@ export type OplModelDisplayLocale = 'zh-CN' | 'en-US';
 export type OplCodexModelDisplayInput = {
   id: string;
   label?: string | null;
-  reasoningEffort?: OplCodexReasoningEffort | null;
+  reasoningEffort?: string | null;
   localeKey: OplModelDisplayLocale;
 };
 
@@ -24,6 +24,14 @@ export type OplCodexModelDisplay = {
   description: string;
   modelLabel: string;
   reasoningLabel: string;
+};
+
+const FALLBACK_REASONING_LABELS: Record<string, { zh: string; en: string }> = {
+  minimal: { zh: '推理最小', en: 'Minimal reasoning' },
+  low: { zh: '推理低', en: 'Low reasoning' },
+  medium: { zh: '推理中', en: 'Medium reasoning' },
+  high: { zh: '推理高', en: 'High reasoning' },
+  xhigh: { zh: '推理超高', en: 'Ultra reasoning' },
 };
 
 function resolveLocaleKey(localeKey: OplModelDisplayLocale): OplModelDisplayLocale {
@@ -50,14 +58,18 @@ function friendlyCodexModelLabel(
 }
 
 export function formatOplCodexReasoningLabel(
-  reasoningEffort: OplCodexReasoningEffort | null | undefined,
+  reasoningEffort: string | null | undefined,
   localeKey: OplModelDisplayLocale
 ): string {
   const options = getOplCodexModelDisplayOptions();
   const effectiveReasoning = reasoningEffort ?? getOplDefaultCodexReasoningEffort() ?? options.default_reasoning_effort;
-  const configuredLabel = options.reasoning_labels[effectiveReasoning];
+  const configuredLabel = options.reasoning_labels[effectiveReasoning as OplCodexReasoningEffort];
   if (configuredLabel) {
     return resolveLocaleKey(localeKey) === 'en-US' ? configuredLabel.en : configuredLabel.zh;
+  }
+  const fallbackLabel = FALLBACK_REASONING_LABELS[effectiveReasoning];
+  if (fallbackLabel) {
+    return resolveLocaleKey(localeKey) === 'en-US' ? fallbackLabel.en : fallbackLabel.zh;
   }
   return resolveLocaleKey(localeKey) === 'en-US' ? `${effectiveReasoning} reasoning` : `推理${effectiveReasoning}`;
 }
@@ -70,7 +82,7 @@ export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): Op
   const modelLabel = friendlyCodexModelLabel(input.id, input.label, localeKey);
   const reasoningLabel = formatOplCodexReasoningLabel(reasoningEffort, localeKey);
   return {
-    label: `${modelLabel} · ${reasoningLabel}`,
+    label: modelLabel,
     description: localeKey === 'en-US' ? options.fixed_model_description_en : options.fixed_model_description_zh,
     modelLabel,
     reasoningLabel,

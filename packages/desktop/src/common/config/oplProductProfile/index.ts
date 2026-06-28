@@ -117,13 +117,15 @@ export type OplCodexModelDisplayModel = {
   id: string;
   label_zh: string;
   label_en: string;
-  reasoning_effort: OplCodexReasoningEffort;
 };
 
 export type OplCodexModelDisplayOptions = {
-  display_policy: 'friendly_model_name_and_reasoning_for_every_visible_option';
+  display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu';
   raw_model_id_visible_in_ordinary_ui: false;
-  reasoning_effort_visible_for_every_option: true;
+  reasoning_effort_visible_for_every_option: false;
+  reasoning_effort_menu_visible: true;
+  reasoning_effort_override_surface: 'model_configuration_menu';
+  reasoning_effort_options_source: 'acp_codex_config_options_enum';
   default_reasoning_effort: OplCodexReasoningEffort;
   auto_option: {
     id: '__auto';
@@ -226,10 +228,11 @@ type AppProductProfile = {
       conversation_permission_mode_selector_visible: false;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
-      codex_precise_model_display_policy: 'friendly_default_model_and_reasoning_visible';
+      codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu';
       codex_auto_model_selection: {
         strategy: 'codex_cli_auto_latest_available_frontier';
         user_can_override_model: boolean;
+        user_can_override_reasoning_effort?: boolean;
         user_can_restore_auto: boolean;
         selection_persists_into_conversation: true;
         frontier_model_preference_order: string[];
@@ -465,9 +468,12 @@ function readCodexModelDisplayOptions(
     throw new Error('Invalid OPL product profile: gui.home.codex_model_display_options must be declared');
   }
   if (
-    value.display_policy !== 'friendly_model_name_and_reasoning_for_every_visible_option' ||
+    value.display_policy !== 'friendly_model_name_primary_reasoning_configurable_in_model_menu' ||
     value.raw_model_id_visible_in_ordinary_ui !== false ||
-    value.reasoning_effort_visible_for_every_option !== true ||
+    value.reasoning_effort_visible_for_every_option !== false ||
+    value.reasoning_effort_menu_visible !== true ||
+    value.reasoning_effort_override_surface !== 'model_configuration_menu' ||
+    value.reasoning_effort_options_source !== 'acp_codex_config_options_enum' ||
     value.fixed_model_description_zh !== '固定此模型' ||
     value.fixed_model_description_en !== 'Use this model'
   ) {
@@ -520,8 +526,18 @@ function readCodexModelDisplayOptions(
         )
       )
     : [];
-  if (JSON.stringify(userReasoningEffortOptions) !== JSON.stringify(['high', 'xhigh'])) {
-    throw new Error('Invalid OPL product profile: Codex user reasoning effort options must be high and xhigh');
+  if (
+    userReasoningEffortOptions.length < 3 ||
+    !userReasoningEffortOptions.includes(defaultReasoningEffort) ||
+    new Set(userReasoningEffortOptions).size !== userReasoningEffortOptions.length
+  ) {
+    throw new Error('Invalid OPL product profile: Codex user reasoning effort options must expose the ACP enum');
+  }
+  for (const effort of userReasoningEffortOptions) {
+    const label = isRecord(reasoningLabels?.[effort]) ? reasoningLabels[effort] : null;
+    if (typeof label?.zh !== 'string' || !label.zh.trim() || typeof label.en !== 'string' || !label.en.trim()) {
+      throw new Error(`Invalid OPL product profile: Codex reasoning effort option ${effort} must have labels`);
+    }
   }
 
   if (!Array.isArray(value.visible_models)) {
@@ -534,30 +550,34 @@ function readCodexModelDisplayOptions(
     const id = typeof entry.id === 'string' ? entry.id.trim() : '';
     const labelZh = typeof entry.label_zh === 'string' ? entry.label_zh.trim() : '';
     const labelEn = typeof entry.label_en === 'string' ? entry.label_en.trim() : '';
-    const reasoningEffort = readRequiredReasoningEffort(
-      entry.reasoning_effort,
-      `gui.home.codex_model_display_options.visible_models[${index}].reasoning_effort`
-    );
-    if (!id || !labelZh || !labelEn || labelZh === id || labelEn === id || reasoningEffort !== defaultReasoningEffort) {
+    if (!id || !labelZh || !labelEn || labelZh === id || labelEn === id || 'reasoning_effort' in entry) {
       throw new Error(
-        `Invalid OPL product profile: Codex model display option ${id || index} must use friendly labels`
+        `Invalid OPL product profile: Codex model display option ${id || index} must use friendly labels without reasoning`
       );
     }
     return {
       id,
       label_zh: labelZh,
       label_en: labelEn,
-      reasoning_effort: reasoningEffort,
     };
   });
   if (JSON.stringify(visibleModels.map((model) => model.id)) !== JSON.stringify(frontierModelPreferenceOrder)) {
     throw new Error('Invalid OPL product profile: Codex model display options must match frontier preference order');
   }
+  const retiredVisibleModelIds = new Set(['gpt-5.3-codex', 'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini']);
+  for (const model of visibleModels) {
+    if (retiredVisibleModelIds.has(model.id)) {
+      throw new Error(`Invalid OPL product profile: retired Codex model ${model.id} must not be visible`);
+    }
+  }
 
   return {
-    display_policy: 'friendly_model_name_and_reasoning_for_every_visible_option',
+    display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu',
     raw_model_id_visible_in_ordinary_ui: false,
-    reasoning_effort_visible_for_every_option: true,
+    reasoning_effort_visible_for_every_option: false,
+    reasoning_effort_menu_visible: true,
+    reasoning_effort_override_surface: 'model_configuration_menu',
+    reasoning_effort_options_source: 'acp_codex_config_options_enum',
     default_reasoning_effort: displayDefaultReasoningEffort,
     auto_option: {
       id: '__auto',
@@ -1195,7 +1215,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.conversation_backend_selector_visible !== false ||
     guiHome.conversation_model_selector_visible !== true ||
     guiHome.conversation_permission_mode_selector_visible !== false ||
-    guiHome.codex_precise_model_display_policy !== 'friendly_default_model_and_reasoning_visible'
+    guiHome.codex_precise_model_display_policy !== 'friendly_model_primary_reasoning_configurable_in_model_menu'
   ) {
     throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
@@ -1210,8 +1230,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     typeof guiHome.codex_home_model_status_label === 'string' ? guiHome.codex_home_model_status_label.trim() : '';
   const homeModelStatusLabelEn =
     typeof guiHome.codex_home_model_status_label_en === 'string' ? guiHome.codex_home_model_status_label_en.trim() : '';
-  if (homeModelStatusLabel !== 'GPT-5.5（超高）' || homeModelStatusLabelEn !== 'GPT-5.5 (Ultra)') {
-    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 ultra');
+  if (homeModelStatusLabel !== 'GPT-5.5' || homeModelStatusLabelEn !== 'GPT-5.5') {
+    throw new Error('Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 without repeated reasoning');
   }
   const autoModelSelection = guiHome.codex_auto_model_selection;
   if (
@@ -1364,10 +1384,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         conversation_permission_mode_selector_visible: false,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
-        codex_precise_model_display_policy: 'friendly_default_model_and_reasoning_visible',
+        codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu',
         codex_auto_model_selection: {
           strategy: 'codex_cli_auto_latest_available_frontier',
           user_can_override_model: true,
+          ...(autoModelSelection.user_can_override_reasoning_effort === true
+            ? { user_can_override_reasoning_effort: true }
+            : {}),
           user_can_restore_auto: true,
           selection_persists_into_conversation: true,
           frontier_model_preference_order: frontierModelPreferenceOrder,

@@ -63,10 +63,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
   const effectiveReasoningEffort = selectedReasoningEffort ?? defaultCodexReasoningEffort;
+  const codexDisplayOptions = getOplCodexModelDisplayOptions();
   const codexAutoLabel =
     localeKey === 'en-US'
-      ? getOplCodexModelDisplayOptions().auto_option.label_en
-      : getOplCodexModelDisplayOptions().auto_option.label_zh;
+      ? codexDisplayOptions.auto_option.label_en
+      : codexDisplayOptions.auto_option.label_zh;
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -93,13 +94,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const acpSelectedLabel = React.useMemo(() => {
     if (selectedAcpModel === null && currentAcpCachedModelInfo?.current_model_id) {
       if (useOplCodexModelDisplay) {
-        const modelDisplay = formatOplCodexModelDisplay({
-          id: currentAcpCachedModelInfo.current_model_id,
-          label: currentAcpCachedModelInfo.current_model_label,
-          reasoningEffort: effectiveReasoningEffort,
-          localeKey,
-        });
-        return `${codexAutoLabel} · ${modelDisplay.modelLabel} · ${modelDisplay.reasoningLabel}`;
+        return codexAutoLabel;
       }
       return t('conversation.welcome.autoModel', {
         model: currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
@@ -110,9 +105,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       return formatOplCodexModelDisplay({
         id: selectedModel.id,
         label: selectedModel.label,
-        reasoningEffort: effectiveReasoningEffort,
         localeKey,
-      }).label;
+      }).modelLabel;
     }
     return (
       selectedModel?.label ||
@@ -124,8 +118,6 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     currentAcpCachedModelInfo?.available_models,
     currentAcpCachedModelInfo?.current_model_id,
     currentAcpCachedModelInfo?.current_model_label,
-    codexAutoLabel,
-    effectiveReasoningEffort,
     localeKey,
     t,
     selectedAcpModel,
@@ -246,122 +238,118 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         reasoningEffort: effectiveReasoningEffort,
         localeKey,
       });
-      const reasoningSelector = useOplCodexModelDisplay ? (
-        <div
-          aria-label={t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
-          className='flex items-center gap-2px rounded-6px bg-fill-2 p-2px shrink-0'
-          data-testid='guid-reasoning-effort-selector'
-        >
-          {(['high', 'xhigh'] as OplCodexReasoningEffort[]).map((effort) => {
-            const selected = effectiveReasoningEffort === effort;
-            return (
-              <Tooltip key={effort} content={formatOplCodexReasoningLabel(effort, localeKey)} position='top'>
-                <Button
-                  className={selected ? 'bg-bg-1! text-t-primary!' : 'text-t-secondary!'}
-                  size='mini'
-                  shape='round'
-                  onClick={() => setSelectedReasoningEffort?.(effort === defaultCodexReasoningEffort ? null : effort)}
-                >
-                  {formatOplCodexReasoningLabel(effort, localeKey).replace(/^推理/, '')}
-                </Button>
-              </Tooltip>
-            );
-          })}
-        </div>
-      ) : null;
-      return (
-        <span className='inline-flex items-center gap-6px min-w-0'>
-          <Dropdown
-            trigger='click'
-            droplist={
-              <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}>
-                <Menu.Item
-                  key='__auto'
-                  className={selectedAcpModel === null ? '!bg-2' : ''}
-                  onClick={() => setSelectedAcpModel(null)}
-                >
-                  <div
-                    className={
-                      useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
-                    }
+      const reasoningMenuItems =
+        useOplCodexModelDisplay && setSelectedReasoningEffort
+          ? [
+              <Menu.Item key='__reasoning_header' disabled className='pointer-events-none'>
+                <span className='text-12px text-t-secondary'>
+                  {t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
+                </span>
+              </Menu.Item>,
+              ...codexDisplayOptions.user_reasoning_effort_options.map((effort) => {
+                const selected = effectiveReasoningEffort === effort;
+                return (
+                  <Menu.Item
+                    key={`reasoning:${effort}`}
+                    className={selected ? '!bg-2' : ''}
+                    onClick={() => setSelectedReasoningEffort(effort === defaultCodexReasoningEffort ? null : effort)}
                   >
-                    <span className={useOplCodexModelDisplay ? 'font-medium' : ''}>
-                      {useOplCodexModelDisplay
-                        ? autoModelDisplay.label
-                        : t('conversation.welcome.autoModel', {
-                            model:
-                              currentAcpCachedModelInfo.current_model_label ||
-                              currentAcpCachedModelInfo.current_model_id,
-                          })}
-                    </span>
-                    {useOplCodexModelDisplay && (
-                      <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
-                    )}
-                  </div>
-                </Menu.Item>
-                {currentAcpCachedModelInfo.available_models.map((model) => {
-                  // 获取模型健康状态
-                  const providerConfig = modelConfig?.find((p) => p.platform?.includes(''));
-                  const healthStatus = providerConfig?.model_health?.[model.id]?.status || 'unknown';
-                  const healthColor =
-                    healthStatus === 'healthy'
-                      ? 'bg-green-500'
-                      : healthStatus === 'unhealthy'
-                        ? 'bg-red-500'
-                        : 'bg-gray-400';
-                  const modelDisplay = useOplCodexModelDisplay
-                    ? formatOplCodexModelDisplay({
-                        id: model.id,
-                        label: model.label,
-                        reasoningEffort: effectiveReasoningEffort,
-                        localeKey,
-                      })
-                    : null;
+                    <span>{formatOplCodexReasoningLabel(effort, localeKey).replace(/^推理/, '')}</span>
+                  </Menu.Item>
+                );
+              }),
+            ]
+          : null;
+      return (
+        <Dropdown
+          trigger='click'
+          droplist={
+            <Menu selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}>
+              <Menu.Item
+                key='__auto'
+                className={selectedAcpModel === null ? '!bg-2' : ''}
+                onClick={() => setSelectedAcpModel(null)}
+              >
+                <div
+                  className={
+                    useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
+                  }
+                >
+                  <span className={useOplCodexModelDisplay ? 'font-medium' : ''}>
+                    {useOplCodexModelDisplay
+                      ? autoModelDisplay.label
+                      : t('conversation.welcome.autoModel', {
+                          model:
+                            currentAcpCachedModelInfo.current_model_label ||
+                            currentAcpCachedModelInfo.current_model_id,
+                        })}
+                  </span>
+                  {useOplCodexModelDisplay && (
+                    <span className='text-12px text-t-secondary'>{autoModelDisplay.description}</span>
+                  )}
+                </div>
+              </Menu.Item>
+              {currentAcpCachedModelInfo.available_models.map((model) => {
+                // 获取模型健康状态
+                const providerConfig = modelConfig?.find((p) => p.platform?.includes(''));
+                const healthStatus = providerConfig?.model_health?.[model.id]?.status || 'unknown';
+                const healthColor =
+                  healthStatus === 'healthy'
+                    ? 'bg-green-500'
+                    : healthStatus === 'unhealthy'
+                      ? 'bg-red-500'
+                      : 'bg-gray-400';
+                const modelDisplay = useOplCodexModelDisplay
+                  ? formatOplCodexModelDisplay({
+                      id: model.id,
+                      label: model.label,
+                      localeKey,
+                    })
+                  : null;
 
-                  return (
-                    <Menu.Item
-                      key={model.id}
-                      className={model.id === selectedAcpModel ? '!bg-2' : ''}
-                      onClick={() => setSelectedAcpModel(model.id)}
+                return (
+                  <Menu.Item
+                    key={model.id}
+                    className={model.id === selectedAcpModel ? '!bg-2' : ''}
+                    onClick={() => setSelectedAcpModel(model.id)}
+                  >
+                    <div
+                      className={
+                        useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
+                      }
                     >
-                      <div
-                        className={
-                          useOplCodexModelDisplay ? 'flex flex-col gap-2px w-full' : 'flex items-center gap-8px w-full'
-                        }
-                      >
-                        {healthStatus !== 'unknown' && (
-                          <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
-                        )}
-                        {useOplCodexModelDisplay ? (
-                          <>
-                            <span>{modelDisplay?.label}</span>
-                            <span className='text-12px text-t-secondary'>{modelDisplay?.description}</span>
-                          </>
-                        ) : (
-                          <span>{model.label}</span>
-                        )}
-                      </div>
-                    </Menu.Item>
-                  );
-                })}
-              </Menu>
-            }
+                      {healthStatus !== 'unknown' && (
+                        <div className={`w-6px h-6px rounded-full shrink-0 ${healthColor}`} />
+                      )}
+                      {useOplCodexModelDisplay ? (
+                        <>
+                          <span>{modelDisplay?.modelLabel}</span>
+                          <span className='text-12px text-t-secondary'>{modelDisplay?.description}</span>
+                        </>
+                      ) : (
+                        <span>{model.label}</span>
+                      )}
+                    </div>
+                  </Menu.Item>
+                );
+              })}
+              {reasoningMenuItems}
+            </Menu>
+          }
+        >
+          <Button
+            className={'sendbox-model-btn guid-config-btn'}
+            shape='round'
+            size='small'
+            data-testid='guid-model-selector'
           >
-            <Button
-              className={'sendbox-model-btn guid-config-btn'}
-              shape='round'
-              size='small'
-              data-testid='guid-model-selector'
-            >
-              <span className='flex items-center gap-6px min-w-0'>
-                <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
-                <span>{acpButtonLabel}</span>
-                <Down theme='outline' size='12' fill={iconColors.secondary} className='shrink-0' />
-              </span>
-            </Button>
-          </Dropdown>
-          {reasoningSelector}
-        </span>
+            <span className='flex items-center gap-6px min-w-0'>
+              <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+              <span>{acpButtonLabel}</span>
+              <Down theme='outline' size='12' fill={iconColors.secondary} className='shrink-0' />
+            </span>
+          </Button>
+        </Dropdown>
       );
     }
 

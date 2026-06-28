@@ -38,6 +38,8 @@ const configErrorMessageKey = (error: unknown) => {
   return 'agent.config.failed';
 };
 
+const normalizeReasoningMenuLabel = (label: string): string => label.replace(/^推理/, '');
+
 /**
  * Model selector for ACP-based agents. Renders three states:
  * - null model info: disabled "Use CLI model" button (backward compatible)
@@ -101,8 +103,8 @@ const AcpModelSelector: React.FC<{
   const selectedModelLabel =
     useOplCodexModelDisplay && oplCurrentModelDisplay
       ? showCodexAutoOption
-        ? `${codexAutoLabel} · ${oplCurrentModelDisplay.modelLabel} · ${oplCurrentModelDisplay.reasoningLabel}`
-        : oplCurrentModelDisplay.label
+        ? codexAutoLabel
+        : oplCurrentModelDisplay.modelLabel
       : hideCodexModelList && rawDisplayLabel
         ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
         : rawDisplayLabel;
@@ -134,31 +136,34 @@ const AcpModelSelector: React.FC<{
   );
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
-  const reasoningControl =
-    backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0 ? (
-      <div
-        aria-label={t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
-        className='flex items-center gap-2px rounded-6px bg-fill-2 p-2px shrink-0'
-        data-testid='opl-reasoning-effort-selector'
-      >
-        {thoughtLevel.options.map((option) => {
-          const selected = option.value === thoughtLevel.currentValue;
-          return (
-            <Tooltip key={option.value} content={option.description || option.label} position='top'>
-              <Button
-                className={selected ? 'bg-bg-1! text-t-primary!' : 'text-t-secondary!'}
-                size='mini'
-                shape='round'
+  const shouldShowReasoningOptions = backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0;
+  const reasoningMenuItems =
+    shouldShowReasoningOptions && thoughtLevel
+      ? [
+          <Menu.Item key='__reasoning_header' disabled className='pointer-events-none'>
+            <span className='text-12px text-t-secondary'>
+              {t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
+            </span>
+          </Menu.Item>,
+          ...thoughtLevel.options.map((option) => {
+            const selected = option.value === thoughtLevel.currentValue;
+            const label = formatOplCodexReasoningLabel(option.value, localeKey);
+            return (
+              <Menu.Item
+                key={`reasoning:${option.value}`}
+                className={selected ? 'bg-2!' : ''}
                 disabled={isSettingReasoning}
                 onClick={() => handleReasoningSelect(option.value)}
               >
-                {formatOplCodexReasoningLabel(option.value as never, localeKey).replace(/^推理/, '')}
-              </Button>
-            </Tooltip>
-          );
-        })}
-      </div>
-    ) : null;
+                <div className='flex flex-col gap-2px w-full'>
+                  <span>{normalizeReasoningMenuLabel(label)}</span>
+                  {option.description && <span className='text-12px text-t-secondary'>{option.description}</span>}
+                </div>
+              </Menu.Item>
+            );
+          }),
+        ]
+      : null;
 
   if (!model_info) {
     return (
@@ -251,7 +256,7 @@ const AcpModelSelector: React.FC<{
                 onClick={() => selectModel(model.id)}
               >
                 <div className='flex flex-col gap-2px w-full'>
-                  <span>{modelDisplay?.label ?? (model.label || model.id)}</span>
+                  <span>{modelDisplay?.modelLabel ?? (model.label || model.id)}</span>
                   {modelDisplay?.description && (
                     <span className='text-12px text-t-secondary'>{modelDisplay.description}</span>
                   )}
@@ -259,19 +264,17 @@ const AcpModelSelector: React.FC<{
               </Menu.Item>
             );
           })}
+          {reasoningMenuItems}
         </Menu>
       }
     >
-      <span className='inline-flex items-center gap-6px min-w-0'>
-        <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
-          <span className='flex items-center gap-6px min-w-0 leading-none'>
-            {renderLogo()}
-            <MarqueePillLabel>{display_label}</MarqueePillLabel>
-            <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
-          </span>
-        </Button>
-        {reasoningControl}
-      </span>
+      <Button className='sendbox-model-btn header-model-btn agent-mode-compact-pill' shape='round' size='small'>
+        <span className='flex items-center gap-6px min-w-0 leading-none'>
+          {renderLogo()}
+          <MarqueePillLabel>{display_label}</MarqueePillLabel>
+          <Down theme='outline' size={12} fill={iconColors.secondary} className='shrink-0' />
+        </span>
+      </Button>
     </Dropdown>
   );
 };

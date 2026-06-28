@@ -6,7 +6,7 @@ import {
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 
 describe('oplCodexModelDisplay', () => {
-  it('formats fixed Codex model options with friendly model names and reasoning labels', () => {
+  it('formats fixed Codex model options with friendly model names and separate reasoning labels', () => {
     const display = formatOplCodexModelDisplay({
       id: 'gpt-5.4',
       label: 'gpt-5.4',
@@ -14,7 +14,8 @@ describe('oplCodexModelDisplay', () => {
       localeKey: 'zh-CN',
     });
 
-    expect(display.label).toBe('GPT-5.4 · 推理超高');
+    expect(display.label).toBe('GPT-5.4');
+    expect(display.reasoningLabel).toBe('推理超高');
     expect(display.description).toBe('固定此模型');
     expect(display.label).not.toContain('gpt-5.4');
   });
@@ -27,7 +28,8 @@ describe('oplCodexModelDisplay', () => {
       localeKey: 'zh-CN',
     });
 
-    expect(display.label).toBe('GPT-5.3 Codex · 推理超高');
+    expect(display.label).toBe('GPT-5.3 Codex');
+    expect(display.reasoningLabel).toBe('推理超高');
     expect(display.label).not.toContain('gpt-5.3-codex');
   });
 

@@ -22,6 +22,8 @@ const GITHUB_OWNER = 'iOfficeAI';
 const GITHUB_REPO = 'AionCore';
 const DEFAULT_DOWNLOAD_ATTEMPTS = 4;
 const DEFAULT_DOWNLOAD_RETRY_DELAY_MS = 5000;
+const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS = 600000;
+const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
@@ -173,7 +175,7 @@ function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platfor
     .readdirSync(nodeRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .sort();
+    .toSorted();
 
   for (const version of versions) {
     const versionDir = path.join(nodeRoot, version);
@@ -211,9 +213,33 @@ function getDownloadRetryDelayMs() {
   return parsePositiveInteger(process.env.AIONUI_AIONCORE_DOWNLOAD_RETRY_DELAY_MS, DEFAULT_DOWNLOAD_RETRY_DELAY_MS);
 }
 
-function prepareManagedResources(binaryPath, targetDir) {
+function withDefaultEnvValue(env, key, value) {
+  return env[key] ? env[key] : String(value);
+}
+
+function getManagedResourcePrepareEnv(baseEnv = process.env) {
+  return {
+    ...baseEnv,
+    AIONUI_BUNDLED_MANAGED_RESOURCES: '',
+    npm_config_fetch_timeout: withDefaultEnvValue(
+      baseEnv,
+      'npm_config_fetch_timeout',
+      DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS
+    ),
+    npm_config_fetch_retries: withDefaultEnvValue(
+      baseEnv,
+      'npm_config_fetch_retries',
+      DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES
+    ),
+    npm_config_audit: withDefaultEnvValue(baseEnv, 'npm_config_audit', 'false'),
+    npm_config_fund: withDefaultEnvValue(baseEnv, 'npm_config_fund', 'false'),
+  };
+}
+
+function prepareManagedResources(binaryPath, targetDir, options = {}) {
   const bundleOut = path.join(targetDir, 'managed-resources');
   const dataDir = path.join(targetDir, '.prepare-data');
+  const execFile = options.execFileSync || execFileSync;
 
   removeDirectorySafe(bundleOut);
   removeDirectorySafe(dataDir);
@@ -221,13 +247,23 @@ function prepareManagedResources(binaryPath, targetDir) {
   ensureDirectory(dataDir);
 
   console.log(`  Preparing managed resources under ${path.relative(process.cwd(), bundleOut)}`);
-  execFileSync(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', bundleOut], {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      AIONUI_BUNDLED_MANAGED_RESOURCES: '',
-    },
-  });
+  try {
+    execFile(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', bundleOut], {
+      stdio: 'inherit',
+      env: getManagedResourcePrepareEnv(options.env || process.env),
+    });
+  } catch (error) {
+    removeDirectorySafe(bundleOut);
+    removeDirectorySafe(dataDir);
+    throw new Error(
+      [
+        `Failed to prepare managed resources for ${path.relative(process.cwd(), binaryPath)}.`,
+        'The partial managed-resources directory was removed; rerun the same build command.',
+        `Cause: ${error?.message || error}`,
+      ].join(' '),
+      { cause: error }
+    );
+  }
 
   removeDirectorySafe(dataDir);
   const pruneResult = pruneManagedNodeRuntime(bundleOut);
@@ -679,6 +715,8 @@ module.exports = {
   prepareAioncore,
   __test__: {
     downloadFile,
+    getManagedResourcePrepareEnv,
+    prepareManagedResources,
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,
