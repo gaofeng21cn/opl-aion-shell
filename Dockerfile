@@ -7,7 +7,10 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates git \
   && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch "${OPL_FRAMEWORK_REF}" "${OPL_FRAMEWORK_REPO}" . \
+RUN git init \
+  && git remote add origin "${OPL_FRAMEWORK_REPO}" \
+  && git fetch --depth 1 origin "${OPL_FRAMEWORK_REF}" \
+  && git checkout --detach FETCH_HEAD \
   && git rev-parse HEAD > /tmp/opl-framework-commit
 
 RUN npm ci \
@@ -86,20 +89,52 @@ ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
 ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
 ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli/bin:${PATH}
 
-RUN mkdir -p /data /projects \
-  && chmod 755 /opt/opl/entrypoint.sh \
-  && test -z "$(find /opt/opl/seed/payload -xtype l -print -quit)" \
-  && test -f /opt/opl/seed/payload/opl_framework/bin/opl \
-  && printf '%s\n' '#!/usr/bin/env sh' \
+RUN set -eu; \
+  mkdir -p /data /projects; \
+  chmod 755 /opt/opl/entrypoint.sh; \
+  broken_links="$(find /opt/opl/seed/payload -xtype l -print)"; \
+  if [ -n "${broken_links}" ]; then \
+    printf '%s\n' 'OPL image seed contains broken symlinks:' >&2; \
+    printf '%s\n' "${broken_links}" >&2; \
+    exit 1; \
+  fi; \
+  if [ ! -d /opt/opl/seed/payload/opl_framework ]; then \
+    printf '%s\n' 'OPL framework seed directory missing: /opt/opl/seed/payload/opl_framework' >&2; \
+    find /opt/opl/seed -maxdepth 3 -mindepth 1 -print >&2; \
+    exit 1; \
+  fi; \
+  if [ ! -f /opt/opl/seed/payload/opl_framework/bin/opl ]; then \
+    printf '%s\n' 'OPL framework CLI seed missing: /opt/opl/seed/payload/opl_framework/bin/opl' >&2; \
+    find /opt/opl/seed/payload/opl_framework -maxdepth 4 -print >&2; \
+    exit 1; \
+  fi; \
+  if [ ! -d /opt/opl/seed/payload/codex_cli ]; then \
+    printf '%s\n' 'Codex CLI seed directory missing: /opt/opl/seed/payload/codex_cli' >&2; \
+    find /opt/opl/seed -maxdepth 3 -mindepth 1 -print >&2; \
+    exit 1; \
+  fi; \
+  if [ ! -x /opt/opl/seed/payload/codex_cli/bin/codex ]; then \
+    printf '%s\n' 'Codex CLI seed executable missing or not executable: /opt/opl/seed/payload/codex_cli/bin/codex' >&2; \
+    find /opt/opl/seed/payload/codex_cli -maxdepth 5 -print >&2; \
+    exit 1; \
+  fi; \
+  printf '%s\n' '#!/usr/bin/env sh' \
     'exec node /opt/opl/seed/payload/opl_framework/bin/opl "$@"' \
-    > /usr/local/bin/opl \
-  && printf '%s\n' '#!/usr/bin/env sh' \
-    'exec node /opt/opl/seed/payload/codex_cli/lib/node_modules/@openai/codex/bin/codex.js "$@"' \
-    > /usr/local/bin/codex \
-  && chmod 755 /usr/local/bin/opl \
-  && chmod 755 /usr/local/bin/codex \
-  && test -x /usr/local/bin/opl \
-  && test -x /usr/local/bin/codex
+    > /usr/local/bin/opl; \
+  printf '%s\n' '#!/usr/bin/env sh' \
+    'exec /opt/opl/seed/payload/codex_cli/bin/codex "$@"' \
+    > /usr/local/bin/codex; \
+  chmod 755 /usr/local/bin/opl /usr/local/bin/codex; \
+  if ! command -v opl >/dev/null 2>&1 || [ ! -x /usr/local/bin/opl ]; then \
+    printf '%s\n' 'OPL wrapper check failed: /usr/local/bin/opl is not executable or not on PATH.' >&2; \
+    ls -l /usr/local/bin/opl >&2 || true; \
+    exit 1; \
+  fi; \
+  if ! command -v codex >/dev/null 2>&1 || [ ! -x /usr/local/bin/codex ]; then \
+    printf '%s\n' 'Codex wrapper check failed: /usr/local/bin/codex is not executable or not on PATH.' >&2; \
+    ls -l /usr/local/bin/codex >&2 || true; \
+    exit 1; \
+  fi
 
 VOLUME ["/data", "/projects"]
 EXPOSE 3000
