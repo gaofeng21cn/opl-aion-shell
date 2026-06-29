@@ -1,6 +1,7 @@
 import classNames from 'classnames';
-import React from 'react';
-import { Button } from '@arco-design/web-react';
+import React, { useMemo, useState } from 'react';
+import { Button, Input } from '@arco-design/web-react';
+import { Search } from '@icon-park/react';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { SettingsViewModeProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { isElectronDesktop } from '@/renderer/utils/platform';
@@ -8,7 +9,13 @@ import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSe
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import { buildSettingsNavItems, getBuiltinSettingsNavItems } from '../sections/settingsNav';
+import {
+  buildSettingsNavItems,
+  getBuiltinSettingsNavItems,
+  getSearchableSecondarySettingsModalItems,
+} from '../sections/settingsNav';
+import { iconColors } from '@/renderer/styles/colors';
+import { normalizeSearchText } from '../registry/settingsRegistry';
 import './settings.css';
 
 interface SettingsPageWrapperProps {
@@ -24,12 +31,13 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const { pathname } = useLocation();
   const { t } = useTranslation();
   const isDesktop = isElectronDesktop();
+  const [searchQuery, setSearchQuery] = useState('');
 
   const extensionTabs = useExtensionSettingsTabs();
 
   const { resolveExtTabName } = useExtI18n();
 
-  const menuItems = React.useMemo(() => {
+  const menuItems = useMemo(() => {
     const builtins = getBuiltinSettingsNavItems(isDesktop, t);
     return buildSettingsNavItems({
       builtinItems: builtins,
@@ -38,6 +46,51 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       extensionIconClassName: 'w-16px h-16px object-contain',
     });
   }, [isDesktop, t, extensionTabs, resolveExtTabName]);
+
+  const mobileMenuItems = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return menuItems;
+    const visibleMatches = menuItems.filter((item) => item.searchText.includes(query));
+    const visibleIds = new Set(visibleMatches.map((item) => item.id));
+    const secondaryMatches = getSearchableSecondarySettingsModalItems(t)
+      .filter((item) => item.searchText.includes(query) && !visibleIds.has(item.id))
+      .map((item) => ({ ...item, path: item.id }));
+    return [...visibleMatches, ...secondaryMatches];
+  }, [menuItems, searchQuery, t]);
+
+  const routeSearch = (
+    <div className='flex flex-col gap-8px mb-16px' data-testid='settings-route-search'>
+      <Input
+        value={searchQuery}
+        onChange={setSearchQuery}
+        allowClear
+        prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
+        placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
+        data-testid='settings-search-input'
+      />
+      {searchQuery.trim().length > 0 && mobileMenuItems.length === 0 && (
+        <div className='px-10px py-9px rd-8px text-13px text-t-secondary bg-fill-1' data-testid='settings-search-empty'>
+          {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
+        </div>
+      )}
+      {searchQuery.trim().length > 0 && mobileMenuItems.length > 0 && (
+        <div className='flex flex-wrap gap-8px' data-testid='settings-search-results'>
+          {mobileMenuItems.map((item) => (
+            <Button
+              key={item.path}
+              size='small'
+              htmlType='button'
+              onClick={() => {
+                void navigate(`/settings/${item.path}`, { replace: true });
+              }}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   const containerClass = classNames(
     'settings-page-wrapper w-full min-h-full box-border overflow-y-auto',
@@ -52,7 +105,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       <div className={containerClass}>
         {isMobile && (
           <div className='settings-mobile-top-nav'>
-            {menuItems.map((item) => {
+            {mobileMenuItems.map((item) => {
               const active = pathname.includes(`/settings/${item.path}`);
               return (
                 <Button
@@ -72,7 +125,10 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
             })}
           </div>
         )}
-        <div className={contentClass}>{children}</div>
+        <div className={contentClass}>
+          {routeSearch}
+          {children}
+        </div>
       </div>
     </SettingsViewModeProvider>
   );

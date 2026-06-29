@@ -8,5 +8,6 @@ export {
   SETTINGS_ROUTE_PATHS,
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
+  getSearchableSecondarySettingsModalItems,
 } from '../registry/settingsRegistry';
 export type { BuiltinSettingsTabId, SettingsNavItem, TranslateFn } from '../registry/settingsRegistry';

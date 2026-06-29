@@ -268,6 +268,7 @@ export type SettingsNavItem = {
   icon: React.ReactElement;
   isImageIcon?: boolean;
   path: string;
+  searchText: string;
 };
 
 type BuildNavOptions = {
@@ -279,12 +280,16 @@ type BuildNavOptions = {
 
 export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): SettingsNavItem[] {
   const slot: SettingsIconSlot = isDesktop ? 'siderDesktop' : 'siderMobile';
-  return BUILTIN_TAB_IDS.map((id) => ({
-    id,
-    label: getSettingsTabLabel(id, t),
-    icon: getSettingsTabIcon(id, slot),
-    path: id,
-  }));
+  return BUILTIN_TAB_IDS.map((id) => {
+    const label = getSettingsTabLabel(id, t);
+    return {
+      id,
+      label,
+      icon: getSettingsTabIcon(id, slot),
+      path: id,
+      searchText: getSettingsTabSearchText(id, label),
+    };
+  });
 }
 
 export function buildSettingsNavItems({
@@ -298,12 +303,14 @@ export function buildSettingsNavItems({
     extensionTabs,
     toExtensionItem: (tab) => {
       const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
+      const label = resolveExtTabName(tab);
       return {
         id: tab.id,
-        label: resolveExtTabName(tab),
+        label,
         icon: resolvedIcon ? <img src={resolvedIcon} alt='' className={extensionIconClassName} /> : <Puzzle />,
         isImageIcon: Boolean(resolvedIcon),
         path: `ext/${tab.id}`,
+        searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
     },
   });
