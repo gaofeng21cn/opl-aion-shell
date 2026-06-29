@@ -10,6 +10,8 @@ import {
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
+  getInitializeInvoke: vi.fn(),
+  runInstallPrepInvoke: vi.fn(),
   getDrilldownInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   getUpdateStatusInvoke: vi.fn(),
@@ -24,8 +26,8 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
-      getInitialize: { invoke: vi.fn() },
-      runInstallPrep: { invoke: vi.fn() },
+      getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
+      runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       getDrilldown: { invoke: bridgeMocks.getDrilldownInvoke },
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
       getUpdateStatus: { invoke: bridgeMocks.getUpdateStatusInvoke },
@@ -261,6 +263,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     vi.clearAllMocks();
     localStorage.clear();
     bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResult);
+    bridgeMocks.getInitializeInvoke.mockResolvedValue({ stdout: '{}', parsed: {} });
+    bridgeMocks.runInstallPrepInvoke.mockResolvedValue({ stdout: '{}', parsed: {} });
     bridgeMocks.getUpdateStatusInvoke.mockResolvedValue(managedUpdateStatusResult);
     bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateStatusResult);
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdateStatusResult);
@@ -431,6 +435,24 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
       'settings.oplEnvironmentPage.healthSummary.usable'
     );
+    expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeToolchain')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-capabilityPacks')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-repairSuggestions')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'
+    );
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.apply'
     );
@@ -438,10 +460,14 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.updates.actions.recommendedRepair'
     );
     expect(screen.getByText('settings.oplEnvironmentPage.sections.workspace')).toBeInTheDocument();
-    expect(screen.getByText('settings.oplEnvironmentPage.storageData.openStorage')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
+      'settings.oplEnvironmentPage.storageData.openStorage'
+    );
     expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    expect(screen.getByText('settings.oplEnvironmentPage.updates.actions.plan')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.actions.plan'
+    );
     fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
@@ -454,6 +480,24 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(
+      screen
+        .getByTestId('opl-maintenance-hub-runtimeToolchain')
+        .querySelector('button') as HTMLButtonElement
+    );
+    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('opl-maintenance-hub-storageCleanup').querySelector('button') as HTMLButtonElement);
+    expect(window.location.hash).toBe('#/settings/storage');
+
+    fireEvent.click(
+      screen
+        .getByTestId('opl-maintenance-hub-repairSuggestions')
+        .querySelector('button') as HTMLButtonElement
+    );
+    await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
     await waitFor(() =>
@@ -561,7 +605,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(backgroundStatus).toHaveTextContent('managed update lock is held');
 
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.actions.check'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-check'));
 
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -585,8 +629,8 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     const refreshButton = screen.getByTestId('opl-managed-update-refresh');
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    const checkButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.check').closest('button');
-    const planButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.plan').closest('button');
+    const checkButton = screen.getByTestId('opl-managed-update-check');
+    const planButton = screen.getByTestId('opl-managed-update-plan');
     expect(checkButton).toBeTruthy();
     expect(planButton).toBeTruthy();
 

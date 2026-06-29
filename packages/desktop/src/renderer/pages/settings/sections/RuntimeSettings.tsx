@@ -89,6 +89,20 @@ type HealthSummaryItem = {
   tone: 'green' | 'orange';
 };
 
+type MaintenanceHubItem = {
+  key: string;
+  title: string;
+  detail: string;
+  status: string;
+  tone: 'green' | 'orange';
+  icon: React.ReactNode;
+  actionLabel: string;
+  actionHelp?: string;
+  actionLoading?: boolean;
+  actionDisabled?: boolean;
+  onAction: () => void;
+};
+
 function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
@@ -149,10 +163,7 @@ function normalizeModule(module: RuntimeModuleItem): RuntimeModuleItem {
 function moduleRecords(value: unknown): RuntimeModuleItem[] {
   if (Array.isArray(value)) return oplRecordList(value);
   const record = oplRecord(value);
-  return Object.entries(record).map(([id, module]) => ({
-    ...oplRecord(module),
-    module_id: id,
-  }));
+  return Object.entries(record).map(([id, module]) => Object.assign({}, oplRecord(module), { module_id: id }));
 }
 
 function moduleStatus(module: RuntimeModuleItem): string {
@@ -740,6 +751,7 @@ function ManagedUpdatesPanel({
             <Space wrap>
               <Tooltip content={updateReadActionHelp('check', t)}>
                 <Button
+                  data-testid='opl-managed-update-check'
                   loading={checkLoading}
                   disabled={Boolean(activeReadOperation && activeReadOperation !== 'check')}
                   onClick={onCheck}
@@ -749,6 +761,7 @@ function ManagedUpdatesPanel({
               </Tooltip>
               <Tooltip content={updateReadActionHelp('plan', t)}>
                 <Button
+                  data-testid='opl-managed-update-plan'
                   loading={planLoading}
                   disabled={Boolean(activeReadOperation && activeReadOperation !== 'plan')}
                   onClick={onPlan}
@@ -871,12 +884,65 @@ function HealthSummary({ items }: { items: HealthSummaryItem[] }) {
   );
 }
 
+function MaintenanceHub({ items, t }: { items: MaintenanceHubItem[]; t: Translate }) {
+  return (
+    <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
+      <div className='flex flex-col gap-14px'>
+        <div>
+          <Typography.Text className='block font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+          </Typography.Text>
+          <Typography.Text className='block text-12px text-t-secondary break-words'>
+            {t('settings.oplEnvironmentPage.maintenanceHub.description')}
+          </Typography.Text>
+        </div>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12px'>
+          {items.map((item) => (
+            <div
+              key={`maintenance-hub-${item.key}`}
+              className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'
+              data-testid={`opl-maintenance-hub-${item.key}`}
+            >
+              <div className='flex flex-col gap-10px min-w-0'>
+                <div className='flex items-start gap-10px'>
+                  <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                    {item.icon}
+                  </span>
+                  <div className='min-w-0 flex-1'>
+                    <Typography.Text className='block font-600 text-t-primary break-words'>{item.title}</Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {item.detail}
+                    </Typography.Text>
+                  </div>
+                  <Tag color={item.tone}>{item.status}</Tag>
+                </div>
+                <Button
+                  size='small'
+                  title={item.actionHelp}
+                  loading={item.actionLoading}
+                  disabled={item.actionDisabled}
+                  onClick={item.onAction}
+                >
+                  {item.actionLabel}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
   const messageRef = useRef(message);
   const tRef = useRef(t);
   const [activeReadOperation, setActiveReadOperation] = React.useState<'status' | 'check' | 'plan' | null>(null);
+  const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<
+    'runtimeToolchain' | 'capabilityPacks' | null
+  >(null);
   const appStateQuery = useOplAppState('fast');
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
 
@@ -1071,6 +1137,18 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     }
   }, []);
 
+  const runMaintenanceHubCheck = useCallback(
+    async (target: 'runtimeToolchain' | 'capabilityPacks') => {
+      setMaintenanceHubCheckTarget(target);
+      try {
+        await runManagedUpdateRead('check');
+      } finally {
+        setMaintenanceHubCheckTarget(null);
+      }
+    },
+    [runManagedUpdateRead]
+  );
+
   const runManagedUpdateMutation = useCallback(
     async (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => {
       try {
@@ -1101,7 +1179,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, [managedUpdateMaintenance.result, managedUpdateMaintenance.running, runManagedUpdateRead]);
 
   const runOplCommand = useCallback(
-    async (args: string[], actionId: string, successText: string) => {
+    async (_args: string[], actionId: string, successText: string) => {
       try {
         const result =
           actionId === 'doctor'
@@ -1129,7 +1207,121 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'settings-runtime' } }));
   }, []);
 
+  const openStorageSettings = useCallback(() => {
+    window.location.hash = '#/settings/storage';
+  }, []);
+
   const codexSessionContext = useMemo(() => getOplCodexSessionContext(), []);
+  const componentById = useMemo(
+    () => new Map(managedUpdatePlane.components.map((component) => [component.id, component])),
+    [managedUpdatePlane.components]
+  );
+  const appBinaryComponent = componentById.get('app_binary');
+  const runtimeToolchainComponent = componentById.get('runtime_toolchain');
+  const agentPackageComponent = componentById.get('agent_package_channel');
+  const capabilityExposureComponent = componentById.get('capability_exposure');
+  const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
+  const maintenanceHubItems = useMemo<MaintenanceHubItem[]>(
+    () => [
+      {
+        key: 'appUpdates',
+        title: t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'),
+        detail: appBinaryComponent
+          ? componentUserSummary(appBinaryComponent, t)
+          : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
+        status: formatStatus(appBinaryComponent?.state ?? 'unknown', t),
+        tone: appBinaryComponent ? componentStatusTone(appBinaryComponent) : 'orange',
+        icon: <UpdateRotation theme='outline' />,
+        actionLabel: t('settings.checkForUpdates'),
+        onAction: openUpdateModal,
+      },
+      {
+        key: 'runtimeToolchain',
+        title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'),
+        detail: runtimeToolchainComponent
+          ? componentUserSummary(runtimeToolchainComponent, t)
+          : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.description'),
+        status: formatStatus(runtimeToolchainComponent?.state ?? 'unknown', t),
+        tone: runtimeToolchainComponent ? componentStatusTone(runtimeToolchainComponent) : 'orange',
+        icon: <UpdateRotation theme='outline' />,
+        actionLabel: t('settings.oplEnvironmentPage.updates.actions.check'),
+        actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.actionHelp'),
+        actionLoading: maintenanceHubCheckTarget === 'runtimeToolchain',
+        actionDisabled: updateReadDisabled,
+        onAction: () => void runMaintenanceHubCheck('runtimeToolchain'),
+      },
+      {
+        key: 'capabilityPacks',
+        title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'),
+        detail:
+          agentPackageComponent || capabilityExposureComponent
+            ? [
+                agentPackageComponent ? componentUserSummary(agentPackageComponent, t) : null,
+                capabilityExposureComponent ? componentUserSummary(capabilityExposureComponent, t) : null,
+              ]
+                .filter((value): value is string => Boolean(value))
+                .join(' ')
+            : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.description'),
+        status: t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
+          ready: moduleReady,
+          total: modules.length,
+        }),
+        tone:
+          moduleReady >= modules.length &&
+          (!agentPackageComponent || componentStatusTone(agentPackageComponent) === 'green') &&
+          (!capabilityExposureComponent || componentStatusTone(capabilityExposureComponent) === 'green')
+            ? 'green'
+            : 'orange',
+        icon: <Repair theme='outline' />,
+        actionLabel: t('settings.oplEnvironmentPage.moduleMaintenance.actions.check'),
+        actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.actionHelp'),
+        actionLoading: maintenanceHubCheckTarget === 'capabilityPacks',
+        actionDisabled: updateReadDisabled,
+        onAction: () => void runMaintenanceHubCheck('capabilityPacks'),
+      },
+      {
+        key: 'storageCleanup',
+        title: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'),
+        detail: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.description'),
+        status: t('settings.oplEnvironmentPage.maintenanceHub.status.available'),
+        tone: 'green',
+        icon: <FolderSearch theme='outline' />,
+        actionLabel: t('settings.oplEnvironmentPage.storageData.openStorage'),
+        onAction: openStorageSettings,
+      },
+      {
+        key: 'repairSuggestions',
+        title: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'),
+        detail: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.description'),
+        status:
+          attentionCount === 0
+            ? t('settings.oplEnvironmentPage.healthSummary.values.none')
+            : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
+        tone: attentionCount === 0 ? 'green' : 'orange',
+        icon: <CheckOne theme='outline' />,
+        actionLabel: t('settings.oplEnvironmentPage.actions.repair'),
+        onAction: () =>
+          void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
+      },
+    ],
+    [
+      activeReadOperation,
+      agentPackageComponent,
+      appBinaryComponent,
+      attentionCount,
+      capabilityExposureComponent,
+      maintenanceHubCheckTarget,
+      moduleReady,
+      modules.length,
+      openStorageSettings,
+      openUpdateModal,
+      runMaintenanceHubCheck,
+      runOplCommand,
+      runtimeToolchainComponent,
+      t,
+      updateReadDisabled,
+    ]
+  );
 
   const content = (
     <>
@@ -1143,6 +1335,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         </div>
 
         <HealthSummary items={healthSummaryItems} />
+
+        <MaintenanceHub items={maintenanceHubItems} t={t} />
 
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.required')}
@@ -1270,9 +1464,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             <Button
               key='runtime-action-storage'
               icon={<FolderSearch theme='outline' />}
-              onClick={() => {
-                window.location.hash = '#/settings/storage';
-              }}
+              onClick={openStorageSettings}
             >
               {t('settings.oplEnvironmentPage.storageData.openStorage')}
             </Button>

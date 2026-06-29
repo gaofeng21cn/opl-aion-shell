@@ -1447,6 +1447,23 @@
   "capabilitiesPage": {
     "title": "智能体与能力",
     "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
+    "status": {
+      "available": "可用",
+      "needsUpdate": "需更新",
+      "needsRepair": "需修复",
+      "notConfigured": "未配置"
+    },
+    "entries": {
+      "externalTools": {
+        "title": "外部工具与语音",
+        "description": "从工具页连接外部工具，并配置语音输入。",
+        "technical": "技术细节：工具服务器底层使用 MCP。"
+      },
+      "customAssistants": {
+        "title": "自定义助手",
+        "description": "产品面启用时，可在高级助手区域创建或调整自定义助手。"
+      }
+    },
     "purposes": {
       "research": {
         "title": "研究",
@@ -1459,6 +1476,10 @@
       "presentation": {
         "title": "演示文稿",
         "description": "使用 RCA 处理精修幻灯片、视觉交付物和演示资产。"
+      },
+      "writing": {
+        "title": "写书",
+        "description": "使用 BookForge 处理书稿结构、章节生成和图书生产资产。"
       },
       "automation": {
         "title": "OPL Meta Agent",
@@ -1501,6 +1522,37 @@
       "title": "存储与数据",
       "description": "查看本地数据 inventory，归档或恢复对话证明，轮转日志，并通过 dry-run 计划清理过期安装包缓存。",
       "openStorage": "查看存储"
+    },
+    "maintenanceHub": {
+      "title": "维护中心",
+      "description": "在一个入口查看 App 更新、运行时/工具链、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
+      "status": {
+        "available": "可用"
+      },
+      "items": {
+        "appUpdates": {
+          "title": "App 更新",
+          "description": "检查桌面 App 更新器。"
+        },
+        "runtimeToolchain": {
+          "title": "运行时/工具链",
+          "description": "检查托管运行时和工具链通道。",
+          "actionHelp": "运行现有托管更新检查；不会应用运行时或工具链变更。"
+        },
+        "capabilityPacks": {
+          "title": "OPL 能力包",
+          "description": "检查 OPL 智能体包和能力暴露。",
+          "actionHelp": "通过现有托管更新检查智能体包和可见能力暴露。"
+        },
+        "storageCleanup": {
+          "title": "存储清理",
+          "description": "打开存储 inventory、dry-run 清理计划和回执。"
+        },
+        "repairSuggestions": {
+          "title": "修复建议",
+          "description": "必要能力需要处理时，运行现有 OPL 修复路径。"
+        }
+      }
     },
     "summary": {
       "nextAction": "下一步：{{action}}",
