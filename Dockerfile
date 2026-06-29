@@ -67,6 +67,7 @@ RUN node scripts/pack-web-cli.js
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
+ARG OPL_WEBUI_IMAGE_PROFILE=webui-full
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bash ca-certificates curl git tini \
@@ -85,6 +86,7 @@ ENV AIONUI_DATA_DIR=/data
 ENV OPL_DATA_DIR=/data
 ENV OPL_PROJECTS_DIR=/projects
 ENV OPL_WORKSPACE_ROOT=/projects
+ENV OPL_WEBUI_IMAGE_PROFILE=${OPL_WEBUI_IMAGE_PROFILE}
 ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
 ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
 ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli/bin:${PATH}
@@ -99,6 +101,10 @@ RUN set -eu; \
     exit 1; \
   fi; \
   if [ ! -d /opt/opl/seed/payload/opl_framework ]; then \
+    if [ "${OPL_WEBUI_IMAGE_PROFILE}" = "webui-slim" ]; then \
+      printf '%s\n' 'Slim OPL WebUI image has metadata-only seed payload.'; \
+      exit 0; \
+    fi; \
     printf '%s\n' 'OPL framework seed directory missing: /opt/opl/seed/payload/opl_framework' >&2; \
     find /opt/opl/seed -maxdepth 3 -mindepth 1 -print >&2; \
     exit 1; \
