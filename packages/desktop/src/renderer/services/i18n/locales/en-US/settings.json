@@ -1022,7 +1022,7 @@
   "noExternalSources": "No external skill sources discovered",
   "firstRun": {
     "title": "Prepare One Person Lab",
-    "description": "Confirm the workspace, local assistant, and access. Everything else prepares in the background.",
+    "description": "Confirm the workspace, local assistant, and model access. Everything else prepares in the background.",
     "openRuntimeSettings": "Runtime settings",
     "enterGuid": "Start in OPL",
     "coreReady": "Core ready",
@@ -1050,7 +1050,7 @@
     "beginner": {
       "title": "Checking the essentials",
       "readyTitle": "Ready to start",
-      "summaryChecking": "Checking your workspace, Codex, and API access now.",
+      "summaryChecking": "Checking your workspace, local assistant, and model access now.",
       "summaryPreparing": "The essentials are still being prepared. You can watch the progress here.",
       "summaryNeedsAction": "One setup item needs your attention before you can start.",
       "summaryReady": "Everything needed to start is ready.",
@@ -1061,7 +1061,7 @@
     "items": {
       "workspaceRoot": "Workspace root",
       "codex": "Local assistant",
-      "codexConfig": "Access",
+      "codexConfig": "Model Access",
       "domainModules": "Domain modules",
       "familyRuntimeProvider": "Family runtime provider",
       "recommendedSkills": "Recommended skills",
@@ -1081,9 +1081,9 @@
         "needsAction": "Finish local assistant setup."
       },
       "codexConfig": {
-        "pending": "Confirming access.",
-        "checking": "Checking access.",
-        "ready": "Access is configured.",
+        "pending": "Confirming model access.",
+        "checking": "Checking model access.",
+        "ready": "Model access is configured.",
         "needsAction": "Enter the access key from your administrator."
       },
       "domainModules": {
@@ -1173,13 +1173,13 @@
       "completed": "Action completed"
     },
     "codex": {
-      "title": "Access",
+      "title": "Model Access",
       "prompt": "Enter the access key from your administrator. You can start after this is configured.",
       "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for the access step you may need to complete.",
       "apiKeyPlaceholder": "Enter access key",
       "apiKeyRequired": "Enter the access key",
       "configure": "Finish setup",
-      "configured": "Access configured"
+      "configured": "Model access configured"
     },
     "maintenance": {
       "title": "Maintenance actions",
@@ -1191,7 +1191,7 @@
     "error": {
       "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
       "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
-      "codexConfig": "Access is not configured yet. Enter the access key from your administrator to continue."
+      "codexConfig": "Model access is not configured yet. Enter the access key from your administrator to continue."
     }
   },
   "oplFirstLaunch": {
@@ -1249,7 +1249,7 @@
   "groupAdvanced": "Advanced",
   "overviewPage": {
     "title": "One Person Lab",
-    "description": "Start from the current app state, then open the area that needs attention.",
+    "description": "Start from the workspace, permissions, and key task entries, then open the area that needs attention.",
     "codexTitle": "Codex CLI",
     "codexDescription": "The default and only visible home agent backend.",
     "workspaceTitle": "Workspace Root",
@@ -1264,6 +1264,37 @@
       "openRuntimeStatus": "Open Runtime Status",
       "openRuntimeSettings": "Open Maintenance",
       "openFoundryAgents": "Open Foundry Agents"
+    },
+    "workspace": {
+      "title": "Workspace Root",
+      "currentPath": "Current path: {{path}}",
+      "notConfigured": "No workspace root has been selected yet.",
+      "open": "Open",
+      "changeOrVerify": "Change or Verify",
+      "openPermissions": "View Permission Status",
+      "permissionStatus": "Permission: {{mode}}",
+      "status": {
+        "ready": "Workspace selected",
+        "needsAction": "Workspace needs setup"
+      }
+    },
+    "quickEntries": {
+      "modelAccount": {
+        "title": "Model & Account",
+        "description": "Review the current model, account/API key, and model access status."
+      },
+      "maintenance": {
+        "title": "Maintenance",
+        "description": "Check local environment, updates, maintenance, and repair actions."
+      },
+      "capabilities": {
+        "title": "Capabilities",
+        "description": "Open MAS, MAG, RCA, OMA, plus skills and tools."
+      },
+      "remote": {
+        "title": "Web / Remote Access",
+        "description": "Open WebUI, Docker, and remote access configuration."
+      }
     }
   },
   "runtimePage": {
@@ -1369,31 +1400,48 @@
     "receipt": "{{operation}} receipt: {{receipt}}"
   },
   "accessPage": {
-    "title": "Access",
-    "description": "Check whether Codex CLI, access keys, local background service, and current permissions can work now.",
+    "title": "Model & Account",
+    "description": "Confirm model and account access, then configure Web, Docker, and remote access.",
     "cards": {
-      "codex": {
-        "title": "Codex CLI",
-        "fallback": "Codex CLI details are not available yet."
+      "model": {
+        "title": "Current Model",
+        "fallback": "Current model is not available yet."
       },
-      "key": {
-        "title": "Access Keys",
-        "configured": "Access configuration is present.",
-        "missing": "Access configuration needs attention."
+      "account": {
+        "title": "Account / API key",
+        "configured": "Account or API key is configured.",
+        "missing": "Account or API key needs attention."
+      },
+      "modelAccess": {
+        "title": "Model Access Status",
+        "detail": "Checks whether the local assistant can reach the configured model service."
       },
       "provider": {
-        "title": "Local Background Service",
         "fallback": "Background service details are not available yet.",
         "summary": "{{kind}} · {{status}}",
-        "localRuntime": "Local runtime service",
-        "detail": "Used for local OPL task execution; this is not gflabtoken or external API login status."
+        "localRuntime": "Local runtime service"
       },
       "permission": {
         "title": "Permission Mode",
         "detail": "Current command and file permissions used by the App executor."
       }
     },
-    "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Access key status is shown under Access Keys."
+    "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
+    "modelAccount": {
+      "title": "Model & Account",
+      "description": "Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors."
+    },
+    "remote": {
+      "title": "Web / Docker / Remote Access",
+      "description": "Enable WebUI, inspect access URLs, and find remote access configuration from one place.",
+      "webui": "WebUI",
+      "docker": "Docker",
+      "remoteAccess": "Remote access"
+    },
+    "actions": {
+      "recheck": "Recheck",
+      "fix": "Fix issue"
+    }
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",

@@ -41,6 +41,7 @@ vi.mock('@/common', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string>) => {
+      if (key === 'settings.firstRun.items.codexConfig') return 'Model Access';
       if (!values) return key;
       return Object.entries(values).reduce((text, [_name, value]) => `${text} ${value}`, key);
     },
@@ -320,11 +321,11 @@ describe('FirstRun readiness page', () => {
     const beginnerPrimary = screen.getByTestId('opl-first-run-beginner-primary');
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.workspaceRoot');
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codex');
-    expect(beginnerPrimary).toHaveTextContent('settings.firstRun.items.codexConfig');
+    expect(beginnerPrimary).toHaveTextContent('Model Access');
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.itemSummaries.codexConfig.needsAction');
     expect(beginnerPrimary).toHaveTextContent('settings.firstRun.codex.prompt');
     expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent('settings.firstRun.nextSteps.codexConfig');
-    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('settings.firstRun.items.codexConfig');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent('Model Access');
     expect(beginnerPrimary).not.toHaveTextContent('Codex API Configuration');
     expect(beginnerPrimary).not.toHaveTextContent('Unknown');
     expect(beginnerPrimary).not.toHaveTextContent('Needs setup');

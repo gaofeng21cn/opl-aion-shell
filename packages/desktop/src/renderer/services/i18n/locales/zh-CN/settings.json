@@ -1250,7 +1250,7 @@
   "groupAdvanced": "高级",
   "overviewPage": {
     "title": "One Person Lab",
-    "description": "先看当前 App 状态，再进入需要处理的区域。",
+    "description": "先看工作目录、权限和关键任务入口，再进入需要处理的区域。",
     "codexTitle": "Codex CLI",
     "codexDescription": "首页默认且唯一可见的执行入口。",
     "workspaceTitle": "工作目录",
@@ -1265,6 +1265,37 @@
       "openRuntimeStatus": "打开运行状态",
       "openRuntimeSettings": "打开维护",
       "openFoundryAgents": "打开内置智能体"
+    },
+    "workspace": {
+      "title": "工作目录",
+      "currentPath": "当前路径：{{path}}",
+      "notConfigured": "尚未选择工作目录。",
+      "open": "打开",
+      "changeOrVerify": "更换或验证",
+      "openPermissions": "查看权限状态",
+      "permissionStatus": "权限：{{mode}}",
+      "status": {
+        "ready": "工作目录已选择",
+        "needsAction": "需要选择工作目录"
+      }
+    },
+    "quickEntries": {
+      "modelAccount": {
+        "title": "模型与账号",
+        "description": "查看当前模型、账号/API key 和模型访问状态。"
+      },
+      "maintenance": {
+        "title": "维护",
+        "description": "检查本机运行环境、更新、维护和修复入口。"
+      },
+      "capabilities": {
+        "title": "能力",
+        "description": "查看 MAS、MAG、RCA、OMA 以及技能和工具。"
+      },
+      "remote": {
+        "title": "Web / 远程访问",
+        "description": "打开 WebUI、Docker 和远程访问配置入口。"
+      }
     }
   },
   "runtimePage": {
@@ -1370,31 +1401,48 @@
     "receipt": "{{operation}} 回执：{{receipt}}"
   },
   "accessPage": {
-    "title": "访问权限",
-    "description": "先确认 Codex CLI、访问密钥、本机后台服务和当前权限现在能不能工作。",
+    "title": "模型与账号",
+    "description": "先确认模型与账号，再配置 Web、Docker 和远程访问。",
     "cards": {
-      "codex": {
-        "title": "Codex CLI",
-        "fallback": "暂时无法读取 Codex CLI 详情。"
+      "model": {
+        "title": "当前模型",
+        "fallback": "暂时无法读取当前模型。"
       },
-      "key": {
-        "title": "访问密钥",
-        "configured": "访问配置已存在。",
-        "missing": "访问配置需要处理。"
+      "account": {
+        "title": "账号 / API key",
+        "configured": "账号或 API key 已配置。",
+        "missing": "账号或 API key 需要处理。"
+      },
+      "modelAccess": {
+        "title": "模型访问状态",
+        "detail": "用于确认本机助手是否能访问已配置的模型服务。"
       },
       "provider": {
-        "title": "本机后台服务",
         "fallback": "暂时无法读取后台服务详情。",
         "summary": "{{kind}} · {{status}}",
-        "localRuntime": "本机运行服务",
-        "detail": "用于 OPL 本机任务执行；不是 gflabtoken 或外部 API 登录状态。"
+        "localRuntime": "本机运行服务"
       },
       "permission": {
         "title": "权限模式",
         "detail": "App 执行器当前使用的命令和文件权限。"
       }
     },
-    "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。普通访问密钥状态请看“访问密钥”。"
+    "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
+    "modelAccount": {
+      "title": "模型与账号",
+      "description": "这里显示当前模型、账号/API key、模型访问和权限状态；不会暴露底层 backend/provider selector。"
+    },
+    "remote": {
+      "title": "Web / Docker / 远程访问",
+      "description": "普通用户可以在这里启用 WebUI、查看访问地址，并找到远程访问相关配置。",
+      "webui": "WebUI",
+      "docker": "Docker",
+      "remoteAccess": "远程访问"
+    },
+    "actions": {
+      "recheck": "重新检查",
+      "fix": "修复异常"
+    }
   },
   "capabilitiesPage": {
     "title": "智能体与能力",

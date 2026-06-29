@@ -5,7 +5,8 @@
  */
 
 import React from 'react';
-import { Card, Tag, Typography } from '@arco-design/web-react';
+import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
+import { CheckOne, Earth, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
@@ -58,36 +59,48 @@ export const AccessSettingsContent: React.FC = () => {
   const temporalAddress = oplString(temporal.address) ?? oplString(temporalDetails.address);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'full-access';
 
+  const modelName =
+    oplString(codex.model) ??
+    oplString(codexConfig.model) ??
+    oplString(provider.model) ??
+    oplString(provider.default_model) ??
+    t('settings.accessPage.cards.model.fallback');
+  const accountStatus = apiKeyPresent
+    ? t('settings.accessPage.cards.account.configured')
+    : t('settings.accessPage.cards.account.missing');
+  const modelAccessStatus =
+    codexStatus === 'ready' && apiKeyPresent && (providerStatus === 'ready' || providerStatus === 'ok')
+      ? 'ready'
+      : 'attention_required';
+
   const cards: StatusCard[] = [
     {
-      key: 'codex',
-      title: t('settings.accessPage.cards.codex.title'),
+      key: 'model',
+      title: t('settings.accessPage.cards.model.title'),
       status: codexStatus,
       detail: compactDetail(
-        [oplString(codex.version), oplString(codex.binary_path)],
-        t('settings.accessPage.cards.codex.fallback')
+        [modelName, oplString(codex.version), oplString(codex.binary_path)],
+        t('settings.accessPage.cards.model.fallback')
       ),
       tone: codexStatus === 'ready' ? 'green' : 'orange',
     },
     {
-      key: 'key',
-      title: t('settings.accessPage.cards.key.title'),
+      key: 'account',
+      title: t('settings.accessPage.cards.account.title'),
       status: apiKeyPresent ? 'ready' : 'attention_required',
-      detail: apiKeyPresent
-        ? t('settings.accessPage.cards.key.configured')
-        : t('settings.accessPage.cards.key.missing'),
+      detail: accountStatus,
       tone: apiKeyPresent ? 'green' : 'orange',
     },
     {
-      key: 'provider',
-      title: t('settings.accessPage.cards.provider.title'),
-      status: providerStatus,
+      key: 'modelAccess',
+      title: t('settings.accessPage.cards.modelAccess.title'),
+      status: modelAccessStatus,
       detail: t('settings.accessPage.cards.provider.summary', {
         kind: providerKind || t('settings.accessPage.cards.provider.localRuntime'),
         status: temporalStatus || providerStatus,
       }),
-      help: t('settings.accessPage.cards.provider.detail'),
-      tone: providerStatus === 'ready' || providerStatus === 'ok' ? 'green' : 'orange',
+      help: t('settings.accessPage.cards.modelAccess.detail'),
+      tone: modelAccessStatus === 'ready' ? 'green' : 'orange',
     },
     {
       key: 'permission',
@@ -107,6 +120,43 @@ export const AccessSettingsContent: React.FC = () => {
         </Typography.Title>
         <Typography.Text className='text-t-secondary'>{t('settings.accessPage.description')}</Typography.Text>
       </div>
+
+      <Card bordered className='rd-8px'>
+        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+          <div className='min-w-0'>
+            <div className='flex items-center gap-8px mb-8px'>
+              <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                <CheckOne theme='outline' />
+              </span>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('settings.accessPage.modelAccount.title')}
+              </Typography.Text>
+            </div>
+            <Typography.Text className='block text-13px text-t-secondary break-words'>
+              {t('settings.accessPage.modelAccount.description')}
+            </Typography.Text>
+          </div>
+          <Space wrap>
+            <Button
+              type='primary'
+              icon={<UpdateRotation theme='outline' />}
+              loading={appStateQuery.refreshing}
+              onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
+            >
+              {t('settings.accessPage.actions.recheck')}
+            </Button>
+            <Button
+              icon={<Repair theme='outline' />}
+              onClick={() => {
+                window.location.hash = '#/settings/environment';
+              }}
+            >
+              {t('settings.accessPage.actions.fix')}
+            </Button>
+          </Space>
+        </div>
+      </Card>
+
       <div className='grid grid-cols-1 md:grid-cols-4 gap-14px'>
         {cards.map((card) => (
           <Card key={card.key} bordered className='rd-8px'>
@@ -126,7 +176,45 @@ export const AccessSettingsContent: React.FC = () => {
           {t('settings.accessPage.localServiceTechnicalDetail', { address: temporalAddress })}
         </Typography.Text>
       )}
-      <Card bordered className='rd-8px'>
+
+      <Card bordered className='rd-8px' id='web-remote'>
+        <div className='flex flex-col gap-12px'>
+          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+            <div className='min-w-0'>
+              <div className='flex items-center gap-8px mb-8px'>
+                <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                  <Earth theme='outline' />
+                </span>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.accessPage.remote.title')}
+                </Typography.Text>
+              </div>
+              <Typography.Text className='block text-13px text-t-secondary break-words'>
+                {t('settings.accessPage.remote.description')}
+              </Typography.Text>
+            </div>
+            <Space wrap>
+              <Tag color='blue'>
+                <span className='inline-flex items-center gap-4px'>
+                  <Earth theme='outline' size='14' />
+                  {t('settings.accessPage.remote.webui')}
+                </span>
+              </Tag>
+              <Tag color='gray'>
+                <span className='inline-flex items-center gap-4px'>
+                  <Toolkit theme='outline' size='14' />
+                  {t('settings.accessPage.remote.docker')}
+                </span>
+              </Tag>
+              <Tag color='blue'>
+                <span className='inline-flex items-center gap-4px'>
+                  <CheckOne theme='outline' size='14' />
+                  {t('settings.accessPage.remote.remoteAccess')}
+                </span>
+              </Tag>
+            </Space>
+          </div>
+        </div>
         <WebuiModalContent />
       </Card>
     </div>
