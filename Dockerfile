@@ -35,7 +35,9 @@ ENV NODE_ENV=production
 ENV AIONUI_ALLOW_REMOTE=1
 ENV AIONUI_DATA_DIR=/data
 
-VOLUME ["/data"]
+RUN mkdir -p /data /projects
+
+VOLUME ["/data", "/projects"]
 EXPOSE 3000
 
 CMD ["./aionui-web/aionui-web", "start", "--remote", "--port", "3000"]
