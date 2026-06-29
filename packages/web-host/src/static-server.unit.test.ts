@@ -297,6 +297,79 @@ describe('static-server', () => {
     expect(json.data.parsed).toEqual({ ok: true });
   });
 
+  it('/api/opl-runtime/configure-codex sends the API key through stdin only', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    const apiKey = 'sk-test-configure-codex-secret';
+    const logged: string[] = [];
+    await fs.mkdir(resourcesPath, { recursive: true });
+
+    const consoleSpies = [
+      vi.spyOn(console, 'log').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+      vi.spyOn(console, 'warn').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+      vi.spyOn(console, 'error').mockImplementation((...args) => logged.push(args.map(String).join(' '))),
+    ];
+
+    try {
+      const stdinEnd = vi.fn();
+      vi.mocked(spawn).mockImplementationOnce((command, args, options) => {
+        const child = new EventEmitter() as ReturnType<typeof spawn> & {
+          stdin: { end: ReturnType<typeof vi.fn> };
+          stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+          stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        };
+        child.stdin = { end: stdinEnd };
+        child.stdout = new EventEmitter() as typeof child.stdout;
+        child.stderr = new EventEmitter() as typeof child.stderr;
+        child.stdout.setEncoding = () => {};
+        child.stderr.setEncoding = () => {};
+        child.kill = vi.fn() as typeof child.kill;
+        queueMicrotask(() => {
+          child.stdout.emit('data', JSON.stringify({ configured: true }));
+          child.emit('close', 0);
+        });
+        expect(command).toBe('opl');
+        expect(args).toEqual(['system', 'configure-codex', '--api-key-stdin', '--json']);
+        expect(JSON.stringify(args)).not.toContain(apiKey);
+        expect((options as { stdio?: unknown[] }).stdio?.[0]).toBe('pipe');
+        return child;
+      });
+
+      handle = await startStaticServer({
+        staticDir,
+        backendPort: backend.port,
+        port: 0,
+        oplRuntimeProxy: { dataDir, projectsDir, resourcesPath },
+      });
+
+      const r = await fetch(`${handle.localUrl}/api/opl-runtime/configure-codex`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey }),
+      });
+      expect(r.status).toBe(200);
+      const json = (await r.json()) as {
+        success: boolean;
+        data: { command: string; surface: string; parsed: unknown };
+      };
+      expect(json.success).toBe(true);
+      expect(json.data.surface).toBe('configure_codex');
+      expect(json.data.command).toBe('opl system configure-codex --api-key-stdin --json');
+      expect(json.data.parsed).toEqual({ configured: true });
+      expect(stdinEnd).toHaveBeenCalledWith(`${apiKey}\n`);
+      expect(JSON.stringify(json)).not.toContain(apiKey);
+      expect(logged.join('\n')).not.toContain(apiKey);
+    } finally {
+      for (const spy of consoleSpies) spy.mockRestore();
+    }
+  });
+
   it('/api/opl-runtime/* passes packaged image manifest and seed env to OPL commands', async () => {
     const backend = await startMockBackend((_req, res) => {
       res.writeHead(500, { 'content-type': 'application/json' });
