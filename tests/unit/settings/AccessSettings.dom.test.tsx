@@ -9,6 +9,11 @@ type AccessSettingsTestMocks = {
   load: ReturnType<typeof vi.fn>;
 };
 
+const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
+  configureCodexInvoke: vi.fn(),
+  load: vi.fn(),
+}));
+
 if (typeof globalThis.document === 'undefined') {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
   Object.defineProperty(globalThis, 'window', { value: dom.window, configurable: true });
@@ -44,8 +49,7 @@ Object.defineProperty(globalThis, 'cancelAnimationFrame', {
 Object.defineProperty(Element.prototype, 'scrollTo', { value: () => {}, configurable: true });
 Object.defineProperty(Element.prototype, 'scrollIntoView', { value: () => {}, configurable: true });
 
-const getMocks = (): AccessSettingsTestMocks =>
-  (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks;
+const getMocks = (): AccessSettingsTestMocks => accessSettingsMocks;
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
@@ -127,20 +131,10 @@ vi.mock('@arco-design/web-react', () => {
 });
 
 vi.mock('@/common', () => ({
-  get ipcBridge() {
-    const configureCodexInvoke = vi.fn();
-    const current = (globalThis as typeof globalThis & { __accessSettingsMocks?: Partial<AccessSettingsTestMocks> })
-      .__accessSettingsMocks;
-    (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks = {
-      load: current?.load ?? vi.fn(),
-      configureCodexInvoke,
-    };
-
-    return {
-      oplRuntime: {
-        configureCodex: { invoke: configureCodexInvoke },
-      },
-    };
+  ipcBridge: {
+    oplRuntime: {
+      configureCodex: { invoke: accessSettingsMocks.configureCodexInvoke },
+    },
   },
 }));
 
@@ -148,14 +142,6 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => {
-    const current = (globalThis as typeof globalThis & { __accessSettingsMocks?: Partial<AccessSettingsTestMocks> })
-      .__accessSettingsMocks;
-    const load = current?.load ?? vi.fn();
-    (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks = {
-      configureCodexInvoke: current?.configureCodexInvoke ?? vi.fn(),
-      load,
-    };
-
     return {
       appState: {
         core: {
@@ -183,7 +169,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           },
         },
       },
-      load,
+      load: accessSettingsMocks.load,
       refreshing: false,
     };
   },
