@@ -89,10 +89,14 @@ ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli
 RUN mkdir -p /data /projects \
   && chmod 755 /opt/opl/entrypoint.sh \
   && test -z "$(find /opt/opl/seed/payload -xtype l -print -quit)" \
-  && ln -sf /opt/opl/seed/payload/opl_framework/bin/opl /usr/local/bin/opl \
+  && test -f /opt/opl/seed/payload/opl_framework/bin/opl \
+  && printf '%s\n' '#!/usr/bin/env sh' \
+    'exec node /opt/opl/seed/payload/opl_framework/bin/opl "$@"' \
+    > /usr/local/bin/opl \
   && printf '%s\n' '#!/usr/bin/env sh' \
     'exec node /opt/opl/seed/payload/codex_cli/lib/node_modules/@openai/codex/bin/codex.js "$@"' \
     > /usr/local/bin/codex \
+  && chmod 755 /usr/local/bin/opl \
   && chmod 755 /usr/local/bin/codex \
   && test -x /usr/local/bin/opl \
   && test -x /usr/local/bin/codex
