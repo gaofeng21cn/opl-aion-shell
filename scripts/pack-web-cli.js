@@ -10,14 +10,46 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n');
 }
 
-function buildOplImageSeedMetadata() {
+function copySeedSourceIfPresent(projectRoot, seedDir) {
+  const sourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
+  if (!fs.existsSync(sourceDir)) return false;
+  if (!fs.statSync(sourceDir).isDirectory()) {
+    throw new Error(`OPL image seed source must be a directory: ${sourceDir}`);
+  }
+  fs.cpSync(sourceDir, seedDir, { recursive: true });
+  return true;
+}
+
+function buildSeedComponent(id, version) {
+  return {
+    id,
+    version,
+    source: 'image_manifest',
+    payload_path: `payload/${id}`,
+    receipt_kind: `${id}_seed_payload_receipt`,
+    source_fingerprint: `opl-webui-seed:${id}:${version}`,
+  };
+}
+
+function buildOplImageSeedMetadata({ version = '0.0.0' } = {}) {
+  const components = [
+    buildSeedComponent('opl_framework', version),
+    buildSeedComponent('codex_cli', version),
+    buildSeedComponent('companion_skills', version),
+    buildSeedComponent('domain_modules', version),
+  ];
   return {
     schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
-    strategy: 'metadata_only',
+    strategy: 'payload_manifest',
     applies_to: 'docker-webui-runtime-image',
     data_dir: '/data',
     projects_dir: '/projects',
-    note: 'Framework seed application is owned by OPL; this package only exposes stable metadata and paths.',
+    components,
+    full_profile: {
+      components,
+    },
+    payload_dir: 'payload',
+    note: 'Framework seed application is owned by OPL. This package exposes a stable manifest plus payload directory for Framework-owned payloads.',
   };
 }
 
@@ -40,11 +72,12 @@ function buildOplImageManifest({ packageName, version, runtimeKey }) {
     },
     data_dir: '/data',
     projects_dir: '/projects',
-    seed_strategy: 'metadata_only',
-    seed_dir: 'opl-image-seed',
+    seed_strategy: 'payload_manifest',
+    seed_dir: '/opt/opl/seed',
+    seed_metadata: '/opt/opl/seed/metadata.json',
     environment: {
-      OPL_IMAGE_MANIFEST_PATH: '/app/aionui-web/opl-image-manifest.json',
-      OPL_IMAGE_SEED_DIR: '/app/aionui-web/opl-image-seed',
+      OPL_IMAGE_MANIFEST_PATH: '/opt/opl/image-manifest.json',
+      OPL_IMAGE_SEED_DIR: '/opt/opl/seed',
       OPL_DATA_DIR: '/data',
       OPL_PROJECTS_DIR: '/projects',
       OPL_WORKSPACE_ROOT: '/projects',
@@ -54,8 +87,13 @@ function buildOplImageManifest({ packageName, version, runtimeKey }) {
 
 function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey }) {
   const seedDir = path.join(tarballContentDir, 'opl-image-seed');
+  const seedPayloadDir = path.join(seedDir, 'payload');
   fs.mkdirSync(seedDir, { recursive: true });
-  writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata());
+  const copiedSeedSource = copySeedSourceIfPresent(projectRoot, seedDir);
+  fs.mkdirSync(seedPayloadDir, { recursive: true });
+  if (!copiedSeedSource || !fs.existsSync(path.join(seedDir, 'metadata.json'))) {
+    writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata({ version }));
+  }
   writeJson(
     path.join(tarballContentDir, 'opl-image-manifest.json'),
     buildOplImageManifest({ packageName: srcPkg.name, version, runtimeKey })
@@ -78,6 +116,7 @@ if (require.main !== module) {
   module.exports = {
     buildOplImageManifest,
     buildOplImageSeedMetadata,
+    copySeedSourceIfPresent,
     copyBundledAioncoreForTarball,
     writeOplImageResources,
   };

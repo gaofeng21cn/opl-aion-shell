@@ -37,11 +37,12 @@ describe('pack-web-cli OPL image resources', () => {
       bootstrap: { path: 'opl-install.sh' },
       data_dir: '/data',
       projects_dir: '/projects',
-      seed_strategy: 'metadata_only',
-      seed_dir: 'opl-image-seed',
+      seed_strategy: 'payload_manifest',
+      seed_dir: '/opt/opl/seed',
+      seed_metadata: '/opt/opl/seed/metadata.json',
       environment: {
-        OPL_IMAGE_MANIFEST_PATH: '/app/aionui-web/opl-image-manifest.json',
-        OPL_IMAGE_SEED_DIR: '/app/aionui-web/opl-image-seed',
+        OPL_IMAGE_MANIFEST_PATH: '/opt/opl/image-manifest.json',
+        OPL_IMAGE_SEED_DIR: '/opt/opl/seed',
         OPL_DATA_DIR: '/data',
         OPL_PROJECTS_DIR: '/projects',
         OPL_WORKSPACE_ROOT: '/projects',
@@ -69,8 +70,65 @@ describe('pack-web-cli OPL image resources', () => {
     const entrypointMode = fs.statSync(path.join(tarballContentDir, 'opl-webui-entrypoint.sh')).mode & 0o777;
 
     expect(manifest.bundled_aioncore.platforms).toEqual(['linux-x64']);
-    expect(seed).toEqual(buildOplImageSeedMetadata());
+    expect(seed).toEqual(buildOplImageSeedMetadata({ version: '2.1.17' }));
+    expect(seed.components.map((component: { id: string }) => component.id).sort()).toEqual([
+      'codex_cli',
+      'companion_skills',
+      'domain_modules',
+      'opl_framework',
+    ]);
+    expect(seed.full_profile.components).toEqual(seed.components);
+    expect(fs.statSync(path.join(tarballContentDir, 'opl-image-seed', 'payload')).isDirectory()).toBe(true);
     expect(entrypointMode).toBe(0o755);
+  });
+
+  it('copies a Framework-provided seed metadata and payload directory when present', () => {
+    const projectRoot = path.join(tmp, 'repo');
+    const tarballContentDir = path.join(tmp, 'staging', 'aionui-web');
+    const seedSourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
+    fs.mkdirSync(path.join(seedSourceDir, 'payload', 'framework'), { recursive: true });
+    fs.mkdirSync(tarballContentDir, { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'resources', 'opl-webui-entrypoint.sh'), '#!/usr/bin/env sh\n');
+    const components = [
+      {
+        id: 'opl_framework',
+        version: 'framework-ref',
+        source: 'framework-lane',
+        payload_path: 'payload/framework/seed.json',
+        receipt_kind: 'framework_seed_payload_receipt',
+        source_fingerprint: 'sha256:framework',
+      },
+    ];
+    fs.writeFileSync(
+      path.join(seedSourceDir, 'metadata.json'),
+      JSON.stringify(
+        {
+          schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
+          strategy: 'payload_preheated',
+          components,
+          full_profile: { components },
+          payload_dir: 'payload',
+        },
+        null,
+        2
+      ) + '\n'
+    );
+    fs.writeFileSync(path.join(seedSourceDir, 'payload', 'framework', 'seed.json'), '{"ok":true}\n');
+
+    writeOplImageResources({
+      projectRoot,
+      tarballContentDir,
+      srcPkg: { name: '@aionui/web-cli' },
+      version: '2.1.17',
+      runtimeKey: 'linux-x64',
+    });
+
+    const seed = JSON.parse(fs.readFileSync(path.join(tarballContentDir, 'opl-image-seed', 'metadata.json'), 'utf8'));
+    expect(seed.strategy).toBe('payload_preheated');
+    expect(seed.full_profile.components[0].source_fingerprint).toBe('sha256:framework');
+    expect(
+      fs.readFileSync(path.join(tarballContentDir, 'opl-image-seed', 'payload', 'framework', 'seed.json'), 'utf8')
+    ).toBe('{"ok":true}\n');
   });
 
   it.skipIf(process.platform === 'win32')('copies bundled aioncore with relocatable managed Node npm symlinks', () => {

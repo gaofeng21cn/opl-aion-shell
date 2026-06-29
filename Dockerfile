@@ -29,6 +29,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/dist-web-cli/staging/aionui-web ./aionui-web
+COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-image-manifest.json /opt/opl/image-manifest.json
+COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-image-seed /opt/opl/seed
+COPY --from=builder /app/dist-web-cli/staging/aionui-web/opl-webui-entrypoint.sh /opt/opl/entrypoint.sh
 
 ENV PORT=3000
 ENV NODE_ENV=production
@@ -38,13 +41,14 @@ ENV AIONUI_DATA_DIR=/data
 ENV OPL_DATA_DIR=/data
 ENV OPL_PROJECTS_DIR=/projects
 ENV OPL_WORKSPACE_ROOT=/projects
-ENV OPL_IMAGE_MANIFEST_PATH=/app/aionui-web/opl-image-manifest.json
-ENV OPL_IMAGE_SEED_DIR=/app/aionui-web/opl-image-seed
+ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
+ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
 
-RUN mkdir -p /data /projects
+RUN mkdir -p /data /projects \
+  && chmod 755 /opt/opl/entrypoint.sh
 
 VOLUME ["/data", "/projects"]
 EXPOSE 3000
 
-ENTRYPOINT ["tini", "--", "./aionui-web/opl-webui-entrypoint.sh"]
+ENTRYPOINT ["tini", "--", "/opt/opl/entrypoint.sh"]
 CMD ["start", "--remote", "--port", "3000"]
