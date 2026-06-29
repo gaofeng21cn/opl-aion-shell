@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 const {
   buildOplImageManifest,
   buildOplImageSeedMetadata,
+  copyBundledAioncoreForTarball,
   writeOplImageResources,
 } = require('../../../scripts/pack-web-cli.js');
 
@@ -70,5 +71,30 @@ describe('pack-web-cli OPL image resources', () => {
     expect(manifest.bundled_aioncore.platforms).toEqual(['linux-x64']);
     expect(seed).toEqual(buildOplImageSeedMetadata());
     expect(entrypointMode).toBe(0o755);
+  });
+
+  it.skipIf(process.platform === 'win32')('copies bundled aioncore with relocatable managed Node npm symlinks', () => {
+    const backendSrc = path.join(tmp, 'repo', 'resources', 'bundled-aioncore', 'linux-arm64');
+    const backendDest = path.join(tmp, 'staging', 'aionui-web', 'bundled-aioncore', 'linux-arm64');
+    const srcNodeRoot = path.join(backendSrc, 'managed-resources', 'node', 'node-v24.11.0-linux-arm64');
+    const destNodeRoot = path.join(backendDest, 'managed-resources', 'node', 'node-v24.11.0-linux-arm64');
+
+    fs.mkdirSync(path.join(srcNodeRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(srcNodeRoot, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(srcNodeRoot, 'bin', 'node'), 'node');
+    fs.writeFileSync(path.join(srcNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'npm');
+    fs.symlinkSync(
+      path.join(srcNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+      path.join(srcNodeRoot, 'bin', 'npm')
+    );
+
+    copyBundledAioncoreForTarball({ backendSrc, backendDest });
+
+    expect(fs.readlinkSync(path.join(destNodeRoot, 'bin', 'npm'))).toBe(
+      '../lib/node_modules/npm/bin/npm-cli.js'
+    );
+    expect(fs.realpathSync(path.join(destNodeRoot, 'bin', 'npm'))).toBe(
+      fs.realpathSync(path.join(destNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+    );
   });
 });

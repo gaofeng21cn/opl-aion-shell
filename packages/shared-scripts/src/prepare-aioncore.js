@@ -29,17 +29,9 @@ const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
   'share',
-  'lib/node_modules/npm',
   'lib/node_modules/corepack',
-  'node_modules/npm',
   'node_modules/corepack',
-  'bin/npm',
-  'bin/npx',
   'bin/corepack',
-  'npm',
-  'npm.cmd',
-  'npx',
-  'npx.cmd',
   'corepack',
   'corepack.cmd',
 ];
@@ -204,11 +196,64 @@ function removeEmptyDirectoriesUpTo(startDir, stopDir) {
   }
 }
 
+function isPathInside(childPath, parentPath) {
+  const relative = path.relative(parentPath, childPath);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function realpathIfPresent(targetPath) {
+  try {
+    return fs.realpathSync(targetPath);
+  } catch {
+    return path.resolve(targetPath);
+  }
+}
+
+function normalizeInternalSymlinks(rootDir, options = {}, currentDir = rootDir, result = []) {
+  if (!fs.existsSync(currentDir) || !fs.statSync(currentDir).isDirectory()) {
+    return result;
+  }
+
+  const sourceRootDir = options.sourceRootDir || rootDir;
+  const resolvedSourceRootDir = realpathIfPresent(sourceRootDir);
+
+  for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+    const absolutePath = path.join(currentDir, entry.name);
+
+    if (entry.isSymbolicLink()) {
+      const linkTarget = fs.readlinkSync(absolutePath);
+      if (!path.isAbsolute(linkTarget)) {
+        continue;
+      }
+
+      const normalizedTarget = path.normalize(linkTarget);
+      const resolvedTarget = realpathIfPresent(normalizedTarget);
+      if (!isPathInside(resolvedTarget, resolvedSourceRootDir)) {
+        continue;
+      }
+
+      const relocatedTarget = path.join(rootDir, path.relative(resolvedSourceRootDir, resolvedTarget));
+      const relativeTarget = path.relative(path.dirname(absolutePath), relocatedTarget) || '.';
+      fs.rmSync(absolutePath, { force: true });
+      fs.symlinkSync(relativeTarget, absolutePath);
+      result.push(path.relative(rootDir, absolutePath).split(path.sep).join('/'));
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      normalizeInternalSymlinks(rootDir, options, absolutePath, result);
+    }
+  }
+
+  return result;
+}
+
 function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platform) {
   const nodeRoot = path.join(managedResourcesDir, 'node');
   const result = {
     pruned: [],
     checkedExecutables: [],
+    normalizedSymlinks: [],
   };
 
   if (!fs.existsSync(nodeRoot) || !fs.statSync(nodeRoot).isDirectory()) {
@@ -239,6 +284,12 @@ function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platfor
         result.pruned.push(path.relative(managedResourcesDir, targetPath).split(path.sep).join('/'));
         removeEmptyDirectoriesUpTo(path.dirname(targetPath), versionDir);
       }
+    }
+
+    for (const normalizedSymlink of normalizeInternalSymlinks(versionDir)) {
+      result.normalizedSymlinks.push(
+        path.join('node', version, normalizedSymlink).split(path.sep).join('/')
+      );
     }
   }
 
@@ -773,10 +824,12 @@ function prepareAioncore(options) {
 module.exports = {
   getActionsArtifactName,
   getActionsArtifactMissingMessage,
+  normalizeInternalSymlinks,
   prepareAioncore,
   __test__: {
     downloadFile,
     getManagedResourcePrepareEnv,
+    normalizeInternalSymlinks,
     prepareAioncore,
     prepareManagedResources,
     runDownloadOnce,

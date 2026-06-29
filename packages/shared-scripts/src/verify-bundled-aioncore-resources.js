@@ -13,6 +13,10 @@ function nodeExecutableParts(platform) {
   return platform === 'win32' ? [nodeBinaryName(platform)] : ['bin', nodeBinaryName(platform)];
 }
 
+function npmExecutableParts(platform) {
+  return platform === 'win32' ? ['npm.cmd'] : ['bin', 'npm'];
+}
+
 function normalize(relativePath) {
   return relativePath.split(path.sep).join('/');
 }
@@ -44,12 +48,23 @@ function isFile(filePath) {
   return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
 }
 
-function addDanglingSymlinks(root, baseDir, runtimeKey, missing) {
+function isPathInside(childPath, parentPath) {
+  const relative = path.relative(parentPath, childPath);
+  return relative === '' || (!!relative && !relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function addInvalidSymlinks(root, baseDir, runtimeKey, missing) {
   if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return;
 
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     const absolutePath = path.join(root, entry.name);
     if (entry.isSymbolicLink()) {
+      const linkTarget = fs.readlinkSync(absolutePath);
+      if (path.isAbsolute(linkTarget) && isPathInside(path.normalize(linkTarget), baseDir)) {
+        missing.push(bundledPath(runtimeKey, path.relative(baseDir, absolutePath)));
+        continue;
+      }
+
       try {
         fs.statSync(absolutePath);
       } catch (error) {
@@ -63,7 +78,7 @@ function addDanglingSymlinks(root, baseDir, runtimeKey, missing) {
     }
 
     if (entry.isDirectory()) {
-      addDanglingSymlinks(absolutePath, baseDir, runtimeKey, missing);
+      addInvalidSymlinks(absolutePath, baseDir, runtimeKey, missing);
     }
   }
 }
@@ -94,28 +109,32 @@ function addSizeAccounting(accounting, runtimeKey, label, baseDir, ...parts) {
 function requireManagedNode(baseDir, runtimeKey, platform, checked, missing) {
   const nodeRoot = path.join(baseDir, 'managed-resources', 'node');
   const versions = readDirectories(nodeRoot);
-  const executableParts = nodeExecutableParts(platform);
+  const requiredExecutables = [nodeExecutableParts(platform), npmExecutableParts(platform)];
 
   if (versions.length === 0) {
-    const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
-    checked.push(relativePath);
-    missing.push(relativePath);
+    for (const executableParts of requiredExecutables) {
+      const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
+      checked.push(relativePath);
+      missing.push(relativePath);
+    }
     return;
   }
 
-  const executableFound = versions.some((version) => {
-    const executablePath = path.join(nodeRoot, version, ...executableParts);
-    return isFile(executablePath);
-  });
+  for (const executableParts of requiredExecutables) {
+    const executableFound = versions.some((version) => {
+      const executablePath = path.join(nodeRoot, version, ...executableParts);
+      return isFile(executablePath);
+    });
 
-  const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
-  checked.push(relativePath);
+    const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
+    checked.push(relativePath);
 
-  if (!executableFound) {
-    missing.push(relativePath);
+    if (!executableFound) {
+      missing.push(relativePath);
+    }
   }
 
-  addDanglingSymlinks(nodeRoot, baseDir, runtimeKey, missing);
+  addInvalidSymlinks(nodeRoot, baseDir, runtimeKey, missing);
 }
 
 function readManifest(manifestPath) {

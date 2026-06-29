@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync } = require('child_process');
-const { prepareAioncore } = require('../packages/shared-scripts/src/prepare-aioncore.js');
+const { normalizeInternalSymlinks, prepareAioncore } = require('../packages/shared-scripts/src/prepare-aioncore.js');
 const { resolveAioncoreVersion } = require('./resolveAioncoreVersion.js');
 
 function writeJson(filePath, value) {
@@ -68,10 +68,17 @@ function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, versio
   fs.chmodSync(path.join(tarballContentDir, 'opl-webui-entrypoint.sh'), 0o755);
 }
 
+function copyBundledAioncoreForTarball({ backendSrc, backendDest }) {
+  fs.mkdirSync(path.dirname(backendDest), { recursive: true });
+  fs.cpSync(backendSrc, backendDest, { recursive: true });
+  normalizeInternalSymlinks(backendDest, { sourceRootDir: backendSrc });
+}
+
 if (require.main !== module) {
   module.exports = {
     buildOplImageManifest,
     buildOplImageSeedMetadata,
+    copyBundledAioncoreForTarball,
     writeOplImageResources,
   };
   return;
@@ -155,8 +162,7 @@ const backendDest = path.join(tarballContentDir, 'bundled-aioncore', runtimeKey)
 if (!fs.existsSync(backendSrc)) {
   throw new Error(`Backend bundle dir missing at ${backendSrc}. Ensure prepareAioncore succeeded.`);
 }
-fs.mkdirSync(path.dirname(backendDest), { recursive: true });
-fs.cpSync(backendSrc, backendDest, { recursive: true });
+copyBundledAioncoreForTarball({ backendSrc, backendDest });
 
 // 8. Copy the standard OPL bootstrap installer used by Docker/WebUI first-run.
 const oplInstallerSrc = path.join(projectRoot, 'resources', 'opl-install.sh');

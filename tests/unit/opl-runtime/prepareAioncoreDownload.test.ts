@@ -132,6 +132,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
       path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'),
       'node'
     );
+    fs.writeFileSync(
+      path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'),
+      'npm'
+    );
 
     for (const tool of ['codex-acp', 'claude-agent-acp']) {
       const toolRoot = path.join(cacheRuntimeDir, 'managed-resources', 'acp', tool, '0.1.0', 'darwin-arm64');
@@ -185,6 +189,9 @@ describe('prepare-aioncore prepared runtime cache', () => {
         fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'))
       ).toBe(true);
       expect(
+        fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'))
+      ).toBe(true);
+      expect(
         fs.readlinkSync(
           path.join(
             targetDir,
@@ -210,7 +217,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
 });
 
 describe('prepare-aioncore managed Node pruning', () => {
-  it('removes package-manager payloads while keeping the runtime node executable', () => {
+  it('keeps npm payloads while pruning non-runtime Node resources', () => {
     const dir = makeTempDir();
     const managedResourcesDir = path.join(dir, 'managed-resources');
     const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-darwin-arm64');
@@ -232,20 +239,26 @@ describe('prepare-aioncore managed Node pruning', () => {
     const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'darwin');
 
     expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'node'))).toBe(true);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe(false);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npx'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe(true);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'npx'))).toBe(true);
     expect(fs.existsSync(path.join(nodeVersionDir, 'bin', 'corepack'))).toBe(false);
     expect(fs.existsSync(path.join(nodeVersionDir, 'include'))).toBe(false);
     expect(fs.existsSync(path.join(nodeVersionDir, 'share'))).toBe(false);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm'))).toBe(true);
     expect(fs.existsSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'corepack'))).toBe(false);
     expect(result.checkedExecutables).toEqual(['node/node-v24.11.0-darwin-arm64/bin/node']);
     expect(result.pruned).toEqual(
       expect.arrayContaining([
         'node/node-v24.11.0-darwin-arm64/include',
         'node/node-v24.11.0-darwin-arm64/share',
-        'node/node-v24.11.0-darwin-arm64/lib/node_modules/npm',
         'node/node-v24.11.0-darwin-arm64/lib/node_modules/corepack',
+      ])
+    );
+    expect(result.pruned).not.toEqual(
+      expect.arrayContaining([
+        'node/node-v24.11.0-darwin-arm64/bin/npm',
+        'node/node-v24.11.0-darwin-arm64/bin/npx',
+        'node/node-v24.11.0-darwin-arm64/lib/node_modules/npm',
       ])
     );
   });
@@ -277,7 +290,29 @@ describe('prepare-aioncore managed Node pruning', () => {
     }
   );
 
-  it('removes Windows package-manager payloads while keeping node.exe', () => {
+  it.skipIf(process.platform === 'win32')('normalizes internal absolute symlinks so bundles remain relocatable', () => {
+    const dir = makeTempDir();
+    const managedResourcesDir = path.join(dir, 'managed-resources');
+    const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-linux-arm64');
+
+    fs.mkdirSync(path.join(nodeVersionDir, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(nodeVersionDir, 'bin', 'node'), 'node');
+    fs.writeFileSync(path.join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'npm');
+    fs.symlinkSync(
+      path.join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+      path.join(nodeVersionDir, 'bin', 'npm')
+    );
+
+    const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'linux');
+
+    expect(fs.readlinkSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe(
+      '../lib/node_modules/npm/bin/npm-cli.js'
+    );
+    expect(result.normalizedSymlinks).toEqual(['node/node-v24.11.0-linux-arm64/bin/npm']);
+  });
+
+  it('keeps Windows npm payloads while pruning corepack', () => {
     const dir = makeTempDir();
     const managedResourcesDir = path.join(dir, 'managed-resources');
     const nodeVersionDir = path.join(managedResourcesDir, 'node', 'node-v24.11.0-win-x64');
@@ -294,10 +329,10 @@ describe('prepare-aioncore managed Node pruning', () => {
     const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'win32');
 
     expect(fs.existsSync(path.join(nodeVersionDir, 'node.exe'))).toBe(true);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'npm.cmd'))).toBe(false);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'npx.cmd'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'npm.cmd'))).toBe(true);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'npx.cmd'))).toBe(true);
     expect(fs.existsSync(path.join(nodeVersionDir, 'corepack.cmd'))).toBe(false);
-    expect(fs.existsSync(path.join(nodeVersionDir, 'node_modules', 'npm'))).toBe(false);
+    expect(fs.existsSync(path.join(nodeVersionDir, 'node_modules', 'npm'))).toBe(true);
     expect(fs.existsSync(path.join(nodeVersionDir, 'node_modules', 'corepack'))).toBe(false);
     expect(result.checkedExecutables).toEqual(['node/node-v24.11.0-win-x64/node.exe']);
   });
