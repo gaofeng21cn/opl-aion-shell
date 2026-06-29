@@ -12,6 +12,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'access',
     'capabilities',
     'environment',
+    'storage',
     'appearance',
     'advanced',
     'about',
@@ -28,6 +29,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     display: 'appearance',
     webui: 'access',
     pet: 'appearance',
+    storage: 'storage',
   }),
 }));
 
@@ -35,13 +37,14 @@ const t = (key: string, options?: { defaultValue?: string }) => options?.default
 
 describe('settingsNav App-owned tabs', () => {
   it('exposes the ordinary Settings tabs in App product order', () => {
-    expect(BUILTIN_TAB_IDS).toEqual(['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced']);
+    expect(BUILTIN_TAB_IDS).toEqual(['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced']);
     expect(SETTINGS_DEFAULT_ROUTE).toBe('/settings/general');
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
       'Overview',
       'Get Started',
       'Capabilities',
       'Maintenance',
+      'Storage',
       'Preferences',
       'Advanced',
     ]);
@@ -57,6 +60,7 @@ describe('settingsNav App-owned tabs', () => {
       assistants: '/settings/capabilities',
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
+      storage: '/settings/storage',
       display: '/settings/appearance',
       webui: '/settings/access',
       pet: '/settings/appearance',
