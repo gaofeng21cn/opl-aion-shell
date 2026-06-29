@@ -121,12 +121,17 @@ export type OplCodexModelDisplayModel = {
 
 export type OplCodexModelDisplayOptions = {
   display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu';
+  button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort';
   raw_model_id_visible_in_ordinary_ui: false;
   reasoning_effort_visible_for_every_option: false;
   reasoning_effort_menu_visible: true;
+  reasoning_menu_title_zh: string;
+  reasoning_menu_title_en: string;
   reasoning_effort_override_surface: 'model_configuration_menu';
   reasoning_effort_options_source: 'acp_codex_config_options_enum';
   default_reasoning_effort: OplCodexReasoningEffort;
+  auto_option_current_resolution_visible: true;
+  model_menu_policy: 'last_submenu_collapsed_by_default';
   auto_option: {
     id: '__auto';
     label_zh: string;
@@ -231,6 +236,8 @@ type AppProductProfile = {
       codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu';
       codex_auto_model_selection: {
         strategy: 'codex_cli_auto_latest_available_frontier';
+        model_list_source?: 'codex_cli_handshake_available_models';
+        frontier_model_preference_order_role?: 'fallback_when_codex_cli_model_list_unavailable';
         user_can_override_model: boolean;
         user_can_override_reasoning_effort?: boolean;
         user_can_restore_auto: boolean;
@@ -469,11 +476,16 @@ function readCodexModelDisplayOptions(
   }
   if (
     value.display_policy !== 'friendly_model_name_primary_reasoning_configurable_in_model_menu' ||
+    value.button_label_policy !== 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort' ||
     value.raw_model_id_visible_in_ordinary_ui !== false ||
     value.reasoning_effort_visible_for_every_option !== false ||
     value.reasoning_effort_menu_visible !== true ||
+    value.reasoning_menu_title_zh !== '推理' ||
+    value.reasoning_menu_title_en !== 'Reasoning' ||
     value.reasoning_effort_override_surface !== 'model_configuration_menu' ||
     value.reasoning_effort_options_source !== 'acp_codex_config_options_enum' ||
+    value.auto_option_current_resolution_visible !== true ||
+    value.model_menu_policy !== 'last_submenu_collapsed_by_default' ||
     value.fixed_model_description_zh !== '固定此模型' ||
     value.fixed_model_description_en !== 'Use this model'
   ) {
@@ -579,12 +591,17 @@ function readCodexModelDisplayOptions(
 
   return {
     display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu',
+    button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort',
     raw_model_id_visible_in_ordinary_ui: false,
     reasoning_effort_visible_for_every_option: false,
     reasoning_effort_menu_visible: true,
+    reasoning_menu_title_zh: '推理',
+    reasoning_menu_title_en: 'Reasoning',
     reasoning_effort_override_surface: 'model_configuration_menu',
     reasoning_effort_options_source: 'acp_codex_config_options_enum',
     default_reasoning_effort: displayDefaultReasoningEffort,
+    auto_option_current_resolution_visible: true,
+    model_menu_policy: 'last_submenu_collapsed_by_default',
     auto_option: {
       id: '__auto',
       label_zh: '自动（推荐）',
@@ -1245,6 +1262,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (
     !isRecord(autoModelSelection) ||
     autoModelSelection.strategy !== 'codex_cli_auto_latest_available_frontier' ||
+    autoModelSelection.model_list_source !== 'codex_cli_handshake_available_models' ||
+    autoModelSelection.frontier_model_preference_order_role !== 'fallback_when_codex_cli_model_list_unavailable' ||
     autoModelSelection.user_can_override_model !== true ||
     autoModelSelection.user_can_restore_auto !== true ||
     autoModelSelection.selection_persists_into_conversation !== true
@@ -1395,6 +1414,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu',
         codex_auto_model_selection: {
           strategy: 'codex_cli_auto_latest_available_frontier',
+          model_list_source: 'codex_cli_handshake_available_models',
+          frontier_model_preference_order_role: 'fallback_when_codex_cli_model_list_unavailable',
           user_can_override_model: true,
           ...(autoModelSelection.user_can_override_reasoning_effort === true
             ? { user_can_override_reasoning_effort: true }

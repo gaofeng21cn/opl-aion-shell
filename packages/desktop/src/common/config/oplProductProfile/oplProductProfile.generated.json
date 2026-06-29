@@ -76,6 +76,8 @@
       },
       "codex_auto_model_selection": {
         "strategy": "codex_cli_auto_latest_available_frontier",
+        "model_list_source": "codex_cli_handshake_available_models",
+        "frontier_model_preference_order_role": "fallback_when_codex_cli_model_list_unavailable",
         "user_can_override_model": true,
         "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
@@ -84,12 +86,17 @@
       },
       "codex_model_display_options": {
         "display_policy": "friendly_model_name_primary_reasoning_configurable_in_model_menu",
+        "button_label_policy": "auto_or_fixed_model_compact_label_with_selected_reasoning_effort",
         "raw_model_id_visible_in_ordinary_ui": false,
         "reasoning_effort_visible_for_every_option": false,
         "reasoning_effort_menu_visible": true,
+        "reasoning_menu_title_zh": "推理",
+        "reasoning_menu_title_en": "Reasoning",
         "reasoning_effort_override_surface": "model_configuration_menu",
         "reasoning_effort_options_source": "acp_codex_config_options_enum",
         "default_reasoning_effort": "xhigh",
+        "auto_option_current_resolution_visible": true,
+        "model_menu_policy": "last_submenu_collapsed_by_default",
         "auto_option": {
           "id": "__auto",
           "label_zh": "自动（推荐）",

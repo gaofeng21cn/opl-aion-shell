@@ -292,14 +292,14 @@ const ChatConversation: React.FC<{
     );
   }, [t]);
 
-  // ACP conversations expose the same model selector surface; Codex resolves
-  // its default through the App-owned auto-latest policy and hides the selector
-  // on the ordinary OPL App path. Mobile model selection moves into the
-  // sendbox `+` action sheet, so the header selector is suppressed.
+  // ACP and Codex conversations expose the same model selector surface; Codex
+  // resolves its default through the App-owned auto-latest policy. Mobile model
+  // selection moves into the sendbox `+` action sheet, so the header selector is
+  // suppressed.
   const modelSelector = useMemo(() => {
     if (!conversation || isAionrsConversation) return undefined;
     if (isMobile) return undefined;
-    if (isLegacyReadOnlyConversation) return undefined;
+    if (isLegacyReadOnlyConversation && conversation.type !== 'codex') return undefined;
     if (conversation.type === 'acp') {
       const extra = conversation.extra as { backend?: string; current_model_id?: string };
       if (extra.backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplConversationModelSelector()) {
@@ -314,8 +314,19 @@ const ChatConversation: React.FC<{
         />
       );
     }
-    if (conversation.type === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplConversationModelSelector()) {
-      return undefined;
+    if (conversation.type === 'codex' && isOplCodexCliFixedExecutor()) {
+      if (!shouldShowOplConversationModelSelector()) {
+        return undefined;
+      }
+      const extra = conversation.extra as { current_model_id?: string; codexModel?: string } | undefined;
+      return (
+        <AcpModelSelector
+          conversation_id={conversation.id}
+          backend='codex'
+          initialModelId={extra?.current_model_id ?? extra?.codexModel}
+          waitForWarmup
+        />
+      );
     }
     return <GoogleModelSelector disabled={true} />;
   }, [conversation, isAionrsConversation, isMobile, isLegacyReadOnlyConversation]);

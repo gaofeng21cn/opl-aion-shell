@@ -19,12 +19,13 @@ import {
 } from '@/common/config/oplProductProfile';
 import {
   buildOplCodexAutoModelOption,
+  formatOplCodexCompactModelLabel,
   formatOplCodexModelDisplay,
-  formatOplCodexReasoningLabel,
+  formatOplCodexReasoningMenuLabel,
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { Brain, Down } from '@icon-park/react';
+import { Brain, Check, Down } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
@@ -37,8 +38,6 @@ const configErrorMessageKey = (error: unknown) => {
   }
   return 'agent.config.failed';
 };
-
-const normalizeReasoningMenuLabel = (label: string): string => label.replace(/^推理/, '');
 
 /**
  * Model selector for ACP-based agents. Renders three states:
@@ -103,8 +102,14 @@ const AcpModelSelector: React.FC<{
   const selectedModelLabel =
     useOplCodexModelDisplay && oplCurrentModelDisplay
       ? showCodexAutoOption
-        ? codexAutoLabel
-        : oplCurrentModelDisplay.modelLabel
+        ? `${codexAutoLabel} · ${formatOplCodexCompactModelLabel(oplCurrentModelDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
+            currentCodexReasoningEffort,
+            localeKey
+          )}`
+        : `${formatOplCodexCompactModelLabel(oplCurrentModelDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
+            currentCodexReasoningEffort,
+            localeKey
+          )}`
       : hideCodexModelList && rawDisplayLabel
         ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
         : rawDisplayLabel;
@@ -137,17 +142,16 @@ const AcpModelSelector: React.FC<{
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
   const shouldShowReasoningOptions = backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0;
+  const reasoningMenuTitle = localeKey === 'en-US' ? t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' }) : '推理';
   const reasoningMenuItems =
     shouldShowReasoningOptions && thoughtLevel
       ? [
           <Menu.Item key='__reasoning_header' disabled className='pointer-events-none'>
-            <span className='text-12px text-t-secondary'>
-              {t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' })}
-            </span>
+            <span className='text-12px text-t-secondary'>{reasoningMenuTitle}</span>
           </Menu.Item>,
           ...thoughtLevel.options.map((option) => {
             const selected = option.value === thoughtLevel.currentValue;
-            const label = formatOplCodexReasoningLabel(option.value, localeKey);
+            const label = formatOplCodexReasoningMenuLabel(option.value, localeKey);
             return (
               <Menu.Item
                 key={`reasoning:${option.value}`}
@@ -155,9 +159,12 @@ const AcpModelSelector: React.FC<{
                 disabled={isSettingReasoning}
                 onClick={() => handleReasoningSelect(option.value)}
               >
-                <div className='flex flex-col gap-2px w-full'>
-                  <span>{normalizeReasoningMenuLabel(label)}</span>
-                  {option.description && <span className='text-12px text-t-secondary'>{option.description}</span>}
+                <div className='flex items-center justify-between gap-16px w-full'>
+                  <div className='flex flex-col gap-2px'>
+                    <span>{label}</span>
+                    {option.description && <span className='text-12px text-t-secondary'>{option.description}</span>}
+                  </div>
+                  {selected && <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />}
                 </div>
               </Menu.Item>
             );
@@ -226,9 +233,13 @@ const AcpModelSelector: React.FC<{
       // Desktop: leave default container so click events reach Menu.Item normally.
       {...(isMobileHeaderCompact ? { getPopupContainer: () => document.body } : {})}
       droplist={
-        <Menu selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}>
+        <Menu
+          mode='pop'
+          selectedKeys={model_info.current_model_id ? [model_info.current_model_id] : []}
+          style={{ minWidth: 220 }}
+        >
           {showCodexAutoOption && (
-            <Menu.Item key='__auto' className='bg-2!'>
+            <Menu.Item key='__auto' className='bg-2! pointer-events-none'>
               <div className='flex flex-col gap-2px w-full'>
                 <span className='font-medium'>
                   {autoModelDisplay?.label ??
@@ -240,31 +251,41 @@ const AcpModelSelector: React.FC<{
               </div>
             </Menu.Item>
           )}
-          {model_info.available_models.map((model) => {
-            const modelDisplay = useOplCodexModelDisplay
-              ? formatOplCodexModelDisplay({
-                  id: model.id,
-                  label: model.label,
-                  reasoningEffort: currentCodexReasoningEffort,
-                  localeKey,
-                })
-              : null;
-            return (
-              <Menu.Item
-                key={model.id}
-                className={model.id === model_info.current_model_id ? 'bg-2!' : ''}
-                onClick={() => selectModel(model.id)}
-              >
-                <div className='flex flex-col gap-2px w-full'>
-                  <span>{modelDisplay?.modelLabel ?? (model.label || model.id)}</span>
-                  {modelDisplay?.description && (
-                    <span className='text-12px text-t-secondary'>{modelDisplay.description}</span>
-                  )}
-                </div>
-              </Menu.Item>
-            );
-          })}
           {reasoningMenuItems}
+          <Menu.SubMenu
+            key='__models'
+            title={<span className='text-12px text-t-secondary'>{t('common.model', { defaultValue: 'Model' })}</span>}
+          >
+            {model_info.available_models.map((model) => {
+              const modelDisplay = useOplCodexModelDisplay
+                ? formatOplCodexModelDisplay({
+                    id: model.id,
+                    label: model.label,
+                    reasoningEffort: currentCodexReasoningEffort,
+                    localeKey,
+                  })
+                : null;
+              return (
+                <Menu.Item
+                  key={model.id}
+                  className={model.id === model_info.current_model_id ? 'bg-2!' : ''}
+                  onClick={() => selectModel(model.id)}
+                >
+                  <div className='flex items-center justify-between gap-16px w-full'>
+                    <div className='flex flex-col gap-2px'>
+                      <span>{modelDisplay?.modelLabel ?? (model.label || model.id)}</span>
+                      {modelDisplay?.description && (
+                        <span className='text-12px text-t-secondary'>{modelDisplay.description}</span>
+                      )}
+                    </div>
+                    {model.id === model_info.current_model_id && (
+                      <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+                    )}
+                  </div>
+                </Menu.Item>
+              );
+            })}
+          </Menu.SubMenu>
         </Menu>
       }
     >

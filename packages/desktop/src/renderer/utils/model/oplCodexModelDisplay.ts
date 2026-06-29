@@ -57,6 +57,13 @@ function friendlyCodexModelLabel(
   return codexMatch[2] ? `GPT-${codexMatch[1]} Codex` : `GPT-${codexMatch[1]}`;
 }
 
+export function formatOplCodexCompactModelLabel(modelLabel: string): string {
+  const trimmed = modelLabel.trim();
+  const match = trimmed.match(/^GPT-(\d+(?:\.\d+)*)(?:\s+Codex)?$/i);
+  if (!match) return trimmed;
+  return trimmed.toLowerCase().includes('codex') ? `${match[1]} Codex` : match[1];
+}
+
 export function formatOplCodexReasoningLabel(
   reasoningEffort: string | null | undefined,
   localeKey: OplModelDisplayLocale
@@ -72,6 +79,16 @@ export function formatOplCodexReasoningLabel(
     return resolveLocaleKey(localeKey) === 'en-US' ? fallbackLabel.en : fallbackLabel.zh;
   }
   return resolveLocaleKey(localeKey) === 'en-US' ? `${effectiveReasoning} reasoning` : `推理${effectiveReasoning}`;
+}
+
+export function formatOplCodexReasoningMenuLabel(
+  reasoningEffort: string | null | undefined,
+  localeKey: OplModelDisplayLocale
+): string {
+  const label = formatOplCodexReasoningLabel(reasoningEffort, localeKey);
+  return resolveLocaleKey(localeKey) === 'en-US'
+    ? label.replace(/\s+reasoning$/i, '')
+    : label.replace(/^推理/, '');
 }
 
 export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): OplCodexModelDisplay {

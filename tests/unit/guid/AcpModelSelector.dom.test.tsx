@@ -85,6 +85,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'agent.thoughtLevel.label') return 'Reasoning';
       if (key === 'agent.thoughtLevel.switchSuccess') return 'Reasoning switched';
       if (key === 'agent.config.failed') return 'Config failed';
+      if (key === 'common.model') return '模型';
       return String(options?.defaultValue ?? key);
     },
   }),
@@ -190,20 +191,21 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
 
     await userEvent.click(autoButton);
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
       '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
     );
-    expect(screen.getByText('GPT-5.5').closest('[role="menuitem"]')).toHaveTextContent('固定此模型');
-    expect(screen.getByText('GPT-5.5').closest('[role="menuitem"]')).not.toHaveTextContent('推理超高');
-    fireEvent.click(screen.getByText('GPT-5.4').closest('[role="menuitem"]')!);
+    expect(screen.getByText('推理')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
+    expect(screen.getByText('模型')).toBeInTheDocument();
+    expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(mocks.setModel).toHaveBeenCalledWith({ conversation_id: 'codex-conversation', model_id: 'gpt-5.4' });
-    });
+    expect(screen.getByText('模型').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(mocks.setModel).not.toHaveBeenCalled();
   });
 
   it('renders App default Codex model options from the product profile', async () => {
@@ -211,12 +213,12 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByText('GPT-5.5')).toBeInTheDocument();
-    expect(await screen.findByText('GPT-5.4')).toBeInTheDocument();
+    expect(screen.getByText('模型').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
   });
@@ -224,11 +226,12 @@ describe('AcpModelSelector Codex model switching', () => {
   it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐）/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
     expect(screen.queryByTestId('opl-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(autoButton);
 
+    expect(await screen.findByText('推理')).toBeInTheDocument();
     expect(await screen.findByRole('menuitem', { name: '低' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: '高' }));

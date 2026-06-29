@@ -78,4 +78,25 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).toContain('已有智能体规则。');
     expect(params.extra.preset_context).not.toContain('## OPL App Default Session Rules');
   });
+
+  it('sets max Codex reasoning by default while preserving user overrides', () => {
+    expect(
+      buildAgentConversationParams({
+        backend: 'codex',
+        name: 'Default reasoning',
+        workspace: '/Users/example/workspace',
+        model,
+      }).extra.pending_config_options
+    ).toEqual({ reasoning_effort: 'xhigh' });
+
+    expect(
+      buildAgentConversationParams({
+        backend: 'codex',
+        name: 'Manual reasoning',
+        workspace: '/Users/example/workspace',
+        model,
+        config_options: { reasoning_effort: 'high' },
+      }).extra.pending_config_options
+    ).toEqual({ reasoning_effort: 'high' });
+  });
 });

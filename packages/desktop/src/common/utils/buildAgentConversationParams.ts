@@ -5,7 +5,11 @@
  */
 
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
-import { getOplCodexSessionContextForLocale, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
+import {
+  getOplCodexSessionContextForLocale,
+  getOplDefaultCodexReasoningEffort,
+  getOplFlowContextPolicy,
+} from '@/common/config/oplProductProfile';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
 
@@ -69,6 +73,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const effectivePresetType = preset_agent_type || backend;
   const effectivePresetAssistantId = preset_assistant_id || custom_agent_id;
   const type = getConversationTypeForBackend(is_preset ? effectivePresetType : backend);
+  const effectiveBackend = is_preset ? effectivePresetType : backend;
   const oplFlowContextPolicy = getOplFlowContextPolicy();
   const oplFlowSessionContext = getOplCodexSessionContextForLocale(resolveLocaleKey(language));
   const extra: ICreateConversationParams['extra'] = {
@@ -111,8 +116,11 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
 
   if (session_mode) extra.session_mode = session_mode;
   if (current_model_id) extra.current_model_id = current_model_id;
-  if (config_options && Object.keys(config_options).length > 0) {
-    extra.pending_config_options = config_options;
+  const defaultConfigOptions =
+    type === 'acp' && effectiveBackend === 'codex' ? { reasoning_effort: getOplDefaultCodexReasoningEffort() } : {};
+  const pendingConfigOptions = { ...defaultConfigOptions, ...config_options };
+  if (Object.keys(pendingConfigOptions).length > 0) {
+    extra.pending_config_options = pendingConfigOptions;
   }
 
   return {

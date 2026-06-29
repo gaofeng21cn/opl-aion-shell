@@ -105,15 +105,26 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
       'codex_cli_auto_latest_available_frontier'
     );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.model_list_source).toBe(
+      'codex_cli_handshake_available_models'
+    );
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.frontier_model_preference_order_role).toBe(
+      'fallback_when_codex_cli_model_list_unavailable'
+    );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
       display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu',
+      button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort',
       raw_model_id_visible_in_ordinary_ui: false,
       reasoning_effort_visible_for_every_option: false,
       reasoning_effort_menu_visible: true,
+      reasoning_menu_title_zh: '推理',
+      reasoning_menu_title_en: 'Reasoning',
       reasoning_effort_override_surface: 'model_configuration_menu',
       reasoning_effort_options_source: 'acp_codex_config_options_enum',
+      auto_option_current_resolution_visible: true,
+      model_menu_policy: 'last_submenu_collapsed_by_default',
       auto_option: {
         label_zh: '自动（推荐）',
         description_zh: '当前 GPT-5.5 · 推理超高 · 跟随最新最强',
@@ -332,11 +343,12 @@ describe('OPL generated product profile', () => {
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {
     expect(selectDefaultCodexModelId([{ id: 'gpt-5.1-codex-mini' }, { id: 'gpt-5.2-codex' }, { id: 'gpt-5.4' }])).toBe(
-      'gpt-5.5'
+      'gpt-5.4'
     );
     expect(selectDefaultCodexModelId([{ id: 'gpt-5.5' }, { id: 'gpt-5.6-codex' }, { id: 'gpt-5.6-mini' }])).toBe(
       'gpt-5.6-codex'
     );
+    expect(selectDefaultCodexModelId()).toBe('gpt-5.5');
     expect(
       buildCodexDefaultModelInfo({
         current_model_id: 'gpt-5.2-codex',

@@ -143,5 +143,6 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     ]);
     expect(payload.extra.selected_mcp_server_ids).toEqual([]);
     expect(payload.extra.selected_session_mcp_servers).toEqual([]);
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
   });
 });

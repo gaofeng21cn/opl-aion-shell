@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildOplCodexAutoModelOption,
+  formatOplCodexCompactModelLabel,
   formatOplCodexModelDisplay,
   formatOplCodexReasoningLabel,
+  formatOplCodexReasoningMenuLabel,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 
 describe('oplCodexModelDisplay', () => {
@@ -50,5 +52,12 @@ describe('oplCodexModelDisplay', () => {
     expect(formatOplCodexReasoningLabel('high', 'en-US')).toBe('High reasoning');
     expect(formatOplCodexReasoningLabel('xhigh', 'zh-CN')).toBe('推理超高');
     expect(formatOplCodexReasoningLabel('xhigh', 'en-US')).toBe('Ultra reasoning');
+  });
+
+  it('formats compact labels for the selector button and menu rows', () => {
+    expect(formatOplCodexCompactModelLabel('GPT-5.5')).toBe('5.5');
+    expect(formatOplCodexCompactModelLabel('GPT-5.3 Codex')).toBe('5.3 Codex');
+    expect(formatOplCodexReasoningMenuLabel('high', 'zh-CN')).toBe('高');
+    expect(formatOplCodexReasoningMenuLabel('xhigh', 'en-US')).toBe('Ultra');
   });
 });

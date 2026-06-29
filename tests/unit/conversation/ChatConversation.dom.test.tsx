@@ -23,6 +23,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ state: {} }),
 }));
 
 vi.mock('swr', () => ({
@@ -80,6 +81,10 @@ vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
   ),
 }));
 
+vi.mock('@/renderer/pages/conversation/platforms/legacy/LegacyReadOnlyConversation', () => ({
+  default: () => <div data-testid='legacy-read-only-conversation' />,
+}));
+
 vi.mock('@/renderer/pages/conversation/platforms/aionrs/AionrsChat', () => ({
   default: () => <div data-testid='aionrs-chat' />,
 }));
@@ -115,6 +120,18 @@ const acpConversation = (backend: string): TChatConversation =>
     },
   }) as TChatConversation;
 
+const codexConversation = (): TChatConversation =>
+  ({
+    id: 'codex-conversation',
+    name: 'Codex conversation',
+    type: 'codex',
+    created_at: 1,
+    modified_at: 1,
+    extra: {
+      codexModel: 'gpt-5.5',
+    },
+  }) as TChatConversation;
+
 describe('ChatConversation Codex model surface', () => {
   it('shows the App-owned model selector for Codex ACP conversations', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
@@ -122,6 +139,15 @@ describe('ChatConversation Codex model surface', () => {
     expect(screen.getByTestId('acp-chat')).toBeInTheDocument();
     expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
     expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'gpt-5.5');
+  });
+
+  it('uses the App-owned model selector for Codex conversations', () => {
+    render(<ChatConversation conversation={codexConversation()} />);
+
+    expect(screen.getByTestId('legacy-read-only-conversation')).toBeInTheDocument();
+    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-backend', 'codex');
+    expect(screen.getByTestId('acp-model-selector')).toHaveAttribute('data-initial-model', 'gpt-5.5');
+    expect(screen.queryByTestId('google-model-selector')).not.toBeInTheDocument();
   });
 
   it('keeps the model selector for non-Codex ACP agents', () => {

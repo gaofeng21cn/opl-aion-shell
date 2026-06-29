@@ -57,8 +57,8 @@ export function selectDefaultCodexModelId(
   availableModels: CodexModelOption[] | undefined | null,
   appDefaultModelId = DEFAULT_CODEX_MODEL_ID
 ): string {
-  let selected = appDefaultModelId;
-  let selectedVersion = parseCodexFrontierVersion(appDefaultModelId);
+  let selected: string | null = null;
+  let selectedVersion: number[] | null = null;
 
   for (const model of availableModels ?? []) {
     const id = model.id.trim();
@@ -71,7 +71,7 @@ export function selectDefaultCodexModelId(
     }
   }
 
-  return selected;
+  return selected ?? appDefaultModelId;
 }
 
 function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefined | null): Array<{
@@ -94,9 +94,10 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
     });
   }
 
-  return options
-    .sort((left, right) => compareVersionParts(right.version, left.version))
-    .map(({ id, label }) => ({ id, label }));
+  return options.toSorted((left, right) => compareVersionParts(right.version, left.version)).map(({ id, label }) => ({
+    id,
+    label,
+  }));
 }
 
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
