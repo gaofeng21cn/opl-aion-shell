@@ -64,7 +64,7 @@ const legacyAnchorRemap = settingsControlPlane?.extension_anchor_remap ?? legacy
 const redirectRouteFor = (legacyId: string, targetId: string): string => {
   if (legacyId === 'skills-hub') return '/settings/capabilities?tab=skills';
   if (legacyId === 'tools') return '/settings/capabilities?tab=tools';
-  if (legacyId === 'storage' || legacyId === 'about' || secondaryPageIds.includes(legacyId)) {
+  if (legacyId === 'storage' || (secondaryPageIds.includes(legacyId) && legacyId === targetId)) {
     return `/settings/${legacyId}`;
   }
   if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(targetId)) return SETTINGS_DEFAULT_ROUTE;
@@ -369,4 +369,66 @@ export function buildSettingsModalMenuItems({
       };
     },
   });
+}
+
+export type SettingsShellWrapperPolicy = 'host_provides_wrapper';
+
+export type SettingsShellRenderSlot = {
+  id: string;
+  routeId: string;
+  componentKey: string;
+  wrapperPolicy: SettingsShellWrapperPolicy;
+  subrouteQueryParam?: string;
+  legacySubroutes?: Record<string, string>;
+};
+
+const fallbackRouteSlots: Record<string, { slotId: string; componentKey: string }> = {
+  general: { slotId: 'settings_general', componentKey: 'OverviewSettings' },
+  workspace: { slotId: 'workspace', componentKey: 'WorkspaceSettings' },
+  'local-services': { slotId: 'local_services', componentKey: 'LocalServicesSettings' },
+  access: { slotId: 'settings_access', componentKey: 'AccessSettingsContent' },
+  capabilities: { slotId: 'settings_capabilities', componentKey: 'CapabilitiesSettingsContent' },
+  environment: { slotId: 'settings_environment', componentKey: 'RuntimeSettings' },
+  storage: { slotId: 'settings_storage', componentKey: 'StorageSettings' },
+  appearance: { slotId: 'settings_theme', componentKey: 'AppearanceModalContent' },
+  advanced: { slotId: 'settings_advanced', componentKey: 'SystemModalContent' },
+};
+
+const routeSlotIds = new Map<string, string>();
+for (const route of settingsControlPlane?.ordinary_routes ?? []) {
+  routeSlotIds.set(route.id, route.slot_id);
+}
+for (const page of settingsControlPlane?.secondary_pages ?? []) {
+  routeSlotIds.set(page.id, page.slot_id);
+}
+
+function normalizeWrapperPolicy(value: string | undefined): SettingsShellWrapperPolicy {
+  if (value === 'host_provides_wrapper') return value;
+  return 'host_provides_wrapper';
+}
+
+export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot | null {
+  const normalizedRouteId = normalizeOplSettingsTab(routeId);
+  const slotId = routeSlotIds.get(normalizedRouteId) ?? fallbackRouteSlots[normalizedRouteId]?.slotId;
+  if (!slotId) return null;
+
+  const slotConfig = settingsControlPlane?.slot_registry?.[slotId];
+  const fallback = fallbackRouteSlots[normalizedRouteId];
+  const componentKey = slotConfig?.component_key ?? fallback?.componentKey;
+  if (!componentKey) return null;
+
+  return {
+    id: slotId,
+    routeId: normalizedRouteId,
+    componentKey,
+    wrapperPolicy: normalizeWrapperPolicy(slotConfig?.wrapper_policy),
+    subrouteQueryParam: slotConfig?.subroute_query_param,
+    legacySubroutes: slotConfig?.legacy_subroutes,
+  };
+}
+
+export function getSettingsRenderSlots(): SettingsShellRenderSlot[] {
+  return [...BUILTIN_TAB_IDS, ...OPL_SEARCHABLE_SECONDARY_TAB_IDS]
+    .map((id) => getSettingsRenderSlot(id))
+    .filter((slot): slot is SettingsShellRenderSlot => Boolean(slot));
 }
