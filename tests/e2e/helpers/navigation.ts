@@ -12,11 +12,17 @@ import { channelItemById, webuiTabByKey } from './selectors';
 export const ROUTES = {
   guid: '#/guid',
   settings: {
+    general: '#/settings/general',
+    access: '#/settings/access',
+    capabilities: '#/settings/capabilities',
+    environment: '#/settings/environment',
+    storage: '#/settings/storage',
+    appearance: '#/settings/appearance',
+    advanced: '#/settings/advanced',
     gemini: '#/settings/gemini',
     model: '#/settings/model',
     agent: '#/settings/agent',
     assistants: '#/settings/assistants',
-    capabilities: '#/settings/capabilities',
     display: '#/settings/display',
     webui: '#/settings/webui',
     system: '#/settings/system',
@@ -72,12 +78,13 @@ export async function navigateTo(page: Page, hash: string): Promise<void> {
     if (isOnSettings) {
       // Click the sider back button to leave settings
       const siderBtn = page.locator('.sider-footer div').first();
-      await siderBtn.waitFor({ state: 'visible', timeout: 10_000 });
-      await siderBtn.click();
-      // Wait for hash to change away from settings
-      await page
-        .waitForFunction(() => !window.location.hash.includes('/settings/'), { timeout: 10_000 })
-        .catch(() => {});
+      if (await siderBtn.isVisible().catch(() => false)) {
+        await siderBtn.click();
+        // Wait for hash to change away from settings
+        await page
+          .waitForFunction(() => !window.location.hash.includes('/settings/'), { timeout: 10_000 })
+          .catch(() => {});
+      }
     }
     // Programmatic navigation for non-settings targets.
     // Always navigate when not already at the target (e.g. conversation → guid).
@@ -94,22 +101,30 @@ export async function navigateTo(page: Page, hash: string): Promise<void> {
     if (!isOnSettings) {
       // Click sider settings button to enter settings
       const siderBtn = page.locator('.sider-footer div').first();
-      await siderBtn.waitFor({ state: 'visible', timeout: 10_000 });
-      await siderBtn.click();
-      await page
-        .waitForFunction(() => window.location.hash.includes('/settings/'), { timeout: 10_000 })
-        .catch(() => {});
+      if (await siderBtn.isVisible().catch(() => false)) {
+        await siderBtn.click();
+        await page
+          .waitForFunction(() => window.location.hash.includes('/settings/'), { timeout: 10_000 })
+          .catch(() => {});
+      } else {
+        await page.evaluate((h) => window.location.assign(h), hash);
+        await page.waitForFunction((h) => window.location.hash === h, hash, { timeout: 10_000 }).catch(() => {});
+      }
     }
 
     // Extract the settings path segment (e.g. "assistants" from "#/settings/assistants")
     const settingsPath = hash.replace(/^#\/settings\//, '');
     if (!isAlreadyAt(page, hash)) {
       const navItem = page.locator(`[data-settings-path="${settingsPath}"]`);
-      await navItem.waitFor({ state: 'visible', timeout: 10_000 });
-      await navItem.click();
-      await page
-        .waitForFunction((h) => window.location.hash.includes(h), `/settings/${settingsPath}`, { timeout: 10_000 })
-        .catch(() => {});
+      if (await navItem.isVisible().catch(() => false)) {
+        await navItem.click();
+        await page
+          .waitForFunction((h) => window.location.hash.includes(h), `/settings/${settingsPath}`, { timeout: 10_000 })
+          .catch(() => {});
+      } else {
+        await page.evaluate((h) => window.location.assign(h), hash);
+        await page.waitForFunction((h) => window.location.hash === h, hash, { timeout: 10_000 }).catch(() => {});
+      }
     }
   }
 
