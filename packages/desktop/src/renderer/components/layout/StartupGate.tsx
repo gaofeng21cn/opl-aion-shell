@@ -16,27 +16,11 @@ import React, { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
+import type { FirstRunInitialize } from '@/renderer/pages/FirstRun/types';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 
-interface InitializeState {
-  setup_flow?: {
-    is_first_run?: boolean;
-    ready_to_launch?: boolean;
-    phase?: string;
-  };
-  readiness?: {
-    launch_ready?: boolean;
-  };
-}
-
-function readInitializePayload(parsed: any): InitializeState {
-  return {
-    setup_flow: parsed?.setup_flow,
-    readiness: parsed?.readiness,
-  };
-}
-
-function shouldEnterFirstRun(initialize: InitializeState | null): boolean {
+function shouldEnterFirstRun(initialize: FirstRunInitialize | null): boolean {
   if (!initialize) return true; // 无法获取状态，进入配置页面
 
   // 首次运行，需要配置
@@ -63,7 +47,7 @@ const StartupGate: React.FC = () => {
       try {
         const result = await ipcBridge.oplRuntime.getInitialize.invoke();
 
-        if (result.status !== 'ok') {
+        if (!result || result.ok === false) {
           console.error('[StartupGate] Initialize check failed:', result);
           setNeedsFirstRun(true); // 出错时进入配置页面
           setChecking(false);
@@ -72,13 +56,6 @@ const StartupGate: React.FC = () => {
 
         const initialize = readInitializePayload(result.parsed);
         const needsSetup = shouldEnterFirstRun(initialize);
-
-        console.log('[StartupGate] Check result:', {
-          is_first_run: initialize.setup_flow?.is_first_run,
-          ready_to_launch: initialize.setup_flow?.ready_to_launch,
-          launch_ready: initialize.readiness?.launch_ready,
-          needsSetup,
-        });
 
         setNeedsFirstRun(needsSetup);
       } catch (err) {

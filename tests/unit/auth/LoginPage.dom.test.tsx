@@ -36,16 +36,16 @@ describe('LoginPage desktop entry routing', () => {
     window.localStorage.clear();
   });
 
-  it('sends already-authenticated desktop users to the first-run surface', async () => {
+  it('sends already-authenticated desktop users to the startup gate', async () => {
     authState.status = 'authenticated';
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/first-run', { replace: true }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/startup-gate', { replace: true }));
     expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
   });
 
-  it('sends successful login users to the first-run surface', async () => {
+  it('sends successful login users to the startup gate', async () => {
     authState.status = 'unauthenticated';
 
     render(<LoginPage />);
@@ -58,7 +58,7 @@ describe('LoginPage desktop entry routing', () => {
       expect(authState.login).toHaveBeenCalledWith({ username: 'admin', password: 'password', remember: false })
     );
 
-    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/first-run', { replace: true }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/startup-gate', { replace: true }));
     expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
   });
 });
