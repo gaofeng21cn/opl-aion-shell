@@ -31,6 +31,7 @@ export default defineConfig({
           environment: 'node',
           include: [
             'tests/unit/**/*.test.ts',
+            'tests/unit/**/*.test.tsx',
             'tests/unit/**/test_*.ts',
             'tests/contract/**/*.test.ts',
             ...(includeIntegration ? ['tests/integration/**/*.test.ts', 'tests/regression/**/*.test.ts'] : []),
