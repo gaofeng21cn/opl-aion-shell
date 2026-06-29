@@ -38,9 +38,10 @@ const redirectRouteFor = (legacyId: string, targetId: string): string => {
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  [...Object.entries(legacyRedirectTargets), ['about', 'advanced']].map(
-    ([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)]
-  )
+  [...Object.entries(legacyRedirectTargets), ['about', 'advanced']].map(([legacyId, targetId]) => [
+    legacyId,
+    redirectRouteFor(legacyId, targetId),
+  ])
 );
 
 export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {

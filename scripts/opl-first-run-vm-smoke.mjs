@@ -3800,11 +3800,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
   {
     id: 'general',
     hash: '#/settings/general',
-    requiredTextAny: [
-      ['One Person Lab'],
-      ['Open Runtime Status', '打开运行状态'],
-      ['Open Runtime Settings', '打开运行设置'],
-    ],
+    requiredTextAny: [['One Person Lab'], ['Open Runtime Status', '打开运行状态'], ['Open Maintenance', '打开维护']],
   },
   {
     id: 'environment',

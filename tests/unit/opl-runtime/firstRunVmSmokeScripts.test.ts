@@ -374,7 +374,7 @@ describe('OPL first-run VM smoke scripts', () => {
       expect.arrayContaining([
         ['One Person Lab'],
         ['Open Runtime Status', '打开运行状态'],
-        ['Open Runtime Settings', '打开运行设置'],
+        ['Open Maintenance', '打开维护'],
       ])
     );
     expect(JSON.stringify(generalTarget)).not.toContain('Refresh status');
