@@ -748,7 +748,7 @@
     }
   },
   "settings": {
-    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced", "about"],
+    "visible_tabs": ["general", "access", "capabilities", "environment", "appearance", "advanced"],
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",
@@ -813,54 +813,134 @@
       }
     },
     "settings_information_architecture": {
-      "general": {
-        "label_zh": "通用",
-        "label_en": "General",
-        "role": "workbench_preferences",
-        "primary_question": "Where does the App work and how should it start?"
+      "ordinary_surface": {
+        "id": "control_center",
+        "label_zh": "控制中心",
+        "label_en": "Control Center",
+        "positioning": "single App-owned settings home for setup, capabilities, maintenance, preferences, and advanced diagnostics"
       },
-      "access": {
-        "label_zh": "访问权限",
-        "label_en": "Access",
-        "role": "can_the_app_work",
-        "primary_question": "Can Codex CLI and configured providers work now?"
+      "ordinary_groups": [
+        {
+          "id": "overview",
+          "label_zh": "总览",
+          "label_en": "Overview",
+          "role": "control_center_summary",
+          "ordinary_entries": ["settings_general", "workspace"],
+          "required_prominence": "workspace_is_independent_ordinary_entry"
+        },
+        {
+          "id": "getting_started",
+          "label_zh": "开始使用",
+          "label_en": "Get Started",
+          "role": "first_use_and_access_setup",
+          "ordinary_entries": ["settings_access", "first_run_setup_center"],
+          "primary_tasks": ["workspace_root", "codex_cli", "codex_config"]
+        },
+        {
+          "id": "capabilities",
+          "label_zh": "能力",
+          "label_en": "Capabilities",
+          "role": "purpose_grouped_capability_catalog",
+          "ordinary_entries": ["settings_capabilities"]
+        },
+        {
+          "id": "maintenance",
+          "label_zh": "维护",
+          "label_en": "Maintenance",
+          "role": "health_updates_storage_and_safe_cleanup",
+          "ordinary_entries": ["settings_environment", "settings_storage", "update"],
+          "owns": [
+            "local_service_health",
+            "app_binary_updates",
+            "runtime_toolchain_updates",
+            "opl_packages_maintenance",
+            "storage_inventory",
+            "safe_cleanup"
+          ]
+        },
+        {
+          "id": "preferences",
+          "label_zh": "偏好",
+          "label_en": "Preferences",
+          "role": "user_preferences_not_runtime_health",
+          "ordinary_entries": ["settings_theme", "appearance", "language", "startup", "tray"]
+        },
+        {
+          "id": "advanced",
+          "label_zh": "高级",
+          "label_en": "Advanced",
+          "role": "developer_controls_version_links_and_collapsed_raw_diagnostics",
+          "ordinary_entries": ["settings_advanced", "about"],
+          "diagnostics_default_state": "collapsed"
+        }
+      ],
+      "primary_tabs": {
+        "general": {
+          "label_zh": "总览",
+          "label_en": "Overview",
+          "role": "control_center_summary",
+          "primary_question": "Is the App usable now, and what should I do next?",
+          "ia_group": "overview",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "access": {
+          "label_zh": "开始使用",
+          "label_en": "Get Started",
+          "role": "first_use_and_access_setup",
+          "primary_question": "How do I connect the App, and where does work happen?",
+          "ia_group": "getting_started",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "capabilities": {
+          "label_zh": "能力",
+          "label_en": "Capabilities",
+          "role": "purpose_grouped_capability_catalog",
+          "primary_question": "What can OPL help me do?",
+          "ia_group": "capabilities",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "environment": {
+          "label_zh": "维护",
+          "label_en": "Maintenance",
+          "role": "health_updates_storage_and_safe_cleanup",
+          "primary_question": "How do I keep the local App healthy and safe?",
+          "ia_group": "maintenance",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "storage": {
+          "label_zh": "存储",
+          "label_en": "Storage",
+          "role": "safe_local_data_lifecycle_inventory_and_cleanup",
+          "primary_question": "Which local data roots are using space, and which cleanup actions are safe after preview or proof?",
+          "ia_group": "maintenance",
+          "ordinary_entry_policy": "secondary_page_under_maintenance"
+        },
+        "appearance": {
+          "label_zh": "偏好",
+          "label_en": "Preferences",
+          "role": "user_preferences_not_runtime_health",
+          "primary_question": "How should the App behave and look for me?",
+          "ia_group": "preferences",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "advanced": {
+          "label_zh": "高级",
+          "label_en": "Advanced",
+          "role": "developer_controls_version_links_and_collapsed_raw_diagnostics",
+          "primary_question": "Where are technical details, raw references, versions, and links?",
+          "ia_group": "advanced",
+          "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "about": {
+          "label_zh": "关于",
+          "label_en": "About",
+          "role": "version_and_links",
+          "primary_question": "What version is running, and where are the documentation, release notes, support, and maintenance links?",
+          "ia_group": "advanced",
+          "ordinary_entry_policy": "secondary_page_under_advanced"
+        }
       },
-      "capabilities": {
-        "label_zh": "智能体与能力",
-        "label_en": "Agents & Capabilities",
-        "role": "purpose_grouped_capability_catalog",
-        "primary_question": "What can Research, Grant, PPT, and OPL Meta Agent do?"
-      },
-      "environment": {
-        "label_zh": "本机运行环境",
-        "label_en": "Local Environment",
-        "role": "local_runtime_foundation",
-        "primary_question": "Are Codex CLI, Temporal, modules, paths, and updates ready?"
-      },
-      "storage": {
-        "label_zh": "存储",
-        "label_en": "Storage",
-        "role": "local_data_lifecycle_inventory_and_cleanup",
-        "primary_question": "Which local data roots are using space, and which cleanup actions are safe?"
-      },
-      "appearance": {
-        "label_zh": "外观",
-        "label_en": "Appearance",
-        "role": "visual_preferences",
-        "primary_question": "How should the App look?"
-      },
-      "advanced": {
-        "label_zh": "高级",
-        "label_en": "Advanced",
-        "role": "developer_and_diagnostic_controls",
-        "primary_question": "Which Developer Profile capabilities, raw paths, logs, and developer diagnostics are exposed?"
-      },
-      "about": {
-        "label_zh": "关于与更新",
-        "label_en": "About & Updates",
-        "role": "version_channel_update_status",
-        "primary_question": "What version and release channel is this App running?"
-      }
+      "secondary_page_ids": ["storage", "about", "update", "theme"]
     }
   },
   "companion_payloads": {

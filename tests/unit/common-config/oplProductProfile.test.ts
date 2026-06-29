@@ -17,6 +17,7 @@ import {
   getOplDeferredFirstLaunchBlockers,
   getOplGuiDefaultCssThemeId,
   getOplGuiLegacySettingsRouteRedirects,
+  getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
   getOplHomeModelStatusLabel,
   getOplModelStatusDisplayText,
@@ -150,10 +151,14 @@ describe('OPL generated product profile', () => {
       'access',
       'capabilities',
       'environment',
-      'storage',
       'appearance',
       'advanced',
+    ]);
+    expect(getOplGuiSettingsSecondaryPageIds()).toEqual([
+      'storage',
       'about',
+      'update',
+      'theme',
     ]);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',

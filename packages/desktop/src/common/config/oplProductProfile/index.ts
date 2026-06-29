@@ -300,6 +300,7 @@ type AppProductProfile = {
   };
   settings: {
     visible_tabs: string[];
+    secondary_page_ids: string[];
     environment_items: string[];
     legacy_route_redirects: Record<string, string>;
     developer_profile: OplDeveloperProfileSettings;
@@ -1115,13 +1116,18 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'access',
     'capabilities',
     'environment',
-    'storage',
     'appearance',
     'advanced',
-    'about',
   ];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
+  }
+  const settingsIa = isRecord(settings.settings_information_architecture) ? settings.settings_information_architecture : null;
+  const secondaryPageIds = settingsIa
+    ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
+    : [];
+  if (secondaryPageIds.join(',') !== 'storage,about,update,theme') {
+    throw new Error('Invalid OPL product profile: GUI secondary settings pages must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');
   const legacySettingsRouteRedirects = readStringRecord(
@@ -1483,6 +1489,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     },
     settings: {
       visible_tabs: visibleSettingsTabs,
+      secondary_page_ids: secondaryPageIds,
       environment_items: environmentItems,
       legacy_route_redirects: legacySettingsRouteRedirects,
       developer_profile: developerProfile,
@@ -1815,6 +1822,10 @@ export function getOplCommandLineToolsInstallMessage(): string {
 
 export function getOplGuiSettingsVisibleTabs(): string[] {
   return [...OPL_PRODUCT_PROFILE.settings.visible_tabs];
+}
+
+export function getOplGuiSettingsSecondaryPageIds(): string[] {
+  return [...OPL_PRODUCT_PROFILE.settings.secondary_page_ids];
 }
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
