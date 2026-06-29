@@ -54,6 +54,7 @@
   "remove": "移除",
   "show": "显示",
   "hide": "隐藏",
+  "skip": "跳过",
   "goToSettings": "前往设置",
   "forward": "前进",
   "historyBack": "后退",
@@ -77,7 +78,13 @@
       "desktopSession": "桌面会话",
       "appConfig": "应用配置",
       "firstRunStatus": "初始化状态"
-    }
+    },
+    "messages": {
+      "connectingBackend": "正在连接后端服务...",
+      "loadingConfig": "正在加载应用配置...",
+      "checkingFirstRun": "正在检查初始化状态..."
+    },
+    "estimatedTime": "预计还需要 {{seconds}} 秒"
   },
   "backendStartup": {
     "incompatibleRuntime": {

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>启动进度显示 - 效果演示</title>
+  <style>
+    :root {
+      --bg-1: #ffffff;
+      --bg-2: #f7f8fa;
+      --bg-3: #e5e6eb;
+      --text-primary: #1d2129;
+      --text-secondary: #4e5969;
+      --text-tertiary: #86909c;
+      --border-base: #e5e6eb;
+      --primary: #165dff;
+      --success: #00b42a;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-1: #17171a;
+        --bg-2: #232324;
+        --bg-3: #2e2e30;
+        --text-primary: #e5e6eb;
+        --text-secondary: #c9cdd4;
+        --text-tertiary: #86909c;
+        --border-base: #3c3c3f;
+        --primary: #4080ff;
+        --success: #23c343;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg-2);
+      color: var(--text-primary);
+      padding: 24px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .demo-container {
+      width: 100%;
+      max-width: 900px;
+      display: grid;
+      gap: 24px;
+    }
+
+    .demo-section {
+      background: var(--bg-1);
+      border: 1px solid var(--border-base);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .demo-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .demo-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+
+    /* AppLoader 样式 */
+    .appLoader {
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-2);
+      padding: 24px;
+      border-radius: 8px;
+    }
+
+    .appLoaderPanel {
+      width: min(440px, 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      border: 1px solid var(--border-base);
+      border-radius: 8px;
+      background: var(--bg-1);
+      padding: 22px;
+    }
+
+    .appLoaderHeader {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border-base);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .appLoaderTitle {
+      color: var(--text-primary);
+      font-size: 15px;
+      line-height: 22px;
+      font-weight: 600;
+    }
+
+    .appLoaderDescription {
+      margin-top: 4px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 20px;
+    }
+
+    .appLoaderSteps {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-left: 2px;
+    }
+
+    .appLoaderStep {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: flex-start;
+      gap: 8px;
+      color: var(--text-tertiary);
+      font-size: 13px;
+      line-height: 20px;
+    }
+
+    .appLoaderStep[data-state='active'] {
+      color: var(--text-primary);
+    }
+
+    .appLoaderStep[data-state='complete'] {
+      color: var(--text-secondary);
+    }
+
+    .appLoaderStepContent {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .appLoaderStepLabel {
+      font-weight: 500;
+    }
+
+    .appLoaderStepMessage {
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .appLoaderStepMarker {
+      width: 8px;
+      height: 8px;
+      margin-top: 6px;
+      border-radius: 50%;
+      border: 1px solid var(--border-base);
+      background: var(--bg-2);
+      flex-shrink: 0;
+    }
+
+    .appLoaderStep[data-state='active'] .appLoaderStepMarker {
+      border-color: var(--primary);
+      background: var(--primary);
+    }
+
+    .appLoaderStep[data-state='complete'] .appLoaderStepMarker {
+      border-color: var(--success);
+      background: var(--success);
+    }
+
+    .appLoaderProgress {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+    .appLoaderProgressBar {
+      height: 8px;
+      overflow: hidden;
+      border-radius: 4px;
+      background: var(--bg-3);
+    }
+
+    .appLoaderProgressFill {
+      height: 100%;
+      border-radius: 4px;
+      background: var(--primary);
+      transition: width 300ms ease-out;
+    }
+
+    .appLoaderProgressText {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .appLoaderProgressMessage {
+      flex: 1;
+      min-width: 0;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .appLoaderProgressPercent {
+      flex-shrink: 0;
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    button {
+      padding: 8px 16px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    button:active {
+      opacity: 0.8;
+    }
+
+    button.secondary {
+      background: var(--bg-3);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <div class="demo-section">
+      <h1 class="demo-title">OPL App 启动进度显示改进</h1>
+      <p class="demo-description">
+        参考 Hermes Desktop 的实现，为启动配置页面添加详细的进度显示。
+        用户可以清楚地看到当前正在执行的步骤、进度百分比和详细消息。
+      </p>
+    </div>
+
+    <div class="demo-section">
+      <h2 class="demo-title">改进后的启动页面</h2>
+      <div class="appLoader">
+        <div class="appLoaderPanel">
+          <div class="appLoaderHeader">
+            <div class="spinner"></div>
+            <div>
+              <div class="appLoaderTitle">正在启动 One Person Lab</div>
+              <div class="appLoaderDescription">正在准备桌面会话，随后会进入初始化检查。</div>
+            </div>
+          </div>
+          <div class="appLoaderSteps" id="steps">
+            <!-- Steps will be inserted here by JavaScript -->
+          </div>
+          <div class="appLoaderProgress" id="progress" style="display: none;">
+            <div class="appLoaderProgressBar">
+              <div class="appLoaderProgressFill" id="progressFill"></div>
+            </div>
+            <div class="appLoaderProgressText">
+              <span class="appLoaderProgressMessage" id="progressMessage"></span>
+              <span class="appLoaderProgressPercent" id="progressPercent"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <button onclick="simulateStartup()">▶️ 模拟启动流程</button>
+        <button class="secondary" onclick="reset()">🔄 重置</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const steps = [
+      {
+        id: 'session',
+        label: '桌面会话',
+        message: '正在连接后端服务...',
+        progress: 50,
+        duration: 1500
+      },
+      {
+        id: 'config',
+        label: '应用配置',
+        message: '正在加载应用配置...',
+        progress: 60,
+        duration: 2000
+      },
+      {
+        id: 'firstrun',
+        label: '初始化状态',
+        message: '正在检查初始化状态...',
+        progress: 80,
+        duration: 1500
+      }
+    ];
+
+    function renderSteps(currentIndex = -1) {
+      const stepsContainer = document.getElementById('steps');
+      stepsContainer.innerHTML = steps.map((step, index) => {
+        let state = 'pending';
+        if (index < currentIndex) state = 'complete';
+        if (index === currentIndex) state = 'active';
+
+        return `
+          <div class="appLoaderStep" data-state="${state}">
+            <span class="appLoaderStepMarker"></span>
+            <div class="appLoaderStepContent">
+              <span class="appLoaderStepLabel">${step.label}</span>
+              ${state === 'active' ? `<span class="appLoaderStepMessage">${step.message}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateProgress(step) {
+      const progressContainer = document.getElementById('progress');
+      const progressFill = document.getElementById('progressFill');
+      const progressMessage = document.getElementById('progressMessage');
+      const progressPercent = document.getElementById('progressPercent');
+
+      if (step) {
+        progressContainer.style.display = 'flex';
+        progressFill.style.width = step.progress + '%';
+        progressMessage.textContent = step.message;
+        progressPercent.textContent = step.progress + '%';
+      } else {
+        progressContainer.style.display = 'none';
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function simulateStartup() {
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        renderSteps(i);
+        updateProgress(step);
+        await sleep(step.duration);
+        renderSteps(i + 1);
+      }
+
+      // Complete
+      await sleep(500);
+      updateProgress(null);
+      renderSteps(steps.length);
+    }
+
+    function reset() {
+      renderSteps(-1);
+      updateProgress(null);
+    }
+
+    // Initial render
+    reset();
+  </script>
+</body>
+</html>

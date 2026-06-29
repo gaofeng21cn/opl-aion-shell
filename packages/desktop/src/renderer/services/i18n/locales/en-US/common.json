@@ -54,6 +54,7 @@
   "remove": "Remove",
   "show": "Show",
   "hide": "Hide",
+  "skip": "Skip",
   "goToSettings": "Go to Settings",
   "forward": "Forward",
   "historyBack": "Back",
@@ -77,7 +78,13 @@
       "desktopSession": "Desktop session",
       "appConfig": "App configuration",
       "firstRunStatus": "Initialization status"
-    }
+    },
+    "messages": {
+      "connectingBackend": "Connecting to backend service...",
+      "loadingConfig": "Loading application configuration...",
+      "checkingFirstRun": "Checking initialization status..."
+    },
+    "estimatedTime": "About {{seconds}} seconds remaining"
   },
   "backendStartup": {
     "incompatibleRuntime": {

@@ -51,7 +51,7 @@
 .appLoaderStep {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   color: var(--text-tertiary);
   font-size: 13px;
@@ -66,12 +66,34 @@
   color: var(--text-secondary);
 }
 
+.appLoaderStepContent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.appLoaderStepLabel {
+  font-weight: 500;
+}
+
+.appLoaderStepMessage {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .appLoaderStepMarker {
   width: 8px;
   height: 8px;
+  margin-top: 6px;
   border-radius: 50%;
   border: 1px solid var(--border-base);
   background: var(--bg-2);
+  flex-shrink: 0;
 }
 
 .appLoaderStep[data-state='active'] .appLoaderStepMarker {
@@ -82,4 +104,93 @@
 .appLoaderStep[data-state='complete'] .appLoaderStepMarker {
   border-color: var(--success);
   background: var(--success);
+}
+
+/* Progress bar section */
+.appLoaderProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.appLoaderProgressBar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--bg-3);
+}
+
+.appLoaderProgressFill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--primary);
+  transition: width 300ms ease-out;
+}
+
+.appLoaderProgressText {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.appLoaderProgressMessage {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appLoaderProgressPercent {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Footer section */
+.appLoaderFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-base);
+}
+
+.appLoaderEstimatedTime {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-tertiary);
+}
+
+.appLoaderSkipButton {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--border-base);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease-out;
+}
+
+.appLoaderSkipButton:hover {
+  background: var(--bg-2);
+  color: var(--text-primary);
+  border-color: var(--primary);
+}
+
+.appLoaderSkipButton:active {
+  transform: scale(0.98);
 }

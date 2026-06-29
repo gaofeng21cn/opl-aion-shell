@@ -227,6 +227,11 @@ const Main = () => {
   const { t } = useTranslation();
   const { ready } = useAuth();
   const [configReady, setConfigReady] = useState(false);
+  const [startTime] = useState(Date.now());
+  const [estimatedSeconds, setEstimatedSeconds] = useState(5);
+
+  // Check if this is first run
+  const isFirstRun = !localStorage.getItem('opl-has-launched-before');
 
   useEffect(() => {
     if (!ready) return;
@@ -243,8 +248,28 @@ const Main = () => {
         .catch((err) => {
           console.error('Failed to prefetch agents:', err);
         }),
-    ]).finally(() => setConfigReady(true));
-  }, [ready]);
+    ]).finally(() => {
+      setConfigReady(true);
+      // Mark as launched after first successful startup
+      if (isFirstRun) {
+        localStorage.setItem('opl-has-launched-before', 'true');
+      }
+    });
+  }, [ready, isFirstRun]);
+
+  // Update estimated time countdown
+  useEffect(() => {
+    if (configReady) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const baseEstimate = isFirstRun ? 10 : 5;
+      const remaining = Math.max(0, baseEstimate - elapsed);
+      setEstimatedSeconds(remaining);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [configReady, startTime, isFirstRun]);
 
   useEffect(() => {
     if (!ready) return;
@@ -256,19 +281,32 @@ const Main = () => {
     return startManagedUpdateMaintenanceScheduler();
   }, [ready, configReady]);
 
+  const handleSkip = () => {
+    // Allow skip on non-first-run
+    if (!isFirstRun) {
+      setConfigReady(true);
+    }
+  };
+
   if (!ready || !configReady) {
     const steps: AppLoaderStep[] = [
       {
         label: t('common.startupPreflight.steps.desktopSession'),
         state: ready ? 'complete' : 'active',
+        message: ready ? undefined : t('common.startupPreflight.messages.connectingBackend'),
+        progress: ready ? 100 : 50,
       },
       {
         label: t('common.startupPreflight.steps.appConfig'),
         state: !ready ? 'pending' : configReady ? 'complete' : 'active',
+        message: !ready ? undefined : configReady ? undefined : t('common.startupPreflight.messages.loadingConfig'),
+        progress: !ready ? 0 : configReady ? 100 : 60,
       },
       {
         label: t('common.startupPreflight.steps.firstRunStatus'),
         state: ready && configReady ? 'active' : 'pending',
+        message: ready && configReady ? t('common.startupPreflight.messages.checkingFirstRun') : undefined,
+        progress: ready && configReady ? 80 : 0,
       },
     ];
     return (
@@ -277,6 +315,11 @@ const Main = () => {
         description={t('common.startupPreflight.description')}
         steps={steps}
         testId='opl-startup-preflight'
+        showProgress={true}
+        showSkipButton={!isFirstRun && ready}
+        skipButtonText={t('common.skip')}
+        onSkip={handleSkip}
+        estimatedSeconds={estimatedSeconds}
       />
     );
   }
