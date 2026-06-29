@@ -909,7 +909,9 @@ function MaintenanceHub({ items, t }: { items: MaintenanceHubItem[]; t: Translat
                     {item.icon}
                   </span>
                   <div className='min-w-0 flex-1'>
-                    <Typography.Text className='block font-600 text-t-primary break-words'>{item.title}</Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary break-words'>
+                      {item.title}
+                    </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
                       {item.detail}
                     </Typography.Text>
@@ -1461,11 +1463,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 {t('settings.oplEnvironmentPage.storageData.description')}
               </Typography.Text>
             </div>
-            <Button
-              key='runtime-action-storage'
-              icon={<FolderSearch theme='outline' />}
-              onClick={openStorageSettings}
-            >
+            <Button key='runtime-action-storage' icon={<FolderSearch theme='outline' />} onClick={openStorageSettings}>
               {t('settings.oplEnvironmentPage.storageData.openStorage')}
             </Button>
           </div>

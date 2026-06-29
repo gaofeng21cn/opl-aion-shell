@@ -62,8 +62,7 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.quickEntries.capabilities.description':
           'Open MAS, MAG, RCA, OMA, plus skills and tools.',
         'settings.overviewPage.quickEntries.remote.title': 'Web / Remote Access',
-        'settings.overviewPage.quickEntries.remote.description':
-          'Open WebUI, Docker, and remote access configuration.',
+        'settings.overviewPage.quickEntries.remote.description': 'Open WebUI, Docker, and remote access configuration.',
         'settings.overviewPage.maintenanceTitle': 'Maintenance details',
         'settings.overviewPage.maintenanceDescription': 'Runtime health and maintenance actions.',
         'settings.overviewPage.actions.openRuntimeStatus': 'Open Runtime Status',

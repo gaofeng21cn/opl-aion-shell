@@ -1111,18 +1111,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
-  const expectedTabs = [
-    'general',
-    'access',
-    'capabilities',
-    'environment',
-    'appearance',
-    'advanced',
-  ];
+  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced'];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
-  const settingsIa = isRecord(settings.settings_information_architecture) ? settings.settings_information_architecture : null;
+  const settingsIa = isRecord(settings.settings_information_architecture)
+    ? settings.settings_information_architecture
+    : null;
   const secondaryPageIds = settingsIa
     ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
     : [];

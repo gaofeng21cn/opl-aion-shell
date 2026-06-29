@@ -48,7 +48,11 @@ function normalizeCapabilityModuleId(value: string): string {
 
 function capabilityModuleId(module: RuntimeModuleItem): string {
   return normalizeCapabilityModuleId(
-    oplString(module.module_id) ?? oplString(module.id) ?? oplString(module.name) ?? oplString(module.display_name) ?? ''
+    oplString(module.module_id) ??
+      oplString(module.id) ??
+      oplString(module.name) ??
+      oplString(module.display_name) ??
+      ''
   );
 }
 
@@ -73,7 +77,8 @@ function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
 function capabilityStatus(module: RuntimeModuleItem | undefined): CapabilityStatus {
   const status = capabilityModuleStatus(module);
   const action = oplString(module?.recommended_action);
-  if (!module || status === 'missing' || status === 'not_installed' || status === 'notInstalled') return 'notConfigured';
+  if (!module || status === 'missing' || status === 'not_installed' || status === 'notInstalled')
+    return 'notConfigured';
   if (['update', 'install', 'reinstall'].includes(action ?? '') || ['update_available', 'staged'].includes(status)) {
     return 'needsUpdate';
   }
@@ -184,9 +189,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   <div className='min-w-0 flex-1'>
                     <div className='flex flex-wrap items-center gap-8px mb-4px'>
                       <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-                      <Tag color={capabilityStatusColor(status)}>
-                        {t(`settings.capabilitiesPage.status.${status}`)}
-                      </Tag>
+                      <Tag color={capabilityStatusColor(status)}>{t(`settings.capabilitiesPage.status.${status}`)}</Tag>
                     </div>
                     <Typography.Text className='block text-13px text-t-secondary mb-10px break-words'>
                       {item.description}
@@ -251,7 +254,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
           <SkillsHubSettings withWrapper={false} />
         </Tabs.TabPane>
-        <Tabs.TabPane key='tools' title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}>
+        <Tabs.TabPane
+          key='tools'
+          title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
+        >
           <ToolsModalContent />
         </Tabs.TabPane>
       </Tabs>

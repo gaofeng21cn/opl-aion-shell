@@ -482,19 +482,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
 
     fireEvent.click(
-      screen
-        .getByTestId('opl-maintenance-hub-runtimeToolchain')
-        .querySelector('button') as HTMLButtonElement
+      screen.getByTestId('opl-maintenance-hub-runtimeToolchain').querySelector('button') as HTMLButtonElement
     );
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTestId('opl-maintenance-hub-storageCleanup').querySelector('button') as HTMLButtonElement);
+    fireEvent.click(
+      screen.getByTestId('opl-maintenance-hub-storageCleanup').querySelector('button') as HTMLButtonElement
+    );
     expect(window.location.hash).toBe('#/settings/storage');
 
     fireEvent.click(
-      screen
-        .getByTestId('opl-maintenance-hub-repairSuggestions')
-        .querySelector('button') as HTMLButtonElement
+      screen.getByTestId('opl-maintenance-hub-repairSuggestions').querySelector('button') as HTMLButtonElement
     );
     await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
