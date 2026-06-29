@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { getOplCodexSessionContext } from '@/common/config/oplProductProfile';
-import { oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
   executeManagedUpdateRead,
@@ -28,12 +28,14 @@ import {
   formatModuleAction,
   formatStatus,
   isReadyStatus,
+  isTruthyFlag,
   moduleDisplayLabel,
   moduleId,
   moduleManualHandlingLabel,
   moduleNeedsManualHandling,
   modulePath,
   modulePathSource,
+  moduleSource,
   moduleStatus,
   moduleVersionDetail,
   type RuntimeModuleItem,
@@ -50,6 +52,14 @@ import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSetting
 import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
+const DEVELOPER_SOURCE_MODES = new Set([
+  'developer_checkout',
+  'developer_mode',
+  'env_override',
+  'local_checkout',
+  'sibling_workspace',
+  'source_checkout',
+]);
 
 type RuntimeSettingsProps = {
   withWrapper?: boolean;
@@ -76,7 +86,7 @@ function mutationKindLabel(kind: 'apply' | 'repair' | 'rollback' | 'auto_apply',
   if (kind === 'repair') return t('settings.oplEnvironmentPage.updates.actions.repair');
   if (kind === 'rollback') return t('settings.oplEnvironmentPage.updates.actions.rollback');
   if (kind === 'auto_apply') return t('settings.oplEnvironmentPage.updates.actions.autoApply');
-  return t('settings.oplEnvironmentPage.updates.actions.applySelected');
+  return t('settings.oplEnvironmentPage.updates.actions.applyUpdate');
 }
 
 function mutationWillChange(
@@ -547,7 +557,7 @@ function ManagedUpdatesPanel({
                       ? t('settings.oplEnvironmentPage.updates.actions.repair')
                       : pendingAction.kind === 'rollback'
                         ? t('settings.oplEnvironmentPage.updates.actions.rollback')
-                        : t('settings.oplEnvironmentPage.updates.actions.applySelected')}
+                        : t('settings.oplEnvironmentPage.updates.actions.applyUpdate')}
                   </Button>
                 </Space>
               </div>
@@ -587,7 +597,7 @@ function ManagedUpdatesPanel({
                       loading={busyAction === `apply:${component.id}`}
                       onClick={() => onRequestAction('apply', component)}
                     >
-                      {t('settings.oplEnvironmentPage.updates.actions.applySelected')}
+                      {t('settings.oplEnvironmentPage.updates.actions.applyUpdate')}
                     </Button>
                   )}
                   {component.repairAllowed && (
@@ -681,7 +691,7 @@ function ManagedUpdatesPanel({
                   disabled={Boolean(activeReadOperation && activeReadOperation !== 'plan')}
                   onClick={onPlan}
                 >
-                  {t('settings.oplEnvironmentPage.updates.actions.plan')}
+                  {t('settings.oplEnvironmentPage.updates.actions.previewChanges')}
                 </Button>
               </Tooltip>
             </Space>
@@ -1023,6 +1033,21 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     maintenanceHubPrimaryAction,
     releaseChannelLabel,
   } = viewModel;
+  const developerSourceActive =
+    Boolean(modulesSourceMode && DEVELOPER_SOURCE_MODES.has(modulesSourceMode)) ||
+    modules.some((module) => {
+      const source = moduleSource(module);
+      return Boolean(source && DEVELOPER_SOURCE_MODES.has(source));
+    });
+  const dirtyCheckoutActive = modules.some((module) => {
+    const git = oplRecord(module.git);
+    return (
+      moduleStatus(module) === 'dirty' ||
+      isTruthyFlag(module.checkout_dirty) ||
+      isTruthyFlag(module.working_tree_dirty) ||
+      isTruthyFlag(git.dirty)
+    );
+  });
 
   const openLogDir = useCallback(() => {
     if (!logsRoot) return;
@@ -1045,6 +1070,24 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         <RuntimeHealthSummary items={healthSummaryItems} />
 
         <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
+
+        {(developerSourceActive || dirtyCheckoutActive) && (
+          <Alert
+            type='warning'
+            data-testid='opl-runtime-developer-source-alert'
+            title={t('settings.oplEnvironmentPage.developerSource.title')}
+            content={
+              <div className='flex flex-col gap-4px'>
+                <span className='break-words'>
+                  {dirtyCheckoutActive
+                    ? t('settings.oplEnvironmentPage.developerSource.dirtyImpact')
+                    : t('settings.oplEnvironmentPage.developerSource.impact')}
+                </span>
+                <span className='break-words'>{t('settings.oplEnvironmentPage.developerSource.nextStep')}</span>
+              </div>
+            }
+          />
+        )}
 
         {makeUsableConfirmationOpen && (
           <Alert

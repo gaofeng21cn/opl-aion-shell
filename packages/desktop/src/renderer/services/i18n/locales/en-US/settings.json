@@ -1304,6 +1304,12 @@
         "title": "Web / Remote Access",
         "description": "Open WebUI, Docker, and remote access configuration."
       }
+    },
+    "developerSource": {
+      "title": "Developer source needs manual handling",
+      "impact": "This app is using a local developer checkout or source override, so automatic package updates will skip those files instead of overwriting your work.",
+      "dirtyImpact": "This app detected uncommitted changes in a local checkout, so automatic package updates will skip it until those changes are saved, committed, or cleaned.",
+      "nextStep": "Handle the checkout in the developer repository, then refresh this page or switch back to OPL-managed packages."
     }
   },
   "workspacePage": {
@@ -1583,6 +1589,32 @@
         "title": "OPL Meta Agent",
         "description": "Enable OMA explicitly for agent-building and OPL-family automation work."
       }
+    },
+    "detailsHeader": "Capability details",
+    "codexVisibilitySummary": "Codex visibility: {{value}}",
+    "codexVisibility": {
+      "visible": "Visible in Codex",
+      "needsSync": "Needs sync before Codex sees the latest version",
+      "notVisible": "Not visible to Codex yet",
+      "unknown": "Visibility not reported"
+    },
+    "detailLabels": {
+      "purpose": "Purpose",
+      "codexVisibility": "Codex visibility",
+      "version": "Version",
+      "source": "Source",
+      "lastSync": "Last sync",
+      "failureReason": "Failure reason"
+    },
+    "detailValues": {
+      "notReported": "Not reported",
+      "none": "None"
+    },
+    "actions": {
+      "openDetails": "Review capability",
+      "installOrSync": "Set up capability",
+      "updateOrSync": "Update or sync",
+      "repair": "Review repair path"
     }
   },
   "oplEnvironmentPage": {
@@ -1836,7 +1868,11 @@
         "applySelected": "Apply update",
         "repair": "Repair",
         "rollback": "Restore previous version",
-        "autoApply": "Background sync"
+        "autoApply": "Background sync",
+        "applyUpdate": "Apply update",
+        "previewChanges": "Preview changes",
+        "reviewRuntimeToolchain": "Check runtime/toolchain",
+        "reviewCapabilityPacks": "Check capability packs"
       },
       "actionHelp": {
         "status": "Reads the current status only. It does not look for newer versions or create a change plan.",
@@ -1908,6 +1944,12 @@
     "codexContext": {
       "title": "Codex session context diagnostics",
       "description": "Read-only App-managed OPL Flow metadata for new Codex CLI sessions. It follows the UI language, respects user AGENTS.md files, and records the OPL App product profile as source."
+    },
+    "developerSource": {
+      "title": "Developer Profile affects automatic maintenance",
+      "impact": "A local source mode is active. Managed maintenance will still check status, but it will not overwrite developer checkouts automatically.",
+      "dirtyImpact": "A local checkout has uncommitted changes. Managed maintenance will skip automatic update actions for that checkout until you save, commit, or clean it.",
+      "nextStep": "Use the module diagnostics below to identify the checkout, handle it in that repository, then run the check again."
     }
   },
   "appearancePage": {

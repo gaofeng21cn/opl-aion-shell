@@ -18,6 +18,8 @@ vi.mock('@/common', () => ({
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  oplRecordList: (value: unknown) =>
+    Array.isArray(value) ? value.filter((entry) => entry && typeof entry === 'object' && !Array.isArray(entry)) : [],
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => ({
     appState: {
@@ -33,6 +35,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           default_modules_count: 4,
           healthy_default_modules_count: 3,
         },
+        source: { mode: 'sibling_workspace' },
+        items: [{ module_id: 'medautoscience', status: 'dirty', git: { dirty: true } }],
       },
     },
   }),
@@ -78,6 +82,10 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.actions.openRuntimeSettings': 'Open Maintenance',
         'settings.overviewPage.actions.openLocalServices': 'Open Local Services',
         'settings.overviewPage.actions.openFoundryAgents': 'Open Capabilities',
+        'settings.overviewPage.developerSource.title': 'Developer source needs manual handling',
+        'settings.overviewPage.developerSource.impact': 'Automatic package updates will skip developer checkouts.',
+        'settings.overviewPage.developerSource.dirtyImpact': 'Automatic package updates will skip dirty checkouts.',
+        'settings.overviewPage.developerSource.nextStep': 'Handle the checkout, then refresh.',
         'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
         'settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention': 'Usable with attention',
         'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready} / ${options?.total} ready`,
@@ -100,6 +108,12 @@ describe('OverviewSettings', () => {
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Usable with attention');
+    expect(screen.getByTestId('settings-overview-developer-source-alert')).toHaveTextContent(
+      'Developer source needs manual handling'
+    );
+    expect(screen.getByTestId('settings-overview-developer-source-alert')).toHaveTextContent(
+      'Automatic package updates will skip dirty checkouts.'
+    );
     expect(screen.getByText('3 / 4 ready')).toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();

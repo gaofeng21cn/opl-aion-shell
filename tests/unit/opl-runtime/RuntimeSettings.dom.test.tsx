@@ -56,6 +56,7 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery': 'Receipts remain visible.',
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run maintenance',
         'settings.oplEnvironmentPage.updates.components.unknown': 'OPL component',
+        'settings.oplEnvironmentPage.updates.actions.previewChanges': 'Preview changes',
       };
       if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
@@ -459,8 +460,14 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub-runtimeToolchain')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'
     );
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeToolchain')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.actions.reviewRuntimeToolchain'
+    );
     expect(screen.getByTestId('opl-maintenance-hub-capabilityPacks')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-capabilityPacks')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.actions.reviewCapabilityPacks'
     );
     expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'
@@ -474,15 +481,19 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-recommended-action')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.actions.recommendedRepair'
     );
+    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
+      'settings.oplEnvironmentPage.developerSource.title'
+    );
+    expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
+      'settings.oplEnvironmentPage.developerSource.dirtyImpact'
+    );
     expect(screen.getByText('settings.oplEnvironmentPage.sections.workspace')).toBeInTheDocument();
     expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
       'settings.oplEnvironmentPage.storageData.openStorage'
     );
     expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
-    expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.actions.plan'
-    );
+    expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent('Preview changes');
     fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(

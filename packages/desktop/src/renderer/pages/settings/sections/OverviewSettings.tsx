@@ -5,13 +5,23 @@
  */
 
 import React from 'react';
-import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Earth, FolderOpen, Lightning, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import { isTruthyFlag, moduleNeedsManualHandling, moduleRecords, moduleSource, moduleStatus } from './runtimeStateView';
+
+const DEVELOPER_SOURCE_MODES = new Set([
+  'developer_checkout',
+  'developer_mode',
+  'env_override',
+  'local_checkout',
+  'sibling_workspace',
+  'source_checkout',
+]);
 
 type OverviewSettingsProps = {
   withWrapper?: boolean;
@@ -33,14 +43,32 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     oplString(paths.family_workspace_root);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'unknown';
   const modules = oplRecord(appState.modules);
+  const moduleItems = moduleRecords(modules.items ?? modules.modules);
   const modulesSummary = oplRecord(modules.summary);
   const totalModules = Number(modulesSummary.default_modules_count ?? modulesSummary.total ?? 0);
   const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
   const modulesNeedAction = totalModules > 0 && readyModules < totalModules;
-  const overviewNeedsAction = !workspaceRoot || modulesNeedAction;
+  const sourceMode = oplString(oplRecord(modules.source).mode) ?? oplString(modules.source);
+  const developerSourceActive =
+    Boolean(sourceMode && DEVELOPER_SOURCE_MODES.has(sourceMode)) ||
+    moduleItems.some((module) => {
+      const source = moduleSource(module);
+      return Boolean(source && DEVELOPER_SOURCE_MODES.has(source));
+    });
+  const dirtyCheckoutActive = moduleItems.some((module) => {
+    const git = oplRecord(module.git);
+    return (
+      moduleStatus(module) === 'dirty' ||
+      isTruthyFlag(module.checkout_dirty) ||
+      isTruthyFlag(module.working_tree_dirty) ||
+      isTruthyFlag(git.dirty)
+    );
+  });
+  const moduleManualAction = moduleItems.some(moduleNeedsManualHandling);
+  const overviewNeedsAction = !workspaceRoot || modulesNeedAction || moduleManualAction;
   const recommendedRoute = !workspaceRoot
     ? '/settings/workspace'
-    : modulesNeedAction
+    : modulesNeedAction || moduleManualAction
       ? '/settings/local-services'
       : '/settings/environment';
   const recommendedLabel = !workspaceRoot
@@ -114,6 +142,24 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           </Space>
         </div>
       </div>
+
+      {(developerSourceActive || dirtyCheckoutActive) && (
+        <Alert
+          type='warning'
+          data-testid='settings-overview-developer-source-alert'
+          title={t('settings.overviewPage.developerSource.title')}
+          content={
+            <div className='flex flex-col gap-4px'>
+              <span className='break-words'>
+                {dirtyCheckoutActive
+                  ? t('settings.overviewPage.developerSource.dirtyImpact')
+                  : t('settings.overviewPage.developerSource.impact')}
+              </span>
+              <span className='break-words'>{t('settings.overviewPage.developerSource.nextStep')}</span>
+            </div>
+          }
+        />
+      )}
 
       <Card bordered className='rd-8px'>
         <div className='flex flex-col gap-12px'>

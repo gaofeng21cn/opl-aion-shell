@@ -20,10 +20,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
     appState: {
       modules: {
         items: [
-          { module_id: 'medautoscience', status: 'ready' },
-          { module_id: 'medautogrant', status: 'update_available' },
-          { module_id: 'redcube', status: 'failed_with_repair' },
-          { module_id: 'oplbookforge', status: 'ready' },
+          {
+            module_id: 'medautoscience',
+            status: 'ready',
+            version: '1.2.3',
+            source: 'managed_root',
+            capability_exposure: { status: 'visible', last_sync_at: '2026-06-30T01:00:00Z' },
+          },
+          { module_id: 'medautogrant', status: 'update_available', exposure_status: 'needs_sync' },
+          { module_id: 'redcube', status: 'failed_with_repair', failure_reason: 'receipt missing' },
+          { module_id: 'oplbookforge', status: 'ready', codex_visible: true },
           { module_id: 'oplmetaagent', status: 'missing' },
         ],
       },
@@ -108,6 +114,24 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
+        'settings.capabilitiesPage.detailsHeader': 'Capability details',
+        'settings.capabilitiesPage.codexVisibilitySummary': `Codex visibility: ${options?.value ?? ''}`,
+        'settings.capabilitiesPage.codexVisibility.visible': 'Visible in Codex',
+        'settings.capabilitiesPage.codexVisibility.needsSync': 'Needs sync before Codex sees the latest version',
+        'settings.capabilitiesPage.codexVisibility.notVisible': 'Not visible to Codex yet',
+        'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
+        'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
+        'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
+        'settings.capabilitiesPage.detailLabels.version': 'Version',
+        'settings.capabilitiesPage.detailLabels.source': 'Source',
+        'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
+        'settings.capabilitiesPage.detailLabels.failureReason': 'Failure reason',
+        'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
+        'settings.capabilitiesPage.detailValues.none': 'None',
+        'settings.capabilitiesPage.actions.openDetails': 'Review capability',
+        'settings.capabilitiesPage.actions.installOrSync': 'Set up capability',
+        'settings.capabilitiesPage.actions.updateOrSync': 'Update or sync',
+        'settings.capabilitiesPage.actions.repair': 'Review repair path',
         'settings.capabilitiesPage.purposes.automation.title': 'OPL Meta Agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -143,6 +167,18 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Update available')).toBeInTheDocument();
     expect(screen.getByText('Needs repair')).toBeInTheDocument();
     expect(screen.getByText('Missing')).toBeInTheDocument();
+    expect(screen.getAllByText('Codex visibility: Visible in Codex').length).toBeGreaterThan(0);
+    expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
+
+    const research = screen.getByTestId('capability-purpose-mas');
+    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
+    expect(within(research).getByText('1.2.3')).toBeInTheDocument();
+    expect(within(research).getByText('managed_root')).toBeInTheDocument();
+    expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
+
+    const presentations = screen.getByTestId('capability-purpose-rca');
+    fireEvent.click(within(presentations).getByRole('button', { name: 'Capability details' }));
+    expect(within(presentations).getByText('receipt missing')).toBeInTheDocument();
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
@@ -153,8 +189,7 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
 
-    const research = screen.getByTestId('capability-purpose-mas');
-    fireEvent.click(within(research).getByRole('button', { name: 'Skills' }));
+    fireEvent.click(within(research).getByRole('button', { name: 'Review capability' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');
   });
 });

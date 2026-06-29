@@ -14,6 +14,8 @@ import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/use
 
 export type CapabilityStatus = 'ready' | 'update' | 'repair' | 'missing';
 
+export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' | 'unknown';
+
 export type CapabilityPurposeViewModel = {
   key: string;
   title: string;
@@ -21,9 +23,17 @@ export type CapabilityPurposeViewModel = {
   tags: string[];
   moduleIds: string[];
   status: CapabilityStatus;
+  codexVisibility: CapabilityCodexVisibility;
+  version: string | null;
+  source: string | null;
+  lastSync: string | null;
+  failureReason: string | null;
 };
 
-export type ExtraCapabilityPurposeInput = Omit<CapabilityPurposeViewModel, 'status'>;
+export type ExtraCapabilityPurposeInput = Omit<
+  CapabilityPurposeViewModel,
+  'status' | 'codexVisibility' | 'version' | 'source' | 'lastSync' | 'failureReason'
+>;
 
 type RuntimeModuleItem = OplAppStateRecord;
 
@@ -93,6 +103,95 @@ function mapCapabilityStatus(module: RuntimeModuleItem | undefined): CapabilityS
   return 'repair';
 }
 
+function capabilityCodexVisibility(
+  module: RuntimeModuleItem | undefined,
+  status: CapabilityStatus
+): CapabilityCodexVisibility {
+  if (!module) return 'notVisible';
+  const exposure = oplRecord(module.capability_exposure);
+  const codexVisible =
+    module.codex_visible ??
+    module.visible_to_codex ??
+    module.exposed_to_codex ??
+    exposure.codex_visible ??
+    exposure.visible_to_codex ??
+    exposure.exposed;
+  const exposureStatus = oplString(exposure.status) ?? oplString(module.exposure_status);
+  if (codexVisible === true || exposureStatus === 'visible' || exposureStatus === 'ready') return 'visible';
+  if (status === 'ready') return 'visible';
+  if (status === 'update' || exposureStatus === 'stale' || exposureStatus === 'needs_sync') return 'needsSync';
+  if (status === 'missing') return 'notVisible';
+  return 'unknown';
+}
+
+function capabilityVersion(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const git = oplRecord(module.git);
+  return (
+    oplString(module.version) ??
+    oplString(module.package_version) ??
+    oplString(module.installed_version) ??
+    oplString(git.short_sha)
+  );
+}
+
+function capabilitySource(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const sourcePolicy = oplRecord(module.source_policy);
+  return (
+    oplString(module.source) ??
+    oplString(module.install_origin) ??
+    oplString(module.checkout_source) ??
+    oplString(sourcePolicy.source) ??
+    oplString(sourcePolicy.mode)
+  );
+}
+
+function capabilityLastSync(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const exposure = oplRecord(module.capability_exposure);
+  return (
+    oplString(module.last_sync_at) ??
+    oplString(module.synced_at) ??
+    oplString(module.updated_at) ??
+    oplString(exposure.last_sync_at) ??
+    oplString(exposure.synced_at)
+  );
+}
+
+function capabilityFailureReason(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const error = oplRecord(module.error);
+  const exposure = oplRecord(module.capability_exposure);
+  return (
+    oplString(module.failure_reason) ??
+    oplString(module.last_failure) ??
+    oplString(module.reason) ??
+    oplString(error.message) ??
+    oplString(exposure.failure_reason) ??
+    oplString(exposure.last_failure)
+  );
+}
+
+function buildCapabilityPurpose(
+  purpose: Omit<
+    CapabilityPurposeViewModel,
+    'status' | 'codexVisibility' | 'version' | 'source' | 'lastSync' | 'failureReason'
+  >,
+  module: RuntimeModuleItem | undefined
+): CapabilityPurposeViewModel {
+  const status = mapCapabilityStatus(module);
+  return {
+    ...purpose,
+    status,
+    codexVisibility: capabilityCodexVisibility(module, status),
+    version: capabilityVersion(module),
+    source: capabilitySource(module),
+    lastSync: capabilityLastSync(module),
+    failureReason: capabilityFailureReason(module),
+  };
+}
+
 function assistantModuleIds(assistant: OplHomeAssistant): string[] {
   const profile = getOplAssistantSkillProfile(assistant.id);
   const ids = [
@@ -123,23 +222,27 @@ export function buildCapabilitiesViewModel(
   const defaultPurposes = getOplDefaultHomeAssistants().map((assistant) => {
     const moduleIds = assistantModuleIds(assistant);
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
-    return {
-      key: assistant.id,
-      title: assistant.home_purpose_label,
-      description:
-        assistant.description_i18n[localeKey] ?? assistant.description_i18n['en-US'] ?? assistant.display_name,
-      tags: assistantTags(assistant),
-      moduleIds,
-      status: mapCapabilityStatus(module),
-    };
+    return buildCapabilityPurpose(
+      {
+        key: assistant.id,
+        title: assistant.home_purpose_label,
+        description:
+          assistant.description_i18n[localeKey] ?? assistant.description_i18n['en-US'] ?? assistant.display_name,
+        tags: assistantTags(assistant),
+        moduleIds,
+      },
+      module
+    );
   });
   const explicitPurposes = extraPurposes.map((purpose) => {
     const module = purpose.moduleIds.map((id) => modules.get(normalizeCapabilityModuleId(id))).find(Boolean);
-    return {
-      ...purpose,
-      moduleIds: purpose.moduleIds.map(normalizeCapabilityModuleId),
-      status: mapCapabilityStatus(module),
-    };
+    return buildCapabilityPurpose(
+      {
+        ...purpose,
+        moduleIds: purpose.moduleIds.map(normalizeCapabilityModuleId),
+      },
+      module
+    );
   });
   return [...defaultPurposes, ...explicitPurposes];
 }

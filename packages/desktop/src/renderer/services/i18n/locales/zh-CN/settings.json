@@ -1305,6 +1305,12 @@
         "title": "Web / 远程访问",
         "description": "打开 WebUI、Docker 和远程访问配置入口。"
       }
+    },
+    "developerSource": {
+      "title": "开发源需要手动处理",
+      "impact": "当前 App 正在使用本机开发目录或来源覆盖，自动包更新会跳过这些文件，不会覆盖你的工作。",
+      "dirtyImpact": "检测到本机 checkout 有未提交改动，自动包更新会先跳过它，直到你保存、提交或清理这些改动。",
+      "nextStep": "请在对应开发仓库处理该 checkout，然后刷新本页；或者切回 OPL 托管包。"
     }
   },
   "workspacePage": {
@@ -1584,6 +1590,32 @@
         "title": "OPL Meta Agent",
         "description": "明确启用 OMA，用于智能体构建和 OPL 系列自动化工作。"
       }
+    },
+    "detailsHeader": "能力详情",
+    "codexVisibilitySummary": "Codex 可见性：{{value}}",
+    "codexVisibility": {
+      "visible": "Codex 可见",
+      "needsSync": "需要同步后 Codex 才能看到最新版本",
+      "notVisible": "Codex 尚不可见",
+      "unknown": "未报告可见性"
+    },
+    "detailLabels": {
+      "purpose": "用途",
+      "codexVisibility": "Codex 可见性",
+      "version": "版本",
+      "source": "来源",
+      "lastSync": "最后同步",
+      "failureReason": "失败原因"
+    },
+    "detailValues": {
+      "notReported": "未报告",
+      "none": "无"
+    },
+    "actions": {
+      "openDetails": "查看能力",
+      "installOrSync": "设置能力",
+      "updateOrSync": "更新或同步",
+      "repair": "查看修复路径"
     }
   },
   "oplEnvironmentPage": {
@@ -1837,7 +1869,11 @@
         "applySelected": "应用更新",
         "repair": "修复",
         "rollback": "恢复上一版本",
-        "autoApply": "后台同步"
+        "autoApply": "后台同步",
+        "applyUpdate": "应用更新",
+        "previewChanges": "预览变更",
+        "reviewRuntimeToolchain": "检查运行时/工具链",
+        "reviewCapabilityPacks": "检查能力包"
       },
       "actionHelp": {
         "status": "只重新读取当前状态，不查找新版本，也不生成变更计划。",
@@ -1909,6 +1945,12 @@
     "codexContext": {
       "title": "Codex 会话上下文诊断",
       "description": "新建 Codex CLI 会话使用的 App 管理 OPL Flow 元数据。它跟随界面语言、尊重用户 AGENTS.md 文件，并记录 OPL App 产品规则作为来源。"
+    },
+    "developerSource": {
+      "title": "Developer Profile 会影响自动维护",
+      "impact": "当前启用了本机来源模式。托管维护仍会检查状态，但不会自动覆盖开发 checkout。",
+      "dirtyImpact": "本机 checkout 有未提交改动。托管维护会跳过该 checkout 的自动更新动作，直到你保存、提交或清理它。",
+      "nextStep": "在下方模块诊断中找到对应 checkout，在该仓库处理后再重新检查。"
     }
   },
   "appearancePage": {

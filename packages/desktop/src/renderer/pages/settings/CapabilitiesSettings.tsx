@@ -15,7 +15,7 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Button, Card, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Button, Card, Collapse, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Robot, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -47,6 +47,51 @@ function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
   if (item.key === 'rca') return <FilePpt theme='outline' />;
   if (item.key === 'bookforge') return <FileWord theme='outline' />;
   return <Robot theme='outline' />;
+}
+
+function capabilityActionLabel(item: CapabilityPurposeViewModel, t: (key: string) => string): string {
+  if (item.status === 'missing') return t('settings.capabilitiesPage.actions.installOrSync');
+  if (item.status === 'update') return t('settings.capabilitiesPage.actions.updateOrSync');
+  if (item.status === 'repair') return t('settings.capabilitiesPage.actions.repair');
+  return t('settings.capabilitiesPage.actions.openDetails');
+}
+
+function capabilityDetailRows(
+  item: CapabilityPurposeViewModel,
+  t: (key: string, options?: Record<string, string>) => string
+) {
+  return [
+    {
+      key: 'purpose',
+      label: t('settings.capabilitiesPage.detailLabels.purpose'),
+      value: item.description,
+    },
+    {
+      key: 'codexVisibility',
+      label: t('settings.capabilitiesPage.detailLabels.codexVisibility'),
+      value: t(`settings.capabilitiesPage.codexVisibility.${item.codexVisibility}`),
+    },
+    {
+      key: 'version',
+      label: t('settings.capabilitiesPage.detailLabels.version'),
+      value: item.version ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'source',
+      label: t('settings.capabilitiesPage.detailLabels.source'),
+      value: item.source ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'lastSync',
+      label: t('settings.capabilitiesPage.detailLabels.lastSync'),
+      value: item.lastSync ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'failureReason',
+      label: t('settings.capabilitiesPage.detailLabels.failureReason'),
+      value: item.failureReason ?? t('settings.capabilitiesPage.detailValues.none'),
+    },
+  ];
 }
 
 type CapabilitiesSettingsContentProps = {
@@ -97,6 +142,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   <Typography.Text className='block text-13px text-t-secondary mb-10px break-words'>
                     {item.description}
                   </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary mb-10px break-words'>
+                    {t('settings.capabilitiesPage.codexVisibilitySummary', {
+                      value: t(`settings.capabilitiesPage.codexVisibility.${item.codexVisibility}`),
+                    })}
+                  </Typography.Text>
                   <div className='flex flex-wrap gap-6px'>
                     {item.tags.map((tag) => (
                       <Tag key={`${item.key}-${tag}`} color='arcoblue'>
@@ -104,8 +154,23 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Tag>
                     ))}
                   </div>
+                  <Collapse bordered={false} className='mt-8px'>
+                    <Collapse.Item
+                      header={t('settings.capabilitiesPage.detailsHeader')}
+                      name={`capability-${item.key}-details`}
+                    >
+                      <div className='grid grid-cols-1 gap-6px text-12px'>
+                        {capabilityDetailRows(item, t).map((row) => (
+                          <div key={`${item.key}-${row.key}`} className='min-w-0'>
+                            <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                            <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+                          </div>
+                        ))}
+                      </div>
+                    </Collapse.Item>
+                  </Collapse>
                   <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
-                    {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
+                    {capabilityActionLabel(item, t)}
                   </Button>
                 </div>
               </div>
