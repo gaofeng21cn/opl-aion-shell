@@ -115,9 +115,7 @@ const codexSpec = textFile(path.join(payloadDir, 'codex_cli', 'OPL_CODEX_NPM_SPE
 const components = [
   component('opl_framework', {
     source: 'ghcr_image_build_framework_seed',
-    sourceFingerprint: frameworkCommit
-      ? `git:${frameworkRef || 'main'}:${frameworkCommit}`
-      : undefined,
+    sourceFingerprint: frameworkCommit ? `git:${frameworkRef || 'main'}:${frameworkCommit}` : undefined,
   }),
   component('codex_cli', {
     source: codexSpec || 'npm:@openai/codex',
@@ -149,8 +147,8 @@ fs.writeFileSync(
       note: 'Full WebUI images carry preheated runtime payloads. Startup maintenance applies this seed into /data and writes install receipts.',
     },
     null,
-    2,
-  ) + '\n',
+    2
+  ) + '\n'
 );
 
 console.log(`Prepared OPL image seed metadata at ${path.join(seedDir, 'metadata.json')}`);

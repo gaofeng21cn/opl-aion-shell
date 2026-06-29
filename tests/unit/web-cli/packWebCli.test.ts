@@ -212,96 +212,116 @@ describe('pack-web-cli OPL image resources', () => {
     }
   });
 
-  it.skipIf(process.platform === 'win32')('relativizes preheated seed payload symlinks for Docker runtime relocation', () => {
-    const projectRoot = path.join(tmp, 'repo');
-    const payloadDir = path.join(projectRoot, 'resources', 'opl-image-seed', 'payload');
-    const frameworkBinDir = path.join(payloadDir, 'opl_framework', 'bin');
-    const frameworkTargetDir = path.join(payloadDir, 'opl_framework', 'node_modules', 'acorn', 'bin');
-    const codexBinDir = path.join(payloadDir, 'codex_cli', 'bin');
-    const companionDir = path.join(payloadDir, 'companion_skills');
-    const modulesDir = path.join(payloadDir, 'domain_modules');
-    fs.mkdirSync(projectRoot, { recursive: true });
-    fs.writeFileSync(path.join(projectRoot, 'package.json'), JSON.stringify({ version: '2.1.17' }) + '\n');
-    fs.mkdirSync(frameworkBinDir, { recursive: true });
-    fs.mkdirSync(frameworkTargetDir, { recursive: true });
-    fs.mkdirSync(codexBinDir, { recursive: true });
-    fs.mkdirSync(companionDir, { recursive: true });
-    fs.mkdirSync(modulesDir, { recursive: true });
-    fs.writeFileSync(path.join(frameworkTargetDir, 'acorn'), '#!/usr/bin/env node\n');
-    fs.symlinkSync(path.join(frameworkTargetDir, 'acorn'), path.join(frameworkBinDir, 'acorn'));
-    fs.writeFileSync(path.join(codexBinDir, 'codex'), '#!/usr/bin/env sh\n');
-    fs.writeFileSync(path.join(companionDir, 'index.json'), '{}\n');
-    fs.writeFileSync(path.join(modulesDir, 'README.txt'), 'managed\n');
+  it.skipIf(process.platform === 'win32')(
+    'relativizes preheated seed payload symlinks for Docker runtime relocation',
+    () => {
+      const projectRoot = path.join(tmp, 'repo');
+      const payloadDir = path.join(projectRoot, 'resources', 'opl-image-seed', 'payload');
+      const frameworkBinDir = path.join(payloadDir, 'opl_framework', 'bin');
+      const frameworkTargetDir = path.join(payloadDir, 'opl_framework', 'node_modules', 'acorn', 'bin');
+      const codexBinDir = path.join(payloadDir, 'codex_cli', 'bin');
+      const companionDir = path.join(payloadDir, 'companion_skills');
+      const modulesDir = path.join(payloadDir, 'domain_modules');
+      fs.mkdirSync(projectRoot, { recursive: true });
+      fs.writeFileSync(path.join(projectRoot, 'package.json'), JSON.stringify({ version: '2.1.17' }) + '\n');
+      fs.mkdirSync(frameworkBinDir, { recursive: true });
+      fs.mkdirSync(frameworkTargetDir, { recursive: true });
+      fs.mkdirSync(codexBinDir, { recursive: true });
+      fs.mkdirSync(companionDir, { recursive: true });
+      fs.mkdirSync(modulesDir, { recursive: true });
+      fs.writeFileSync(path.join(frameworkTargetDir, 'acorn'), '#!/usr/bin/env node\n');
+      fs.symlinkSync(path.join(frameworkTargetDir, 'acorn'), path.join(frameworkBinDir, 'acorn'));
+      fs.writeFileSync(path.join(codexBinDir, 'codex'), '#!/usr/bin/env sh\n');
+      fs.writeFileSync(path.join(companionDir, 'index.json'), '{}\n');
+      fs.writeFileSync(path.join(modulesDir, 'README.txt'), 'managed\n');
 
-    const result = require('node:child_process').spawnSync('node', [path.join(__dirname, '../../../scripts/prepare-opl-image-seed.js')], {
-      cwd: projectRoot,
-      env: {
-        ...process.env,
-        OPL_IMAGE_SEED_PROJECT_ROOT: projectRoot,
-      },
-      encoding: 'utf8',
-    });
+      const result = require('node:child_process').spawnSync(
+        'node',
+        [path.join(__dirname, '../../../scripts/prepare-opl-image-seed.js')],
+        {
+          cwd: projectRoot,
+          env: {
+            ...process.env,
+            OPL_IMAGE_SEED_PROJECT_ROOT: projectRoot,
+          },
+          encoding: 'utf8',
+        }
+      );
 
-    expect(result.status).toBe(0);
-    const link = fs.readlinkSync(path.join(frameworkBinDir, 'acorn'));
-    expect(path.isAbsolute(link)).toBe(false);
-    expect(fs.realpathSync(path.join(frameworkBinDir, 'acorn'))).toBe(fs.realpathSync(path.join(frameworkTargetDir, 'acorn')));
-    const seed = JSON.parse(fs.readFileSync(path.join(projectRoot, 'resources', 'opl-image-seed', 'metadata.json'), 'utf8'));
-    expect(seed.components.find((entry: { id: string }) => entry.id === 'opl_framework').sha256).toMatch(/^[a-f0-9]{64}$/);
-  });
+      expect(result.status).toBe(0);
+      const link = fs.readlinkSync(path.join(frameworkBinDir, 'acorn'));
+      expect(path.isAbsolute(link)).toBe(false);
+      expect(fs.realpathSync(path.join(frameworkBinDir, 'acorn'))).toBe(
+        fs.realpathSync(path.join(frameworkTargetDir, 'acorn'))
+      );
+      const seed = JSON.parse(
+        fs.readFileSync(path.join(projectRoot, 'resources', 'opl-image-seed', 'metadata.json'), 'utf8')
+      );
+      expect(seed.components.find((entry: { id: string }) => entry.id === 'opl_framework').sha256).toMatch(
+        /^[a-f0-9]{64}$/
+      );
+    }
+  );
 
-  it.skipIf(process.platform === 'win32')('keeps copied preheated seed payload symlinks relocatable in the web-cli staging dir', () => {
-    const projectRoot = path.join(tmp, 'repo');
-    const tarballContentDir = path.join(tmp, 'staging', 'aionui-web');
-    const seedSourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
-    const payloadDir = path.join(seedSourceDir, 'payload');
-    const frameworkBinDir = path.join(payloadDir, 'opl_framework', 'bin');
-    const frameworkTargetDir = path.join(payloadDir, 'opl_framework', 'node_modules', 'acorn', 'bin');
-    fs.mkdirSync(frameworkBinDir, { recursive: true });
-    fs.mkdirSync(frameworkTargetDir, { recursive: true });
-    fs.mkdirSync(path.join(payloadDir, 'codex_cli', 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(payloadDir, 'companion_skills'), { recursive: true });
-    fs.mkdirSync(path.join(payloadDir, 'domain_modules'), { recursive: true });
-    fs.mkdirSync(tarballContentDir, { recursive: true });
-    fs.writeFileSync(path.join(projectRoot, 'resources', 'opl-webui-entrypoint.sh'), '#!/usr/bin/env sh\n');
-    fs.writeFileSync(path.join(frameworkTargetDir, 'acorn'), '#!/usr/bin/env node\n');
-    fs.symlinkSync(path.join(frameworkTargetDir, 'acorn'), path.join(frameworkBinDir, 'acorn'));
-    fs.writeFileSync(path.join(payloadDir, 'codex_cli', 'bin', 'codex'), '#!/usr/bin/env sh\n');
-    fs.writeFileSync(path.join(payloadDir, 'companion_skills', 'index.json'), '{}\n');
-    fs.writeFileSync(path.join(payloadDir, 'domain_modules', 'README.txt'), 'managed\n');
-    fs.writeFileSync(
-      path.join(seedSourceDir, 'metadata.json'),
-      JSON.stringify({
-        schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
-        strategy: 'payload_preheated',
-        components: [],
-        full_profile: { components: [] },
-        payload_dir: 'payload',
-      }) + '\n'
-    );
+  it.skipIf(process.platform === 'win32')(
+    'keeps copied preheated seed payload symlinks relocatable in the web-cli staging dir',
+    () => {
+      const projectRoot = path.join(tmp, 'repo');
+      const tarballContentDir = path.join(tmp, 'staging', 'aionui-web');
+      const seedSourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
+      const payloadDir = path.join(seedSourceDir, 'payload');
+      const frameworkBinDir = path.join(payloadDir, 'opl_framework', 'bin');
+      const frameworkTargetDir = path.join(payloadDir, 'opl_framework', 'node_modules', 'acorn', 'bin');
+      fs.mkdirSync(frameworkBinDir, { recursive: true });
+      fs.mkdirSync(frameworkTargetDir, { recursive: true });
+      fs.mkdirSync(path.join(payloadDir, 'codex_cli', 'bin'), { recursive: true });
+      fs.mkdirSync(path.join(payloadDir, 'companion_skills'), { recursive: true });
+      fs.mkdirSync(path.join(payloadDir, 'domain_modules'), { recursive: true });
+      fs.mkdirSync(tarballContentDir, { recursive: true });
+      fs.writeFileSync(path.join(projectRoot, 'resources', 'opl-webui-entrypoint.sh'), '#!/usr/bin/env sh\n');
+      fs.writeFileSync(path.join(frameworkTargetDir, 'acorn'), '#!/usr/bin/env node\n');
+      fs.symlinkSync(path.join(frameworkTargetDir, 'acorn'), path.join(frameworkBinDir, 'acorn'));
+      fs.writeFileSync(path.join(payloadDir, 'codex_cli', 'bin', 'codex'), '#!/usr/bin/env sh\n');
+      fs.writeFileSync(path.join(payloadDir, 'companion_skills', 'index.json'), '{}\n');
+      fs.writeFileSync(path.join(payloadDir, 'domain_modules', 'README.txt'), 'managed\n');
+      fs.writeFileSync(
+        path.join(seedSourceDir, 'metadata.json'),
+        JSON.stringify({
+          schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
+          strategy: 'payload_preheated',
+          components: [],
+          full_profile: { components: [] },
+          payload_dir: 'payload',
+        }) + '\n'
+      );
 
-    writeOplImageResources({
-      projectRoot,
-      tarballContentDir,
-      srcPkg: { name: '@aionui/web-cli' },
-      version: '2.1.17',
-      runtimeKey: 'linux-x64',
-    });
+      writeOplImageResources({
+        projectRoot,
+        tarballContentDir,
+        srcPkg: { name: '@aionui/web-cli' },
+        version: '2.1.17',
+        runtimeKey: 'linux-x64',
+      });
 
-    const stagedLinkPath = path.join(
-      tarballContentDir,
-      'opl-image-seed',
-      'payload',
-      'opl_framework',
-      'bin',
-      'acorn'
-    );
-    const stagedLink = fs.readlinkSync(stagedLinkPath);
-    expect(path.isAbsolute(stagedLink)).toBe(false);
-    expect(fs.realpathSync(stagedLinkPath)).toBe(
-      fs.realpathSync(path.join(tarballContentDir, 'opl-image-seed', 'payload', 'opl_framework', 'node_modules', 'acorn', 'bin', 'acorn'))
-    );
-  });
+      const stagedLinkPath = path.join(tarballContentDir, 'opl-image-seed', 'payload', 'opl_framework', 'bin', 'acorn');
+      const stagedLink = fs.readlinkSync(stagedLinkPath);
+      expect(path.isAbsolute(stagedLink)).toBe(false);
+      expect(fs.realpathSync(stagedLinkPath)).toBe(
+        fs.realpathSync(
+          path.join(
+            tarballContentDir,
+            'opl-image-seed',
+            'payload',
+            'opl_framework',
+            'node_modules',
+            'acorn',
+            'bin',
+            'acorn'
+          )
+        )
+      );
+    }
+  );
 
   it('ignores Framework-provided payloads for slim image resources', () => {
     const projectRoot = path.join(tmp, 'repo');
