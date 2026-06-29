@@ -8,6 +8,7 @@ import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { vi } from 'vitest';
 import { startStaticServer, type StaticServerHandle } from './static-server.js';
+import { __oplRuntimeProxyTest } from './opl-runtime-proxy.js';
 
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
@@ -348,6 +349,16 @@ describe('static-server', () => {
     const json = (await r.json()) as { data: { surface: string; parsed: unknown } };
     expect(json.data.surface).toBe('startup_maintenance');
     expect(json.data.parsed).toEqual({ ok: true });
+  });
+
+  it('/api/opl-runtime/* gives maintenance commands a long timeout without changing fast reads', () => {
+    const maintenanceSpec = __oplRuntimeProxyTest.buildCommandFromRequest('startup-maintenance', {});
+    const updateCheckSpec = __oplRuntimeProxyTest.buildCommandFromRequest('update-check', {});
+    const appStateSpec = __oplRuntimeProxyTest.buildCommandFromRequest('app-state', {});
+
+    expect(maintenanceSpec.timeoutMs).toBe(__oplRuntimeProxyTest.MAINTENANCE_TIMEOUT_MS);
+    expect(updateCheckSpec.timeoutMs).toBe(__oplRuntimeProxyTest.MAINTENANCE_TIMEOUT_MS);
+    expect(appStateSpec.timeoutMs).toBeUndefined();
   });
 
   it('/api/opl-runtime/* reruns bootstrap when an existing OPL checkout has missing dependencies', async () => {

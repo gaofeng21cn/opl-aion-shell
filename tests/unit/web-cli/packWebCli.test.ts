@@ -21,6 +21,13 @@ describe('pack-web-cli OPL image resources', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   });
 
+  it('keeps Docker OPL shim as a direct executable wrapper', () => {
+    const dockerfile = fs.readFileSync(path.join(__dirname, '../../../Dockerfile'), 'utf8');
+
+    expect(dockerfile).toContain('exec /opt/opl/seed/payload/opl_framework/bin/opl "$@"');
+    expect(dockerfile).not.toContain('exec node /opt/opl/seed/payload/opl_framework/bin/opl "$@"');
+  });
+
   it('builds the Docker/WebUI image manifest contract', () => {
     expect(
       buildOplImageManifest({

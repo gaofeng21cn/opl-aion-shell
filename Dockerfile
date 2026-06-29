@@ -125,7 +125,7 @@ RUN set -eu; \
     exit 1; \
   fi; \
   printf '%s\n' '#!/usr/bin/env sh' \
-    'exec node /opt/opl/seed/payload/opl_framework/bin/opl "$@"' \
+    'exec /opt/opl/seed/payload/opl_framework/bin/opl "$@"' \
     > /usr/local/bin/opl; \
   printf '%s\n' '#!/usr/bin/env sh' \
     'exec /opt/opl/seed/payload/codex_cli/bin/codex "$@"' \

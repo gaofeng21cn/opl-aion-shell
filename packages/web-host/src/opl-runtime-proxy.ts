@@ -64,6 +64,7 @@ const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 30_000;
 const BOOTSTRAP_TIMEOUT_MS = 900_000;
+const MAINTENANCE_TIMEOUT_MS = 900_000;
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 
 let standardBootstrapCompleted = false;
@@ -155,9 +156,17 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
       };
     }
     case 'startup-maintenance':
-      return { surface: 'startup_maintenance', args: ['system', 'startup-maintenance', '--json'] };
+      return {
+        surface: 'startup_maintenance',
+        args: ['system', 'startup-maintenance', '--json'],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
+      };
     case 'reconcile-modules':
-      return { surface: 'reconcile_modules', args: ['system', 'reconcile-modules', '--json'] };
+      return {
+        surface: 'reconcile_modules',
+        args: ['system', 'reconcile-modules', '--json'],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
+      };
     case 'drilldown': {
       const detail = body.detail === 'full' ? 'full' : 'summary';
       if (detail === 'full') {
@@ -180,7 +189,7 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
     case 'update-status':
       return { surface: 'update_status', args: ['update', 'status', '--json'] };
     case 'update-check':
-      return { surface: 'update_check', args: ['update', 'check', '--json'] };
+      return { surface: 'update_check', args: ['update', 'check', '--json'], timeoutMs: MAINTENANCE_TIMEOUT_MS };
     case 'update-plan':
       return { surface: 'update_plan', args: ['update', 'plan', '--json'] };
     case 'update-apply':
@@ -193,12 +202,14 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
           assertSafeIdentifier(body.componentId, 'update component id'),
           '--json',
         ],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
       };
     case 'update-repair': {
       if (typeof body.receiptId === 'string' && body.receiptId.trim()) {
         return {
           surface: 'update_repair',
           args: ['update', 'repair', '--receipt', assertSafeIdentifier(body.receiptId, 'update receipt id'), '--json'],
+          timeoutMs: MAINTENANCE_TIMEOUT_MS,
         };
       }
       return {
@@ -210,6 +221,7 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
           assertSafeIdentifier(body.componentId, 'update component id'),
           '--json',
         ],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
       };
     }
     case 'update-rollback':
@@ -222,6 +234,7 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
           assertSafeIdentifier(body.componentId, 'update component id'),
           '--json',
         ],
+        timeoutMs: MAINTENANCE_TIMEOUT_MS,
       };
     default:
       throw new Error(`Unsupported OPL runtime route: ${route}`);
@@ -554,6 +567,7 @@ export async function handleOplRuntimeProxyRequest(
 export const __oplRuntimeProxyTest = {
   buildCommandFromRequest,
   buildOplEnv,
+  MAINTENANCE_TIMEOUT_MS,
   normalizeOplRuntimeProxyOptions,
   resolveOplInstaller,
 };
