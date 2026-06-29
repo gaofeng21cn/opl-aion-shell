@@ -140,7 +140,7 @@ export async function ensureAdminPassword(
       return null;
     }
     const username = await fetchAdminUsername(deps, opts.backendPort);
-    if (needsSetup) {
+    if (needsSetup && opts.resetExisting !== true) {
       deps.log(`[aionui-web] Generated initial admin password: ${newPassword}`);
     } else {
       deps.log('[aionui-web] Refreshed startup admin password for browser auto-login.');
