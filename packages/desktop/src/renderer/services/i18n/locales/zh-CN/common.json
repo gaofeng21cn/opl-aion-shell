@@ -73,18 +73,17 @@
   "tray.untitled": "未命名",
   "startupPreflight": {
     "title": "正在启动 One Person Lab",
-    "description": "正在准备桌面会话，随后会进入初始化检查。",
+    "description": "正在为您准备工作环境，马上就好...",
     "steps": {
-      "desktopSession": "桌面会话",
-      "appConfig": "应用配置",
-      "firstRunStatus": "初始化状态"
+      "desktopSession": "连接后台服务",
+      "appConfig": "加载应用配置",
+      "systemReady": "检查系统状态"
     },
     "messages": {
-      "connectingBackend": "正在连接后端服务...",
-      "loadingConfig": "正在加载应用配置...",
-      "checkingFirstRun": "正在检查初始化状态..."
-    },
-    "estimatedTime": "预计还需要 {{seconds}} 秒"
+      "connectingBackend": "正在连接到 Codex...",
+      "loadingConfig": "正在加载您的设置...",
+      "checkingSystemReady": "正在检查系统就绪状态..."
+    }
   },
   "backendStartup": {
     "incompatibleRuntime": {

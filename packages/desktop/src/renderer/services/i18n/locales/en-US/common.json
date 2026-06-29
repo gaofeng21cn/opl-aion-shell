@@ -73,18 +73,17 @@
   "tray.untitled": "Untitled",
   "startupPreflight": {
     "title": "Starting One Person Lab",
-    "description": "Preparing the desktop session before the initialization check appears.",
+    "description": "Preparing your workspace, almost there...",
     "steps": {
-      "desktopSession": "Desktop session",
-      "appConfig": "App configuration",
-      "firstRunStatus": "Initialization status"
+      "desktopSession": "Connect backend service",
+      "appConfig": "Load application config",
+      "systemReady": "Check system status"
     },
     "messages": {
-      "connectingBackend": "Connecting to backend service...",
-      "loadingConfig": "Loading application configuration...",
-      "checkingFirstRun": "Checking initialization status..."
-    },
-    "estimatedTime": "About {{seconds}} seconds remaining"
+      "connectingBackend": "Connecting to Codex...",
+      "loadingConfig": "Loading your settings...",
+      "checkingSystemReady": "Checking system readiness..."
+    }
   },
   "backendStartup": {
     "incompatibleRuntime": {
