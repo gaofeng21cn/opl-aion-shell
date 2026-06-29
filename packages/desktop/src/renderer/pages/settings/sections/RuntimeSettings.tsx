@@ -247,6 +247,40 @@ function updateComponentUserAction(component: ManagedUpdateComponent, t: Transla
   return t('settings.oplEnvironmentPage.updates.nextActions.review');
 }
 
+function mutationKindLabel(kind: 'apply' | 'repair' | 'rollback' | 'auto_apply', t: Translate): string {
+  if (kind === 'repair') return t('settings.oplEnvironmentPage.updates.actions.repair');
+  if (kind === 'rollback') return t('settings.oplEnvironmentPage.updates.actions.rollback');
+  if (kind === 'auto_apply') return t('settings.oplEnvironmentPage.updates.actions.autoApply');
+  return t('settings.oplEnvironmentPage.updates.actions.applySelected');
+}
+
+function mutationWillChange(kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent, t: Translate): string {
+  if (kind === 'repair') return t('settings.oplEnvironmentPage.updates.confirmation.willRepair');
+  if (kind === 'rollback') {
+    return component.rollbackRef
+      ? t('settings.oplEnvironmentPage.updates.confirmation.willRollbackTo', { ref: component.rollbackRef })
+      : t('settings.oplEnvironmentPage.updates.confirmation.willRollback');
+  }
+  return t('settings.oplEnvironmentPage.updates.confirmation.willApply');
+}
+
+function mutationWillNotChange(kind: 'apply' | 'repair' | 'rollback', t: Translate): string {
+  if (kind === 'rollback') return t('settings.oplEnvironmentPage.updates.confirmation.willNotRollback');
+  return t('settings.oplEnvironmentPage.updates.confirmation.willNotApplyUnsafe');
+}
+
+function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate): string {
+  if (component.rollbackRef) {
+    return t('settings.oplEnvironmentPage.updates.confirmation.rollbackRef', { ref: component.rollbackRef });
+  }
+  if (component.repairReceiptId ?? component.receiptRef) {
+    return t('settings.oplEnvironmentPage.updates.confirmation.receiptRef', {
+      ref: component.repairReceiptId ?? component.receiptRef ?? '',
+    });
+  }
+  return t('settings.oplEnvironmentPage.updates.confirmation.noReceiptYet');
+}
+
 function findRecommendedUpdateAction(components: ManagedUpdateComponent[]): {
   kind: 'repair' | 'apply' | 'check';
   component: ManagedUpdateComponent | null;
@@ -414,7 +448,20 @@ function AgentModuleMaintenancePanel({
             content={
               <div className='flex flex-col gap-8px'>
                 <span className='break-words'>
-                  {pendingAction.component.label} · {componentUserSummary(pendingAction.component, t)}
+                  {mutationKindLabel(pendingAction.kind, t)} · {pendingAction.component.label}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.confirmation.willChange', {
+                    detail: mutationWillChange(pendingAction.kind, pendingAction.component, t),
+                  })}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.confirmation.willNotChange', {
+                    detail: mutationWillNotChange(pendingAction.kind, t),
+                  })}
+                </span>
+                <span className='break-words'>
+                  {rollbackOrReceiptText(pendingAction.component, t)}
                 </span>
                 <Space wrap size='small'>
                   <Button size='small' onClick={onCancelAction}>
@@ -557,6 +604,69 @@ function AgentModuleMaintenancePanel({
   );
 }
 
+function PostUpdateNotice({
+  maintenance,
+  plane,
+  t,
+}: {
+  maintenance: ManagedUpdateMaintenanceSnapshot;
+  plane: ManagedUpdatePlane;
+  t: Translate;
+}) {
+  const action = maintenance.lastAction;
+  if (!action) return null;
+
+  const component = plane.components.find((entry) => entry.id === action.componentId);
+  const componentLabel = component
+    ? t(`settings.oplEnvironmentPage.updates.components.${component.id}`, { defaultValue: component.label })
+    : action.componentId;
+  const reloadGuidance = action.reloadGuidance ?? maintenance.reloadGuidance ?? component?.reloadGuidance;
+  const receiptRef = action.receiptRef ?? component?.receiptRef ?? component?.repairReceiptId;
+  const statusKey =
+    action.status === 'failed'
+      ? 'settings.oplEnvironmentPage.updates.postAction.failed'
+      : action.status === 'skipped'
+        ? 'settings.oplEnvironmentPage.updates.postAction.skipped'
+        : 'settings.oplEnvironmentPage.updates.postAction.completed';
+
+  return (
+    <Alert
+      type={action.status === 'failed' ? 'error' : 'info'}
+      data-testid='opl-managed-update-post-action-notice'
+      title={t('settings.oplEnvironmentPage.updates.postAction.title')}
+      content={
+        <div className='flex flex-col gap-6px'>
+          <span className='break-words'>
+            {t(statusKey, {
+              action: mutationKindLabel(action.kind, t),
+              component: componentLabel,
+            })}
+          </span>
+          {receiptRef && (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.postAction.receiptRef', { ref: receiptRef })}
+            </span>
+          )}
+          {maintenance.nextRunAt && (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.postAction.nextCheck', { value: maintenance.nextRunAt })}
+            </span>
+          )}
+          {reloadGuidance ? (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.postAction.reloadGuidance', { guidance: reloadGuidance })}
+            </span>
+          ) : (
+            <span className='break-words'>
+              {t('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance')}
+            </span>
+          )}
+        </div>
+      }
+    />
+  );
+}
+
 function ManagedUpdatesPanel({
   plane,
   maintenance,
@@ -666,6 +776,8 @@ function ManagedUpdatesPanel({
           </Space>
         </div>
 
+        <PostUpdateNotice maintenance={maintenance} plane={plane} t={t} />
+
         {plane.summary && <Alert type='info' content={plane.summary} />}
         {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}
 
@@ -677,7 +789,20 @@ function ManagedUpdatesPanel({
             content={
               <div className='flex flex-col gap-8px'>
                 <span className='break-words'>
-                  {pendingAction.component.label} · {componentUserSummary(pendingAction.component, t)}
+                  {mutationKindLabel(pendingAction.kind, t)} · {pendingAction.component.label}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.confirmation.willChange', {
+                    detail: mutationWillChange(pendingAction.kind, pendingAction.component, t),
+                  })}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.confirmation.willNotChange', {
+                    detail: mutationWillNotChange(pendingAction.kind, t),
+                  })}
+                </span>
+                <span className='break-words'>
+                  {rollbackOrReceiptText(pendingAction.component, t)}
                 </span>
                 <Space wrap size='small'>
                   <Button size='small' onClick={onCancelAction}>

@@ -1734,7 +1734,8 @@
         "recommendedRepair": "修复推荐项",
         "applySelected": "应用所选",
         "repair": "修复",
-        "rollback": "回滚"
+        "rollback": "回滚",
+        "autoApply": "后台同步"
       },
       "actionHelp": {
         "status": "只重新读取当前状态，不查找新版本，也不生成变更计划。",
@@ -1765,6 +1766,29 @@
       "diagnostics": {
         "title": "诊断详情",
         "componentDetails": "组件诊断详情"
+      },
+      "confirmation": {
+        "willChange": "会改变：{{detail}}",
+        "willNotChange": "不会改变：{{detail}}",
+        "willApply": "为这个组件应用所选托管更新。",
+        "willRepair": "运行这个组件已有的修复动作。",
+        "willRollback": "通过明确的回滚动作恢复这个组件。",
+        "willRollbackTo": "使用恢复引用 {{ref}} 恢复这个组件。",
+        "willNotApplyUnsafe": "不会覆盖脏工作区或开发目录，不写入领域真相，也不会静默应用需要重启的工作。",
+        "willNotRollback": "不会删除用户数据、隐藏凭据链路或回滚其他组件。",
+        "rollbackRef": "恢复引用：{{ref}}",
+        "receiptRef": "凭据引用：{{ref}}",
+        "noReceiptYet": "动作完成后会显示凭据或恢复引用。"
+      },
+      "postAction": {
+        "title": "更新后",
+        "completed": "{{action}} 已完成：{{component}}。",
+        "failed": "{{action}} 失败：{{component}}。",
+        "skipped": "{{action}} 已跳过：{{component}}。",
+        "receiptRef": "凭据：{{ref}}",
+        "nextCheck": "下次后台检查：{{value}}",
+        "reloadGuidance": "下一步：{{guidance}}",
+        "noReloadGuidance": "当前不需要重启或重新加载。"
       },
       "messages": {
         "readComplete": "更新状态已刷新",

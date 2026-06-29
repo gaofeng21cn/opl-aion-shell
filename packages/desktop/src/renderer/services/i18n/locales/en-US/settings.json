@@ -1733,7 +1733,8 @@
         "recommendedRepair": "Repair recommended item",
         "applySelected": "Apply selected",
         "repair": "Repair",
-        "rollback": "Rollback"
+        "rollback": "Rollback",
+        "autoApply": "Background sync"
       },
       "actionHelp": {
         "status": "Reads the current status only. It does not look for newer versions or create a change plan.",
@@ -1764,6 +1765,29 @@
       "diagnostics": {
         "title": "Diagnostics",
         "componentDetails": "Component diagnostics"
+      },
+      "confirmation": {
+        "willChange": "Will change: {{detail}}",
+        "willNotChange": "Will not change: {{detail}}",
+        "willApply": "Apply the selected managed update for this component.",
+        "willRepair": "Run the existing repair action for this component.",
+        "willRollback": "Restore this component through its explicit rollback action.",
+        "willRollbackTo": "Restore this component using rollback reference {{ref}}.",
+        "willNotApplyUnsafe": "It will not update dirty or developer checkouts, write domain truth, or silently apply restart-required work.",
+        "willNotRollback": "It will not delete user data, hide the receipt trail, or roll back other components.",
+        "rollbackRef": "Recovery reference: {{ref}}",
+        "receiptRef": "Receipt reference: {{ref}}",
+        "noReceiptYet": "A receipt or recovery reference will be shown after the action completes."
+      },
+      "postAction": {
+        "title": "After update",
+        "completed": "{{action}} finished for {{component}}.",
+        "failed": "{{action}} failed for {{component}}.",
+        "skipped": "{{action}} skipped {{component}}.",
+        "receiptRef": "Receipt: {{ref}}",
+        "nextCheck": "Next background check: {{value}}",
+        "reloadGuidance": "Next step: {{guidance}}",
+        "noReloadGuidance": "No restart or reload is required right now."
       },
       "messages": {
         "readComplete": "Update status refreshed",

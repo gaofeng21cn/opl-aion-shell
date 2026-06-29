@@ -28,6 +28,8 @@ export type ManagedUpdateMaintenanceAction = {
   componentId: string;
   status: 'completed' | 'failed' | 'skipped';
   at: string;
+  receiptRef?: string;
+  reloadGuidance?: string;
 };
 
 export type ManagedUpdateMaintenanceSnapshot = {
@@ -161,6 +163,22 @@ function readReloadGuidance(result: IOplRuntimeCommandResult | null | undefined)
   return stringValue(root.reload_guidance) ?? stringValue(root.restart_guidance);
 }
 
+function readReceiptRef(result: IOplRuntimeCommandResult | null | undefined, componentId: string): string | null {
+  const root = managedUpdateRoot(result);
+  const component = componentRecords(root).find(
+    (entry) => stringValue(entry.component_id ?? entry.componentId ?? entry.id) === componentId
+  );
+  const receipt = nestedRecord(component, 'receipt') ?? nestedRecord(component, 'receipts');
+  return (
+    stringValue(component?.receipt_ref) ??
+    stringValue(component?.last_receipt_ref) ??
+    stringValue(receipt?.last_receipt_ref) ??
+    stringValue(receipt?.receipt_ref) ??
+    stringValue(receipt?.ref) ??
+    null
+  );
+}
+
 function readExecutionStatus(
   result: IOplRuntimeCommandResult | null | undefined
 ): ManagedUpdateMaintenanceSnapshot['executionStatus'] {
@@ -213,6 +231,8 @@ function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | n
     componentId,
     status: status as ManagedUpdateMaintenanceAction['status'],
     at,
+    receiptRef: stringValue(value.receiptRef),
+    reloadGuidance: stringValue(value.reloadGuidance),
   };
 }
 
@@ -437,14 +457,17 @@ async function applyBackgroundCandidates(result: IOplRuntimeCommandResult): Prom
     const applyResult = await invokeApply(componentId);
     const actionAt = isoNow();
     latestResult = applyResult;
+    const reloadGuidance = readReloadGuidance(applyResult) ?? readReloadGuidance(result) ?? snapshot.reloadGuidance;
     emit({
       lastAction: {
         kind: 'auto_apply',
         componentId,
         status: summarizeResultStatus(applyResult),
         at: actionAt,
+        receiptRef: readReceiptRef(applyResult, componentId) ?? readReceiptRef(result, componentId) ?? undefined,
+        reloadGuidance: reloadGuidance ?? undefined,
       },
-      reloadGuidance: readReloadGuidance(applyResult) ?? readReloadGuidance(result) ?? snapshot.reloadGuidance,
+      reloadGuidance,
     });
     if (applyResult.ok === false) {
       return applyResult;
@@ -581,6 +604,7 @@ export async function executeManagedUpdateMutation(
     .then((result): IOplRuntimeCommandResult | null => {
       const lastFailure = resultErrorMessage(result);
       const actionAt = isoNow();
+      const reloadGuidance = readReloadGuidance(result) ?? snapshot.reloadGuidance;
       retryCount = lastFailure ? retryCount + 1 : 0;
       emit({
         running: false,
@@ -594,9 +618,11 @@ export async function executeManagedUpdateMutation(
           componentId: input.componentId,
           status: summarizeResultStatus(result),
           at: actionAt,
+          receiptRef: readReceiptRef(result, input.componentId) ?? input.receiptId,
+          reloadGuidance: reloadGuidance ?? undefined,
         },
         lockStatus: readLockStatus(result),
-        reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance,
+        reloadGuidance,
         result,
       });
       scheduleNextRun(lastFailure && retryCount <= MAX_RETRY_COUNT ? RETRY_INTERVAL_MS : DAILY_BACKGROUND_INTERVAL_MS);

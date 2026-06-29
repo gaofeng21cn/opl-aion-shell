@@ -508,9 +508,30 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
+    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.confirmation.willChange'
+    );
+    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.confirmation.willNotChange'
+    );
+    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
+      'rollback://runtime_toolchain/previous'
+    );
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
+        'settings.oplEnvironmentPage.updates.postAction.title'
+      )
+    );
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('runtime_toolchain');
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.postAction.nextCheck'
+    );
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.postAction.reloadGuidance'
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-repair-agent_package_channel'));
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
@@ -545,12 +566,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() =>
       expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
         componentId: 'capability_exposure',
-        receiptId: 'receipt://capability_exposure/cache',
       })
     );
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
       componentId: 'runtime_toolchain',
-      receiptId: 'receipt://runtime_toolchain/latest',
     });
     expect(bridgeMocks.rollbackUpdateComponentInvoke).not.toHaveBeenCalled();
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
