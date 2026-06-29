@@ -154,7 +154,9 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
 
     expect(result.status).toBe(0);
     expect(result.stderr).toContain('slim seed metadata detected; skipping OPL seed apply');
-    expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim()).toBe('system startup-maintenance --json');
+    expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim()).toBe(
+      'system startup-maintenance --json'
+    );
     expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start');
   });
 

@@ -37,7 +37,15 @@ const t = (key: string, options?: { defaultValue?: string }) => options?.default
 
 describe('settingsNav App-owned tabs', () => {
   it('exposes the ordinary Settings tabs in App product order', () => {
-    expect(BUILTIN_TAB_IDS).toEqual(['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced']);
+    expect(BUILTIN_TAB_IDS).toEqual([
+      'general',
+      'access',
+      'capabilities',
+      'environment',
+      'storage',
+      'appearance',
+      'advanced',
+    ]);
     expect(SETTINGS_DEFAULT_ROUTE).toBe('/settings/general');
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
       'Overview',

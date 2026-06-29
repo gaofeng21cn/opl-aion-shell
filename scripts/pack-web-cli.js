@@ -112,7 +112,14 @@ function buildOplImageManifest({ packageName, version, runtimeKey, profile = 'we
   };
 }
 
-function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey, profile = 'webui-full' }) {
+function writeOplImageResources({
+  projectRoot,
+  tarballContentDir,
+  srcPkg,
+  version,
+  runtimeKey,
+  profile = 'webui-full',
+}) {
   const normalizedProfile = normalizeOplWebuiImageProfile(profile);
   const seedDir = path.join(tarballContentDir, 'opl-image-seed');
   const seedPayloadDir = path.join(seedDir, 'payload');
