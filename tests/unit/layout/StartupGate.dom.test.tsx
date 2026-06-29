@@ -1,16 +1,18 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import StartupGate from '@/renderer/components/layout/StartupGate';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInitializeInvoke: vi.fn(),
+  getAppStateInvoke: vi.fn(),
   navigate: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
+      getAppState: { invoke: bridgeMocks.getAppStateInvoke },
       getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
     },
   },
@@ -18,7 +20,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, params?: { seconds?: number }) => (params?.seconds ? `${key}:${params.seconds}` : key),
   }),
 }));
 
@@ -27,37 +29,51 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => bridgeMocks.navigate,
 }));
 
-const readyInitializeResult = {
-  surface: 'system_initialize',
-  command: 'opl system initialize --json',
+const readyAppStateResult = {
+  surface: 'app_state_fast',
+  command: 'opl app state --profile fast --json',
   stdout: '{}',
   parsed: {
-    system_initialize: {
-      setup_flow: {
-        is_first_run: false,
-        ready_to_launch: true,
-        blocking_items: [],
-        maintenance_items: [],
+    app_state: {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          api_key_present: true,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
       },
-      readiness: {
-        launch_ready: true,
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/workspace',
+          exists: true,
+          health_status: 'ready',
+        },
       },
     },
   },
 };
 
-const blockedInitializeResult = {
-  ...readyInitializeResult,
+const blockedAppStateResult = {
+  ...readyAppStateResult,
   parsed: {
-    system_initialize: {
-      setup_flow: {
-        is_first_run: false,
-        ready_to_launch: false,
-        blocking_items: ['codex_config'],
-        maintenance_items: [],
+    app_state: {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          api_key_present: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
       },
-      readiness: {
-        launch_ready: false,
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/workspace',
+          exists: true,
+          health_status: 'ready',
+        },
       },
     },
   },
@@ -68,18 +84,38 @@ describe('StartupGate', () => {
     vi.clearAllMocks();
   });
 
-  it('shows startup preflight while checking initialize status', () => {
-    bridgeMocks.getInitializeInvoke.mockReturnValue(new Promise(() => {}));
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('shows startup preflight while reading fast app state', () => {
+    bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
 
     render(<StartupGate />);
 
     expect(screen.getByTestId('opl-startup-gate')).toBeInTheDocument();
     expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.startupPreflight.steps.startupState');
     expect(screen.getByText('common.startupPreflight.skipCheck')).toBeInTheDocument();
+    expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' });
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
+  });
+
+  it('shows elapsed wait feedback instead of a fixed percent when state read is slow', () => {
+    vi.useFakeTimers();
+    bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    render(<StartupGate />);
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(screen.getByText('common.startupPreflight.messages.stillReadingStartupState:3')).toBeInTheDocument();
+    expect(screen.queryByText('70%')).not.toBeInTheDocument();
   });
 
   it('lets users skip the startup wait and enter guid without claiming readiness', () => {
-    bridgeMocks.getInitializeInvoke.mockReturnValue(new Promise(() => {}));
+    bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
 
     render(<StartupGate />);
 
@@ -89,26 +125,27 @@ describe('StartupGate', () => {
   });
 
   it('routes ready non-first-run installs directly to guid', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(readyInitializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(readyAppStateResult);
 
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
   });
 
   it('routes blocked installs to first-run', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(blockedInitializeResult);
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(blockedAppStateResult);
 
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
   });
 
-  it('routes initialize failures to first-run', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
-      ...readyInitializeResult,
+  it('routes app state failures to first-run', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      ...readyAppStateResult,
       ok: false,
-      error: { message: 'initialize failed' },
+      error: { message: 'app state failed' },
     });
 
     render(<StartupGate />);

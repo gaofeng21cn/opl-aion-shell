@@ -86,7 +86,9 @@
       "connectingBackend": "Connecting to Codex...",
       "loadingConfig": "Loading your settings...",
       "checkingSystemReady": "Checking system readiness...",
-      "checkingStartupState": "Reading One Person Lab startup state..."
+      "checkingStartupState": "Reading One Person Lab startup state...",
+      "stillReadingStartupState": "Still reading local state, waited {{seconds}} seconds...",
+      "decidingNextScreen": "Deciding whether setup is needed..."
     },
     "skipCheck": "Skip and enter Home"
   },

@@ -2,7 +2,7 @@
  * StartupGate - 启动检查门控
  *
  * 职责：
- * - 调用后端检查系统初始化状态
+ * - 快速读取本机启动状态
  * - 根据结果决定路由到 /first-run 或 /guid
  * - 显示统一的启动加载界面
  *
@@ -16,23 +16,10 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
-import type { FirstRunInitialize } from '@/renderer/pages/FirstRun/types';
+import { isCoreLaunchReadyFromAppState } from '@/renderer/pages/FirstRun/initializeModel';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 
-function shouldEnterFirstRun(initialize: FirstRunInitialize | null): boolean {
-  if (!initialize) return true; // 无法获取状态，进入配置页面
-
-  // 首次运行，需要配置
-  if (initialize.setup_flow?.is_first_run !== false) {
-    return true;
-  }
-
-  // 未就绪，需要配置
-  const isReady = initialize.setup_flow?.ready_to_launch === true || initialize.readiness?.launch_ready === true;
-
-  return !isReady;
-}
+type StartupCheckPhase = 'startupState' | 'routeDecision';
 
 const StartupGate: React.FC = () => {
   const { t } = useTranslation();
@@ -40,58 +27,79 @@ const StartupGate: React.FC = () => {
   const [checking, setChecking] = useState(true);
   const [needsFirstRun, setNeedsFirstRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<StartupCheckPhase>('startupState');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const skipStartupCheck = () => {
     navigate('/guid', { replace: true });
   };
 
   useEffect(() => {
+    let cancelled = false;
+    const startedAt = Date.now();
+    const elapsedTimer = window.setInterval(() => {
+      if (!cancelled) {
+        setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+      }
+    }, 1000);
+
     const checkSystemReady = async () => {
       try {
-        const result = await ipcBridge.oplRuntime.getInitialize.invoke();
+        const result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+        if (cancelled) return;
 
         if (!result || result.ok === false) {
-          console.error('[StartupGate] Initialize check failed:', result);
+          console.error('[StartupGate] App state check failed:', result);
           setNeedsFirstRun(true); // 出错时进入配置页面
-          setChecking(false);
           return;
         }
 
-        const initialize = readInitializePayload(result.parsed);
-        const needsSetup = shouldEnterFirstRun(initialize);
+        setPhase('routeDecision');
+        const launchReady = isCoreLaunchReadyFromAppState(result.parsed);
 
-        setNeedsFirstRun(needsSetup);
+        setNeedsFirstRun(!launchReady);
       } catch (err) {
+        if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
         console.error('[StartupGate] Check error:', message);
         setError(message);
         setNeedsFirstRun(true); // 出错时进入配置页面
       } finally {
-        setChecking(false);
+        window.clearInterval(elapsedTimer);
+        if (!cancelled) {
+          setChecking(false);
+        }
       }
     };
 
     void checkSystemReady();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(elapsedTimer);
+    };
   }, []);
 
   // 正在检查，显示加载界面
   if (checking) {
+    const startupStateMessage =
+      elapsedSeconds >= 3
+        ? t('common.startupPreflight.messages.stillReadingStartupState', { seconds: elapsedSeconds })
+        : t('common.startupPreflight.messages.checkingStartupState');
     const steps: AppLoaderStep[] = [
       {
         label: t('common.startupPreflight.steps.desktopSession'),
         state: 'complete',
-        progress: 100,
       },
       {
         label: t('common.startupPreflight.steps.startupState'),
-        state: 'active',
-        message: t('common.startupPreflight.messages.checkingStartupState'),
-        progress: 70,
+        state: phase === 'startupState' ? 'active' : 'complete',
+        message: phase === 'startupState' ? startupStateMessage : undefined,
       },
       {
         label: t('common.startupPreflight.steps.routeDecision'),
-        state: 'pending',
-        progress: 0,
+        state: phase === 'routeDecision' ? 'active' : 'pending',
+        message: phase === 'routeDecision' ? t('common.startupPreflight.messages.decidingNextScreen') : undefined,
       },
     ];
 
@@ -101,7 +109,7 @@ const StartupGate: React.FC = () => {
         description={t('common.startupPreflight.description')}
         steps={steps}
         testId='opl-startup-gate'
-        showProgress={true}
+        showProgress={false}
         showSkipButton={true}
         skipButtonText={t('common.startupPreflight.skipCheck')}
         onSkip={skipStartupCheck}

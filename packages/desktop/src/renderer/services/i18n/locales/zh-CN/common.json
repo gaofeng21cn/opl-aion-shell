@@ -86,7 +86,9 @@
       "connectingBackend": "正在连接到 Codex...",
       "loadingConfig": "正在加载您的设置...",
       "checkingSystemReady": "正在检查系统就绪状态...",
-      "checkingStartupState": "正在读取 One Person Lab 的启动状态..."
+      "checkingStartupState": "正在读取 One Person Lab 的启动状态...",
+      "stillReadingStartupState": "仍在读取本机状态，已等待 {{seconds}} 秒...",
+      "decidingNextScreen": "正在判断是否需要进入配置页..."
     },
     "skipCheck": "跳过，先进入首页"
   },
