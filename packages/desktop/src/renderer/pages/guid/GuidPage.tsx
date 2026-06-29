@@ -10,7 +10,6 @@ import {
   getOplOrdinarySkillAllowlist,
   getOplOrdinaryCapabilitySelectorPolicy,
   getOplAssistantSkillProfile,
-  getOplModelStatusDisplayText,
   shouldShowOplCodexModelSelector,
   shouldShowOplHomePermissionModeSelector,
 } from '@/common/config/oplProductProfile';
@@ -439,7 +438,6 @@ const GuidPage: React.FC = () => {
   const heroTitle = useMemo(() => {
     return t('conversation.welcome.title');
   }, [t]);
-  const oplCodexModelStatusText = getOplModelStatusDisplayText(localeKey);
   const inspectorTabs = useMemo(
     () => [
       {
@@ -728,11 +726,6 @@ const GuidPage: React.FC = () => {
           <div className={styles.heroHeader}>
             <div className='text-center'>
               <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
-              {!agentSelection.is_presetAgent ? (
-                <p className={styles.heroModelStatus} data-testid='opl-guid-model-status'>
-                  {oplCodexModelStatusText}
-                </p>
-              ) : null}
             </div>
           </div>
 

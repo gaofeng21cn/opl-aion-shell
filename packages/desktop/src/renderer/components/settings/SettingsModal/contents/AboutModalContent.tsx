@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Divider, Typography, Button, Switch } from '@arco-design/web-react';
+import { Divider, Typography } from '@arco-design/web-react';
 import { Github, Right } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,12 +14,6 @@ import { ipcBridge } from '@/common';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import FeedbackReportModal from './FeedbackReportModal';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { executeManagedUpdateRead, useManagedUpdateMaintenance } from '@/renderer/services/managedUpdateMaintenance';
-import {
-  MANAGED_UPDATE_COMPONENT_IDS,
-  readManagedUpdatePlane,
-  type ManagedUpdateComponent,
-} from '@/renderer/services/managedUpdateProjection';
 
 type LinkItem =
   | { title: string; url: string; icon: React.ReactNode; onClick?: never }
@@ -29,8 +23,7 @@ const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
 const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
 const OPL_APP_LATEST_RELEASE_URL = `${OPL_APP_REPO_URL}/releases/latest`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
-const UPDATE_INCLUDE_NIGHTLY_KEY = 'update.includeNightly';
-const UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY = 'update.includePrerelease';
+const includeNightlyUpdates = false;
 
 type AppVersions = {
   appVersion: string;
@@ -51,15 +44,6 @@ function formatReleaseChannel(
 ) {
   const normalized = channel?.trim() || 'stable';
   return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
-}
-
-function updateComponentStateLabel(
-  component: ManagedUpdateComponent,
-  t: (key: string, options?: Record<string, string>) => string
-): string {
-  const state = component.state || 'unknown';
-  const label = t(`settings.oplEnvironmentPage.status.${state}`, { status: state });
-  return component.versionDetail ? `${label} · ${component.versionDetail}` : label;
 }
 
 function parseVersionParts(version: string | undefined): number[] | null {
@@ -95,21 +79,11 @@ const AboutModalContent: React.FC = () => {
   const isPageMode = viewMode === 'page';
   const isElectron = isElectronDesktop();
 
-  const [includeNightly, setIncludeNightly] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [latestStableVersion, setLatestStableVersion] = useState('');
   const appStateQuery = useOplAppState('fast');
-  const managedUpdateMaintenance = useManagedUpdateMaintenance();
-
-  useEffect(() => {
-    const saved = localStorage.getItem(UPDATE_INCLUDE_NIGHTLY_KEY);
-    const legacySaved = localStorage.getItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY);
-    setIncludeNightly((saved ?? legacySaved) === 'true');
-  }, []);
 
   const release = oplRecord(appStateQuery.appState.release);
-  const managedUpdatePlane = readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appStateQuery.appState);
-  const managedUpdateComponents = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
   const currentAppVersion = localAppVersion();
   const appVersions: AppVersions = {
     appVersion: currentAppVersion,
@@ -130,8 +104,9 @@ const AboutModalContent: React.FC = () => {
   useEffect(() => {
     if (!isElectron) return;
     let cancelled = false;
+    const channel = includeNightlyUpdates ? 'nightly' : 'stable';
     void ipcBridge.update.check
-      .invoke({ channel: 'stable' })
+      .invoke({ channel })
       .then((result) => {
         if (cancelled) return;
         const candidate = result?.success ? result.data?.latest?.version : '';
@@ -145,32 +120,12 @@ const AboutModalContent: React.FC = () => {
     };
   }, [currentAppVersion, isElectron]);
 
-  useEffect(() => {
-    if (!isElectron || managedUpdateMaintenance.result || managedUpdateMaintenance.running) return;
-    void executeManagedUpdateRead('status', {
-      trigger: 'manual_refresh_status',
-      background: true,
-    });
-  }, [isElectron, managedUpdateMaintenance.result, managedUpdateMaintenance.running]);
-
-  const handleNightlyChange = (val: boolean) => {
-    setIncludeNightly(val);
-    localStorage.setItem(UPDATE_INCLUDE_NIGHTLY_KEY, String(val));
-    localStorage.setItem(UPDATE_LEGACY_INCLUDE_PRERELEASE_KEY, String(val));
-  };
-
   const openLink = async (url: string) => {
     try {
       await openExternalUrl(url);
     } catch (error) {
       console.log('Failed to open link:', error);
     }
-  };
-
-  const checkUpdate = () => {
-    // 使用 window 自定义事件在渲染进程内部通信（buildEmitter 只支持主进程->渲染进程）
-    // Use window custom event for renderer-side communication (buildEmitter only works main->renderer)
-    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
   };
 
   const linkItems: LinkItem[] = [
@@ -252,35 +207,10 @@ const AboutModalContent: React.FC = () => {
               )}
             </div>
 
-            {/* Check Update Section */}
             {isElectron && (
-              <div className='flex flex-col items-center gap-12px w-full max-w-300px bg-fill-2 p-16px rounded-lg'>
-                <Button type='primary' long onClick={checkUpdate}>
-                  {t('settings.checkForUpdates')}
-                </Button>
-                <div className='w-full flex flex-col gap-4px' data-testid='about-managed-update-summary'>
-                  {MANAGED_UPDATE_COMPONENT_IDS.map((componentId) => {
-                    const component = managedUpdateComponents.get(componentId);
-                    if (!component) return null;
-                    return (
-                      <div key={componentId} className='flex items-center justify-between gap-8px text-12px'>
-                        <Typography.Text className='text-t-secondary'>
-                          {t(`settings.oplEnvironmentPage.updates.components.${componentId}`)}
-                        </Typography.Text>
-                        <Typography.Text className='text-t-primary'>
-                          {updateComponentStateLabel(component, t)}
-                        </Typography.Text>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className='flex items-center justify-between w-full'>
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.includeNightlyUpdates')}
-                  </Typography.Text>
-                  <Switch size='small' checked={includeNightly} onChange={handleNightlyChange} />
-                </div>
-              </div>
+              <Typography.Text className='text-12px text-t-secondary text-center'>
+                {t('settings.aboutMaintenanceMoved')}
+              </Typography.Text>
             )}
           </div>
 

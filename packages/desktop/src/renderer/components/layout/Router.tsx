@@ -65,11 +65,15 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           <Route path='/settings/general' element={withRouteFallback(OverviewSettings)} />
           <Route path='/settings/overview' element={<Navigate to='/settings/general' replace />} />
           <Route path='/settings/environment' element={withRouteFallback(RuntimeSettings)} />
+          <Route path='/settings/maintenance' element={<Navigate to='/settings/environment' replace />} />
           <Route path='/settings/runtime' element={<Navigate to='/settings/environment' replace />} />
           <Route path='/settings/storage' element={withRouteFallback(StorageSettings)} />
           <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
           <Route path='/settings/access' element={withRouteFallback(AccessSettings)} />
+          <Route path='/settings/start' element={<Navigate to='/settings/access' replace />} />
+          <Route path='/settings/get-started' element={<Navigate to='/settings/access' replace />} />
           <Route path='/settings/appearance' element={withRouteFallback(AppearanceSettings)} />
+          <Route path='/settings/preferences' element={<Navigate to='/settings/appearance' replace />} />
           <Route path='/settings/model' element={<Navigate to='/settings/environment' replace />} />
           <Route path='/settings/agent' element={<Navigate to='/settings/capabilities' replace />} />
           <Route path='/settings/assistants' element={<Navigate to='/settings/capabilities' replace />} />

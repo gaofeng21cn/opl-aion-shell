@@ -84,6 +84,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'access',
     'capabilities',
     'environment',
+    'storage',
     'appearance',
     'advanced',
     'about',
@@ -108,13 +109,13 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: { defaultValue?: string }) => {
       const labels: Record<string, string> = {
         'settings.title': 'Settings',
-        'settings.general': 'General',
-        'settings.environment': 'Local Environment',
-        'settings.capabilities': 'Agents & Capabilities',
-        'settings.access': 'Access',
-        'settings.appearance': 'Appearance',
+        'settings.overview': 'Overview',
+        'settings.maintenance': 'Maintenance',
+        'settings.capabilities': 'Capabilities',
+        'settings.onboarding': 'Get Started',
+        'settings.preferences': 'Preferences',
         'settings.advanced': 'Advanced',
-        'settings.about': 'About & Updates',
+        'settings.about': 'About',
         'settings.model': 'Model',
         'settings.agent': 'Agent',
         'settings.tools': 'Tools',
@@ -126,7 +127,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('SettingsModal OPL App navigation', () => {
-  it('opens General as the ordinary Settings default tab', () => {
+  it('opens Overview as the ordinary Settings default tab', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByTestId('overview-content')).toBeInTheDocument();
@@ -136,15 +137,14 @@ describe('SettingsModal OPL App navigation', () => {
   it('shows only App-owned ordinary settings tabs', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    expect(screen.getByText('General')).toBeInTheDocument();
-    expect(screen.getByText('Access')).toBeInTheDocument();
-    expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Local Environment')).toBeInTheDocument();
-    expect(screen.getByText('Access')).toBeInTheDocument();
-    expect(screen.getByText('Appearance')).toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
-    expect(screen.getByText('About & Updates')).toBeInTheDocument();
-    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    expect(screen.queryByText('About')).not.toBeInTheDocument();
+    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();

@@ -176,7 +176,11 @@
   "gemini": "Gemini CLI",
   "model": "Model",
   "system": "System",
-  "about": "About & Updates",
+  "about": "About",
+  "onboarding": "Get Started",
+  "maintenance": "Maintenance",
+  "preferences": "Preferences",
+  "aboutMaintenanceMoved": "Updates and maintenance now live under Maintenance; this page keeps version and project links only.",
   "advancedSettings": "Advanced Settings",
   "addModel": "Add Model",
   "editModel": "Edit Model Platform",
@@ -1101,6 +1105,47 @@
         "maintenance": "Recommended skills will keep preparing after you start."
       }
     },
+    "itemDescriptions": {
+      "workspaceRoot": "Where OPL stores projects, files, and local task output.",
+      "codex": "The local assistant runtime used by OPL to run sessions and commands.",
+      "codexConfig": "The access key that lets the local assistant reach the configured model service.",
+      "domainModules": "Optional OPL capability packs such as MAS, MAG, RCA, and BookForge.",
+      "familyRuntimeProvider": "The local background runner used for longer OPL tasks.",
+      "recommendedSkills": "Companion skills that improve specialized OPL workflows."
+    },
+    "itemActionPrefix": "Action: {{action}}",
+    "itemActions": {
+      "workspaceRoot": {
+        "ready": "No action needed.",
+        "needsAction": "Choose or repair the workspace before starting.",
+        "waiting": "Wait for the startup check to finish."
+      },
+      "codex": {
+        "ready": "No action needed.",
+        "needsAction": "Finish local assistant setup before starting.",
+        "waiting": "Wait for the startup check to finish."
+      },
+      "codexConfig": {
+        "ready": "No action needed.",
+        "needsAction": "Enter the access key below.",
+        "waiting": "Wait for the startup check to finish."
+      },
+      "domainModules": {
+        "ready": "No action needed.",
+        "maintenance": "Can continue in the background after you start.",
+        "waiting": "Wait for the startup check to finish."
+      },
+      "familyRuntimeProvider": {
+        "ready": "No action needed.",
+        "maintenance": "Can continue in the background after you start.",
+        "waiting": "Wait for the startup check to finish."
+      },
+      "recommendedSkills": {
+        "ready": "No action needed.",
+        "maintenance": "Can continue in the background after you start.",
+        "waiting": "Wait for the startup check to finish."
+      }
+    },
     "nextSteps": {
       "workspaceRoot": "Choose a local workspace folder.",
       "codex": "Wait for the local assistant to finish setup, or retry from technical details.",
@@ -1130,7 +1175,7 @@
     "codex": {
       "title": "Access",
       "prompt": "Enter the access key from your administrator. You can start after this is configured.",
-      "defaults": "Provider {{provider}} uses {{baseUrl}} with {{model}} and {{reasoning}} reasoning.",
+      "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for the access step you may need to complete.",
       "apiKeyPlaceholder": "Enter access key",
       "apiKeyRequired": "Enter the access key",
       "configure": "Finish setup",
@@ -1204,7 +1249,7 @@
   "groupAdvanced": "Advanced",
   "overviewPage": {
     "title": "One Person Lab",
-    "description": "Manage the OPL App defaults that should survive shell upgrades.",
+    "description": "Start from the current app state, then open the area that needs attention.",
     "codexTitle": "Codex CLI",
     "codexDescription": "The default and only visible home agent backend.",
     "workspaceTitle": "Workspace Root",
@@ -1213,17 +1258,17 @@
     "modulesDescription": "MAS, MAG, and RCA are the default OPL Foundry entries.",
     "accessTitle": "Access",
     "accessDescription": "Configure desktop and remote access surfaces.",
-    "maintenanceTitle": "Runtime Maintenance",
-    "maintenanceDescription": "Open the runtime status page, repair the local OPL environment, or manage Foundry Agent capabilities.",
+    "maintenanceTitle": "Maintenance",
+    "maintenanceDescription": "Open runtime status, repair local services, manage agent packages, or review storage and data cleanup.",
     "actions": {
       "openRuntimeStatus": "Open Runtime Status",
-      "openRuntimeSettings": "Open Runtime Settings",
+      "openRuntimeSettings": "Open Maintenance",
       "openFoundryAgents": "Open Foundry Agents"
     }
   },
   "runtimePage": {
-    "title": "Local Environment",
-    "description": "Start with whether the app is usable now. When action is needed, this page explains the impact and next step; diagnostics stay collapsed by default.",
+    "title": "Maintenance",
+    "description": "Check whether the local app, workspace, background services, agent packages, updates, and stored data need action. Technical detail stays collapsed by default.",
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {
@@ -1376,8 +1421,38 @@
     "workspaceRootTitle": "Workspace Root",
     "workspaceRootMissing": "No workspace root has been selected",
     "modulesTitle": "Foundry Modules",
+    "localAssistantTitle": "Local Assistant",
     "localServiceTitle": "Local Background Service",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
+    "healthSummary": {
+      "usable": "Can use",
+      "attention": "Needs attention",
+      "maintenance": "Background maintenance",
+      "lastCheck": "Last check",
+      "values": {
+        "canUse": "Ready",
+        "canUseWithAttention": "Usable with attention",
+        "none": "None",
+        "count": "{{count}} item(s)"
+      }
+    },
+    "sections": {
+      "required": "Required capabilities",
+      "workspace": "Work directory",
+      "agentPackages": "Capability packs",
+      "storage": "Storage and data",
+      "maintenance": "Updates and maintenance"
+    },
+    "workspace": {
+      "rootTitle": "Work directory",
+      "currentRoot": "New projects and local task output are stored under {{path}}.",
+      "noRoot": "Choose a work directory before starting local tasks."
+    },
+    "storageData": {
+      "title": "Storage and data",
+      "description": "Review local data inventory, archive or restore conversation proof, rotate logs, and clean stale installer cache with dry-run plans.",
+      "openStorage": "Review storage"
+    },
     "summary": {
       "nextAction": "Next step: {{action}}",
       "actions": {
@@ -1406,6 +1481,7 @@
       "doctor": "Run Doctor",
       "refresh": "Refresh",
       "repair": "Repair OPL",
+      "refreshWorkspace": "Refresh work directory",
       "chooseWorkspaceRoot": "Choose Workspace",
       "startTemporal": "Start Temporal",
       "restartTemporalWorker": "Restart Temporal worker"
@@ -1545,6 +1621,9 @@
         "refreshStatus": "Refresh status",
         "check": "Check updates",
         "plan": "Generate plan",
+        "recommendedCheck": "Check updates",
+        "recommendedApply": "Apply recommended update",
+        "recommendedRepair": "Repair recommended item",
         "applySelected": "Apply selected",
         "repair": "Repair",
         "rollback": "Rollback"
@@ -1565,6 +1644,16 @@
         "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
         "checkDetails": "Check diagnostics before deciding what to do."
       },
+      "nextStep": "Next step: {{action}}",
+      "nextActions": {
+        "none": "No action needed.",
+        "apply": "Apply the available update when you are ready.",
+        "repair": "Run the repair action.",
+        "restart": "Restart the app.",
+        "reload": "Reload the app or Codex capabilities.",
+        "review": "Open diagnostics and review the detail."
+      },
+      "advancedActions": "Advanced update actions",
       "diagnostics": {
         "title": "Diagnostics",
         "componentDetails": "Component diagnostics"

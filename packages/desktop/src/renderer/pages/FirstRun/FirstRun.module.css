@@ -268,13 +268,23 @@
   font-weight: 600;
 }
 
+.firstRunItemDescription,
 .firstRunItemSummary,
+.firstRunItemAction,
 .firstRunMeta,
 .firstRunCommand {
   color: var(--text-tertiary);
   font-size: 12px;
   line-height: 18px;
   overflow-wrap: anywhere;
+}
+
+.firstRunItemDescription {
+  color: var(--text-secondary);
+}
+
+.firstRunItemAction {
+  color: var(--text-secondary);
 }
 
 .firstRunCommand {

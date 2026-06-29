@@ -9,16 +9,6 @@ const bridgeMocks = vi.hoisted(() => ({
   updateCheckInvoke: vi.fn(),
 }));
 
-const managedUpdateMocks = vi.hoisted(() => ({
-  executeManagedUpdateRead: vi.fn(),
-  snapshot: {
-    running: false,
-    result: null as null | {
-      parsed?: unknown;
-    },
-  },
-}));
-
 vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
@@ -28,11 +18,6 @@ vi.mock('@/common', () => ({
       check: { invoke: bridgeMocks.updateCheckInvoke },
     },
   },
-}));
-
-vi.mock('@/renderer/services/managedUpdateMaintenance', () => ({
-  executeManagedUpdateRead: managedUpdateMocks.executeManagedUpdateRead,
-  useManagedUpdateMaintenance: () => managedUpdateMocks.snapshot,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -50,6 +35,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.aboutLatestStableVersion') return `GitHub 最新稳定版 ${options?.version}`;
       if (key === 'settings.checkForUpdates') return '检查更新';
       if (key === 'settings.includeNightlyUpdates') return '接收 Nightly 更新';
+      if (key === 'settings.aboutMaintenanceMoved') return '更新与维护已移到维护页';
       if (key === 'settings.runtimePage.releaseChannels.stable') return 'Stable';
       if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'App binary';
       if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'Runtime/toolchain';
@@ -73,19 +59,6 @@ describe('AboutModalContent OPL release metadata', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    managedUpdateMocks.snapshot.running = false;
-    managedUpdateMocks.snapshot.result = {
-      parsed: {
-        managed_update: {
-          components: [
-            { component_id: 'app_binary', state: 'current', current_version: '26.5.27' },
-            { component_id: 'runtime_toolchain', state: 'current', current_version: 'toolchain-1' },
-            { component_id: 'agent_package_channel', state: 'current', current_version: 'packages-1' },
-            { component_id: 'capability_exposure', state: 'needs_reload', current_version: 'capabilities-1' },
-          ],
-        },
-      },
-    };
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -159,35 +132,13 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
   });
 
-  it('keeps Nightly as a proper noun inside a complete settings label', async () => {
+  it('keeps About focused on version and project links instead of maintenance controls', async () => {
     renderWithFreshSWR();
 
-    expect(await screen.findByText('接收 Nightly 更新')).toBeInTheDocument();
-    expect(screen.queryByText('Nightly')).not.toBeInTheDocument();
-  });
-
-  it('shows the App-owned managed update summary in About without reading runtime files', async () => {
-    renderWithFreshSWR();
-
-    expect(await screen.findByTestId('about-managed-update-summary')).toHaveTextContent('App binary');
-    expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Runtime/toolchain');
-    expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Agent packages');
-    expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Capability exposure');
-    expect(screen.getByTestId('about-managed-update-summary')).toHaveTextContent('Needs reload');
-    expect(screen.getByTestId('about-managed-update-summary')).not.toHaveTextContent('Unknown');
-  });
-
-  it('refreshes managed update status when no maintenance projection has been read yet', async () => {
-    managedUpdateMocks.snapshot.result = null;
-
-    renderWithFreshSWR();
-
-    await waitFor(() =>
-      expect(managedUpdateMocks.executeManagedUpdateRead).toHaveBeenCalledWith('status', {
-        trigger: 'manual_refresh_status',
-        background: true,
-      })
-    );
+    expect(await screen.findByText('更新与维护已移到维护页')).toBeInTheDocument();
+    expect(screen.queryByText('检查更新')).not.toBeInTheDocument();
+    expect(screen.queryByText('接收 Nightly 更新')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('about-managed-update-summary')).not.toBeInTheDocument();
   });
 
   it('does not label an older release.version as the latest stable version', async () => {

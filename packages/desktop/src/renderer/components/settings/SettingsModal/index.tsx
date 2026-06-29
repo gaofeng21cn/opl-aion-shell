@@ -13,11 +13,10 @@ import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } f
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Info, Lightning, Puzzle, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
+import { Computer, Earth, Lightning, Puzzle, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import AboutModalContent from './contents/AboutModalContent';
 import AppearanceModalContent from './contents/AppearanceModalContent';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SystemModalContent from './contents/SystemModalContent';
@@ -53,23 +52,21 @@ const MODAL_HEIGHT = {
 const RESIZE_DEBOUNCE_DELAY = 150;
 
 const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
-  general: 'settings.general',
-  environment: 'settings.environment',
+  general: 'settings.overview',
+  environment: 'settings.maintenance',
   capabilities: 'settings.capabilities',
-  access: 'settings.access',
-  appearance: 'settings.appearance',
+  access: 'settings.onboarding',
+  appearance: 'settings.preferences',
   advanced: 'settings.advanced',
-  about: 'settings.about',
 };
 
 const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
-  general: 'General',
-  environment: 'Local Environment',
-  capabilities: 'Agents & Capabilities',
-  access: 'Access',
-  appearance: 'Appearance',
+  general: 'Overview',
+  environment: 'Maintenance',
+  capabilities: 'Capabilities',
+  access: 'Get Started',
+  appearance: 'Preferences',
   advanced: 'Advanced',
-  about: 'About & Updates',
 };
 
 const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
@@ -79,11 +76,19 @@ const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
   access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
   appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
   advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
-  about: <Info theme='outline' size='20' fill={iconColors.secondary} />,
 };
 
+const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced'];
+const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) =>
+  getOplGuiSettingsVisibleTabs().includes(id)
+);
+
 const normalizeOplSettingsTab = (tab: SettingTab): string => {
-  const legacyRedirects = getOplGuiLegacySettingsRouteRedirects();
+  const legacyRedirects: Record<string, string> = {
+    ...getOplGuiLegacySettingsRouteRedirects(),
+    storage: 'environment',
+    about: 'advanced',
+  };
   return legacyRedirects[tab] ?? tab;
 };
 
@@ -105,6 +110,7 @@ export type BuiltinSettingTab =
   | 'appearance'
   | 'advanced'
   | 'about'
+  | 'storage'
   | 'overview'
   | 'runtime'
   | 'system'
@@ -243,7 +249,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   const menuItems = useMemo((): Array<{ key: SettingTab; label: string; icon: React.ReactNode }> => {
     type MenuItem = { key: string; label: string; icon: React.ReactNode };
 
-    const builtinItems: MenuItem[] = getOplGuiSettingsVisibleTabs().map((key) => ({
+    const builtinItems: MenuItem[] = OPL_VISIBLE_MODAL_TAB_IDS.map((key) => ({
       key,
       label: t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
         defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
@@ -358,8 +364,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       case 'advanced':
       case 'system':
         return <SystemModalContent />;
-      case 'about':
-        return <AboutModalContent />;
+      case 'storage':
+        return <RuntimeSettings withWrapper={false} />;
       default:
         // If no built-in match and not an extension tab, return null
         if (!extensionTabMap.has(activeTab)) return null;

@@ -79,7 +79,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
-    'opl system initialize --events',
+    'opl system initialize --events --json',
     'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
@@ -190,8 +190,8 @@ function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSp
 function buildInitializeCommand(): RuntimeCommandSpec {
   return {
     surface: 'system_initialize',
-    args: ['system', 'initialize', '--events'],
-    redactedCommand: 'opl system initialize --events',
+    args: ['system', 'initialize', '--events', '--json'],
+    redactedCommand: 'opl system initialize --events --json',
   };
 }
 

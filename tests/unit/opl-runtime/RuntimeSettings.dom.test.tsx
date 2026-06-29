@@ -428,6 +428,20 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.canRepair'
     );
+    expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
+      'settings.oplEnvironmentPage.healthSummary.usable'
+    );
+    expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.apply'
+    );
+    expect(screen.getByTestId('opl-managed-update-recommended-action')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.actions.recommendedRepair'
+    );
+    expect(screen.getByText('settings.oplEnvironmentPage.sections.workspace')).toBeInTheDocument();
+    expect(screen.getByText('settings.oplEnvironmentPage.storageData.openStorage')).toBeInTheDocument();
+    expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
+    expect(screen.getByText('settings.oplEnvironmentPage.updates.actions.plan')).toBeInTheDocument();
     fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
@@ -546,6 +560,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastFailure');
     expect(backgroundStatus).toHaveTextContent('managed update lock is held');
 
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.actions.check'));
 
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
@@ -569,6 +584,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     const refreshButton = screen.getByTestId('opl-managed-update-refresh');
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
     const checkButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.check').closest('button');
     const planButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.plan').closest('button');
     expect(checkButton).toBeTruthy();

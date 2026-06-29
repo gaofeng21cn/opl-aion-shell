@@ -106,6 +106,55 @@ const NEXT_STEP_KEYS: Record<FirstRunItemId, string> = {
   family_runtime_provider: 'settings.firstRun.nextSteps.familyRuntimeProvider',
   recommended_skills: 'settings.firstRun.nextSteps.recommendedSkills',
 };
+const ITEM_DESCRIPTION_KEYS: Record<FirstRunItemId, string> = {
+  workspace_root: 'settings.firstRun.itemDescriptions.workspaceRoot',
+  codex: 'settings.firstRun.itemDescriptions.codex',
+  codex_config: 'settings.firstRun.itemDescriptions.codexConfig',
+  domain_modules: 'settings.firstRun.itemDescriptions.domainModules',
+  family_runtime_provider: 'settings.firstRun.itemDescriptions.familyRuntimeProvider',
+  recommended_skills: 'settings.firstRun.itemDescriptions.recommendedSkills',
+};
+const ITEM_ACTION_KEYS: Record<
+  FirstRunItemId,
+  { ready: string; needsAction: string; maintenance: string; waiting: string }
+> = {
+  workspace_root: {
+    ready: 'settings.firstRun.itemActions.workspaceRoot.ready',
+    needsAction: 'settings.firstRun.itemActions.workspaceRoot.needsAction',
+    maintenance: 'settings.firstRun.itemActions.workspaceRoot.waiting',
+    waiting: 'settings.firstRun.itemActions.workspaceRoot.waiting',
+  },
+  codex: {
+    ready: 'settings.firstRun.itemActions.codex.ready',
+    needsAction: 'settings.firstRun.itemActions.codex.needsAction',
+    maintenance: 'settings.firstRun.itemActions.codex.waiting',
+    waiting: 'settings.firstRun.itemActions.codex.waiting',
+  },
+  codex_config: {
+    ready: 'settings.firstRun.itemActions.codexConfig.ready',
+    needsAction: 'settings.firstRun.itemActions.codexConfig.needsAction',
+    maintenance: 'settings.firstRun.itemActions.codexConfig.waiting',
+    waiting: 'settings.firstRun.itemActions.codexConfig.waiting',
+  },
+  domain_modules: {
+    ready: 'settings.firstRun.itemActions.domainModules.ready',
+    needsAction: 'settings.firstRun.itemActions.domainModules.maintenance',
+    maintenance: 'settings.firstRun.itemActions.domainModules.maintenance',
+    waiting: 'settings.firstRun.itemActions.domainModules.waiting',
+  },
+  family_runtime_provider: {
+    ready: 'settings.firstRun.itemActions.familyRuntimeProvider.ready',
+    needsAction: 'settings.firstRun.itemActions.familyRuntimeProvider.maintenance',
+    maintenance: 'settings.firstRun.itemActions.familyRuntimeProvider.maintenance',
+    waiting: 'settings.firstRun.itemActions.familyRuntimeProvider.waiting',
+  },
+  recommended_skills: {
+    ready: 'settings.firstRun.itemActions.recommendedSkills.ready',
+    needsAction: 'settings.firstRun.itemActions.recommendedSkills.maintenance',
+    maintenance: 'settings.firstRun.itemActions.recommendedSkills.maintenance',
+    waiting: 'settings.firstRun.itemActions.recommendedSkills.waiting',
+  },
+};
 
 function itemStatusColor(item: FirstRunChecklistItem | null): string {
   if (!item) return 'gray';
@@ -160,6 +209,22 @@ function formatNextVisibleStep(initialize: FirstRunInitialize | null, t: Transla
   const item = blockedItem ?? initialize?.checklist?.find((entry) => entry.next_visible_step);
   if (!isKnownFirstRunItemId(item?.item_id)) return null;
   return t(NEXT_STEP_KEYS[item.item_id]);
+}
+
+function formatItemAction(item: FirstRunChecklistItem | null, itemId: FirstRunItemId, t: Translate): string {
+  const actionKeys = ITEM_ACTION_KEYS[itemId];
+  if (!item) return t(actionKeys.waiting);
+  if (
+    item.blocking ||
+    item.severity === 'blocking' ||
+    STATUS_NEEDS_ACTION.has(item.status) ||
+    (item.status === 'attention_needed' && item.severity !== 'maintenance')
+  ) {
+    return t(actionKeys.needsAction);
+  }
+  if (item.severity === 'maintenance' || item.status === 'attention_needed') return t(actionKeys.maintenance);
+  if (STATUS_READY.has(item.status)) return t(actionKeys.ready);
+  return t(actionKeys.waiting);
 }
 
 function resultPreview(result: FirstRunCommandResult): string {
@@ -258,7 +323,6 @@ const FirstRun: React.FC = () => {
   const rawNextVisibleStep = findNextVisibleStep(initialize);
   const nextVisibleStep =
     formatNextVisibleStep(initialize, t) ?? (rawNextVisibleStep ? t('settings.firstRun.nextSteps.generic') : null);
-  const codexProfile = initialize?.codex_default_profile;
   const coreStatusColor = initializePending ? 'blue' : readyToLaunch ? 'green' : 'red';
   const coreStatusLabel = initializePending
     ? t('settings.firstRun.status.initializing')
@@ -422,6 +486,7 @@ const FirstRun: React.FC = () => {
                   </span>
                   <div>
                     <div className={styles.firstRunItemTitle}>{formatItemLabel(item, label, t)}</div>
+                    <div className={styles.firstRunItemDescription}>{t(ITEM_DESCRIPTION_KEYS[id])}</div>
                     <div className={styles.firstRunItemSummary}>
                       {formatItemSummary(
                         item,
@@ -430,6 +495,9 @@ const FirstRun: React.FC = () => {
                           : t('settings.firstRun.status.pending'),
                         t
                       )}
+                    </div>
+                    <div className={styles.firstRunItemAction}>
+                      {t('settings.firstRun.itemActionPrefix', { action: formatItemAction(item, id, t) })}
                     </div>
                   </div>
                   <Tag size='small' color={initializePending && !item ? 'blue' : itemStatusColor(item)}>
@@ -595,14 +663,7 @@ const FirstRun: React.FC = () => {
                 </div>
 
                 <div className={styles.firstRunApiKey}>
-                  <p>
-                    {t('settings.firstRun.codex.defaults', {
-                      provider: codexProfile?.model_provider ?? 'gflab',
-                      baseUrl: codexProfile?.base_url ?? 'https://gflabtoken.cn/v1',
-                      model: codexProfile?.model ?? 'gpt-5.5',
-                      reasoning: codexProfile?.model_reasoning_effort ?? 'xhigh',
-                    })}
-                  </p>
+                  <p>{t('settings.firstRun.codex.defaults')}</p>
                 </div>
               </div>
             </section>

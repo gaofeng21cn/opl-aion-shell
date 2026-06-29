@@ -82,6 +82,13 @@ type RuntimeCard = {
   tone: 'green' | 'orange';
 };
 
+type HealthSummaryItem = {
+  key: string;
+  label: string;
+  value: string;
+  tone: 'green' | 'orange';
+};
+
 function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
@@ -96,11 +103,6 @@ function formatStatus(status: string | undefined | null, t: (key: string, option
   const normalized = normalizeStatus(status);
   if (!normalized) return t('settings.oplEnvironmentPage.status.unknown');
   return t(`settings.oplEnvironmentPage.status.${normalized}`, { status: normalized });
-}
-
-function compactToolDetail(parts: Array<string | null | undefined>, fallback: string) {
-  const detail = parts.filter((part): part is string => Boolean(part && part.trim())).join(' · ');
-  return detail || fallback;
 }
 
 function oplPathString(value: unknown): string | null {
@@ -234,6 +236,35 @@ function componentUserSummary(component: ManagedUpdateComponent, t: Translate): 
 
 function updateReadActionHelp(operation: 'status' | 'check' | 'plan', t: Translate): string {
   return t(`settings.oplEnvironmentPage.updates.actionHelp.${operation}`);
+}
+
+function updateComponentUserAction(component: ManagedUpdateComponent, t: Translate): string {
+  if (component.manualRequired || component.developerCheckout || component.dirtyCheckout) {
+    return componentUserSummary(component, t);
+  }
+  if (component.repairAllowed) return t('settings.oplEnvironmentPage.updates.nextActions.repair');
+  if (component.safeToApply) return t('settings.oplEnvironmentPage.updates.nextActions.apply');
+  if (component.needsRestart) return t('settings.oplEnvironmentPage.updates.nextActions.restart');
+  if (component.needsReload) return t('settings.oplEnvironmentPage.updates.nextActions.reload');
+  if (componentIsHealthy(component)) return t('settings.oplEnvironmentPage.updates.nextActions.none');
+  return t('settings.oplEnvironmentPage.updates.nextActions.review');
+}
+
+function findRecommendedUpdateAction(components: ManagedUpdateComponent[]): {
+  kind: 'repair' | 'apply' | 'check';
+  component: ManagedUpdateComponent | null;
+} {
+  const repairable = components.find(
+    (component) =>
+      component.repairAllowed && !component.manualRequired && !component.developerCheckout && !component.dirtyCheckout
+  );
+  if (repairable) return { kind: 'repair', component: repairable };
+  const applicable = components.find(
+    (component) =>
+      component.safeToApply && !component.manualRequired && !component.developerCheckout && !component.dirtyCheckout
+  );
+  if (applicable) return { kind: 'apply', component: applicable };
+  return { kind: 'check', component: null };
 }
 
 function modulePath(module: RuntimeModuleItem): string {
@@ -513,6 +544,28 @@ function ManagedUpdatesPanel({
   const checkLoading = activeReadOperation === 'check';
   const planLoading = activeReadOperation === 'plan';
   const busyAction = maintenance.busyAction;
+  const recommendedAction = findRecommendedUpdateAction(plane.components);
+  const recommendedActionLoading =
+    recommendedAction.kind === 'check'
+      ? checkLoading
+      : Boolean(
+          recommendedAction.component && busyAction === `${recommendedAction.kind}:${recommendedAction.component.id}`
+        );
+  const recommendedActionDisabled =
+    recommendedAction.kind === 'check'
+      ? Boolean(activeReadOperation && activeReadOperation !== 'check')
+      : Boolean(activeReadOperation);
+  const runRecommendedAction = () => {
+    if (recommendedAction.kind === 'repair' && recommendedAction.component) {
+      onRepair(recommendedAction.component);
+      return;
+    }
+    if (recommendedAction.kind === 'apply' && recommendedAction.component) {
+      onApply(recommendedAction.component);
+      return;
+    }
+    onCheck();
+  };
   const showDiagnostics =
     Boolean(plane.lockStatus) ||
     Boolean(plane.operationMode) ||
@@ -544,6 +597,19 @@ function ManagedUpdatesPanel({
             </Space>
           </div>
           <Space wrap>
+            <Button
+              type='primary'
+              data-testid='opl-managed-update-recommended-action'
+              loading={recommendedActionLoading}
+              disabled={recommendedActionDisabled}
+              onClick={runRecommendedAction}
+            >
+              {recommendedAction.kind === 'repair'
+                ? t('settings.oplEnvironmentPage.updates.actions.recommendedRepair')
+                : recommendedAction.kind === 'apply'
+                  ? t('settings.oplEnvironmentPage.updates.actions.recommendedApply')
+                  : t('settings.oplEnvironmentPage.updates.actions.recommendedCheck')}
+            </Button>
             <Tooltip content={updateReadActionHelp('status', t)}>
               <Button
                 data-testid='opl-managed-update-refresh'
@@ -553,24 +619,6 @@ function ManagedUpdatesPanel({
                 onClick={onRefresh}
               >
                 {t('settings.oplEnvironmentPage.updates.actions.refreshStatus')}
-              </Button>
-            </Tooltip>
-            <Tooltip content={updateReadActionHelp('check', t)}>
-              <Button
-                loading={checkLoading}
-                disabled={Boolean(activeReadOperation && activeReadOperation !== 'check')}
-                onClick={onCheck}
-              >
-                {t('settings.oplEnvironmentPage.updates.actions.check')}
-              </Button>
-            </Tooltip>
-            <Tooltip content={updateReadActionHelp('plan', t)}>
-              <Button
-                loading={planLoading}
-                disabled={Boolean(activeReadOperation && activeReadOperation !== 'plan')}
-                onClick={onPlan}
-              >
-                {t('settings.oplEnvironmentPage.updates.actions.plan')}
               </Button>
             </Tooltip>
           </Space>
@@ -597,6 +645,11 @@ function ManagedUpdatesPanel({
                 </div>
                 <Typography.Text className='text-12px text-t-secondary break-words'>
                   {componentUserSummary(component, t)}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.updates.nextStep', {
+                    action: updateComponentUserAction(component, t),
+                  })}
                 </Typography.Text>
 
                 <Space wrap size='small'>
@@ -679,6 +732,33 @@ function ManagedUpdatesPanel({
             </div>
           ))}
         </div>
+        <Collapse bordered={false}>
+          <Collapse.Item
+            header={t('settings.oplEnvironmentPage.updates.advancedActions')}
+            name='managed-update-advanced-actions'
+          >
+            <Space wrap>
+              <Tooltip content={updateReadActionHelp('check', t)}>
+                <Button
+                  loading={checkLoading}
+                  disabled={Boolean(activeReadOperation && activeReadOperation !== 'check')}
+                  onClick={onCheck}
+                >
+                  {t('settings.oplEnvironmentPage.updates.actions.check')}
+                </Button>
+              </Tooltip>
+              <Tooltip content={updateReadActionHelp('plan', t)}>
+                <Button
+                  loading={planLoading}
+                  disabled={Boolean(activeReadOperation && activeReadOperation !== 'plan')}
+                  onClick={onPlan}
+                >
+                  {t('settings.oplEnvironmentPage.updates.actions.plan')}
+                </Button>
+              </Tooltip>
+            </Space>
+          </Collapse.Item>
+        </Collapse>
         {showDiagnostics && (
           <Collapse bordered={false}>
             <Collapse.Item
@@ -776,6 +856,21 @@ function RuntimeReadinessGrid({ cards, t }: { cards: RuntimeCard[]; t: Translate
   );
 }
 
+function HealthSummary({ items }: { items: HealthSummaryItem[] }) {
+  return (
+    <div className='grid grid-cols-1 md:grid-cols-4 gap-12px' data-testid='opl-runtime-health-summary'>
+      {items.map((item) => (
+        <Card key={`runtime-health-${item.key}`} bordered className='rd-8px'>
+          <div className='flex flex-col gap-6px min-w-0'>
+            <Typography.Text className='text-12px text-t-secondary'>{item.label}</Typography.Text>
+            <Tag color={item.tone}>{item.value}</Tag>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
@@ -793,11 +888,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const appState = appStateQuery.appState;
   const core = oplRecord(appState.core);
   const codex = oplRecord(core.codex);
-  const defaultProfile = oplRecord(codex.default_profile);
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
-  const temporalDetails = oplRecord(temporal.details);
-  const temporalWorkerReadiness = oplRecord(temporalDetails.worker_readiness);
   const paths = oplRecord(appState.paths);
   const modulesPayload = oplRecord(appState.modules);
   const modulesSourcePayload = oplRecord(modulesPayload.source);
@@ -811,7 +903,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     oplString(paths.workspace_root_path) ?? oplPathString(paths.workspace_root) ?? familyWorkspaceRoot;
   const logsRoot = oplString(paths.logs_dir) ?? oplString(paths.logs_root) ?? oplString(paths.log_dir);
   const modulesSourceMode = oplString(modulesSourcePayload.mode) ?? oplString(modulesPayload.source);
-  const modulesSourceReason = oplString(modulesSourcePayload.reason);
   const modulesRoot =
     oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
 
@@ -858,23 +949,63 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const guiVersion = __SHELL_VERSION__;
   const releaseChannel = oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
+  const attentionCount = [
+    workspaceStatus !== 'ready',
+    !isReadyStatus(codexStatus),
+    !isReadyStatus(temporalStatus),
+    moduleReady < modules.length,
+  ].filter(Boolean).length;
+  const componentsNeedingMaintenance = managedUpdatePlane.components.filter(
+    (component) => !componentIsHealthy(component) || component.needsReload || component.needsRestart
+  ).length;
+  const lastCheckValue =
+    managedUpdateMaintenance.lastRunAt ?? appStateQuery.loadedAt ?? t('settings.oplEnvironmentPage.status.unknown');
+  const healthSummaryItems = useMemo<HealthSummaryItem[]>(
+    () => [
+      {
+        key: 'usable',
+        label: t('settings.oplEnvironmentPage.healthSummary.usable'),
+        value:
+          attentionCount === 0
+            ? t('settings.oplEnvironmentPage.healthSummary.values.canUse')
+            : t('settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention'),
+        tone: attentionCount === 0 ? 'green' : 'orange',
+      },
+      {
+        key: 'attention',
+        label: t('settings.oplEnvironmentPage.healthSummary.attention'),
+        value:
+          attentionCount === 0
+            ? t('settings.oplEnvironmentPage.healthSummary.values.none')
+            : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
+        tone: attentionCount === 0 ? 'green' : 'orange',
+      },
+      {
+        key: 'maintenance',
+        label: t('settings.oplEnvironmentPage.healthSummary.maintenance'),
+        value:
+          componentsNeedingMaintenance === 0
+            ? t('settings.oplEnvironmentPage.healthSummary.values.none')
+            : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: componentsNeedingMaintenance }),
+        tone: componentsNeedingMaintenance === 0 ? 'green' : 'orange',
+      },
+      {
+        key: 'lastCheck',
+        label: t('settings.oplEnvironmentPage.healthSummary.lastCheck'),
+        value: lastCheckValue,
+        tone: 'green',
+      },
+    ],
+    [attentionCount, componentsNeedingMaintenance, lastCheckValue, t]
+  );
   const runtimeCards = useMemo<RuntimeCard[]>(
     () => [
       {
         key: 'codex',
-        title: 'Codex CLI',
+        title: t('settings.oplEnvironmentPage.localAssistantTitle'),
         value: formatStatus(codexStatus, t),
         status: codexStatus,
-        detail: compactToolDetail(
-          [
-            oplString(codex.version),
-            oplString(codex.binary_path),
-            oplString(codex.default_model) ?? oplString(defaultProfile.model),
-            oplString(codex.default_reasoning_effort) ?? oplString(defaultProfile.model_reasoning_effort),
-            oplString(oplRecord(core.executor).permission_mode),
-          ],
-          t('settings.oplEnvironmentPage.status.unknown')
-        ),
+        detail: t('settings.oplEnvironmentPage.summary.impacts.codex'),
         tone: codexStatus === 'ready' ? 'green' : 'orange',
       },
       {
@@ -882,16 +1013,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         title: t('settings.oplEnvironmentPage.localServiceTitle'),
         value: formatStatus(temporalStatus, t),
         status: temporalStatus,
-        detail: compactToolDetail(
-          [
-            oplString(temporal.version),
-            oplString(temporalDetails.address),
-            oplString(temporalDetails.namespace),
-            oplString(temporalDetails.task_queue),
-            oplString(temporalWorkerReadiness.readiness_status),
-          ],
-          t('settings.oplEnvironmentPage.status.unknown')
-        ),
+        detail: t('settings.oplEnvironmentPage.summary.impacts.temporal'),
         tone: temporalStatus === 'ready' ? 'green' : 'orange',
       },
       {
@@ -899,7 +1021,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         title: t('settings.oplEnvironmentPage.workspaceRootTitle'),
         value: formatStatus(workspaceStatus, t),
         status: workspaceStatus,
-        detail: workspaceRoot || t('settings.oplEnvironmentPage.workspaceRootMissing'),
+        detail: t('settings.oplEnvironmentPage.summary.impacts.workspace'),
         tone: workspaceStatus === 'ready' ? 'green' : 'orange',
       },
       {
@@ -907,30 +1029,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         title: t('settings.oplEnvironmentPage.modulesTitle'),
         value: moduleValue,
         status: moduleReady >= modules.length ? 'ready' : 'attention_required',
-        detail: modulesSourceReason
-          ? `${modulesSourceMode ?? t('settings.oplEnvironmentPage.status.unknown')} · ${modulesSourceReason}`
-          : modulesSourceMode || t('settings.oplEnvironmentPage.items.module.latest'),
+        detail: t('settings.oplEnvironmentPage.summary.impacts.modules'),
         tone: moduleReady >= modules.length ? 'green' : 'orange',
       },
     ],
-    [
-      codex,
-      codexStatus,
-      core.executor,
-      defaultProfile,
-      moduleReady,
-      moduleValue,
-      modules.length,
-      modulesSourceMode,
-      modulesSourceReason,
-      t,
-      temporal,
-      temporalDetails,
-      temporalStatus,
-      temporalWorkerReadiness,
-      workspaceRoot,
-      workspaceStatus,
-    ]
+    [codexStatus, moduleReady, moduleValue, modules.length, t, temporalStatus, workspaceStatus]
   );
 
   const refreshRuntime = useCallback(() => {
@@ -1039,6 +1142,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           <Typography.Text className='text-t-secondary'>{t('settings.runtimePage.description')}</Typography.Text>
         </div>
 
+        <HealthSummary items={healthSummaryItems} />
+
+        <Typography.Text className='font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.sections.required')}
+        </Typography.Text>
         <RuntimeReadinessGrid cards={runtimeCards} t={t} />
 
         <Card bordered className='rd-8px'>
@@ -1083,6 +1191,32 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </div>
         </Card>
 
+        <Typography.Text className='font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.sections.workspace')}
+        </Typography.Text>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+            <div className='min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.oplEnvironmentPage.workspace.rootTitle')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {workspaceRoot
+                  ? t('settings.oplEnvironmentPage.workspace.currentRoot', { path: workspaceRoot })
+                  : t('settings.oplEnvironmentPage.workspace.noRoot')}
+              </Typography.Text>
+            </div>
+            <Button
+              key='runtime-action-workspace'
+              icon={<FolderSearch theme='outline' />}
+              loading={appStateQuery.refreshing}
+              onClick={refreshRuntime}
+            >
+              {t('settings.oplEnvironmentPage.actions.refreshWorkspace')}
+            </Button>
+          </div>
+        </Card>
+
         <Card bordered className='rd-8px'>
           <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between'>
             <div className='min-w-0'>
@@ -1106,6 +1240,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           </div>
         </Card>
 
+        <Typography.Text className='font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.sections.agentPackages')}
+        </Typography.Text>
         <AgentModuleMaintenancePanel
           modules={modules}
           plane={managedUpdatePlane}
@@ -1117,6 +1254,34 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           t={t}
         />
 
+        <Typography.Text className='font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.sections.storage')}
+        </Typography.Text>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+            <div className='min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.oplEnvironmentPage.storageData.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('settings.oplEnvironmentPage.storageData.description')}
+              </Typography.Text>
+            </div>
+            <Button
+              key='runtime-action-storage'
+              icon={<FolderSearch theme='outline' />}
+              onClick={() => {
+                window.location.hash = '#/settings/storage';
+              }}
+            >
+              {t('settings.oplEnvironmentPage.storageData.openStorage')}
+            </Button>
+          </div>
+        </Card>
+
+        <Typography.Text className='font-600 text-t-primary'>
+          {t('settings.oplEnvironmentPage.sections.maintenance')}
+        </Typography.Text>
         <ManagedUpdatesPanel
           plane={managedUpdatePlane}
           maintenance={managedUpdateMaintenance}

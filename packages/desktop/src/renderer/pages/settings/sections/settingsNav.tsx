@@ -1,29 +1,21 @@
-import {
-  Communication,
-  Dashboard,
-  Earth,
-  FolderSearch,
-  Info,
-  Lightning,
-  Puzzle,
-  SwitchThemes,
-  System,
-  Toolkit,
-} from '@icon-park/react';
+import { Communication, Dashboard, Earth, Lightning, Puzzle, SwitchThemes, System, Toolkit } from '@icon-park/react';
 import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 const profileTabIds = getOplGuiSettingsVisibleTabs();
-const storageInsertIndex = profileTabIds.indexOf('environment');
-const storageInsertionPoint = storageInsertIndex >= 0 ? storageInsertIndex + 1 : profileTabIds.length;
+const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
+  'general',
+  'access',
+  'capabilities',
+  'environment',
+  'appearance',
+  'advanced',
+] as const;
+const APP_SETTINGS_TOP_LEVEL_TAB_SET = new Set<string>(APP_SETTINGS_TOP_LEVEL_TAB_IDS);
 
-export const BUILTIN_TAB_IDS = (
-  profileTabIds.includes('storage')
-    ? profileTabIds
-    : [...profileTabIds.slice(0, storageInsertionPoint), 'storage', ...profileTabIds.slice(storageInsertionPoint)]
-) as ['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced', 'about'];
+export const BUILTIN_TAB_IDS = APP_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) => profileTabIds.includes(id));
 
 export type BuiltinSettingsTabId = (typeof BUILTIN_TAB_IDS)[number];
 
@@ -39,25 +31,31 @@ const legacyRedirectTargets = getOplGuiLegacySettingsRouteRedirects();
 const redirectRouteFor = (legacyId: string, targetId: string): string => {
   if (legacyId === 'skills-hub') return '/settings/capabilities?tab=skills';
   if (legacyId === 'tools') return '/settings/capabilities?tab=tools';
+  if (legacyId === 'storage' || legacyId === 'about') return `/settings/${legacyId}`;
+  if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(targetId)) return SETTINGS_DEFAULT_ROUTE;
   return `/settings/${targetId}`;
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  Object.entries(legacyRedirectTargets).map(([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)])
+  [...Object.entries(legacyRedirectTargets), ['storage', 'environment'], ['about', 'advanced']].map(
+    ([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)]
+  )
 );
 
-export const LEGACY_SETTINGS_ANCHOR_REMAP = legacyRedirectTargets;
+export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {
+  ...legacyRedirectTargets,
+  storage: 'environment',
+  about: 'advanced',
+};
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 
 export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefined> = {
-  general: 'settings.groupGeneral',
+  general: undefined,
   access: undefined,
   capabilities: undefined,
-  environment: 'settings.groupRuntime',
-  storage: undefined,
+  environment: undefined,
   appearance: undefined,
-  advanced: 'settings.groupAdvanced',
-  about: 'settings.groupAbout',
+  advanced: undefined,
 };
 
 export type SettingsNavItem = {
@@ -83,37 +81,31 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
   const builtinMap: Record<BuiltinSettingsTabId, SettingsNavItem> = {
     general: {
       id: 'general',
-      label: t('settings.general', { defaultValue: 'General' }),
+      label: t('settings.overview', { defaultValue: 'Overview' }),
       icon: <Dashboard />,
       path: 'general',
     },
     access: {
       id: 'access',
-      label: t('settings.access', { defaultValue: 'Access' }),
+      label: t('settings.onboarding', { defaultValue: 'Get Started' }),
       icon: isDesktop ? <Earth /> : <Communication />,
       path: 'access',
     },
     capabilities: {
       id: 'capabilities',
-      label: t('settings.capabilities', { defaultValue: 'Agents & Capabilities' }),
+      label: t('settings.capabilities', { defaultValue: 'Capabilities' }),
       icon: <Lightning />,
       path: 'capabilities',
     },
     environment: {
       id: 'environment',
-      label: t('settings.environment', { defaultValue: 'Local Environment' }),
+      label: t('settings.maintenance', { defaultValue: 'Maintenance' }),
       icon: <Toolkit />,
       path: 'environment',
     },
-    storage: {
-      id: 'storage',
-      label: t('settings.storage', { defaultValue: 'Storage' }),
-      icon: <FolderSearch />,
-      path: 'storage',
-    },
     appearance: {
       id: 'appearance',
-      label: t('settings.appearance', { defaultValue: 'Appearance' }),
+      label: t('settings.preferences', { defaultValue: 'Preferences' }),
       icon: <SwitchThemes />,
       path: 'appearance',
     },
@@ -122,12 +114,6 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       label: t('settings.advanced', { defaultValue: 'Advanced' }),
       icon: <System />,
       path: 'advanced',
-    },
-    about: {
-      id: 'about',
-      label: t('settings.about', { defaultValue: 'About & Updates' }),
-      icon: <Info />,
-      path: 'about',
     },
   };
 

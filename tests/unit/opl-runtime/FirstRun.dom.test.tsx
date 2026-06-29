@@ -53,7 +53,7 @@ vi.mock('react-router-dom', () => ({
 
 const initializeResult = {
   surface: 'system_initialize',
-  command: 'opl system initialize --events',
+  command: 'opl system initialize --events --json',
   stdout: '{}',
   parsed: {
     system_initialize: {
@@ -286,7 +286,15 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Codex CLI');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Workspace Root');
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('Configured');
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
+      'settings.firstRun.itemDescriptions.workspaceRoot'
+    );
+    expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
+      'settings.firstRun.itemActionPrefix settings.firstRun.itemActions.workspaceRoot.ready'
+    );
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('{');
+    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent('https://gflabtoken.cn');
+    expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent('gpt-5.5');
     expect(screen.getByTestId('opl-first-run-technical-details-toggle')).not.toHaveTextContent(
       'settings.firstRun.maintenance.title'
     );
@@ -447,7 +455,7 @@ describe('FirstRun readiness page', () => {
 
   it('shows a user-facing first-run error and keeps the raw diagnostic in technical details', async () => {
     bridgeMocks.getInitializeInvoke.mockRejectedValueOnce(
-      new Error('OPL runtime command failed: opl system initialize --events')
+      new Error('OPL runtime command failed: opl system initialize --events --json')
     );
 
     render(<FirstRun />);
@@ -461,7 +469,7 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
 
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent(
-      'OPL runtime command failed: opl system initialize --events'
+      'OPL runtime command failed: opl system initialize --events --json'
     );
   });
 
