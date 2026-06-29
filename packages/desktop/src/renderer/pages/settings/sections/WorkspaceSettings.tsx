@@ -207,7 +207,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
               return (
                 <div key={id} className='flex flex-col gap-6px md:flex-row md:items-center md:justify-between py-12px'>
                   <div className='min-w-0'>
-                    <Typography.Text className='block font-600 text-t-primary'>{moduleDisplayLabel(module)}</Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {moduleDisplayLabel(module)}
+                    </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
                       {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
                     </Typography.Text>

@@ -86,7 +86,9 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
       tone: isReadyStatus(modulesStatus) ? 'green' : 'orange',
     },
   ];
-  const attentionModules = modules.filter((module) => !isReadyStatus(moduleStatus(module)) || moduleNeedsManualHandling(module));
+  const attentionModules = modules.filter(
+    (module) => !isReadyStatus(moduleStatus(module)) || moduleNeedsManualHandling(module)
+  );
 
   const refresh = () => {
     void appStateQuery.load('fast', { showRefreshing: true });
@@ -99,9 +101,7 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
           <Typography.Title heading={4} className='mb-6px'>
             {t('settings.localServicesPage.title')}
           </Typography.Title>
-          <Typography.Text className='text-t-secondary'>
-            {t('settings.localServicesPage.description')}
-          </Typography.Text>
+          <Typography.Text className='text-t-secondary'>{t('settings.localServicesPage.description')}</Typography.Text>
         </div>
         <Button icon={<Refresh theme='outline' />} loading={appStateQuery.refreshing} onClick={refresh}>
           {t('common.refresh')}
@@ -120,7 +120,9 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
               </div>
               <div className='min-w-0'>
                 <Typography.Text className='block font-600 text-t-primary'>{card.title}</Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {card.detail}
+                </Typography.Text>
               </div>
             </div>
           </Card>
@@ -153,7 +155,9 @@ const LocalServicesSettings: React.FC<LocalServicesSettingsProps> = ({ withWrapp
               return (
                 <div key={id} className='flex flex-col gap-6px md:flex-row md:items-center md:justify-between py-12px'>
                   <div className='min-w-0'>
-                    <Typography.Text className='block font-600 text-t-primary'>{moduleDisplayLabel(module)}</Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {moduleDisplayLabel(module)}
+                    </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
                       {needsManualHandling
                         ? t('settings.localServicesPage.modules.manualAttention')

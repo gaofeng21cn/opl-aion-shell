@@ -400,6 +400,18 @@ describe('OPL first-run VM smoke scripts', () => {
         ['OPL Flow Context', 'OPL Flow 上下文'],
       ])
     );
+    expect(vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about')?.navigation).toBe('secondary');
+  });
+
+  it('requires sidebar navigation for top-level Settings pages but not App-owned secondary pages', () => {
+    const generalTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
+    const aboutTarget = vmSmoke.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'about');
+
+    expect(vmSmoke.pageReadinessExpression(generalTarget)).toContain(
+      'document.querySelector(\'.settings-sider__item[data-settings-id="general"]\')'
+    );
+    expect(vmSmoke.pageReadinessExpression(aboutTarget)).toContain('const navPresent = true;');
+    expect(vmSmoke.pageReadinessExpression(aboutTarget)).not.toContain('data-settings-id="about"');
   });
 
   it('keeps runtime refresh checks in packaged Settings and Runtime smokes', () => {

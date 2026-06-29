@@ -550,7 +550,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
           ))}
         </div>
         {filteredMenuItems.length === 0 && (
-          <div className='px-14px py-12px rd-8px text-13px text-t-secondary bg-fill-1' data-testid='settings-search-empty'>
+          <div
+            className='px-14px py-12px rd-8px text-13px text-t-secondary bg-fill-1'
+            data-testid='settings-search-empty'
+          >
             {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
           </div>
         )}

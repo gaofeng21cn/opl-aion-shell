@@ -18,6 +18,7 @@ export type ManagedUpdateMaintenanceTrigger =
   | 'manual_check_updates'
   | 'manual_refresh_status'
   | 'manual_plan'
+  | 'settings_make_opl_usable'
   | 'component_action';
 
 export type ManagedUpdateReadOperation = 'status' | 'check' | 'plan';

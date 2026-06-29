@@ -38,7 +38,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
   const modulesNeedAction = totalModules > 0 && readyModules < totalModules;
   const overviewNeedsAction = !workspaceRoot || modulesNeedAction;
-  const recommendedRoute = !workspaceRoot ? '/settings/workspace' : modulesNeedAction ? '/settings/local-services' : '/settings/environment';
+  const recommendedRoute = !workspaceRoot
+    ? '/settings/workspace'
+    : modulesNeedAction
+      ? '/settings/local-services'
+      : '/settings/environment';
   const recommendedLabel = !workspaceRoot
     ? t('settings.overviewPage.workspace.changeOrVerify')
     : modulesNeedAction

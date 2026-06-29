@@ -3837,27 +3837,33 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
       ['OPL Flow Context', 'OPL Flow 上下文'],
     ],
   },
-  { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']] },
+  { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']], navigation: 'secondary' },
 ];
 
 function cdpString(value) {
   return JSON.stringify(value);
 }
 
+function settingsNavItemExpression(target) {
+  if (target.navigation === 'secondary') return 'true';
+  return `Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]'))`;
+}
+
 function pageReadinessExpression(target) {
   return `(() => {
     const text = document.body?.innerText || '';
-    const navItem = document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]');
+    const navPresent = ${settingsNavItemExpression(target)};
     const requiredTextAny = ${JSON.stringify(target.requiredTextAny)};
     const missingText = requiredTextAny.filter((items) => !items.some((item) => text.includes(item)));
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     const firstRunWindowVisible = Boolean(document.querySelector('[data-testid="opl-first-run-window"]'));
     const hashOk = window.location.hash.startsWith(${cdpString(target.hash)});
-    return hashOk && navItem && text.length > 80 && missingText.length === 0 && !appLoaderVisible && !firstRunWindowVisible
+    return hashOk && navPresent && text.length > 80 && missingText.length === 0 && !appLoaderVisible && !firstRunWindowVisible
       ? {
           id: ${cdpString(target.id)},
           hash: window.location.hash,
           textLength: text.length,
+          navPresent,
           requiredTextAny,
         }
       : false;
@@ -3926,7 +3932,8 @@ async function captureSettingsPage(client, target, options, secret) {
           expectedHash: ${cdpString(target.hash)},
           hash: window.location.hash,
           textLength: text.length,
-          navPresent: Boolean(document.querySelector('.settings-sider__item[data-settings-id=${cdpString(target.id)}]')),
+          navPresent: ${settingsNavItemExpression(target)},
+          navigation: ${cdpString(target.navigation ?? 'top_level')},
           loaderVisible: Boolean(document.querySelector('[class*="loader"], .arco-spin-loading')),
           firstRunWindowVisible: Boolean(document.querySelector('[data-testid="opl-first-run-window"]')),
           missingText,
@@ -5463,6 +5470,7 @@ export const __test =
         shouldTerminateExistingApp,
         SETTINGS_PAGE_SMOKE_TARGETS,
         OPL_ASSISTANT_ROUTE_SMOKE_TARGETS,
+        pageReadinessExpression,
         developerProfileStatusExpression,
         runtimeActionEvidenceExpression,
         visibleRuntimeRefreshButtonExpression,

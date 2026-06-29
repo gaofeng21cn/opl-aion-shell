@@ -153,7 +153,11 @@ function mutationKindLabel(kind: 'apply' | 'repair' | 'rollback' | 'auto_apply',
   return t('settings.oplEnvironmentPage.updates.actions.applySelected');
 }
 
-function mutationWillChange(kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent, t: Translate): string {
+function mutationWillChange(
+  kind: 'apply' | 'repair' | 'rollback',
+  component: ManagedUpdateComponent,
+  t: Translate
+): string {
   if (kind === 'repair') return t('settings.oplEnvironmentPage.updates.confirmation.willRepair');
   if (kind === 'rollback') {
     return component.rollbackRef
@@ -291,9 +295,7 @@ function AgentModuleMaintenancePanel({
                     detail: mutationWillNotChange(pendingAction.kind, t),
                   })}
                 </span>
-                <span className='break-words'>
-                  {rollbackOrReceiptText(pendingAction.component, t)}
-                </span>
+                <span className='break-words'>{rollbackOrReceiptText(pendingAction.component, t)}</span>
                 <Space wrap size='small'>
                   <Button size='small' onClick={onCancelAction}>
                     {t('common.cancel')}
@@ -488,9 +490,7 @@ function PostUpdateNotice({
               {t('settings.oplEnvironmentPage.updates.postAction.reloadGuidance', { guidance: reloadGuidance })}
             </span>
           ) : (
-            <span className='break-words'>
-              {t('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance')}
-            </span>
+            <span className='break-words'>{t('settings.oplEnvironmentPage.updates.postAction.noReloadGuidance')}</span>
           )}
         </div>
       }
@@ -632,9 +632,7 @@ function ManagedUpdatesPanel({
                     detail: mutationWillNotChange(pendingAction.kind, t),
                   })}
                 </span>
-                <span className='break-words'>
-                  {rollbackOrReceiptText(pendingAction.component, t)}
-                </span>
+                <span className='break-words'>{rollbackOrReceiptText(pendingAction.component, t)}</span>
                 <Space wrap size='small'>
                   <Button size='small' onClick={onCancelAction}>
                     {t('common.cancel')}

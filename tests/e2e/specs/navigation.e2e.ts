@@ -5,12 +5,23 @@
  * settings sub-pages without errors.
  */
 import { test, expect } from '../fixtures';
-import { GUID_INPUT, goToGuid, goToSettings, ROUTES, expectUrlContains, takeScreenshot, type SettingsTab } from '../helpers';
+import {
+  GUID_INPUT,
+  goToGuid,
+  goToSettings,
+  ROUTES,
+  expectUrlContains,
+  takeScreenshot,
+  type SettingsTab,
+} from '../helpers';
 
 async function requireGuidInput(page: import('@playwright/test').Page) {
   const input = page.locator(GUID_INPUT).first();
   if (!(await input.isVisible().catch(() => false))) {
-    test.skip(true, 'Guid input is unavailable in this E2E runtime, usually because the dev app is in incomplete-install preflight.');
+    test.skip(
+      true,
+      'Guid input is unavailable in this E2E runtime, usually because the dev app is in incomplete-install preflight.'
+    );
   }
   return input;
 }
