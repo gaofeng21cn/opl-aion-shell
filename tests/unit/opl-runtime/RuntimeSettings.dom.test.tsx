@@ -443,6 +443,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.title'
     );
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
+    );
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
@@ -522,6 +525,35 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() =>
       expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
     );
+  });
+
+  it('runs the Maintenance hub make-usable action through existing repair, check, and safe component actions', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
+
+    await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
+        componentId: 'agent_package_channel',
+        receiptId: 'receipt://agent_package_channel/failed-sync',
+      })
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
+        componentId: 'capability_exposure',
+        receiptId: 'receipt://capability_exposure/cache',
+      })
+    );
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
+      componentId: 'runtime_toolchain',
+      receiptId: 'receipt://runtime_toolchain/latest',
+    });
+    expect(bridgeMocks.rollbackUpdateComponentInvoke).not.toHaveBeenCalled();
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
   });
 
   it('renders user-friendly agent module maintenance from app state modules and managed update actions', async () => {

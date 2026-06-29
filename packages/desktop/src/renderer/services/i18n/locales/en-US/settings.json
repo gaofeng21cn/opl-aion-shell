@@ -1527,6 +1527,11 @@
     "maintenanceHub": {
       "title": "Maintenance hub",
       "description": "Use one place for app updates, runtime/toolchain upkeep, capability packs, storage cleanup, and repair suggestions. Actions still run through their existing managed surfaces.",
+      "makeUsable": {
+        "label": "Make OPL usable",
+        "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
+        "complete": "OPL usability check finished. Follow any restart or reload guidance shown below."
+      },
       "status": {
         "available": "Available"
       },

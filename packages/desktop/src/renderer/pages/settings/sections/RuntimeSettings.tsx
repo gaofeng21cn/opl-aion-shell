@@ -30,6 +30,7 @@ import {
   RuntimeReadinessGrid,
   type RuntimeHealthSummaryItem,
   type RuntimeMaintenanceHubItem,
+  type RuntimeMaintenanceHubPrimaryAction,
   type RuntimeReadinessCard,
 } from './RuntimeSettingsPanels';
 
@@ -59,6 +60,7 @@ const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
 const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
+const MAKE_USABLE_COMPONENT_IDS = new Set(['runtime_toolchain', 'agent_package_channel', 'capability_exposure']);
 const DEVELOPER_MODULE_SOURCES = new Set([
   'developer_checkout',
   'developer_mode',
@@ -332,6 +334,14 @@ function moduleManualHandlingLabel(
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function chooseMakeUsableAction(component: ManagedUpdateComponent): 'repair' | 'apply' | null {
+  if (!MAKE_USABLE_COMPONENT_IDS.has(component.id)) return null;
+  if (component.manualRequired || component.developerCheckout || component.dirtyCheckout) return null;
+  if (component.repairAllowed) return 'repair';
+  if (component.safeToApply && !component.needsRestart) return 'apply';
+  return null;
 }
 
 function AgentModuleMaintenancePanel({
@@ -909,6 +919,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<
     'runtimeToolchain' | 'capabilityPacks' | null
   >(null);
+  const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const appStateQuery = useOplAppState('fast');
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
@@ -1139,6 +1150,52 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     [appStateQuery.load]
   );
 
+  const runMakeOplUsable = useCallback(async () => {
+    if (makeUsableRunning) return;
+    setMakeUsableRunning(true);
+    try {
+      const translate = tRef.current;
+      const repairResult = await ipcBridge.oplRuntime.runInstallPrep.invoke();
+      if (!bridgeResultSucceeded(repairResult)) {
+        messageRef.current.error(
+          repairResult?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
+        );
+        return;
+      }
+
+      const checkResult = await executeManagedUpdateRead('check', { trigger: 'settings_make_opl_usable' });
+      if (!bridgeResultSucceeded(checkResult)) {
+        messageRef.current.error(
+          checkResult?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
+        );
+        return;
+      }
+
+      const checkedPlane = readManagedUpdatePlane(checkResult.parsed, appState);
+      for (const component of checkedPlane.components) {
+        const action = chooseMakeUsableAction(component);
+        if (!action) continue;
+        const mutationResult = await executeManagedUpdateMutation(action, {
+          componentId: component.id,
+          receiptId: component.repairReceiptId,
+        });
+        if (!bridgeResultSucceeded(mutationResult)) {
+          messageRef.current.error(
+            mutationResult?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
+          );
+          return;
+        }
+      }
+
+      await appStateQuery.load('fast', { showRefreshing: true });
+      messageRef.current.success(translate('settings.oplEnvironmentPage.maintenanceHub.makeUsable.complete'));
+    } catch {
+      messageRef.current.error(tRef.current('settings.oplEnvironmentPage.messages.commandFailed'));
+    } finally {
+      setMakeUsableRunning(false);
+    }
+  }, [appState, appStateQuery.load, makeUsableRunning]);
+
   const requestManagedUpdateAction = useCallback(
     (
       kind: 'apply' | 'repair' | 'rollback',
@@ -1311,6 +1368,16 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       updateReadDisabled,
     ]
   );
+  const maintenanceHubPrimaryAction = useMemo<RuntimeMaintenanceHubPrimaryAction>(
+    () => ({
+      label: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'),
+      help: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.help'),
+      loading: makeUsableRunning,
+      disabled: Boolean(activeReadOperation) || Boolean(maintenanceHubCheckTarget),
+      onAction: () => void runMakeOplUsable(),
+    }),
+    [activeReadOperation, maintenanceHubCheckTarget, makeUsableRunning, runMakeOplUsable, t]
+  );
 
   const content = (
     <>
@@ -1325,7 +1392,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
 
         <RuntimeHealthSummary items={healthSummaryItems} />
 
-        <RuntimeMaintenanceHub items={maintenanceHubItems} t={t} />
+        <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
 
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.required')}

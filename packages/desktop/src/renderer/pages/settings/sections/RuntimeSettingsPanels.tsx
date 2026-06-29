@@ -39,6 +39,14 @@ export type RuntimeMaintenanceHubItem = {
   onAction: () => void;
 };
 
+export type RuntimeMaintenanceHubPrimaryAction = {
+  label: string;
+  help: string;
+  loading?: boolean;
+  disabled?: boolean;
+  onAction: () => void;
+};
+
 type RuntimeSettingsPanelsTranslate = (key: string, options?: Record<string, string | number>) => string;
 
 export function RuntimeReadinessGrid({
@@ -83,21 +91,37 @@ export function RuntimeHealthSummary({ items }: { items: RuntimeHealthSummaryIte
 
 export function RuntimeMaintenanceHub({
   items,
+  primaryAction,
   t,
 }: {
   items: RuntimeMaintenanceHubItem[];
+  primaryAction?: RuntimeMaintenanceHubPrimaryAction;
   t: RuntimeSettingsPanelsTranslate;
 }) {
   return (
     <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
       <div className='flex flex-col gap-14px'>
-        <div>
-          <Typography.Text className='block font-600 text-t-primary'>
-            {t('settings.oplEnvironmentPage.maintenanceHub.title')}
-          </Typography.Text>
-          <Typography.Text className='block text-12px text-t-secondary break-words'>
-            {t('settings.oplEnvironmentPage.maintenanceHub.description')}
-          </Typography.Text>
+        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+          <div className='min-w-0'>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('settings.oplEnvironmentPage.maintenanceHub.description')}
+            </Typography.Text>
+          </div>
+          {primaryAction && (
+            <Button
+              type='primary'
+              data-testid='opl-maintenance-hub-make-usable'
+              title={primaryAction.help}
+              loading={primaryAction.loading}
+              disabled={primaryAction.disabled}
+              onClick={primaryAction.onAction}
+            >
+              {primaryAction.label}
+            </Button>
+          )}
         </div>
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12px'>
           {items.map((item) => (
