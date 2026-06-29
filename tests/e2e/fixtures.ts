@@ -108,6 +108,18 @@ function shouldUsePackagedMode(): boolean {
   return !!process.env.CI;
 }
 
+function devBackendPathEnv(projectRoot: string, baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const runtimeKey = `${process.platform}-${process.arch}`;
+  const runtimeDir = path.join(projectRoot, 'resources', 'bundled-aioncore', runtimeKey);
+  const binaryName = process.platform === 'win32' ? 'aioncore.exe' : 'aioncore';
+  if (!fs.existsSync(path.join(runtimeDir, binaryName))) return {};
+
+  const currentPath = baseEnv.PATH || baseEnv.Path || '';
+  return {
+    PATH: [runtimeDir, currentPath].filter(Boolean).join(path.delimiter),
+  };
+}
+
 async function launchApp(): Promise<ElectronApplication> {
   const projectRoot = path.resolve(__dirname, '../..');
   const usePackaged = shouldUsePackagedMode();
@@ -165,6 +177,7 @@ async function launchApp(): Promise<ElectronApplication> {
     cwd: projectRoot,
     env: {
       ...commonEnv,
+      ...devBackendPathEnv(projectRoot, commonEnv),
       NODE_ENV: 'development',
     },
     timeout: 60_000,
