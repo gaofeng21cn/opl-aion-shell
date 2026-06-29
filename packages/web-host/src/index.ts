@@ -5,6 +5,7 @@ export type {
   BackendBinaryResolver,
   WebAutoLoginBootstrap,
   WebAutoLoginCredentials,
+  WebOplRuntimeProxyConfig,
   WebHostOptions,
   WebHostHandle,
 } from './types.js';
@@ -64,6 +65,7 @@ export async function startWebHost(opts: WebHostOptions): Promise<WebHostHandle>
       port: opts.port,
       allowRemote: opts.allowRemote ?? false,
       webAutoLogin: opts.webAutoLogin,
+      oplRuntimeProxy: opts.oplRuntimeProxy,
     });
   } catch (err) {
     // If static-server fails, clean up backend

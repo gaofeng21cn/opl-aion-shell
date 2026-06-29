@@ -1,10 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { vi } from 'vitest';
 import { startStaticServer, type StaticServerHandle } from './static-server.js';
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+  return {
+    ...actual,
+    spawn: vi.fn(),
+  };
+});
 
 async function mkRendererFixture(): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'ws-static-'));
@@ -229,6 +240,153 @@ describe('static-server', () => {
     handle = await startStaticServer({ staticDir, backendPort: freePort, port: 0 });
     const r = await fetch(`${handle.localUrl}/api/anything`);
     expect(r.status).toBe(502);
+  });
+
+  it('/api/opl-runtime/* is handled before the backend proxy', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    await fs.mkdir(resourcesPath, { recursive: true });
+
+    vi.mocked(spawn).mockImplementationOnce((command, args, options) => {
+      const child = new EventEmitter() as ReturnType<typeof spawn> & {
+        stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+      };
+      child.stdout = new EventEmitter() as typeof child.stdout;
+      child.stderr = new EventEmitter() as typeof child.stderr;
+      child.stdout.setEncoding = () => {};
+      child.stderr.setEncoding = () => {};
+      child.kill = vi.fn() as typeof child.kill;
+      queueMicrotask(() => {
+        child.stdout.emit('data', JSON.stringify({ ok: true }));
+        child.emit('close', 0);
+      });
+      expect(command).toBe('opl');
+      expect(args).toEqual(['app', 'state', '--profile', 'fast', '--json']);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.HOME).toBe(dataDir);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_STATE_DIR).toBe(path.join(dataDir, 'opl', 'state'));
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.CODEX_HOME).toBe(path.join(dataDir, '.codex'));
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_WORKSPACE_ROOT).toBe(projectsDir);
+      return child;
+    });
+
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      oplRuntimeProxy: { dataDir, projectsDir, resourcesPath },
+    });
+
+    const r = await fetch(`${handle.localUrl}/api/opl-runtime/app-state`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profile: 'fast' }),
+    });
+    expect(r.status).toBe(200);
+    const json = (await r.json()) as { data: { surface: string; parsed: unknown } };
+    expect(json.data.surface).toBe('app_state_fast');
+    expect(json.data.parsed).toEqual({ ok: true });
+  });
+
+  it('/api/opl-runtime/* reruns bootstrap when an existing OPL checkout has missing dependencies', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    await fs.mkdir(resourcesPath, { recursive: true });
+    await fs.writeFile(path.join(resourcesPath, 'opl-install.sh'), '#!/usr/bin/env bash\n');
+
+    const initialSpawnCallCount = vi.mocked(spawn).mock.calls.length;
+    vi.mocked(spawn)
+      .mockImplementationOnce((command, args) => {
+        const child = new EventEmitter() as ReturnType<typeof spawn> & {
+          stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+          stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        };
+        child.stdout = new EventEmitter() as typeof child.stdout;
+        child.stderr = new EventEmitter() as typeof child.stderr;
+        child.stdout.setEncoding = () => {};
+        child.stderr.setEncoding = () => {};
+        child.kill = vi.fn() as typeof child.kill;
+        queueMicrotask(() => {
+          child.stderr.emit(
+            'data',
+            "Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@temporalio/common' imported from /data/.opl/one-person-lab/src/family-runtime-temporal-query.ts"
+          );
+          child.emit('close', 1);
+        });
+        expect(command).toBe('opl');
+        expect(args).toEqual(['app', 'state', '--profile', 'fast', '--json']);
+        return child;
+      })
+      .mockImplementationOnce((command, args) => {
+        const child = new EventEmitter() as ReturnType<typeof spawn> & {
+          stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+          stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        };
+        child.stdout = new EventEmitter() as typeof child.stdout;
+        child.stderr = new EventEmitter() as typeof child.stderr;
+        child.stdout.setEncoding = () => {};
+        child.stderr.setEncoding = () => {};
+        child.kill = vi.fn() as typeof child.kill;
+        queueMicrotask(() => child.emit('close', 0));
+        expect(command).toBe('/bin/bash');
+        expect(args).toEqual([
+          path.join(resourcesPath, 'opl-install.sh'),
+          '--complete',
+          '--skip-modules',
+          '--skip-gui-open',
+          '--skip-native-helper-repair',
+          '--no-online-runtime',
+        ]);
+        return child;
+      })
+      .mockImplementationOnce((command, args) => {
+        const child = new EventEmitter() as ReturnType<typeof spawn> & {
+          stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+          stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        };
+        child.stdout = new EventEmitter() as typeof child.stdout;
+        child.stderr = new EventEmitter() as typeof child.stderr;
+        child.stdout.setEncoding = () => {};
+        child.stderr.setEncoding = () => {};
+        child.kill = vi.fn() as typeof child.kill;
+        queueMicrotask(() => {
+          child.stdout.emit('data', JSON.stringify({ recovered: true }));
+          child.emit('close', 0);
+        });
+        expect(command).toBe('opl');
+        expect(args).toEqual(['app', 'state', '--profile', 'fast', '--json']);
+        return child;
+      });
+
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      oplRuntimeProxy: { dataDir, projectsDir, resourcesPath },
+    });
+
+    const r = await fetch(`${handle.localUrl}/api/opl-runtime/app-state`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profile: 'fast' }),
+    });
+    expect(r.status).toBe(200);
+    const json = (await r.json()) as { success: boolean; data: { parsed: unknown } };
+    expect(json.success).toBe(true);
+    expect(json.data.parsed).toEqual({ recovered: true });
+    expect(vi.mocked(spawn).mock.calls.length - initialSpawnCallCount).toBe(3);
   });
 
   it('/ws WebSocket upgrade is spliced to backend and 101 is relayed', async () => {

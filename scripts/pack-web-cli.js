@@ -86,7 +86,17 @@ if (!fs.existsSync(backendSrc)) {
 fs.mkdirSync(path.dirname(backendDest), { recursive: true });
 fs.cpSync(backendSrc, backendDest, { recursive: true });
 
-// 8. Create tarball
+// 8. Copy the standard OPL bootstrap installer used by Docker/WebUI first-run.
+const oplInstallerSrc = path.join(projectRoot, 'resources', 'opl-install.sh');
+if (!fs.existsSync(oplInstallerSrc)) {
+  throw new Error(
+    `OPL bootstrap installer missing at ${oplInstallerSrc}. Run the App release payload preparation first.`
+  );
+}
+fs.copyFileSync(oplInstallerSrc, path.join(tarballContentDir, 'opl-install.sh'));
+fs.chmodSync(path.join(tarballContentDir, 'opl-install.sh'), 0o755);
+
+// 9. Create tarball
 fs.mkdirSync(distDir, { recursive: true });
 execSync(`tar -czf ${path.basename(tarballPath)} -C ${stagingDir} aionui-web`, {
   cwd: path.dirname(tarballPath),
@@ -95,7 +105,7 @@ execSync(`tar -czf ${path.basename(tarballPath)} -C ${stagingDir} aionui-web`, {
 
 console.log(`✅ Tarball created: ${tarballPath}`);
 
-// 9. Generate SHA256 checksum (cross-platform: use Node's crypto, not `shasum`)
+// 10. Generate SHA256 checksum (cross-platform: use Node's crypto, not `shasum`)
 const checksumPath = `${tarballPath}.sha256`;
 const hash = crypto.createHash('sha256');
 hash.update(fs.readFileSync(tarballPath));

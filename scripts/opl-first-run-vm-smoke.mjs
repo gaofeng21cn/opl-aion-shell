@@ -2467,6 +2467,10 @@ function shouldCaptureFullReleaseScreenshot(options) {
   return options.runtimeProfile === 'full' && shouldCheckFirstRunBeginnerUx(options);
 }
 
+function shouldCaptureFirstRunBeginnerScreenshot(firstRunBeginnerUx) {
+  return Boolean(firstRunBeginnerUx) && firstRunBeginnerUx.status !== 'skipped_by_usable_entry';
+}
+
 function parseSystemInitialize(systemInitializeRaw) {
   const payload = JSON.parse(systemInitializeRaw);
   return payload.system_initialize ?? payload;
@@ -3094,6 +3098,15 @@ function latestConversationRouteReceiptExpression(target) {
 
 function firstRunBeginnerUxExpression() {
   return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const guidEntry = document.querySelector('[data-testid="opl-guid-entry"], [aria-label="opl-guid-entry"]');
+    const guidInput = document.querySelector('[data-testid="guid-input"]');
+    const guidSendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const windowNode = document.querySelector('[data-testid="opl-first-run-window"]');
     const progressNode = document.querySelector('[data-testid="opl-first-run-progress"]');
     const primaryNode = document.querySelector('[data-testid="opl-first-run-beginner-primary"]');
@@ -3101,12 +3114,34 @@ function firstRunBeginnerUxExpression() {
     const actionNode = document.querySelector('[data-testid="opl-first-run-primary-action"]');
     const detailsNode = document.querySelector('[data-testid="opl-first-run-technical-details-toggle"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
-    const visible = (node) => {
-      if (!node) return false;
-      const rect = node.getBoundingClientRect();
-      const style = window.getComputedStyle(node);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    };
+    if (window.location.hash.startsWith('#/guid') && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !windowNode && !appLoaderVisible) {
+      return {
+        status: 'skipped_by_usable_entry',
+        reason: 'usable_guid_entry_reached_before_beginner_capture',
+        hash: window.location.hash,
+        entryKind: 'guid',
+        labels: ['opl-guid-entry'],
+        guidEntryVisible: true,
+        guidInputVisible: true,
+        guidSendButtonVisible: true,
+      };
+    }
+    const assistantCards = ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id))}
+      .map((assistantId) => document.querySelector(\`[data-testid="preset-pill-\${assistantId}"]\`))
+      .filter(visible);
+    if (assistantCards.length === ${OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.length} && visible(guidInput) && visible(guidSendButton) && !windowNode && !appLoaderVisible) {
+      return {
+        status: 'skipped_by_usable_entry',
+        reason: 'usable_assistant_home_reached_before_beginner_capture',
+        hash: window.location.hash,
+        entryKind: 'assistant_home',
+        labels: ${JSON.stringify(OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.badge))},
+        assistantCardsVisible: assistantCards.map((card) => card.getAttribute('data-testid')),
+        guidEntryVisible: visible(guidEntry),
+        guidInputVisible: true,
+        guidSendButtonVisible: true,
+      };
+    }
     const primaryText = primaryNode?.innerText || '';
     const bodyText = document.body?.innerText || '';
     const deniedPatterns = [
@@ -3139,6 +3174,7 @@ function firstRunBeginnerUxExpression() {
       && leakedPrimaryText.length === 0
       && !detailsExpanded
       ? {
+          status: 'captured',
           hash: window.location.hash,
           beginnerPrimaryVisible: true,
           summaryText: summaryNode.textContent.trim(),
@@ -3378,11 +3414,13 @@ async function waitForGuidEntryViaCdp(options, secret) {
         )
       : null;
     if (firstRunBeginnerUx) {
-      const beginnerScreenshotPath = path.join(options.artifacts, 'first-run-beginner.png');
       writeJsonArtifact(path.join(options.artifacts, 'first-run-beginner-ux.json'), firstRunBeginnerUx, secret);
-      await captureCdpScreenshot(client, beginnerScreenshotPath);
-      if (shouldCaptureFullReleaseScreenshot(options)) {
-        copyArtifact(beginnerScreenshotPath, path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.full));
+      if (shouldCaptureFirstRunBeginnerScreenshot(firstRunBeginnerUx)) {
+        const beginnerScreenshotPath = path.join(options.artifacts, 'first-run-beginner.png');
+        await captureCdpScreenshot(client, beginnerScreenshotPath);
+        if (shouldCaptureFullReleaseScreenshot(options)) {
+          copyArtifact(beginnerScreenshotPath, path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.full));
+        }
       }
     }
     const state = await waitForCdpPredicate(
@@ -5375,6 +5413,7 @@ export const __test =
         shouldWaitForCoreFirstLaunchReady,
         configureCodexApiKeyForSmoke,
         shouldCaptureFullReleaseScreenshot,
+        shouldCaptureFirstRunBeginnerScreenshot,
         shouldCheckFirstRunBeginnerUx,
         waitForCoreFirstLaunchReady,
         summarizeCoreFirstLaunch,

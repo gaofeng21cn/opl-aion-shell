@@ -36,6 +36,12 @@ export type WebAutoLoginBootstrap = {
   getCredentials: () => WebAutoLoginCredentials | null | Promise<WebAutoLoginCredentials | null>;
 };
 
+export type WebOplRuntimeProxyConfig = {
+  dataDir: string;
+  resourcesPath: string;
+  projectsDir?: string;
+};
+
 /**
  * Options for starting WebHost
  */
@@ -48,6 +54,7 @@ export type WebHostOptions = {
   logDir?: string;
   dirs?: BackendSystemDirs;
   webAutoLogin?: WebAutoLoginBootstrap;
+  oplRuntimeProxy?: WebOplRuntimeProxyConfig;
   backend: { kind: 'ownBackend'; resolveBackend: BackendBinaryResolver } | { kind: 'useExistingBackend'; port: number };
 };
 

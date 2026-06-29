@@ -554,37 +554,109 @@ export type IOplSystemInitializeEvent = {
   payload?: unknown;
 };
 
+function isWebUiBrowserMode(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined' &&
+    !(window as Window & { __backendPort?: number }).__backendPort
+  );
+}
+
+function runtimeProvider<Data, Params>(
+  channel: string,
+  webRoute: string,
+  mapBody?: (params: Params) => unknown
+): BridgeProvider<Data, Params> {
+  const electronProvider = bridge.buildProvider<Data, Params>(channel);
+  const webProvider = httpPost<Data, Params>(webRoute, mapBody);
+  return {
+    provider: electronProvider.provider,
+    invoke: ((params?: Params) => {
+      const provider = isWebUiBrowserMode() ? webProvider : electronProvider;
+      return (provider.invoke as (p?: Params) => Promise<Data>)(params);
+    }) as BridgeProvider<Data, Params>['invoke'],
+  };
+}
+
+function runtimeEmitter<Params>(channel: string, eventName: string) {
+  const electronEmitter = bridge.buildEmitter<Params>(channel);
+  const webEmitter = wsMappedEmitter<Params>(eventName, (raw) => raw as Params);
+  return {
+    on: (callback: Params extends undefined ? () => void : (params: Params) => void) => {
+      const emitter = isWebUiBrowserMode() ? webEmitter : electronEmitter;
+      return emitter.on(callback as never);
+    },
+    emit: ((params?: Params) => {
+      const emitter = isWebUiBrowserMode() ? webEmitter : electronEmitter;
+      return (emitter.emit as (p?: Params) => void)(params);
+    }) as Params extends undefined ? () => void : (params: Params) => void,
+  };
+}
+
 // ---------------------------------------------------------------------------
-// OPL Runtime — narrow Electron-local CLI proxy for App/operator read models
+// OPL Runtime — narrow App/operator CLI proxy.
 // ---------------------------------------------------------------------------
 
 export const oplRuntime = {
-  getAppState: bridge.buildProvider<IOplRuntimeCommandResult, { profile: IOplAppStateProfile }>(
-    'opl-runtime.get-app-state'
+  getAppState: runtimeProvider<IOplRuntimeCommandResult, { profile: IOplAppStateProfile }>(
+    'opl-runtime.get-app-state',
+    '/api/opl-runtime/app-state'
   ),
-  getInitialize: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-initialize'),
-  initializeEvent: bridge.buildEmitter<IOplSystemInitializeEvent>('opl-runtime.initialize-event'),
-  runInstallPrep: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-install-prep'),
-  configureCodex: bridge.buildProvider<IOplRuntimeCommandResult, IOplConfigureCodexRequest>(
-    'opl-runtime.configure-codex'
+  getInitialize: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.get-initialize',
+    '/api/opl-runtime/initialize'
   ),
-  runStartupMaintenance: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-startup-maintenance'),
-  runReconcileModules: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-reconcile-modules'),
-  getDrilldown: bridge.buildProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
-    'opl-runtime.get-drilldown'
+  initializeEvent: runtimeEmitter<IOplSystemInitializeEvent>(
+    'opl-runtime.initialize-event',
+    'opl-runtime.initialize-event'
   ),
-  executeAction: bridge.buildProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>('opl-runtime.execute-action'),
-  getUpdateStatus: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-status'),
-  runUpdateCheck: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-check'),
-  getUpdatePlan: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-managed-update-plan'),
-  applyUpdateComponent: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
-    'opl-runtime.run-managed-update-apply'
+  runInstallPrep: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.run-install-prep',
+    '/api/opl-runtime/install-prep'
   ),
-  repairUpdate: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateRepairRequest>(
-    'opl-runtime.run-managed-update-repair'
+  configureCodex: runtimeProvider<IOplRuntimeCommandResult, IOplConfigureCodexRequest>(
+    'opl-runtime.configure-codex',
+    '/api/opl-runtime/configure-codex'
   ),
-  rollbackUpdateComponent: bridge.buildProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
-    'opl-runtime.run-managed-update-rollback'
+  runStartupMaintenance: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.run-startup-maintenance',
+    '/api/opl-runtime/startup-maintenance'
+  ),
+  runReconcileModules: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.run-reconcile-modules',
+    '/api/opl-runtime/reconcile-modules'
+  ),
+  getDrilldown: runtimeProvider<IOplRuntimeCommandResult, { detail: IOplRuntimeDetailLevel }>(
+    'opl-runtime.get-drilldown',
+    '/api/opl-runtime/drilldown'
+  ),
+  executeAction: runtimeProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>(
+    'opl-runtime.execute-action',
+    '/api/opl-runtime/execute-action'
+  ),
+  getUpdateStatus: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.get-managed-update-status',
+    '/api/opl-runtime/update-status'
+  ),
+  runUpdateCheck: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.get-managed-update-check',
+    '/api/opl-runtime/update-check'
+  ),
+  getUpdatePlan: runtimeProvider<IOplRuntimeCommandResult, void>(
+    'opl-runtime.get-managed-update-plan',
+    '/api/opl-runtime/update-plan'
+  ),
+  applyUpdateComponent: runtimeProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
+    'opl-runtime.run-managed-update-apply',
+    '/api/opl-runtime/update-apply'
+  ),
+  repairUpdate: runtimeProvider<IOplRuntimeCommandResult, IOplUpdateRepairRequest>(
+    'opl-runtime.run-managed-update-repair',
+    '/api/opl-runtime/update-repair'
+  ),
+  rollbackUpdateComponent: runtimeProvider<IOplRuntimeCommandResult, IOplUpdateComponentRequest>(
+    'opl-runtime.run-managed-update-rollback',
+    '/api/opl-runtime/update-rollback'
   ),
 };
 

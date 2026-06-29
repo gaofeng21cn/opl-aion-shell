@@ -106,6 +106,14 @@ function resolveLogDir(flags: Map<string, string | true>, dataDir: string): stri
   return path.join(dataDir, 'logs');
 }
 
+function resolveProjectsDir(flags: Map<string, string | true>): string {
+  const override = flags.get('projects-dir');
+  if (typeof override === 'string') return path.resolve(override);
+  const envOverride = process.env.OPL_PROJECTS_DIR ?? process.env.OPL_WORKSPACE_ROOT;
+  if (envOverride) return path.resolve(envOverride);
+  return '/projects';
+}
+
 function resolvePort(flags: Map<string, string | true>): number {
   const cli = flags.get('port');
   if (typeof cli === 'string' && /^\d+$/.test(cli)) return Number(cli);
@@ -138,6 +146,8 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   fs.mkdirSync(dataDir, { recursive: true });
   const logDir = resolveLogDir(flags, dataDir);
   fs.mkdirSync(logDir, { recursive: true });
+  const projectsDir = resolveProjectsDir(flags);
+  fs.mkdirSync(projectsDir, { recursive: true });
   const port = resolvePort(flags);
   const allowRemote = resolveAllowRemote(flags);
   const version = readPackageVersion();
@@ -156,6 +166,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
 
   console.log(`[aionui-web] version    : ${version}`);
   console.log(`[aionui-web] data dir   : ${dataDir}`);
+  console.log(`[aionui-web] projects  : ${projectsDir}`);
   console.log(`[aionui-web] log dir    : ${logDir}`);
   console.log(`[aionui-web] static dir : ${staticDir}`);
   console.log(`[aionui-web] backend bin: ${backendBin}`);
@@ -188,7 +199,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
     if (handle.networkUrl) console.log(`  Network: ${handle.networkUrl}`);
     if (autoOpenBrowser) {
       const openResult = openBrowserUrl(handle.localUrl);
-      if (openResult.ok) {
+      if (openResult.ok === true) {
         console.log(`[aionui-web] opened ${handle.localUrl} in your browser.`);
       } else {
         console.warn(`[aionui-web] could not open the browser automatically: ${openResult.reason}`);
@@ -219,6 +230,11 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
         workDir: dataDir,
         logDir,
       },
+      oplRuntimeProxy: {
+        dataDir,
+        resourcesPath: cliRoot,
+        projectsDir,
+      },
       backend: {
         kind: 'ownBackend',
         resolveBackend: () => backendBin,
@@ -243,7 +259,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
       autoLoginCredentials = await ensureAdminPassword(
         { backendPort: handle.backendPort, resetCommand: RESET_COMMAND, resetExisting: true },
         {
-          fetch: (...args) => fetch(...args),
+          fetch: (input, init) => fetch(input, init),
           log: (msg) => console.log(msg),
           warn: (msg) => console.warn(msg),
           sleep: (ms) => delay(ms),
@@ -256,7 +272,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
 
     if (autoOpenBrowser) {
       const openResult = openBrowserUrl(handle.localUrl);
-      if (openResult.ok) {
+      if (openResult.ok === true) {
         console.log(`[aionui-web] opened ${handle.localUrl} in your browser.`);
       } else {
         console.warn(`[aionui-web] could not open the browser automatically: ${openResult.reason}`);

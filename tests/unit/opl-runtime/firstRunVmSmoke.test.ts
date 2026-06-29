@@ -473,6 +473,30 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
   });
 
+  it('accepts a usable entry reached before beginner screenshot capture', () => {
+    const expression = __test.firstRunBeginnerUxExpression();
+
+    expect(expression).toContain("status: 'skipped_by_usable_entry'");
+    expect(expression).toContain('usable_guid_entry_reached_before_beginner_capture');
+    expect(expression).toContain('usable_assistant_home_reached_before_beginner_capture');
+    expect(expression).toContain('[data-testid="opl-guid-entry"]');
+    expect(expression).toContain('[data-testid="guid-input"]');
+    expect(expression).toContain('[data-testid="guid-send-btn"]');
+    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('preset-pill-${assistantId}');
+  });
+
+  it('captures a beginner screenshot only when the beginner layout was observed', () => {
+    expect(__test.shouldCaptureFirstRunBeginnerScreenshot({ status: 'captured' })).toBe(true);
+    expect(
+      __test.shouldCaptureFirstRunBeginnerScreenshot({
+        status: 'skipped_by_usable_entry',
+        reason: 'usable_guid_entry_reached_before_beginner_capture',
+      })
+    ).toBe(false);
+    expect(__test.shouldCaptureFirstRunBeginnerScreenshot(null)).toBe(false);
+  });
+
   it('checks startup preflight visibility before accepting first-run or Guid readiness', () => {
     const expression = __test.startupPreflightExpression();
 

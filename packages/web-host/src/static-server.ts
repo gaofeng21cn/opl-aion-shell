@@ -15,7 +15,8 @@ import type { IncomingHttpHeaders, OutgoingHttpHeaders } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import net, { type Socket } from 'node:net';
 import serveHandler from 'serve-handler';
-import type { WebAutoLoginBootstrap } from './types.js';
+import { handleOplRuntimeProxyRequest } from './opl-runtime-proxy.js';
+import type { WebAutoLoginBootstrap, WebOplRuntimeProxyConfig } from './types.js';
 
 export type StaticServerOptions = {
   staticDir: string;
@@ -23,6 +24,7 @@ export type StaticServerOptions = {
   port?: number;
   allowRemote?: boolean;
   webAutoLogin?: WebAutoLoginBootstrap;
+  oplRuntimeProxy?: WebOplRuntimeProxyConfig;
 };
 
 export type StaticServerHandle = {
@@ -87,7 +89,7 @@ function backendRequest(
   return new Promise((resolve, reject) => {
     const body = request.body;
     const headers: OutgoingHttpHeaders = {
-      ...(request.headers ?? {}),
+      ...request.headers,
       host: `127.0.0.1:${backendPort}`,
     };
     if (body !== undefined && headers['content-length'] === undefined) {
@@ -126,7 +128,10 @@ function setCookiesFrom(headers: IncomingHttpHeaders): string[] {
 }
 
 function cookieHeaderFromSetCookies(setCookies: string[]): string {
-  return setCookies.map((cookie) => cookie.split(';', 1)[0]).filter(Boolean).join('; ');
+  return setCookies
+    .map((cookie) => cookie.split(';', 1)[0])
+    .filter(Boolean)
+    .join('; ');
 }
 
 function withMergedCookies(headers: IncomingHttpHeaders, setCookies: string[]): IncomingHttpHeaders {
@@ -283,6 +288,9 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
       // so WebUI browser clients reach the backend without a path-rewrite.
       if (req.method === 'GET' && (req.url === '/api/auth/user' || req.url.startsWith('/api/auth/user?'))) {
         await forwardAuthUserWithAutoLogin(req, res, opts);
+        return;
+      }
+      if (opts.oplRuntimeProxy && (await handleOplRuntimeProxyRequest(req, res, opts.oplRuntimeProxy))) {
         return;
       }
       if (req.url.startsWith('/api/') || req.url.startsWith('/api?') || req.url === '/login' || req.url === '/logout') {
