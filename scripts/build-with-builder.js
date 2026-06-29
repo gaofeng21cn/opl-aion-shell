@@ -279,12 +279,22 @@ function formatExecError(error) {
   return [error?.message, error?.stdout?.toString?.(), error?.stderr?.toString?.()].filter(Boolean).join('\n').trim();
 }
 
+function resolveOplReleaseVersion() {
+  const explicitVersion = process.env.OPL_RELEASE_VERSION?.trim();
+  if (explicitVersion) return explicitVersion;
+
+  const packageJsonPath = path.resolve(__dirname, '../package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  return String(packageJson.version ?? '').trim();
+}
+
 function buildOplReleaseVersionConfigArg() {
-  const version = process.env.OPL_RELEASE_VERSION?.trim();
-  if (!version) return '';
+  const version = resolveOplReleaseVersion();
+  if (!version) throw new Error('Unable to resolve OPL release version');
   if (!OPL_RELEASE_VERSION_PATTERN.test(version)) {
     throw new Error(`Invalid OPL_RELEASE_VERSION: ${version}`);
   }
+  process.env.OPL_RELEASE_VERSION = version;
   return `--config.extraMetadata.version=${version}`;
 }
 

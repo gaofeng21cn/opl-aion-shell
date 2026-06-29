@@ -102,6 +102,8 @@ childProcess.execSync = function mockedExecSync(command) {
       const commands = JSON.parse(readFileSync(commandsPath, 'utf8')) as string[];
       const builderCommand = commands.find((command) => command.includes('electron-builder'));
       expect(builderCommand).toContain('--mac dmg zip --arm64');
+      expect(builderCommand).toContain('--config.extraMetadata.version=2.1.17');
+      expect(result.stdout).toContain('Stamping OPL App release version: 2.1.17');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
