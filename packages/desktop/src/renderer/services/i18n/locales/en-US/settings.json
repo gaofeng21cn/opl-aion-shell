@@ -1533,10 +1533,10 @@
     "title": "Agents & Capabilities",
     "description": "Choose capabilities by work purpose first. Skills and tools remain available as supporting details.",
     "status": {
-      "available": "Available",
-      "needsUpdate": "Needs update",
-      "needsRepair": "Needs repair",
-      "notConfigured": "Not configured"
+      "ready": "Ready",
+      "update": "Update available",
+      "repair": "Needs repair",
+      "missing": "Missing"
     },
     "entries": {
       "externalTools": {

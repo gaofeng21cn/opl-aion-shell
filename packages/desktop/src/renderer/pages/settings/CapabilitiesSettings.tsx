@@ -16,95 +16,37 @@
  */
 
 import { Button, Card, Tag, Tabs, Typography } from '@arco-design/web-react';
-import { Experiment, FilePpt, FileWord, Robot, SettingConfig, Tool } from '@icon-park/react';
+import { Experiment, FilePpt, FileWord, Robot, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
-import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  buildCapabilitiesViewModel,
+  type CapabilityPurposeViewModel,
+  type CapabilityStatus,
+} from './capabilitiesProjection';
 
 export type CapabilitiesTab = 'skills' | 'tools';
 
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
 
-type RuntimeModuleItem = Record<string, unknown>;
-
-type CapabilityStatus = 'available' | 'needsUpdate' | 'needsRepair' | 'notConfigured';
-
-type PurposeCapability = {
-  key: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  tags: string[];
-  moduleIds: string[];
-};
-
-function normalizeCapabilityModuleId(value: string): string {
-  return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
-}
-
-function capabilityModuleId(module: RuntimeModuleItem): string {
-  return normalizeCapabilityModuleId(
-    oplString(module.module_id) ??
-      oplString(module.id) ??
-      oplString(module.name) ??
-      oplString(module.display_name) ??
-      ''
-  );
-}
-
-function capabilityModuleRecords(value: unknown): RuntimeModuleItem[] {
-  if (Array.isArray(value)) return oplRecordList(value);
-  const record = oplRecord(value);
-  return Object.entries(record)
-    .filter(([, module]) => Object.keys(oplRecord(module)).length > 0)
-    .map(([id, module]) => Object.assign({}, oplRecord(module), { module_id: id }));
-}
-
-function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
-  if (!module) return 'not_configured';
-  return (
-    oplString(module.status) ??
-    oplString(module.health_status) ??
-    (module.installed === true ? 'ready' : null) ??
-    'unknown'
-  );
-}
-
-function capabilityStatus(module: RuntimeModuleItem | undefined): CapabilityStatus {
-  const status = capabilityModuleStatus(module);
-  const action = oplString(module?.recommended_action);
-  if (!module || status === 'missing' || status === 'not_installed' || status === 'notInstalled')
-    return 'notConfigured';
-  if (['update', 'install', 'reinstall'].includes(action ?? '') || ['update_available', 'staged'].includes(status)) {
-    return 'needsUpdate';
-  }
-  if (
-    [
-      'dirty',
-      'manual_required',
-      'skipped_manual_required',
-      'failed',
-      'failed_with_repair',
-      'degraded',
-      'blocking',
-      'attention_required',
-    ].includes(status)
-  ) {
-    return 'needsRepair';
-  }
-  if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(status)) return 'available';
-  return 'needsRepair';
-}
-
 function capabilityStatusColor(status: CapabilityStatus): 'green' | 'orange' | 'red' | 'gray' {
-  if (status === 'available') return 'green';
-  if (status === 'needsUpdate') return 'orange';
-  if (status === 'needsRepair') return 'red';
+  if (status === 'ready') return 'green';
+  if (status === 'update') return 'orange';
+  if (status === 'repair') return 'red';
   return 'gray';
+}
+
+function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
+  if (item.key === 'mas') return <Experiment theme='outline' />;
+  if (item.key === 'mag') return <FileWord theme='outline' />;
+  if (item.key === 'rca') return <FilePpt theme='outline' />;
+  if (item.key === 'bookforge') return <FileWord theme='outline' />;
+  return <Robot theme='outline' />;
 }
 
 type CapabilitiesSettingsContentProps = {
@@ -113,59 +55,21 @@ type CapabilitiesSettingsContentProps = {
 };
 
 export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
-  const modulesPayload = oplRecord(appStateQuery.appState.modules);
-  const modules = React.useMemo(() => {
-    const byId = new Map<string, RuntimeModuleItem>();
-    for (const module of capabilityModuleRecords(modulesPayload.items ?? modulesPayload.modules ?? modulesPayload)) {
-      byId.set(capabilityModuleId(module), module);
-    }
-    return byId;
-  }, [modulesPayload]);
-
-  const purposeCapabilities: PurposeCapability[] = [
-    {
-      key: 'research',
-      icon: <Experiment theme='outline' />,
-      title: t('settings.capabilitiesPage.purposes.research.title'),
-      description: t('settings.capabilitiesPage.purposes.research.description'),
-      tags: ['MAS', 'PDF', 'DOCX'],
-      moduleIds: ['medautoscience', 'mas'],
-    },
-    {
-      key: 'grant',
-      icon: <FileWord theme='outline' />,
-      title: t('settings.capabilitiesPage.purposes.grant.title'),
-      description: t('settings.capabilitiesPage.purposes.grant.description'),
-      tags: ['MAG', 'DOCX', 'XLSX'],
-      moduleIds: ['medautogrant', 'mag'],
-    },
-    {
-      key: 'presentation',
-      icon: <FilePpt theme='outline' />,
-      title: t('settings.capabilitiesPage.purposes.presentation.title'),
-      description: t('settings.capabilitiesPage.purposes.presentation.description'),
-      tags: ['RCA', 'PPTX', 'Figures'],
-      moduleIds: ['redcube', 'rca'],
-    },
-    {
-      key: 'writing',
-      icon: <FileWord theme='outline' />,
-      title: t('settings.capabilitiesPage.purposes.writing.title'),
-      description: t('settings.capabilitiesPage.purposes.writing.description'),
-      tags: ['BookForge', 'DOCX', 'Manuscript'],
-      moduleIds: ['oplbookforge', 'bookforge'],
-    },
-    {
-      key: 'automation',
-      icon: <SettingConfig theme='outline' />,
-      title: t('settings.capabilitiesPage.purposes.automation.title'),
-      description: t('settings.capabilitiesPage.purposes.automation.description'),
-      tags: ['OMA', 'Skills', 'Tools'],
-      moduleIds: ['oplmetaagent', 'oma'],
-    },
-  ];
+  const purposeCapabilities = React.useMemo(
+    () =>
+      buildCapabilitiesViewModel(appStateQuery.appState, i18n.language, [
+        {
+          key: 'oma',
+          title: t('settings.capabilitiesPage.purposes.automation.title'),
+          description: t('settings.capabilitiesPage.purposes.automation.description'),
+          tags: ['OMA', 'Skills', 'Tools'],
+          moduleIds: ['oplmetaagent', 'opl-meta-agent', 'oma'],
+        },
+      ]),
+    [appStateQuery.appState, i18n.language, t]
+  );
 
   return (
     <>
@@ -177,38 +81,36 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
-          {purposeCapabilities.map((item) => {
-            const module = item.moduleIds.map((id) => modules.get(id)).find(Boolean);
-            const status = capabilityStatus(module);
-            return (
-              <Card key={item.key} bordered className='rd-8px' data-testid={`capability-purpose-${item.key}`}>
-                <div className='flex items-start gap-12px'>
-                  <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                    {item.icon}
-                  </span>
-                  <div className='min-w-0 flex-1'>
-                    <div className='flex flex-wrap items-center gap-8px mb-4px'>
-                      <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-                      <Tag color={capabilityStatusColor(status)}>{t(`settings.capabilitiesPage.status.${status}`)}</Tag>
-                    </div>
-                    <Typography.Text className='block text-13px text-t-secondary mb-10px break-words'>
-                      {item.description}
-                    </Typography.Text>
-                    <div className='flex flex-wrap gap-6px'>
-                      {item.tags.map((tag) => (
-                        <Tag key={`${item.key}-${tag}`} color='arcoblue'>
-                          {tag}
-                        </Tag>
-                      ))}
-                    </div>
-                    <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
-                      {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
-                    </Button>
+          {purposeCapabilities.map((item) => (
+            <Card key={item.key} bordered className='rd-8px' data-testid={`capability-purpose-${item.key}`}>
+              <div className='flex items-start gap-12px'>
+                <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                  {capabilityIcon(item)}
+                </span>
+                <div className='min-w-0 flex-1'>
+                  <div className='flex flex-wrap items-center gap-8px mb-4px'>
+                    <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
+                    <Tag color={capabilityStatusColor(item.status)}>
+                      {t(`settings.capabilitiesPage.status.${item.status}`)}
+                    </Tag>
                   </div>
+                  <Typography.Text className='block text-13px text-t-secondary mb-10px break-words'>
+                    {item.description}
+                  </Typography.Text>
+                  <div className='flex flex-wrap gap-6px'>
+                    {item.tags.map((tag) => (
+                      <Tag key={`${item.key}-${tag}`} color='arcoblue'>
+                        {tag}
+                      </Tag>
+                    ))}
+                  </div>
+                  <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
+                    {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
+                  </Button>
                 </div>
-              </Card>
-            );
-          })}
+              </div>
+            </Card>
+          ))}
         </div>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
           <Card bordered className='rd-8px' data-testid='capability-entry-external-tools'>

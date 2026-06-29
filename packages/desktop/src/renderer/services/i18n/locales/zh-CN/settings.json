@@ -1534,10 +1534,10 @@
     "title": "智能体与能力",
     "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
     "status": {
-      "available": "可用",
-      "needsUpdate": "需更新",
-      "needsRepair": "需修复",
-      "notConfigured": "未配置"
+      "ready": "已就绪",
+      "update": "可更新",
+      "repair": "需修复",
+      "missing": "缺失"
     },
     "entries": {
       "externalTools": {

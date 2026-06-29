@@ -31,24 +31,83 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   }),
 }));
 
+vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplGuiSettingsControlPlane: () => null,
+  getOplGuiSettingsVisibleTabs: () => [
+    'general',
+    'access',
+    'capabilities',
+    'environment',
+    'storage',
+    'appearance',
+    'advanced',
+  ],
+  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
+  getOplGuiLegacySettingsRouteRedirects: () => ({
+    overview: 'general',
+    runtime: 'environment',
+    system: 'advanced',
+    model: 'environment',
+    agent: 'capabilities',
+    assistants: 'capabilities',
+    'skills-hub': 'capabilities',
+    tools: 'capabilities',
+    display: 'appearance',
+    webui: 'access',
+    pet: 'appearance',
+  }),
+  getOplDefaultHomeAssistants: () => [
+    {
+      id: 'mas',
+      display_name: 'Med Auto Science',
+      short_name: 'MAS',
+      home_purpose_label: 'Research',
+      description_i18n: { 'en-US': 'Use MAS for research workflows.' },
+    },
+    {
+      id: 'mag',
+      display_name: 'Med Auto Grant',
+      short_name: 'MAG',
+      home_purpose_label: 'Grant Writing',
+      description_i18n: { 'en-US': 'Use MAG for grant workflows.' },
+    },
+    {
+      id: 'rca',
+      display_name: 'RedCube AI',
+      short_name: 'RCA',
+      home_purpose_label: 'Presentations',
+      description_i18n: { 'en-US': 'Use RCA for presentation workflows.' },
+    },
+    {
+      id: 'bookforge',
+      display_name: 'OPL BookForge',
+      short_name: 'BookForge',
+      home_purpose_label: 'Writing books',
+      description_i18n: { 'en-US': 'Use BookForge for manuscripts.' },
+    },
+  ],
+  getOplAssistantSkillProfile: (assistantId: string) => {
+    const profiles: Record<string, { required_skills: string[] }> = {
+      mas: { required_skills: ['mas'] },
+      mag: { required_skills: ['mag'] },
+      rca: { required_skills: ['rca'] },
+      bookforge: { required_skills: ['opl-bookforge'] },
+    };
+    return profiles[assistantId];
+  },
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language: 'en-US' },
     t: (key: string, options?: { defaultValue?: string }) => {
       const labels: Record<string, string> = {
         'settings.capabilitiesPage.title': 'Agents & Capabilities',
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
-        'settings.capabilitiesPage.status.available': 'Available',
-        'settings.capabilitiesPage.status.needsUpdate': 'Needs update',
-        'settings.capabilitiesPage.status.needsRepair': 'Needs repair',
-        'settings.capabilitiesPage.status.notConfigured': 'Not configured',
-        'settings.capabilitiesPage.purposes.research.title': 'Research',
-        'settings.capabilitiesPage.purposes.research.description': 'Use MAS for research workflows.',
-        'settings.capabilitiesPage.purposes.grant.title': 'Grant Writing',
-        'settings.capabilitiesPage.purposes.grant.description': 'Use MAG for grant workflows.',
-        'settings.capabilitiesPage.purposes.presentation.title': 'Presentations',
-        'settings.capabilitiesPage.purposes.presentation.description': 'Use RCA for presentation workflows.',
-        'settings.capabilitiesPage.purposes.writing.title': 'Writing books',
-        'settings.capabilitiesPage.purposes.writing.description': 'Use BookForge for manuscripts.',
+        'settings.capabilitiesPage.status.ready': 'Ready',
+        'settings.capabilitiesPage.status.update': 'Update available',
+        'settings.capabilitiesPage.status.repair': 'Needs repair',
+        'settings.capabilitiesPage.status.missing': 'Missing',
         'settings.capabilitiesPage.purposes.automation.title': 'OPL Meta Agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -80,10 +139,10 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByText('OMA')).toBeInTheDocument();
-    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
-    expect(screen.getByText('Needs update')).toBeInTheDocument();
+    expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
+    expect(screen.getByText('Update available')).toBeInTheDocument();
     expect(screen.getByText('Needs repair')).toBeInTheDocument();
-    expect(screen.getByText('Not configured')).toBeInTheDocument();
+    expect(screen.getByText('Missing')).toBeInTheDocument();
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
@@ -94,7 +153,7 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
 
-    const research = screen.getByTestId('capability-purpose-research');
+    const research = screen.getByTestId('capability-purpose-mas');
     fireEvent.click(within(research).getByRole('button', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');
   });

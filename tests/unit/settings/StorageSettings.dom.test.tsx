@@ -56,6 +56,8 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.actions.executeLogs': 'Execute log rotation',
     'settings.storagePage.actions.executeUpdater': 'Clean updater cache',
     'settings.storagePage.actions.deleteWithReceipt': 'Delete with receipt',
+    'settings.storagePage.inventory.silentDeleteAllowed': 'silent delete allowed',
+    'settings.storagePage.inventory.silentDeleteBlocked': 'silent delete blocked',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
     'settings.updateConfirm': 'Confirm Changes',
@@ -183,7 +185,9 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('silent delete allowed');
     expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('/tmp/conversations');
+    expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('silent delete blocked');
     expect(screen.getByTestId('storage-inventory-runtime_toolchain')).toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
@@ -240,6 +244,44 @@ describe('StorageSettingsContent', () => {
     fireEvent.click(screen.getByTestId('storage-action-confirm'));
     await waitFor(() =>
       expect(bridgeMocks.executeLogRotation).toHaveBeenCalledWith({ plan: logsPlan, planHash: logsPlan.plan_hash })
+    );
+  });
+
+  it('executes updater cache cleanup only after a dry-run plan is confirmed', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByText('Dry-run updater cache cleanup'));
+    await waitFor(() => expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId('storage-updater-execute'));
+    expect(bridgeMocks.executeUpdaterCacheCleanup).not.toHaveBeenCalled();
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeUpdaterCacheCleanup).toHaveBeenCalledWith({
+        plan: updaterPlan,
+        planHash: updaterPlan.plan_hash,
+      })
+    );
+  });
+
+  it('requires a conversation archive receipt before deleting conversation artifacts', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByTestId('storage-conversation-delete')).toBeDisabled();
+    fireEvent.click(screen.getByText('Archive conversations'));
+    await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('storage-conversation-delete'));
+    expect(bridgeMocks.deleteConversationArtifacts).not.toHaveBeenCalled();
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('receipt://conversation/archive');
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
+    await waitFor(() =>
+      expect(bridgeMocks.deleteConversationArtifacts).toHaveBeenCalledWith({
+        receiptPath: receipt.receipt_path,
+        confirmation: `delete:${receipt.conversation_id}`,
+      })
     );
   });
 });

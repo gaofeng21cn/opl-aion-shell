@@ -11,14 +11,19 @@ import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type {
   LocalDataLifecycleInventory,
-  LocalDataLifecycleInventorySection,
   LocalDataLifecycleLogRetentionPlan,
   LocalDataLifecycleReceipt,
   LocalDataLifecycleRuntimePrunePlan,
-  LocalDataLifecycleSectionId,
   LocalDataLifecycleUpdaterCachePlan,
 } from '@/common/adapter/ipcBridge';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import {
+  buildStorageSettingsViewModel,
+  formatStorageBytes,
+  type StorageInventorySectionViewModel,
+  type StoragePlan,
+  type StoragePlanKind,
+} from '../storageProjection';
 
 type AsyncAction =
   | 'inventory'
@@ -32,7 +37,6 @@ type AsyncAction =
   | 'updater-plan'
   | 'updater-execute';
 
-type PlanKind = 'runtime' | 'logs' | 'updater';
 type PendingDangerAction = 'delete-conversations' | 'runtime-execute' | 'logs-execute' | 'updater-execute' | null;
 
 type StorageSettingsProps = {
@@ -40,90 +44,28 @@ type StorageSettingsProps = {
 };
 
 type SectionMeta = {
-  id: LocalDataLifecycleSectionId;
   titleKey: string;
   descriptionKey: string;
 };
 
-const SECTION_ORDER: LocalDataLifecycleSectionId[] = [
-  'updater_cache',
-  'conversation_artifacts',
-  'runtime_toolchain',
-  'logs',
-];
-
-const SECTION_META: Record<LocalDataLifecycleSectionId, SectionMeta> = {
+const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> = {
   updater_cache: {
-    id: 'updater_cache',
     titleKey: 'settings.storagePage.sections.updater.title',
     descriptionKey: 'settings.storagePage.sections.updater.description',
   },
   conversation_artifacts: {
-    id: 'conversation_artifacts',
     titleKey: 'settings.storagePage.sections.conversations.title',
     descriptionKey: 'settings.storagePage.sections.conversations.description',
   },
   runtime_toolchain: {
-    id: 'runtime_toolchain',
     titleKey: 'settings.storagePage.sections.runtime.title',
     descriptionKey: 'settings.storagePage.sections.runtime.description',
   },
   logs: {
-    id: 'logs',
     titleKey: 'settings.storagePage.sections.logs.title',
     descriptionKey: 'settings.storagePage.sections.logs.description',
   },
 };
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  const precision = value >= 10 || unitIndex === 0 ? 0 : 1;
-  return `${value.toFixed(precision)} ${units[unitIndex]}`;
-}
-
-function sectionById(
-  inventory: LocalDataLifecycleInventory | null,
-  id: LocalDataLifecycleSectionId
-): LocalDataLifecycleInventorySection | null {
-  return inventory?.sections.find((section) => section.id === id) ?? null;
-}
-
-function candidateCount(
-  plan:
-    | LocalDataLifecycleRuntimePrunePlan
-    | LocalDataLifecycleLogRetentionPlan
-    | LocalDataLifecycleUpdaterCachePlan
-    | null
-): number {
-  return plan?.remove_candidates.length ?? 0;
-}
-
-function candidateBytes(
-  plan:
-    | LocalDataLifecycleRuntimePrunePlan
-    | LocalDataLifecycleLogRetentionPlan
-    | LocalDataLifecycleUpdaterCachePlan
-    | null
-): number {
-  return plan?.remove_bytes ?? 0;
-}
-
-function receiptId(receipt: LocalDataLifecycleReceipt | null): string | null {
-  if (!receipt) return null;
-  if ('receipt_path' in receipt) return receipt.receipt_path.trim() || null;
-  return null;
-}
-
-function conversationId(receipt: LocalDataLifecycleReceipt | null): string | null {
-  return receipt?.schema === 'opl_conversation_archive_receipt.v1' ? receipt.conversation_id : null;
-}
 
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
@@ -139,6 +81,18 @@ export const StorageSettingsContent: React.FC = () => {
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const viewModel = React.useMemo(
+    () =>
+      buildStorageSettingsViewModel({
+        inventory,
+        conversationProofReceipt,
+        lastReceipt,
+        runtimePlan,
+        logsPlan,
+        updaterPlan,
+      }),
+    [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
+  );
 
   const runAction = React.useCallback(
     async <Result,>(action: AsyncAction, task: () => Promise<Result>, onSuccess: (result: Result) => void) => {
@@ -185,7 +139,7 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const restoreConversationProof = () => {
-    const id = receiptId(conversationProofReceipt);
+    const id = viewModel.conversationProof.receiptPath;
     if (!id) return;
     void runAction(
       'restore',
@@ -198,14 +152,14 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const deleteConversationArtifacts = () => {
-    const id = receiptId(conversationProofReceipt);
+    const id = viewModel.conversationProof.receiptPath;
     if (!id) return;
     void runAction(
       'delete-conversations',
       () =>
         ipcBridge.localDataLifecycle.deleteConversationArtifacts.invoke({
           receiptPath: id,
-          confirmation: `delete:${conversationId(conversationProofReceipt) ?? ''}`,
+          confirmation: `delete:${viewModel.conversationProof.conversationId ?? ''}`,
         }),
       (receipt) => {
         setLastReceipt(receipt);
@@ -318,26 +272,26 @@ export const StorageSettingsContent: React.FC = () => {
 
   const dangerActionSummary = () => {
     if (pendingDangerAction === 'delete-conversations') {
-      return receiptId(conversationProofReceipt)
-        ? t('settings.storagePage.conversations.proofReceipt', { receipt: receiptId(conversationProofReceipt) ?? '' })
+      return viewModel.conversationProof.receiptPath
+        ? t('settings.storagePage.conversations.proofReceipt', { receipt: viewModel.conversationProof.receiptPath })
         : t('settings.storagePage.conversations.receiptRequired');
     }
     if (pendingDangerAction === 'runtime-execute') {
       return t('settings.storagePage.plans.runtime.summary', {
-        count: candidateCount(runtimePlan),
-        bytes: formatBytes(candidateBytes(runtimePlan)),
+        count: viewModel.runtimePlan.candidateCount,
+        bytes: formatStorageBytes(viewModel.runtimePlan.removeBytes),
       });
     }
     if (pendingDangerAction === 'logs-execute') {
       return t('settings.storagePage.plans.logs.summary', {
-        count: candidateCount(logsPlan),
-        bytes: formatBytes(candidateBytes(logsPlan)),
+        count: viewModel.logsPlan.candidateCount,
+        bytes: formatStorageBytes(viewModel.logsPlan.removeBytes),
       });
     }
     if (pendingDangerAction === 'updater-execute') {
       return t('settings.storagePage.plans.updater.summary', {
-        count: candidateCount(updaterPlan),
-        bytes: formatBytes(candidateBytes(updaterPlan)),
+        count: viewModel.updaterPlan.candidateCount,
+        bytes: formatStorageBytes(viewModel.updaterPlan.removeBytes),
       });
     }
     return '';
@@ -351,34 +305,33 @@ export const StorageSettingsContent: React.FC = () => {
     return '';
   };
 
-  const renderInventorySection = (id: LocalDataLifecycleSectionId) => {
-    const section = sectionById(inventory, id);
-    const meta = SECTION_META[id];
+  const renderInventorySection = (item: StorageInventorySectionViewModel) => {
+    const meta = SECTION_META[item.id];
     return (
-      <Card key={id} bordered className='rd-8px' data-testid={`storage-inventory-${id}`}>
+      <Card key={item.id} bordered className='rd-8px' data-testid={`storage-inventory-${item.id}`}>
         <div className='flex flex-col gap-10px min-w-0'>
           <div className='flex items-start justify-between gap-12px'>
             <div className='min-w-0'>
               <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
               <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
             </div>
-            <Tag color={section?.silent_delete_allowed ? 'green' : 'orange'}>
-              {section?.silent_delete_allowed
+            <Tag color={item.silentDeleteAllowed ? 'green' : 'orange'}>
+              {item.silentDeleteAllowed
                 ? t('settings.storagePage.inventory.silentDeleteAllowed')
                 : t('settings.storagePage.inventory.silentDeleteBlocked')}
             </Tag>
           </div>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px'>
-            <span>{t('settings.storagePage.inventory.bytes', { bytes: formatBytes(section?.bytes ?? 0) })}</span>
+            <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
             <span>
               {t('settings.storagePage.inventory.cleanupMode', {
-                mode: section?.cleanup_mode ?? t('settings.oplEnvironmentPage.status.unknown'),
+                mode: item.cleanupMode ?? t('settings.oplEnvironmentPage.status.unknown'),
               })}
             </span>
-            <span>{t('settings.storagePage.inventory.rootCount', { count: section?.roots.length ?? 0 })}</span>
+            <span>{t('settings.storagePage.inventory.rootCount', { count: item.rootCount })}</span>
           </div>
           <div className='flex flex-col gap-6px'>
-            {(section?.roots ?? []).map((root) => (
+            {(item.section?.roots ?? []).map((root) => (
               <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
                 <span>{root.path}</span>
                 <span className='text-t-secondary'>
@@ -386,17 +339,17 @@ export const StorageSettingsContent: React.FC = () => {
                     exists: root.exists
                       ? t('settings.storagePage.inventory.exists')
                       : t('settings.storagePage.inventory.missing'),
-                    bytes: formatBytes(root.bytes),
+                    bytes: formatStorageBytes(root.bytes),
                   })}
                 </span>
               </div>
             ))}
-            {section && section.roots.length === 0 && (
+            {item.section && item.section.roots.length === 0 && (
               <Typography.Text className='text-12px text-t-secondary'>
                 {t('settings.storagePage.inventory.noRoots')}
               </Typography.Text>
             )}
-            {!section && (
+            {!item.section && (
               <Typography.Text className='text-12px text-t-secondary'>
                 {t('settings.storagePage.inventory.notLoaded')}
               </Typography.Text>
@@ -408,20 +361,18 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const renderPlanSummary = (
-    kind: PlanKind,
-    plan:
-      | LocalDataLifecycleRuntimePrunePlan
-      | LocalDataLifecycleLogRetentionPlan
-      | LocalDataLifecycleUpdaterCachePlan
-      | null
+    kind: StoragePlanKind,
+    plan: StoragePlan | null,
+    candidateCount: number,
+    removeBytes: number
   ) => (
     <Alert
       type={plan ? 'info' : 'warning'}
       content={
         plan
           ? t(`settings.storagePage.plans.${kind}.summary`, {
-              count: candidateCount(plan),
-              bytes: formatBytes(candidateBytes(plan)),
+              count: candidateCount,
+              bytes: formatStorageBytes(removeBytes),
             })
           : t(`settings.storagePage.plans.${kind}.required`)
       }
@@ -479,7 +430,7 @@ export const StorageSettingsContent: React.FC = () => {
         />
       )}
 
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{SECTION_ORDER.map(renderInventorySection)}</div>
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{viewModel.sections.map(renderInventorySection)}</div>
 
       <Card bordered className='rd-8px' data-testid='storage-conversations'>
         <div className='flex flex-col gap-12px'>
@@ -501,7 +452,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               icon={<CheckOne />}
-              disabled={!receiptId(conversationProofReceipt)}
+              disabled={!viewModel.conversationProof.receiptPath}
               loading={loading === 'restore'}
               onClick={restoreConversationProof}
               data-testid='storage-conversation-restore'
@@ -512,7 +463,7 @@ export const StorageSettingsContent: React.FC = () => {
               htmlType='button'
               status='danger'
               icon={<Delete />}
-              disabled={!receiptId(conversationProofReceipt)}
+              disabled={!viewModel.canDeleteConversationArtifacts}
               loading={loading === 'delete-conversations'}
               onClick={() => requestDangerAction('delete-conversations')}
               data-testid='storage-conversation-delete'
@@ -521,9 +472,9 @@ export const StorageSettingsContent: React.FC = () => {
             </Button>
           </Space>
           <Typography.Text className='text-12px text-t-secondary break-words'>
-            {receiptId(conversationProofReceipt)
+            {viewModel.conversationProof.receiptPath
               ? t('settings.storagePage.conversations.proofReceipt', {
-                  receipt: receiptId(conversationProofReceipt) ?? '',
+                  receipt: viewModel.conversationProof.receiptPath,
                 })
               : t('settings.storagePage.conversations.receiptRequired')}
           </Typography.Text>
@@ -538,7 +489,12 @@ export const StorageSettingsContent: React.FC = () => {
             </Typography.Text>
             <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.runtime.detail')}</div>
           </div>
-          {renderPlanSummary('runtime', runtimePlan)}
+          {renderPlanSummary(
+            'runtime',
+            viewModel.runtimePlan.plan,
+            viewModel.runtimePlan.candidateCount,
+            viewModel.runtimePlan.removeBytes
+          )}
           <Space wrap>
             <Button
               htmlType='button'
@@ -552,7 +508,7 @@ export const StorageSettingsContent: React.FC = () => {
               htmlType='button'
               status='danger'
               icon={<Repair />}
-              disabled={!runtimePlan}
+              disabled={!viewModel.runtimePlan.canExecute}
               loading={loading === 'runtime-execute'}
               onClick={() => requestDangerAction('runtime-execute')}
               data-testid='storage-runtime-execute'
@@ -571,7 +527,12 @@ export const StorageSettingsContent: React.FC = () => {
             </Typography.Text>
             <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.logs.detail')}</div>
           </div>
-          {renderPlanSummary('logs', logsPlan)}
+          {renderPlanSummary(
+            'logs',
+            viewModel.logsPlan.plan,
+            viewModel.logsPlan.candidateCount,
+            viewModel.logsPlan.removeBytes
+          )}
           {logsPlan && logsPlan.remove_candidates.length > 0 && (
             <div className='flex flex-col gap-6px'>
               {logsPlan.remove_candidates.slice(0, 5).map((candidate) => (
@@ -579,7 +540,7 @@ export const StorageSettingsContent: React.FC = () => {
                   {t('settings.storagePage.logs.candidate', {
                     path: candidate.path,
                     reason: t(`settings.storagePage.logs.reasons.${candidate.reason}`),
-                    bytes: formatBytes(candidate.bytes),
+                    bytes: formatStorageBytes(candidate.bytes),
                   })}
                 </Typography.Text>
               ))}
@@ -598,7 +559,7 @@ export const StorageSettingsContent: React.FC = () => {
               htmlType='button'
               status='danger'
               icon={<UpdateRotation />}
-              disabled={!logsPlan}
+              disabled={!viewModel.logsPlan.canExecute}
               loading={loading === 'logs-execute'}
               onClick={() => requestDangerAction('logs-execute')}
               data-testid='storage-logs-execute'
@@ -617,7 +578,12 @@ export const StorageSettingsContent: React.FC = () => {
             </Typography.Text>
             <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.updater.detail')}</div>
           </div>
-          {renderPlanSummary('updater', updaterPlan)}
+          {renderPlanSummary(
+            'updater',
+            viewModel.updaterPlan.plan,
+            viewModel.updaterPlan.candidateCount,
+            viewModel.updaterPlan.removeBytes
+          )}
           <Space wrap>
             <Button
               htmlType='button'
@@ -630,7 +596,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               icon={<Repair />}
-              disabled={!updaterPlan}
+              disabled={!viewModel.updaterPlan.canExecute}
               loading={loading === 'updater-execute'}
               onClick={() => requestDangerAction('updater-execute')}
               data-testid='storage-updater-execute'
@@ -646,7 +612,7 @@ export const StorageSettingsContent: React.FC = () => {
           type='success'
           content={t('settings.storagePage.receipt', {
             operation: lastReceipt.schema,
-            receipt: receiptId(lastReceipt) ?? '',
+            receipt: viewModel.lastReceipt.receiptPath ?? '',
           })}
         />
       )}
