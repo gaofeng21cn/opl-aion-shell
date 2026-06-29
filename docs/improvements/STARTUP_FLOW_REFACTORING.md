@@ -5,16 +5,19 @@
 ### 当前的职责混乱
 
 **AppLoader（启动加载）：**
+
 - ✅ 连接后端
 - ✅ 加载配置
 - ❌ 不检查系统就绪状态
 
 **FirstRun（首次运行配置）：**
+
 - ✅ 引导首次配置
 - ❌ 承担了"门卫"职责：每次启动都检查状态
 - ❌ 承担了"路由判断"职责：决定是否进入主界面
 
 **问题：**
+
 - FirstRun 被滥用，承担了日常启动检查的职责
 - 导致每次启动都要经过 FirstRun，即使不需要配置
 
@@ -48,7 +51,7 @@ AppLoader（统一的启动页面）
   ↓
 判断（在 AppLoader 内部完成）
   ├─ 需要首次配置？ → 路由到 /first-run
-  ├─ 需要重新配置？ → 路由到 /first-run  
+  ├─ 需要重新配置？ → 路由到 /first-run
   └─ 系统就绪？     → 路由到 /guid ✅
 ```
 
@@ -73,7 +76,7 @@ const Main = () => {
   // 原有的配置加载逻辑
   useEffect(() => {
     if (!ready) return;
-    
+
     Promise.all([
       configService.initialize(),
       fetchDetectedAgents(),
@@ -88,15 +91,15 @@ const Main = () => {
       try {
         const result = await ipcBridge.oplRuntime.getInitialize.invoke();
         const initialize = readInitializePayload(result.parsed);
-        
+
         // 判断：需要首次运行配置吗？
         if (initialize.setup_flow.is_first_run !== false) {
           setNeedsFirstRun(true);
           return;
         }
-        
+
         // 判断：系统已就绪吗？
-        if (initialize.setup_flow.ready_to_launch === true || 
+        if (initialize.setup_flow.ready_to_launch === true ||
             initialize.readiness?.launch_ready === true) {
           setSystemReady(true);
         } else {
@@ -133,7 +136,7 @@ const Main = () => {
         progress: ready && configReady ? 90 : 0,
       },
     ];
-    
+
     return (
       <AppLoader
         title="正在启动 One Person Lab"
@@ -171,7 +174,7 @@ const Main = () => {
 const FirstRun: React.FC = () => {
   const navigate = useNavigate();
   const [initializeResult, setInitializeResult] = useState(null);
-  
+
   useEffect(() => {
     // 只加载一次初始化数据
     const loadData = async () => {
@@ -188,13 +191,13 @@ const FirstRun: React.FC = () => {
 
   // 不再有自动跳转逻辑！
   // 如果系统已就绪，根本不会到这里
-  
+
   return (
     <div>
       {/* 显示配置界面 */}
       <h1>准备开始使用</h1>
       {/* ... 配置项 ... */}
-      
+
       {/* 用户手动点击进入 */}
       <Button onClick={handleEnter}>
         进入 OPL
@@ -235,12 +238,12 @@ const StartupGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     const check = async () => {
       const result = await ipcBridge.oplRuntime.getInitialize.invoke();
       const initialize = readInitializePayload(result.parsed);
-      
-      const needsSetup = 
+
+      const needsSetup =
         initialize.setup_flow.is_first_run !== false ||
-        !(initialize.setup_flow.ready_to_launch === true || 
+        !(initialize.setup_flow.ready_to_launch === true ||
           initialize.readiness?.launch_ready === true);
-      
+
       setNeedsFirstRun(needsSetup);
       setChecking(false);
     };
@@ -270,13 +273,13 @@ const StartupGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
 ## 方案对比
 
-| 特性 | 方案A（AppLoader 集成） | 方案B（路由守卫） |
-|------|------------------------|------------------|
-| 集中度 | ✅ 所有启动逻辑在 AppLoader | ⚠️ 分散在多处 |
-| 代码清晰度 | ✅ 启动流程一目了然 | ⚠️ 需要理解守卫概念 |
-| 性能 | ✅ 只检查一次 | ✅ 只检查一次 |
-| 维护性 | ✅ 容易修改启动流程 | ⚠️ 需要同步多处 |
-| 实现难度 | ⚠️ 需要重构 main.tsx | ✅ 增量添加 |
+| 特性       | 方案A（AppLoader 集成）     | 方案B（路由守卫）   |
+| ---------- | --------------------------- | ------------------- |
+| 集中度     | ✅ 所有启动逻辑在 AppLoader | ⚠️ 分散在多处       |
+| 代码清晰度 | ✅ 启动流程一目了然         | ⚠️ 需要理解守卫概念 |
+| 性能       | ✅ 只检查一次               | ✅ 只检查一次       |
+| 维护性     | ✅ 容易修改启动流程         | ⚠️ 需要同步多处     |
+| 实现难度   | ⚠️ 需要重构 main.tsx        | ✅ 增量添加         |
 
 **推荐：方案A**
 
@@ -288,7 +291,7 @@ const StartupGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => 
 
 ```
 用户启动
-  ↓ 
+  ↓
 AppLoader (2-5秒)
   - 连接后端
   - 加载配置
@@ -324,6 +327,7 @@ AppLoader (3-7秒)
 ```
 
 **关键改进：**
+
 - ✅ 消除了 FirstRun 的"门卫"职责
 - ✅ 日常启动不再经过 FirstRun
 - ✅ 用户只看到一个加载过程
@@ -362,9 +366,7 @@ const lastResult = localStorage.getItem('system-ready-check-result');
 const now = Date.now();
 
 // 如果最近5分钟检查过且成功，直接使用缓存
-if (lastResult === 'ready' && 
-    lastCheck && 
-    now - parseInt(lastCheck) < 5 * 60 * 1000) {
+if (lastResult === 'ready' && lastCheck && now - parseInt(lastCheck) < 5 * 60 * 1000) {
   setSystemReady(true);
   return;
 }
@@ -400,9 +402,10 @@ const result = await ipcBridge.oplRuntime.getInitialize.invoke();
    - 验证无问题后，再删除 FirstRun 的跳转逻辑
 
 2. **添加开关**
+
    ```typescript
-   const USE_NEW_STARTUP_FLOW = true;  // 开关
-   
+   const USE_NEW_STARTUP_FLOW = true; // 开关
+
    if (USE_NEW_STARTUP_FLOW) {
      // 新逻辑
    } else {
@@ -424,12 +427,14 @@ const result = await ipcBridge.oplRuntime.getInitialize.invoke();
 ### 问题的本质
 
 **FirstRun 承担了双重职责：**
+
 1. 门卫（每次启动检查）← 应该由 AppLoader 负责
 2. 向导（引导配置）← FirstRun 的真正职责
 
 ### 解决方案
 
 **职责归位：**
+
 - AppLoader：统一的启动入口，负责所有检查
 - FirstRun：纯粹的配置向导，只在需要时显示
 - 主界面：如果就绪，直接进入

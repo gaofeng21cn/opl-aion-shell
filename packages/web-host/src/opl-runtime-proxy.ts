@@ -250,8 +250,7 @@ function normalizePathEntries(entries: Array<string | undefined | null>): string
 function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   const dataDir = path.resolve(opts.dataDir);
   const projectsDir = path.resolve(opts.projectsDir ?? process.env.OPL_WORKSPACE_ROOT ?? '/projects');
-  const imageManifestPath =
-    opts.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || '';
+  const imageManifestPath = opts.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || '';
   const imageSeedDir = opts.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || '';
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });

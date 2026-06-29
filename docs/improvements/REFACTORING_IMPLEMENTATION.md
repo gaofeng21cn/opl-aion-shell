@@ -1,12 +1,15 @@
 # 启动流程重构实施记录
 
 ## 实施日期
+
 2026年6月29日
 
 ## 问题诊断
+
 用户每次启动 OPL App 都会经过 FirstRun 页面并卡顿几秒，即使系统已经配置完成。
 
 **根本原因：职责错位**
+
 - AppLoader：只负责前端启动（连接后端、加载配置），不检查系统就绪状态
 - FirstRun：承担了"门卫"职责，每次启动都要检查系统状态并决定是否跳转
 - 结果：即使已配置，每次也要经过 FirstRun 的检查，导致卡顿
@@ -14,6 +17,7 @@
 ## 重构方案（基于 Codex 审计建议）
 
 ### 核心原则
+
 1. **启动检查归启动 gate**：新增 StartupGate 负责系统就绪检查
 2. **FirstRun 只做配置向导**：保留兜底自动跳转，但不再作为默认入口
 3. **最小改动**：不做缓存、不做 feature flag、不加跳过按钮
@@ -21,28 +25,31 @@
 ### 实施的改动
 
 #### 1. 新增 StartupGate 组件 ✅
+
 **文件：** `packages/desktop/src/renderer/components/layout/StartupGate.tsx`
 
 **职责：**
+
 - 调用 `ipcBridge.oplRuntime.getInitialize.invoke()` 检查系统状态
 - 根据 `is_first_run` 和 `ready_to_launch` 决定路由
 - 显示统一的启动加载界面（AppLoader）
 
 **逻辑：**
+
 ```typescript
 function shouldEnterFirstRun(initialize: InitializeState | null): boolean {
   if (!initialize) return true; // 无法获取状态，进入配置
-  
+
   // 首次运行，需要配置
   if (initialize.setup_flow?.is_first_run !== false) {
     return true;
   }
-  
+
   // 未就绪，需要配置
   const isReady =
     initialize.setup_flow?.ready_to_launch === true ||
     initialize.readiness?.launch_ready === true;
-  
+
   return !isReady;
 }
 
@@ -54,14 +61,17 @@ return <Navigate to="/guid" replace />;
 ```
 
 **设计特点：**
+
 - 运行在 Router 内部，有正确的 React Router context
 - 检查失败时，进入 FirstRun 让用户看到详细信息
 - 保留 console.log 便于调试
 
 #### 2. 修改 Router.tsx ✅
+
 **文件：** `packages/desktop/src/renderer/components/layout/Router.tsx`
 
 **改动：**
+
 ```typescript
 // 导入 StartupGate
 import StartupGate from '@renderer/components/layout/StartupGate';
@@ -76,14 +86,17 @@ import StartupGate from '@renderer/components/layout/StartupGate';
 ```
 
 **效果：**
+
 - 认证后默认进入 `/startup-gate` 而不是 `/first-run`
 - StartupGate 决定下一步去 `/first-run` 还是 `/guid`
 - 日常启动不再先渲染 FirstRun
 
 #### 3. 简化 main.tsx ✅
+
 **文件：** `packages/desktop/src/renderer/main.tsx`
 
 **改动：**
+
 - 删除 `isFirstRun` 判断和 localStorage 逻辑
 - 删除倒计时相关代码
 - 删除跳过按钮相关代码
@@ -91,6 +104,7 @@ import StartupGate from '@renderer/components/layout/StartupGate';
 - 恢复到只有2个真实步骤
 
 **简化后的步骤：**
+
 ```typescript
 const steps: AppLoaderStep[] = [
   {
@@ -107,15 +121,19 @@ const steps: AppLoaderStep[] = [
 ```
 
 **职责清晰：**
+
 - AppLoader 只负责前端基础启动
 - 系统就绪检查交给 StartupGate
 
 #### 4. 优化翻译文案 ✅
-**文件：** 
+
+**文件：**
+
 - `packages/desktop/src/renderer/services/i18n/locales/zh-CN/common.json`
 - `packages/desktop/src/renderer/services/i18n/locales/en-US/common.json`
 
 **改动：**
+
 ```json
 // 步骤名称更友好
 "desktopSession": "连接后台服务",  // 原：桌面会话
@@ -128,14 +146,16 @@ const steps: AppLoaderStep[] = [
 "checkingSystemReady": "正在检查系统就绪状态..."  // 新增
 
 // 描述更友好
-"description": "正在为您准备工作环境，马上就好..."  
+"description": "正在为您准备工作环境，马上就好..."
 // 原：正在准备桌面会话，随后会进入初始化检查
 ```
 
 #### 5. FirstRun 保持不变 ✅
+
 **文件：** `packages/desktop/src/renderer/pages/FirstRun/index.tsx`
 
 **未修改的原因（遵循 Codex 建议）：**
+
 - 保留现有的初始化展示和兜底自动跳转
 - 用户手动打开 `/first-run` 时，仍应自动跳转（如果已就绪）
 - 防止"已配置但停在配置页"的边界 bug
@@ -145,6 +165,7 @@ const steps: AppLoaderStep[] = [
 ## 重构后的流程
 
 ### 日常启动（已配置）
+
 ```
 用户启动
   ↓
@@ -172,6 +193,7 @@ StartupGate (1-3秒)
 ```
 
 ### 首次启动（需要配置）
+
 ```
 用户启动
   ↓
@@ -198,41 +220,47 @@ FirstRun 配置页面
 
 ### 重构前的问题
 
-| 问题 | 影响 |
-|------|------|
-| 每次都进入 FirstRun | 即使已配置，也要等待几秒 |
-| FirstRun 承担门卫职责 | 职责混乱，难以维护 |
-| 用户看到两次加载 | AppLoader → FirstRun 0% |
-| 虚假的步骤3 | 显示"初始化状态"但没有实际操作 |
-| 技术化的文案 | "桌面会话"、"初始化检查" |
+| 问题                  | 影响                           |
+| --------------------- | ------------------------------ |
+| 每次都进入 FirstRun   | 即使已配置，也要等待几秒       |
+| FirstRun 承担门卫职责 | 职责混乱，难以维护             |
+| 用户看到两次加载      | AppLoader → FirstRun 0%        |
+| 虚假的步骤3           | 显示"初始化状态"但没有实际操作 |
+| 技术化的文案          | "桌面会话"、"初始化检查"       |
 
 ### 重构后的改进
 
-| 改进 | 效果 |
-|------|------|
-| ✅ StartupGate 统一检查 | 职责清晰，易于维护 |
-| ✅ 日常启动不经过 FirstRun | 减少一次页面切换 |
-| ✅ 真实的3个步骤 | 每个步骤都有实际操作 |
-| ✅ 友好的文案 | "连接 Codex"、"加载您的设置" |
-| ✅ FirstRun 保留兜底 | 防止边界 bug |
+| 改进                       | 效果                         |
+| -------------------------- | ---------------------------- |
+| ✅ StartupGate 统一检查    | 职责清晰，易于维护           |
+| ✅ 日常启动不经过 FirstRun | 减少一次页面切换             |
+| ✅ 真实的3个步骤           | 每个步骤都有实际操作         |
+| ✅ 友好的文案              | "连接 Codex"、"加载您的设置" |
+| ✅ FirstRun 保留兜底       | 防止边界 bug                 |
 
 ---
 
 ## 技术细节
 
 ### React Router Context 问题
+
 **Codex 指出的问题：**
+
 > 把 `useNavigate` / `<Navigate>` 放进 `Main`，但当前 `Main` 是在 `Router/HashRouter` 外面渲染的。
 
 **解决方案：**
+
 - StartupGate 作为 Router 内的一个 Route，有正确的 context
 - 不在 Main 中使用 Navigate，保持 Main 的职责纯粹
 
 ### 为什么保留 FirstRun 的自动跳转？
+
 **Codex 的建议：**
+
 > FirstRun 应保留兜底自动跳转：用户手动打开 `/first-run`、登录页旧入口、或者启动 gate 被绕过时，已就绪仍应自动回 `/guid`。
 
 **场景举例：**
+
 1. 用户在浏览器收藏了 `http://localhost/#/first-run`
 2. 某个旧的链接或按钮指向 `/first-run`
 3. 开发者手动导航到 `/first-run` 测试
@@ -240,15 +268,19 @@ FirstRun 配置页面
 这些情况下，如果系统已就绪，FirstRun 应该自动跳转，而不是让用户困在配置页面。
 
 ### 为什么不做缓存？
+
 **Codex 的建议：**
+
 > 启动 readiness 是 runtime truth，缓存会引入 stale ready；跳过会绕过 `ready_to_launch` gate。
 
 **理由：**
+
 - 系统状态可能随时变化（依赖安装、配置修改等）
 - 缓存会导致显示的状态与实际不符
 - 绕过检查可能让用户进入不可用的系统
 
 **正确的优化方向：**
+
 - 优化后端 `getInitialize` 的性能（根本解决）
 - 减少不必要的检查项
 - 并行执行检查
@@ -258,6 +290,7 @@ FirstRun 配置页面
 ## 测试建议
 
 ### 1. 日常启动测试
+
 ```bash
 # 已配置的系统
 1. 启动应用
@@ -267,6 +300,7 @@ FirstRun 配置页面
 ```
 
 ### 2. 首次启动测试
+
 ```bash
 # 清除后端状态（模拟首次运行）
 1. 删除工作目录配置
@@ -278,6 +312,7 @@ FirstRun 配置页面
 ```
 
 ### 3. 边界情况测试
+
 ```bash
 # 手动导航到 FirstRun
 1. 在已配置的系统中
@@ -291,6 +326,7 @@ FirstRun 配置页面
 ```
 
 ### 4. 性能测试
+
 ```bash
 # 对比启动时间
 重构前：5-10秒（AppLoader 2-5秒 + FirstRun 3-5秒）
@@ -304,16 +340,19 @@ FirstRun 配置页面
 ## 后续优化方向
 
 ### 短期（不在本次重构范围）
+
 1. 优化后端 `getInitialize` 性能
 2. 添加更详细的进度反馈（如果后端支持）
 3. 改进错误处理和提示
 
 ### 中期
+
 1. 将 FirstRun 配置页面简化（另一个任务）
 2. 优化文案和视觉呈现
 3. 添加性能监控
 
 ### 长期
+
 1. 考虑增量检查（只检查变化的部分）
 2. 后台自动修复常见问题
 3. 更智能的启动流程
@@ -323,15 +362,19 @@ FirstRun 配置页面
 ## 风险评估
 
 ### 低风险
+
 - ✅ 改动集中在启动流程
 - ✅ 不影响主要功能
 - ✅ FirstRun 保留兜底逻辑
 - ✅ 代码改动量小（~200行）
 
 ### 回滚方案
+
 如果出现问题，可以：
+
 1. `git revert` 相关 commit
 2. 或临时禁用 StartupGate 路由
+
 ```typescript
 // Router.tsx
 <Route path='*' element={
@@ -345,15 +388,18 @@ FirstRun 配置页面
 ## 文件清单
 
 ### 新增文件
+
 1. `packages/desktop/src/renderer/components/layout/StartupGate.tsx`
 
 ### 修改文件
+
 1. `packages/desktop/src/renderer/components/layout/Router.tsx`
 2. `packages/desktop/src/renderer/main.tsx`
 3. `packages/desktop/src/renderer/services/i18n/locales/zh-CN/common.json`
 4. `packages/desktop/src/renderer/services/i18n/locales/en-US/common.json`
 
 ### 未修改文件（按 Codex 建议）
+
 1. `packages/desktop/src/renderer/pages/FirstRun/index.tsx`
 2. `packages/desktop/src/renderer/components/layout/AppLoader.tsx`（保留跳过按钮功能）
 
@@ -362,18 +408,21 @@ FirstRun 配置页面
 ## 总结
 
 ### 问题解决
+
 ✅ **职责归位**：启动检查归 StartupGate，FirstRun 只做配置向导  
 ✅ **流程优化**：日常启动不再经过 FirstRun  
 ✅ **代码清晰**：职责分明，易于维护  
 ✅ **用户体验**：减少卡顿，统一的启动过程
 
 ### 技术质量
+
 ✅ **遵循 Codex 建议**：最小改动，稳定可靠  
 ✅ **保留兜底逻辑**：防止边界 bug  
 ✅ **不做过度优化**：不引入缓存和 stale state  
 ✅ **正确使用 React Router**：在 Router 内部使用 Navigate
 
 ### 预期效果
+
 - 启动时间减少 2-3 秒
 - 用户不再看到"卡在 0%"的 FirstRun 页面
 - 代码更清晰，易于后续优化

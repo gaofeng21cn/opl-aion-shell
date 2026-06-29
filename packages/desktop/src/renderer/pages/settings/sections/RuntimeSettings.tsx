@@ -858,7 +858,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const guiVersion = __SHELL_VERSION__;
   const releaseChannel = oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
-  const runtimeCards = useMemo(
+  const runtimeCards = useMemo<RuntimeCard[]>(
     () => [
       {
         key: 'codex',

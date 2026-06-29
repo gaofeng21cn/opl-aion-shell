@@ -728,9 +728,11 @@ const GuidPage: React.FC = () => {
           <div className={styles.heroHeader}>
             <div className='text-center'>
               <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
-              <p className={styles.heroModelStatus} data-testid='opl-guid-model-status'>
-                {oplCodexModelStatusText}
-              </p>
+              {!agentSelection.is_presetAgent ? (
+                <p className={styles.heroModelStatus} data-testid='opl-guid-model-status'>
+                  {oplCodexModelStatusText}
+                </p>
+              ) : null}
             </div>
           </div>
 

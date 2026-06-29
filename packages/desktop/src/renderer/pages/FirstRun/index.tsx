@@ -171,7 +171,9 @@ function formatInitializeEvent(event: FirstRunInitializeEvent, t: Translate): st
   if (!event) return t('settings.firstRun.initializePending.progress');
   const duration =
     event.duration_ms && event.duration_ms > 0
-      ? t('settings.firstRun.initializePending.duration', { seconds: Math.max(1, Math.round(event.duration_ms / 1000)) })
+      ? t('settings.firstRun.initializePending.duration', {
+          seconds: Math.max(1, Math.round(event.duration_ms / 1000)),
+        })
       : '';
   return `${event.label}${duration}`;
 }
@@ -403,9 +405,7 @@ const FirstRun: React.FC = () => {
               <div className={styles.firstRunProgressStack}>
                 <Progress percent={progressPercent} />
                 {initializePending ? (
-                  <p data-testid='opl-first-run-initialize-pending'>
-                    {formatInitializeEvent(initializeEvent, t)}
-                  </p>
+                  <p data-testid='opl-first-run-initialize-pending'>{formatInitializeEvent(initializeEvent, t)}</p>
                 ) : (
                   <p data-testid='opl-first-run-core-progress'>
                     {t('settings.firstRun.coreProgress', { progress: progressText })}
