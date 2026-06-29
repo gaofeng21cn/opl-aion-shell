@@ -173,6 +173,22 @@ const getCheckHandler = async () => {
   return lastCall[0];
 };
 
+const getAutoUpdateCheckHandler = async () => {
+  vi.resetModules();
+  const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+  const { initUpdateBridge } = await import('@process/bridge/updateBridge');
+  const { ipcBridge } = await import('@/common');
+
+  autoUpdaterService.resetForTest();
+  autoUpdaterService.initialize();
+  initUpdateBridge();
+
+  const provider = vi.mocked(ipcBridge.autoUpdate.check.provider);
+  const lastCall = provider.mock.calls.at(-1);
+  if (!lastCall) throw new Error('auto-update.check handler not registered');
+  return lastCall[0];
+};
+
 describe('updateBridge CDN URL rewriting', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -307,6 +323,26 @@ describe('updateBridge CDN URL rewriting', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('updateBridge auto-update config handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('treats missing packaged app-update.yml as manual-update-only instead of an update error', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValueOnce(
+      new Error(
+        'Cannot find latest.yml in the latest release artifacts: /Applications/One Person Lab.app/Contents/Resources/app-update.yml'
+      )
+    );
+
+    const handler = await getAutoUpdateCheckHandler();
+    const result = await handler({ channel: 'stable' });
+
+    expect(result).toEqual({ success: true, data: { checked: true }, msg: undefined });
   });
 });
 

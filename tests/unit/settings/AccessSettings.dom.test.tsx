@@ -41,7 +41,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { status?: string }) => {
+    t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
         'settings.accessPage.description': 'Can Codex CLI, access keys, and the local service work now?',
@@ -52,10 +52,13 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.key.missing': 'Access configuration needs attention.',
         'settings.accessPage.cards.provider.title': 'Local Background Service',
         'settings.accessPage.cards.provider.fallback': 'Background service details are not available yet.',
+        'settings.accessPage.cards.provider.summary': `${options?.kind} · ${options?.status}`,
+        'settings.accessPage.cards.provider.localRuntime': 'Local runtime service',
         'settings.accessPage.cards.provider.detail':
           'Used for local OPL task execution; this is not gflabtoken or external API login status.',
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
+        'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Access key status is shown under Access Keys.`,
         'settings.oplEnvironmentPage.status.ready': 'ready',
         'agentMode.full-access': 'Full Access',
       };
@@ -76,6 +79,8 @@ describe('AccessSettingsContent', () => {
     expect(screen.getByText('Local Background Service')).toBeInTheDocument();
     expect(screen.getByText(/not gflabtoken/)).toBeInTheDocument();
     expect(screen.getByText(/127\.0\.0\.1:7233/)).toBeInTheDocument();
+    expect(screen.getByText('temporal · ready')).toBeInTheDocument();
+    expect(screen.getByText(/Access key status is shown under Access Keys/)).toBeInTheDocument();
     expect(screen.getByText('Permission Mode')).toBeInTheDocument();
     expect(screen.getByText('Full Access')).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');

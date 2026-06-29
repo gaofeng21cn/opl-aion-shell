@@ -20,7 +20,7 @@
     "settings": "设置"
   },
   "postInstallSelfCheck": {
-    "prompt": "安装后智能自检\n\n程序化初始化已经完成，现在请基于当前环境检查 One Person Lab App 的安装后工作模式是否符合预期。\n\n目标态：\n1. Codex CLI 可以被 App 正常调用。\n2. App 创建的 Codex 会话使用 session-scoped opl-flow 上下文。\n3. 当前 UI 语言策略正确：中文界面用中文，英文界面用英文。\n4. 尊重用户已有的 AGENTS.md，不覆盖、不重复追加；如与 App 管理的 opl-flow 上下文冲突，请指出冲突。\n5. MAS/MAG/RCA 路由、OPL Meta Agent 能力、Codex skill/plugin 在安装后可见可用。\n6. 模块自动更新后，Codex 插件和 skill 仍然注册并可调用。\n\n请先只读诊断：给出结论、证据、发现的问题和建议动作。不要覆盖用户已有的 AGENTS.md；如果需要修改文件或执行修复，请先说明原因、影响范围和具体命令，等我确认后再执行。"
+    "prompt": "安装后智能自检\n\n程序化初始化已经完成，现在请基于当前环境检查 One Person Lab App 的安装后工作模式是否符合预期。\n\n目标态：\n1. Codex CLI 可以被 App 正常调用。\n2. App 创建的 Codex 会话使用 session-scoped opl-flow 上下文。\n3. 当前 UI 语言策略正确：中文界面用中文，英文界面用英文。\n4. 尊重用户已有的 AGENTS.md，不覆盖、不重复追加；如与 App 管理的 opl-flow 上下文冲突，请指出冲突。\n5. MAS/MAG/RCA 路由、OPL Meta Agent 能力、Codex skill/plugin 在安装后可见可用。\n6. 模块自动更新后，Codex 插件和 skill 仍然注册并可调用。\n7. 列出 Codex plugin/skill 时统一用短名：MAS、MAG、RCA、OMA、OBF、OPL Flow；不要混用仓库名、长全称和短名。\n\n请先只读诊断：给出结论、证据、发现的问题和建议动作。不要覆盖用户已有的 AGENTS.md；如果需要修改文件或执行修复，请先说明原因、影响范围和具体命令，等我确认后再执行。"
   },
   "workspace": {
     "workInProject": "在项目中工作",

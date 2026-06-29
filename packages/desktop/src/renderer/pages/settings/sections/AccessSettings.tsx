@@ -53,6 +53,9 @@ export const AccessSettingsContent: React.FC = () => {
     oplString(provider.health_status) ?? oplString(provider.status) ?? oplString(temporal.health_status),
     'unknown'
   );
+  const providerKind = oplString(provider.provider_kind);
+  const temporalStatus = oplString(temporal.status);
+  const temporalAddress = oplString(temporal.address) ?? oplString(temporalDetails.address);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'full-access';
 
   const cards: StatusCard[] = [
@@ -79,14 +82,10 @@ export const AccessSettingsContent: React.FC = () => {
       key: 'provider',
       title: t('settings.accessPage.cards.provider.title'),
       status: providerStatus,
-      detail: compactDetail(
-        [
-          oplString(provider.provider_kind),
-          oplString(temporal.status),
-          oplString(temporal.address) ?? oplString(temporalDetails.address),
-        ],
-        t('settings.accessPage.cards.provider.fallback')
-      ),
+      detail: t('settings.accessPage.cards.provider.summary', {
+        kind: providerKind || t('settings.accessPage.cards.provider.localRuntime'),
+        status: temporalStatus || providerStatus,
+      }),
       help: t('settings.accessPage.cards.provider.detail'),
       tone: providerStatus === 'ready' || providerStatus === 'ok' ? 'green' : 'orange',
     },
@@ -122,6 +121,11 @@ export const AccessSettingsContent: React.FC = () => {
           </Card>
         ))}
       </div>
+      {temporalAddress && (
+        <Typography.Text className='text-12px text-t-secondary'>
+          {t('settings.accessPage.localServiceTechnicalDetail', { address: temporalAddress })}
+        </Typography.Text>
+      )}
       <Card bordered className='rd-8px'>
         <WebuiModalContent />
       </Card>

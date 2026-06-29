@@ -1338,13 +1338,16 @@
       "provider": {
         "title": "Local Background Service",
         "fallback": "Background service details are not available yet.",
+        "summary": "{{kind}} · {{status}}",
+        "localRuntime": "Local runtime service",
         "detail": "Used for local OPL task execution; this is not gflabtoken or external API login status."
       },
       "permission": {
         "title": "Permission Mode",
         "detail": "Current command and file permissions used by the App executor."
       }
-    }
+    },
+    "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Access key status is shown under Access Keys."
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
@@ -1389,6 +1392,14 @@
         "workspace": "Affects where files, projects, and task artifacts are stored by default.",
         "modules": "Affects whether MAS, MAG, RCA, BookForge, and other agent capabilities are available."
       }
+    },
+    "recommendedActions": {
+      "title": "Recommended actions",
+      "description": "Use the readiness cards above to decide whether action is needed. These are the common diagnose, refresh, and repair actions."
+    },
+    "diagnostics": {
+      "title": "Advanced diagnostics",
+      "modulesTitle": "Module path and source diagnostics"
     },
     "actions": {
       "doctor": "Run Doctor",
@@ -1537,6 +1548,11 @@
         "repair": "Repair",
         "rollback": "Rollback"
       },
+      "actionHelp": {
+        "status": "Reads the current status only. It does not look for newer versions or create a change plan.",
+        "check": "Checks for available updates or repairable problems. It does not apply anything.",
+        "plan": "Generates an execution plan that explains what would change and whether restart or reload is needed."
+      },
       "userSummaries": {
         "current": "No action is needed right now.",
         "canApply": "An update can be applied after you confirm it.",
@@ -1565,9 +1581,6 @@
         "reloadGuidance": "Reload guidance: {{guidance}}",
         "noFailure": "None"
       }
-    },
-    "diagnostics": {
-      "modulesTitle": "Module path and source diagnostics"
     },
     "codexContext": {
       "title": "Codex session context diagnostics",

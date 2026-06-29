@@ -107,6 +107,21 @@ const appStateResult = {
             install_origin: 'managed_root',
             path: '/Users/example/workspace/modules/bookforge',
           },
+          {
+            module_id: 'mas',
+            display_name: 'med-autoscience',
+            status: 'ready',
+          },
+          {
+            module_id: 'oma',
+            display_name: 'opl-meta-agent',
+            status: 'ready',
+          },
+          {
+            module_id: 'opl-flow',
+            display_name: 'opl-flow',
+            status: 'ready',
+          },
         ],
       },
       actions: [],
@@ -375,11 +390,26 @@ describe('RuntimeSettings app state bridge usage', () => {
         screen.getAllByText('settings.oplEnvironmentPage.status.attention_required attention_required').length
       ).toBeGreaterThan(0)
     );
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.diagnostics.title'));
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle'));
     expect(document.body.textContent).toContain(
       'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
     );
     expect(screen.queryByText('settings.oplEnvironmentPage.status.attention_needed')).not.toBeInTheDocument();
+  });
+
+  it('normalizes OPL plugin and module labels to one display style', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OPL Flow').length).toBeGreaterThan(0);
+    expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
+    expect(screen.queryByText('opl-meta-agent')).not.toBeInTheDocument();
+    expect(screen.queryByText('opl-flow')).not.toBeInTheDocument();
   });
 
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
@@ -435,9 +465,13 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     const section = screen.getByTestId('opl-module-maintenance');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.title');
-    expect(section).toHaveTextContent('Med Auto Science');
-    expect(section).toHaveTextContent('OPL Meta Agent');
-    expect(section).toHaveTextContent('BookForge');
+    expect(section).toHaveTextContent('MAS');
+    expect(section).toHaveTextContent('MAG');
+    expect(section).toHaveTextContent('RCA');
+    expect(section).toHaveTextContent('OMA');
+    expect(section).not.toHaveTextContent('Med Auto Science');
+    expect(section).not.toHaveTextContent('OPL Meta Agent');
+    expect(section).toHaveTextContent('OBF');
     expect(section).toHaveTextContent('bookforge-1.0.0');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');

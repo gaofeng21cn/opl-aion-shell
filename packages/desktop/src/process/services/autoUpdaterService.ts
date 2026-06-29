@@ -65,6 +65,10 @@ export interface AutoUpdateStatus {
   error?: string;
 }
 
+export function isMissingPackagedUpdaterConfigError(message: string): boolean {
+  return message.includes('app-update.yml') && /Cannot find|ENOENT|no such file|missing/i.test(message);
+}
+
 /** Callback type for broadcasting update status */
 export type StatusBroadcastCallback = (status: AutoUpdateStatus) => void;
 
@@ -324,6 +328,10 @@ class AutoUpdaterService extends EventEmitter {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (isMissingPackagedUpdaterConfigError(message)) {
+        log.warn('Packaged auto-update config is unavailable; using manual release checks only:', message);
+        return { success: true };
+      }
       log.error('Check for updates failed:', message);
       return {
         success: false,
@@ -395,6 +403,12 @@ class AutoUpdaterService extends EventEmitter {
       autoUpdater.allowDowngrade = false;
       await autoUpdater.checkForUpdatesAndNotify();
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (isMissingPackagedUpdaterConfigError(message)) {
+        log.warn('Startup auto-update config is unavailable; manual update checks remain available:', message);
+        this.broadcastStatus({ status: 'not-available' });
+        return;
+      }
       log.error('Auto-update check failed:', error);
     }
   }

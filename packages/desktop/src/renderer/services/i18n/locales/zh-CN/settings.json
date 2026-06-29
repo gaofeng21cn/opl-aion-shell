@@ -1339,13 +1339,16 @@
       "provider": {
         "title": "本机后台服务",
         "fallback": "暂时无法读取后台服务详情。",
+        "summary": "{{kind}} · {{status}}",
+        "localRuntime": "本机运行服务",
         "detail": "用于 OPL 本机任务执行；不是 gflabtoken 或外部 API 登录状态。"
       },
       "permission": {
         "title": "权限模式",
         "detail": "App 执行器当前使用的命令和文件权限。"
       }
-    }
+    },
+    "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。普通访问密钥状态请看“访问密钥”。"
   },
   "capabilitiesPage": {
     "title": "智能体与能力",
@@ -1390,6 +1393,14 @@
         "workspace": "影响文件、项目和任务产物默认存放位置。",
         "modules": "影响 MAS、MAG、RCA、BookForge 等智能体能力是否可用。"
       }
+    },
+    "recommendedActions": {
+      "title": "推荐操作",
+      "description": "先按上方状态卡判断是否需要处理；这里提供诊断、刷新和修复三个常用动作。"
+    },
+    "diagnostics": {
+      "title": "高级诊断",
+      "modulesTitle": "模块路径与来源诊断"
     },
     "actions": {
       "doctor": "运行诊断",
@@ -1538,6 +1549,11 @@
         "repair": "修复",
         "rollback": "回滚"
       },
+      "actionHelp": {
+        "status": "只重新读取当前状态，不查找新版本，也不生成变更计划。",
+        "check": "主动检查是否有新版本或可修复问题，不应用任何更新。",
+        "plan": "生成可执行计划，说明会更新什么、是否需要重启或重新加载。"
+      },
       "userSummaries": {
         "current": "当前不需要你处理。",
         "canApply": "有可应用更新；确认后可以应用所选更新。",
@@ -1566,9 +1582,6 @@
         "reloadGuidance": "重新加载指引：{{guidance}}",
         "noFailure": "无"
       }
-    },
-    "diagnostics": {
-      "modulesTitle": "模块路径与来源诊断"
     },
     "codexContext": {
       "title": "Codex 会话上下文诊断",
