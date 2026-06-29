@@ -1,47 +1,191 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
+import { JSDOM } from 'jsdom';
 import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
+
+type AccessSettingsTestMocks = {
+  configureCodexInvoke: ReturnType<typeof vi.fn>;
+  load: ReturnType<typeof vi.fn>;
+};
+
+if (typeof globalThis.document === 'undefined') {
+  const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
+  Object.defineProperty(globalThis, 'window', { value: dom.window, configurable: true });
+  Object.defineProperty(globalThis, 'document', { value: dom.window.document, configurable: true });
+  Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
+  Object.defineProperty(globalThis, 'HTMLElement', { value: dom.window.HTMLElement, configurable: true });
+  Object.defineProperty(globalThis, 'Element', { value: dom.window.Element, configurable: true });
+  Object.defineProperty(globalThis, 'Node', { value: dom.window.Node, configurable: true });
+}
+
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+class IntersectionObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(globalThis, 'ResizeObserver', { value: ResizeObserverMock, configurable: true });
+Object.defineProperty(globalThis, 'IntersectionObserver', { value: IntersectionObserverMock, configurable: true });
+Object.defineProperty(globalThis, 'requestAnimationFrame', {
+  value: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'cancelAnimationFrame', { value: (id: number) => clearTimeout(id), configurable: true });
+Object.defineProperty(Element.prototype, 'scrollTo', { value: () => {}, configurable: true });
+Object.defineProperty(Element.prototype, 'scrollIntoView', { value: () => {}, configurable: true });
+
+const getMocks = (): AccessSettingsTestMocks =>
+  (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks;
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
-vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
-  default: () => <div data-testid='webui-content'>Remote access settings</div>,
+vi.mock('@arco-design/web-react', () => {
+  const message = (text: React.ReactNode) => {
+    const element = document.createElement('div');
+    element.textContent = typeof text === 'string' ? text : '';
+    document.body.appendChild(element);
+  };
+
+  const Button = ({
+    children,
+    loading: _loading,
+    icon: _icon,
+    type: _type,
+    htmlType,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    loading?: boolean;
+    icon?: React.ReactNode;
+    type?: string;
+    htmlType?: 'button' | 'submit' | 'reset';
+  }) => (
+    <button {...props} type={htmlType ?? 'button'}>
+      {children}
+    </button>
+  );
+
+  const Card = ({
+    children,
+    bordered: _bordered,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & { bordered?: boolean }) => <div {...props}>{children}</div>;
+  const Space = ({ children, wrap: _wrap, ...props }: React.HTMLAttributes<HTMLDivElement> & { wrap?: boolean }) => (
+    <div {...props}>{children}</div>
+  );
+  const Tag = ({ children, color: _color, ...props }: React.HTMLAttributes<HTMLSpanElement> & { color?: string }) => (
+    <span {...props}>{children}</span>
+  );
+  const Text = ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>;
+  const Title = ({ children, heading: _heading, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { heading?: number }) => (
+    <h2 {...props}>{children}</h2>
+  );
+  const Password = ({
+    onChange,
+    onPressEnter,
+    ...props
+  }: Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> & {
+    onChange?: (value: string) => void;
+    onPressEnter?: () => void;
+  }) => (
+    <input
+      {...props}
+      type='password'
+      onChange={(event) => onChange?.(event.currentTarget.value)}
+      onInput={(event) => onChange?.(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') onPressEnter?.();
+      }}
+    />
+  );
+
+  return {
+    Button,
+    Card,
+    Input: { Password },
+    Message: {
+      success: vi.fn(message),
+      error: vi.fn(message),
+    },
+    Space,
+    Tag,
+    Typography: { Text, Title },
+  };
+});
+
+vi.mock('@/common', () => ({
+  get ipcBridge() {
+    const configureCodexInvoke = vi.fn();
+    const current = (globalThis as typeof globalThis & { __accessSettingsMocks?: Partial<AccessSettingsTestMocks> })
+      .__accessSettingsMocks;
+    (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks = {
+      load: current?.load ?? vi.fn(),
+      configureCodexInvoke,
+    };
+
+    return {
+      oplRuntime: {
+        configureCodex: { invoke: configureCodexInvoke },
+      },
+    };
+  },
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
-  useOplAppState: () => ({
-    appState: {
-      core: {
-        codex: {
-          status: 'ready',
-          model: 'gpt-5.5',
-          version: '0.125.0',
-          binary_path: '/usr/local/bin/codex',
-          config: {
-            api_key_present: true,
+  useOplAppState: () => {
+    const current = (globalThis as typeof globalThis & { __accessSettingsMocks?: Partial<AccessSettingsTestMocks> })
+      .__accessSettingsMocks;
+    const load = current?.load ?? vi.fn();
+    (globalThis as typeof globalThis & { __accessSettingsMocks: AccessSettingsTestMocks }).__accessSettingsMocks = {
+      configureCodexInvoke: current?.configureCodexInvoke ?? vi.fn(),
+      load,
+    };
+
+    return {
+      appState: {
+        core: {
+          codex: {
+            status: 'ready',
+            model: 'gpt-5.5',
+            version: '0.125.0',
+            binary_path: '/usr/local/bin/codex',
+            config: {
+              api_key_present: true,
+            },
+          },
+          executor: {
+            permission_mode: 'full-access',
           },
         },
-        executor: {
-          permission_mode: 'full-access',
-        },
-      },
-      provider: {
-        provider_kind: 'temporal',
-        health_status: 'ready',
-        temporal: {
-          status: 'ready',
-          details: {
-            address: '127.0.0.1:7233',
+        provider: {
+          provider_kind: 'temporal',
+          health_status: 'ready',
+          temporal: {
+            status: 'ready',
+            details: {
+              address: '127.0.0.1:7233',
+            },
           },
         },
       },
-    },
-  }),
+      load,
+      refreshing: false,
+    };
+  },
+}));
+
+vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
+  default: () => <div data-testid='webui-content'>Remote access settings</div>,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -67,6 +211,11 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.modelAccount.title': 'Model & Account',
         'settings.accessPage.modelAccount.description':
           'Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors.',
+        'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Codex API key',
+        'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Codex API key.',
+        'settings.accessPage.modelAccount.configureButton': 'Save API key',
+        'settings.accessPage.modelAccount.configureSuccess': 'Codex API key saved.',
+        'settings.accessPage.modelAccount.configureFailed': 'Could not save Codex API key.',
         'settings.accessPage.remote.title': 'Web / Docker / Remote Access',
         'settings.accessPage.remote.description':
           'Enable WebUI, inspect access URLs, and find remote access configuration from one place.',
@@ -84,37 +233,86 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AccessSettingsContent', () => {
-  it('renders user-facing model, account, and remote access entries from the fast App state projection', () => {
-    render(<AccessSettingsContent />);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mocks = getMocks();
+    mocks.configureCodexInvoke.mockResolvedValue({
+      surface: 'configure_codex',
+      command: 'opl system configure-codex --api-key-stdin --json',
+      stdout: '{}',
+      parsed: {},
+    });
+    mocks.load.mockResolvedValue(undefined);
+  });
 
-    expect(screen.getAllByText('Model & Account')).toHaveLength(2);
+  afterEach(() => {
+    cleanup();
+    document.body.innerHTML = '';
+  });
+
+  it('renders user-facing model, account, and remote access entries from the fast App state projection', () => {
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.getAllByText('Model & Account')).toHaveLength(2);
     expect(
-      screen.getByText('Confirm model and account access, then configure Web, Docker, and remote access.')
-    ).toBeInTheDocument();
-    expect(screen.getByText('Current Model')).toBeInTheDocument();
+      view.getByText('Confirm model and account access, then configure Web, Docker, and remote access.')
+    ).toBeTruthy();
+    expect(view.getByText('Current Model')).toBeTruthy();
     expect(document.body.textContent).toContain('gpt-5.5');
     expect(document.body.textContent).toContain('/usr/local/bin/codex');
-    expect(screen.getByText('Account / API key')).toBeInTheDocument();
-    expect(screen.getByText('Account or API key is configured.')).toBeInTheDocument();
-    expect(screen.getByText('Model Access Status')).toBeInTheDocument();
-    expect(screen.getByText(/configured model service/)).toBeInTheDocument();
-    expect(screen.getByText(/127\.0\.0\.1:7233/)).toBeInTheDocument();
-    expect(screen.getByText('temporal · ready')).toBeInTheDocument();
-    expect(screen.getByText(/Model & Account shows account\/API key status/)).toBeInTheDocument();
-    expect(screen.getByText('Web / Docker / Remote Access')).toBeInTheDocument();
-    expect(screen.getByText('WebUI')).toBeInTheDocument();
-    expect(screen.getByText('Docker')).toBeInTheDocument();
-    expect(screen.getByText('Remote access')).toBeInTheDocument();
-    expect(screen.getByText('Permission Mode')).toBeInTheDocument();
-    expect(screen.getByText('Full Access')).toBeInTheDocument();
+    expect(view.getByText('Account / API key')).toBeTruthy();
+    expect(view.getByText('Account or API key is configured.')).toBeTruthy();
+    expect(view.getByText('Model Access Status')).toBeTruthy();
+    expect(view.getByText(/configured model service/)).toBeTruthy();
+    expect(view.getByText(/127\.0\.0\.1:7233/)).toBeTruthy();
+    expect(view.getByText('temporal · ready')).toBeTruthy();
+    expect(view.getByText(/Model & Account shows account\/API key status/)).toBeTruthy();
+    expect(view.getByText('Web / Docker / Remote Access')).toBeTruthy();
+    expect(view.getByText('WebUI')).toBeTruthy();
+    expect(view.getByText('Docker')).toBeTruthy();
+    expect(view.getByText('Remote access')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-codex-api-key-input')).toBeTruthy();
+    expect(view.getByLabelText('opl-settings-codex-api-key-input')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-configure-codex-button')).toBeTruthy();
+    expect(view.getByLabelText('opl-settings-configure-codex-button')).toBeTruthy();
+    expect(view.getByText('Permission Mode')).toBeTruthy();
+    expect(view.getByText('Full Access')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Codex CLI');
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('gflabtoken');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
-    const firstReadinessCard = screen.getByText('Current Model');
-    const remoteControls = screen.getByTestId('webui-content');
+    const firstReadinessCard = view.getByText('Current Model');
+    const remoteControls = view.getByTestId('webui-content');
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('saves a trimmed Codex API key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
+    const view = render(<AccessSettingsContent />);
+
+    const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
+    fireEvent.input(input, { target: { value: '  sk-opl-secret-value  ' } });
+    fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
+
+    const mocks = getMocks();
+    await waitFor(() =>
+      expect(mocks.configureCodexInvoke).toHaveBeenCalledWith({ apiKey: 'sk-opl-secret-value' })
+    );
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    expect(input.value).toBe('');
+    expect(document.body.textContent).not.toContain('sk-opl-secret-value');
+  });
+
+  it('does not call the bridge when the Codex API key is empty', async () => {
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.input(view.getByTestId('opl-settings-codex-api-key-input'), { target: { value: '   ' } });
+    fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
+
+    const mocks = getMocks();
+    expect(mocks.configureCodexInvoke).not.toHaveBeenCalled();
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(await view.findByText('Enter an OPL Codex API key.')).toBeTruthy();
   });
 });

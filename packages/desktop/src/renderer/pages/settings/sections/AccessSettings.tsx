@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
+import React, { useState } from 'react';
+import { Button, Card, Input, Message, Space, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Earth, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
+import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
@@ -123,7 +124,29 @@ export function buildAccessProjection(
 export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
+  const [codexApiKey, setCodexApiKey] = useState('');
+  const [configureLoading, setConfigureLoading] = useState(false);
   const { cards, temporalAddress } = buildAccessProjection(appStateQuery.appState, t);
+
+  const handleConfigureCodex = async () => {
+    const trimmed = codexApiKey.trim();
+    if (!trimmed) {
+      Message.error(t('settings.accessPage.modelAccount.apiKeyRequired'));
+      return;
+    }
+
+    setConfigureLoading(true);
+    try {
+      await ipcBridge.oplRuntime.configureCodex.invoke({ apiKey: trimmed });
+      setCodexApiKey('');
+      Message.success(t('settings.accessPage.modelAccount.configureSuccess'));
+      await appStateQuery.load('fast', { showRefreshing: true });
+    } catch {
+      Message.error(t('settings.accessPage.modelAccount.configureFailed'));
+    } finally {
+      setConfigureLoading(false);
+    }
+  };
 
   return (
     <div className='flex flex-col gap-16px'>
@@ -148,6 +171,27 @@ export const AccessSettingsContent: React.FC = () => {
             <Typography.Text className='block text-13px text-t-secondary break-words'>
               {t('settings.accessPage.modelAccount.description')}
             </Typography.Text>
+            <div className='mt-12px flex flex-col gap-8px md:flex-row md:items-center'>
+              <Input.Password
+                data-testid='opl-settings-codex-api-key-input'
+                aria-label='opl-settings-codex-api-key-input'
+                value={codexApiKey}
+                placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
+                autoComplete='off'
+                className='md:max-w-420px'
+                onChange={setCodexApiKey}
+                onPressEnter={() => void handleConfigureCodex()}
+              />
+              <Button
+                data-testid='opl-settings-configure-codex-button'
+                aria-label='opl-settings-configure-codex-button'
+                type='primary'
+                loading={configureLoading}
+                onClick={() => void handleConfigureCodex()}
+              >
+                {t('settings.accessPage.modelAccount.configureButton')}
+              </Button>
+            </div>
           </div>
           <Space wrap>
             <Button

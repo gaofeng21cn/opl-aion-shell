@@ -1515,7 +1515,12 @@
     "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
     "modelAccount": {
       "title": "Model & Account",
-      "description": "Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors."
+      "description": "Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors.",
+      "apiKeyPlaceholder": "Paste OPL Codex API key",
+      "apiKeyRequired": "Enter an OPL Codex API key.",
+      "configureButton": "Save API key",
+      "configureSuccess": "Codex API key saved.",
+      "configureFailed": "Could not save Codex API key."
     },
     "remote": {
       "title": "Web / Docker / Remote Access",

@@ -1516,7 +1516,12 @@
     "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
     "modelAccount": {
       "title": "模型与账号",
-      "description": "这里显示当前模型、账号/API key、模型访问和权限状态；不会暴露底层 backend/provider selector。"
+      "description": "这里显示当前模型、账号/API key、模型访问和权限状态；不会暴露底层 backend/provider selector。",
+      "apiKeyPlaceholder": "粘贴 OPL Codex API key",
+      "apiKeyRequired": "请输入 OPL Codex API key。",
+      "configureButton": "保存 API key",
+      "configureSuccess": "Codex API key 已保存。",
+      "configureFailed": "无法保存 Codex API key。"
     },
     "remote": {
       "title": "Web / Docker / 远程访问",
