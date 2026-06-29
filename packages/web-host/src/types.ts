@@ -40,6 +40,8 @@ export type WebOplRuntimeProxyConfig = {
   dataDir: string;
   resourcesPath: string;
   projectsDir?: string;
+  imageManifestPath?: string;
+  imageSeedDir?: string;
 };
 
 /**

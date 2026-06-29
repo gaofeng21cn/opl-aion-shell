@@ -6,6 +6,77 @@ const { execSync } = require('child_process');
 const { prepareAioncore } = require('../packages/shared-scripts/src/prepare-aioncore.js');
 const { resolveAioncoreVersion } = require('./resolveAioncoreVersion.js');
 
+function writeJson(filePath, value) {
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2) + '\n');
+}
+
+function buildOplImageSeedMetadata() {
+  return {
+    schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
+    strategy: 'metadata_only',
+    applies_to: 'docker-webui-runtime-image',
+    data_dir: '/data',
+    projects_dir: '/projects',
+    note: 'Framework seed application is owned by OPL; this package only exposes stable metadata and paths.',
+  };
+}
+
+function buildOplImageManifest({ packageName, version, runtimeKey }) {
+  return {
+    schema: 'dev.onepersonlab.opl-webui-image-manifest.v1',
+    image_role: 'opl_webui_runtime_image',
+    base_image_family: 'node:22-bookworm-slim',
+    webui_package: {
+      name: packageName,
+      version,
+    },
+    bundled_aioncore: {
+      platforms: [runtimeKey],
+      path: 'bundled-aioncore',
+    },
+    bootstrap: {
+      path: 'opl-install.sh',
+      mode: 'standard_complete_without_modules',
+    },
+    data_dir: '/data',
+    projects_dir: '/projects',
+    seed_strategy: 'metadata_only',
+    seed_dir: 'opl-image-seed',
+    environment: {
+      OPL_IMAGE_MANIFEST_PATH: '/app/aionui-web/opl-image-manifest.json',
+      OPL_IMAGE_SEED_DIR: '/app/aionui-web/opl-image-seed',
+      OPL_DATA_DIR: '/data',
+      OPL_PROJECTS_DIR: '/projects',
+      OPL_WORKSPACE_ROOT: '/projects',
+    },
+  };
+}
+
+function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey }) {
+  const seedDir = path.join(tarballContentDir, 'opl-image-seed');
+  fs.mkdirSync(seedDir, { recursive: true });
+  writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata());
+  writeJson(
+    path.join(tarballContentDir, 'opl-image-manifest.json'),
+    buildOplImageManifest({ packageName: srcPkg.name, version, runtimeKey })
+  );
+
+  fs.copyFileSync(
+    path.join(projectRoot, 'resources', 'opl-webui-entrypoint.sh'),
+    path.join(tarballContentDir, 'opl-webui-entrypoint.sh')
+  );
+  fs.chmodSync(path.join(tarballContentDir, 'opl-webui-entrypoint.sh'), 0o755);
+}
+
+if (require.main !== module) {
+  module.exports = {
+    buildOplImageManifest,
+    buildOplImageSeedMetadata,
+    writeOplImageResources,
+  };
+  return;
+}
+
 const projectRoot = path.resolve(__dirname, '..');
 const platform = process.env.PACK_PLATFORM || process.platform;
 const arch = process.env.PACK_ARCH || process.arch;
@@ -78,8 +149,9 @@ if (fs.existsSync(rendererOutDir)) {
 }
 
 // 7. Copy bundled-aioncore
-const backendSrc = path.join(projectRoot, 'resources/bundled-aioncore', `${platform}-${arch}`);
-const backendDest = path.join(tarballContentDir, 'bundled-aioncore', `${platform}-${arch}`);
+const runtimeKey = `${platform}-${arch}`;
+const backendSrc = path.join(projectRoot, 'resources/bundled-aioncore', runtimeKey);
+const backendDest = path.join(tarballContentDir, 'bundled-aioncore', runtimeKey);
 if (!fs.existsSync(backendSrc)) {
   throw new Error(`Backend bundle dir missing at ${backendSrc}. Ensure prepareAioncore succeeded.`);
 }
@@ -95,6 +167,7 @@ if (!fs.existsSync(oplInstallerSrc)) {
 }
 fs.copyFileSync(oplInstallerSrc, path.join(tarballContentDir, 'opl-install.sh'));
 fs.chmodSync(path.join(tarballContentDir, 'opl-install.sh'), 0o755);
+writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey });
 
 // 9. Create tarball
 fs.mkdirSync(distDir, { recursive: true });

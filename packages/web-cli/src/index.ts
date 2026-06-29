@@ -106,6 +106,20 @@ function resolveLogDir(flags: Map<string, string | true>, dataDir: string): stri
   return path.join(dataDir, 'logs');
 }
 
+function resolveImageManifestPath(): string | undefined {
+  const envOverride = process.env.OPL_IMAGE_MANIFEST_PATH;
+  if (envOverride) return path.resolve(envOverride);
+  const bundled = path.join(cliRoot, 'opl-image-manifest.json');
+  return fs.existsSync(bundled) ? bundled : undefined;
+}
+
+function resolveImageSeedDir(): string | undefined {
+  const envOverride = process.env.OPL_IMAGE_SEED_DIR;
+  if (envOverride) return path.resolve(envOverride);
+  const bundled = path.join(cliRoot, 'opl-image-seed');
+  return fs.existsSync(bundled) ? bundled : undefined;
+}
+
 function resolveProjectsDir(flags: Map<string, string | true>): string {
   const override = flags.get('projects-dir');
   if (typeof override === 'string') return path.resolve(override);
@@ -148,6 +162,8 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   fs.mkdirSync(logDir, { recursive: true });
   const projectsDir = resolveProjectsDir(flags);
   fs.mkdirSync(projectsDir, { recursive: true });
+  const imageManifestPath = resolveImageManifestPath();
+  const imageSeedDir = resolveImageSeedDir();
   const port = resolvePort(flags);
   const allowRemote = resolveAllowRemote(flags);
   const version = readPackageVersion();
@@ -170,6 +186,8 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   console.log(`[aionui-web] log dir    : ${logDir}`);
   console.log(`[aionui-web] static dir : ${staticDir}`);
   console.log(`[aionui-web] backend bin: ${backendBin}`);
+  if (imageManifestPath) console.log(`[aionui-web] image manifest: ${imageManifestPath}`);
+  if (imageSeedDir) console.log(`[aionui-web] image seed dir : ${imageSeedDir}`);
   console.log(`[aionui-web] launching  : port=${port} allowRemote=${allowRemote}`);
 
   const backendAvailable = fs.existsSync(backendBin);
@@ -234,6 +252,8 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
         dataDir,
         resourcesPath: cliRoot,
         projectsDir,
+        imageManifestPath,
+        imageSeedDir,
       },
       backend: {
         kind: 'ownBackend',

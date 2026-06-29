@@ -273,6 +273,8 @@ describe('static-server', () => {
       expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_STATE_DIR).toBe(path.join(dataDir, 'opl', 'state'));
       expect((options as { env?: NodeJS.ProcessEnv }).env?.CODEX_HOME).toBe(path.join(dataDir, '.codex'));
       expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_WORKSPACE_ROOT).toBe(projectsDir);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_PROJECTS_DIR).toBe(projectsDir);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_DATA_DIR).toBe(dataDir);
       return child;
     });
 
@@ -291,6 +293,60 @@ describe('static-server', () => {
     expect(r.status).toBe(200);
     const json = (await r.json()) as { data: { surface: string; parsed: unknown } };
     expect(json.data.surface).toBe('app_state_fast');
+    expect(json.data.parsed).toEqual({ ok: true });
+  });
+
+  it('/api/opl-runtime/* passes packaged image manifest and seed env to OPL commands', async () => {
+    const backend = await startMockBackend((_req, res) => {
+      res.writeHead(500, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ backend: true }));
+    });
+    stopBackend = backend.close;
+    const dataDir = path.join(staticDir, 'data');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    const imageManifestPath = path.join(resourcesPath, 'opl-image-manifest.json');
+    const imageSeedDir = path.join(resourcesPath, 'opl-image-seed');
+    await fs.mkdir(imageSeedDir, { recursive: true });
+
+    vi.mocked(spawn).mockImplementationOnce((command, args, options) => {
+      const child = new EventEmitter() as ReturnType<typeof spawn> & {
+        stdout: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+        stderr: InstanceType<typeof EventEmitter> & { setEncoding: (encoding: string) => void };
+      };
+      child.stdout = new EventEmitter() as typeof child.stdout;
+      child.stderr = new EventEmitter() as typeof child.stderr;
+      child.stdout.setEncoding = () => {};
+      child.stderr.setEncoding = () => {};
+      child.kill = vi.fn() as typeof child.kill;
+      queueMicrotask(() => {
+        child.stdout.emit('data', JSON.stringify({ ok: true }));
+        child.emit('close', 0);
+      });
+      expect(command).toBe('opl');
+      expect(args).toEqual(['system', 'startup-maintenance', '--json']);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_IMAGE_MANIFEST_PATH).toBe(imageManifestPath);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_IMAGE_SEED_DIR).toBe(imageSeedDir);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_DATA_DIR).toBe(dataDir);
+      expect((options as { env?: NodeJS.ProcessEnv }).env?.OPL_PROJECTS_DIR).toBe(projectsDir);
+      return child;
+    });
+
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      oplRuntimeProxy: { dataDir, projectsDir, resourcesPath, imageManifestPath, imageSeedDir },
+    });
+
+    const r = await fetch(`${handle.localUrl}/api/opl-runtime/startup-maintenance`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(r.status).toBe(200);
+    const json = (await r.json()) as { data: { surface: string; parsed: unknown } };
+    expect(json.data.surface).toBe('startup_maintenance');
     expect(json.data.parsed).toEqual({ ok: true });
   });
 
