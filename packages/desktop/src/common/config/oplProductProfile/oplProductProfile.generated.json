@@ -940,7 +940,7 @@
           "ordinary_entry_policy": "secondary_page_under_advanced"
         }
       },
-      "secondary_page_ids": ["storage", "about", "update", "theme"]
+      "secondary_page_ids": ["about", "update", "theme"]
     }
   },
   "companion_payloads": {

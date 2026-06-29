@@ -52,8 +52,14 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.actions.dryRunRuntime': 'Dry-run runtime prune',
     'settings.storagePage.actions.dryRunLogs': 'Dry-run log rotation',
     'settings.storagePage.actions.dryRunUpdater': 'Dry-run updater cache cleanup',
+    'settings.storagePage.actions.executeRuntime': 'Execute runtime prune',
+    'settings.storagePage.actions.executeLogs': 'Execute log rotation',
+    'settings.storagePage.actions.executeUpdater': 'Clean updater cache',
+    'settings.storagePage.actions.deleteWithReceipt': 'Delete with receipt',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
+    'settings.updateConfirm': 'Confirm Changes',
+    'common.cancel': 'Cancel',
   };
   const renderedValues = Object.values(values ?? {})
     .filter((value) => value !== undefined && value !== null && String(value).length > 0)
@@ -217,6 +223,9 @@ describe('StorageSettingsContent', () => {
     fireEvent.click(screen.getByText('Dry-run runtime prune'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-runtime-execute'));
+    expect(bridgeMocks.executeRuntimePrune).not.toHaveBeenCalled();
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
     await waitFor(() =>
       expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledWith({
         plan: runtimePlan,
@@ -227,6 +236,8 @@ describe('StorageSettingsContent', () => {
     fireEvent.click(screen.getByText('Dry-run log rotation'));
     await waitFor(() => expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-logs-execute'));
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
+    fireEvent.click(screen.getByTestId('storage-action-confirm'));
     await waitFor(() =>
       expect(bridgeMocks.executeLogRotation).toHaveBeenCalledWith({ plan: logsPlan, planHash: logsPlan.plan_hash })
     );

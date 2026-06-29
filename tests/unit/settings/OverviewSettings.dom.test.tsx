@@ -28,6 +28,12 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
       paths: {
         workspace_root_path: '/Users/example/OPL Workspace',
       },
+      modules: {
+        summary: {
+          default_modules_count: 4,
+          healthy_default_modules_count: 3,
+        },
+      },
     },
   }),
 }));
@@ -68,6 +74,9 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.actions.openRuntimeStatus': 'Open Runtime Status',
         'settings.overviewPage.actions.openRuntimeSettings': 'Open Maintenance',
         'settings.overviewPage.actions.openFoundryAgents': 'Open Capabilities',
+        'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
+        'settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention': 'Usable with attention',
+        'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready} / ${options?.total} ready`,
         'agentMode.full-access': 'Full Access',
       };
       return labels[key] ?? options?.defaultValue ?? key;
@@ -85,6 +94,8 @@ describe('OverviewSettings', () => {
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Usable with attention');
+    expect(screen.getByText('3 / 4 ready')).toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Theme')).not.toBeInTheDocument();

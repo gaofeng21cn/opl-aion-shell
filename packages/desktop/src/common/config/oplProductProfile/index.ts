@@ -1121,7 +1121,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const secondaryPageIds = settingsIa
     ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
     : [];
-  if (secondaryPageIds.join(',') !== 'storage,about,update,theme') {
+  if (secondaryPageIds.join(',') !== 'about,update,theme') {
     throw new Error('Invalid OPL product profile: GUI secondary settings pages must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');

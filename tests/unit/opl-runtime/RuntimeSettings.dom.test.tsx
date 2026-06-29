@@ -46,6 +46,11 @@ vi.mock('@/common', () => ({
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string | number>) => {
+      const labels: Record<string, string> = {
+        'common.cancel': 'Cancel',
+        'settings.updateConfirm': 'Confirm Changes',
+      };
+      if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
         .filter((value) => value !== undefined && value !== null && String(value).length > 0)
         .map(String)
@@ -498,10 +503,14 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
+    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-repair-agent_package_channel'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
         componentId: 'agent_package_channel',
@@ -509,6 +518,7 @@ describe('RuntimeSettings app state bridge usage', () => {
       })
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-rollback-runtime_toolchain'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
     );
@@ -536,6 +546,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('opl-module-maintenance-repair-agent_package_channel'));
+    expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-module-maintenance-confirmation')).toHaveTextContent('Confirm Changes');
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
         componentId: 'agent_package_channel',
@@ -544,6 +557,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
 
     fireEvent.click(screen.getByTestId('opl-module-maintenance-apply-capability_exposure'));
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
         componentId: 'capability_exposure',
@@ -551,6 +565,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
 
     fireEvent.click(screen.getByTestId('opl-module-maintenance-rollback-capability_exposure'));
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({
         componentId: 'capability_exposure',

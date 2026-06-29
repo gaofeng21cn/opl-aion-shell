@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { CapabilitiesSettingsContent } from '@/renderer/pages/settings/CapabilitiesSettings';
 
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
@@ -66,7 +66,8 @@ vi.mock('react-i18next', () => ({
 
 describe('CapabilitiesSettingsContent', () => {
   it('shows purpose capability groups before skills and tools details', () => {
-    render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={() => {}} />);
+    const onTabChange = vi.fn();
+    render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={onTabChange} />);
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Research')).toBeInTheDocument();
@@ -88,5 +89,13 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
     expect(screen.getAllByText('Skills').length).toBeGreaterThan(0);
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
+
+    const externalTools = screen.getByTestId('capability-entry-external-tools');
+    fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
+    expect(onTabChange).toHaveBeenCalledWith('tools');
+
+    const research = screen.getByTestId('capability-purpose-research');
+    fireEvent.click(within(research).getByRole('button', { name: 'Skills' }));
+    expect(onTabChange).toHaveBeenCalledWith('skills');
   });
 });

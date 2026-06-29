@@ -32,6 +32,18 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
     oplString(oplRecord(paths.family_workspace_root).path) ??
     oplString(paths.family_workspace_root);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'unknown';
+  const modules = oplRecord(appState.modules);
+  const modulesSummary = oplRecord(modules.summary);
+  const totalModules = Number(modulesSummary.default_modules_count ?? modulesSummary.total ?? 0);
+  const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
+  const modulesNeedAction = totalModules > 0 && readyModules < totalModules;
+  const overviewNeedsAction = !workspaceRoot || modulesNeedAction;
+  const recommendedRoute = !workspaceRoot ? '/settings/environment#workspace' : '/settings/environment';
+  const recommendedLabel = !workspaceRoot
+    ? t('settings.overviewPage.workspace.changeOrVerify')
+    : modulesNeedAction
+      ? t('settings.overviewPage.actions.openRuntimeSettings')
+      : t('settings.overviewPage.actions.openRuntimeStatus');
 
   const openWorkspace = () => {
     if (!workspaceRoot) return;
@@ -72,10 +84,24 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const content = (
     <div className='flex flex-col gap-16px'>
       <div>
-        <Typography.Title heading={4} className='mb-6px'>
-          {t('settings.overviewPage.title')}
-        </Typography.Title>
-        <Typography.Text className='text-t-secondary'>{t('settings.overviewPage.description')}</Typography.Text>
+        <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
+          <div className='min-w-0'>
+            <Typography.Title heading={4} className='mb-6px'>
+              {t('settings.overviewPage.title')}
+            </Typography.Title>
+            <Typography.Text className='text-t-secondary'>{t('settings.overviewPage.description')}</Typography.Text>
+          </div>
+          <Space wrap>
+            <Tag color={overviewNeedsAction ? 'orange' : 'green'} data-testid='settings-overview-status'>
+              {overviewNeedsAction
+                ? t('settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention')
+                : t('settings.oplEnvironmentPage.healthSummary.values.canUse')}
+            </Tag>
+            <Button size='small' type='primary' onClick={() => navigate(recommendedRoute)}>
+              {recommendedLabel}
+            </Button>
+          </Space>
+        </div>
       </div>
 
       <Card bordered className='rd-8px'>
@@ -112,6 +138,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                   ? t('settings.overviewPage.workspace.status.ready')
                   : t('settings.overviewPage.workspace.status.needsAction')}
               </Tag>
+              {totalModules > 0 && (
+                <Tag color={modulesNeedAction ? 'orange' : 'green'}>
+                  {t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules })}
+                </Tag>
+              )}
               <Tag color='blue'>
                 {t('settings.overviewPage.workspace.permissionStatus', {
                   mode: t(`agentMode.${permissionMode}`, { defaultValue: permissionMode }),

@@ -33,6 +33,7 @@ type AsyncAction =
   | 'updater-execute';
 
 type PlanKind = 'runtime' | 'logs' | 'updater';
+type PendingDangerAction = 'delete-conversations' | 'runtime-execute' | 'logs-execute' | 'updater-execute' | null;
 
 type StorageSettingsProps = {
   withWrapper?: boolean;
@@ -136,6 +137,7 @@ export const StorageSettingsContent: React.FC = () => {
   const [logsPlan, setLogsPlan] = React.useState<LocalDataLifecycleLogRetentionPlan | null>(null);
   const [updaterPlan, setUpdaterPlan] = React.useState<LocalDataLifecycleUpdaterCachePlan | null>(null);
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
+  const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const runAction = React.useCallback(
@@ -286,6 +288,69 @@ export const StorageSettingsContent: React.FC = () => {
     );
   };
 
+  const requestDangerAction = (action: Exclude<PendingDangerAction, null>) => {
+    setPendingDangerAction(action);
+  };
+
+  const cancelDangerAction = () => {
+    setPendingDangerAction(null);
+  };
+
+  const confirmDangerAction = () => {
+    const action = pendingDangerAction;
+    setPendingDangerAction(null);
+    if (action === 'delete-conversations') {
+      deleteConversationArtifacts();
+      return;
+    }
+    if (action === 'runtime-execute') {
+      executeRuntimePrune();
+      return;
+    }
+    if (action === 'logs-execute') {
+      executeLogRotation();
+      return;
+    }
+    if (action === 'updater-execute') {
+      executeUpdaterCleanup();
+    }
+  };
+
+  const dangerActionSummary = () => {
+    if (pendingDangerAction === 'delete-conversations') {
+      return receiptId(conversationProofReceipt)
+        ? t('settings.storagePage.conversations.proofReceipt', { receipt: receiptId(conversationProofReceipt) ?? '' })
+        : t('settings.storagePage.conversations.receiptRequired');
+    }
+    if (pendingDangerAction === 'runtime-execute') {
+      return t('settings.storagePage.plans.runtime.summary', {
+        count: candidateCount(runtimePlan),
+        bytes: formatBytes(candidateBytes(runtimePlan)),
+      });
+    }
+    if (pendingDangerAction === 'logs-execute') {
+      return t('settings.storagePage.plans.logs.summary', {
+        count: candidateCount(logsPlan),
+        bytes: formatBytes(candidateBytes(logsPlan)),
+      });
+    }
+    if (pendingDangerAction === 'updater-execute') {
+      return t('settings.storagePage.plans.updater.summary', {
+        count: candidateCount(updaterPlan),
+        bytes: formatBytes(candidateBytes(updaterPlan)),
+      });
+    }
+    return '';
+  };
+
+  const dangerActionLabel = () => {
+    if (pendingDangerAction === 'delete-conversations') return t('settings.storagePage.actions.deleteWithReceipt');
+    if (pendingDangerAction === 'runtime-execute') return t('settings.storagePage.actions.executeRuntime');
+    if (pendingDangerAction === 'logs-execute') return t('settings.storagePage.actions.executeLogs');
+    if (pendingDangerAction === 'updater-execute') return t('settings.storagePage.actions.executeUpdater');
+    return '';
+  };
+
   const renderInventorySection = (id: LocalDataLifecycleSectionId) => {
     const section = sectionById(inventory, id);
     const meta = SECTION_META[id];
@@ -385,6 +450,35 @@ export const StorageSettingsContent: React.FC = () => {
 
       {error && <Alert type='error' content={error} />}
 
+      {pendingDangerAction && (
+        <Alert
+          type='warning'
+          title={t('settings.updateConfirm')}
+          data-testid='storage-action-confirmation'
+          content={
+            <div className='flex flex-col gap-8px'>
+              <span className='break-words'>{dangerActionSummary()}</span>
+              <Space wrap size='small'>
+                <Button htmlType='button' size='small' onClick={cancelDangerAction}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  htmlType='button'
+                  size='small'
+                  type='primary'
+                  status='danger'
+                  loading={loading === pendingDangerAction}
+                  onClick={confirmDangerAction}
+                  data-testid='storage-action-confirm'
+                >
+                  {dangerActionLabel()}
+                </Button>
+              </Space>
+            </div>
+          }
+        />
+      )}
+
       <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{SECTION_ORDER.map(renderInventorySection)}</div>
 
       <Card bordered className='rd-8px' data-testid='storage-conversations'>
@@ -420,7 +514,7 @@ export const StorageSettingsContent: React.FC = () => {
               icon={<Delete />}
               disabled={!receiptId(conversationProofReceipt)}
               loading={loading === 'delete-conversations'}
-              onClick={deleteConversationArtifacts}
+              onClick={() => requestDangerAction('delete-conversations')}
               data-testid='storage-conversation-delete'
             >
               {t('settings.storagePage.actions.deleteWithReceipt')}
@@ -460,7 +554,7 @@ export const StorageSettingsContent: React.FC = () => {
               icon={<Repair />}
               disabled={!runtimePlan}
               loading={loading === 'runtime-execute'}
-              onClick={executeRuntimePrune}
+              onClick={() => requestDangerAction('runtime-execute')}
               data-testid='storage-runtime-execute'
             >
               {t('settings.storagePage.actions.executeRuntime')}
@@ -506,7 +600,7 @@ export const StorageSettingsContent: React.FC = () => {
               icon={<UpdateRotation />}
               disabled={!logsPlan}
               loading={loading === 'logs-execute'}
-              onClick={executeLogRotation}
+              onClick={() => requestDangerAction('logs-execute')}
               data-testid='storage-logs-execute'
             >
               {t('settings.storagePage.actions.executeLogs')}
@@ -538,7 +632,7 @@ export const StorageSettingsContent: React.FC = () => {
               icon={<Repair />}
               disabled={!updaterPlan}
               loading={loading === 'updater-execute'}
-              onClick={executeUpdaterCleanup}
+              onClick={() => requestDangerAction('updater-execute')}
               data-testid='storage-updater-execute'
             >
               {t('settings.storagePage.actions.executeUpdater')}

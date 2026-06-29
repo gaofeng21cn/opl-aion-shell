@@ -15,7 +15,7 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Card, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Button, Card, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Robot, SettingConfig, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -201,6 +201,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         </Tag>
                       ))}
                     </div>
+                    <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
+                      {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
+                    </Button>
                   </div>
                 </div>
               </Card>
@@ -223,6 +226,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 <Typography.Text className='block text-12px text-t-secondary break-words mt-6px'>
                   {t('settings.capabilitiesPage.entries.externalTools.technical')}
                 </Typography.Text>
+                <Button size='small' className='mt-10px' onClick={() => onTabChange('tools')}>
+                  {t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
+                </Button>
               </div>
             </div>
           </Card>
@@ -238,6 +244,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 <Typography.Text className='block text-13px text-t-secondary break-words'>
                   {t('settings.capabilitiesPage.entries.customAssistants.description')}
                 </Typography.Text>
+                <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
+                  {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
+                </Button>
               </div>
             </div>
           </Card>

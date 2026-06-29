@@ -24,6 +24,14 @@ import {
   type ManagedUpdatePlane,
 } from '@/renderer/services/managedUpdateProjection';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
+import {
+  RuntimeHealthSummary,
+  RuntimeMaintenanceHub,
+  RuntimeReadinessGrid,
+  type RuntimeHealthSummaryItem,
+  type RuntimeMaintenanceHubItem,
+  type RuntimeReadinessCard,
+} from './RuntimeSettingsPanels';
 
 type RuntimeModuleItem = Record<string, unknown>;
 type Translate = (key: string, options?: Record<string, string | number>) => string;
@@ -73,35 +81,11 @@ type RuntimeSettingsProps = {
   withWrapper?: boolean;
 };
 
-type RuntimeCard = {
-  key: string;
-  title: string;
-  value: string;
-  status: string;
-  detail: string;
-  tone: 'green' | 'orange';
-};
-
-type HealthSummaryItem = {
-  key: string;
-  label: string;
-  value: string;
-  tone: 'green' | 'orange';
-};
-
-type MaintenanceHubItem = {
-  key: string;
-  title: string;
-  detail: string;
-  status: string;
-  tone: 'green' | 'orange';
-  icon: React.ReactNode;
-  actionLabel: string;
-  actionHelp?: string;
-  actionLoading?: boolean;
-  actionDisabled?: boolean;
-  onAction: () => void;
-};
+type PendingUpdateAction = {
+  kind: 'apply' | 'repair' | 'rollback';
+  component: ManagedUpdateComponent;
+  source: 'managed-updates' | 'module-maintenance';
+} | null;
 
 function normalizeStatus(status: string | undefined | null): string | null {
   if (!status) return null;
@@ -355,18 +339,20 @@ function AgentModuleMaintenancePanel({
   plane,
   maintenance,
   onCheck,
-  onApply,
-  onRepair,
-  onRollback,
+  pendingAction,
+  onRequestAction,
+  onCancelAction,
+  onConfirmAction,
   t,
 }: {
   modules: RuntimeModuleItem[];
   plane: ManagedUpdatePlane;
   maintenance: ManagedUpdateMaintenanceSnapshot;
   onCheck: () => void;
-  onApply: (component: ManagedUpdateComponent) => void;
-  onRepair: (component: ManagedUpdateComponent) => void;
-  onRollback: (component: ManagedUpdateComponent) => void;
+  pendingAction: PendingUpdateAction;
+  onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
+  onCancelAction: () => void;
+  onConfirmAction: () => void;
   t: Translate;
 }) {
   const checking = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
@@ -409,6 +395,39 @@ function AgentModuleMaintenancePanel({
             {t('settings.oplEnvironmentPage.moduleMaintenance.actions.check')}
           </Button>
         </div>
+
+        {pendingAction && pendingAction.source === 'module-maintenance' && (
+          <Alert
+            type={pendingAction.kind === 'apply' ? 'warning' : 'info'}
+            data-testid='opl-module-maintenance-confirmation'
+            title={t('settings.updateConfirm')}
+            content={
+              <div className='flex flex-col gap-8px'>
+                <span className='break-words'>
+                  {pendingAction.component.label} · {componentUserSummary(pendingAction.component, t)}
+                </span>
+                <Space wrap size='small'>
+                  <Button size='small' onClick={onCancelAction}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size='small'
+                    type='primary'
+                    status={pendingAction.kind === 'rollback' ? 'danger' : undefined}
+                    loading={busyAction === `${pendingAction.kind}:${pendingAction.component.id}`}
+                    onClick={onConfirmAction}
+                  >
+                    {pendingAction.kind === 'repair'
+                      ? t('settings.oplEnvironmentPage.moduleMaintenance.actions.repair')
+                      : pendingAction.kind === 'rollback'
+                        ? t('settings.oplEnvironmentPage.moduleMaintenance.actions.rollback')
+                        : t('settings.oplEnvironmentPage.moduleMaintenance.actions.apply')}
+                  </Button>
+                </Space>
+              </div>
+            }
+          />
+        )}
 
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-12px'>
           <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
@@ -491,7 +510,7 @@ function AgentModuleMaintenancePanel({
                           size='small'
                           type='primary'
                           loading={busyAction === `apply:${component.id}`}
-                          onClick={() => onApply(component)}
+                          onClick={() => onRequestAction('apply', component)}
                         >
                           {t('settings.oplEnvironmentPage.moduleMaintenance.actions.apply')}
                         </Button>
@@ -501,7 +520,7 @@ function AgentModuleMaintenancePanel({
                           data-testid={`opl-module-maintenance-repair-${component.id}`}
                           size='small'
                           loading={busyAction === `repair:${component.id}`}
-                          onClick={() => onRepair(component)}
+                          onClick={() => onRequestAction('repair', component)}
                         >
                           {t('settings.oplEnvironmentPage.moduleMaintenance.actions.repair')}
                         </Button>
@@ -511,7 +530,7 @@ function AgentModuleMaintenancePanel({
                           data-testid={`opl-module-maintenance-rollback-${component.id}`}
                           size='small'
                           loading={busyAction === `rollback:${component.id}`}
-                          onClick={() => onRollback(component)}
+                          onClick={() => onRequestAction('rollback', component)}
                         >
                           {t('settings.oplEnvironmentPage.moduleMaintenance.actions.rollback')}
                         </Button>
@@ -532,23 +551,25 @@ function ManagedUpdatesPanel({
   plane,
   maintenance,
   activeReadOperation,
+  pendingAction,
   onRefresh,
   onCheck,
   onPlan,
-  onApply,
-  onRepair,
-  onRollback,
+  onRequestAction,
+  onCancelAction,
+  onConfirmAction,
   t,
 }: {
   plane: ManagedUpdatePlane;
   maintenance: ManagedUpdateMaintenanceSnapshot;
   activeReadOperation: 'status' | 'check' | 'plan' | null;
+  pendingAction: PendingUpdateAction;
   onRefresh: () => void;
   onCheck: () => void;
   onPlan: () => void;
-  onApply: (component: ManagedUpdateComponent) => void;
-  onRepair: (component: ManagedUpdateComponent) => void;
-  onRollback: (component: ManagedUpdateComponent) => void;
+  onRequestAction: (kind: 'apply' | 'repair' | 'rollback', component: ManagedUpdateComponent) => void;
+  onCancelAction: () => void;
+  onConfirmAction: () => void;
   t: Translate;
 }) {
   const refreshLoading = activeReadOperation === 'status';
@@ -568,11 +589,11 @@ function ManagedUpdatesPanel({
       : Boolean(activeReadOperation);
   const runRecommendedAction = () => {
     if (recommendedAction.kind === 'repair' && recommendedAction.component) {
-      onRepair(recommendedAction.component);
+      onRequestAction('repair', recommendedAction.component);
       return;
     }
     if (recommendedAction.kind === 'apply' && recommendedAction.component) {
-      onApply(recommendedAction.component);
+      onRequestAction('apply', recommendedAction.component);
       return;
     }
     onCheck();
@@ -638,6 +659,39 @@ function ManagedUpdatesPanel({
         {plane.summary && <Alert type='info' content={plane.summary} />}
         {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}
 
+        {pendingAction && pendingAction.source === 'managed-updates' && (
+          <Alert
+            type={pendingAction.kind === 'apply' ? 'warning' : 'info'}
+            data-testid='opl-managed-update-confirmation'
+            title={t('settings.updateConfirm')}
+            content={
+              <div className='flex flex-col gap-8px'>
+                <span className='break-words'>
+                  {pendingAction.component.label} · {componentUserSummary(pendingAction.component, t)}
+                </span>
+                <Space wrap size='small'>
+                  <Button size='small' onClick={onCancelAction}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size='small'
+                    type='primary'
+                    status={pendingAction.kind === 'rollback' ? 'danger' : undefined}
+                    loading={busyAction === `${pendingAction.kind}:${pendingAction.component.id}`}
+                    onClick={onConfirmAction}
+                  >
+                    {pendingAction.kind === 'repair'
+                      ? t('settings.oplEnvironmentPage.updates.actions.repair')
+                      : pendingAction.kind === 'rollback'
+                        ? t('settings.oplEnvironmentPage.updates.actions.rollback')
+                        : t('settings.oplEnvironmentPage.updates.actions.applySelected')}
+                  </Button>
+                </Space>
+              </div>
+            }
+          />
+        )}
+
         <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
           {plane.components.map((component) => (
             <div
@@ -670,7 +724,7 @@ function ManagedUpdatesPanel({
                       size='small'
                       type='primary'
                       loading={busyAction === `apply:${component.id}`}
-                      onClick={() => onApply(component)}
+                      onClick={() => onRequestAction('apply', component)}
                     >
                       {t('settings.oplEnvironmentPage.updates.actions.applySelected')}
                     </Button>
@@ -680,7 +734,7 @@ function ManagedUpdatesPanel({
                       data-testid={`opl-managed-update-repair-${component.id}`}
                       size='small'
                       loading={busyAction === `repair:${component.id}`}
-                      onClick={() => onRepair(component)}
+                      onClick={() => onRequestAction('repair', component)}
                     >
                       {t('settings.oplEnvironmentPage.updates.actions.repair')}
                     </Button>
@@ -690,7 +744,7 @@ function ManagedUpdatesPanel({
                       data-testid={`opl-managed-update-rollback-${component.id}`}
                       size='small'
                       loading={busyAction === `rollback:${component.id}`}
-                      onClick={() => onRollback(component)}
+                      onClick={() => onRequestAction('rollback', component)}
                     >
                       {t('settings.oplEnvironmentPage.updates.actions.rollback')}
                     </Button>
@@ -846,96 +900,6 @@ function ManagedUpdatesPanel({
   );
 }
 
-function RuntimeReadinessGrid({ cards, t }: { cards: RuntimeCard[]; t: Translate }) {
-  return (
-    <div className='grid grid-cols-1 md:grid-cols-4 gap-14px'>
-      {cards.map((card) => (
-        <Card key={`runtime-card-${card.key}`} bordered className='rd-8px'>
-          <div className='flex flex-col gap-8px min-w-0'>
-            <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
-            <Tag color={card.tone}>{card.value}</Tag>
-            <Typography.Text className='text-12px text-t-secondary break-words'>
-              {t(`settings.oplEnvironmentPage.summary.impacts.${card.key}`, { defaultValue: card.detail })}
-            </Typography.Text>
-            <Typography.Text className='text-12px text-t-secondary break-words'>
-              {t('settings.oplEnvironmentPage.summary.nextAction', {
-                action: runtimeCardActionKey(card.key, card.status, t),
-              })}
-            </Typography.Text>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function HealthSummary({ items }: { items: HealthSummaryItem[] }) {
-  return (
-    <div className='grid grid-cols-1 md:grid-cols-4 gap-12px' data-testid='opl-runtime-health-summary'>
-      {items.map((item) => (
-        <Card key={`runtime-health-${item.key}`} bordered className='rd-8px'>
-          <div className='flex flex-col gap-6px min-w-0'>
-            <Typography.Text className='text-12px text-t-secondary'>{item.label}</Typography.Text>
-            <Tag color={item.tone}>{item.value}</Tag>
-          </div>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function MaintenanceHub({ items, t }: { items: MaintenanceHubItem[]; t: Translate }) {
-  return (
-    <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
-      <div className='flex flex-col gap-14px'>
-        <div>
-          <Typography.Text className='block font-600 text-t-primary'>
-            {t('settings.oplEnvironmentPage.maintenanceHub.title')}
-          </Typography.Text>
-          <Typography.Text className='block text-12px text-t-secondary break-words'>
-            {t('settings.oplEnvironmentPage.maintenanceHub.description')}
-          </Typography.Text>
-        </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12px'>
-          {items.map((item) => (
-            <div
-              key={`maintenance-hub-${item.key}`}
-              className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'
-              data-testid={`opl-maintenance-hub-${item.key}`}
-            >
-              <div className='flex flex-col gap-10px min-w-0'>
-                <div className='flex items-start gap-10px'>
-                  <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                    {item.icon}
-                  </span>
-                  <div className='min-w-0 flex-1'>
-                    <Typography.Text className='block font-600 text-t-primary break-words'>
-                      {item.title}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {item.detail}
-                    </Typography.Text>
-                  </div>
-                  <Tag color={item.tone}>{item.status}</Tag>
-                </div>
-                <Button
-                  size='small'
-                  title={item.actionHelp}
-                  loading={item.actionLoading}
-                  disabled={item.actionDisabled}
-                  onClick={item.onAction}
-                >
-                  {item.actionLabel}
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, contextHolder] = Message.useMessage();
@@ -945,6 +909,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<
     'runtimeToolchain' | 'capabilityPacks' | null
   >(null);
+  const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const appStateQuery = useOplAppState('fast');
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
 
@@ -1028,7 +993,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   ).length;
   const lastCheckValue =
     managedUpdateMaintenance.lastRunAt ?? appStateQuery.loadedAt ?? t('settings.oplEnvironmentPage.status.unknown');
-  const healthSummaryItems = useMemo<HealthSummaryItem[]>(
+  const healthSummaryItems = useMemo<RuntimeHealthSummaryItem[]>(
     () => [
       {
         key: 'usable',
@@ -1066,38 +1031,38 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     ],
     [attentionCount, componentsNeedingMaintenance, lastCheckValue, t]
   );
-  const runtimeCards = useMemo<RuntimeCard[]>(
+  const runtimeCards = useMemo<RuntimeReadinessCard[]>(
     () => [
       {
         key: 'codex',
         title: t('settings.oplEnvironmentPage.localAssistantTitle'),
         value: formatStatus(codexStatus, t),
-        status: codexStatus,
         detail: t('settings.oplEnvironmentPage.summary.impacts.codex'),
+        nextAction: runtimeCardActionKey('codex', codexStatus, t),
         tone: codexStatus === 'ready' ? 'green' : 'orange',
       },
       {
         key: 'temporal',
         title: t('settings.oplEnvironmentPage.localServiceTitle'),
         value: formatStatus(temporalStatus, t),
-        status: temporalStatus,
         detail: t('settings.oplEnvironmentPage.summary.impacts.temporal'),
+        nextAction: runtimeCardActionKey('temporal', temporalStatus, t),
         tone: temporalStatus === 'ready' ? 'green' : 'orange',
       },
       {
         key: 'workspace',
         title: t('settings.oplEnvironmentPage.workspaceRootTitle'),
         value: formatStatus(workspaceStatus, t),
-        status: workspaceStatus,
         detail: t('settings.oplEnvironmentPage.summary.impacts.workspace'),
+        nextAction: runtimeCardActionKey('workspace', workspaceStatus, t),
         tone: workspaceStatus === 'ready' ? 'green' : 'orange',
       },
       {
         key: 'modules',
         title: t('settings.oplEnvironmentPage.modulesTitle'),
         value: moduleValue,
-        status: moduleReady >= modules.length ? 'ready' : 'attention_required',
         detail: t('settings.oplEnvironmentPage.summary.impacts.modules'),
+        nextAction: runtimeCardActionKey('modules', moduleReady >= modules.length ? 'ready' : 'attention_required', t),
         tone: moduleReady >= modules.length ? 'green' : 'orange',
       },
     ],
@@ -1174,6 +1139,28 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     [appStateQuery.load]
   );
 
+  const requestManagedUpdateAction = useCallback(
+    (
+      kind: 'apply' | 'repair' | 'rollback',
+      component: ManagedUpdateComponent,
+      source: 'managed-updates' | 'module-maintenance'
+    ) => {
+      setPendingUpdateAction({ kind, component, source });
+    },
+    []
+  );
+
+  const cancelManagedUpdateAction = useCallback(() => {
+    setPendingUpdateAction(null);
+  }, []);
+
+  const confirmManagedUpdateAction = useCallback(() => {
+    if (!pendingUpdateAction) return;
+    const action = pendingUpdateAction;
+    setPendingUpdateAction(null);
+    void runManagedUpdateMutation(action.kind, action.component);
+  }, [pendingUpdateAction, runManagedUpdateMutation]);
+
   React.useEffect(() => {
     if (!managedUpdateMaintenance.result && !managedUpdateMaintenance.running) {
       void runManagedUpdateRead('status', false);
@@ -1223,7 +1210,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const agentPackageComponent = componentById.get('agent_package_channel');
   const capabilityExposureComponent = componentById.get('capability_exposure');
   const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
-  const maintenanceHubItems = useMemo<MaintenanceHubItem[]>(
+  const maintenanceHubItems = useMemo<RuntimeMaintenanceHubItem[]>(
     () => [
       {
         key: 'appUpdates',
@@ -1336,9 +1323,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           <Typography.Text className='text-t-secondary'>{t('settings.runtimePage.description')}</Typography.Text>
         </div>
 
-        <HealthSummary items={healthSummaryItems} />
+        <RuntimeHealthSummary items={healthSummaryItems} />
 
-        <MaintenanceHub items={maintenanceHubItems} t={t} />
+        <RuntimeMaintenanceHub items={maintenanceHubItems} t={t} />
 
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.required')}
@@ -1444,9 +1431,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           plane={managedUpdatePlane}
           maintenance={managedUpdateMaintenance}
           onCheck={() => void runManagedUpdateRead('check')}
-          onApply={(component) => void runManagedUpdateMutation('apply', component)}
-          onRepair={(component) => void runManagedUpdateMutation('repair', component)}
-          onRollback={(component) => void runManagedUpdateMutation('rollback', component)}
+          pendingAction={pendingUpdateAction}
+          onRequestAction={(kind, component) => requestManagedUpdateAction(kind, component, 'module-maintenance')}
+          onCancelAction={cancelManagedUpdateAction}
+          onConfirmAction={confirmManagedUpdateAction}
           t={t}
         />
 
@@ -1476,12 +1464,13 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           plane={managedUpdatePlane}
           maintenance={managedUpdateMaintenance}
           activeReadOperation={activeReadOperation}
+          pendingAction={pendingUpdateAction}
           onRefresh={() => void runManagedUpdateRead('status')}
           onCheck={() => void runManagedUpdateRead('check')}
           onPlan={() => void runManagedUpdateRead('plan')}
-          onApply={(component) => void runManagedUpdateMutation('apply', component)}
-          onRepair={(component) => void runManagedUpdateMutation('repair', component)}
-          onRollback={(component) => void runManagedUpdateMutation('rollback', component)}
+          onRequestAction={(kind, component) => requestManagedUpdateAction(kind, component, 'managed-updates')}
+          onCancelAction={cancelManagedUpdateAction}
+          onConfirmAction={confirmManagedUpdateAction}
           t={t}
         />
 
