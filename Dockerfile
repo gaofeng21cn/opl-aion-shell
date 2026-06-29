@@ -1,9 +1,39 @@
+FROM node:22-bookworm-slim AS opl-framework
+ARG OPL_FRAMEWORK_REPO=https://github.com/gaofeng21cn/one-person-lab.git
+ARG OPL_FRAMEWORK_REF=main
+WORKDIR /opt/opl-framework-src
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN git clone --depth 1 --branch "${OPL_FRAMEWORK_REF}" "${OPL_FRAMEWORK_REPO}" . \
+  && git rev-parse HEAD > /tmp/opl-framework-commit
+
+RUN npm ci \
+  && npm run build \
+  && npm prune --omit=dev
+
+RUN mkdir -p /opt/opl-framework \
+  && cp -a bin dist contracts package.json node_modules /opt/opl-framework/ \
+  && cp /tmp/opl-framework-commit /opt/opl-framework/OPL_FRAMEWORK_COMMIT \
+  && printf '%s\n' "${OPL_FRAMEWORK_REPO}" > /opt/opl-framework/OPL_FRAMEWORK_REPO \
+  && printf '%s\n' "${OPL_FRAMEWORK_REF}" > /opt/opl-framework/OPL_FRAMEWORK_REF
+
+FROM node:22-bookworm-slim AS codex-cli
+ARG OPL_CODEX_NPM_SPEC=@openai/codex@latest
+WORKDIR /opt/codex-cli
+
+RUN npm install -g --prefix /opt/codex-cli "${OPL_CODEX_NPM_SPEC}" \
+  && npm cache clean --force \
+  && printf '%s\n' "${OPL_CODEX_NPM_SPEC}" > /opt/codex-cli/OPL_CODEX_NPM_SPEC
+
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ARG OPL_WEBUI_IMAGE_PROFILE=webui-full
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && apt-get install -y --no-install-recommends ca-certificates curl git \
   && rm -rf /var/lib/apt/lists/* \
   && npm install -g bun
 
@@ -17,6 +47,15 @@ COPY patches/ ./patches/
 RUN bun install --frozen-lockfile --ignore-scripts
 
 COPY . .
+COPY --from=opl-framework /opt/opl-framework ./resources/opl-image-seed/payload/opl_framework
+COPY --from=codex-cli /opt/codex-cli ./resources/opl-image-seed/payload/codex_cli
+
+RUN mkdir -p ./resources/opl-image-seed/payload/companion_skills ./resources/opl-image-seed/payload/domain_modules \
+  && printf '%s\n' '{"component":"companion_skills","reconcile":"opl connect sync-skills via startup maintenance"}' > ./resources/opl-image-seed/payload/companion_skills/seed.json \
+  && printf '%s\n' '{"component":"domain_modules","reconcile":"OPL managed package channel via startup maintenance"}' > ./resources/opl-image-seed/payload/domain_modules/seed.json \
+  && printf '%s\n' "OPL managed domain modules are reconciled by startup maintenance from the package channel." > ./resources/opl-image-seed/payload/domain_modules/README.txt \
+  && node scripts/prepare-opl-image-seed.js \
+  && test -z "$(find ./resources/opl-image-seed/payload -xtype l -print -quit)"
 
 ENV NODE_ENV=production
 ENV OPL_WEBUI_IMAGE_PROFILE=${OPL_WEBUI_IMAGE_PROFILE}
@@ -27,7 +66,7 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl git tini \
+  && apt-get install -y --no-install-recommends bash ca-certificates curl git tini \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/dist-web-cli/staging/aionui-web ./aionui-web
@@ -45,9 +84,18 @@ ENV OPL_PROJECTS_DIR=/projects
 ENV OPL_WORKSPACE_ROOT=/projects
 ENV OPL_IMAGE_MANIFEST_PATH=/opt/opl/image-manifest.json
 ENV OPL_IMAGE_SEED_DIR=/opt/opl/seed
+ENV PATH=/opt/opl/seed/payload/opl_framework/bin:/opt/opl/seed/payload/codex_cli/bin:${PATH}
 
 RUN mkdir -p /data /projects \
-  && chmod 755 /opt/opl/entrypoint.sh
+  && chmod 755 /opt/opl/entrypoint.sh \
+  && test -z "$(find /opt/opl/seed/payload -xtype l -print -quit)" \
+  && ln -sf /opt/opl/seed/payload/opl_framework/bin/opl /usr/local/bin/opl \
+  && printf '%s\n' '#!/usr/bin/env sh' \
+    'exec node /opt/opl/seed/payload/codex_cli/lib/node_modules/@openai/codex/bin/codex.js "$@"' \
+    > /usr/local/bin/codex \
+  && chmod 755 /usr/local/bin/codex \
+  && test -x /usr/local/bin/opl \
+  && test -x /usr/local/bin/codex
 
 VOLUME ["/data", "/projects"]
 EXPOSE 3000

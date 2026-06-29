@@ -20,6 +20,31 @@ function copySeedSourceIfPresent(projectRoot, seedDir) {
   return true;
 }
 
+function normalizeSeedPayloadSymlinks(payloadDir, sourceRootDir = payloadDir) {
+  if (!fs.existsSync(payloadDir)) return;
+  normalizeInternalSymlinks(payloadDir, { sourceRootDir });
+  const stack = [payloadDir];
+  let broken = '';
+  while (stack.length > 0 && !broken) {
+    const current = stack.pop();
+    const stat = fs.lstatSync(current);
+    if (stat.isDirectory()) {
+      for (const entry of fs.readdirSync(current)) {
+        stack.push(path.join(current, entry));
+      }
+      continue;
+    }
+    if (stat.isSymbolicLink()) {
+      const target = fs.readlinkSync(current);
+      const resolved = path.resolve(path.dirname(current), target);
+      if (!fs.existsSync(resolved)) broken = current;
+    }
+  }
+  if (broken) {
+    throw new Error(`OPL image seed payload contains broken symlink after relocation: ${broken}`);
+  }
+}
+
 function buildSeedComponent(id, version) {
   return {
     id,
@@ -126,6 +151,9 @@ function writeOplImageResources({
   fs.mkdirSync(seedDir, { recursive: true });
   const copiedSeedSource = normalizedProfile === 'webui-full' && copySeedSourceIfPresent(projectRoot, seedDir);
   fs.mkdirSync(seedPayloadDir, { recursive: true });
+  if (copiedSeedSource) {
+    normalizeSeedPayloadSymlinks(seedPayloadDir, path.join(projectRoot, 'resources', 'opl-image-seed', 'payload'));
+  }
   if (!copiedSeedSource || !fs.existsSync(path.join(seedDir, 'metadata.json'))) {
     writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata({ version, profile: normalizedProfile }));
   }
@@ -153,6 +181,7 @@ if (require.main !== module) {
     buildOplImageSeedMetadata,
     copySeedSourceIfPresent,
     copyBundledAioncoreForTarball,
+    normalizeSeedPayloadSymlinks,
     normalizeOplWebuiImageProfile,
     writeOplImageResources,
   };
