@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildAccessProjection } from '@/renderer/pages/settings/sections/AccessSettings';
+import {
+  buildAccessProjection,
+  compactAccessDetail,
+  normalizeAccessStatus,
+} from '@/renderer/pages/settings/accessProjection';
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
@@ -13,6 +17,16 @@ const t = (key: string, options?: Record<string, string>) => {
 };
 
 describe('buildAccessProjection', () => {
+  it('normalizes equivalent attention statuses and compacts meaningful detail parts', () => {
+    expect(normalizeAccessStatus(null, 'unknown')).toBe('unknown');
+    expect(normalizeAccessStatus('attention_needed', 'unknown')).toBe('attention_required');
+    expect(normalizeAccessStatus('needs_attention', 'unknown')).toBe('attention_required');
+    expect(compactAccessDetail(['gpt-5.5', ' ', null, '/usr/local/bin/codex'], 'fallback')).toBe(
+      'gpt-5.5 · /usr/local/bin/codex'
+    );
+    expect(compactAccessDetail([null, undefined, ' '], 'fallback')).toBe('fallback');
+  });
+
   it('keeps account readiness separate from local provider service details', () => {
     const projection = buildAccessProjection(
       {
