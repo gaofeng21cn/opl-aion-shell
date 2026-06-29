@@ -382,8 +382,8 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['Local Environment', '本地环境', '本机运行环境'],
-        ['Codex CLI'],
+        ['Maintenance hub', '维护中心'],
+        ['Local Assistant', '本机助手'],
         ['Local Background Service', '本机后台服务'],
         ['Foundry Modules', '智能体模块'],
       ])

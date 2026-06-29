@@ -3806,8 +3806,8 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     id: 'environment',
     hash: '#/settings/environment',
     requiredTextAny: [
-      ['Local Environment', '本地环境', '本机运行环境'],
-      ['Codex CLI'],
+      ['Maintenance hub', '维护中心'],
+      ['Local Assistant', '本机助手'],
       ['Local Background Service', '本机后台服务'],
       ['Foundry Modules', '智能体模块'],
     ],
