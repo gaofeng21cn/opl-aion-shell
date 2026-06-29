@@ -23,6 +23,7 @@ import SystemModalContent from './contents/SystemModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import StorageSettings from '@/renderer/pages/settings/StorageSettings';
 import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
 import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
 import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
@@ -54,6 +55,7 @@ const RESIZE_DEBOUNCE_DELAY = 150;
 const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
   general: 'settings.overview',
   environment: 'settings.maintenance',
+  storage: 'settings.storage',
   capabilities: 'settings.capabilities',
   access: 'settings.onboarding',
   appearance: 'settings.preferences',
@@ -63,6 +65,7 @@ const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
 const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
   general: 'Overview',
   environment: 'Maintenance',
+  storage: 'Storage',
   capabilities: 'Capabilities',
   access: 'Get Started',
   appearance: 'Preferences',
@@ -72,13 +75,22 @@ const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
 const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
   general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
   environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
+  storage: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
   capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
   access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
   appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
   advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
 };
 
-const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced'];
+const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = [
+  'general',
+  'access',
+  'capabilities',
+  'environment',
+  'storage',
+  'appearance',
+  'advanced',
+];
 const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) =>
   getOplGuiSettingsVisibleTabs().includes(id)
 );
@@ -86,7 +98,6 @@ const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) =>
 const normalizeOplSettingsTab = (tab: SettingTab): string => {
   const legacyRedirects: Record<string, string> = {
     ...getOplGuiLegacySettingsRouteRedirects(),
-    storage: 'environment',
     about: 'advanced',
   };
   return legacyRedirects[tab] ?? tab;
@@ -365,7 +376,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       case 'system':
         return <SystemModalContent />;
       case 'storage':
-        return <RuntimeSettings withWrapper={false} />;
+        return <StorageSettings withWrapper={false} />;
       default:
         // If no built-in match and not an extension tab, return null
         if (!extensionTabMap.has(activeTab)) return null;

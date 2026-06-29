@@ -10,6 +10,7 @@ const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'access',
   'capabilities',
   'environment',
+  'storage',
   'appearance',
   'advanced',
 ] as const;
@@ -37,14 +38,13 @@ const redirectRouteFor = (legacyId: string, targetId: string): string => {
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  [...Object.entries(legacyRedirectTargets), ['storage', 'environment'], ['about', 'advanced']].map(
+  [...Object.entries(legacyRedirectTargets), ['about', 'advanced']].map(
     ([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)]
   )
 );
 
 export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {
   ...legacyRedirectTargets,
-  storage: 'environment',
   about: 'advanced',
 };
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
@@ -54,6 +54,7 @@ export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefine
   access: undefined,
   capabilities: undefined,
   environment: undefined,
+  storage: undefined,
   appearance: undefined,
   advanced: undefined,
 };
@@ -102,6 +103,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
       label: t('settings.maintenance', { defaultValue: 'Maintenance' }),
       icon: <Toolkit />,
       path: 'environment',
+    },
+    storage: {
+      id: 'storage',
+      label: t('settings.storage', { defaultValue: 'Storage' }),
+      icon: <Toolkit />,
+      path: 'storage',
     },
     appearance: {
       id: 'appearance',

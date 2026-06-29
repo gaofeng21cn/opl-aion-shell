@@ -33,6 +33,12 @@ vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
   ),
 }));
 
+vi.mock('@/renderer/pages/settings/StorageSettings', () => ({
+  default: ({ withWrapper }: { withWrapper?: boolean }) => (
+    <div data-testid='storage-content'>Storage content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
+  ),
+}));
+
 vi.mock('@/renderer/components/settings/SettingsModal/contents/AboutModalContent', () => ({
   default: () => <div data-testid='about-content'>About</div>,
 }));
@@ -111,6 +117,7 @@ vi.mock('react-i18next', () => ({
         'settings.title': 'Settings',
         'settings.overview': 'Overview',
         'settings.maintenance': 'Maintenance',
+        'settings.storage': 'Storage',
         'settings.capabilities': 'Capabilities',
         'settings.onboarding': 'Get Started',
         'settings.preferences': 'Preferences',
@@ -141,10 +148,10 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Get Started')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
-    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
@@ -169,6 +176,10 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='system' />);
 
     expect(screen.getByTestId('system-content')).toBeInTheDocument();
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='storage' />);
+
+    expect(screen.getByTestId('storage-content')).toBeInTheDocument();
   });
 
   it('redirects legacy agent and tools tab requests to purpose-first capability content', () => {
