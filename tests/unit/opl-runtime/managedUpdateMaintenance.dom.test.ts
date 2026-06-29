@@ -162,6 +162,7 @@ describe('managed update background maintenance scheduler', () => {
       componentId: 'capability_exposure',
       status: 'completed',
       at: expect.any(String),
+      reloadGuidance: 'Reload after applying capability_exposure.',
     });
     expect(snapshot.lastSkipReason).toContain('app_binary: restart_required');
     expect(snapshot.lastSkipReason).toContain('runtime_toolchain: restart_required');

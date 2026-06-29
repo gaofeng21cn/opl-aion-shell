@@ -212,6 +212,24 @@ function summarizeResultStatus(
   return resultErrorMessage(result) ? 'failed' : 'completed';
 }
 
+function managedUpdateAction(input: {
+  kind: ManagedUpdateMaintenanceAction['kind'];
+  componentId: string;
+  status: ManagedUpdateMaintenanceAction['status'];
+  at: string;
+  receiptRef?: string | null;
+  reloadGuidance?: string | null;
+}): ManagedUpdateMaintenanceAction {
+  return {
+    kind: input.kind,
+    componentId: input.componentId,
+    status: input.status,
+    at: input.at,
+    ...(input.receiptRef ? { receiptRef: input.receiptRef } : {}),
+    ...(input.reloadGuidance ? { reloadGuidance: input.reloadGuidance } : {}),
+  };
+}
+
 function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | null {
   if (!isRecord(value)) return null;
   const kind = stringValue(value.kind);
@@ -227,14 +245,14 @@ function readPersistedAction(value: unknown): ManagedUpdateMaintenanceAction | n
   ) {
     return null;
   }
-  return {
+  return managedUpdateAction({
     kind: kind as ManagedUpdateMaintenanceAction['kind'],
     componentId,
     status: status as ManagedUpdateMaintenanceAction['status'],
     at,
     receiptRef: stringValue(value.receiptRef),
     reloadGuidance: stringValue(value.reloadGuidance),
-  };
+  });
 }
 
 function readPersistedSnapshot(): Partial<ManagedUpdateMaintenanceSnapshot> {
@@ -460,14 +478,14 @@ async function applyBackgroundCandidates(result: IOplRuntimeCommandResult): Prom
     latestResult = applyResult;
     const reloadGuidance = readReloadGuidance(applyResult) ?? readReloadGuidance(result) ?? snapshot.reloadGuidance;
     emit({
-      lastAction: {
+      lastAction: managedUpdateAction({
         kind: 'auto_apply',
         componentId,
         status: summarizeResultStatus(applyResult),
         at: actionAt,
-        receiptRef: readReceiptRef(applyResult, componentId) ?? readReceiptRef(result, componentId) ?? undefined,
-        reloadGuidance: reloadGuidance ?? undefined,
-      },
+        receiptRef: readReceiptRef(applyResult, componentId) ?? readReceiptRef(result, componentId),
+        reloadGuidance,
+      }),
       reloadGuidance,
     });
     if (applyResult.ok === false) {
@@ -614,14 +632,14 @@ export async function executeManagedUpdateMutation(
         executionStatus: readExecutionStatus(result),
         lastRunAt: actionAt,
         lastFailure,
-        lastAction: {
+        lastAction: managedUpdateAction({
           kind,
           componentId: input.componentId,
           status: summarizeResultStatus(result),
           at: actionAt,
           receiptRef: readReceiptRef(result, input.componentId) ?? input.receiptId,
-          reloadGuidance: reloadGuidance ?? undefined,
-        },
+          reloadGuidance,
+        }),
         lockStatus: readLockStatus(result),
         reloadGuidance,
         result,
