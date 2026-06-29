@@ -1223,7 +1223,7 @@
   },
   "runtimePage": {
     "title": "本机运行环境",
-    "description": "检查 Codex CLI、Temporal、工作目录、日志目录、更新和 OPL 智能体模块就绪状态。",
+    "description": "先看当前能不能正常使用；需要处理时，这里会说明影响和下一步。诊断细节默认收起。",
     "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
     "latestStableDetail": "GitHub 最新稳定版：{{version}}",
     "releaseChannels": {
@@ -1325,20 +1325,21 @@
   },
   "accessPage": {
     "title": "访问权限",
-    "description": "先确认 Codex CLI、供应商访问和当前权限现在能不能工作。",
+    "description": "先确认 Codex CLI、访问密钥、本机后台服务和当前权限现在能不能工作。",
     "cards": {
       "codex": {
         "title": "Codex CLI",
         "fallback": "暂时无法读取 Codex CLI 详情。"
       },
       "key": {
-        "title": "供应商密钥",
+        "title": "访问密钥",
         "configured": "访问配置已存在。",
         "missing": "访问配置需要处理。"
       },
       "provider": {
-        "title": "供应商访问",
-        "fallback": "暂时无法读取供应商就绪详情。"
+        "title": "本机后台服务",
+        "fallback": "暂时无法读取后台服务详情。",
+        "detail": "用于 OPL 本机任务执行；不是 gflabtoken 或外部 API 登录状态。"
       },
       "permission": {
         "title": "权限模式",
@@ -1372,7 +1373,24 @@
     "workspaceRootTitle": "工作目录",
     "workspaceRootMissing": "尚未选择工作目录",
     "modulesTitle": "智能体模块",
+    "localServiceTitle": "本机后台服务",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
+    "summary": {
+      "nextAction": "下一步：{{action}}",
+      "actions": {
+        "none": "无需处理",
+        "chooseWorkspace": "选择或修复工作目录",
+        "checkModules": "检查模块更新或查看模块维护提示",
+        "repairRuntime": "运行诊断或修复 OPL",
+        "runDoctor": "运行诊断"
+      },
+      "impacts": {
+        "codex": "影响 App 能否启动 Codex 会话和执行命令。",
+        "temporal": "影响本机 OPL 任务能否在后台持续执行。",
+        "workspace": "影响文件、项目和任务产物默认存放位置。",
+        "modules": "影响 MAS、MAG、RCA、BookForge 等智能体能力是否可用。"
+      }
+    },
     "actions": {
       "doctor": "运行诊断",
       "refresh": "刷新",
@@ -1465,27 +1483,27 @@
     },
     "moduleMaintenance": {
       "title": "智能体模块维护",
-      "description": "维护 OPL 智能体模块、打包技能和可见能力。App 更新仍在「关于与更新」中处理；这里仅通过 OPL 托管更新内核执行。",
+      "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 智能体包，以及 App 中能看到的能力入口。这里不会绕过 OPL 托管更新内核。",
       "moduleCount": "{{ready}} / {{total}} 个模块就绪",
       "modulesTitle": "已安装智能体模块",
       "actionsTitle": "模块维护动作",
       "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管智能体包和能力暴露变更，不绕过内核。",
       "components": {
-        "agent_package_channel": "智能体包通道",
-        "capability_exposure": "能力暴露"
+        "agent_package_channel": "OPL 智能体包",
+        "capability_exposure": "App 中可见的智能体能力"
       },
       "componentDescriptions": {
         "agent_package_channel": "更新由 OPL 管理的智能体技能和模块包。",
-        "capability_exposure": "刷新 App 中可见的智能体能力。"
+        "capability_exposure": "刷新 App 里可选择、可调用的智能体能力列表。"
       },
       "status": {
         "manualRequired": "需要人工处理",
         "notSilent": "该状态需要人工处理，不会静默自动更新。"
       },
       "manualReasons": {
-        "developerCheckout": "检测到开发 checkout，请手动确认并更新。",
-        "dirtyCheckout": "本地 checkout 有未提交改动，请先处理后再托管更新。",
-        "manualRequired": "该模块需要人工处理。"
+        "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在对应开发仓库更新，或切回 OPL 托管包。",
+        "dirtyCheckout": "本地 checkout 有未提交改动；请先提交、保存或清理这些改动，再使用托管更新。",
+        "manualRequired": "该模块需要你手动确认；请查看下方诊断详情或在对应模块仓库处理。"
       },
       "actions": {
         "check": "检查模块更新",
@@ -1496,7 +1514,7 @@
     },
     "updates": {
       "title": "更新与维护",
-      "description": "统一展示桌面 App、运行时工具链、托管智能体包通道和可见能力暴露的 OPL 更新状态。",
+      "description": "查看 App、运行时工具链和 OPL 智能体包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
       "channel": "通道：{{channel}}",
       "lockStatus": "锁：{{status}}",
       "operationMode": "模式：{{mode}}",
@@ -1509,16 +1527,31 @@
       "components": {
         "app_binary": "桌面 App",
         "runtime_toolchain": "运行时工具链",
-        "agent_package_channel": "智能体包通道",
-        "capability_exposure": "能力暴露"
+        "agent_package_channel": "OPL 智能体包",
+        "capability_exposure": "App 中可见的智能体能力"
       },
       "actions": {
         "refreshStatus": "刷新状态",
-        "check": "检查",
-        "plan": "计划",
+        "check": "检查更新",
+        "plan": "生成计划",
         "applySelected": "应用所选",
         "repair": "修复",
         "rollback": "回滚"
+      },
+      "userSummaries": {
+        "current": "当前不需要你处理。",
+        "canApply": "有可应用更新；确认后可以应用所选更新。",
+        "canRepair": "检测到可修复问题；可以运行修复动作。",
+        "needsRestart": "更新已准备好，但需要重启 App 后生效。",
+        "needsReload": "更新后需要重新加载 App 或 Codex 能力。",
+        "manualRequired": "需要你手动确认，App 不会静默自动处理。",
+        "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
+        "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",
+        "checkDetails": "状态需要查看诊断详情后再决定。"
+      },
+      "diagnostics": {
+        "title": "诊断详情",
+        "componentDetails": "组件诊断详情"
       },
       "messages": {
         "readComplete": "更新状态已刷新",
@@ -1534,8 +1567,11 @@
         "noFailure": "无"
       }
     },
+    "diagnostics": {
+      "modulesTitle": "模块路径与来源诊断"
+    },
     "codexContext": {
-      "title": "OPL Flow 上下文",
+      "title": "Codex 会话上下文诊断",
       "description": "新建 Codex CLI 会话使用的 App 管理 OPL Flow 元数据。它跟随界面语言、尊重用户 AGENTS.md 文件，并记录 OPL App 产品规则作为来源。"
     }
   },

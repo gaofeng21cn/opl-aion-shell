@@ -17,6 +17,7 @@ type StatusCard = {
   status: string;
   statusLabel?: string;
   detail: string;
+  help?: string;
   tone: 'green' | 'orange';
 };
 
@@ -86,6 +87,7 @@ export const AccessSettingsContent: React.FC = () => {
         ],
         t('settings.accessPage.cards.provider.fallback')
       ),
+      help: t('settings.accessPage.cards.provider.detail'),
       tone: providerStatus === 'ready' || providerStatus === 'ok' ? 'green' : 'orange',
     },
     {
@@ -114,6 +116,7 @@ export const AccessSettingsContent: React.FC = () => {
               <Tag color={card.tone}>
                 {card.statusLabel ?? t(`settings.oplEnvironmentPage.status.${card.status}`, { status: card.status })}
               </Tag>
+              {card.help && <Typography.Text className='text-12px text-t-secondary'>{card.help}</Typography.Text>}
               <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
             </div>
           </Card>

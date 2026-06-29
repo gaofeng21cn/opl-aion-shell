@@ -375,6 +375,7 @@ describe('RuntimeSettings app state bridge usage', () => {
         screen.getAllByText('settings.oplEnvironmentPage.status.attention_required attention_required').length
       ).toBeGreaterThan(0)
     );
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.diagnostics.modulesTitle'));
     expect(document.body.textContent).toContain(
       'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot'
     );
@@ -391,10 +392,18 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime/toolchain');
     expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent('Agent packages');
     expect(screen.getByTestId('opl-managed-update-capability_exposure')).toHaveTextContent('Capability exposure');
+    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
+    );
+    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.canRepair'
+    );
+    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
       'receipt://runtime_toolchain/latest'
     );
+    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[2]);
     expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
       'Reload Codex plugin cache after repair.'
     );
@@ -479,7 +488,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     const component = screen.getByTestId('opl-module-maintenance-component-agent_package_channel');
-    expect(component).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.notSilent');
+    expect(component).toHaveTextContent('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
     expect(screen.queryByTestId('opl-module-maintenance-apply-agent_package_channel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance-repair-agent_package_channel')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-module-maintenance-rollback-agent_package_channel')).not.toBeInTheDocument();
@@ -496,6 +505,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
     const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastRunAt');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.nextRunAt');
@@ -510,6 +520,37 @@ describe('RuntimeSettings app state bridge usage', () => {
         'settings.oplEnvironmentPage.updates.background.noFailure'
       )
     );
+  });
+
+  it('shows loading only on the managed update read action that is running', async () => {
+    let resolveCheck: (value: typeof managedUpdateStatusResult) => void = () => {};
+    bridgeMocks.runUpdateCheckInvoke.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCheck = resolve;
+      })
+    );
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    const refreshButton = screen.getByTestId('opl-managed-update-refresh');
+    const checkButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.check').closest('button');
+    const planButton = screen.getByText('settings.oplEnvironmentPage.updates.actions.plan').closest('button');
+    expect(checkButton).toBeTruthy();
+    expect(planButton).toBeTruthy();
+
+    fireEvent.click(checkButton!);
+
+    await waitFor(() => expect(checkButton?.className).toContain('arco-btn-loading'));
+    expect(refreshButton.className).not.toContain('arco-btn-loading');
+    expect(planButton?.className).not.toContain('arco-btn-loading');
+
+    await act(async () => {
+      resolveCheck(managedUpdateStatusResult);
+    });
+
+    await waitFor(() => expect(checkButton?.className).not.toContain('arco-btn-loading'));
   });
 
   it('projects background managed update auto-apply action, skip reason, and reload guidance', async () => {
@@ -543,6 +584,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(2));
 
+    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
     const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
     expect(backgroundStatus).toHaveTextContent('auto_apply capability_exposure completed');

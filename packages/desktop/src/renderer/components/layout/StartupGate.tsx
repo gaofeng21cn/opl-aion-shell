@@ -108,7 +108,7 @@ const StartupGate: React.FC = () => {
         progress: 100,
       },
       {
-        label: t('common.startupPreflight.steps.systemReady'),
+        label: t('common.startupPreflight.steps.firstRunStatus'),
         state: 'active',
         message: t('common.startupPreflight.messages.checkingSystemReady'),
         progress: 80,

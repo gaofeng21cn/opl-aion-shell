@@ -1222,7 +1222,7 @@
   },
   "runtimePage": {
     "title": "Local Environment",
-    "description": "Check Codex CLI, Temporal, workspace, logs, updates, and OPL Foundry module readiness.",
+    "description": "Start with whether the app is usable now. When action is needed, this page explains the impact and next step; diagnostics stay collapsed by default.",
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {
@@ -1324,20 +1324,21 @@
   },
   "accessPage": {
     "title": "Access",
-    "description": "Check whether Codex CLI, provider access, and current permissions can work now.",
+    "description": "Check whether Codex CLI, access keys, local background service, and current permissions can work now.",
     "cards": {
       "codex": {
         "title": "Codex CLI",
         "fallback": "Codex CLI details are not available yet."
       },
       "key": {
-        "title": "Provider Keys",
+        "title": "Access Keys",
         "configured": "Access configuration is present.",
         "missing": "Access configuration needs attention."
       },
       "provider": {
-        "title": "Provider Access",
-        "fallback": "Provider readiness details are not available yet."
+        "title": "Local Background Service",
+        "fallback": "Background service details are not available yet.",
+        "detail": "Used for local OPL task execution; this is not gflabtoken or external API login status."
       },
       "permission": {
         "title": "Permission Mode",
@@ -1371,7 +1372,24 @@
     "workspaceRootTitle": "Workspace Root",
     "workspaceRootMissing": "No workspace root has been selected",
     "modulesTitle": "Foundry Modules",
+    "localServiceTitle": "Local Background Service",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
+    "summary": {
+      "nextAction": "Next step: {{action}}",
+      "actions": {
+        "none": "No action needed",
+        "chooseWorkspace": "Choose or repair the workspace",
+        "checkModules": "Check module updates or read the module maintenance note",
+        "repairRuntime": "Run Doctor or repair OPL",
+        "runDoctor": "Run Doctor"
+      },
+      "impacts": {
+        "codex": "Affects whether the app can start Codex sessions and run commands.",
+        "temporal": "Affects whether local OPL tasks can keep running in the background.",
+        "workspace": "Affects where files, projects, and task artifacts are stored by default.",
+        "modules": "Affects whether MAS, MAG, RCA, BookForge, and other agent capabilities are available."
+      }
+    },
     "actions": {
       "doctor": "Run Doctor",
       "refresh": "Refresh",
@@ -1464,27 +1482,27 @@
     },
     "moduleMaintenance": {
       "title": "Agent module maintenance",
-      "description": "Keep OPL agent modules, packaged skills, and visible capabilities healthy. App updates stay in About & Updates; this area only uses the OPL managed update kernel.",
+      "description": "Maintain OPL agent packages for MAS, MAG, RCA, BookForge, and the capabilities visible in the app. This never bypasses the OPL managed update kernel.",
       "moduleCount": "{{ready}} / {{total}} modules ready",
       "modulesTitle": "Installed agent modules",
       "actionsTitle": "Module maintenance actions",
       "actionsDescription": "Check, apply, repair, or roll back managed agent package and capability exposure changes without bypassing OPL.",
       "components": {
-        "agent_package_channel": "Agent package channel",
-        "capability_exposure": "Capability exposure"
+        "agent_package_channel": "OPL agent packages",
+        "capability_exposure": "Agent capabilities visible in the app"
       },
       "componentDescriptions": {
         "agent_package_channel": "Updates packaged agent skills and module packages managed by OPL.",
-        "capability_exposure": "Refreshes which agent capabilities are visible to the app."
+        "capability_exposure": "Refreshes the agent capabilities that can be selected and used in the app."
       },
       "status": {
         "manualRequired": "Manual handling required",
         "notSilent": "This state requires manual handling and will not be silently auto-updated."
       },
       "manualReasons": {
-        "developerCheckout": "Developer checkout detected. Review and update it manually.",
-        "dirtyCheckout": "Local checkout has uncommitted changes. Resolve them before managed updates.",
-        "manualRequired": "Manual handling is required for this module."
+        "developerCheckout": "Local developer checkout detected. The app will not overwrite it; update that checkout manually or switch back to OPL-managed packages.",
+        "dirtyCheckout": "Local checkout has uncommitted changes. Commit, save, or clean them before managed updates.",
+        "manualRequired": "Manual confirmation is required. Check the diagnostics below or handle the module in its checkout."
       },
       "actions": {
         "check": "Check module updates",
@@ -1495,7 +1513,7 @@
     },
     "updates": {
       "title": "Updates & Maintenance",
-      "description": "Unified OPL update status for the desktop app, runtime toolchain, managed agent package channel, and visible capability exposure.",
+      "description": "Check whether the app, runtime toolchain, and OPL agent packages need updates. The default view shows impact and next step; receipts, locks, and internal modes stay in diagnostics.",
       "channel": "Channel: {{channel}}",
       "lockStatus": "Lock: {{status}}",
       "operationMode": "Mode: {{mode}}",
@@ -1508,16 +1526,31 @@
       "components": {
         "app_binary": "App binary",
         "runtime_toolchain": "Runtime/toolchain",
-        "agent_package_channel": "Agent packages",
-        "capability_exposure": "Capability exposure"
+        "agent_package_channel": "OPL agent packages",
+        "capability_exposure": "Agent capabilities visible in the app"
       },
       "actions": {
         "refreshStatus": "Refresh status",
-        "check": "Check",
-        "plan": "Plan",
+        "check": "Check updates",
+        "plan": "Generate plan",
         "applySelected": "Apply selected",
         "repair": "Repair",
         "rollback": "Rollback"
+      },
+      "userSummaries": {
+        "current": "No action is needed right now.",
+        "canApply": "An update can be applied after you confirm it.",
+        "canRepair": "A repairable problem was detected; you can run the repair action.",
+        "needsRestart": "The update is prepared and needs an app restart to take effect.",
+        "needsReload": "The app or Codex capabilities need to be reloaded after the update.",
+        "manualRequired": "Manual confirmation is required; the app will not handle this silently.",
+        "developerCheckout": "Local developer checkout detected. Handle it in that checkout or switch back to managed packages.",
+        "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
+        "checkDetails": "Check diagnostics before deciding what to do."
+      },
+      "diagnostics": {
+        "title": "Diagnostics",
+        "componentDetails": "Component diagnostics"
       },
       "messages": {
         "readComplete": "Update status refreshed",
@@ -1533,8 +1566,11 @@
         "noFailure": "None"
       }
     },
+    "diagnostics": {
+      "modulesTitle": "Module path and source diagnostics"
+    },
     "codexContext": {
-      "title": "OPL Flow Context",
+      "title": "Codex session context diagnostics",
       "description": "Read-only App-managed OPL Flow metadata for new Codex CLI sessions. It follows the UI language, respects user AGENTS.md files, and records the OPL App product profile as source."
     }
   },

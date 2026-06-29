@@ -77,6 +77,7 @@
     "steps": {
       "desktopSession": "Connect backend service",
       "appConfig": "Load application config",
+      "firstRunStatus": "Check first-run status",
       "systemReady": "Check system status"
     },
     "messages": {

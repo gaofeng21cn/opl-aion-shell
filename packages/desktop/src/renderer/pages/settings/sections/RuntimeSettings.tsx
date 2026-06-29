@@ -5,7 +5,7 @@
  */
 
 import React, { useCallback, useMemo, useRef } from 'react';
-import { Alert, Button, Card, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Collapse, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { CheckOne, FolderSearch, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -26,6 +26,7 @@ import {
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 
 type RuntimeModuleItem = Record<string, unknown>;
+type Translate = (key: string, options?: Record<string, string | number>) => string;
 
 const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   medautoscience: 'Med Auto Science',
@@ -177,6 +178,41 @@ function isReadyStatus(status: string): boolean {
   return status === 'ready' || status === 'compatible' || status === 'ok' || status === 'installed';
 }
 
+function componentIsHealthy(component: ManagedUpdateComponent): boolean {
+  return ['current', 'ready', 'ok', 'compatible', 'installed'].includes(component.state);
+}
+
+function componentStatusTone(component: ManagedUpdateComponent): 'green' | 'orange' {
+  return componentIsHealthy(component) &&
+    !component.manualRequired &&
+    !component.developerCheckout &&
+    !component.dirtyCheckout
+    ? 'green'
+    : 'orange';
+}
+
+function runtimeCardActionKey(key: string, status: string, t: Translate): string {
+  if (key === 'workspace' && status !== 'ready')
+    return t('settings.oplEnvironmentPage.summary.actions.chooseWorkspace');
+  if (key === 'modules' && !isReadyStatus(status)) return t('settings.oplEnvironmentPage.summary.actions.checkModules');
+  if (key === 'temporal' && !isReadyStatus(status))
+    return t('settings.oplEnvironmentPage.summary.actions.repairRuntime');
+  if (key === 'codex' && !isReadyStatus(status)) return t('settings.oplEnvironmentPage.summary.actions.runDoctor');
+  return t('settings.oplEnvironmentPage.summary.actions.none');
+}
+
+function componentUserSummary(component: ManagedUpdateComponent, t: Translate): string {
+  if (component.dirtyCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
+  if (component.developerCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.developerCheckout');
+  if (component.manualRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.manualRequired');
+  if (component.needsRestart) return t('settings.oplEnvironmentPage.updates.userSummaries.needsRestart');
+  if (component.safeToApply) return t('settings.oplEnvironmentPage.updates.userSummaries.canApply');
+  if (component.repairAllowed) return t('settings.oplEnvironmentPage.updates.userSummaries.canRepair');
+  if (component.needsReload) return t('settings.oplEnvironmentPage.updates.userSummaries.needsReload');
+  if (componentIsHealthy(component)) return t('settings.oplEnvironmentPage.updates.userSummaries.current');
+  return t('settings.oplEnvironmentPage.updates.userSummaries.checkDetails');
+}
+
 function modulePath(module: RuntimeModuleItem): string {
   return (
     oplString(module.path) ??
@@ -226,7 +262,7 @@ function formatModuleAction(action: string, t: (key: string, options?: Record<st
 
 function moduleManualHandlingLabel(
   module: RuntimeModuleItem,
-  t: (key: string, options?: Record<string, string>) => string
+  t: (key: string, options?: Record<string, string | number>) => string
 ) {
   const status = moduleStatus(module);
   const source = moduleSource(module);
@@ -266,9 +302,9 @@ function AgentModuleMaintenancePanel({
   onApply: (component: ManagedUpdateComponent) => void;
   onRepair: (component: ManagedUpdateComponent) => void;
   onRollback: (component: ManagedUpdateComponent) => void;
-  t: (key: string, options?: Record<string, string | number>) => string;
+  t: Translate;
 }) {
-  const loading = maintenance.running;
+  const checking = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
   const busyAction = maintenance.busyAction;
   const moduleMaintenanceComponents = plane.components.filter((component) =>
     MODULE_MAINTENANCE_COMPONENT_IDS.has(component.id)
@@ -302,7 +338,7 @@ function AgentModuleMaintenancePanel({
           <Button
             data-testid='opl-module-maintenance-check'
             icon={<UpdateRotation theme='outline' />}
-            loading={loading}
+            loading={checking}
             onClick={onCheck}
           >
             {t('settings.oplEnvironmentPage.moduleMaintenance.actions.check')}
@@ -366,9 +402,7 @@ function AgentModuleMaintenancePanel({
                           defaultValue: component.label,
                         })}
                       </Typography.Text>
-                      <Tag color={component.state === 'current' && !manualHandling ? 'green' : 'orange'}>
-                        {formatStatus(component.state, t)}
-                      </Tag>
+                      <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
                     </div>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
                       {t(`settings.oplEnvironmentPage.moduleMaintenance.componentDescriptions.${component.id}`, {
@@ -382,7 +416,7 @@ function AgentModuleMaintenancePanel({
                     )}
                     {manualHandling && (
                       <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {t('settings.oplEnvironmentPage.moduleMaintenance.status.notSilent')}
+                        {componentUserSummary(component, t)}
                       </Typography.Text>
                     )}
                     <Space wrap size='small' className='mt-8px'>
@@ -448,10 +482,19 @@ function ManagedUpdatesPanel({
   onApply: (component: ManagedUpdateComponent) => void;
   onRepair: (component: ManagedUpdateComponent) => void;
   onRollback: (component: ManagedUpdateComponent) => void;
-  t: (key: string, options?: Record<string, string | number>) => string;
+  t: Translate;
 }) {
-  const loading = maintenance.running;
+  const refreshLoading = maintenance.running && maintenance.operation === 'status' && !maintenance.busyAction;
+  const checkLoading = maintenance.running && maintenance.operation === 'check' && !maintenance.busyAction;
+  const planLoading = maintenance.running && maintenance.operation === 'plan' && !maintenance.busyAction;
   const busyAction = maintenance.busyAction;
+  const showDiagnostics =
+    Boolean(plane.lockStatus) ||
+    Boolean(plane.operationMode) ||
+    maintenance.executionStatus !== 'idle' ||
+    Boolean(maintenance.lastAction) ||
+    Boolean(maintenance.lastSkipReason) ||
+    Boolean(maintenance.reloadGuidance);
 
   return (
     <Card bordered className='rd-8px' data-testid='opl-managed-updates'>
@@ -468,34 +511,26 @@ function ManagedUpdatesPanel({
               {plane.updateChannel && (
                 <Tag>{t('settings.oplEnvironmentPage.updates.channel', { channel: plane.updateChannel })}</Tag>
               )}
-              {plane.lockStatus && (
-                <Tag>{t('settings.oplEnvironmentPage.updates.lockStatus', { status: plane.lockStatus })}</Tag>
-              )}
-              {plane.operationMode && (
-                <Tag>{t('settings.oplEnvironmentPage.updates.operationMode', { mode: plane.operationMode })}</Tag>
-              )}
-              {maintenance.executionStatus !== 'idle' && (
-                <Tag>
-                  {t('settings.oplEnvironmentPage.updates.executionStatus', {
-                    status: maintenance.executionStatus,
-                  })}
-                </Tag>
-              )}
+              <Tag>
+                {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
+                  value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
+                })}
+              </Tag>
             </Space>
           </div>
           <Space wrap>
             <Button
               data-testid='opl-managed-update-refresh'
               icon={<UpdateRotation theme='outline' />}
-              loading={loading}
+              loading={refreshLoading}
               onClick={onRefresh}
             >
               {t('settings.oplEnvironmentPage.updates.actions.refreshStatus')}
             </Button>
-            <Button loading={loading} onClick={onCheck}>
+            <Button loading={checkLoading} onClick={onCheck}>
               {t('settings.oplEnvironmentPage.updates.actions.check')}
             </Button>
-            <Button loading={loading} onClick={onPlan}>
+            <Button loading={planLoading} onClick={onPlan}>
               {t('settings.oplEnvironmentPage.updates.actions.plan')}
             </Button>
           </Space>
@@ -503,50 +538,6 @@ function ManagedUpdatesPanel({
 
         {plane.summary && <Alert type='info' content={plane.summary} />}
         {plane.reloadGuidance && <Alert type='info' content={plane.reloadGuidance} />}
-
-        <div
-          className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px text-t-secondary'
-          data-testid='opl-managed-update-background-status'
-        >
-          <span className='break-words'>
-            {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
-              value: maintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
-            })}
-          </span>
-          <span className='break-words'>
-            {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
-              value: maintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
-            })}
-          </span>
-          <span className='break-words'>
-            {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
-              value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
-            })}
-          </span>
-          {maintenance.lastAction && (
-            <span className='break-words'>
-              {t('settings.oplEnvironmentPage.updates.background.lastAction', {
-                action: maintenance.lastAction.kind,
-                componentId: maintenance.lastAction.componentId,
-                status: maintenance.lastAction.status,
-              })}
-            </span>
-          )}
-          {maintenance.lastSkipReason && (
-            <span className='break-words'>
-              {t('settings.oplEnvironmentPage.updates.background.lastSkipReason', {
-                reason: maintenance.lastSkipReason,
-              })}
-            </span>
-          )}
-          {maintenance.reloadGuidance && (
-            <span className='break-words'>
-              {t('settings.oplEnvironmentPage.updates.background.reloadGuidance', {
-                guidance: maintenance.reloadGuidance,
-              })}
-            </span>
-          )}
-        </div>
 
         <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
           {plane.components.map((component) => (
@@ -562,41 +553,11 @@ function ManagedUpdatesPanel({
                       defaultValue: component.label,
                     })}
                   </Typography.Text>
-                  <Tag color={component.state === 'current' ? 'green' : 'orange'}>
-                    {formatStatus(component.state, t)}
-                  </Tag>
+                  <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
                 </div>
-
-                {component.conditions.length > 0 && (
-                  <div className='flex flex-col gap-6px'>
-                    {component.conditions.map((condition) => (
-                      <div key={condition.id} className='text-12px text-t-secondary break-words'>
-                        <Tag size='small'>{condition.status}</Tag>
-                        <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
-                        {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
-                        {condition.message && <span className='ml-6px'>{condition.message}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className='flex flex-col gap-4px text-12px text-t-secondary break-words'>
-                  {component.receiptRef && (
-                    <span>{t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}</span>
-                  )}
-                  {component.repairAction && (
-                    <span>
-                      {t('settings.oplEnvironmentPage.updates.repairAction', { action: component.repairAction })}
-                    </span>
-                  )}
-                  {component.rollbackRef && (
-                    <span>{t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}</span>
-                  )}
-                  {component.needsRestart && <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>}
-                  {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
-                  {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
-                  {component.manualGuidance && <span>{component.manualGuidance}</span>}
-                </div>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {componentUserSummary(component, t)}
+                </Typography.Text>
 
                 <Space wrap size='small'>
                   {component.safeToApply && (
@@ -631,10 +592,122 @@ function ManagedUpdatesPanel({
                     </Button>
                   )}
                 </Space>
+                {(component.conditions.length > 0 ||
+                  component.receiptRef ||
+                  component.repairAction ||
+                  component.rollbackRef ||
+                  component.reloadGuidance ||
+                  component.manualGuidance) && (
+                  <Collapse className='mt-2px' bordered={false}>
+                    <Collapse.Item
+                      header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}
+                      name={`component-${component.id}`}
+                    >
+                      <div className='flex flex-col gap-6px text-12px text-t-secondary break-words'>
+                        {component.conditions.map((condition) => (
+                          <div key={condition.id}>
+                            <Tag size='small'>{condition.status}</Tag>
+                            <span className='ml-6px font-500 text-t-primary'>{condition.type}</span>
+                            {condition.reason && <span className='ml-6px'>{condition.reason}</span>}
+                            {condition.message && <span className='ml-6px'>{condition.message}</span>}
+                          </div>
+                        ))}
+                        {component.receiptRef && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.receiptRef', { ref: component.receiptRef })}
+                          </span>
+                        )}
+                        {component.repairAction && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.repairAction', { action: component.repairAction })}
+                          </span>
+                        )}
+                        {component.rollbackRef && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.rollbackRef', { ref: component.rollbackRef })}
+                          </span>
+                        )}
+                        {component.needsRestart && <span>{t('settings.oplEnvironmentPage.updates.needsRestart')}</span>}
+                        {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
+                        {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
+                        {component.manualGuidance && <span>{component.manualGuidance}</span>}
+                      </div>
+                    </Collapse.Item>
+                  </Collapse>
+                )}
               </div>
             </div>
           ))}
         </div>
+        {showDiagnostics && (
+          <Collapse bordered={false}>
+            <Collapse.Item
+              header={t('settings.oplEnvironmentPage.updates.diagnostics.title')}
+              name='managed-update-diagnostics'
+            >
+              <div
+                className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px text-t-secondary'
+                data-testid='opl-managed-update-background-status'
+              >
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
+                    value: maintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                  })}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
+                    value: maintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                  })}
+                </span>
+                {plane.lockStatus && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.lockStatus', { status: plane.lockStatus })}
+                  </span>
+                )}
+                {plane.operationMode && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.operationMode', { mode: plane.operationMode })}
+                  </span>
+                )}
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
+                    value: maintenance.lastFailure ?? t('settings.oplEnvironmentPage.updates.background.noFailure'),
+                  })}
+                </span>
+                {maintenance.executionStatus !== 'idle' && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.executionStatus', {
+                      status: maintenance.executionStatus,
+                    })}
+                  </span>
+                )}
+                {maintenance.lastAction && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.background.lastAction', {
+                      action: maintenance.lastAction.kind,
+                      componentId: maintenance.lastAction.componentId,
+                      status: maintenance.lastAction.status,
+                    })}
+                  </span>
+                )}
+                {maintenance.lastSkipReason && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.background.lastSkipReason', {
+                      reason: maintenance.lastSkipReason,
+                    })}
+                  </span>
+                )}
+                {maintenance.reloadGuidance && (
+                  <span className='break-words'>
+                    {t('settings.oplEnvironmentPage.updates.background.reloadGuidance', {
+                      guidance: maintenance.reloadGuidance,
+                    })}
+                  </span>
+                )}
+              </div>
+            </Collapse.Item>
+          </Collapse>
+        )}
       </div>
     </Card>
   );
@@ -727,6 +800,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         key: 'codex',
         title: 'Codex CLI',
         value: formatStatus(codexStatus, t),
+        status: codexStatus,
         detail: compactToolDetail(
           [
             oplString(codex.version),
@@ -741,8 +815,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       },
       {
         key: 'temporal',
-        title: 'Temporal',
+        title: t('settings.oplEnvironmentPage.localServiceTitle'),
         value: formatStatus(temporalStatus, t),
+        status: temporalStatus,
         detail: compactToolDetail(
           [
             oplString(temporal.version),
@@ -759,6 +834,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         key: 'workspace',
         title: t('settings.oplEnvironmentPage.workspaceRootTitle'),
         value: formatStatus(workspaceStatus, t),
+        status: workspaceStatus,
         detail: workspaceRoot || t('settings.oplEnvironmentPage.workspaceRootMissing'),
         tone: workspaceStatus === 'ready' ? 'green' : 'orange',
       },
@@ -766,6 +842,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         key: 'modules',
         title: t('settings.oplEnvironmentPage.modulesTitle'),
         value: moduleValue,
+        status: moduleReady >= modules.length ? 'ready' : 'attention_required',
         detail: modulesSourceReason
           ? `${modulesSourceMode ?? t('settings.oplEnvironmentPage.status.unknown')} · ${modulesSourceReason}`
           : modulesSourceMode || t('settings.oplEnvironmentPage.items.module.latest'),
@@ -979,7 +1056,14 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               <div className='flex flex-col gap-8px min-w-0'>
                 <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
                 <Tag color={card.tone}>{card.value}</Tag>
-                <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t(`settings.oplEnvironmentPage.summary.impacts.${card.key}`, { defaultValue: card.detail })}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.summary.nextAction', {
+                    action: runtimeCardActionKey(card.key, card.status, t),
+                  })}
+                </Typography.Text>
               </div>
             </Card>
           ))}
@@ -1013,74 +1097,79 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         </Card>
 
         <Card bordered className='rd-8px overflow-hidden' id='modules'>
-          <Alert type='info' content={t('settings.oplEnvironmentPage.moduleVersion.scopeDescription')} />
-          {modulesRoot ? (
-            <Typography.Text className='block text-12px text-t-secondary break-all px-0 pt-12px'>
-              {t('settings.oplEnvironmentPage.moduleVersion.modulesRoot', { path: modulesRoot })}
-            </Typography.Text>
-          ) : null}
-          <div className='flex flex-col divide-y divide-border-1'>
-            {modules.map((module, moduleIndex) => {
-              const status = moduleStatus(module);
-              const pathValue = modulePath(module);
-              const id = moduleId(module) || `module-${moduleIndex + 1}`;
-              return (
-                <div key={`runtime-module-${id}`} className='flex items-center justify-between gap-12px py-12px'>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {oplString(module.label) ?? id}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {moduleVersionDetail(module, t)}
-                    </Typography.Text>
-                    {pathValue ? (
-                      <Tooltip content={pathValue}>
-                        <Typography.Text className='block text-12px text-t-secondary break-all'>
-                          {t('settings.oplEnvironmentPage.moduleVersion.checkoutPath', { path: pathValue })}
+          <Collapse bordered={false}>
+            <Collapse.Item header={t('settings.oplEnvironmentPage.diagnostics.modulesTitle')} name='module-details'>
+              <Alert type='info' content={t('settings.oplEnvironmentPage.moduleVersion.scopeDescription')} />
+              {modulesRoot ? (
+                <Typography.Text className='block text-12px text-t-secondary break-all px-0 pt-12px'>
+                  {t('settings.oplEnvironmentPage.moduleVersion.modulesRoot', { path: modulesRoot })}
+                </Typography.Text>
+              ) : null}
+              <div className='flex flex-col divide-y divide-border-1'>
+                {modules.map((module, moduleIndex) => {
+                  const status = moduleStatus(module);
+                  const pathValue = modulePath(module);
+                  const id = moduleId(module) || `module-${moduleIndex + 1}`;
+                  return (
+                    <div key={`runtime-module-${id}`} className='flex items-center justify-between gap-12px py-12px'>
+                      <div className='min-w-0'>
+                        <Typography.Text className='block font-600 text-t-primary'>
+                          {oplString(module.label) ?? id}
                         </Typography.Text>
-                      </Tooltip>
-                    ) : null}
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.oplEnvironmentPage.moduleVersion.pathSource', {
-                        source: modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t),
-                      })}
-                    </Typography.Text>
-                    {oplString(module.repo_url) ? (
-                      <Typography.Text className='block text-12px text-t-secondary break-all'>
-                        {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', {
-                          url: oplString(module.repo_url) ?? '',
-                        })}
-                      </Typography.Text>
-                    ) : null}
-                  </div>
-                  <Space wrap size='mini'>
-                    {oplString(module.recommended_action) && (
-                      <Tag key={`${id}-action`} color='orange'>
-                        {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
-                      </Tag>
-                    )}
-                    <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'green' : 'orange'}>
-                      {formatStatus(status, t)}
-                    </Tag>
-                  </Space>
-                </div>
-              );
-            })}
-          </div>
+                        <Typography.Text className='block text-12px text-t-secondary'>
+                          {moduleVersionDetail(module, t)}
+                        </Typography.Text>
+                        {pathValue ? (
+                          <Tooltip content={pathValue}>
+                            <Typography.Text className='block text-12px text-t-secondary break-all'>
+                              {t('settings.oplEnvironmentPage.moduleVersion.checkoutPath', { path: pathValue })}
+                            </Typography.Text>
+                          </Tooltip>
+                        ) : null}
+                        <Typography.Text className='block text-12px text-t-secondary'>
+                          {t('settings.oplEnvironmentPage.moduleVersion.pathSource', {
+                            source: modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t),
+                          })}
+                        </Typography.Text>
+                        {oplString(module.repo_url) ? (
+                          <Typography.Text className='block text-12px text-t-secondary break-all'>
+                            {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', {
+                              url: oplString(module.repo_url) ?? '',
+                            })}
+                          </Typography.Text>
+                        ) : null}
+                      </div>
+                      <Space wrap size='mini'>
+                        {oplString(module.recommended_action) && (
+                          <Tag key={`${id}-action`} color='orange'>
+                            {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
+                          </Tag>
+                        )}
+                        <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'green' : 'orange'}>
+                          {formatStatus(status, t)}
+                        </Tag>
+                      </Space>
+                    </div>
+                  );
+                })}
+              </div>
+            </Collapse.Item>
+          </Collapse>
         </Card>
 
         <Card bordered className='rd-8px'>
-          <div className='flex flex-col gap-8px'>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.oplEnvironmentPage.codexContext.title')}
-            </Typography.Text>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.oplEnvironmentPage.codexContext.description')}
-            </Typography.Text>
-            <pre className='m-0 p-12px rd-8px bg-fill-2 text-12px text-t-primary whitespace-pre-wrap break-words max-h-280px overflow-auto'>
-              {codexSessionContext}
-            </pre>
-          </div>
+          <Collapse bordered={false}>
+            <Collapse.Item header={t('settings.oplEnvironmentPage.codexContext.title')} name='codex-context'>
+              <div className='flex flex-col gap-8px'>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.oplEnvironmentPage.codexContext.description')}
+                </Typography.Text>
+                <pre className='m-0 p-12px rd-8px bg-fill-2 text-12px text-t-primary whitespace-pre-wrap break-words max-h-280px overflow-auto'>
+                  {codexSessionContext}
+                </pre>
+              </div>
+            </Collapse.Item>
+          </Collapse>
         </Card>
       </div>
     </>

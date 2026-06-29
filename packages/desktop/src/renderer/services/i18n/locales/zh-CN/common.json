@@ -77,6 +77,7 @@
     "steps": {
       "desktopSession": "连接后台服务",
       "appConfig": "加载应用配置",
+      "firstRunStatus": "检查首次运行状态",
       "systemReady": "检查系统状态"
     },
     "messages": {

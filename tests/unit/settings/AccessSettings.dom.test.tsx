@@ -44,14 +44,16 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: { status?: string }) => {
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
-        'settings.accessPage.description': 'Can Codex CLI and providers work now?',
+        'settings.accessPage.description': 'Can Codex CLI, access keys, and the local service work now?',
         'settings.accessPage.cards.codex.title': 'Codex CLI',
         'settings.accessPage.cards.codex.fallback': 'Codex CLI details are not available yet.',
-        'settings.accessPage.cards.key.title': 'Provider Keys',
+        'settings.accessPage.cards.key.title': 'Access Keys',
         'settings.accessPage.cards.key.configured': 'Access configuration is present.',
         'settings.accessPage.cards.key.missing': 'Access configuration needs attention.',
-        'settings.accessPage.cards.provider.title': 'Provider Access',
-        'settings.accessPage.cards.provider.fallback': 'Provider readiness details are not available yet.',
+        'settings.accessPage.cards.provider.title': 'Local Background Service',
+        'settings.accessPage.cards.provider.fallback': 'Background service details are not available yet.',
+        'settings.accessPage.cards.provider.detail':
+          'Used for local OPL task execution; this is not gflabtoken or external API login status.',
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -66,12 +68,13 @@ describe('AccessSettingsContent', () => {
   it('renders readiness cards before remote access controls from the fast App state projection', () => {
     render(<AccessSettingsContent />);
 
-    expect(screen.getByText('Can Codex CLI and providers work now?')).toBeInTheDocument();
+    expect(screen.getByText('Can Codex CLI, access keys, and the local service work now?')).toBeInTheDocument();
     expect(screen.getByText('Codex CLI')).toBeInTheDocument();
     expect(document.body.textContent).toContain('/usr/local/bin/codex');
-    expect(screen.getByText('Provider Keys')).toBeInTheDocument();
+    expect(screen.getByText('Access Keys')).toBeInTheDocument();
     expect(screen.getByText('Access configuration is present.')).toBeInTheDocument();
-    expect(screen.getByText('Provider Access')).toBeInTheDocument();
+    expect(screen.getByText('Local Background Service')).toBeInTheDocument();
+    expect(screen.getByText(/not gflabtoken/)).toBeInTheDocument();
     expect(screen.getByText(/127\.0\.0\.1:7233/)).toBeInTheDocument();
     expect(screen.getByText('Permission Mode')).toBeInTheDocument();
     expect(screen.getByText('Full Access')).toBeInTheDocument();

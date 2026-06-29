@@ -270,6 +270,11 @@ const Main = () => {
         message: !ready ? undefined : configReady ? undefined : t('common.startupPreflight.messages.loadingConfig'),
         progress: !ready ? 0 : configReady ? 100 : 75,
       },
+      {
+        label: t('common.startupPreflight.steps.firstRunStatus'),
+        state: 'pending',
+        progress: 0,
+      },
     ];
     return (
       <AppLoader
