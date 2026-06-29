@@ -86,6 +86,28 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     return { dataDir, projectsDir, manifestPath, seedDir, webBin, fakeBin };
   }
 
+  function writeSlimFixture() {
+    const fixture = writeFixture();
+    const manifest = JSON.parse(fs.readFileSync(fixture.manifestPath, 'utf8'));
+    manifest.image_profile = 'webui-slim';
+    manifest.seed_strategy = 'metadata_only';
+    fs.writeFileSync(fixture.manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+    fs.writeFileSync(
+      path.join(fixture.seedDir, 'metadata.json'),
+      JSON.stringify(
+        {
+          schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
+          strategy: 'metadata_only',
+          image_profile: 'webui-slim',
+          components: [],
+        },
+        null,
+        2
+      ) + '\n'
+    );
+    return fixture;
+  }
+
   it('preflights writable mounts, validates manifest and seed, runs maintenance, then starts WebUI', () => {
     const fixture = writeFixture();
     const result = spawnSync('sh', [entrypointPath, 'start', '--remote', '--port', '3000'], {
@@ -113,7 +135,30 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start --remote --port 3000');
   });
 
-  it('fails clearly when the seed metadata is metadata-only', () => {
+  it('skips seed apply for slim metadata-only images and still starts maintenance and WebUI', () => {
+    const fixture = writeSlimFixture();
+
+    const result = spawnSync('sh', [entrypointPath, 'start'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+        AIONUI_DATA_DIR: fixture.dataDir,
+        OPL_DATA_DIR: fixture.dataDir,
+        OPL_PROJECTS_DIR: fixture.projectsDir,
+        OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+        OPL_IMAGE_SEED_DIR: fixture.seedDir,
+        AIONUI_WEB_BIN: fixture.webBin,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('slim seed metadata detected; skipping OPL seed apply');
+    expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim()).toBe('system startup-maintenance --json');
+    expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start');
+  });
+
+  it('fails clearly when metadata-only seed is used without the slim image profile', () => {
     const fixture = writeFixture();
     fs.writeFileSync(
       path.join(fixture.seedDir, 'metadata.json'),
@@ -124,6 +169,7 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
       encoding: 'utf8',
       env: {
         ...process.env,
+        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
         AIONUI_DATA_DIR: fixture.dataDir,
         OPL_DATA_DIR: fixture.dataDir,
         OPL_PROJECTS_DIR: fixture.projectsDir,

@@ -31,7 +31,30 @@ function buildSeedComponent(id, version) {
   };
 }
 
-function buildOplImageSeedMetadata({ version = '0.0.0' } = {}) {
+function normalizeOplWebuiImageProfile(value) {
+  if (!value || value === 'webui-full' || value === 'full') return 'webui-full';
+  if (value === 'webui-slim' || value === 'slim') return 'webui-slim';
+  throw new Error(`Unsupported OPL WebUI image profile: ${value}`);
+}
+
+function buildOplImageSeedMetadata({ version = '0.0.0', profile = 'webui-full' } = {}) {
+  const normalizedProfile = normalizeOplWebuiImageProfile(profile);
+  if (normalizedProfile === 'webui-slim') {
+    return {
+      schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
+      strategy: 'metadata_only',
+      image_profile: 'webui-slim',
+      applies_to: 'docker-webui-runtime-image',
+      data_dir: '/data',
+      projects_dir: '/projects',
+      components: [],
+      slim_profile: {
+        components: [],
+        note: 'Slim WebUI images contain the browser entrypoint, AionCore, bootstrap, and metadata only. OPL fills runtime components through startup maintenance.',
+      },
+      note: 'Slim seed metadata is for developer/CI images and must not be promoted as stable/latest beginner default.',
+    };
+  }
   const components = [
     buildSeedComponent('opl_framework', version),
     buildSeedComponent('codex_cli', version),
@@ -41,6 +64,7 @@ function buildOplImageSeedMetadata({ version = '0.0.0' } = {}) {
   return {
     schema: 'dev.onepersonlab.opl-webui-image-seed.v1',
     strategy: 'payload_manifest',
+    image_profile: 'webui-full',
     applies_to: 'docker-webui-runtime-image',
     data_dir: '/data',
     projects_dir: '/projects',
@@ -53,10 +77,13 @@ function buildOplImageSeedMetadata({ version = '0.0.0' } = {}) {
   };
 }
 
-function buildOplImageManifest({ packageName, version, runtimeKey }) {
+function buildOplImageManifest({ packageName, version, runtimeKey, profile = 'webui-full' }) {
+  const normalizedProfile = normalizeOplWebuiImageProfile(profile);
+  const isSlim = normalizedProfile === 'webui-slim';
   return {
     schema: 'dev.onepersonlab.opl-webui-image-manifest.v1',
     image_role: 'opl_webui_runtime_image',
+    image_profile: normalizedProfile,
     base_image_family: 'node:22-bookworm-slim',
     webui_package: {
       name: packageName,
@@ -72,7 +99,7 @@ function buildOplImageManifest({ packageName, version, runtimeKey }) {
     },
     data_dir: '/data',
     projects_dir: '/projects',
-    seed_strategy: 'payload_manifest',
+    seed_strategy: isSlim ? 'metadata_only' : 'payload_manifest',
     seed_dir: '/opt/opl/seed',
     seed_metadata: '/opt/opl/seed/metadata.json',
     environment: {
@@ -85,18 +112,19 @@ function buildOplImageManifest({ packageName, version, runtimeKey }) {
   };
 }
 
-function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey }) {
+function writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey, profile = 'webui-full' }) {
+  const normalizedProfile = normalizeOplWebuiImageProfile(profile);
   const seedDir = path.join(tarballContentDir, 'opl-image-seed');
   const seedPayloadDir = path.join(seedDir, 'payload');
   fs.mkdirSync(seedDir, { recursive: true });
-  const copiedSeedSource = copySeedSourceIfPresent(projectRoot, seedDir);
+  const copiedSeedSource = normalizedProfile === 'webui-full' && copySeedSourceIfPresent(projectRoot, seedDir);
   fs.mkdirSync(seedPayloadDir, { recursive: true });
   if (!copiedSeedSource || !fs.existsSync(path.join(seedDir, 'metadata.json'))) {
-    writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata({ version }));
+    writeJson(path.join(seedDir, 'metadata.json'), buildOplImageSeedMetadata({ version, profile: normalizedProfile }));
   }
   writeJson(
     path.join(tarballContentDir, 'opl-image-manifest.json'),
-    buildOplImageManifest({ packageName: srcPkg.name, version, runtimeKey })
+    buildOplImageManifest({ packageName: srcPkg.name, version, runtimeKey, profile: normalizedProfile })
   );
 
   fs.copyFileSync(
@@ -118,6 +146,7 @@ if (require.main !== module) {
     buildOplImageSeedMetadata,
     copySeedSourceIfPresent,
     copyBundledAioncoreForTarball,
+    normalizeOplWebuiImageProfile,
     writeOplImageResources,
   };
   return;
@@ -127,6 +156,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const platform = process.env.PACK_PLATFORM || process.platform;
 const arch = process.env.PACK_ARCH || process.arch;
 const version = require('../package.json').version;
+const imageProfile = normalizeOplWebuiImageProfile(process.env.OPL_WEBUI_IMAGE_PROFILE);
 
 // Normalize platform/arch names for tarball filename
 const platformMap = { darwin: 'darwin', linux: 'linux', win32: 'win' };
@@ -212,7 +242,7 @@ if (!fs.existsSync(oplInstallerSrc)) {
 }
 fs.copyFileSync(oplInstallerSrc, path.join(tarballContentDir, 'opl-install.sh'));
 fs.chmodSync(path.join(tarballContentDir, 'opl-install.sh'), 0o755);
-writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey });
+writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtimeKey, profile: imageProfile });
 
 // 9. Create tarball
 fs.mkdirSync(distDir, { recursive: true });

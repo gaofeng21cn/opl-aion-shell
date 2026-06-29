@@ -69,10 +69,11 @@ if (manifest.data_dir !== process.env.OPL_DATA_DIR) {
 if (manifest.projects_dir !== process.env.OPL_PROJECTS_DIR) {
   fail(`image manifest projects_dir ${manifest.projects_dir} does not match OPL_PROJECTS_DIR ${process.env.OPL_PROJECTS_DIR}`);
 }
-if (manifest.seed_strategy === 'metadata_only') {
-  fail('image manifest seed_strategy must be payload-capable, not metadata_only');
+const isSlim = manifest.image_profile === 'webui-slim' || manifest.profile === 'slim';
+if (isSlim && manifest.seed_strategy !== 'metadata_only') {
+  fail(`slim image manifest seed_strategy must be metadata_only, got ${manifest.seed_strategy}`);
 }
-if (!['payload_manifest', 'payload_preheated'].includes(manifest.seed_strategy)) {
+if (!isSlim && !['payload_manifest', 'payload_preheated'].includes(manifest.seed_strategy)) {
   fail(`image manifest seed_strategy ${manifest.seed_strategy} is not supported`);
 }
 const seedMetadataPath = `${seedDir}/metadata.json`;
@@ -83,8 +84,15 @@ const seedMetadata = readJson(seedMetadataPath);
 if (seedMetadata.schema !== 'dev.onepersonlab.opl-webui-image-seed.v1') {
   fail(`seed metadata schema is unsupported: ${seedMetadata.schema}`);
 }
-if (seedMetadata.strategy === 'metadata_only') {
-  fail('seed metadata strategy must be payload-capable, not metadata_only');
+if (isSlim) {
+  if (seedMetadata.strategy !== 'metadata_only') {
+    fail(`slim seed metadata strategy must be metadata_only, got ${seedMetadata.strategy}`);
+  }
+  console.log(`[opl-webui-entrypoint] slim seed metadata ok: ${seedMetadataPath}`);
+  process.exit(0);
+}
+if (!['payload_manifest', 'payload_preheated'].includes(seedMetadata.strategy)) {
+  fail(`seed metadata strategy must be payload-capable, got ${seedMetadata.strategy}`);
 }
 const requiredComponentIds = ['opl_framework', 'codex_cli', 'companion_skills', 'domain_modules'];
 const components = Array.isArray(seedMetadata.components)
@@ -119,12 +127,17 @@ console.log(`[opl-webui-entrypoint] seed metadata ok: ${seedMetadataPath}`);
 NODE
 
 if command -v opl >/dev/null 2>&1; then
-  log "running OPL seed apply"
-  opl system seed-apply \
-    --from "${OPL_IMAGE_SEED_DIR}" \
-    --data-dir "${OPL_DATA_DIR}" \
-    --projects-dir "${OPL_PROJECTS_DIR}" \
-    --json || fail "OPL seed apply failed"
+  seed_strategy="$(node -e "const fs=require('fs'); const p=process.env.OPL_IMAGE_MANIFEST_PATH; const j=JSON.parse(fs.readFileSync(p,'utf8')); console.log(j.seed_strategy || '')")"
+  if [ "${seed_strategy}" = "metadata_only" ]; then
+    log "slim seed metadata detected; skipping OPL seed apply"
+  else
+    log "running OPL seed apply"
+    opl system seed-apply \
+      --from "${OPL_IMAGE_SEED_DIR}" \
+      --data-dir "${OPL_DATA_DIR}" \
+      --projects-dir "${OPL_PROJECTS_DIR}" \
+      --json || fail "OPL seed apply failed"
+  fi
   log "running OPL startup maintenance"
   opl system startup-maintenance --json || fail "OPL startup maintenance failed"
 else

@@ -31,6 +31,7 @@ describe('pack-web-cli OPL image resources', () => {
     ).toMatchObject({
       schema: 'dev.onepersonlab.opl-webui-image-manifest.v1',
       image_role: 'opl_webui_runtime_image',
+      image_profile: 'webui-full',
       base_image_family: 'node:22-bookworm-slim',
       webui_package: { name: '@aionui/web-cli', version: '2.1.17' },
       bundled_aioncore: { platforms: ['linux-x64'], path: 'bundled-aioncore' },
@@ -47,6 +48,30 @@ describe('pack-web-cli OPL image resources', () => {
         OPL_PROJECTS_DIR: '/projects',
         OPL_WORKSPACE_ROOT: '/projects',
       },
+    });
+  });
+
+  it('builds slim Docker/WebUI image manifest and metadata without seed payload components', () => {
+    const manifest = buildOplImageManifest({
+      packageName: '@aionui/web-cli',
+      version: '2.1.17',
+      runtimeKey: 'linux-x64',
+      profile: 'webui-slim',
+    });
+    const seed = buildOplImageSeedMetadata({ version: '2.1.17', profile: 'webui-slim' });
+
+    expect(manifest).toMatchObject({
+      image_profile: 'webui-slim',
+      seed_strategy: 'metadata_only',
+      data_dir: '/data',
+      projects_dir: '/projects',
+    });
+    expect(seed).toMatchObject({
+      strategy: 'metadata_only',
+      image_profile: 'webui-slim',
+      components: [],
+      data_dir: '/data',
+      projects_dir: '/projects',
     });
   });
 
@@ -129,6 +154,35 @@ describe('pack-web-cli OPL image resources', () => {
     expect(
       fs.readFileSync(path.join(tarballContentDir, 'opl-image-seed', 'payload', 'framework', 'seed.json'), 'utf8')
     ).toBe('{"ok":true}\n');
+  });
+
+  it('ignores Framework-provided payloads for slim image resources', () => {
+    const projectRoot = path.join(tmp, 'repo');
+    const tarballContentDir = path.join(tmp, 'staging', 'aionui-web');
+    const seedSourceDir = path.join(projectRoot, 'resources', 'opl-image-seed');
+    fs.mkdirSync(path.join(seedSourceDir, 'payload', 'framework'), { recursive: true });
+    fs.mkdirSync(tarballContentDir, { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, 'resources', 'opl-webui-entrypoint.sh'), '#!/usr/bin/env sh\n');
+    fs.writeFileSync(
+      path.join(seedSourceDir, 'metadata.json'),
+      JSON.stringify({ schema: 'dev.onepersonlab.opl-webui-image-seed.v1', strategy: 'payload_preheated' }) + '\n'
+    );
+
+    writeOplImageResources({
+      projectRoot,
+      tarballContentDir,
+      srcPkg: { name: '@aionui/web-cli' },
+      version: '2.1.17',
+      runtimeKey: 'linux-x64',
+      profile: 'webui-slim',
+    });
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(tarballContentDir, 'opl-image-manifest.json'), 'utf8'));
+    const seed = JSON.parse(fs.readFileSync(path.join(tarballContentDir, 'opl-image-seed', 'metadata.json'), 'utf8'));
+    expect(manifest.image_profile).toBe('webui-slim');
+    expect(manifest.seed_strategy).toBe('metadata_only');
+    expect(seed.strategy).toBe('metadata_only');
+    expect(seed.components).toEqual([]);
   });
 
   it.skipIf(process.platform === 'win32')('copies bundled aioncore with relocatable managed Node npm symlinks', () => {
