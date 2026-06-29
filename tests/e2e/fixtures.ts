@@ -130,6 +130,7 @@ async function launchApp(): Promise<ElectronApplication> {
     AIONUI_EXTENSION_STATES_FILE: process.env.AIONUI_EXTENSION_STATES_FILE || e2eStateFile,
     AIONUI_DISABLE_AUTO_UPDATE: '1',
     AIONUI_DISABLE_DEVTOOLS: '1',
+    AIONUI_E2E_ALLOW_BACKEND_FAILURE: process.env.AIONUI_E2E_ALLOW_BACKEND_FAILURE || '0',
     AIONUI_E2E_TEST: '1',
     AIONUI_CDP_PORT: '0',
   };

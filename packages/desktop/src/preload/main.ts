@@ -51,8 +51,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // via contextBridge (direct window assignment is invisible under contextIsolation).
 const backendPort = ipcRenderer.sendSync('get-backend-port') as number;
 const initialLanguage = ipcRenderer.sendSync('get-initial-language') as string | null;
-const backendStartupFailed = ipcRenderer.sendSync('get-backend-startup-failed') as boolean;
-const backendStartupFailure = ipcRenderer.sendSync('get-backend-startup-failure') as unknown;
+const allowBackendFailureForE2E =
+  process.env.AIONUI_E2E_TEST === '1' && process.env.AIONUI_E2E_ALLOW_BACKEND_FAILURE === '1';
+const backendStartupFailed = allowBackendFailureForE2E
+  ? false
+  : (ipcRenderer.sendSync('get-backend-startup-failed') as boolean);
+const backendStartupFailure = allowBackendFailureForE2E
+  ? null
+  : (ipcRenderer.sendSync('get-backend-startup-failure') as unknown);
 contextBridge.exposeInMainWorld('__backendPort', backendPort > 0 ? backendPort : 0);
 contextBridge.exposeInMainWorld('__initialLanguage', initialLanguage ?? null);
 contextBridge.exposeInMainWorld('__backendStartupFailed', backendStartupFailed === true);

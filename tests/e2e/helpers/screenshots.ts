@@ -11,7 +11,7 @@ const SCREENSHOTS_DIR = path.resolve(__dirname, '..', 'screenshots');
  * Take a screenshot and save it under `tests/e2e/screenshots/<name>`.
  * `.png` is appended automatically when the caller omits it.
  */
-export async function takeScreenshot(page: Page, name: string, opts?: { fullPage?: boolean }): Promise<void> {
+export async function takeScreenshot(page: Page, name: string, opts?: { fullPage?: boolean }): Promise<string> {
   const fileName = name.endsWith('.png') ? name : `${name}.png`;
   const fullPath = path.join(SCREENSHOTS_DIR, fileName);
 
@@ -21,4 +21,6 @@ export async function takeScreenshot(page: Page, name: string, opts?: { fullPage
     path: fullPath,
     fullPage: opts?.fullPage ?? false,
   });
+
+  return fullPath;
 }

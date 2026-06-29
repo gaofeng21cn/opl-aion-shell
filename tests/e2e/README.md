@@ -192,20 +192,22 @@ Failed tests automatically get screenshots attached to the HTML report.
 
 ## Environment Variables
 
-| Variable         | Default          | Purpose                      |
-| ---------------- | ---------------- | ---------------------------- |
-| `E2E_PACKAGED=1` | unset (dev mode) | Use packaged app from `out/` |
-| `E2E_DEV=1`      | unset            | Force dev mode               |
-| `CI`             | unset            | Auto-selects packaged mode   |
+| Variable                            | Default          | Purpose                                             |
+| ----------------------------------- | ---------------- | --------------------------------------------------- |
+| `E2E_PACKAGED=1`                    | unset (dev mode) | Use packaged app from `out/`                        |
+| `E2E_DEV=1`                         | unset            | Force dev mode                                      |
+| `AIONUI_E2E_ALLOW_BACKEND_FAILURE=1` | unset            | Allow renderer-only visual QA when backend is absent |
+| `CI`                                | unset            | Auto-selects packaged mode                          |
 
 Variables set automatically during test launch:
 
-| Variable                     | Value | Purpose                  |
-| ---------------------------- | ----- | ------------------------ |
-| `AIONUI_E2E_TEST`            | `1`   | App recognizes test mode |
-| `AIONUI_DISABLE_AUTO_UPDATE` | `1`   | No update checks         |
-| `AIONUI_DISABLE_DEVTOOLS`    | `1`   | No DevTools windows      |
-| `AIONUI_CDP_PORT`            | `0`   | CDP disabled             |
+| Variable                            | Value                 | Purpose                                    |
+| ----------------------------------- | --------------------- | ------------------------------------------ |
+| `AIONUI_E2E_TEST`                   | `1`                   | App recognizes test mode                   |
+| `AIONUI_DISABLE_AUTO_UPDATE`        | `1`                   | No update checks                           |
+| `AIONUI_DISABLE_DEVTOOLS`           | `1`                   | No DevTools windows                        |
+| `AIONUI_E2E_ALLOW_BACKEND_FAILURE`  | inherited or `0`      | Scoped renderer-only backend failure bypass |
+| `AIONUI_CDP_PORT`                   | `0`                   | CDP disabled                               |
 
 ---
 
