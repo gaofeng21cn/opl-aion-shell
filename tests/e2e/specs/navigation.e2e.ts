@@ -13,6 +13,7 @@ import {
   expectUrlContains,
   takeScreenshot,
   type SettingsTab,
+  settingsSiderItemById,
 } from '../helpers';
 
 async function requireGuidInput(page: import('@playwright/test').Page) {
@@ -68,6 +69,7 @@ test.describe('Settings Pages', () => {
     { tab: 'appearance', name: 'Preferences Settings' },
     { tab: 'advanced', name: 'Advanced Settings' },
   ];
+  const legacyTabs = ['gemini', 'model', 'agent', 'assistants', 'display', 'webui', 'system'];
 
   for (const { tab, name } of tabs) {
     test(`${name} loads`, async ({ page }) => {
@@ -83,6 +85,29 @@ test.describe('Settings Pages', () => {
     for (const { tab } of tabs) {
       await goToSettings(page, tab);
       await takeScreenshot(page, `settings-${tab}`);
+    }
+  });
+
+  test('settings control center visual QA anchors are stable', async ({ page }) => {
+    await goToSettings(page, 'general');
+
+    for (const { tab } of tabs) {
+      await expect(page.locator(settingsSiderItemById(tab))).toBeVisible();
+    }
+    for (const tab of legacyTabs) {
+      await expect(page.locator(settingsSiderItemById(tab))).toHaveCount(0);
+    }
+    await expect(page.locator('.settings-page-wrapper')).toBeVisible();
+    await expect(page.locator('.settings-page-content')).toBeVisible();
+  });
+
+  test('screenshot: settings control center visual QA', async ({ page }) => {
+    test.skip(!process.env.E2E_SCREENSHOTS, 'screenshots disabled');
+    for (const { tab } of tabs) {
+      await goToSettings(page, tab);
+      await expect(page.locator(settingsSiderItemById(tab))).toBeVisible();
+      await expect(page.locator('.settings-page-wrapper')).toBeVisible();
+      await takeScreenshot(page, `settings/control-center/${tab}`, { fullPage: true });
     }
   });
 });

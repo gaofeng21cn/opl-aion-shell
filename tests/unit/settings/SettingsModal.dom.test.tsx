@@ -182,6 +182,25 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
   });
 
+  it('keeps Settings control center host anchors stable for visual QA', () => {
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    expect(screen.getByTestId('settings-host')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-search-input')).toBeInTheDocument();
+    expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
+    expect(screen.getByText('Overview')).toBeInTheDocument();
+    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByText('Advanced')).toBeInTheDocument();
+    expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
+    expect(screen.queryByText('Model')).not.toBeInTheDocument();
+    expect(screen.queryByText('Agent')).not.toBeInTheDocument();
+    expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
+  });
+
   it('filters Settings navigation by user task keywords', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 

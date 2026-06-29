@@ -40,21 +40,14 @@ import {
   type Translate,
 } from './runtimeStateView';
 import {
-  buildRuntimeEnvironmentProjection,
   chooseMakeUsableAction,
   componentStatusTone,
   componentUserSummary,
   findRecommendedUpdateAction,
-  formatReleaseChannel,
   updateComponentUserAction,
 } from '../RuntimeSettings/environmentProjection';
-import {
-  RuntimeHealthSummary,
-  RuntimeMaintenanceHub,
-  RuntimeReadinessGrid,
-  type RuntimeMaintenanceHubItem,
-  type RuntimeMaintenanceHubPrimaryAction,
-} from './RuntimeSettingsPanels';
+import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
+import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
 
@@ -789,37 +782,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appState),
     [appState, managedUpdateMaintenance.result]
   );
-  const environmentViewModel = useMemo(
-    () =>
-      buildRuntimeEnvironmentProjection({
-        appState,
-        managedUpdatePlane,
-        managedUpdateMaintenance,
-        loadedAt: appStateQuery.loadedAt,
-        t,
-      }),
-    [appState, appStateQuery.loadedAt, managedUpdateMaintenance, managedUpdatePlane, t]
-  );
-  const {
-    familyWorkspaceRoot,
-    workspaceRoot,
-    logsRoot,
-    modulesSourceMode,
-    modulesRoot,
-    modules,
-    moduleReady,
-    appVersion,
-    guiVersion,
-    releaseChannel,
-    releaseRepo,
-    attentionCount,
-    healthSummaryItems,
-    runtimeCards,
-    appBinaryComponent,
-    runtimeToolchainComponent,
-    agentPackageComponent,
-    capabilityExposureComponent,
-  } = environmentViewModel;
 
   const refreshRuntime = useCallback(() => {
     void appStateQuery.load('fast', { showRefreshing: true }).then((payload) => {
@@ -985,11 +947,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     [appStateQuery.load, message, t]
   );
 
-  const openLogDir = useCallback(() => {
-    if (!logsRoot) return;
-    void ipcBridge.shell.openFolderWith.invoke({ folder_path: logsRoot, tool: 'explorer' });
-  }, [logsRoot]);
-
   const openUpdateModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'settings-runtime' } }));
   }, []);
@@ -998,119 +955,68 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     window.location.hash = '#/settings/storage';
   }, []);
 
-  const codexSessionContext = useMemo(() => getOplCodexSessionContext(), []);
-  const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
-  const maintenanceHubItems = useMemo<RuntimeMaintenanceHubItem[]>(
-    () => [
-      {
-        key: 'appUpdates',
-        title: t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'),
-        detail: appBinaryComponent
-          ? componentUserSummary(appBinaryComponent, t)
-          : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
-        status: formatStatus(appBinaryComponent?.state ?? 'unknown', t),
-        tone: appBinaryComponent ? componentStatusTone(appBinaryComponent) : 'orange',
-        icon: <UpdateRotation theme='outline' />,
-        actionLabel: t('settings.checkForUpdates'),
-        onAction: openUpdateModal,
-      },
-      {
-        key: 'runtimeToolchain',
-        title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'),
-        detail: runtimeToolchainComponent
-          ? componentUserSummary(runtimeToolchainComponent, t)
-          : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.description'),
-        status: formatStatus(runtimeToolchainComponent?.state ?? 'unknown', t),
-        tone: runtimeToolchainComponent ? componentStatusTone(runtimeToolchainComponent) : 'orange',
-        icon: <UpdateRotation theme='outline' />,
-        actionLabel: t('settings.oplEnvironmentPage.updates.actions.check'),
-        actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.actionHelp'),
-        actionLoading: maintenanceHubCheckTarget === 'runtimeToolchain',
-        actionDisabled: updateReadDisabled,
-        onAction: () => void runMaintenanceHubCheck('runtimeToolchain'),
-      },
-      {
-        key: 'capabilityPacks',
-        title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'),
-        detail:
-          agentPackageComponent || capabilityExposureComponent
-            ? [
-                agentPackageComponent ? componentUserSummary(agentPackageComponent, t) : null,
-                capabilityExposureComponent ? componentUserSummary(capabilityExposureComponent, t) : null,
-              ]
-                .filter((value): value is string => Boolean(value))
-                .join(' ')
-            : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.description'),
-        status: t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
-          ready: moduleReady,
-          total: modules.length,
-        }),
-        tone:
-          moduleReady >= modules.length &&
-          (!agentPackageComponent || componentStatusTone(agentPackageComponent) === 'green') &&
-          (!capabilityExposureComponent || componentStatusTone(capabilityExposureComponent) === 'green')
-            ? 'green'
-            : 'orange',
-        icon: <Repair theme='outline' />,
-        actionLabel: t('settings.oplEnvironmentPage.moduleMaintenance.actions.check'),
-        actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.actionHelp'),
-        actionLoading: maintenanceHubCheckTarget === 'capabilityPacks',
-        actionDisabled: updateReadDisabled,
-        onAction: () => void runMaintenanceHubCheck('capabilityPacks'),
-      },
-      {
-        key: 'storageCleanup',
-        title: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'),
-        detail: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.description'),
-        status: t('settings.oplEnvironmentPage.maintenanceHub.status.available'),
-        tone: 'green',
-        icon: <FolderSearch theme='outline' />,
-        actionLabel: t('settings.oplEnvironmentPage.storageData.openStorage'),
-        onAction: openStorageSettings,
-      },
-      {
-        key: 'repairSuggestions',
-        title: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'),
-        detail: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.description'),
-        status:
-          attentionCount === 0
-            ? t('settings.oplEnvironmentPage.healthSummary.values.none')
-            : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
-        tone: attentionCount === 0 ? 'green' : 'orange',
-        icon: <CheckOne theme='outline' />,
-        actionLabel: t('settings.oplEnvironmentPage.actions.repair'),
-        onAction: () =>
-          void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
-      },
-    ],
+  const viewModel = useMemo(
+    () =>
+      buildRuntimeSettingsViewModel({
+        appState,
+        managedUpdatePlane,
+        managedUpdateMaintenance,
+        loadedAt: appStateQuery.loadedAt,
+        activeReadOperation,
+        maintenanceHubCheckTarget,
+        makeUsableRunning,
+        actions: {
+          openStorageSettings,
+          openUpdateModal,
+          runMaintenanceHubCheck,
+          runMakeOplUsable,
+          runRepairSuggestions: () =>
+            void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
+        },
+        t,
+      }),
     [
       activeReadOperation,
-      agentPackageComponent,
-      appBinaryComponent,
-      attentionCount,
-      capabilityExposureComponent,
+      appState,
+      appStateQuery.loadedAt,
       maintenanceHubCheckTarget,
-      moduleReady,
-      modules.length,
+      makeUsableRunning,
+      managedUpdateMaintenance,
+      managedUpdatePlane,
       openStorageSettings,
       openUpdateModal,
       runMaintenanceHubCheck,
+      runMakeOplUsable,
       runOplCommand,
-      runtimeToolchainComponent,
       t,
-      updateReadDisabled,
     ]
   );
-  const maintenanceHubPrimaryAction = useMemo<RuntimeMaintenanceHubPrimaryAction>(
-    () => ({
-      label: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'),
-      help: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.help'),
-      loading: makeUsableRunning,
-      disabled: Boolean(activeReadOperation) || Boolean(maintenanceHubCheckTarget),
-      onAction: () => void runMakeOplUsable(),
-    }),
-    [activeReadOperation, maintenanceHubCheckTarget, makeUsableRunning, runMakeOplUsable, t]
-  );
+  const {
+    environment: {
+      familyWorkspaceRoot,
+      workspaceRoot,
+      logsRoot,
+      modulesSourceMode,
+      modulesRoot,
+      modules,
+      moduleReady,
+      appVersion,
+      guiVersion,
+      releaseRepo,
+      healthSummaryItems,
+      runtimeCards,
+    },
+    maintenanceHubItems,
+    maintenanceHubPrimaryAction,
+    releaseChannelLabel,
+  } = viewModel;
+
+  const openLogDir = useCallback(() => {
+    if (!logsRoot) return;
+    void ipcBridge.shell.openFolderWith.invoke({ folder_path: logsRoot, tool: 'explorer' });
+  }, [logsRoot]);
+
+  const codexSessionContext = useMemo(() => getOplCodexSessionContext(), []);
 
   const content = (
     <>
@@ -1208,7 +1114,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 {t('settings.runtimePage.versionDetail', {
                   oplVersion: appVersion,
                   guiVersion,
-                  channel: formatReleaseChannel(releaseChannel, t),
+                  channel: releaseChannelLabel,
                 })}
               </Typography.Text>
               {releaseRepo && (
