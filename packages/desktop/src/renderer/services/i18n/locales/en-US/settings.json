@@ -69,6 +69,8 @@
   "assistantSourceCustom": "Custom",
   "assistantSectionEnabled": "Enabled",
   "assistantSectionDisabled": "Disabled",
+  "searchPlaceholder": "Search settings",
+  "searchEmpty": "No matching settings",
   "searchAssistants": "Search assistants by name or description",
   "assistantNoMatch": "No assistants match the current filters.",
   "assistantCreated": "Assistant created",

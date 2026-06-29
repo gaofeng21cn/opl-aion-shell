@@ -12,8 +12,8 @@ import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
-import { Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Lightning, Puzzle, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
+import { Input, Tabs } from '@arco-design/web-react';
+import { Computer, Earth, Lightning, Puzzle, Search, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -82,6 +82,16 @@ const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
   advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
 };
 
+const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
+  general: ['overview', 'status', 'next step', 'workspace', 'model', 'maintenance', 'capabilities', 'remote access'],
+  access: ['setup', 'access', 'model', 'account', 'api key', 'workspace', 'web', 'docker', 'remote'],
+  capabilities: ['capabilities', 'agents', 'skills', 'tools', 'voice', 'mas', 'mag', 'rca', 'oma', 'bookforge'],
+  environment: ['maintenance', 'updates', 'runtime', 'toolchain', 'packages', 'repair', 'rollback', 'health'],
+  storage: ['data', 'storage', 'cleanup', 'archive', 'restore', 'logs', 'cache', 'runtime roots'],
+  appearance: ['preferences', 'appearance', 'theme', 'language', 'startup'],
+  advanced: ['advanced', 'developer', 'diagnostics', 'about', 'version', 'logs', 'raw refs'],
+};
+
 const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'general',
   'access',
@@ -136,6 +146,15 @@ export type BuiltinSettingTab =
  * 设置标签页类型（内置 + 扩展）/ Settings tab type (built-in + extension)
  */
 export type SettingTab = BuiltinSettingTab | (string & {});
+
+type SettingsMenuItem = {
+  key: SettingTab;
+  label: string;
+  icon: React.ReactNode;
+  searchText: string;
+};
+
+const normalizeSearchText = (value: string): string => value.trim().toLowerCase();
 
 /**
  * 设置弹窗组件属性 / Settings modal component props
@@ -211,6 +230,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeOplSettingsTab(defaultTab));
   const [capabilitiesTab, setCapabilitiesTab] = useState<CapabilitiesTab>(() => capabilityDetailTabFor(defaultTab));
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const resizeTimerRef = useRef<number | undefined>(undefined);
   const extensionTabs = useExtensionSettingsTabs();
@@ -257,16 +277,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   }, [extensionTabs]);
 
   // 菜单项配置 / Menu items configuration
-  const menuItems = useMemo((): Array<{ key: SettingTab; label: string; icon: React.ReactNode }> => {
-    type MenuItem = { key: string; label: string; icon: React.ReactNode };
-
-    const builtinItems: MenuItem[] = OPL_VISIBLE_MODAL_TAB_IDS.map((key) => ({
-      key,
-      label: t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
+  const menuItems = useMemo((): SettingsMenuItem[] => {
+    const builtinItems: SettingsMenuItem[] = OPL_VISIBLE_MODAL_TAB_IDS.map((key) => {
+      const label = t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
         defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
-      }),
-      icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
-    }));
+      });
+      return {
+        key,
+        label,
+        icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
+        searchText: normalizeSearchText([key, label, ...(OPL_SETTINGS_SEARCH_TERMS[key] ?? [])].join(' ')),
+      };
+    });
 
     // Extension tabs — position anchoring
     const beforeMap = new Map<string, IExtensionSettingsTab[]>();
@@ -293,16 +315,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       list.push(tab);
     }
 
-    const toMenuItem = (tab: IExtensionSettingsTab): MenuItem => {
+    const toMenuItem = (tab: IExtensionSettingsTab): SettingsMenuItem => {
       const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
+      const label = resolveExtTabName(tab);
       return {
         key: tab.id,
-        label: resolveExtTabName(tab),
+        label,
         icon: resolvedIcon ? (
           <img src={resolvedIcon} alt='' className='w-20px h-20px object-contain' />
         ) : (
           <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
         ),
+        searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
     };
 
@@ -324,6 +348,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
 
     return builtinItems;
   }, [t, extensionTabs, resolveExtTabName]);
+
+  const filteredMenuItems = useMemo(() => {
+    const query = normalizeSearchText(menuSearchQuery);
+    if (!query) return menuItems;
+    return menuItems.filter((item) => item.searchText.includes(query));
+  }, [menuItems, menuSearchQuery]);
 
   useEffect(() => {
     setActiveTab(normalizeOplSettingsTab(defaultTab));
@@ -410,6 +440,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   // 移动端菜单（Tabs切换）/ Mobile menu (Tabs)
   const mobileMenu = (
     <div className='mt-16px mb-20px overflow-x-auto'>
+      <Input
+        value={menuSearchQuery}
+        onChange={setMenuSearchQuery}
+        allowClear
+        prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
+        placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
+        className='mb-12px'
+        data-testid='settings-search-input'
+      />
       <Tabs
         activeTab={activeTab}
         onChange={handleTabChange}
@@ -417,33 +456,53 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
         size='default'
         className='settings-mobile-tabs [&_.arco-tabs-nav]:border-b-0'
       >
-        {menuItems.map((item) => (
+        {filteredMenuItems.map((item) => (
           <Tabs.TabPane key={item.key} title={item.label} />
         ))}
       </Tabs>
+      {filteredMenuItems.length === 0 && (
+        <div className='px-8px py-12px text-13px text-t-secondary' data-testid='settings-search-empty'>
+          {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
+        </div>
+      )}
     </div>
   );
 
   // 桌面端菜单（侧边栏）/ Desktop menu (sidebar)
   const desktopMenu = (
     <AionScrollArea className='flex-shrink-0 b-color-border-2 scrollbar-hide' style={{ width: `${SIDEBAR_WIDTH}px` }}>
-      <div className='flex flex-col gap-2px'>
-        {menuItems.map((item) => (
-          <div
-            key={item.key}
-            className={classNames(
-              'flex items-center px-14px py-10px rd-8px cursor-pointer transition-all duration-150 select-none',
-              {
-                'bg-aou-2 text-t-primary': activeTab === item.key,
-                'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
-              }
-            )}
-            onClick={() => handleTabChange(item.key)}
-          >
-            <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
-            <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
+      <div className='flex flex-col gap-8px pr-12px'>
+        <Input
+          value={menuSearchQuery}
+          onChange={setMenuSearchQuery}
+          allowClear
+          prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
+          placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
+          data-testid='settings-search-input'
+        />
+        <div className='flex flex-col gap-2px'>
+          {filteredMenuItems.map((item) => (
+            <div
+              key={item.key}
+              className={classNames(
+                'flex items-center px-14px py-10px rd-8px cursor-pointer transition-all duration-150 select-none',
+                {
+                  'bg-aou-2 text-t-primary': activeTab === item.key,
+                  'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
+                }
+              )}
+              onClick={() => handleTabChange(item.key)}
+            >
+              <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
+              <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
+            </div>
+          ))}
+        </div>
+        {filteredMenuItems.length === 0 && (
+          <div className='px-14px py-12px rd-8px text-13px text-t-secondary bg-fill-1' data-testid='settings-search-empty'>
+            {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
           </div>
-        ))}
+        )}
       </div>
     </AionScrollArea>
   );

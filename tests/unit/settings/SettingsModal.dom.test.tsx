@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import SettingsModal from '@/renderer/components/settings/SettingsModal';
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
@@ -127,6 +127,8 @@ vi.mock('react-i18next', () => ({
         'settings.agent': 'Agent',
         'settings.tools': 'Tools',
         'settings.webui': 'WebUI',
+        'settings.searchPlaceholder': 'Search settings',
+        'settings.searchEmpty': 'No matching settings',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -158,6 +160,25 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
     expect(screen.queryByText('Tools')).not.toBeInTheDocument();
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
+  });
+
+  it('filters Settings navigation by user task keywords', () => {
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'rollback' } });
+
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty state when no Settings route matches search', () => {
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'not-a-settings-entry' } });
+
+    expect(screen.getByTestId('settings-search-empty')).toHaveTextContent('No matching settings');
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
   it('redirects legacy overview, runtime, model, and system tab requests to App-owned pages', () => {

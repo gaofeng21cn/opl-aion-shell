@@ -2398,6 +2398,8 @@ export type I18nKey =
   | 'settings.scaleDescription'
   | 'settings.scaleReset'
   | 'settings.searchAssistants'
+  | 'settings.searchEmpty'
+  | 'settings.searchPlaceholder'
   | 'settings.selectCli'
   | 'settings.selectModel'
   | 'settings.simpleMode'

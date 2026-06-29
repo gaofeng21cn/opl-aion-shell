@@ -69,6 +69,8 @@
   "assistantSourceCustom": "自定义",
   "assistantSectionEnabled": "已启用",
   "assistantSectionDisabled": "已禁用",
+  "searchPlaceholder": "搜索设置",
+  "searchEmpty": "未找到相关设置",
   "searchAssistants": "按名称或描述搜索助手",
   "assistantNoMatch": "没有匹配当前筛选条件的助手。",
   "assistantCreated": "助手已创建",
