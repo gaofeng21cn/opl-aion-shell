@@ -67,6 +67,18 @@ const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> 
   },
 };
 
+const CLEANUP_MODE_LABEL_KEYS: Record<string, string> = {
+  stale_installer_package_cleanup_allowed: 'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof',
+  archive_required_before_cleanup: 'settings.storagePage.inventory.cleanupModes.needsArchiveProof',
+  pointer_based_dry_run_required: 'settings.storagePage.inventory.cleanupModes.needsPreview',
+  bounded_rotation_dry_run_required: 'settings.storagePage.inventory.cleanupModes.needsPreview',
+};
+
+const cleanupModeLabelKey = (mode: string | null | undefined): string =>
+  mode
+    ? (CLEANUP_MODE_LABEL_KEYS[mode] ?? 'settings.storagePage.inventory.cleanupModes.needsReview')
+    : 'settings.storagePage.inventory.cleanupModes.needsReview';
+
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const messageRef = React.useRef(Message);
@@ -325,7 +337,7 @@ export const StorageSettingsContent: React.FC = () => {
             <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
             <span>
               {t('settings.storagePage.inventory.cleanupMode', {
-                mode: item.cleanupMode ?? t('settings.oplEnvironmentPage.status.unknown'),
+                mode: t(cleanupModeLabelKey(item.cleanupMode)),
               })}
             </span>
             <span>{t('settings.storagePage.inventory.rootCount', { count: item.rootCount })}</span>

@@ -18,7 +18,6 @@ export type StatusCard = {
 
 export type AccessProjection = {
   cards: StatusCard[];
-  temporalAddress: string | null;
 };
 
 export function normalizeAccessStatus(status: string | null, fallback: string): string {
@@ -41,7 +40,6 @@ export function buildAccessProjection(
   const codexConfig = oplRecord(codex.config);
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
-  const temporalDetails = oplRecord(temporal.details);
 
   const codexStatus = normalizeAccessStatus(
     oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : null),
@@ -53,9 +51,6 @@ export function buildAccessProjection(
     oplString(provider.health_status) ?? oplString(provider.status) ?? oplString(temporal.health_status),
     'unknown'
   );
-  const providerKind = oplString(provider.provider_kind);
-  const temporalStatus = oplString(temporal.status);
-  const temporalAddress = oplString(temporal.address) ?? oplString(temporalDetails.address);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'full-access';
 
   const modelName =
@@ -77,10 +72,7 @@ export function buildAccessProjection(
       key: 'model',
       title: t('settings.accessPage.cards.model.title'),
       status: codexStatus,
-      detail: compactAccessDetail(
-        [modelName, oplString(codex.version), oplString(codex.binary_path)],
-        t('settings.accessPage.cards.model.fallback')
-      ),
+      detail: compactAccessDetail([modelName, oplString(codex.version)], t('settings.accessPage.cards.model.fallback')),
       tone: codexStatus === 'ready' ? 'green' : 'orange',
     },
     {
@@ -95,8 +87,10 @@ export function buildAccessProjection(
       title: t('settings.accessPage.cards.modelAccess.title'),
       status: modelAccessStatus,
       detail: t('settings.accessPage.cards.provider.summary', {
-        kind: providerKind || t('settings.accessPage.cards.provider.localRuntime'),
-        status: temporalStatus || providerStatus,
+        status:
+          modelAccessStatus === 'ready'
+            ? t('settings.accessPage.cards.provider.ready')
+            : t('settings.accessPage.cards.provider.needsAttention'),
       }),
       help: t('settings.accessPage.cards.modelAccess.detail'),
       tone: modelAccessStatus === 'ready' ? 'green' : 'orange',
@@ -111,5 +105,5 @@ export function buildAccessProjection(
     },
   ];
 
-  return { cards, temporalAddress };
+  return { cards };
 }

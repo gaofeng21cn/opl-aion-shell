@@ -194,7 +194,9 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.modelAccess.title': 'Model Access Status',
         'settings.accessPage.cards.modelAccess.detail':
           'Checks whether the local assistant can reach the configured model service.',
-        'settings.accessPage.cards.provider.summary': `${options?.kind} · ${options?.status}`,
+        'settings.accessPage.cards.provider.summary': `${options?.status}`,
+        'settings.accessPage.cards.provider.ready': 'Model service is reachable.',
+        'settings.accessPage.cards.provider.needsAttention': 'Model service needs setup or maintenance.',
         'settings.accessPage.cards.provider.localRuntime': 'Local runtime service',
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
@@ -250,14 +252,15 @@ describe('AccessSettingsContent', () => {
     ).toBeTruthy();
     expect(view.getByText('Current Model')).toBeTruthy();
     expect(document.body.textContent).toContain('gpt-5.5');
-    expect(document.body.textContent).toContain('/usr/local/bin/codex');
+    expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
     expect(view.getByText('Account / API key')).toBeTruthy();
     expect(view.getByText('Account or API key is configured.')).toBeTruthy();
     expect(view.getByText('Model Access Status')).toBeTruthy();
     expect(view.getByText(/configured model service/)).toBeTruthy();
-    expect(view.getByText(/127\.0\.0\.1:7233/)).toBeTruthy();
-    expect(view.getByText('temporal · ready')).toBeTruthy();
-    expect(view.getByText(/Model & Account shows account\/API key status/)).toBeTruthy();
+    expect(view.getByText('Model service is reachable.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('127.0.0.1:7233');
+    expect(document.body.textContent).not.toContain('temporal · ready');
+    expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
     expect(view.getByText('Web / Docker / Remote Access')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(view.getByText('Docker')).toBeTruthy();

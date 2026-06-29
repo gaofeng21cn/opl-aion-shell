@@ -19,7 +19,7 @@ export const AccessSettingsContent: React.FC = () => {
   const appStateQuery = useOplAppState('fast');
   const [codexApiKey, setCodexApiKey] = useState('');
   const [configureLoading, setConfigureLoading] = useState(false);
-  const { cards, temporalAddress } = buildAccessProjection(appStateQuery.appState, t);
+  const { cards } = buildAccessProjection(appStateQuery.appState, t);
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -121,12 +121,6 @@ export const AccessSettingsContent: React.FC = () => {
           </Card>
         ))}
       </div>
-      {temporalAddress && (
-        <Typography.Text className='text-12px text-t-secondary'>
-          {t('settings.accessPage.localServiceTechnicalDetail', { address: temporalAddress })}
-        </Typography.Text>
-      )}
-
       <Card bordered className='rd-8px' id='web-remote'>
         <div className='flex flex-col gap-12px'>
           <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>

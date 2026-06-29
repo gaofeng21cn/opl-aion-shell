@@ -1398,7 +1398,7 @@
   },
   "storagePage": {
     "title": "Storage",
-    "description": "Manage local data from lifecycle inventory, dry-run plans, and receipts. Destructive actions stay locked until the required proof exists.",
+    "description": "Review local data, preview cleanup changes, and keep proof before anything destructive can run.",
     "sections": {
       "updater": {
         "title": "Updater cache",
@@ -1410,7 +1410,7 @@
       },
       "runtime": {
         "title": "Runtime/toolchain",
-        "description": "Pointer-based runtime roots require a dry-run prune plan."
+        "description": "Runtime cleanup must be previewed before it can run."
       },
       "logs": {
         "title": "Logs",
@@ -1419,27 +1419,33 @@
     },
     "inventory": {
       "bytes": "Bytes: {{bytes}}",
-      "cleanupMode": "Cleanup mode: {{mode}}",
+      "cleanupMode": "Cleanup proof: {{mode}}",
       "rootCount": "Roots: {{count}}",
       "rootDetail": "{{exists}} · {{bytes}}",
       "exists": "exists",
       "missing": "missing",
       "noRoots": "No roots reported.",
-      "notLoaded": "Inventory not loaded yet.",
-      "silentDeleteAllowed": "silent delete allowed",
-      "silentDeleteBlocked": "silent delete blocked"
+      "notLoaded": "Storage details are not loaded yet.",
+      "silentDeleteAllowed": "Safe without extra proof",
+      "silentDeleteBlocked": "Needs proof first",
+      "cleanupModes": {
+        "safeWithoutExtraProof": "Safe without extra proof",
+        "needsArchiveProof": "Needs archive proof",
+        "needsPreview": "Needs preview first",
+        "needsReview": "Needs review"
+      }
     },
     "actions": {
       "refresh": "Refresh",
       "archive": "Archive conversations",
       "restoreProof": "Restore proof",
       "deleteWithReceipt": "Delete with receipt",
-      "dryRunRuntime": "Dry-run runtime prune",
-      "executeRuntime": "Execute runtime prune",
-      "dryRunLogs": "Dry-run log rotation",
-      "executeLogs": "Execute log rotation",
-      "dryRunUpdater": "Dry-run updater cache cleanup",
-      "executeUpdater": "Clean updater cache"
+      "dryRunRuntime": "Preview runtime cleanup",
+      "executeRuntime": "Clean using preview",
+      "dryRunLogs": "Preview log cleanup",
+      "executeLogs": "Clean logs using preview",
+      "dryRunUpdater": "Preview installer cache cleanup",
+      "executeUpdater": "Clean installer cache"
     },
     "conversations": {
       "title": "Conversation archive and restore proof",
@@ -1448,12 +1454,12 @@
       "proofReceipt": "Proof receipt: {{receipt}}"
     },
     "runtime": {
-      "title": "Runtime prune",
-      "detail": "Run a dry-run plan first. Execute uses that exact plan instead of discovering new paths silently."
+      "title": "Runtime cleanup",
+      "detail": "Preview the exact runtime paths first. Cleanup uses that same preview instead of discovering new paths during the action."
     },
     "logs": {
       "title": "Log rotation",
-      "detail": "Rotate log files with an explicit dry-run. Logs are not conversation artifacts.",
+      "detail": "Preview log files before rotating them. Logs are not conversation artifacts.",
       "candidate": "{{path}} · {{reason}} · {{bytes}}",
       "reasons": {
         "older_than_retention_days": "older than retention days",
@@ -1467,16 +1473,16 @@
     },
     "plans": {
       "runtime": {
-        "required": "Dry-run required before runtime prune can execute.",
-        "summary": "Runtime prune plan: {{count}} candidate(s), {{bytes}}."
+        "required": "Preview required before runtime cleanup can run.",
+        "summary": "Runtime cleanup preview: {{count}} candidate(s), {{bytes}}."
       },
       "logs": {
-        "required": "Dry-run required before log rotation can execute.",
-        "summary": "Log rotation plan: {{count}} candidate(s), {{bytes}}."
+        "required": "Preview required before log cleanup can run.",
+        "summary": "Log cleanup preview: {{count}} candidate(s), {{bytes}}."
       },
       "updater": {
-        "required": "Dry-run required before updater cache cleanup can execute.",
-        "summary": "Updater cache cleanup plan: {{count}} candidate(s), {{bytes}}."
+        "required": "Preview required before installer cache cleanup can run.",
+        "summary": "Installer cache cleanup preview: {{count}} candidate(s), {{bytes}}."
       }
     },
     "messages": {
@@ -1504,8 +1510,10 @@
       },
       "provider": {
         "fallback": "Background service details are not available yet.",
-        "summary": "{{kind}} · {{status}}",
-        "localRuntime": "Local runtime service"
+        "summary": "{{status}}",
+        "localRuntime": "Local runtime service",
+        "ready": "Model service is reachable.",
+        "needsAttention": "Model service needs setup or maintenance."
       },
       "permission": {
         "title": "Permission Mode",
@@ -1610,7 +1618,7 @@
     },
     "storageData": {
       "title": "Storage and data",
-      "description": "Review local data inventory, archive or restore conversation proof, rotate logs, and clean stale installer cache with dry-run plans.",
+      "description": "Review local data, archive or restore conversation proof, preview cleanup changes, and clean stale installer cache safely.",
       "openStorage": "Review storage"
     },
     "maintenanceHub": {
@@ -1619,7 +1627,12 @@
       "makeUsable": {
         "label": "Make OPL usable",
         "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
-        "complete": "OPL usability check finished. Follow any restart or reload guidance shown below."
+        "complete": "OPL usability check finished. Follow any restart or reload guidance shown below.",
+        "confirmTitle": "Confirm OPL maintenance",
+        "confirmWillChange": "Will run the existing repair prep and managed update checks, then apply only safe repair or sync actions that do not require restart.",
+        "confirmWillNotChange": "Will not overwrite local developer checkouts, write domain truth, delete user data, or silently apply restart-required updates.",
+        "confirmRecovery": "Receipts, rollback references, and reload guidance will stay visible after the action.",
+        "confirmAction": "Run maintenance"
       },
       "status": {
         "available": "Available"
@@ -1641,7 +1654,7 @@
         },
         "storageCleanup": {
           "title": "Storage cleanup",
-          "description": "Open storage inventory, dry-run cleanup plans, and receipts."
+          "description": "Open storage details, cleanup previews, and proof receipts."
         },
         "repairSuggestions": {
           "title": "Repair suggestions",
@@ -1790,9 +1803,9 @@
       },
       "actions": {
         "check": "Check module updates",
-        "apply": "Apply",
+        "apply": "Apply update",
         "repair": "Repair",
-        "rollback": "Rollback"
+        "rollback": "Restore previous version"
       }
     },
     "updates": {
@@ -1816,13 +1829,13 @@
       "actions": {
         "refreshStatus": "Refresh status",
         "check": "Check updates",
-        "plan": "Generate plan",
+        "plan": "Preview update plan",
         "recommendedCheck": "Check updates",
         "recommendedApply": "Apply recommended update",
         "recommendedRepair": "Repair recommended item",
-        "applySelected": "Apply selected",
+        "applySelected": "Apply update",
         "repair": "Repair",
-        "rollback": "Rollback",
+        "rollback": "Restore previous version",
         "autoApply": "Background sync"
       },
       "actionHelp": {

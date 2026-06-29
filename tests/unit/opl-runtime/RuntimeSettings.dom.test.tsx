@@ -49,6 +49,13 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'common.cancel': 'Cancel',
         'settings.updateConfirm': 'Confirm Changes',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle': 'Confirm OPL maintenance',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange': 'Will run safe maintenance.',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillNotChange':
+          'Will not overwrite local work or delete user data.',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery': 'Receipts remain visible.',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run maintenance',
+        'settings.oplEnvironmentPage.updates.components.unknown': 'OPL component',
       };
       if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
@@ -554,6 +561,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
+
+    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
+      'Confirm OPL maintenance'
+    );
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
+      'Will not overwrite local work or delete user data.'
+    );
+
+    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable-confirm'));
 
     await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));

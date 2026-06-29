@@ -19,6 +19,8 @@ export const ROUTES = {
     storage: '#/settings/storage',
     appearance: '#/settings/appearance',
     advanced: '#/settings/advanced',
+    workspace: '#/settings/workspace',
+    'local-services': '#/settings/local-services',
     gemini: '#/settings/gemini',
     model: '#/settings/model',
     agent: '#/settings/agent',
@@ -117,7 +119,7 @@ export async function navigateTo(page: Page, hash: string): Promise<void> {
     if (!isAlreadyAt(page, hash)) {
       const navItem = page.locator(`[data-settings-path="${settingsPath}"]`);
       if (await navItem.isVisible().catch(() => false)) {
-        await navItem.click();
+        await navItem.click({ timeout: 2_000 }).catch(() => page.evaluate((h) => window.location.assign(h), hash));
         await page
           .waitForFunction((h) => window.location.hash.includes(h), `/settings/${settingsPath}`, { timeout: 10_000 })
           .catch(() => {});

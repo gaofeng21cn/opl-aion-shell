@@ -1399,7 +1399,7 @@
   },
   "storagePage": {
     "title": "存储",
-    "description": "基于本地数据生命周期 inventory、dry-run 计划和回执管理本地数据。破坏性操作必须等必要证明存在后才可执行。",
+    "description": "查看本地数据，先预览清理变化，并在破坏性操作前保留必要证明。",
     "sections": {
       "updater": {
         "title": "更新缓存",
@@ -1411,7 +1411,7 @@
       },
       "runtime": {
         "title": "运行时/工具链",
-        "description": "基于指针的运行时目录必须先生成 dry-run prune 计划。"
+        "description": "运行时清理必须先预览，确认后才能执行。"
       },
       "logs": {
         "title": "日志",
@@ -1420,27 +1420,33 @@
     },
     "inventory": {
       "bytes": "大小：{{bytes}}",
-      "cleanupMode": "清理模式：{{mode}}",
+      "cleanupMode": "清理证明：{{mode}}",
       "rootCount": "根路径：{{count}}",
       "rootDetail": "{{exists}} · {{bytes}}",
       "exists": "存在",
       "missing": "缺失",
       "noRoots": "没有上报根路径。",
-      "notLoaded": "inventory 尚未加载。",
-      "silentDeleteAllowed": "允许静默删除",
-      "silentDeleteBlocked": "禁止静默删除"
+      "notLoaded": "存储详情尚未加载。",
+      "silentDeleteAllowed": "无需额外证明",
+      "silentDeleteBlocked": "需要先有证明",
+      "cleanupModes": {
+        "safeWithoutExtraProof": "无需额外证明",
+        "needsArchiveProof": "需要归档证明",
+        "needsPreview": "需要先预览",
+        "needsReview": "需要查看详情"
+      }
     },
     "actions": {
       "refresh": "刷新",
       "archive": "归档对话",
       "restoreProof": "恢复证明",
       "deleteWithReceipt": "凭回执删除",
-      "dryRunRuntime": "Dry-run 运行时清理",
-      "executeRuntime": "执行运行时清理",
-      "dryRunLogs": "Dry-run 日志轮转",
-      "executeLogs": "执行日志轮转",
-      "dryRunUpdater": "Dry-run 更新缓存清理",
-      "executeUpdater": "清理更新缓存"
+      "dryRunRuntime": "预览运行时清理",
+      "executeRuntime": "按预览清理",
+      "dryRunLogs": "预览日志清理",
+      "executeLogs": "按预览清理日志",
+      "dryRunUpdater": "预览安装包缓存清理",
+      "executeUpdater": "清理安装包缓存"
     },
     "conversations": {
       "title": "对话归档与恢复证明",
@@ -1450,11 +1456,11 @@
     },
     "runtime": {
       "title": "运行时清理",
-      "detail": "必须先生成 dry-run 计划。执行时使用同一个计划，不会静默重新发现路径。"
+      "detail": "先预览将处理的运行时路径。实际清理只使用这份预览，不会在执行时重新发现路径。"
     },
     "logs": {
       "title": "日志轮转",
-      "detail": "日志文件通过显式 dry-run 后轮转。日志不是对话产物。",
+      "detail": "先预览将处理的日志文件，再执行轮转。日志不是对话产物。",
       "candidate": "{{path}} · {{reason}} · {{bytes}}",
       "reasons": {
         "older_than_retention_days": "超过保留天数",
@@ -1468,16 +1474,16 @@
     },
     "plans": {
       "runtime": {
-        "required": "必须先 dry-run，才能执行运行时清理。",
-        "summary": "运行时清理计划：{{count}} 个候选，{{bytes}}。"
+        "required": "必须先预览，才能执行运行时清理。",
+        "summary": "运行时清理预览：{{count}} 个候选，{{bytes}}。"
       },
       "logs": {
-        "required": "必须先 dry-run，才能执行日志轮转。",
-        "summary": "日志轮转计划：{{count}} 个候选，{{bytes}}。"
+        "required": "必须先预览，才能执行日志清理。",
+        "summary": "日志清理预览：{{count}} 个候选，{{bytes}}。"
       },
       "updater": {
-        "required": "必须先 dry-run，才能执行更新缓存清理。",
-        "summary": "更新缓存清理计划：{{count}} 个候选，{{bytes}}。"
+        "required": "必须先预览，才能执行安装包缓存清理。",
+        "summary": "安装包缓存清理预览：{{count}} 个候选，{{bytes}}。"
       }
     },
     "messages": {
@@ -1505,8 +1511,10 @@
       },
       "provider": {
         "fallback": "暂时无法读取后台服务详情。",
-        "summary": "{{kind}} · {{status}}",
-        "localRuntime": "本机运行服务"
+        "summary": "{{status}}",
+        "localRuntime": "本机运行服务",
+        "ready": "模型服务可访问。",
+        "needsAttention": "模型服务需要设置或维护。"
       },
       "permission": {
         "title": "权限模式",
@@ -1611,7 +1619,7 @@
     },
     "storageData": {
       "title": "存储与数据",
-      "description": "查看本地数据 inventory，归档或恢复对话证明，轮转日志，并通过 dry-run 计划清理过期安装包缓存。",
+      "description": "查看本地数据，归档或恢复对话证明，先预览清理变化，再安全清理过期安装包缓存。",
       "openStorage": "查看存储"
     },
     "maintenanceHub": {
@@ -1620,7 +1628,12 @@
       "makeUsable": {
         "label": "让 OPL 可用",
         "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
-        "complete": "OPL 可用性检查已完成。请按下方显示的重启或重新加载指引继续。"
+        "complete": "OPL 可用性检查已完成。请按下方显示的重启或重新加载指引继续。",
+        "confirmTitle": "确认 OPL 维护操作",
+        "confirmWillChange": "会运行现有修复准备和托管更新检查，并只应用不需要重启的安全修复或同步动作。",
+        "confirmWillNotChange": "不会覆盖本机开发目录、写入领域真相、删除用户数据，也不会静默应用需要重启的更新。",
+        "confirmRecovery": "动作完成后会继续显示回执、恢复引用和重新加载指引。",
+        "confirmAction": "运行维护"
       },
       "status": {
         "available": "可用"
@@ -1642,7 +1655,7 @@
         },
         "storageCleanup": {
           "title": "存储清理",
-          "description": "打开存储 inventory、dry-run 清理计划和回执。"
+          "description": "打开存储详情、清理预览和证明回执。"
         },
         "repairSuggestions": {
           "title": "修复建议",
@@ -1791,9 +1804,9 @@
       },
       "actions": {
         "check": "检查模块更新",
-        "apply": "应用",
+        "apply": "应用更新",
         "repair": "修复",
-        "rollback": "回滚"
+        "rollback": "恢复上一版本"
       }
     },
     "updates": {
@@ -1817,13 +1830,13 @@
       "actions": {
         "refreshStatus": "刷新状态",
         "check": "检查更新",
-        "plan": "生成计划",
+        "plan": "预览更新计划",
         "recommendedCheck": "检查更新",
         "recommendedApply": "应用推荐更新",
         "recommendedRepair": "修复推荐项",
-        "applySelected": "应用所选",
+        "applySelected": "应用更新",
         "repair": "修复",
-        "rollback": "回滚",
+        "rollback": "恢复上一版本",
         "autoApply": "后台同步"
       },
       "actionHelp": {

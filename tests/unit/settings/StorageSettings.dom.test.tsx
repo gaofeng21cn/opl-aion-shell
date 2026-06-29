@@ -47,17 +47,48 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
 const translate = (key: string, values?: Record<string, string | number>) => {
   const labels: Record<string, string> = {
     'settings.storagePage.title': 'Storage',
-    'settings.storagePage.description': 'Manage local data.',
+    'settings.storagePage.description': 'Review local data.',
     'settings.storagePage.actions.archive': 'Archive conversations',
-    'settings.storagePage.actions.dryRunRuntime': 'Dry-run runtime prune',
-    'settings.storagePage.actions.dryRunLogs': 'Dry-run log rotation',
-    'settings.storagePage.actions.dryRunUpdater': 'Dry-run updater cache cleanup',
-    'settings.storagePage.actions.executeRuntime': 'Execute runtime prune',
-    'settings.storagePage.actions.executeLogs': 'Execute log rotation',
-    'settings.storagePage.actions.executeUpdater': 'Clean updater cache',
+    'settings.storagePage.actions.dryRunRuntime': 'Preview runtime cleanup',
+    'settings.storagePage.actions.dryRunLogs': 'Preview log cleanup',
+    'settings.storagePage.actions.dryRunUpdater': 'Preview installer cache cleanup',
+    'settings.storagePage.actions.executeRuntime': 'Clean using preview',
+    'settings.storagePage.actions.executeLogs': 'Clean logs using preview',
+    'settings.storagePage.actions.executeUpdater': 'Clean installer cache',
     'settings.storagePage.actions.deleteWithReceipt': 'Delete with receipt',
-    'settings.storagePage.inventory.silentDeleteAllowed': 'silent delete allowed',
-    'settings.storagePage.inventory.silentDeleteBlocked': 'silent delete blocked',
+    'settings.storagePage.sections.updater.title': 'Updater cache',
+    'settings.storagePage.sections.updater.description': 'Installer package cache only.',
+    'settings.storagePage.sections.conversations.title': 'Conversation artifacts',
+    'settings.storagePage.sections.conversations.description': 'Conversation files require proof before cleanup.',
+    'settings.storagePage.sections.runtime.title': 'Runtime/toolchain',
+    'settings.storagePage.sections.runtime.description': 'Runtime cleanup must be previewed before it can run.',
+    'settings.storagePage.sections.logs.title': 'Logs',
+    'settings.storagePage.sections.logs.description': 'Log cleanup is separate from conversation artifacts.',
+    'settings.storagePage.inventory.bytes': `Bytes: ${values?.bytes ?? ''}`,
+    'settings.storagePage.inventory.cleanupMode': `Cleanup proof: ${values?.mode ?? ''}`,
+    'settings.storagePage.inventory.rootCount': `Roots: ${values?.count ?? ''}`,
+    'settings.storagePage.inventory.rootDetail': `${values?.exists ?? ''} ${values?.bytes ?? ''}`,
+    'settings.storagePage.inventory.exists': 'exists',
+    'settings.storagePage.inventory.missing': 'missing',
+    'settings.storagePage.inventory.noRoots': 'No roots reported.',
+    'settings.storagePage.inventory.notLoaded': 'Storage details are not loaded yet.',
+    'settings.storagePage.inventory.silentDeleteAllowed': 'Safe without extra proof',
+    'settings.storagePage.inventory.silentDeleteBlocked': 'Needs proof first',
+    'settings.storagePage.inventory.cleanupModes.safeWithoutExtraProof': 'Safe without extra proof',
+    'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Needs archive proof',
+    'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
+    'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
+    'settings.storagePage.conversations.title': 'Conversation archive and restore proof',
+    'settings.storagePage.conversations.detail': 'Delete is disabled until proof is available.',
+    'settings.storagePage.conversations.receiptRequired': 'Archive conversations first.',
+    'settings.storagePage.runtime.title': 'Runtime cleanup',
+    'settings.storagePage.runtime.detail': 'Preview the exact runtime paths first.',
+    'settings.storagePage.plans.runtime.required': 'Preview required before runtime cleanup can run.',
+    'settings.storagePage.logs.title': 'Log cleanup',
+    'settings.storagePage.plans.logs.required': 'Preview required before log cleanup can run.',
+    'settings.storagePage.updater.title': 'Installer package cache',
+    'settings.storagePage.updater.detail': 'Only stale installer package cache is targeted.',
+    'settings.storagePage.plans.updater.required': 'Preview required before installer cache cleanup can run.',
     'settings.storagePage.logs.detail': 'Logs are not conversation artifacts.',
     'settings.storagePage.messages.actionComplete': 'Storage action completed',
     'settings.updateConfirm': 'Confirm Changes',
@@ -185,12 +216,13 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('silent delete allowed');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
     expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('silent delete blocked');
+    expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('Needs proof first');
     expect(screen.getByTestId('storage-inventory-runtime_toolchain')).toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Dry-run|dry-run|prune|silent delete|inventory/i);
   });
 
   it('keeps delete and execute buttons disabled until receipt or dry-run plan exists', async () => {
@@ -207,15 +239,15 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-conversation-delete')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Dry-run runtime prune'));
+    fireEvent.click(screen.getByText('Preview runtime cleanup'));
     await waitFor(() => expect(bridgeMocks.planRuntimePrune).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Dry-run log rotation'));
+    fireEvent.click(screen.getByText('Preview log cleanup'));
     await waitFor(() => expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Dry-run updater cache cleanup'));
+    fireEvent.click(screen.getByText('Preview installer cache cleanup'));
     await waitFor(() => expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled();
   });
@@ -224,7 +256,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Dry-run runtime prune'));
+    fireEvent.click(screen.getByText('Preview runtime cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-runtime-execute'));
     expect(bridgeMocks.executeRuntimePrune).not.toHaveBeenCalled();
@@ -237,7 +269,7 @@ describe('StorageSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByText('Dry-run log rotation'));
+    fireEvent.click(screen.getByText('Preview log cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-logs-execute'));
     expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
@@ -251,7 +283,7 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Dry-run updater cache cleanup'));
+    fireEvent.click(screen.getByText('Preview installer cache cleanup'));
     await waitFor(() => expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-updater-execute'));
     expect(bridgeMocks.executeUpdaterCacheCleanup).not.toHaveBeenCalled();

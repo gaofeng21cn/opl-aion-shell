@@ -61,6 +61,13 @@ type PendingUpdateAction = {
   source: 'managed-updates' | 'module-maintenance';
 } | null;
 
+function componentDisplayLabel(component: ManagedUpdateComponent | undefined, t: Translate): string {
+  if (!component) return t('settings.oplEnvironmentPage.updates.components.unknown');
+  return t(`settings.oplEnvironmentPage.updates.components.${component.id}`, {
+    defaultValue: component.label || t('settings.oplEnvironmentPage.updates.components.unknown'),
+  });
+}
+
 function updateReadActionHelp(operation: 'status' | 'check' | 'plan', t: Translate): string {
   return t(`settings.oplEnvironmentPage.updates.actionHelp.${operation}`);
 }
@@ -344,9 +351,7 @@ function PostUpdateNotice({
   if (!action) return null;
 
   const component = plane.components.find((entry) => entry.id === action.componentId);
-  const componentLabel = component
-    ? t(`settings.oplEnvironmentPage.updates.components.${component.id}`, { defaultValue: component.label })
-    : action.componentId;
+  const componentLabel = componentDisplayLabel(component, t);
   const reloadGuidance = action.reloadGuidance ?? maintenance.reloadGuidance ?? component?.reloadGuidance;
   const receiptRef = action.receiptRef ?? component?.receiptRef ?? component?.repairReceiptId;
   const statusKey =
@@ -514,7 +519,7 @@ function ManagedUpdatesPanel({
             content={
               <div className='flex flex-col gap-8px'>
                 <span className='break-words'>
-                  {mutationKindLabel(pendingAction.kind, t)} · {pendingAction.component.label}
+                  {mutationKindLabel(pendingAction.kind, t)} · {componentDisplayLabel(pendingAction.component, t)}
                 </span>
                 <span className='break-words'>
                   {t('settings.oplEnvironmentPage.updates.confirmation.willChange', {
@@ -560,9 +565,7 @@ function ManagedUpdatesPanel({
               <div className='flex flex-col gap-10px'>
                 <div className='flex items-center justify-between gap-12px'>
                   <Typography.Text className='font-600 text-t-primary break-words'>
-                    {t(`settings.oplEnvironmentPage.updates.components.${component.id}`, {
-                      defaultValue: component.label,
-                    })}
+                    {componentDisplayLabel(component, t)}
                   </Typography.Text>
                   <Tag color={componentStatusTone(component)}>{formatStatus(component.state, t)}</Tag>
                 </div>
@@ -768,6 +771,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     'runtimeToolchain' | 'capabilityPacks' | null
   >(null);
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
+  const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
   const [pendingUpdateAction, setPendingUpdateAction] = React.useState<PendingUpdateAction>(null);
   const appStateQuery = useOplAppState('fast');
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
@@ -855,6 +859,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
 
   const runMakeOplUsable = useCallback(async () => {
     if (makeUsableRunning) return;
+    setMakeUsableConfirmationOpen(false);
     setMakeUsableRunning(true);
     try {
       const translate = tRef.current;
@@ -898,6 +903,14 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       setMakeUsableRunning(false);
     }
   }, [appState, appStateQuery.load, makeUsableRunning]);
+
+  const requestMakeOplUsable = useCallback(() => {
+    setMakeUsableConfirmationOpen(true);
+  }, []);
+
+  const cancelMakeOplUsable = useCallback(() => {
+    setMakeUsableConfirmationOpen(false);
+  }, []);
 
   const requestManagedUpdateAction = useCallback(
     (
@@ -969,7 +982,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           openStorageSettings,
           openUpdateModal,
           runMaintenanceHubCheck,
-          runMakeOplUsable,
+          runMakeOplUsable: requestMakeOplUsable,
           runRepairSuggestions: () =>
             void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
         },
@@ -985,8 +998,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       managedUpdatePlane,
       openStorageSettings,
       openUpdateModal,
+      requestMakeOplUsable,
       runMaintenanceHubCheck,
-      runMakeOplUsable,
       runOplCommand,
       t,
     ]
@@ -1032,6 +1045,41 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         <RuntimeHealthSummary items={healthSummaryItems} />
 
         <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
+
+        {makeUsableConfirmationOpen && (
+          <Alert
+            type='warning'
+            title={t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle')}
+            data-testid='opl-maintenance-hub-make-usable-confirmation'
+            content={
+              <div className='flex flex-col gap-8px'>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange')}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillNotChange')}
+                </span>
+                <span className='break-words'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery')}
+                </span>
+                <Space wrap size='small'>
+                  <Button size='small' onClick={cancelMakeOplUsable}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size='small'
+                    type='primary'
+                    loading={makeUsableRunning}
+                    onClick={() => void runMakeOplUsable()}
+                    data-testid='opl-maintenance-hub-make-usable-confirm'
+                  >
+                    {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction')}
+                  </Button>
+                </Space>
+              </div>
+            }
+          />
+        )}
 
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.required')}

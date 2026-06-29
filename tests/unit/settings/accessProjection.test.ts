@@ -11,7 +11,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 }));
 
 const t = (key: string, options?: Record<string, string>) => {
-  if (key === 'settings.accessPage.cards.provider.summary') return `${options?.kind} · ${options?.status}`;
+  if (key === 'settings.accessPage.cards.provider.summary') return `${options?.status}`;
+  if (key === 'settings.accessPage.cards.provider.ready') return 'Model service is reachable.';
+  if (key === 'settings.accessPage.cards.provider.needsAttention') return 'Model service needs setup or maintenance.';
   if (key === 'agentMode.full-access') return 'Full Access';
   return options?.defaultValue ?? key;
 };
@@ -21,9 +23,7 @@ describe('buildAccessProjection', () => {
     expect(normalizeAccessStatus(null, 'unknown')).toBe('unknown');
     expect(normalizeAccessStatus('attention_needed', 'unknown')).toBe('attention_required');
     expect(normalizeAccessStatus('needs_attention', 'unknown')).toBe('attention_required');
-    expect(compactAccessDetail(['gpt-5.5', ' ', null, '/usr/local/bin/codex'], 'fallback')).toBe(
-      'gpt-5.5 · /usr/local/bin/codex'
-    );
+    expect(compactAccessDetail(['gpt-5.5', ' ', null, '0.125.0'], 'fallback')).toBe('gpt-5.5 · 0.125.0');
     expect(compactAccessDetail([null, undefined, ' '], 'fallback')).toBe('fallback');
   });
 
@@ -67,9 +67,10 @@ describe('buildAccessProjection', () => {
     });
     expect(modelAccessCard).toMatchObject({
       status: 'attention_required',
-      detail: 'temporal · ready',
+      detail: 'Model service needs setup or maintenance.',
     });
-    expect(projection.temporalAddress).toBe('127.0.0.1:7233');
+    expect(JSON.stringify(projection)).not.toContain('127.0.0.1:7233');
+    expect(JSON.stringify(projection)).not.toContain('temporal');
   });
 
   it('marks model access ready only when Codex, account, and provider are all ready', () => {
