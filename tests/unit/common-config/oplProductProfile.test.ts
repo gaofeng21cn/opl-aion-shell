@@ -135,7 +135,6 @@ describe('OPL generated product profile', () => {
       ],
     });
     expect(getOplCodexModelDisplayOptions().user_reasoning_effort_options).toEqual([
-      'minimal',
       'low',
       'medium',
       'high',

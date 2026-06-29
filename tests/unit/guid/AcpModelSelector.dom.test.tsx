@@ -199,6 +199,7 @@ describe('AcpModelSelector Codex model switching', () => {
       '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
     );
     expect(screen.getByText('推理')).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
     expect(screen.getByText('模型')).toBeInTheDocument();
@@ -241,6 +242,37 @@ describe('AcpModelSelector Codex model switching', () => {
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
         value: 'high',
+      });
+    });
+  });
+
+  it('restores Codex auto reasoning to xhigh when users click Auto again', async () => {
+    mocks.configOptions = [
+      {
+        id: 'reasoning_effort',
+        category: 'thought_level',
+        option_type: 'select',
+        current_value: 'high',
+        options: [
+          { value: 'low', label: 'Low' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'high', label: 'High' },
+          { value: 'xhigh', label: 'Ultra' },
+        ],
+      },
+    ];
+
+    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
+
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 高/ });
+    await userEvent.click(autoButton);
+    fireEvent.click(await screen.findByRole('menuitem', { name: /自动（推荐）/ }));
+
+    await waitFor(() => {
+      expect(mocks.setConfigOption).toHaveBeenCalledWith({
+        conversation_id: 'codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'xhigh',
       });
     });
   });

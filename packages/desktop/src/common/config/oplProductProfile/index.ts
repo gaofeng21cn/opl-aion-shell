@@ -7,7 +7,7 @@
 import generatedProfile from './oplProductProfile.generated.json';
 import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
 
-export type OplCodexReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
 export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
 export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
@@ -309,7 +309,7 @@ type AppProductProfile = {
   };
 };
 
-const CODEX_REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
+const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
 const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[] = [
   'source_channel',
   'workspace_trust',

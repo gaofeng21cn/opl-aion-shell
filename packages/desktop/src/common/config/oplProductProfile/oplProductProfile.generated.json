@@ -112,10 +112,6 @@
         "fixed_model_description_zh": "固定此模型",
         "fixed_model_description_en": "Use this model",
         "reasoning_labels": {
-          "minimal": {
-            "zh": "推理最小",
-            "en": "Minimal reasoning"
-          },
           "low": {
             "zh": "推理低",
             "en": "Low reasoning"
@@ -133,7 +129,7 @@
             "en": "Ultra reasoning"
           }
         },
-        "user_reasoning_effort_options": ["minimal", "low", "medium", "high", "xhigh"],
+        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh"],
         "visible_models": [
           {
             "id": "gpt-5.5",

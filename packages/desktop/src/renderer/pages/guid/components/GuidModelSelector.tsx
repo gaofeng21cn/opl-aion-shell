@@ -67,6 +67,10 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const codexDisplayOptions = getOplCodexModelDisplayOptions();
   const codexAutoLabel =
     localeKey === 'en-US' ? codexDisplayOptions.auto_option.label_en : codexDisplayOptions.auto_option.label_zh;
+  const restoreCodexAutoSelection = () => {
+    setSelectedAcpModel(null);
+    setSelectedReasoningEffort?.(null);
+  };
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -283,8 +287,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
             <Menu mode='pop' selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']} style={{ minWidth: 220 }}>
               <Menu.Item
                 key='__auto'
-                className={selectedAcpModel === null ? '!bg-2 pointer-events-none' : ''}
-                onClick={() => setSelectedAcpModel(null)}
+                className={selectedAcpModel === null ? '!bg-2' : ''}
+                onClick={restoreCodexAutoSelection}
               >
                 <div
                   className={

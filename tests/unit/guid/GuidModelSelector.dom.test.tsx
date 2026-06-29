@@ -61,7 +61,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();
     expect(screen.getByText('当前 GPT-5.5 · 推理超高 · 跟随最新最强')).toBeInTheDocument();
     expect(screen.getByText('推理')).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '最小' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '低' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
@@ -74,5 +74,35 @@ describe('GuidModelSelector Codex display', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: '高' }));
 
     expect(setSelectedReasoningEffort).toHaveBeenCalledWith('high');
+  });
+
+  it('restores default reasoning when users click Auto again', async () => {
+    const setSelectedAcpModel = vi.fn();
+    const setSelectedReasoningEffort = vi.fn();
+
+    render(
+      <GuidModelSelector
+        backend='codex'
+        isGeminiMode={false}
+        modelList={[]}
+        current_model={undefined}
+        setCurrentModel={vi.fn()}
+        currentAcpCachedModelInfo={{
+          current_model_id: 'gpt-5.5',
+          current_model_label: 'GPT-5.5',
+          available_models: [{ id: 'gpt-5.5', label: 'GPT-5.5' }],
+        }}
+        selectedAcpModel={null}
+        setSelectedAcpModel={setSelectedAcpModel}
+        selectedReasoningEffort='high'
+        setSelectedReasoningEffort={setSelectedReasoningEffort}
+      />
+    );
+
+    await userEvent.click(screen.getByTestId('guid-model-selector'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /自动（推荐）/ }));
+
+    expect(setSelectedAcpModel).toHaveBeenCalledWith(null);
+    expect(setSelectedReasoningEffort).toHaveBeenCalledWith(null);
   });
 });

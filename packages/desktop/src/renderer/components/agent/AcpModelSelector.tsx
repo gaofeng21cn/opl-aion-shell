@@ -139,6 +139,31 @@ const AcpModelSelector: React.FC<{
     },
     [isSettingReasoning, setConfigOption, thoughtLevel, t]
   );
+  const handleAutoSelect = useCallback(() => {
+    if (!model_info || isSettingReasoning) return;
+    const defaultModelId =
+      getOplCodexModelDisplayOptions().auto_option.resolved_model || model_info.available_models[0]?.id;
+    const tasks: Array<Promise<unknown>> = [];
+    if (defaultModelId && defaultModelId !== model_info.current_model_id) {
+      selectModel(defaultModelId);
+    }
+    if (thoughtLevel && thoughtLevel.currentValue !== defaultCodexReasoningEffort) {
+      tasks.push(setConfigOption(thoughtLevel.id, defaultCodexReasoningEffort));
+    }
+    if (tasks.length) {
+      void Promise.all(tasks)
+        .then(() => Message.success(t('agent.model.switchSuccess')))
+        .catch((error) => Message.error(t(configErrorMessageKey(error))));
+    }
+  }, [
+    defaultCodexReasoningEffort,
+    isSettingReasoning,
+    model_info,
+    selectModel,
+    setConfigOption,
+    thoughtLevel,
+    t,
+  ]);
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
   const shouldShowReasoningOptions = backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0;
@@ -239,7 +264,7 @@ const AcpModelSelector: React.FC<{
           style={{ minWidth: 220 }}
         >
           {showCodexAutoOption && (
-            <Menu.Item key='__auto' className='bg-2! pointer-events-none'>
+            <Menu.Item key='__auto' className='bg-2!' disabled={isSettingReasoning} onClick={handleAutoSelect}>
               <div className='flex flex-col gap-2px w-full'>
                 <span className='font-medium'>
                   {autoModelDisplay?.label ??

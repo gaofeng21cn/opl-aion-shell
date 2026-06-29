@@ -27,7 +27,6 @@ export type OplCodexModelDisplay = {
 };
 
 const FALLBACK_REASONING_LABELS: Record<string, { zh: string; en: string }> = {
-  minimal: { zh: '推理最小', en: 'Minimal reasoning' },
   low: { zh: '推理低', en: 'Low reasoning' },
   medium: { zh: '推理中', en: 'Medium reasoning' },
   high: { zh: '推理高', en: 'High reasoning' },
