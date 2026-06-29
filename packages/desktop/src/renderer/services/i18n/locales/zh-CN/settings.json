@@ -1242,6 +1242,8 @@
   "runtime": "运行",
   "general": "通用",
   "access": "访问",
+  "workspace": "工作目录",
+  "localServices": "本机服务",
   "environment": "本机运行环境",
   "storage": "存储",
   "appearance": "外观",
@@ -1266,6 +1268,7 @@
     "actions": {
       "openRuntimeStatus": "打开运行状态",
       "openRuntimeSettings": "打开维护",
+      "openLocalServices": "打开本机服务",
       "openFoundryAgents": "打开内置智能体"
     },
     "workspace": {
@@ -1288,7 +1291,11 @@
       },
       "maintenance": {
         "title": "维护",
-        "description": "检查本机运行环境、更新、维护和修复入口。"
+        "description": "处理更新、修复动作和托管维护。"
+      },
+      "localServices": {
+        "title": "本机服务",
+        "description": "查看 Codex、后台服务和能力包健康。"
       },
       "capabilities": {
         "title": "能力",
@@ -1298,6 +1305,83 @@
         "title": "Web / 远程访问",
         "description": "打开 WebUI、Docker 和远程访问配置入口。"
       }
+    }
+  },
+  "workspacePage": {
+    "title": "工作目录",
+    "description": "查看本机项目、任务产物、日志和 OPL 模块实际存放位置。",
+    "status": {
+      "ready": "工作目录已选择",
+      "needsAction": "需要选择工作目录"
+    },
+    "root": {
+      "title": "工作目录",
+      "current": "新项目和本机任务产物会存放在 {{path}}。",
+      "missing": "开始本机任务前，请先选择工作目录。"
+    },
+    "cards": {
+      "permission": "权限模式",
+      "modules": "能力模块",
+      "lastCheck": "最近检查"
+    },
+    "modulesRoot": {
+      "title": "OPL 模块目录",
+      "description": "App 会从这个根目录解析 MAS、MAG、RCA、BookForge 和 OPL 支撑模块。",
+      "current": "模块根目录：{{path}}",
+      "missing": "当前没有上报模块根目录。"
+    },
+    "logs": {
+      "title": "日志目录",
+      "description": "需要支持细节或本机诊断证据时，从这里打开日志。",
+      "current": "日志目录：{{path}}",
+      "missing": "当前没有上报日志目录。"
+    },
+    "modules": {
+      "title": "模块路径",
+      "description": "显示 App 当前实际使用的模块路径。更新和修复仍在维护页处理。",
+      "empty": "当前没有上报模块路径。"
+    },
+    "maintenance": {
+      "title": "需要修复或更新？",
+      "description": "工作目录页只说明文件和模块在哪里；更新、修复和托管模块变更请去维护页。"
+    },
+    "actions": {
+      "openWorkspace": "打开工作目录",
+      "openMaintenance": "打开维护"
+    }
+  },
+  "localServicesPage": {
+    "title": "本机服务",
+    "description": "查看本机助手、后台服务和 OPL 能力包是否可用。",
+    "cards": {
+      "codex": {
+        "title": "Codex CLI",
+        "description": "负责普通对话和本机命令会话。"
+      },
+      "background": {
+        "title": "后台服务",
+        "description": "让本机 OPL 任务可以在后台持续执行。",
+        "address": "后台服务地址：{{address}}"
+      },
+      "modules": {
+        "title": "能力包",
+        "description": "MAS、MAG、RCA、BookForge、OMA 和相关 OPL 模块。"
+      }
+    },
+    "modules": {
+      "title": "能力包健康",
+      "description": "显示普通用户需要看的模块健康状态。更新、修复和回滚动作仍在维护页处理。",
+      "normal": "未上报需要人工处理。",
+      "manualAttention": "需要人工处理后，托管维护才能继续。",
+      "manualTag": "手动处理",
+      "empty": "当前没有上报能力模块。"
+    },
+    "maintenance": {
+      "title": "需要处理某个服务？",
+      "description": "本机服务页只看健康状态；检查、更新、修复和回滚请去维护页。"
+    },
+    "actions": {
+      "openMaintenance": "打开维护"
     }
   },
   "runtimePage": {

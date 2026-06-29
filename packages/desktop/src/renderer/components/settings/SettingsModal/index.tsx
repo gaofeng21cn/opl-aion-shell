@@ -9,11 +9,25 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/styles/colors';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
-import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
+import {
+  getOplGuiLegacySettingsRouteRedirects,
+  getOplGuiSettingsSecondaryPageIds,
+  getOplGuiSettingsVisibleTabs,
+} from '@/common/config/oplProductProfile';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Input, Tabs } from '@arco-design/web-react';
-import { Computer, Earth, Lightning, Puzzle, Search, SettingConfig, SwitchThemes, Toolkit } from '@icon-park/react';
+import {
+  Computer,
+  Earth,
+  FolderOpen,
+  Lightning,
+  Puzzle,
+  Search,
+  SettingConfig,
+  SwitchThemes,
+  Toolkit,
+} from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +37,8 @@ import SystemModalContent from './contents/SystemModalContent';
 import { SettingsViewModeProvider } from './settingsViewContext';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
+import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
 import StorageSettings from '@/renderer/pages/settings/StorageSettings';
 import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
 import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
@@ -54,6 +70,8 @@ const RESIZE_DEBOUNCE_DELAY = 150;
 
 const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
   general: 'settings.overview',
+  workspace: 'settings.workspace',
+  'local-services': 'settings.localServices',
   environment: 'settings.maintenance',
   storage: 'settings.storage',
   capabilities: 'settings.capabilities',
@@ -64,6 +82,8 @@ const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
 
 const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
   general: 'Overview',
+  workspace: 'Workspace',
+  'local-services': 'Local Services',
   environment: 'Maintenance',
   storage: 'Storage',
   capabilities: 'Capabilities',
@@ -74,6 +94,8 @@ const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
 
 const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
   general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
+  workspace: <FolderOpen theme='outline' size='20' fill={iconColors.secondary} />,
+  'local-services': <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
   environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
   storage: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
   capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
@@ -85,6 +107,8 @@ const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
 const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
   general: ['overview', 'status', 'next step', 'workspace', 'model', 'maintenance', 'capabilities', 'remote access'],
   access: ['setup', 'access', 'model', 'account', 'api key', 'workspace', 'web', 'docker', 'remote'],
+  workspace: ['workspace', 'work directory', 'project folder', 'logs', 'modules root', 'paths', 'permission'],
+  'local-services': ['local services', 'health', 'codex', 'temporal', 'background', 'modules', 'capability packs'],
   capabilities: ['capabilities', 'agents', 'skills', 'tools', 'voice', 'mas', 'mag', 'rca', 'oma', 'bookforge'],
   environment: ['maintenance', 'updates', 'runtime', 'toolchain', 'packages', 'repair', 'rollback', 'health'],
   storage: ['data', 'storage', 'cleanup', 'archive', 'restore', 'logs', 'cache', 'runtime roots'],
@@ -92,7 +116,7 @@ const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
   advanced: ['advanced', 'developer', 'diagnostics', 'about', 'version', 'logs', 'raw refs'],
 };
 
-const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = [
+const OPL_SETTINGS_ORDINARY_TAB_IDS = [
   'general',
   'access',
   'capabilities',
@@ -101,8 +125,12 @@ const OPL_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'appearance',
   'advanced',
 ];
-const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) =>
+const OPL_SETTINGS_SECONDARY_SEARCH_IDS = ['workspace', 'local-services'];
+const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_ORDINARY_TAB_IDS.filter((id) =>
   getOplGuiSettingsVisibleTabs().includes(id)
+);
+const OPL_SEARCHABLE_SECONDARY_TAB_IDS = OPL_SETTINGS_SECONDARY_SEARCH_IDS.filter((id) =>
+  getOplGuiSettingsSecondaryPageIds().includes(id)
 );
 
 const normalizeOplSettingsTab = (tab: SettingTab): string => {
@@ -125,6 +153,8 @@ const capabilityDetailTabFor = (tab: SettingTab): CapabilitiesTab => {
  */
 export type BuiltinSettingTab =
   | 'general'
+  | 'workspace'
+  | 'local-services'
   | 'environment'
   | 'capabilities'
   | 'access'
@@ -352,8 +382,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
   const filteredMenuItems = useMemo(() => {
     const query = normalizeSearchText(menuSearchQuery);
     if (!query) return menuItems;
-    return menuItems.filter((item) => item.searchText.includes(query));
-  }, [menuItems, menuSearchQuery]);
+    const visibleMatches = menuItems.filter((item) => item.searchText.includes(query));
+    const visibleKeys = new Set(visibleMatches.map((item) => item.key));
+    const secondaryMatches = OPL_SEARCHABLE_SECONDARY_TAB_IDS.flatMap((key) => {
+      const label = t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
+        defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
+      });
+      const searchText = normalizeSearchText([key, label, ...(OPL_SETTINGS_SEARCH_TERMS[key] ?? [])].join(' '));
+      if (!searchText.includes(query) || visibleKeys.has(key)) return [];
+      return [
+        {
+          key,
+          label,
+          icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
+          searchText,
+        },
+      ];
+    });
+    return [...visibleMatches, ...secondaryMatches];
+  }, [menuItems, menuSearchQuery, t]);
 
   useEffect(() => {
     setActiveTab(normalizeOplSettingsTab(defaultTab));
@@ -387,6 +434,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
       case 'general':
       case 'overview':
         return <OverviewSettings withWrapper={false} />;
+      case 'workspace':
+        return <WorkspaceSettings withWrapper={false} />;
+      case 'local-services':
+        return <LocalServicesSettings withWrapper={false} />;
       case 'environment':
       case 'runtime':
       case 'model':

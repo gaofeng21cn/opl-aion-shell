@@ -63,7 +63,10 @@ vi.mock('react-i18next', () => ({
           'Review the current model, account/API key, and model access status.',
         'settings.overviewPage.quickEntries.maintenance.title': 'Maintenance',
         'settings.overviewPage.quickEntries.maintenance.description':
-          'Check local environment, updates, maintenance, and repair actions.',
+          'Handle updates, repair actions, and managed maintenance.',
+        'settings.overviewPage.quickEntries.localServices.title': 'Local Services',
+        'settings.overviewPage.quickEntries.localServices.description':
+          'Check Codex, background services, and capability pack health.',
         'settings.overviewPage.quickEntries.capabilities.title': 'Capabilities',
         'settings.overviewPage.quickEntries.capabilities.description':
           'Open MAS, MAG, RCA, OMA, plus skills and tools.',
@@ -73,6 +76,7 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.maintenanceDescription': 'Runtime health and maintenance actions.',
         'settings.overviewPage.actions.openRuntimeStatus': 'Open Runtime Status',
         'settings.overviewPage.actions.openRuntimeSettings': 'Open Maintenance',
+        'settings.overviewPage.actions.openLocalServices': 'Open Local Services',
         'settings.overviewPage.actions.openFoundryAgents': 'Open Capabilities',
         'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
         'settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention': 'Usable with attention',
@@ -92,6 +96,7 @@ describe('OverviewSettings', () => {
     expect(screen.getByText(/Current path: \/Users\/example\/OPL Workspace/)).toBeInTheDocument();
     expect(screen.getByText('Model & Account')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Local Services')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Usable with attention');
@@ -105,7 +110,7 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     fireEvent.click(screen.getByText('Change or Verify'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment#workspace');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
 
     const remoteEntry = screen.getByText('Web / Remote Access').closest('.arco-card');
     expect(remoteEntry).not.toBeNull();

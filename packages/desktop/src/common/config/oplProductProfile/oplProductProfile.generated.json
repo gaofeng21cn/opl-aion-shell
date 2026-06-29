@@ -817,7 +817,7 @@
         "id": "control_center",
         "label_zh": "控制中心",
         "label_en": "Control Center",
-        "positioning": "single App-owned settings home for setup, capabilities, maintenance, preferences, and advanced diagnostics"
+        "positioning": "single App-owned OPL Control Center for overview, setup and access, capabilities, maintenance and updates, data and storage, preferences, and advanced diagnostics"
       },
       "ordinary_groups": [
         {
@@ -829,9 +829,9 @@
           "required_prominence": "workspace_is_independent_ordinary_entry"
         },
         {
-          "id": "getting_started",
+          "id": "setup_access",
           "label_zh": "开始使用",
-          "label_en": "Get Started",
+          "label_en": "Setup & Access",
           "role": "first_use_and_access_setup",
           "ordinary_entries": ["settings_access", "first_run_setup_center"],
           "primary_tasks": ["workspace_root", "codex_cli", "codex_config"]
@@ -846,17 +846,24 @@
         {
           "id": "maintenance",
           "label_zh": "维护",
-          "label_en": "Maintenance",
-          "role": "health_updates_storage_and_safe_cleanup",
-          "ordinary_entries": ["settings_environment", "settings_storage", "update"],
+          "label_en": "Maintenance & Updates",
+          "role": "health_updates_and_repair",
+          "ordinary_entries": ["settings_environment", "update"],
           "owns": [
             "local_service_health",
             "app_binary_updates",
             "runtime_toolchain_updates",
             "opl_packages_maintenance",
-            "storage_inventory",
-            "safe_cleanup"
+            "repair_recommendations"
           ]
+        },
+        {
+          "id": "data_storage",
+          "label_zh": "数据与存储",
+          "label_en": "Data & Storage",
+          "role": "safe_local_data_lifecycle_inventory_and_cleanup",
+          "ordinary_entries": ["settings_storage"],
+          "owns": ["storage_inventory", "conversation_archives", "runtime_cache", "logs", "safe_cleanup"]
         },
         {
           "id": "preferences",
@@ -885,10 +892,10 @@
         },
         "access": {
           "label_zh": "开始使用",
-          "label_en": "Get Started",
+          "label_en": "Setup & Access",
           "role": "first_use_and_access_setup",
           "primary_question": "How do I connect the App, and where does work happen?",
-          "ia_group": "getting_started",
+          "ia_group": "setup_access",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
         "capabilities": {
@@ -901,19 +908,19 @@
         },
         "environment": {
           "label_zh": "维护",
-          "label_en": "Maintenance",
-          "role": "health_updates_storage_and_safe_cleanup",
+          "label_en": "Maintenance & Updates",
+          "role": "health_updates_and_repair",
           "primary_question": "How do I keep the local App healthy and safe?",
           "ia_group": "maintenance",
           "ordinary_entry_policy": "top_level_control_center_route"
         },
         "storage": {
           "label_zh": "存储",
-          "label_en": "Storage",
+          "label_en": "Data & Storage",
           "role": "safe_local_data_lifecycle_inventory_and_cleanup",
           "primary_question": "Which local data roots are using space, and which cleanup actions are safe after preview or proof?",
-          "ia_group": "maintenance",
-          "ordinary_entry_policy": "secondary_page_under_maintenance"
+          "ia_group": "data_storage",
+          "ordinary_entry_policy": "top_level_control_center_group_entry"
         },
         "appearance": {
           "label_zh": "偏好",
@@ -940,7 +947,20 @@
           "ordinary_entry_policy": "secondary_page_under_advanced"
         }
       },
-      "secondary_page_ids": ["about", "update", "theme"]
+      "secondary_page_ids": ["about", "update", "theme", "workspace", "local-services"],
+      "task_entry_policy": {
+        "ordinary_entry_model": "user_task_first_sections_inside_the_seven_OPL_Control_Center_groups",
+        "top_level_tab_policy": "do_not_add_new_top_level_tabs_for_model_workspace_updates_web_tools_or_developer_profile",
+        "p0_entries": ["model_account", "workspace_entry", "maintenance_hub", "capability_status"],
+        "p1_entries": ["web_remote_access", "developer_profile_status", "external_tools_voice", "custom_assistants"],
+        "hidden_as_ordinary_ui": [
+          "AionUI Team",
+          "backend/provider raw selector",
+          "AG-UI implementation surface",
+          "AionUI implementation skills",
+          "raw runtime/provider internals"
+        ]
+      }
     }
   },
   "companion_payloads": {

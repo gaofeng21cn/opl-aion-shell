@@ -17,6 +17,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'advanced',
     'about',
   ],
+  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
   getOplGuiLegacySettingsRouteRedirects: () => ({
     overview: 'general',
     runtime: 'environment',
@@ -30,6 +31,8 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     webui: 'access',
     pet: 'appearance',
     storage: 'storage',
+    workspace: 'workspace',
+    'local-services': 'local-services',
   }),
 }));
 
@@ -62,6 +65,8 @@ describe('settingsNav App-owned tabs', () => {
     expect(LEGACY_SETTINGS_ROUTE_REDIRECTS).toEqual({
       overview: '/settings/general',
       runtime: '/settings/environment',
+      workspace: '/settings/workspace',
+      'local-services': '/settings/local-services',
       system: '/settings/advanced',
       model: '/settings/environment',
       agent: '/settings/capabilities',

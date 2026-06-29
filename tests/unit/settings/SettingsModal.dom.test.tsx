@@ -33,6 +33,20 @@ vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
   ),
 }));
 
+vi.mock('@/renderer/pages/settings/sections/WorkspaceSettings', () => ({
+  default: ({ withWrapper }: { withWrapper?: boolean }) => (
+    <div data-testid='workspace-content'>Workspace content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
+  ),
+}));
+
+vi.mock('@/renderer/pages/settings/sections/LocalServicesSettings', () => ({
+  default: ({ withWrapper }: { withWrapper?: boolean }) => (
+    <div data-testid='local-services-content'>
+      Local Services content {withWrapper === false ? 'embedded' : 'wrapped'}
+    </div>
+  ),
+}));
+
 vi.mock('@/renderer/pages/settings/StorageSettings', () => ({
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
     <div data-testid='storage-content'>Storage content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
@@ -95,6 +109,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'advanced',
     'about',
   ],
+  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
   getOplGuiLegacySettingsRouteRedirects: () => ({
     overview: 'general',
     runtime: 'environment',
@@ -117,6 +132,8 @@ vi.mock('react-i18next', () => ({
         'settings.title': 'Settings',
         'settings.overview': 'Overview',
         'settings.maintenance': 'Maintenance',
+        'settings.workspace': 'Workspace',
+        'settings.localServices': 'Local Services',
         'settings.storage': 'Storage',
         'settings.capabilities': 'Capabilities',
         'settings.onboarding': 'Get Started',
@@ -160,6 +177,8 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
     expect(screen.queryByText('Tools')).not.toBeInTheDocument();
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
+    expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+    expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
   });
 
   it('filters Settings navigation by user task keywords', () => {
@@ -170,6 +189,19 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
+  });
+
+  it('surfaces secondary task pages only through Settings search', () => {
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'workspace' } });
+
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Get Started')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Workspace'));
+
+    expect(screen.getByTestId('workspace-content')).toBeInTheDocument();
   });
 
   it('shows an empty state when no Settings route matches search', () => {
@@ -201,6 +233,14 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='storage' />);
 
     expect(screen.getByTestId('storage-content')).toBeInTheDocument();
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='workspace' />);
+
+    expect(screen.getByTestId('workspace-content')).toBeInTheDocument();
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
+
+    expect(screen.getByTestId('local-services-content')).toBeInTheDocument();
   });
 
   it('redirects legacy agent and tools tab requests to purpose-first capability content', () => {

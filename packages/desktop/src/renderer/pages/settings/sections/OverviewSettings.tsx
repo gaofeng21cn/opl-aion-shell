@@ -38,11 +38,11 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
   const modulesNeedAction = totalModules > 0 && readyModules < totalModules;
   const overviewNeedsAction = !workspaceRoot || modulesNeedAction;
-  const recommendedRoute = !workspaceRoot ? '/settings/environment#workspace' : '/settings/environment';
+  const recommendedRoute = !workspaceRoot ? '/settings/workspace' : modulesNeedAction ? '/settings/local-services' : '/settings/environment';
   const recommendedLabel = !workspaceRoot
     ? t('settings.overviewPage.workspace.changeOrVerify')
     : modulesNeedAction
-      ? t('settings.overviewPage.actions.openRuntimeSettings')
+      ? t('settings.overviewPage.actions.openLocalServices')
       : t('settings.overviewPage.actions.openRuntimeStatus');
 
   const openWorkspace = () => {
@@ -64,6 +64,13 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       value: t('settings.overviewPage.quickEntries.maintenance.description'),
       icon: <Toolkit theme='outline' />,
       route: '/settings/environment',
+    },
+    {
+      key: 'localServices',
+      title: t('settings.overviewPage.quickEntries.localServices.title'),
+      value: t('settings.overviewPage.quickEntries.localServices.description'),
+      icon: <Toolkit theme='outline' />,
+      route: '/settings/local-services',
     },
     {
       key: 'capabilities',
@@ -126,7 +133,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
               <Button disabled={!workspaceRoot} onClick={openWorkspace}>
                 {t('settings.overviewPage.workspace.open')}
               </Button>
-              <Button type='primary' onClick={() => navigate('/settings/environment#workspace')}>
+              <Button type='primary' onClick={() => navigate('/settings/workspace')}>
                 {t('settings.overviewPage.workspace.changeOrVerify')}
               </Button>
             </Space>

@@ -1,7 +1,20 @@
-import { Communication, Dashboard, Earth, Lightning, Puzzle, SwitchThemes, System, Toolkit } from '@icon-park/react';
+import {
+  Communication,
+  Dashboard,
+  Earth,
+  Lightning,
+  Puzzle,
+  SwitchThemes,
+  System,
+  Toolkit,
+} from '@icon-park/react';
 import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
-import { getOplGuiLegacySettingsRouteRedirects, getOplGuiSettingsVisibleTabs } from '@/common/config/oplProductProfile';
+import {
+  getOplGuiLegacySettingsRouteRedirects,
+  getOplGuiSettingsSecondaryPageIds,
+  getOplGuiSettingsVisibleTabs,
+} from '@/common/config/oplProductProfile';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 const profileTabIds = getOplGuiSettingsVisibleTabs();
@@ -32,7 +45,13 @@ const legacyRedirectTargets = getOplGuiLegacySettingsRouteRedirects();
 const redirectRouteFor = (legacyId: string, targetId: string): string => {
   if (legacyId === 'skills-hub') return '/settings/capabilities?tab=skills';
   if (legacyId === 'tools') return '/settings/capabilities?tab=tools';
-  if (legacyId === 'storage' || legacyId === 'about') return `/settings/${legacyId}`;
+  if (
+    legacyId === 'storage' ||
+    legacyId === 'about' ||
+    getOplGuiSettingsSecondaryPageIds().includes(legacyId)
+  ) {
+    return `/settings/${legacyId}`;
+  }
   if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(targetId)) return SETTINGS_DEFAULT_ROUTE;
   return `/settings/${targetId}`;
 };

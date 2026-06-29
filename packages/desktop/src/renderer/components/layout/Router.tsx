@@ -9,6 +9,8 @@ const FirstRun = React.lazy(() => import('@renderer/pages/FirstRun'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
 const OverviewSettings = React.lazy(() => import('@renderer/pages/settings/sections/OverviewSettings'));
 const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/sections/RuntimeSettings'));
+const WorkspaceSettings = React.lazy(() => import('@renderer/pages/settings/sections/WorkspaceSettings'));
+const LocalServicesSettings = React.lazy(() => import('@renderer/pages/settings/sections/LocalServicesSettings'));
 const StorageSettings = React.lazy(() => import('@renderer/pages/settings/StorageSettings'));
 const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/CapabilitiesSettings'));
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
@@ -64,6 +66,8 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           />
           <Route path='/settings/general' element={withRouteFallback(OverviewSettings)} />
           <Route path='/settings/overview' element={<Navigate to='/settings/general' replace />} />
+          <Route path='/settings/workspace' element={withRouteFallback(WorkspaceSettings)} />
+          <Route path='/settings/local-services' element={withRouteFallback(LocalServicesSettings)} />
           <Route path='/settings/environment' element={withRouteFallback(RuntimeSettings)} />
           <Route path='/settings/maintenance' element={<Navigate to='/settings/environment' replace />} />
           <Route path='/settings/runtime' element={<Navigate to='/settings/environment' replace />} />

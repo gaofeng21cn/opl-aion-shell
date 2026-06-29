@@ -1241,6 +1241,8 @@
   "runtime": "Runtime",
   "general": "General",
   "access": "Access",
+  "workspace": "Workspace",
+  "localServices": "Local Services",
   "environment": "Local Environment",
   "storage": "Storage",
   "appearance": "Appearance",
@@ -1265,6 +1267,7 @@
     "actions": {
       "openRuntimeStatus": "Open Runtime Status",
       "openRuntimeSettings": "Open Maintenance",
+      "openLocalServices": "Open Local Services",
       "openFoundryAgents": "Open Foundry Agents"
     },
     "workspace": {
@@ -1287,7 +1290,11 @@
       },
       "maintenance": {
         "title": "Maintenance",
-        "description": "Check local environment, updates, maintenance, and repair actions."
+        "description": "Handle updates, repair actions, and managed maintenance."
+      },
+      "localServices": {
+        "title": "Local Services",
+        "description": "Check Codex, background services, and capability pack health."
       },
       "capabilities": {
         "title": "Capabilities",
@@ -1297,6 +1304,83 @@
         "title": "Web / Remote Access",
         "description": "Open WebUI, Docker, and remote access configuration."
       }
+    }
+  },
+  "workspacePage": {
+    "title": "Workspace",
+    "description": "Review where local projects, task artifacts, logs, and OPL modules live.",
+    "status": {
+      "ready": "Workspace selected",
+      "needsAction": "Workspace needs setup"
+    },
+    "root": {
+      "title": "Work directory",
+      "current": "New projects and local task output are stored under {{path}}.",
+      "missing": "Choose a work directory before starting local tasks."
+    },
+    "cards": {
+      "permission": "Permission mode",
+      "modules": "Capability modules",
+      "lastCheck": "Last check"
+    },
+    "modulesRoot": {
+      "title": "OPL modules directory",
+      "description": "The app resolves MAS, MAG, RCA, BookForge, and OPL support modules from this root.",
+      "current": "Modules root: {{path}}",
+      "missing": "No modules root is currently reported."
+    },
+    "logs": {
+      "title": "Logs directory",
+      "description": "Open logs when you need support detail or local diagnosis evidence.",
+      "current": "Logs: {{path}}",
+      "missing": "No logs directory is currently reported."
+    },
+    "modules": {
+      "title": "Module paths",
+      "description": "Shows the actual module paths the app is using. Updates and repairs stay in Maintenance.",
+      "empty": "No module paths are currently reported."
+    },
+    "maintenance": {
+      "title": "Need to repair or update something?",
+      "description": "Workspace shows where things live. Use Maintenance for updates, repairs, and managed module changes."
+    },
+    "actions": {
+      "openWorkspace": "Open Workspace",
+      "openMaintenance": "Open Maintenance"
+    }
+  },
+  "localServicesPage": {
+    "title": "Local Services",
+    "description": "Check whether the local assistant, background service, and OPL capability packs are usable.",
+    "cards": {
+      "codex": {
+        "title": "Codex CLI",
+        "description": "Runs ordinary chat and local command sessions."
+      },
+      "background": {
+        "title": "Background service",
+        "description": "Keeps local OPL tasks running in the background.",
+        "address": "Background service address: {{address}}"
+      },
+      "modules": {
+        "title": "Capability packs",
+        "description": "MAS, MAG, RCA, BookForge, OMA, and related OPL modules."
+      }
+    },
+    "modules": {
+      "title": "Capability pack health",
+      "description": "Shows user-facing module health. Update, repair, and rollback actions stay in Maintenance.",
+      "normal": "No manual action reported.",
+      "manualAttention": "Manual handling is needed before managed maintenance can proceed.",
+      "manualTag": "Manual",
+      "empty": "No capability modules are currently reported."
+    },
+    "maintenance": {
+      "title": "Need to act on a service?",
+      "description": "Local Services is a health page. Use Maintenance for checks, updates, repair, and rollback actions."
+    },
+    "actions": {
+      "openMaintenance": "Open Maintenance"
     }
   },
   "runtimePage": {
