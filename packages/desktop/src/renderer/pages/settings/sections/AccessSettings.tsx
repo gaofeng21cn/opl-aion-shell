@@ -22,20 +22,25 @@ type StatusCard = {
   tone: 'green' | 'orange';
 };
 
-function normalizeStatus(status: string | null, fallback: string): string {
+export type AccessProjection = {
+  cards: StatusCard[];
+  temporalAddress: string | null;
+};
+
+export function normalizeAccessStatus(status: string | null, fallback: string): string {
   if (!status) return fallback;
   if (status === 'attention_needed' || status === 'needs_attention') return 'attention_required';
   return status;
 }
 
-function compactDetail(parts: Array<string | null | undefined>, fallback: string): string {
+export function compactAccessDetail(parts: Array<string | null | undefined>, fallback: string): string {
   return parts.filter((part): part is string => Boolean(part && part.trim())).join(' · ') || fallback;
 }
 
-export const AccessSettingsContent: React.FC = () => {
-  const { t } = useTranslation();
-  const appStateQuery = useOplAppState('fast');
-  const appState = appStateQuery.appState;
+export function buildAccessProjection(
+  appState: Record<string, unknown>,
+  t: (key: string, options?: Record<string, string>) => string
+): AccessProjection {
   const core = oplRecord(appState.core);
   const codex = oplRecord(core.codex);
   const executor = oplRecord(core.executor);
@@ -44,13 +49,13 @@ export const AccessSettingsContent: React.FC = () => {
   const temporal = oplRecord(provider.temporal);
   const temporalDetails = oplRecord(temporal.details);
 
-  const codexStatus = normalizeStatus(
+  const codexStatus = normalizeAccessStatus(
     oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : null),
     'unknown'
   );
   const apiKeyPresent =
     codex.api_key_present === true || codexConfig.api_key_present === true || oplString(codexConfig.status) === 'ready';
-  const providerStatus = normalizeStatus(
+  const providerStatus = normalizeAccessStatus(
     oplString(provider.health_status) ?? oplString(provider.status) ?? oplString(temporal.health_status),
     'unknown'
   );
@@ -78,7 +83,7 @@ export const AccessSettingsContent: React.FC = () => {
       key: 'model',
       title: t('settings.accessPage.cards.model.title'),
       status: codexStatus,
-      detail: compactDetail(
+      detail: compactAccessDetail(
         [modelName, oplString(codex.version), oplString(codex.binary_path)],
         t('settings.accessPage.cards.model.fallback')
       ),
@@ -111,6 +116,14 @@ export const AccessSettingsContent: React.FC = () => {
       tone: 'green',
     },
   ];
+
+  return { cards, temporalAddress };
+}
+
+export const AccessSettingsContent: React.FC = () => {
+  const { t } = useTranslation();
+  const appStateQuery = useOplAppState('fast');
+  const { cards, temporalAddress } = buildAccessProjection(appStateQuery.appState, t);
 
   return (
     <div className='flex flex-col gap-16px'>

@@ -99,6 +99,7 @@ vi.mock('@/renderer/utils/platform', () => ({
 }));
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplGuiSettingsControlPlane: () => null,
   getOplGuiSettingsVisibleTabs: () => [
     'general',
     'access',

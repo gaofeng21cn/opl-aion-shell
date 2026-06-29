@@ -16,6 +16,7 @@ import {
   getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
   getOplGuiDefaultCssThemeId,
+  getOplGuiSettingsControlPlane,
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
@@ -163,12 +164,20 @@ describe('OPL generated product profile', () => {
       model: 'environment',
       agent: 'capabilities',
       assistants: 'capabilities',
-      'skills-hub': 'capabilities',
-      tools: 'capabilities',
+      'skills-hub': 'capabilities?tab=skills',
+      tools: 'capabilities?tab=tools',
       display: 'appearance',
       webui: 'access',
       pet: 'appearance',
+      about: 'advanced',
     });
+    const controlPlane = getOplGuiSettingsControlPlane();
+    expect(controlPlane?.source_contract_ref).toBe('contracts/app-settings-control-plane.json');
+    expect(controlPlane?.default_route).toBe('/settings/general');
+    expect(controlPlane?.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
+    expect(controlPlane?.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
+    expect(controlPlane?.extension_anchor_remap['skills-hub']).toBe('capabilities');
+    expect(controlPlane?.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
     expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'oma', 'app']);
   });
 

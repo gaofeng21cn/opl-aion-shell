@@ -7,27 +7,19 @@
 import AionModal from '@/renderer/components/base/AionModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { iconColors } from '@/renderer/styles/colors';
-import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
-  getOplGuiLegacySettingsRouteRedirects,
-  getOplGuiSettingsSecondaryPageIds,
-  getOplGuiSettingsVisibleTabs,
-} from '@/common/config/oplProductProfile';
+  buildSettingsModalMenuItems,
+  capabilityDetailTabFor,
+  getSearchableSecondarySettingsModalItems,
+  normalizeOplSettingsTab,
+  normalizeSearchText,
+  type SettingsModalMenuItem,
+} from '@/renderer/pages/settings/registry/settingsRegistry';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { Input, Tabs } from '@arco-design/web-react';
-import {
-  Computer,
-  Earth,
-  FolderOpen,
-  Lightning,
-  Puzzle,
-  Search,
-  SettingConfig,
-  SwitchThemes,
-  Toolkit,
-} from '@icon-park/react';
+import { Search } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +32,6 @@ import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings'
 import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
 import StorageSettings from '@/renderer/pages/settings/StorageSettings';
-import { LEGACY_ANCHOR_REMAP } from '@/renderer/pages/settings/sections/settingsNav';
 import { AccessSettingsContent } from '@/renderer/pages/settings/sections/AccessSettings';
 import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 
@@ -67,84 +58,6 @@ const MODAL_HEIGHT = {
 
 /** Resize 事件防抖延迟（ms）/ Resize event debounce delay (ms) */
 const RESIZE_DEBOUNCE_DELAY = 150;
-
-const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
-  general: 'settings.overview',
-  workspace: 'settings.workspace',
-  'local-services': 'settings.localServices',
-  environment: 'settings.maintenance',
-  storage: 'settings.storage',
-  capabilities: 'settings.capabilities',
-  access: 'settings.onboarding',
-  appearance: 'settings.preferences',
-  advanced: 'settings.advanced',
-};
-
-const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
-  general: 'Overview',
-  workspace: 'Workspace',
-  'local-services': 'Local Services',
-  environment: 'Maintenance',
-  storage: 'Storage',
-  capabilities: 'Capabilities',
-  access: 'Get Started',
-  appearance: 'Preferences',
-  advanced: 'Advanced',
-};
-
-const OPL_SETTINGS_TAB_ICONS: Record<string, React.ReactNode> = {
-  general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
-  workspace: <FolderOpen theme='outline' size='20' fill={iconColors.secondary} />,
-  'local-services': <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-  environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-  storage: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
-  capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
-  access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
-  appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
-  advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
-};
-
-const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
-  general: ['overview', 'status', 'next step', 'workspace', 'model', 'maintenance', 'capabilities', 'remote access'],
-  access: ['setup', 'access', 'model', 'account', 'api key', 'workspace', 'web', 'docker', 'remote'],
-  workspace: ['workspace', 'work directory', 'project folder', 'logs', 'modules root', 'paths', 'permission'],
-  'local-services': ['local services', 'health', 'codex', 'temporal', 'background', 'modules', 'capability packs'],
-  capabilities: ['capabilities', 'agents', 'skills', 'tools', 'voice', 'mas', 'mag', 'rca', 'oma', 'bookforge'],
-  environment: ['maintenance', 'updates', 'runtime', 'toolchain', 'packages', 'repair', 'rollback', 'health'],
-  storage: ['data', 'storage', 'cleanup', 'archive', 'restore', 'logs', 'cache', 'runtime roots'],
-  appearance: ['preferences', 'appearance', 'theme', 'language', 'startup'],
-  advanced: ['advanced', 'developer', 'diagnostics', 'about', 'version', 'logs', 'raw refs'],
-};
-
-const OPL_SETTINGS_ORDINARY_TAB_IDS = [
-  'general',
-  'access',
-  'capabilities',
-  'environment',
-  'storage',
-  'appearance',
-  'advanced',
-];
-const OPL_SETTINGS_SECONDARY_SEARCH_IDS = ['workspace', 'local-services'];
-const OPL_VISIBLE_MODAL_TAB_IDS = OPL_SETTINGS_ORDINARY_TAB_IDS.filter((id) =>
-  getOplGuiSettingsVisibleTabs().includes(id)
-);
-const OPL_SEARCHABLE_SECONDARY_TAB_IDS = OPL_SETTINGS_SECONDARY_SEARCH_IDS.filter((id) =>
-  getOplGuiSettingsSecondaryPageIds().includes(id)
-);
-
-const normalizeOplSettingsTab = (tab: SettingTab): string => {
-  const legacyRedirects: Record<string, string> = {
-    ...getOplGuiLegacySettingsRouteRedirects(),
-    about: 'advanced',
-  };
-  return legacyRedirects[tab] ?? tab;
-};
-
-const capabilityDetailTabFor = (tab: SettingTab): CapabilitiesTab => {
-  if (tab === 'tools') return 'tools';
-  return 'skills';
-};
 
 // ==================== 类型定义 / Type Definitions ====================
 
@@ -184,7 +97,12 @@ type SettingsMenuItem = {
   searchText: string;
 };
 
-const normalizeSearchText = (value: string): string => value.trim().toLowerCase();
+const toSettingsMenuItem = (item: SettingsModalMenuItem): SettingsMenuItem => ({
+  key: item.id,
+  label: item.label,
+  icon: item.icon,
+  searchText: item.searchText,
+});
 
 /**
  * 设置弹窗组件属性 / Settings modal component props
@@ -308,75 +226,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
 
   // 菜单项配置 / Menu items configuration
   const menuItems = useMemo((): SettingsMenuItem[] => {
-    const builtinItems: SettingsMenuItem[] = OPL_VISIBLE_MODAL_TAB_IDS.map((key) => {
-      const label = t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
-        defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
-      });
-      return {
-        key,
-        label,
-        icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
-        searchText: normalizeSearchText([key, label, ...(OPL_SETTINGS_SEARCH_TERMS[key] ?? [])].join(' ')),
-      };
-    });
-
-    // Extension tabs — position anchoring
-    const beforeMap = new Map<string, IExtensionSettingsTab[]>();
-    const afterMap = new Map<string, IExtensionSettingsTab[]>();
-    const unanchored: IExtensionSettingsTab[] = [];
-
-    for (const tab of extensionTabs) {
-      if (!tab.position) {
-        unanchored.push(tab);
-        continue;
-      }
-      const { relativeTo: rawAnchor, placement } = tab.position;
-      const anchor = LEGACY_ANCHOR_REMAP[rawAnchor] ?? rawAnchor;
-      if (!builtinItems.some((item) => item.key === anchor)) {
-        unanchored.push(tab);
-        continue;
-      }
-      const map = placement === 'before' ? beforeMap : afterMap;
-      let list = map.get(anchor);
-      if (!list) {
-        list = [];
-        map.set(anchor, list);
-      }
-      list.push(tab);
-    }
-
-    const toMenuItem = (tab: IExtensionSettingsTab): SettingsMenuItem => {
-      const resolvedIcon = resolveExtensionAssetUrl(tab.icon) || tab.icon;
-      const label = resolveExtTabName(tab);
-      return {
-        key: tab.id,
-        label,
-        icon: resolvedIcon ? (
-          <img src={resolvedIcon} alt='' className='w-20px h-20px object-contain' />
-        ) : (
-          <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
-        ),
-        searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
-      };
-    };
-
-    // Insert anchored tabs
-    for (let i = builtinItems.length - 1; i >= 0; i--) {
-      const id = builtinItems[i].key;
-      const afters = afterMap.get(id);
-      if (afters) builtinItems.splice(i + 1, 0, ...afters.map(toMenuItem));
-      const befores = beforeMap.get(id);
-      if (befores) builtinItems.splice(i, 0, ...befores.map(toMenuItem));
-    }
-
-    // Append unanchored before Advanced so extension diagnostics stay out of the daily setup flow.
-    if (unanchored.length > 0) {
-      const advancedIdx = builtinItems.findIndex((item) => item.key === 'advanced');
-      const idx = advancedIdx >= 0 ? advancedIdx : builtinItems.length;
-      builtinItems.splice(idx, 0, ...unanchored.map(toMenuItem));
-    }
-
-    return builtinItems;
+    return buildSettingsModalMenuItems({ extensionTabs, resolveExtTabName, t }).map(toSettingsMenuItem);
   }, [t, extensionTabs, resolveExtTabName]);
 
   const filteredMenuItems = useMemo(() => {
@@ -384,21 +234,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
     if (!query) return menuItems;
     const visibleMatches = menuItems.filter((item) => item.searchText.includes(query));
     const visibleKeys = new Set(visibleMatches.map((item) => item.key));
-    const secondaryMatches = OPL_SEARCHABLE_SECONDARY_TAB_IDS.flatMap((key) => {
-      const label = t(OPL_SETTINGS_TAB_LABEL_KEYS[key] ?? `settings.${key}`, {
-        defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[key] ?? key,
-      });
-      const searchText = normalizeSearchText([key, label, ...(OPL_SETTINGS_SEARCH_TERMS[key] ?? [])].join(' '));
-      if (!searchText.includes(query) || visibleKeys.has(key)) return [];
-      return [
-        {
-          key,
-          label,
-          icon: OPL_SETTINGS_TAB_ICONS[key] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />,
-          searchText,
-        },
-      ];
-    });
+    const secondaryMatches = getSearchableSecondarySettingsModalItems(t)
+      .filter((item) => item.searchText.includes(query) && !visibleKeys.has(item.id))
+      .map(toSettingsMenuItem);
     return [...visibleMatches, ...secondaryMatches];
   }, [menuItems, menuSearchQuery, t]);
 

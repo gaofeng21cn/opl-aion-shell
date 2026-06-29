@@ -186,6 +186,49 @@ export type OplDeveloperProfileSettings = {
   state_keys: Record<string, string>;
 };
 
+export type OplSettingsControlPlaneRoute = {
+  id: string;
+  path: string;
+  label_key: string;
+  default_label_en: string;
+  default_label_zh: string;
+  icon_token: string;
+  ia_group: string;
+  slot_id: string;
+  state_source: string;
+  refresh_source: string;
+};
+
+export type OplSettingsControlPlaneSecondaryPage = {
+  id: string;
+  path: string;
+  ia_group: string;
+  slot_id: string;
+  visibility: string;
+};
+
+export type OplSettingsControlPlane = {
+  source_contract_ref: 'contracts/app-settings-control-plane.json';
+  default_route: string;
+  route_identity_policy: string;
+  ordinary_visible_tabs: string[];
+  ordinary_routes: OplSettingsControlPlaneRoute[];
+  secondary_pages: OplSettingsControlPlaneSecondaryPage[];
+  legacy_route_redirects: Record<string, string>;
+  extension_anchor_remap: Record<string, string>;
+  extension_tab_policy: Record<string, unknown>;
+  slot_registry: Record<
+    string,
+    {
+      component_key: string;
+      wrapper_policy: string;
+      subroute_query_param?: string;
+      legacy_subroutes?: Record<string, string>;
+    }
+  >;
+  state_action_policy: Record<string, unknown>;
+};
+
 type AppProductProfile = {
   schema_version: 1;
   owner: 'one-person-lab-app';
@@ -303,6 +346,7 @@ type AppProductProfile = {
     secondary_page_ids: string[];
     environment_items: string[];
     legacy_route_redirects: Record<string, string>;
+    control_plane: OplSettingsControlPlane | null;
     developer_profile: OplDeveloperProfileSettings;
   };
   boundary: {
@@ -1145,6 +1189,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (JSON.stringify(legacySettingsRouteRedirects) !== JSON.stringify(expectedLegacySettingsRouteRedirects)) {
     throw new Error('Invalid OPL product profile: GUI legacy settings redirects must match OPL App');
   }
+  const settingsControlPlane = readSettingsControlPlane(settings.control_plane);
   if (defaultSession.executor !== 'codex_cli') {
     throw new Error('Invalid OPL product profile: default_session_profile.executor must be codex_cli');
   }
@@ -1487,12 +1532,140 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       secondary_page_ids: secondaryPageIds,
       environment_items: environmentItems,
       legacy_route_redirects: legacySettingsRouteRedirects,
+      control_plane: settingsControlPlane,
       developer_profile: developerProfile,
     },
     boundary: {
       app_does_not_own: appDoesNotOwn,
     },
   };
+}
+
+function readSettingsControlPlane(value: unknown): OplSettingsControlPlane | null {
+  if (value == null) return null;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: settings.control_plane must be an object');
+  }
+  const ordinaryVisibleTabs = readStringArray(value, 'ordinary_visible_tabs', 'settings.control_plane');
+  const ordinaryRoutes = readSettingsControlPlaneRoutes(value.ordinary_routes, 'ordinary_routes');
+  const secondaryPages = readSettingsControlPlaneSecondaryPages(value.secondary_pages);
+  const legacyRouteRedirects = readStringRecord(
+    value.legacy_route_redirects,
+    'settings.control_plane.legacy_route_redirects'
+  );
+  const extensionAnchorRemap = readStringRecord(
+    value.extension_anchor_remap,
+    'settings.control_plane.extension_anchor_remap'
+  );
+  const slotRegistry = readSettingsControlPlaneSlotRegistry(value.slot_registry);
+  if (value.source_contract_ref !== 'contracts/app-settings-control-plane.json') {
+    throw new Error('Invalid OPL product profile: settings.control_plane must project the App control-plane contract');
+  }
+  if (typeof value.default_route !== 'string' || !value.default_route.startsWith('/settings/')) {
+    throw new Error('Invalid OPL product profile: settings.control_plane.default_route must be a settings route');
+  }
+  if (ordinaryRoutes.map((route) => route.id).join(',') !== ordinaryVisibleTabs.join(',')) {
+    throw new Error(
+      'Invalid OPL product profile: settings.control_plane ordinary routes must match ordinary_visible_tabs'
+    );
+  }
+  return {
+    source_contract_ref: 'contracts/app-settings-control-plane.json',
+    default_route: value.default_route,
+    route_identity_policy: readString(value, 'route_identity_policy', 'settings.control_plane'),
+    ordinary_visible_tabs: ordinaryVisibleTabs,
+    ordinary_routes: ordinaryRoutes,
+    secondary_pages: secondaryPages,
+    legacy_route_redirects: legacyRouteRedirects,
+    extension_anchor_remap: extensionAnchorRemap,
+    extension_tab_policy: isRecord(value.extension_tab_policy) ? { ...value.extension_tab_policy } : {},
+    slot_registry: slotRegistry,
+    state_action_policy: isRecord(value.state_action_policy) ? { ...value.state_action_policy } : {},
+  };
+}
+
+function readString(record: Record<string, unknown>, key: string, label: string): string {
+  const value = record[key];
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`Invalid OPL product profile: ${label}.${key} must be a non-empty string`);
+  }
+  return value;
+}
+
+function readSettingsControlPlaneRoutes(value: unknown, label: string): OplSettingsControlPlaneRoute[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid OPL product profile: settings.control_plane.${label} must be an array`);
+  }
+  return value.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: settings.control_plane.${label}[${index}] must be an object`);
+    }
+    return {
+      id: readString(entry, 'id', `settings.control_plane.${label}[${index}]`),
+      path: readString(entry, 'path', `settings.control_plane.${label}[${index}]`),
+      label_key: readString(entry, 'label_key', `settings.control_plane.${label}[${index}]`),
+      default_label_en: readString(entry, 'default_label_en', `settings.control_plane.${label}[${index}]`),
+      default_label_zh: readString(entry, 'default_label_zh', `settings.control_plane.${label}[${index}]`),
+      icon_token: readString(entry, 'icon_token', `settings.control_plane.${label}[${index}]`),
+      ia_group: readString(entry, 'ia_group', `settings.control_plane.${label}[${index}]`),
+      slot_id: readString(entry, 'slot_id', `settings.control_plane.${label}[${index}]`),
+      state_source: readString(entry, 'state_source', `settings.control_plane.${label}[${index}]`),
+      refresh_source: readString(entry, 'refresh_source', `settings.control_plane.${label}[${index}]`),
+    };
+  });
+}
+
+function readSettingsControlPlaneSecondaryPages(value: unknown): OplSettingsControlPlaneSecondaryPage[] {
+  if (!Array.isArray(value)) {
+    throw new Error('Invalid OPL product profile: settings.control_plane.secondary_pages must be an array');
+  }
+  return value.map((entry, index) => {
+    if (!isRecord(entry)) {
+      throw new Error(
+        `Invalid OPL product profile: settings.control_plane.secondary_pages[${index}] must be an object`
+      );
+    }
+    return {
+      id: readString(entry, 'id', `settings.control_plane.secondary_pages[${index}]`),
+      path: readString(entry, 'path', `settings.control_plane.secondary_pages[${index}]`),
+      ia_group: readString(entry, 'ia_group', `settings.control_plane.secondary_pages[${index}]`),
+      slot_id: readString(entry, 'slot_id', `settings.control_plane.secondary_pages[${index}]`),
+      visibility: readString(entry, 'visibility', `settings.control_plane.secondary_pages[${index}]`),
+    };
+  });
+}
+
+function readSettingsControlPlaneSlotRegistry(value: unknown): OplSettingsControlPlane['slot_registry'] {
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: settings.control_plane.slot_registry must be an object');
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([slotId, entry]) => {
+      if (!isRecord(entry)) {
+        throw new Error(
+          `Invalid OPL product profile: settings.control_plane.slot_registry.${slotId} must be an object`
+        );
+      }
+      return [
+        slotId,
+        {
+          component_key: readString(entry, 'component_key', `settings.control_plane.slot_registry.${slotId}`),
+          wrapper_policy: readString(entry, 'wrapper_policy', `settings.control_plane.slot_registry.${slotId}`),
+          ...(typeof entry.subroute_query_param === 'string'
+            ? { subroute_query_param: entry.subroute_query_param }
+            : {}),
+          ...(isRecord(entry.legacy_subroutes)
+            ? {
+                legacy_subroutes: readStringRecord(
+                  entry.legacy_subroutes,
+                  `settings.control_plane.slot_registry.${slotId}.legacy_subroutes`
+                ),
+              }
+            : {}),
+        },
+      ];
+    })
+  );
 }
 
 export const OPL_PRODUCT_PROFILE = validateOplProductProfile(generatedProfile);
@@ -1815,16 +1988,48 @@ export function getOplCommandLineToolsInstallMessage(): string {
   return OPL_PRODUCT_PROFILE.first_run.command_line_tools.messages.join('\n');
 }
 
+export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane | null {
+  const controlPlane = OPL_PRODUCT_PROFILE.settings.control_plane;
+  if (!controlPlane) return null;
+  return {
+    ...controlPlane,
+    ordinary_visible_tabs: [...controlPlane.ordinary_visible_tabs],
+    ordinary_routes: controlPlane.ordinary_routes.map((route) => ({ ...route })),
+    secondary_pages: controlPlane.secondary_pages.map((page) => ({ ...page })),
+    legacy_route_redirects: { ...controlPlane.legacy_route_redirects },
+    extension_anchor_remap: { ...controlPlane.extension_anchor_remap },
+    extension_tab_policy: { ...controlPlane.extension_tab_policy },
+    slot_registry: Object.fromEntries(
+      Object.entries(controlPlane.slot_registry).map(([slotId, slot]) => [
+        slotId,
+        {
+          ...slot,
+          ...(slot.legacy_subroutes ? { legacy_subroutes: { ...slot.legacy_subroutes } } : {}),
+        },
+      ])
+    ),
+    state_action_policy: { ...controlPlane.state_action_policy },
+  };
+}
+
 export function getOplGuiSettingsVisibleTabs(): string[] {
-  return [...OPL_PRODUCT_PROFILE.settings.visible_tabs];
+  return [
+    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.ordinary_visible_tabs ?? OPL_PRODUCT_PROFILE.settings.visible_tabs),
+  ];
 }
 
 export function getOplGuiSettingsSecondaryPageIds(): string[] {
-  return [...OPL_PRODUCT_PROFILE.settings.secondary_page_ids];
+  return [
+    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.secondary_pages.map((page) => page.id) ??
+      OPL_PRODUCT_PROFILE.settings.secondary_page_ids),
+  ];
 }
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
-  return { ...OPL_PRODUCT_PROFILE.settings.legacy_route_redirects };
+  return {
+    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.legacy_route_redirects ??
+      OPL_PRODUCT_PROFILE.settings.legacy_route_redirects),
+  };
 }
 
 export function getOplRuntimeEnvironmentItems(): string[] {

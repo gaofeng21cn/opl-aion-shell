@@ -3,10 +3,14 @@ import {
   BUILTIN_TAB_IDS,
   LEGACY_SETTINGS_ROUTE_REDIRECTS,
   SETTINGS_DEFAULT_ROUTE,
+  buildSettingsNavItems,
   getBuiltinSettingsNavItems,
 } from '@/renderer/pages/settings/sections/settingsNav';
+import { buildSettingsModalMenuItems } from '@/renderer/pages/settings/registry/settingsRegistry';
+import type { IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplGuiSettingsControlPlane: () => null,
   getOplGuiSettingsVisibleTabs: () => [
     'general',
     'access',
@@ -79,5 +83,81 @@ describe('settingsNav App-owned tabs', () => {
       pet: '/settings/appearance',
       about: '/settings/about',
     });
+  });
+
+  it('remaps legacy extension anchors before inserting extension settings tabs', () => {
+    const extensionTabs: IExtensionSettingsTab[] = [
+      {
+        id: 'skills-extension',
+        label: 'Skills Extension',
+        url: 'https://example.test/skills',
+        position: { relativeTo: 'skills-hub', placement: 'before' },
+        order: 0,
+        extensionName: 'Skills Pack',
+      },
+      {
+        id: 'tools-extension',
+        label: 'Tools Extension',
+        url: 'https://example.test/tools',
+        position: { relativeTo: 'tools', placement: 'after' },
+        order: 1,
+        extensionName: 'Tools Pack',
+      },
+    ];
+
+    const items = buildSettingsNavItems({
+      builtinItems: getBuiltinSettingsNavItems(true, t),
+      extensionTabs,
+      resolveExtTabName: (tab) => tab.label,
+      extensionIconClassName: 'icon',
+    }).map((item) => item.id);
+
+    expect(items).toEqual([
+      'general',
+      'access',
+      'skills-extension',
+      'capabilities',
+      'tools-extension',
+      'environment',
+      'storage',
+      'appearance',
+      'advanced',
+    ]);
+  });
+
+  it('inserts unanchored extension settings before Advanced in page and modal hosts', () => {
+    const extensionTabs: IExtensionSettingsTab[] = [
+      {
+        id: 'unanchored-extension',
+        label: 'Unanchored Extension',
+        url: 'https://example.test/unanchored',
+        order: 0,
+        extensionName: 'Diagnostics Pack',
+      },
+    ];
+
+    const navIds = buildSettingsNavItems({
+      builtinItems: getBuiltinSettingsNavItems(true, t),
+      extensionTabs,
+      resolveExtTabName: (tab) => tab.label,
+      extensionIconClassName: 'icon',
+    }).map((item) => item.id);
+    const modalIds = buildSettingsModalMenuItems({
+      extensionTabs,
+      resolveExtTabName: (tab) => tab.label,
+      t,
+    }).map((item) => item.id);
+
+    expect(navIds).toEqual([
+      'general',
+      'access',
+      'capabilities',
+      'environment',
+      'storage',
+      'appearance',
+      'unanchored-extension',
+      'advanced',
+    ]);
+    expect(modalIds).toEqual(navIds);
   });
 });
