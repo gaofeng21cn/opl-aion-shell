@@ -264,22 +264,9 @@ test.describe('Settings Pages', () => {
         await page.evaluate(() => window.location.assign('#/settings/general'));
         await page.waitForFunction(() => window.location.hash === '#/settings/general', { timeout: 10_000 });
         await expect(page.locator('[data-testid="settings-route-search"]').first()).toBeVisible();
-        await page.evaluate(() => {
-          const root = document.querySelector('[data-testid="settings-route-search"]');
-          const target = root?.querySelector(
-            '[data-testid="settings-search-input"] input, [data-testid="settings-search-input"]'
-          );
-          if (!(target instanceof HTMLInputElement)) {
-            throw new Error('Settings route search input not found.');
-          }
-          const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-          setValue?.call(target, '');
-          target.dispatchEvent(new Event('input', { bubbles: true }));
-          setValue?.call(target, 'zz-no-route-match-zz');
-          target.dispatchEvent(new Event('input', { bubbles: true }));
-          target.dispatchEvent(new Event('change', { bubbles: true }));
-        });
-        await page.waitForTimeout(250);
+        const input = page.locator('[data-testid="settings-route-search"] input').first();
+        await input.fill('');
+        await input.fill('zz-no-route-match-zz');
         await expect(
           page.locator('[data-testid="settings-route-search"] [data-testid="settings-search-empty"]').first()
         ).toBeVisible();
