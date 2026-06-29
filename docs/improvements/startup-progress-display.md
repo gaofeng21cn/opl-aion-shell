@@ -17,17 +17,19 @@ OPL App 启动时会在配置页面停留几秒钟，但没有任何进度显示
 #### 1. AppLoader 组件增强
 
 **新增功能：**
+
 - 支持为每个步骤显示详细消息
 - 添加进度条显示当前步骤的完成百分比
 - 优化视觉层次，让活动步骤的信息更突出
 
 **新增属性：**
+
 ```typescript
 export type AppLoaderStep = {
   label: string;
   state?: 'active' | 'complete' | 'pending';
-  message?: string;      // 当前步骤的详细消息
-  progress?: number;     // 进度百分比 (0-100)
+  message?: string; // 当前步骤的详细消息
+  progress?: number; // 进度百分比 (0-100)
 };
 
 type AppLoaderProps = {
@@ -42,18 +44,21 @@ type AppLoaderProps = {
 #### 2. 视觉改进
 
 **步骤列表：**
+
 - 每个步骤显示状态标记（圆点）
 - 活动步骤显示详细消息
 - 完成的步骤变为成功色（绿色）
 - 等待中的步骤为灰色
 
 **进度条：**
+
 - 全局进度条显示当前活动步骤的进度
 - 平滑的过渡动画
 - 显示百分比数字
 - 当前步骤的详细消息显示在进度条下方
 
 **样式特点：**
+
 - 使用 CSS Grid 布局，确保对齐美观
 - 文本溢出时使用省略号
 - 支持响应式设计
@@ -62,14 +67,17 @@ type AppLoaderProps = {
 #### 3. 启动流程信息
 
 **桌面会话 (50% → 100%)**
+
 - 消息：正在连接后端服务...
 - 状态：连接建立后标记为完成
 
 **应用配置 (60% → 100%)**
+
 - 消息：正在加载应用配置...
 - 状态：配置加载完成后标记为完成
 
 **初始化状态 (80%)**
+
 - 消息：正在检查初始化状态...
 - 状态：准备进入主界面
 
@@ -78,11 +86,13 @@ type AppLoaderProps = {
 添加了中英文进度消息：
 
 **中文：**
+
 - `connectingBackend`: "正在连接后端服务..."
 - `loadingConfig`: "正在加载应用配置..."
 - `checkingFirstRun`: "正在检查初始化状态..."
 
 **英文：**
+
 - `connectingBackend`: "Connecting to backend service..."
 - `loadingConfig`: "Loading application configuration..."
 - `checkingFirstRun`: "Checking initialization status..."
@@ -118,6 +128,7 @@ type AppLoaderProps = {
 ## 效果对比
 
 ### 改进前
+
 ```
 [旋转图标] 正在启动 One Person Lab
            正在准备桌面会话，随后会进入初始化检查。
@@ -128,6 +139,7 @@ type AppLoaderProps = {
 ```
 
 ### 改进后
+
 ```
 [旋转图标] 正在启动 One Person Lab
            正在准备桌面会话，随后会进入初始化检查。
@@ -146,6 +158,7 @@ type AppLoaderProps = {
 ### 1. 动态进度更新
 
 目前进度是基于步骤状态的静态值，未来可以考虑：
+
 - 连接后端时显示实时连接进度
 - 配置加载时显示加载项数量
 - 接入真实的初始化进度 API
@@ -153,6 +166,7 @@ type AppLoaderProps = {
 ### 2. 更详细的步骤分解
 
 参考 Hermes Desktop 的实现，可以进一步细化步骤：
+
 - 检查运行环境
 - 验证必需工具
 - 加载核心模块
@@ -163,6 +177,7 @@ type AppLoaderProps = {
 ### 3. 错误处理
 
 当某个步骤失败时：
+
 - 显示错误图标和消息
 - 提供重试按钮
 - 显示详细的错误日志链接
@@ -170,6 +185,7 @@ type AppLoaderProps = {
 ### 4. 性能监控
 
 添加性能指标收集：
+
 - 记录每个步骤的耗时
 - 识别启动瓶颈
 - 优化慢速步骤

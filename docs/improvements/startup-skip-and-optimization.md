@@ -17,6 +17,7 @@ return (
 ```
 
 **问题所在：**
+
 - ✅ 当前实现是**完全阻塞式**的
 - ❌ 在 `ready` 和 `configReady` 都为 true 之前，AppLoader 占据整个屏幕
 - ❌ 左侧 Sider（包含"新对话"等 tab）完全不渲染
@@ -29,6 +30,7 @@ return (
 允许在配置加载的同时显示主界面，类似渐进式加载。
 
 **实现思路：**
+
 ```typescript
 // 始终渲染主界面
 return (
@@ -40,12 +42,14 @@ return (
 ```
 
 **优点：**
+
 - ✅ 用户可以点击左侧 tab
 - ✅ 点击后自动关闭加载提示
 - ✅ 配置加载在后台继续进行
 - ✅ 符合现代应用的用户体验
 
 **缺点：**
+
 - ⚠️ 需要处理配置未完成时的功能降级
 - ⚠️ 某些功能可能需要等待配置完成
 
@@ -54,6 +58,7 @@ return (
 在当前阻塞式页面上添加跳过按钮。
 
 **实现思路：**
+
 ```typescript
 <AppLoader
   title={...}
@@ -70,11 +75,13 @@ return (
 ```
 
 **优点：**
+
 - ✅ 实现简单，改动最小
 - ✅ 给用户明确的控制权
 - ✅ 适合非首次启动的场景
 
 **缺点：**
+
 - ⚠️ 仍然是阻塞式体验
 - ⚠️ 跳过后可能影响功能
 
@@ -83,6 +90,7 @@ return (
 结合方案 A 和 B 的优点。
 
 **实现思路：**
+
 1. **首次启动**：必须完成配置，不允许跳过
 2. **后续启动**：
    - 显示非阻塞式加载提示
@@ -90,6 +98,7 @@ return (
    - 配置在后台继续加载
 
 **判断逻辑：**
+
 ```typescript
 const isFirstRun = !localStorage.getItem('has-launched-before');
 
@@ -109,6 +118,7 @@ if (!ready || !configReady) {
 ```
 
 **优点：**
+
 - ✅ 最佳用户体验
 - ✅ 首次启动确保配置完整
 - ✅ 后续启动快速进入
@@ -121,6 +131,7 @@ if (!ready || !configReady) {
 ### 当前页面信息架构分析
 
 #### 现有内容
+
 ```
 ┌─────────────────────────────────────────┐
 │ [旋转图标] 正在启动 One Person Lab      │
@@ -140,20 +151,24 @@ if (!ready || !configReady) {
 #### 信息层次问题
 
 **标题层**
+
 - ✅ "正在启动 One Person Lab" - 清晰明确
 - ⚠️ 描述文字过于技术化："准备桌面会话"、"初始化检查"
 
 **步骤层**
+
 - ✅ 有三个步骤的名称
 - ⚠️ 步骤名称偏技术术语："桌面会话"、"应用配置"
 - ⚠️ 缺少步骤之间的关系说明
 
 **进度层**
+
 - ✅ 有进度条和百分比
 - ✅ 有当前操作的详细消息
 - ⚠️ 消息仍然偏技术化
 
 **缺失元素**
+
 - ❌ 没有预计时间（"大约需要 5 秒"）
 - ❌ 没有品牌元素（Logo、Slogan）
 - ❌ 没有跳过或取消选项
@@ -166,18 +181,21 @@ if (!ready || !configReady) {
 ##### A. 用户友好的文案
 
 **标题优化：**
+
 ```
 改进前：正在启动 One Person Lab
 改进后：欢迎使用 One Person Lab
 ```
 
 **描述优化：**
+
 ```
 改进前：正在准备桌面会话，随后会进入初始化检查。
 改进后：正在为您准备工作环境，马上就好...
 ```
 
 **步骤名称优化：**
+
 ```
 改进前：                改进后：
 - 桌面会话              - 连接后台服务
@@ -186,6 +204,7 @@ if (!ready || !configReady) {
 ```
 
 **消息优化：**
+
 ```
 改进前：                           改进后：
 - 正在连接后端服务...              - 正在连接到 Codex...
@@ -217,10 +236,12 @@ if (!ready || !configReady) {
 ##### C. 添加预计时间
 
 基于历史数据估算：
+
 - 首次启动：约 10-15 秒
 - 后续启动：约 3-5 秒
 
 显示方式：
+
 ```typescript
 const estimatedTime = isFirstRun ? 12 : 4;
 const elapsed = Date.now() - startTime;
@@ -235,15 +256,17 @@ const remaining = Math.max(0, estimatedTime - Math.floor(elapsed / 1000));
 ##### A. 视觉层次优化
 
 **当前问题：**
+
 - 所有元素平铺，没有重点
 - 进度条和文字竞争注意力
 
 **改进方案：**
+
 ```css
 /* 强化视觉层次 */
 .appLoaderTitle {
-  font-size: 18px;        /* 从 15px 增大 */
-  font-weight: 700;       /* 从 600 加粗 */
+  font-size: 18px; /* 从 15px 增大 */
+  font-weight: 700; /* 从 600 加粗 */
   margin-bottom: 8px;
 }
 
@@ -272,6 +295,7 @@ const remaining = Math.max(0, estimatedTime - Math.floor(elapsed / 1000));
 **添加微妙动画增强反馈：**
 
 1. **进入动画**
+
 ```css
 @keyframes fadeInUp {
   from {
@@ -290,60 +314,70 @@ const remaining = Math.max(0, estimatedTime - Math.floor(elapsed / 1000));
 ```
 
 2. **步骤激活动画**
+
 ```css
 .appLoaderStep[data-state='active'] {
   animation: pulse 2s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 ```
 
 3. **完成动画**
+
 ```css
 .appLoaderStep[data-state='complete'] .appLoaderStepMarker {
   animation: checkmark 0.3s ease-out;
 }
 
 @keyframes checkmark {
-  0% { transform: scale(0); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 ```
 
 ##### C. 加载状态优化
 
 **添加骨架屏效果：**
+
 ```css
 .appLoaderSkeleton {
-  background: linear-gradient(
-    90deg,
-    var(--bg-2) 25%,
-    var(--bg-3) 50%,
-    var(--bg-2) 75%
-  );
+  background: linear-gradient(90deg, var(--bg-2) 25%, var(--bg-3) 50%, var(--bg-2) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
 }
 ```
 
 ##### D. 情感化设计
 
 **添加鼓励性文案：**
+
 ```typescript
-const encouragements = [
-  '正在为您准备最佳体验...',
-  '马上就好，感谢您的耐心...',
-  '即将完成，请稍候...',
-];
+const encouragements = ['正在为您准备最佳体验...', '马上就好，感谢您的耐心...', '即将完成，请稍候...'];
 
 // 随机显示或根据时长显示
 ```
@@ -353,6 +387,7 @@ const encouragements = [
 ##### A. 跳过机制（推荐方案 C）
 
 **实现细节：**
+
 ```typescript
 // 在 AppLoader 组件中添加
 <AppLoader
@@ -367,6 +402,7 @@ const encouragements = [
 ```
 
 **跳过按钮样式：**
+
 ```css
 .appLoaderSkipButton {
   position: absolute;
@@ -391,6 +427,7 @@ const encouragements = [
 ##### B. 错误处理
 
 **当步骤失败时：**
+
 ```typescript
 {
   label: '连接后台服务',
@@ -402,6 +439,7 @@ const encouragements = [
 ```
 
 **错误显示：**
+
 ```css
 .appLoaderStep[data-state='error'] {
   color: var(--danger);
@@ -432,6 +470,7 @@ const encouragements = [
 ##### C. 长时间等待处理
 
 **超过预期时间时：**
+
 ```typescript
 useEffect(() => {
   const timeout = setTimeout(() => {
@@ -462,10 +501,10 @@ useEffect(() => {
   // 预加载主界面的关键组件
   import('./components/conversation/Guid');
   import('./components/layout/Sider');
-  
+
   // 预加载字体和图标
   document.fonts.load('16px Inter');
-  
+
   // 预热 API 连接
   fetch('/api/health').catch(() => {});
 }, []);
@@ -494,16 +533,19 @@ return (
 ### 优化优先级
 
 #### P0（必须实现）
+
 1. ✅ 添加跳过机制（方案 C）
 2. ✅ 优化文案为用户友好的语言
 3. ✅ 添加预计时间显示
 
 #### P1（强烈建议）
+
 4. ✅ 添加品牌元素（Logo + Slogan）
 5. ✅ 优化视觉层次
 6. ✅ 添加基础动画
 
 #### P2（可选）
+
 7. ⭕ 错误处理和重试机制
 8. ⭕ 长时间等待提示
 9. ⭕ 骨架屏和渐进式渲染
@@ -511,16 +553,19 @@ return (
 ### 实施建议
 
 **第一阶段（本周）**
+
 - 实现跳过机制（方案 C）
 - 优化所有文案
 - 添加预计时间
 
 **第二阶段（下周）**
+
 - 添加品牌元素
 - 优化视觉层次和动画
 - 完善错误处理
 
 **第三阶段（后续）**
+
 - 性能优化
 - 渐进式渲染
 - 数据收集和持续优化
@@ -530,6 +575,7 @@ return (
 ## 附录：完整的优化前后对比
 
 ### 优化前
+
 ```
 优点：
 - 有基本的步骤显示
@@ -544,6 +590,7 @@ return (
 ```
 
 ### 优化后
+
 ```
 优点：
 - ✅ 可以跳过（非首次启动）
@@ -564,11 +611,13 @@ return (
 ## 总结
 
 **关于跳过机制：**
+
 - 推荐使用**方案 C（智能跳过）**
 - 首次启动必须完成配置
 - 后续启动允许跳过，配置后台加载
 
 **关于页面优化：**
+
 - 优化文案为用户友好的语言
 - 添加品牌元素和情感化设计
 - 增强视觉层次和微动画

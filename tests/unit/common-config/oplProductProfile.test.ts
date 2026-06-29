@@ -134,12 +134,7 @@ describe('OPL generated product profile', () => {
         { id: 'gpt-5.4', label_zh: 'GPT-5.4' },
       ],
     });
-    expect(getOplCodexModelDisplayOptions().user_reasoning_effort_options).toEqual([
-      'low',
-      'medium',
-      'high',
-      'xhigh',
-    ]);
+    expect(getOplCodexModelDisplayOptions().user_reasoning_effort_options).toEqual(['low', 'medium', 'high', 'xhigh']);
     expect(getOplRetiredCodexModels()).toEqual([
       'gpt-5.3-codex',
       'gpt-5.2',

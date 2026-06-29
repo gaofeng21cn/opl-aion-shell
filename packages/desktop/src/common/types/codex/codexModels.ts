@@ -94,10 +94,12 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
     });
   }
 
-  return options.toSorted((left, right) => compareVersionParts(right.version, left.version)).map(({ id, label }) => ({
-    id,
-    label,
-  }));
+  return options
+    .toSorted((left, right) => compareVersionParts(right.version, left.version))
+    .map(({ id, label }) => ({
+      id,
+      label,
+    }));
 }
 
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {

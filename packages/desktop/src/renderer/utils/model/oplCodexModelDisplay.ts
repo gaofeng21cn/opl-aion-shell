@@ -85,9 +85,7 @@ export function formatOplCodexReasoningMenuLabel(
   localeKey: OplModelDisplayLocale
 ): string {
   const label = formatOplCodexReasoningLabel(reasoningEffort, localeKey);
-  return resolveLocaleKey(localeKey) === 'en-US'
-    ? label.replace(/\s+reasoning$/i, '')
-    : label.replace(/^推理/, '');
+  return resolveLocaleKey(localeKey) === 'en-US' ? label.replace(/\s+reasoning$/i, '') : label.replace(/^推理/, '');
 }
 
 export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): OplCodexModelDisplay {

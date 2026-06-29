@@ -155,19 +155,12 @@ const AcpModelSelector: React.FC<{
         .then(() => Message.success(t('agent.model.switchSuccess')))
         .catch((error) => Message.error(t(configErrorMessageKey(error))));
     }
-  }, [
-    defaultCodexReasoningEffort,
-    isSettingReasoning,
-    model_info,
-    selectModel,
-    setConfigOption,
-    thoughtLevel,
-    t,
-  ]);
+  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectModel, setConfigOption, thoughtLevel, t]);
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
   const shouldShowReasoningOptions = backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0;
-  const reasoningMenuTitle = localeKey === 'en-US' ? t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' }) : '推理';
+  const reasoningMenuTitle =
+    localeKey === 'en-US' ? t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' }) : '推理';
   const reasoningMenuItems =
     shouldShowReasoningOptions && thoughtLevel
       ? [

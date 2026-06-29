@@ -139,9 +139,21 @@ describe('prepare-aioncore prepared runtime cache', () => {
       fs.writeFileSync(path.join(toolRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'index.js' }));
       fs.writeFileSync(path.join(toolRoot, 'index.js'), 'console.log("ok")');
     }
-    fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'acp', 'codex-acp', '0.1.0', 'darwin-arm64', 'node_modules', '.bin'), {
-      recursive: true,
-    });
+    fs.mkdirSync(
+      path.join(
+        cacheRuntimeDir,
+        'managed-resources',
+        'acp',
+        'codex-acp',
+        '0.1.0',
+        'darwin-arm64',
+        'node_modules',
+        '.bin'
+      ),
+      {
+        recursive: true,
+      }
+    );
     fs.symlinkSync(
       '../@zed-industries/codex-acp/bin/codex-acp.js',
       path.join(
@@ -169,9 +181,9 @@ describe('prepare-aioncore prepared runtime cache', () => {
 
       expect(result.sourceType).toBe('cache');
       expect(fs.readFileSync(path.join(targetDir, 'aioncore'), 'utf8')).toBe('binary');
-      expect(fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'))).toBe(
-        true
-      );
+      expect(
+        fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'))
+      ).toBe(true);
       expect(
         fs.readlinkSync(
           path.join(

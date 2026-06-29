@@ -284,7 +284,11 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         <Dropdown
           trigger='click'
           droplist={
-            <Menu mode='pop' selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']} style={{ minWidth: 220 }}>
+            <Menu
+              mode='pop'
+              selectedKeys={selectedAcpModel ? [selectedAcpModel] : ['__auto']}
+              style={{ minWidth: 220 }}
+            >
               <Menu.Item
                 key='__auto'
                 className={selectedAcpModel === null ? '!bg-2' : ''}
@@ -311,7 +315,9 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
               {reasoningMenuItems}
               <Menu.SubMenu
                 key='__models'
-                title={<span className='text-12px text-t-secondary'>{t('common.model', { defaultValue: 'Model' })}</span>}
+                title={
+                  <span className='text-12px text-t-secondary'>{t('common.model', { defaultValue: 'Model' })}</span>
+                }
               >
                 {currentAcpCachedModelInfo.available_models.map((model) => {
                   // 获取模型健康状态

@@ -18,7 +18,7 @@ describe('OPL release version stamping', () => {
     expect(packageJson.version).not.toBe('26.5.27');
     expect(buildScript).toContain('const OPL_RELEASE_VERSION_PATTERN = /^\\d+\\.\\d+\\.\\d+');
     expect(buildScript).toContain('function buildOplReleaseVersionConfigArg()');
-    expect(buildScript).toContain("return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;");
+    expect(buildScript).toContain('return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;');
     expect(buildScript).toContain('--config.extraMetadata.version=${version}');
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');

@@ -43,7 +43,7 @@ const AppLoader: React.FC<AppLoaderProps> = ({
   const { t } = useTranslation();
 
   // Find the active step to show its progress
-  const activeStep = steps.find(step => step.state === 'active');
+  const activeStep = steps.find((step) => step.state === 'active');
   const hasProgress = showProgress && activeStep && typeof activeStep.progress === 'number';
   const progress = hasProgress ? Math.max(0, Math.min(100, activeStep.progress)) : 0;
 
@@ -75,10 +75,7 @@ const AppLoader: React.FC<AppLoaderProps> = ({
         {hasProgress ? (
           <div className={styles.appLoaderProgress}>
             <div className={styles.appLoaderProgressBar}>
-              <div
-                className={styles.appLoaderProgressFill}
-                style={{ width: `${progress}%` }}
-              />
+              <div className={styles.appLoaderProgressFill} style={{ width: `${progress}%` }} />
             </div>
             <div className={styles.appLoaderProgressText}>
               {activeStep.message ? (
@@ -98,11 +95,7 @@ const AppLoader: React.FC<AppLoaderProps> = ({
               <span />
             )}
             {showSkipButton && onSkip ? (
-              <button
-                className={styles.appLoaderSkipButton}
-                onClick={onSkip}
-                type="button"
-              >
+              <button className={styles.appLoaderSkipButton} onClick={onSkip} type='button'>
                 {skipButtonText ?? t('common.skip')}
               </button>
             ) : null}
