@@ -1,10 +1,11 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import StartupGate from '@/renderer/components/layout/StartupGate';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInitializeInvoke: vi.fn(),
+  navigate: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -23,6 +24,7 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('react-router-dom', () => ({
   Navigate: ({ to }: { to: string }) => <div data-testid='navigate-target'>{to}</div>,
+  useNavigate: () => bridgeMocks.navigate,
 }));
 
 const readyInitializeResult = {
@@ -72,9 +74,18 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     expect(screen.getByTestId('opl-startup-gate')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent(
-      'common.startupPreflight.steps.firstRunStatus'
-    );
+    expect(screen.getByTestId('opl-startup-gate')).toHaveTextContent('common.startupPreflight.steps.startupState');
+    expect(screen.getByText('common.startupPreflight.skipCheck')).toBeInTheDocument();
+  });
+
+  it('lets users skip the startup wait and enter guid without claiming readiness', () => {
+    bridgeMocks.getInitializeInvoke.mockReturnValue(new Promise(() => {}));
+
+    render(<StartupGate />);
+
+    fireEvent.click(screen.getByText('common.startupPreflight.skipCheck'));
+
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/guid', { replace: true });
   });
 
   it('routes ready non-first-run installs directly to guid', async () => {

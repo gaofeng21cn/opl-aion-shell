@@ -42,20 +42,6 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
   return React.cloneElement(layout);
 };
 
-const ProtectedStartupGate: React.FC = () => {
-  const { status } = useAuth();
-
-  if (status === 'checking') {
-    return <AppLoader />;
-  }
-
-  if (status !== 'authenticated') {
-    return <Navigate to='/login' replace />;
-  }
-
-  return <StartupGate />;
-};
-
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
 
@@ -66,9 +52,9 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           path='/login'
           element={status === 'authenticated' ? <Navigate to='/startup-gate' replace /> : withRouteFallback(LoginPage)}
         />
-        <Route path='/startup-gate' element={<ProtectedStartupGate />} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route index element={<Navigate to='/startup-gate' replace />} />
+          <Route path='/startup-gate' element={<StartupGate />} />
           <Route path='/first-run' element={withRouteFallback(FirstRun)} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />

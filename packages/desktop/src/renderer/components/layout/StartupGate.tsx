@@ -13,7 +13,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import { readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
@@ -29,18 +29,21 @@ function shouldEnterFirstRun(initialize: FirstRunInitialize | null): boolean {
   }
 
   // 未就绪，需要配置
-  const isReady =
-    initialize.setup_flow?.ready_to_launch === true ||
-    initialize.readiness?.launch_ready === true;
+  const isReady = initialize.setup_flow?.ready_to_launch === true || initialize.readiness?.launch_ready === true;
 
   return !isReady;
 }
 
 const StartupGate: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
   const [needsFirstRun, setNeedsFirstRun] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const skipStartupCheck = () => {
+    navigate('/guid', { replace: true });
+  };
 
   useEffect(() => {
     const checkSystemReady = async () => {
@@ -80,15 +83,15 @@ const StartupGate: React.FC = () => {
         progress: 100,
       },
       {
-        label: t('common.startupPreflight.steps.appConfig'),
-        state: 'complete',
-        progress: 100,
+        label: t('common.startupPreflight.steps.startupState'),
+        state: 'active',
+        message: t('common.startupPreflight.messages.checkingStartupState'),
+        progress: 70,
       },
       {
-        label: t('common.startupPreflight.steps.firstRunStatus'),
-        state: 'active',
-        message: t('common.startupPreflight.messages.checkingSystemReady'),
-        progress: 80,
+        label: t('common.startupPreflight.steps.routeDecision'),
+        state: 'pending',
+        progress: 0,
       },
     ];
 
@@ -99,6 +102,9 @@ const StartupGate: React.FC = () => {
         steps={steps}
         testId='opl-startup-gate'
         showProgress={true}
+        showSkipButton={true}
+        skipButtonText={t('common.startupPreflight.skipCheck')}
+        onSkip={skipStartupCheck}
       />
     );
   }
@@ -106,14 +112,14 @@ const StartupGate: React.FC = () => {
   // 检查完成，根据结果导航
   if (error) {
     // 出错时仍然进入配置页面，让用户看到详细信息
-    return <Navigate to="/first-run" replace />;
+    return <Navigate to='/first-run' replace />;
   }
 
   if (needsFirstRun) {
-    return <Navigate to="/first-run" replace />;
+    return <Navigate to='/first-run' replace />;
   }
 
-  return <Navigate to="/guid" replace />;
+  return <Navigate to='/guid' replace />;
 };
 
 export default StartupGate;

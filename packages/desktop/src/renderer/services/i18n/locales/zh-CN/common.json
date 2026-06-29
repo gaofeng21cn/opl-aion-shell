@@ -73,18 +73,22 @@
   "tray.untitled": "未命名",
   "startupPreflight": {
     "title": "正在启动 One Person Lab",
-    "description": "正在为您准备工作环境，马上就好...",
+    "description": "正在确认启动状态。你也可以先进入首页，稍后再到本机运行环境里处理问题。",
     "steps": {
       "desktopSession": "连接后台服务",
       "appConfig": "加载应用配置",
       "firstRunStatus": "检查首次运行状态",
-      "systemReady": "检查系统状态"
+      "systemReady": "检查系统状态",
+      "startupState": "读取启动状态",
+      "routeDecision": "决定进入首页还是配置"
     },
     "messages": {
       "connectingBackend": "正在连接到 Codex...",
       "loadingConfig": "正在加载您的设置...",
-      "checkingSystemReady": "正在检查系统就绪状态..."
-    }
+      "checkingSystemReady": "正在检查系统就绪状态...",
+      "checkingStartupState": "正在读取 One Person Lab 的启动状态..."
+    },
+    "skipCheck": "跳过，先进入首页"
   },
   "backendStartup": {
     "incompatibleRuntime": {

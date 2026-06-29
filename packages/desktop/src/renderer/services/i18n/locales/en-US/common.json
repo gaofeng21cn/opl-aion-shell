@@ -73,18 +73,22 @@
   "tray.untitled": "Untitled",
   "startupPreflight": {
     "title": "Starting One Person Lab",
-    "description": "Preparing your workspace, almost there...",
+    "description": "Checking startup state. You can enter Home now and handle issues later in Local Environment.",
     "steps": {
       "desktopSession": "Connect backend service",
       "appConfig": "Load application config",
       "firstRunStatus": "Check first-run status",
-      "systemReady": "Check system status"
+      "systemReady": "Check system status",
+      "startupState": "Read startup state",
+      "routeDecision": "Decide Home or setup"
     },
     "messages": {
       "connectingBackend": "Connecting to Codex...",
       "loadingConfig": "Loading your settings...",
-      "checkingSystemReady": "Checking system readiness..."
-    }
+      "checkingSystemReady": "Checking system readiness...",
+      "checkingStartupState": "Reading One Person Lab startup state..."
+    },
+    "skipCheck": "Skip and enter Home"
   },
   "backendStartup": {
     "incompatibleRuntime": {
