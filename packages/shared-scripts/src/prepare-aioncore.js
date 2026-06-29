@@ -17,6 +17,7 @@ const { execSync, execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { verifyBundledAioncoreResources } = require('./verify-bundled-aioncore-resources');
 
 const GITHUB_OWNER = 'iOfficeAI';
 const GITHUB_REPO = 'AionCore';
@@ -103,6 +104,11 @@ function removeDirectorySafe(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
+function copyDirectorySafe(sourcePath, targetPath) {
+  ensureDirectory(path.dirname(targetPath));
+  fs.cpSync(sourcePath, targetPath, { recursive: true, verbatimSymlinks: true });
+}
+
 function copyFileSafe(sourcePath, targetPath) {
   ensureDirectory(path.dirname(targetPath));
   fs.copyFileSync(sourcePath, targetPath);
@@ -117,6 +123,45 @@ function ensureExecutableMode(filePath) {
 
 function writeJson(filePath, payload) {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
+}
+
+function safeCacheSegment(value) {
+  return String(value).replace(/[^0-9A-Za-z._-]/g, '_');
+}
+
+function getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion) {
+  const cacheRoot = process.env.AIONUI_AIONCORE_CACHE_DIR?.trim() || path.join(projectRoot, 'out', 'aioncore-cache');
+  const cacheId = `${runtimeKey}-${safeCacheSegment(cacheVersion)}`;
+  const resourcesRoot = path.join(cacheRoot, cacheId);
+  const runtimeDir = path.join(resourcesRoot, 'bundled-aioncore', runtimeKey);
+  return { resourcesRoot, runtimeDir };
+}
+
+function isPreparedRuntimeValid(resourcesRoot, electronPlatformName, targetArch) {
+  const result = verifyBundledAioncoreResources({ resourcesDir: resourcesRoot, electronPlatformName, targetArch });
+  return result.missing.length === 0;
+}
+
+function restorePreparedRuntimeFromCache({ cacheRuntimeDir, targetDir, resourcesRoot, platform, arch }) {
+  if (!fs.existsSync(cacheRuntimeDir)) return false;
+  if (!isPreparedRuntimeValid(resourcesRoot, platform, arch)) return false;
+
+  removeDirectorySafe(targetDir);
+  copyDirectorySafe(cacheRuntimeDir, targetDir);
+  return true;
+}
+
+function savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir }) {
+  const tempRuntimeDir = `${cacheRuntimeDir}.tmp-${process.pid}`;
+  removeDirectorySafe(tempRuntimeDir);
+  ensureDirectory(path.dirname(cacheRuntimeDir));
+  try {
+    copyDirectorySafe(targetDir, tempRuntimeDir);
+    removeDirectorySafe(cacheRuntimeDir);
+    fs.renameSync(tempRuntimeDir, cacheRuntimeDir);
+  } finally {
+    removeDirectorySafe(tempRuntimeDir);
+  }
 }
 
 function getBinaryName(platform) {
@@ -636,10 +681,25 @@ function prepareAioncore(options) {
   const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', runtimeKey);
   const binaryName = getBinaryName(platform);
   const targetBinaryPath = path.join(targetDir, binaryName);
+  const cacheVersion = actionsRunId ? `actions-run-${actionsRunId}` : tag;
+  const cachePaths = getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion);
 
   console.log(
     `Preparing aioncore for ${runtimeKey} (${actionsRunId ? `actions run: ${actionsRunId}` : `version: ${tag}`})`
   );
+
+  if (
+    restorePreparedRuntimeFromCache({
+      cacheRuntimeDir: cachePaths.runtimeDir,
+      targetDir,
+      resourcesRoot: cachePaths.resourcesRoot,
+      platform,
+      arch,
+    })
+  ) {
+    console.log(`  Using cached bundled aioncore: ${path.relative(process.cwd(), cachePaths.runtimeDir)}`);
+    return { prepared: true, dir: targetDir, sourceType: 'cache' };
+  }
 
   removeDirectorySafe(targetDir);
   ensureDirectory(targetDir);
@@ -697,6 +757,7 @@ function prepareAioncore(options) {
     };
 
     writeJson(path.join(targetDir, 'manifest.json'), manifest);
+    savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir: cachePaths.runtimeDir });
     console.log(
       `  Bundled aioncore prepared: resources/bundled-aioncore/${runtimeKey}/${binaryName} [source=${sourceType}]`
     );
@@ -716,6 +777,7 @@ module.exports = {
   __test__: {
     downloadFile,
     getManagedResourcePrepareEnv,
+    prepareAioncore,
     prepareManagedResources,
     runDownloadOnce,
     parsePositiveInteger,

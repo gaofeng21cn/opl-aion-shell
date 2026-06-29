@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { useSettingsViewMode } from '../settingsViewContext';
+import { ipcBridge } from '@/common';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import FeedbackReportModal from './FeedbackReportModal';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -96,6 +97,7 @@ const AboutModalContent: React.FC = () => {
 
   const [includeNightly, setIncludeNightly] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [latestStableVersion, setLatestStableVersion] = useState('');
   const appStateQuery = useOplAppState('fast');
   const managedUpdateMaintenance = useManagedUpdateMaintenance();
 
@@ -109,7 +111,6 @@ const AboutModalContent: React.FC = () => {
   const managedUpdatePlane = readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appStateQuery.appState);
   const managedUpdateComponents = new Map(managedUpdatePlane.components.map((component) => [component.id, component]));
   const currentAppVersion = localAppVersion();
-  const latestStableCandidate = oplString(release.app_version) ?? oplString(release.version) ?? '';
   const appVersions: AppVersions = {
     appVersion: currentAppVersion,
     guiVersion: __SHELL_VERSION__,
@@ -123,8 +124,26 @@ const AboutModalContent: React.FC = () => {
       '-',
     releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
     releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
-    latestStableVersion: isNewerVersion(latestStableCandidate, currentAppVersion) ? latestStableCandidate : '',
+    latestStableVersion,
   };
+
+  useEffect(() => {
+    if (!isElectron) return;
+    let cancelled = false;
+    void ipcBridge.update.check
+      .invoke({ channel: 'stable' })
+      .then((result) => {
+        if (cancelled) return;
+        const candidate = result?.success ? result.data?.latest?.version : '';
+        setLatestStableVersion(isNewerVersion(candidate, currentAppVersion) ? candidate || '' : '');
+      })
+      .catch(() => {
+        if (!cancelled) setLatestStableVersion('');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAppVersion, isElectron]);
 
   useEffect(() => {
     if (!isElectron || managedUpdateMaintenance.result || managedUpdateMaintenance.running) return;

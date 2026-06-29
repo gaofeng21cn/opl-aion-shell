@@ -721,7 +721,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const guiVersion = __SHELL_VERSION__;
   const releaseChannel = oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable';
   const releaseRepo = oplString(release.repo) ?? oplString(release.release_repo);
-  const latestStableVersion = oplString(release.app_version) ?? oplString(release.version);
   const runtimeCards = useMemo(
     () => [
       {
@@ -939,11 +938,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                   channel: formatReleaseChannel(releaseChannel, t),
                 })}
               </Typography.Text>
-              {latestStableVersion && latestStableVersion !== appVersion ? (
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {t('settings.runtimePage.latestStableDetail', { version: latestStableVersion })}
-                </Typography.Text>
-              ) : null}
               {releaseRepo && (
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {releaseRepo}

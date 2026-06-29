@@ -17,7 +17,11 @@ const injectedOplReleaseVersion = process.env.OPL_RELEASE_VERSION?.trim();
 if (injectedOplReleaseVersion && !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(injectedOplReleaseVersion)) {
   throw new Error(`Invalid OPL_RELEASE_VERSION: ${injectedOplReleaseVersion}`);
 }
-const appReleaseVersion = injectedOplReleaseVersion || rootPackageJson.version;
+function defaultOplReleaseVersion(date = new Date()): string {
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;
+}
+const appReleaseVersion = injectedOplReleaseVersion || defaultOplReleaseVersion();
 const shellVersion = rootPackageJson.version;
 
 // Build builtin MCP servers after main process bundle so they survive out/main/ cleanup.
@@ -295,8 +299,8 @@ export default defineConfig(({ mode }) => {
         'process.env.env': JSON.stringify(process.env.env),
         'process.env.AIONUI_MULTI_INSTANCE': JSON.stringify(process.env.AIONUI_MULTI_INSTANCE ?? ''),
         'process.env.SENTRY_DSN': JSON.stringify(process.env.SENTRY_DSN ?? ''),
-        // OPL App releases stamp their product version through OPL_RELEASE_VERSION.
-        // Local/upstream AionUI builds keep showing the shell package version.
+        // Keep the OPL App product version separate from the AionUI shell package version.
+        // Official builds may inject OPL_RELEASE_VERSION; local builds use the UTC date version.
         __APP_VERSION__: JSON.stringify(appReleaseVersion),
         __SHELL_VERSION__: JSON.stringify(shellVersion),
         __OPL_RELEASE_VERSION__: JSON.stringify(injectedOplReleaseVersion || ''),

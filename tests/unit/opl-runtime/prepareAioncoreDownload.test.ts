@@ -115,6 +115,88 @@ describe('prepare-aioncore managed resources preparation', () => {
   });
 });
 
+describe('prepare-aioncore prepared runtime cache', () => {
+  it('reuses a complete prepared runtime cache without downloading or preparing managed resources', () => {
+    const dir = makeTempDir();
+    const projectRoot = path.join(dir, 'project');
+    const cacheRoot = path.join(dir, 'cache');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.28', 'bundled-aioncore', 'darwin-arm64');
+    const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
+
+    fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
+      recursive: true,
+    });
+    fs.writeFileSync(path.join(cacheRuntimeDir, 'aioncore'), 'binary');
+    fs.writeFileSync(path.join(cacheRuntimeDir, 'manifest.json'), '{}');
+    fs.writeFileSync(
+      path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'),
+      'node'
+    );
+
+    for (const tool of ['codex-acp', 'claude-agent-acp']) {
+      const toolRoot = path.join(cacheRuntimeDir, 'managed-resources', 'acp', tool, '0.1.0', 'darwin-arm64');
+      fs.mkdirSync(toolRoot, { recursive: true });
+      fs.writeFileSync(path.join(toolRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'index.js' }));
+      fs.writeFileSync(path.join(toolRoot, 'index.js'), 'console.log("ok")');
+    }
+    fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'acp', 'codex-acp', '0.1.0', 'darwin-arm64', 'node_modules', '.bin'), {
+      recursive: true,
+    });
+    fs.symlinkSync(
+      '../@zed-industries/codex-acp/bin/codex-acp.js',
+      path.join(
+        cacheRuntimeDir,
+        'managed-resources',
+        'acp',
+        'codex-acp',
+        '0.1.0',
+        'darwin-arm64',
+        'node_modules',
+        '.bin',
+        'codex-acp'
+      )
+    );
+
+    const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
+    process.env.AIONUI_AIONCORE_CACHE_DIR = cacheRoot;
+    try {
+      const result = __test__.prepareAioncore({
+        projectRoot,
+        platform: 'darwin',
+        arch: 'arm64',
+        version: 'v0.1.28',
+      });
+
+      expect(result.sourceType).toBe('cache');
+      expect(fs.readFileSync(path.join(targetDir, 'aioncore'), 'utf8')).toBe('binary');
+      expect(fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'))).toBe(
+        true
+      );
+      expect(
+        fs.readlinkSync(
+          path.join(
+            targetDir,
+            'managed-resources',
+            'acp',
+            'codex-acp',
+            '0.1.0',
+            'darwin-arm64',
+            'node_modules',
+            '.bin',
+            'codex-acp'
+          )
+        )
+      ).toBe('../@zed-industries/codex-acp/bin/codex-acp.js');
+    } finally {
+      if (previousCacheDir === undefined) {
+        delete process.env.AIONUI_AIONCORE_CACHE_DIR;
+      } else {
+        process.env.AIONUI_AIONCORE_CACHE_DIR = previousCacheDir;
+      }
+    }
+  });
+});
+
 describe('prepare-aioncore managed Node pruning', () => {
   it('removes package-manager payloads while keeping the runtime node executable', () => {
     const dir = makeTempDir();

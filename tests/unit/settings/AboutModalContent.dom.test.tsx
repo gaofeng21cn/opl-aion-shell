@@ -6,6 +6,7 @@ import AboutModalContent from '@/renderer/components/settings/SettingsModal/cont
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
+  updateCheckInvoke: vi.fn(),
 }));
 
 const managedUpdateMocks = vi.hoisted(() => ({
@@ -22,6 +23,9 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
+    },
+    update: {
+      check: { invoke: bridgeMocks.updateCheckInvoke },
     },
   },
 }));
@@ -94,6 +98,22 @@ describe('AboutModalContent OPL release metadata', () => {
             opl_framework_version: '0.1.0',
             opl_framework_revision: 'abc123def456',
           },
+        },
+      },
+    });
+    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: {
+        currentVersion: '26.5.27',
+        updateAvailable: false,
+        channel: 'stable',
+        latest: {
+          version: '26.5.27',
+          tagName: 'v26.5.27',
+          htmlUrl: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.5.27',
+          prerelease: false,
+          draft: false,
+          assets: [],
         },
       },
     });
@@ -178,7 +198,7 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.queryByText('GitHub 最新稳定版 26.4.27')).not.toBeInTheDocument();
   });
 
-  it('shows latest stable only when the release projection is newer than the packaged App version', async () => {
+  it('does not label release projection versions as GitHub latest stable', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -196,6 +216,32 @@ describe('AboutModalContent OPL release metadata', () => {
 
     renderWithFreshSWR();
 
-    expect(await screen.findByText('GitHub 最新稳定版 26.6.20')).toBeInTheDocument();
+    await screen.findByText('OPL 框架 abc123def456');
+
+    expect(screen.queryByText('GitHub 最新稳定版 26.6.20')).not.toBeInTheDocument();
+  });
+
+  it('shows latest stable only from the GitHub update check result', async () => {
+    bridgeMocks.updateCheckInvoke.mockResolvedValueOnce({
+      success: true,
+      data: {
+        currentVersion: '26.5.27',
+        updateAvailable: true,
+        channel: 'stable',
+        latest: {
+          version: '26.6.27',
+          tagName: 'v26.6.27',
+          htmlUrl: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.6.27',
+          prerelease: false,
+          draft: false,
+          assets: [],
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    expect(await screen.findByText('GitHub 最新稳定版 26.6.27')).toBeInTheDocument();
+    expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledWith({ channel: 'stable' });
   });
 });

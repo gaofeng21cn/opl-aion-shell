@@ -283,9 +283,9 @@ function resolveOplReleaseVersion() {
   const explicitVersion = process.env.OPL_RELEASE_VERSION?.trim();
   if (explicitVersion) return explicitVersion;
 
-  const packageJsonPath = path.resolve(__dirname, '../package.json');
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-  return String(packageJson.version ?? '').trim();
+  const date = new Date();
+  const year = String(date.getUTCFullYear()).slice(-2);
+  return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;
 }
 
 function buildOplReleaseVersionConfigArg() {
