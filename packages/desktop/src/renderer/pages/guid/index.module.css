@@ -113,6 +113,13 @@
   margin-bottom: 16px;
 }
 
+.heroModelStatus {
+  margin: 6px 0 0;
+  color: var(--color-text-2);
+  font-size: 12px;
+  line-height: 18px;
+}
+
 @media (max-width: 1120px) {
   .guidContextInspectorToggle,
   .guidContextInspector {
