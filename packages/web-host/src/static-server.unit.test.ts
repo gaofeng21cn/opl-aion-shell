@@ -132,6 +132,74 @@ describe('static-server', () => {
     expect(json.user.username).toBe('from-backend');
   });
 
+  it('/api/auth/user auto-logins with startup credentials when backend returns 401', async () => {
+    const backend = await startMockBackend((req, res) => {
+      if (req.url === '/api/auth/user' && req.method === 'GET') {
+        if (req.headers.cookie?.includes('aionui-session=boot-token')) {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ success: true, user: { username: 'admin', id: 'admin' } }));
+          return;
+        }
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ success: false }));
+        return;
+      }
+      if (req.url === '/login' && req.method === 'POST') {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+            username?: string;
+            password?: string;
+          };
+          if (body.username === 'admin' && body.password === 'boot-password') {
+            res.writeHead(200, {
+              'content-type': 'application/json',
+              'set-cookie': 'aionui-session=boot-token; Path=/; HttpOnly',
+            });
+            res.end(JSON.stringify({ success: true, user: { username: 'admin', id: 'admin' } }));
+            return;
+          }
+          res.writeHead(401).end();
+        });
+        return;
+      }
+      res.writeHead(404).end();
+    });
+    stopBackend = backend.close;
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      webAutoLogin: {
+        getCredentials: () => ({ username: 'admin', password: 'boot-password' }),
+      },
+    });
+
+    const r = await fetch(`${handle.localUrl}/api/auth/user`);
+    expect(r.status).toBe(200);
+    expect(r.headers.get('set-cookie')).toMatch(/aionui-session=boot-token/);
+    const json = (await r.json()) as { user: { username: string } };
+    expect(json.user.username).toBe('admin');
+  });
+
+  it('/api/auth/user keeps backend 401 when auto-login is not configured', async () => {
+    const backend = await startMockBackend((req, res) => {
+      if (req.url === '/api/auth/user' && req.method === 'GET') {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ success: false }));
+        return;
+      }
+      res.writeHead(404).end();
+    });
+    stopBackend = backend.close;
+    handle = await startStaticServer({ staticDir, backendPort: backend.port, port: 0 });
+
+    const r = await fetch(`${handle.localUrl}/api/auth/user`);
+    expect(r.status).toBe(401);
+    expect(r.headers.get('set-cookie')).toBeNull();
+  });
+
   it('/logout reverse-proxies to backend (no local handler)', async () => {
     const backend = await startMockBackend((req, res) => {
       if (req.url === '/logout' && req.method === 'POST') {

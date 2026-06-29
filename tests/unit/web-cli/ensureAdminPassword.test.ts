@@ -64,13 +64,14 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(calls[0].url).toBe('http://127.0.0.1:25808/api/auth/status');
     expect(calls[1].url).toBe('http://127.0.0.1:25808/api/webui/reset-password');
     expect(calls[1].init?.method).toBe('POST');
     expect(logs).toContain('[aionui-web] Generated initial admin password: SuperSecret123');
-    expect(logs.some((m) => m.includes('Log in with username "admin"'))).toBe(true);
+    expect(logs.some((m) => m.includes('Browser login is configured automatically for username "admin"'))).toBe(true);
+    expect(result).toEqual({ username: 'admin', password: 'SuperSecret123' });
     expect(warns).toEqual([]);
   });
 
@@ -83,9 +84,10 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(logs).toContain('[aionui-web] Generated initial admin password: FromTopLevel');
+    expect(result).toEqual({ username: 'admin', password: 'FromTopLevel' });
   });
 
   it('reads needs_setup from nested data field', async () => {
@@ -97,10 +99,11 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(calls).toHaveLength(3);
     expect(logs.some((m) => m.includes('custom-admin'))).toBe(true);
+    expect(result).toEqual({ username: 'custom-admin', password: 'Nested' });
   });
 
   it('no-op when admin already provisioned (needs_setup=false)', async () => {
@@ -111,13 +114,30 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(calls).toHaveLength(2);
     expect(calls[1].url).toBe('http://127.0.0.1:25808/api/auth/internal/users/system');
     expect(logs.some((m) => m.includes('resetpass'))).toBe(true);
     expect(logs.every((m) => !m.includes('Generated initial admin password'))).toBe(true);
     expect(warns).toEqual([]);
+    expect(result).toBeNull();
+  });
+
+  it('refreshes existing credentials when resetExisting=true', async () => {
+    const { deps, calls, logs } = makeDeps({
+      handlers: [
+        () => mockResponse(200, { needs_setup: false }),
+        () => mockResponse(200, { data: { new_password: 'BootPw' } }),
+        () => mockResponse(200, { data: { username: 'admin' } }),
+      ],
+    });
+
+    const result = await ensureAdminPassword({ backendPort: 25808, resetExisting: true }, deps);
+
+    expect(calls[1].url).toBe('http://127.0.0.1:25808/api/webui/reset-password');
+    expect(logs).toContain('[aionui-web] Refreshed startup admin password for browser auto-login.');
+    expect(result).toEqual({ username: 'admin', password: 'BootPw' });
   });
 
   it('polls /api/auth/status until backend is ready', async () => {
@@ -142,11 +162,15 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808, statusTimeoutMs: 10_000, statusPollIntervalMs: 100 }, deps);
+    const result = await ensureAdminPassword(
+      { backendPort: 25808, statusTimeoutMs: 10_000, statusPollIntervalMs: 100 },
+      deps
+    );
 
     expect(statusAttempts).toBe(3);
     expect(sleeps.length).toBeGreaterThanOrEqual(2);
     expect(logs.some((m) => m.includes('Generated initial admin password'))).toBe(true);
+    expect(result).toEqual({ username: 'admin', password: 'Pw' });
   });
 
   it('warns (not throws) when status never comes up within budget', async () => {
@@ -154,10 +178,14 @@ describe('ensureAdminPassword', () => {
       handlers: [() => mockResponse(500, 'oops')],
     });
 
-    await ensureAdminPassword({ backendPort: 25808, statusTimeoutMs: 1_000, statusPollIntervalMs: 250 }, deps);
+    const result = await ensureAdminPassword(
+      { backendPort: 25808, statusTimeoutMs: 1_000, statusPollIntervalMs: 250 },
+      deps
+    );
 
     expect(warns.some((w) => w.includes('could not verify admin credentials'))).toBe(true);
     expect(logs).toEqual([]);
+    expect(result).toBeNull();
   });
 
   it('warns (not throws) when reset-password fails', async () => {
@@ -165,10 +193,11 @@ describe('ensureAdminPassword', () => {
       handlers: [() => mockResponse(200, { needs_setup: true }), () => mockResponse(500, 'boom')],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(warns.some((w) => w.includes('/api/webui/reset-password returned 500'))).toBe(true);
     expect(logs).toEqual([]);
+    expect(result).toBeNull();
   });
 
   it('warns (not throws) when reset-password returns no password', async () => {
@@ -176,10 +205,11 @@ describe('ensureAdminPassword', () => {
       handlers: [() => mockResponse(200, { needs_setup: true }), () => mockResponse(200, { data: {} })],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
     expect(warns.some((w) => w.includes('returned no new_password'))).toBe(true);
     expect(logs).toEqual([]);
+    expect(result).toBeNull();
   });
 
   it('falls back to "admin" username when system user lookup fails', async () => {
@@ -191,9 +221,10 @@ describe('ensureAdminPassword', () => {
       ],
     });
 
-    await ensureAdminPassword({ backendPort: 25808 }, deps);
+    const result = await ensureAdminPassword({ backendPort: 25808 }, deps);
 
-    expect(logs.some((m) => m.includes('Log in with username "admin"'))).toBe(true);
+    expect(logs.some((m) => m.includes('Browser login is configured automatically for username "admin"'))).toBe(true);
+    expect(result).toEqual({ username: 'admin', password: 'Pw' });
   });
 
   it('uses caller-supplied resetCommand in the "Forgot the password" hint', async () => {

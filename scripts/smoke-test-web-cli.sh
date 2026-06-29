@@ -132,74 +132,70 @@ else
   exit 1
 fi
 
-# 7. Auth-setup smoke: verify stdout announces a generated admin password on
-#    first launch, then POST it to /login and check for success + session cookie.
+# 7. Auth-setup smoke: verify stdout announces browser auto-login, then call
+#    /api/auth/user without manually posting credentials. The WebUI should
+#    create a session cookie through its startup credential path.
 #    Skip when the bundled backend was unavailable — there's no /login to call.
 echo ""
-echo "7. Testing first-launch admin password seeding + login..."
+echo "7. Testing browser auto-login..."
 if grep -q 'Backend binary not found' /tmp/aionui-web.log; then
-  echo "⚠️  frontend-only mode detected (no bundled backend) — skipping login probe"
+  echo "⚠️  frontend-only mode detected (no bundled backend) — skipping auto-login probe"
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
 else
-  # Wait up to 20s for the "Generated initial admin password" line — the backend
-  # needs to finish migrations before /api/auth/status replies.
-  PASSWORD=""
+  # Wait up to 20s for the browser auto-login readiness line — the backend
+  # needs to finish migrations before startup credentials are ready.
+  AUTO_LOGIN_READY=""
   for i in $(seq 1 20); do
-    PASSWORD=$(grep -oE 'Generated initial admin password: [^ ]+' /tmp/aionui-web.log | head -1 | sed 's/^Generated initial admin password: //')
-    if [ -n "$PASSWORD" ]; then
+    AUTO_LOGIN_READY=$(grep -oE 'Browser login is configured automatically for username "[^"]+"' /tmp/aionui-web.log | head -1 || true)
+    if [ -n "$AUTO_LOGIN_READY" ]; then
       break
     fi
     sleep 1
   done
 
-  if [ -z "$PASSWORD" ]; then
+  if [ -z "$AUTO_LOGIN_READY" ]; then
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
-    echo "❌ Never saw 'Generated initial admin password: ...' in stdout."
+    echo "❌ Never saw browser auto-login readiness in stdout."
     echo "---server log---"
     cat /tmp/aionui-web.log
     exit 1
   fi
-  echo "✓ Captured initial admin password from stdout"
+  echo "✓ Browser auto-login was configured"
 
-  # POST /login — static server proxies to backend. Expect 200, success:true,
-  # and at least one Set-Cookie header containing a session cookie.
-  LOGIN_BODY=$(printf '{"username":"admin","password":"%s","remember":false}' "$PASSWORD")
-  LOGIN_RESP_HEADERS=$(mktemp)
-  LOGIN_RESP_BODY=$(mktemp)
-  HTTP_CODE=$(curl -sS -o "$LOGIN_RESP_BODY" -D "$LOGIN_RESP_HEADERS" -w '%{http_code}' \
-    -X POST "http://127.0.0.1:${HTTP_PORT}/login" \
-    -H 'Content-Type: application/json' \
-    --data "$LOGIN_BODY" || echo "000")
+  AUTH_RESP_HEADERS=$(mktemp)
+  AUTH_RESP_BODY=$(mktemp)
+  HTTP_CODE=$(curl -sS -o "$AUTH_RESP_BODY" -D "$AUTH_RESP_HEADERS" -w '%{http_code}' \
+    "http://127.0.0.1:${HTTP_PORT}/api/auth/user" || echo "000")
 
   # Stop the server before asserting so we don't leak a process on failure.
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
 
   if [ "$HTTP_CODE" != "200" ]; then
-    echo "❌ /login returned HTTP $HTTP_CODE"
+    echo "❌ /api/auth/user returned HTTP $HTTP_CODE"
     echo "---headers---"
-    cat "$LOGIN_RESP_HEADERS"
+    cat "$AUTH_RESP_HEADERS"
     echo "---body---"
-    cat "$LOGIN_RESP_BODY"
+    cat "$AUTH_RESP_BODY"
     echo "---server log---"
     cat /tmp/aionui-web.log
     exit 1
   fi
 
-  if ! grep -q '"success":[[:space:]]*true' "$LOGIN_RESP_BODY"; then
-    echo "❌ /login returned 200 but body had no success:true"
-    cat "$LOGIN_RESP_BODY"
+  if ! grep -q '"success":[[:space:]]*true' "$AUTH_RESP_BODY"; then
+    echo "❌ /api/auth/user returned 200 but body had no success:true"
+    cat "$AUTH_RESP_BODY"
     exit 1
   fi
 
-  if ! grep -iq '^set-cookie:' "$LOGIN_RESP_HEADERS"; then
-    echo "❌ /login returned success but no Set-Cookie header"
-    cat "$LOGIN_RESP_HEADERS"
+  if ! grep -iq '^set-cookie:' "$AUTH_RESP_HEADERS"; then
+    echo "❌ /api/auth/user returned success but no Set-Cookie header"
+    cat "$AUTH_RESP_HEADERS"
     exit 1
   fi
-  echo "✓ Login with printed password succeeded (HTTP 200 + Set-Cookie present)"
+  echo "✓ Browser auto-login succeeded (HTTP 200 + Set-Cookie present)"
 fi
 
 # Cleanup
