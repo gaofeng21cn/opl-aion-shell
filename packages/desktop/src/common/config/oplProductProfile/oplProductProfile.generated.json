@@ -748,7 +748,7 @@
     }
   },
   "settings": {
-    "visible_tabs": ["general", "access", "capabilities", "environment", "appearance", "advanced"],
+    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",

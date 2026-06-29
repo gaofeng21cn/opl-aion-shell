@@ -151,6 +151,7 @@ describe('OPL generated product profile', () => {
       'access',
       'capabilities',
       'environment',
+      'storage',
       'appearance',
       'advanced',
     ]);

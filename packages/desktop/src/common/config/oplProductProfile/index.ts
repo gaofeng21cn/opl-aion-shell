@@ -1111,7 +1111,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
-  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'appearance', 'advanced'];
+  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced'];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
