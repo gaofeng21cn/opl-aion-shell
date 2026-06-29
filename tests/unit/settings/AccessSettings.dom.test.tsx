@@ -37,7 +37,10 @@ Object.defineProperty(globalThis, 'requestAnimationFrame', {
   value: (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 0),
   configurable: true,
 });
-Object.defineProperty(globalThis, 'cancelAnimationFrame', { value: (id: number) => clearTimeout(id), configurable: true });
+Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+  value: (id: number) => clearTimeout(id),
+  configurable: true,
+});
 Object.defineProperty(Element.prototype, 'scrollTo', { value: () => {}, configurable: true });
 Object.defineProperty(Element.prototype, 'scrollIntoView', { value: () => {}, configurable: true });
 
@@ -85,9 +88,11 @@ vi.mock('@arco-design/web-react', () => {
     <span {...props}>{children}</span>
   );
   const Text = ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>;
-  const Title = ({ children, heading: _heading, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { heading?: number }) => (
-    <h2 {...props}>{children}</h2>
-  );
+  const Title = ({
+    children,
+    heading: _heading,
+    ...props
+  }: React.HTMLAttributes<HTMLHeadingElement> & { heading?: number }) => <h2 {...props}>{children}</h2>;
   const Password = ({
     onChange,
     onPressEnter,
@@ -296,9 +301,7 @@ describe('AccessSettingsContent', () => {
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
 
     const mocks = getMocks();
-    await waitFor(() =>
-      expect(mocks.configureCodexInvoke).toHaveBeenCalledWith({ apiKey: 'sk-opl-secret-value' })
-    );
+    await waitFor(() => expect(mocks.configureCodexInvoke).toHaveBeenCalledWith({ apiKey: 'sk-opl-secret-value' }));
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
     expect(input.value).toBe('');
     expect(document.body.textContent).not.toContain('sk-opl-secret-value');
