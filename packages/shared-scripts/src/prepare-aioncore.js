@@ -287,9 +287,7 @@ function pruneManagedNodeRuntime(managedResourcesDir, platform = process.platfor
     }
 
     for (const normalizedSymlink of normalizeInternalSymlinks(versionDir)) {
-      result.normalizedSymlinks.push(
-        path.join('node', version, normalizedSymlink).split(path.sep).join('/')
-      );
+      result.normalizedSymlinks.push(path.join('node', version, normalizedSymlink).split(path.sep).join('/'));
     }
   }
 

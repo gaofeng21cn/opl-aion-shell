@@ -203,46 +203,57 @@ describe('verifyBundledAioncoreResources', () => {
     );
   });
 
-  it.skipIf(process.platform === 'win32')('reports internal absolute managed Node symlinks before packaging them', () => {
-    const darwinResourcesDir = join(tmp, 'darwin-absolute-symlink-resources');
-    const darwinManagedResourcesDir = join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64', 'managed-resources');
-    const nodeVersionDir = join(darwinManagedResourcesDir, 'node', 'node-v24.11.0-darwin-arm64');
+  it.skipIf(process.platform === 'win32')(
+    'reports internal absolute managed Node symlinks before packaging them',
+    () => {
+      const darwinResourcesDir = join(tmp, 'darwin-absolute-symlink-resources');
+      const darwinManagedResourcesDir = join(
+        darwinResourcesDir,
+        'bundled-aioncore',
+        'darwin-arm64',
+        'managed-resources'
+      );
+      const nodeVersionDir = join(darwinManagedResourcesDir, 'node', 'node-v24.11.0-darwin-arm64');
 
-    mkdirSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64'), { recursive: true });
-    writeFileSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64', 'aioncore'), '', { flush: true });
-    writeFileSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64', 'manifest.json'), '{}', {
-      flush: true,
-    });
-    mkdirSync(join(nodeVersionDir, 'bin'), { recursive: true });
-    mkdirSync(join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
-    writeFileSync(join(nodeVersionDir, 'bin', 'node'), '', { flush: true });
-    writeFileSync(join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), '', { flush: true });
-    symlinkSync(join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), join(nodeVersionDir, 'bin', 'npm'));
+      mkdirSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64'), { recursive: true });
+      writeFileSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64', 'aioncore'), '', { flush: true });
+      writeFileSync(join(darwinResourcesDir, 'bundled-aioncore', 'darwin-arm64', 'manifest.json'), '{}', {
+        flush: true,
+      });
+      mkdirSync(join(nodeVersionDir, 'bin'), { recursive: true });
+      mkdirSync(join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
+      writeFileSync(join(nodeVersionDir, 'bin', 'node'), '', { flush: true });
+      writeFileSync(join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), '', { flush: true });
+      symlinkSync(
+        join(nodeVersionDir, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+        join(nodeVersionDir, 'bin', 'npm')
+      );
 
-    const darwinCodexRoot = join(darwinManagedResourcesDir, 'acp', 'codex-acp', '0.14.0', 'darwin-arm64');
-    mkdirSync(darwinCodexRoot, { recursive: true });
-    writeFileSync(join(darwinCodexRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'codex-acp' }), {
-      flush: true,
-    });
-    writeFileSync(join(darwinCodexRoot, 'codex-acp'), '', { flush: true });
+      const darwinCodexRoot = join(darwinManagedResourcesDir, 'acp', 'codex-acp', '0.14.0', 'darwin-arm64');
+      mkdirSync(darwinCodexRoot, { recursive: true });
+      writeFileSync(join(darwinCodexRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'codex-acp' }), {
+        flush: true,
+      });
+      writeFileSync(join(darwinCodexRoot, 'codex-acp'), '', { flush: true });
 
-    const darwinClaudeRoot = join(darwinManagedResourcesDir, 'acp', 'claude-agent-acp', '0.13.0', 'darwin-arm64');
-    mkdirSync(darwinClaudeRoot, { recursive: true });
-    writeFileSync(join(darwinClaudeRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'claude-agent-acp' }), {
-      flush: true,
-    });
-    writeFileSync(join(darwinClaudeRoot, 'claude-agent-acp'), '', { flush: true });
+      const darwinClaudeRoot = join(darwinManagedResourcesDir, 'acp', 'claude-agent-acp', '0.13.0', 'darwin-arm64');
+      mkdirSync(darwinClaudeRoot, { recursive: true });
+      writeFileSync(join(darwinClaudeRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'claude-agent-acp' }), {
+        flush: true,
+      });
+      writeFileSync(join(darwinClaudeRoot, 'claude-agent-acp'), '', { flush: true });
 
-    const result = verifyBundledAioncoreResources({
-      resourcesDir: darwinResourcesDir,
-      electronPlatformName: 'darwin',
-      targetArch: 'arm64',
-    });
+      const result = verifyBundledAioncoreResources({
+        resourcesDir: darwinResourcesDir,
+        electronPlatformName: 'darwin',
+        targetArch: 'arm64',
+      });
 
-    expect(result.missing).toContain(
-      'bundled-aioncore/darwin-arm64/managed-resources/node/node-v24.11.0-darwin-arm64/bin/npm'
-    );
-  });
+      expect(result.missing).toContain(
+        'bundled-aioncore/darwin-arm64/managed-resources/node/node-v24.11.0-darwin-arm64/bin/npm'
+      );
+    }
+  );
 
   it('reports missing managed ACP manifest', () => {
     rmSync(join(codexRoot, 'manifest.json'));

@@ -306,9 +306,7 @@ describe('prepare-aioncore managed Node pruning', () => {
 
     const result = __test__.pruneManagedNodeRuntime(managedResourcesDir, 'linux');
 
-    expect(fs.readlinkSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe(
-      '../lib/node_modules/npm/bin/npm-cli.js'
-    );
+    expect(fs.readlinkSync(path.join(nodeVersionDir, 'bin', 'npm'))).toBe('../lib/node_modules/npm/bin/npm-cli.js');
     expect(result.normalizedSymlinks).toEqual(['node/node-v24.11.0-linux-arm64/bin/npm']);
   });
 

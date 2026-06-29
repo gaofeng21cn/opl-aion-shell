@@ -90,9 +90,7 @@ describe('pack-web-cli OPL image resources', () => {
 
     copyBundledAioncoreForTarball({ backendSrc, backendDest });
 
-    expect(fs.readlinkSync(path.join(destNodeRoot, 'bin', 'npm'))).toBe(
-      '../lib/node_modules/npm/bin/npm-cli.js'
-    );
+    expect(fs.readlinkSync(path.join(destNodeRoot, 'bin', 'npm'))).toBe('../lib/node_modules/npm/bin/npm-cli.js');
     expect(fs.realpathSync(path.join(destNodeRoot, 'bin', 'npm'))).toBe(
       fs.realpathSync(path.join(destNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'))
     );

@@ -3812,7 +3812,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     requiredTextAny: [
       ['Local Environment', '本地环境', '本机运行环境'],
       ['Codex CLI'],
-      ['Temporal'],
+      ['Local Background Service', '本机后台服务'],
       ['Foundry Modules', '智能体模块'],
     ],
   },
