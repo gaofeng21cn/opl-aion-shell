@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openBrowserUrl, shouldAutoOpenBrowser } from './browser.js';
 import { ensureAdminPassword } from './ensureAdminPassword.js';
+import type { WebAutoLoginCredentials } from '@aionui/web-host';
 
 // tarball layout:
 //   aionui-web/
@@ -196,6 +197,11 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
     console.log('');
     console.log('Press Ctrl+C to stop.');
   } else {
+    let autoLoginCredentials: WebAutoLoginCredentials | null = null;
+    let resolveAutoLoginCredentials!: (credentials: WebAutoLoginCredentials | null) => void;
+    const autoLoginCredentialsReady = new Promise<WebAutoLoginCredentials | null>((resolve) => {
+      resolveAutoLoginCredentials = resolve;
+    });
     const handle = await startWebHost({
       app: {
         version,
@@ -217,6 +223,9 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
         kind: 'ownBackend',
         resolveBackend: () => backendBin,
       },
+      webAutoLogin: {
+        getCredentials: () => autoLoginCredentials ?? autoLoginCredentialsReady,
+      },
     });
 
     currentHandle = handle;
@@ -226,19 +235,24 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
     console.log(`  Local  : ${handle.localUrl}`);
     if (handle.networkUrl) console.log(`  Network: ${handle.networkUrl}`);
 
-    // First-launch bootstrap: if SQLite has no admin password yet, seed one via
-    // backend and print plaintext credentials. Failure must not abort startup —
-    // the user can always fall back to running resetpass manually.
-    await ensureAdminPassword(
-      { backendPort: handle.backendPort, resetCommand: RESET_COMMAND },
-      {
-        fetch: (...args) => fetch(...args),
-        log: (msg) => console.log(msg),
-        warn: (msg) => console.warn(msg),
-        sleep: (ms) => delay(ms),
-        now: () => Date.now(),
-      }
-    );
+    // Standalone Docker/WebUI bootstrap: ensure this launch owns a valid
+    // startup credential, then let web-host turn the browser's first auth probe
+    // into a backend session cookie. Users should not need to type an admin
+    // username or password just to open the Docker WebUI.
+    try {
+      autoLoginCredentials = await ensureAdminPassword(
+        { backendPort: handle.backendPort, resetCommand: RESET_COMMAND, resetExisting: true },
+        {
+          fetch: (...args) => fetch(...args),
+          log: (msg) => console.log(msg),
+          warn: (msg) => console.warn(msg),
+          sleep: (ms) => delay(ms),
+          now: () => Date.now(),
+        }
+      );
+    } finally {
+      resolveAutoLoginCredentials(autoLoginCredentials);
+    }
 
     if (autoOpenBrowser) {
       const openResult = openBrowserUrl(handle.localUrl);

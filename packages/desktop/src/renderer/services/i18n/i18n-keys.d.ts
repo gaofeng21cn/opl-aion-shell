@@ -1657,6 +1657,7 @@ export type I18nKey =
   | 'settings.firstRun.error.codexConfig'
   | 'settings.firstRun.error.general'
   | 'settings.firstRun.fullReadinessProgress'
+  | 'settings.firstRun.initializePending.duration'
   | 'settings.firstRun.initializePending.itemSummary'
   | 'settings.firstRun.initializePending.phase'
   | 'settings.firstRun.initializePending.progress'

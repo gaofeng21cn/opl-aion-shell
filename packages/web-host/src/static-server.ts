@@ -11,15 +11,18 @@
  */
 
 import http, { type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { IncomingHttpHeaders, OutgoingHttpHeaders } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import net, { type Socket } from 'node:net';
 import serveHandler from 'serve-handler';
+import type { WebAutoLoginBootstrap } from './types.js';
 
 export type StaticServerOptions = {
   staticDir: string;
   backendPort: number;
   port?: number;
   allowRemote?: boolean;
+  webAutoLogin?: WebAutoLoginBootstrap;
 };
 
 export type StaticServerHandle = {
@@ -64,6 +67,143 @@ function forwardToBackend(req: IncomingMessage, res: ServerResponse, backendPort
     }
   });
   req.pipe(proxy);
+}
+
+type BufferedBackendResponse = {
+  statusCode: number;
+  headers: IncomingHttpHeaders;
+  body: Buffer;
+};
+
+function backendRequest(
+  backendPort: number,
+  request: {
+    path: string;
+    method: string;
+    headers?: IncomingHttpHeaders | OutgoingHttpHeaders;
+    body?: Buffer | string;
+  }
+): Promise<BufferedBackendResponse> {
+  return new Promise((resolve, reject) => {
+    const body = request.body;
+    const headers: OutgoingHttpHeaders = {
+      ...(request.headers ?? {}),
+      host: `127.0.0.1:${backendPort}`,
+    };
+    if (body !== undefined && headers['content-length'] === undefined) {
+      headers['content-length'] = Buffer.byteLength(body);
+    }
+    const proxy = http.request(
+      {
+        hostname: '127.0.0.1',
+        port: backendPort,
+        path: request.path,
+        method: request.method,
+        headers,
+      },
+      (proxyRes) => {
+        const chunks: Buffer[] = [];
+        proxyRes.on('data', (chunk: Buffer) => chunks.push(chunk));
+        proxyRes.on('end', () => {
+          resolve({
+            statusCode: proxyRes.statusCode ?? 502,
+            headers: proxyRes.headers,
+            body: Buffer.concat(chunks),
+          });
+        });
+      }
+    );
+    proxy.on('error', reject);
+    if (body !== undefined) proxy.write(body);
+    proxy.end();
+  });
+}
+
+function setCookiesFrom(headers: IncomingHttpHeaders): string[] {
+  const value = headers['set-cookie'];
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function cookieHeaderFromSetCookies(setCookies: string[]): string {
+  return setCookies.map((cookie) => cookie.split(';', 1)[0]).filter(Boolean).join('; ');
+}
+
+function withMergedCookies(headers: IncomingHttpHeaders, setCookies: string[]): IncomingHttpHeaders {
+  const cookieHeader = cookieHeaderFromSetCookies(setCookies);
+  if (!cookieHeader) return headers;
+  const existing = headers.cookie;
+  return {
+    ...headers,
+    cookie: existing ? `${existing}; ${cookieHeader}` : cookieHeader,
+  };
+}
+
+function writeBufferedResponse(
+  res: ServerResponse,
+  response: BufferedBackendResponse,
+  extraSetCookies: string[] = []
+): void {
+  const headers: OutgoingHttpHeaders = { ...response.headers };
+  const setCookies = [...setCookiesFrom(response.headers), ...extraSetCookies];
+  if (setCookies.length > 0) headers['set-cookie'] = setCookies;
+  res.writeHead(response.statusCode, headers);
+  res.end(response.body);
+}
+
+async function forwardAuthUserWithAutoLogin(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: StaticServerOptions
+): Promise<void> {
+  const original = await backendRequest(opts.backendPort, {
+    path: req.url ?? '/api/auth/user',
+    method: req.method ?? 'GET',
+    headers: req.headers,
+  });
+  if (original.statusCode !== 401) {
+    writeBufferedResponse(res, original);
+    return;
+  }
+
+  const credentials = (await opts.webAutoLogin?.getCredentials()) ?? null;
+  if (!credentials) {
+    writeBufferedResponse(res, original);
+    return;
+  }
+
+  const loginBody = JSON.stringify({
+    username: credentials.username,
+    password: credentials.password,
+    remember: true,
+  });
+  let login: BufferedBackendResponse;
+  try {
+    login = await backendRequest(opts.backendPort, {
+      path: '/login',
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: loginBody,
+    });
+  } catch {
+    writeBufferedResponse(res, original);
+    return;
+  }
+
+  if (login.statusCode < 200 || login.statusCode >= 300) {
+    writeBufferedResponse(res, original);
+    return;
+  }
+
+  const loginCookies = setCookiesFrom(login.headers);
+  const retry = await backendRequest(opts.backendPort, {
+    path: req.url ?? '/api/auth/user',
+    method: 'GET',
+    headers: withMergedCookies(req.headers, loginCookies),
+  });
+  writeBufferedResponse(res, retry, loginCookies);
 }
 
 // Max bytes we peek before forcing a routing decision. An HTTP request-line
@@ -141,6 +281,10 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
       // /api/* — reverse proxy to backend (includes /api/auth/*).
       // /login and /logout are aionui-auth's top-level auth endpoints: proxy them too
       // so WebUI browser clients reach the backend without a path-rewrite.
+      if (req.method === 'GET' && (req.url === '/api/auth/user' || req.url.startsWith('/api/auth/user?'))) {
+        await forwardAuthUserWithAutoLogin(req, res, opts);
+        return;
+      }
       if (req.url.startsWith('/api/') || req.url.startsWith('/api?') || req.url === '/login' || req.url === '/logout') {
         forwardToBackend(req, res, opts.backendPort);
         return;

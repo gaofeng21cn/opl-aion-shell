@@ -64,7 +64,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
         'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
-        'opl system initialize --json',
+        'opl system initialize --events',
         'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
         'opl system configure-codex --api-key-stdin --json',
         'opl system startup-maintenance --json',
@@ -145,7 +145,8 @@ describe('OPL runtime bridge command whitelist', () => {
   it('builds the first-run command surface without allowing arbitrary shell commands', () => {
     expect(__oplRuntimeBridgeTest.buildInitializeCommand()).toEqual({
       surface: 'system_initialize',
-      args: ['system', 'initialize', '--json'],
+      args: ['system', 'initialize', '--events'],
+      redactedCommand: 'opl system initialize --events',
     });
     expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
       surface: 'install_prep',
@@ -429,6 +430,62 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(() => __oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: '   ' })).toThrow(
       /Codex API key is required/
     );
+  });
+
+  it('parses initialize event envelopes and returns the complete payload as the command result payload', () => {
+    const phaseEvent = __oplRuntimeBridgeTest.readInitializeEventEnvelope(
+      JSON.stringify({
+        version: 'g2',
+        event: {
+          surface_id: 'opl_system_initialize_event',
+          event_type: 'phase_done',
+          phase: 'native_helpers',
+          label: 'Inspect native helper toolchain',
+          sequence: 9,
+          observed_at: '2026-06-29T00:00:00.000Z',
+          duration_ms: 5239,
+          payload: { health_status: 'ready' },
+        },
+      })
+    );
+    expect(phaseEvent).toEqual({
+      surface_id: 'opl_system_initialize_event',
+      event_type: 'phase_done',
+      phase: 'native_helpers',
+      label: 'Inspect native helper toolchain',
+      sequence: 9,
+      observed_at: '2026-06-29T00:00:00.000Z',
+      duration_ms: 5239,
+      payload: { health_status: 'ready' },
+    });
+
+    const completeEvent = __oplRuntimeBridgeTest.readInitializeEventEnvelope(
+      JSON.stringify({
+        version: 'g2',
+        event: {
+          surface_id: 'opl_system_initialize_event',
+          event_type: 'complete',
+          phase: 'summary',
+          label: 'Initialize payload ready',
+          sequence: 25,
+          observed_at: '2026-06-29T00:00:01.000Z',
+          payload: {
+            version: 'g2',
+            system_initialize: {
+              surface_id: 'opl_system_initialize',
+              setup_flow: { ready_to_launch: true },
+            },
+          },
+        },
+      })
+    );
+    expect(__oplRuntimeBridgeTest.readInitializeCompletePayload(completeEvent!)).toEqual({
+      version: 'g2',
+      system_initialize: {
+        surface_id: 'opl_system_initialize',
+        setup_flow: { ready_to_launch: true },
+      },
+    });
   });
 
   it('returns structured command failures so renderer pages do not wait forever', () => {

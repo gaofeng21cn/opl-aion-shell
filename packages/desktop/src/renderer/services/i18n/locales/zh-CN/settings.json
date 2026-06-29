@@ -1041,6 +1041,7 @@
     "initializePending": {
       "phase": "reading_initialize_state",
       "progress": "正在读取初始化状态，首次启动可能需要几秒。",
+      "duration": " · {{seconds}} 秒",
       "itemSummary": "等待初始化检查返回此项状态。"
     },
     "beginner": {

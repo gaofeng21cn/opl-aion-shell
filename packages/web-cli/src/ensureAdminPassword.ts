@@ -39,6 +39,12 @@ export type EnsureAdminPasswordOptions = {
    * = `bun run resetpass`. Defaults to the packaged form.
    */
   resetCommand?: string;
+  /**
+   * Reset the admin password even when credentials already exist, returning a
+   * fresh startup credential that standalone WebUI can use to create browser
+   * sessions without asking new Docker users to type a password.
+   */
+  resetExisting?: boolean;
 };
 
 type AuthStatus = {
@@ -91,14 +97,15 @@ async function fetchAdminUsername(deps: EnsureAdminPasswordDeps, backendPort: nu
 
 /**
  * Probe backend auth state. On fresh install, POST reset-password and print the
- * generated credentials. Never throws — any failure is warned and the caller
- * continues starting the server (user can still see the login page, they just
- * need to run resetpass manually).
+ * generated credentials. In standalone Docker/WebUI mode callers may also pass
+ * resetExisting=true so the current launch owns a known startup credential for
+ * automatic browser login. Never throws — any failure is warned and the caller
+ * continues starting the server.
  */
 export async function ensureAdminPassword(
   opts: EnsureAdminPasswordOptions,
   deps: EnsureAdminPasswordDeps
-): Promise<void> {
+): Promise<{ username: string; password: string } | null> {
   const timeoutMs = opts.statusTimeoutMs ?? 15_000;
   const intervalMs = opts.statusPollIntervalMs ?? 500;
   const resetCmd = opts.resetCommand ?? 'aionui-web resetpass';
@@ -109,35 +116,41 @@ export async function ensureAdminPassword(
     status = await waitForStatus(deps, `${base}/api/auth/status`, timeoutMs, intervalMs);
   } catch (err) {
     deps.warn(`[aionui-web] could not verify admin credentials: ${err instanceof Error ? err.message : String(err)}`);
-    return;
+    return null;
   }
 
   const needsSetup = status.needs_setup ?? status.data?.needs_setup ?? false;
 
-  if (!needsSetup) {
+  if (!needsSetup && opts.resetExisting !== true) {
     const username = await fetchAdminUsername(deps, opts.backendPort);
     deps.log(`[aionui-web] Log in with username "${username}". Forgot the password? Run \`${resetCmd}\`.`);
-    return;
+    return null;
   }
 
   try {
     const resetRes = await deps.fetch(`${base}/api/webui/reset-password`, { method: 'POST' });
     if (!resetRes.ok) {
       deps.warn(`[aionui-web] /api/webui/reset-password returned ${resetRes.status} — run \`${resetCmd}\``);
-      return;
+      return null;
     }
     const payload = (await resetRes.json()) as ResetPasswordResponse;
     const newPassword = payload.data?.new_password ?? payload.new_password;
     if (!newPassword) {
       deps.warn(`[aionui-web] /api/webui/reset-password returned no new_password — run \`${resetCmd}\``);
-      return;
+      return null;
     }
     const username = await fetchAdminUsername(deps, opts.backendPort);
-    deps.log(`[aionui-web] Generated initial admin password: ${newPassword}`);
-    deps.log(`[aionui-web] Log in with username "${username}" and change it from the UI.`);
+    if (needsSetup) {
+      deps.log(`[aionui-web] Generated initial admin password: ${newPassword}`);
+    } else {
+      deps.log('[aionui-web] Refreshed startup admin password for browser auto-login.');
+    }
+    deps.log(`[aionui-web] Browser login is configured automatically for username "${username}".`);
+    return { username, password: newPassword };
   } catch (err) {
     deps.warn(
       `[aionui-web] failed to seed initial admin password: ${err instanceof Error ? err.message : String(err)}`
     );
+    return null;
   }
 }

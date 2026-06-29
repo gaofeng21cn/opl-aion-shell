@@ -15,6 +15,7 @@ import type {
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
   IOplRuntimeDetailLevel,
+  IOplSystemInitializeEvent,
   IOplUpdateComponentRequest,
   IOplUpdateRepairRequest,
 } from '@/common/adapter/ipcBridge';
@@ -78,7 +79,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
-    'opl system initialize --json',
+    'opl system initialize --events',
     'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
@@ -187,7 +188,11 @@ function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSp
 }
 
 function buildInitializeCommand(): RuntimeCommandSpec {
-  return { surface: 'system_initialize', args: ['system', 'initialize', '--json'] };
+  return {
+    surface: 'system_initialize',
+    args: ['system', 'initialize', '--events'],
+    redactedCommand: 'opl system initialize --events',
+  };
 }
 
 function buildInstallPrepCommand(): RuntimeCommandSpec {
@@ -264,6 +269,43 @@ function parseJson(stdout: string): unknown {
   const trimmed = stdout.trim();
   if (!trimmed) return null;
   return JSON.parse(trimmed);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function readInitializeEventEnvelope(line: string): IOplSystemInitializeEvent | null {
+  const parsed = JSON.parse(line) as unknown;
+  if (!isRecord(parsed) || !isRecord(parsed.event)) return null;
+  const event = parsed.event;
+  if (
+    typeof event.surface_id !== 'string' ||
+    typeof event.event_type !== 'string' ||
+    typeof event.phase !== 'string' ||
+    typeof event.label !== 'string' ||
+    typeof event.sequence !== 'number' ||
+    typeof event.observed_at !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    surface_id: event.surface_id,
+    event_type: event.event_type,
+    phase: event.phase,
+    label: event.label,
+    sequence: event.sequence,
+    observed_at: event.observed_at,
+    ...(typeof event.duration_ms === 'number' ? { duration_ms: event.duration_ms } : {}),
+    ...('payload' in event ? { payload: event.payload } : {}),
+  };
+}
+
+function readInitializeCompletePayload(event: IOplSystemInitializeEvent): unknown {
+  if (event.event_type !== 'complete') return null;
+  const payload = event.payload;
+  if (!isRecord(payload)) return payload ?? null;
+  return 'system_initialize' in payload ? payload : { system_initialize: payload };
 }
 
 function commandFailureResult(
@@ -650,6 +692,99 @@ async function runSpawnJsonCommand(
   });
 }
 
+async function runInitializeEventsCommand(
+  commandSpec: SpawnCommandSpec & {
+    surface: 'system_initialize';
+    env?: NodeJS.ProcessEnv;
+    stdin?: string;
+    timeoutMs?: number;
+    maxStdoutBytes?: number;
+  }
+): Promise<IOplRuntimeCommandResult> {
+  const displayCommand = commandSpec.redactedCommand;
+  const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
+  return new Promise((resolve, reject) => {
+    const child = spawn(commandSpec.command, commandSpec.args, {
+      env: commandSpec.env ?? process.env,
+      stdio: [commandSpec.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let pendingLine = '';
+    let parsed: unknown = null;
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      child.kill('SIGTERM');
+      reject(new Error(`OPL runtime command timed out: ${displayCommand}`));
+    }, commandSpec.timeoutMs ?? OPL_COMMAND_TIMEOUT_MS);
+
+    const consumeLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const event = readInitializeEventEnvelope(trimmed);
+      if (!event) return;
+      if (event.event_type === 'complete') {
+        parsed = readInitializeCompletePayload(event);
+        return;
+      }
+      ipcBridge.oplRuntime.initializeEvent.emit(event);
+    };
+
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
+      if (Buffer.byteLength(stdout, 'utf8') > maxStdoutBytes) {
+        settled = true;
+        clearTimeout(timer);
+        child.kill('SIGTERM');
+        reject(new Error(`OPL runtime command output exceeded ${maxStdoutBytes} bytes`));
+        return;
+      }
+      pendingLine += chunk;
+      const lines = pendingLine.split(/\r?\n/);
+      pendingLine = lines.pop() ?? '';
+      for (const line of lines) {
+        consumeLine(line);
+      }
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
+    });
+    if (commandSpec.stdin && child.stdin) {
+      child.stdin.end(commandSpec.stdin);
+    }
+    child.on('error', (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on('close', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        consumeLine(pendingLine);
+        if (code !== 0) {
+          reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
+          return;
+        }
+        resolve({
+          surface: commandSpec.surface,
+          command: displayCommand,
+          stdout,
+          ok: true,
+          parsed,
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
+}
+
 function buildOplSpawnCommand(
   spec: RuntimeCommandSpec,
   env = process.env
@@ -701,7 +836,10 @@ async function runPackagedStandardBootstrap(): Promise<void> {
 
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
   try {
-    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildOplCommandEnv()));
+    const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
+    return spec.surface === 'system_initialize'
+      ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
+      : await runSpawnJsonCommand(command);
   } catch (error) {
     if (!shouldAutoBootstrapAfterOplCommandError(spec, error)) {
       return commandFailureResult(
@@ -717,7 +855,10 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
 
   try {
     await runPackagedStandardBootstrap();
-    return await runSpawnJsonCommand(buildOplSpawnCommand(spec, buildOplCommandEnv()));
+    const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
+    return spec.surface === 'system_initialize'
+      ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
+      : await runSpawnJsonCommand(command);
   } catch (error) {
     return commandFailureResult(
       spec,
@@ -774,9 +915,12 @@ export const __oplRuntimeBridgeTest = {
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
   commandFailureResult,
+  readInitializeCompletePayload,
+  readInitializeEventEnvelope,
   resolveOplCli,
   resolveOplPackageRootFromExecutable,
   parseJson,
+  runInitializeEventsCommand,
   runOplCommand,
   shouldAutoBootstrapAfterOplCommandError,
   shouldAutoBootstrapOplCommand,

@@ -27,6 +27,15 @@ export type BackendSystemDirs = {
   logDir: string;
 };
 
+export type WebAutoLoginCredentials = {
+  username: string;
+  password: string;
+};
+
+export type WebAutoLoginBootstrap = {
+  getCredentials: () => WebAutoLoginCredentials | null | Promise<WebAutoLoginCredentials | null>;
+};
+
 /**
  * Options for starting WebHost
  */
@@ -38,6 +47,7 @@ export type WebHostOptions = {
   dataDir?: string;
   logDir?: string;
   dirs?: BackendSystemDirs;
+  webAutoLogin?: WebAutoLoginBootstrap;
   backend: { kind: 'ownBackend'; resolveBackend: BackendBinaryResolver } | { kind: 'useExistingBackend'; port: number };
 };
 

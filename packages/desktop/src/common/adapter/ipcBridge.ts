@@ -543,6 +543,17 @@ export type IOplRuntimeCommandResult = {
   };
 };
 
+export type IOplSystemInitializeEvent = {
+  surface_id: string;
+  event_type: string;
+  phase: string;
+  label: string;
+  sequence: number;
+  observed_at: string;
+  duration_ms?: number;
+  payload?: unknown;
+};
+
 // ---------------------------------------------------------------------------
 // OPL Runtime — narrow Electron-local CLI proxy for App/operator read models
 // ---------------------------------------------------------------------------
@@ -552,6 +563,7 @@ export const oplRuntime = {
     'opl-runtime.get-app-state'
   ),
   getInitialize: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.get-initialize'),
+  initializeEvent: bridge.buildEmitter<IOplSystemInitializeEvent>('opl-runtime.initialize-event'),
   runInstallPrep: bridge.buildProvider<IOplRuntimeCommandResult, void>('opl-runtime.run-install-prep'),
   configureCodex: bridge.buildProvider<IOplRuntimeCommandResult, IOplConfigureCodexRequest>(
     'opl-runtime.configure-codex'

@@ -1,4 +1,4 @@
-import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
+import type { IOplRuntimeCommandResult, IOplSystemInitializeEvent } from '@/common/adapter/ipcBridge';
 
 export type FirstRunChecklistItem = {
   item_id: string;
@@ -61,3 +61,4 @@ export type FirstRunInitialize = {
 };
 
 export type FirstRunCommandResult = IOplRuntimeCommandResult | null;
+export type FirstRunInitializeEvent = IOplSystemInitializeEvent | null;

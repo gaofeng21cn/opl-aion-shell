@@ -1,6 +1,13 @@
 import type { WebHostOptions, WebHostHandle } from './types.js';
 
-export type { AppMetadata, BackendBinaryResolver, WebHostOptions, WebHostHandle } from './types.js';
+export type {
+  AppMetadata,
+  BackendBinaryResolver,
+  WebAutoLoginBootstrap,
+  WebAutoLoginCredentials,
+  WebHostOptions,
+  WebHostHandle,
+} from './types.js';
 export { startStaticServer, stopStaticServer } from './static-server.js';
 export type { StaticServerOptions, StaticServerHandle } from './static-server.js';
 
@@ -56,6 +63,7 @@ export async function startWebHost(opts: WebHostOptions): Promise<WebHostHandle>
       backendPort: backendHandle.port,
       port: opts.port,
       allowRemote: opts.allowRemote ?? false,
+      webAutoLogin: opts.webAutoLogin,
     });
   } catch (err) {
     // If static-server fails, clean up backend

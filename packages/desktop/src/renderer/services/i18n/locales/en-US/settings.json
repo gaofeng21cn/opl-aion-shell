@@ -1040,6 +1040,7 @@
     "initializePending": {
       "phase": "reading_initialize_state",
       "progress": "Reading the initialization status now. This can take a few seconds on first launch.",
+      "duration": " · {{seconds}}s",
       "itemSummary": "Waiting for the initialization check to report this item."
     },
     "beginner": {

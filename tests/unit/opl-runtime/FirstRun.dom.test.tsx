@@ -1,10 +1,11 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FirstRun from '@/renderer/pages/FirstRun';
 
 const bridgeMocks = vi.hoisted(() => ({
   getInitializeInvoke: vi.fn(),
+  initializeEventOn: vi.fn(),
   runInstallPrepInvoke: vi.fn(),
   configureCodexInvoke: vi.fn(),
   runStartupMaintenanceInvoke: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getInitialize: { invoke: bridgeMocks.getInitializeInvoke },
+      initializeEvent: { on: bridgeMocks.initializeEventOn },
       runInstallPrep: { invoke: bridgeMocks.runInstallPrepInvoke },
       configureCodex: { invoke: bridgeMocks.configureCodexInvoke },
       runStartupMaintenance: { invoke: bridgeMocks.runStartupMaintenanceInvoke },
@@ -51,7 +53,7 @@ vi.mock('react-router-dom', () => ({
 
 const initializeResult = {
   surface: 'system_initialize',
-  command: 'opl system initialize --json',
+  command: 'opl system initialize --events',
   stdout: '{}',
   parsed: {
     system_initialize: {
@@ -167,8 +169,15 @@ const blockedInitializeResult = {
 };
 
 describe('FirstRun readiness page', () => {
+  let initializeEventHandler: ((event: unknown) => void) | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    initializeEventHandler = null;
+    bridgeMocks.initializeEventOn.mockImplementation((handler: (event: unknown) => void) => {
+      initializeEventHandler = handler;
+      return vi.fn();
+    });
     bridgeMocks.getInitializeInvoke.mockResolvedValue(initializeResult);
     bridgeMocks.runStartupMaintenanceInvoke.mockResolvedValue({
       surface: 'startup_maintenance',
@@ -224,6 +233,21 @@ describe('FirstRun readiness page', () => {
     );
     expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent(
       'settings.firstRun.initializePending.progress'
+    );
+    act(() => {
+      initializeEventHandler?.({
+        surface_id: 'opl_system_initialize_event',
+        event_type: 'phase_start',
+        phase: 'native_helpers',
+        label: 'Inspect native helper toolchain',
+        sequence: 8,
+        observed_at: '2026-06-29T00:00:00.000Z',
+      });
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent(
+        'Inspect native helper toolchain'
+      )
     );
     expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
       'settings.firstRun.initializePending.itemSummary'
@@ -423,7 +447,7 @@ describe('FirstRun readiness page', () => {
 
   it('shows a user-facing first-run error and keeps the raw diagnostic in technical details', async () => {
     bridgeMocks.getInitializeInvoke.mockRejectedValueOnce(
-      new Error('OPL runtime command failed: opl system initialize --json')
+      new Error('OPL runtime command failed: opl system initialize --events')
     );
 
     render(<FirstRun />);
@@ -437,7 +461,7 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
 
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent(
-      'OPL runtime command failed: opl system initialize --json'
+      'OPL runtime command failed: opl system initialize --events'
     );
   });
 

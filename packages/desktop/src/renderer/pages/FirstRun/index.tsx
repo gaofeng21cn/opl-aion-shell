@@ -16,7 +16,12 @@ import {
   readInitializePayload,
   type FirstRunItemId,
 } from './initializeModel';
-import type { FirstRunChecklistItem, FirstRunCommandResult, FirstRunInitialize } from './types';
+import type {
+  FirstRunChecklistItem,
+  FirstRunCommandResult,
+  FirstRunInitialize,
+  FirstRunInitializeEvent,
+} from './types';
 import styles from './FirstRun.module.css';
 
 type MaintenanceAction = 'install_prep' | 'startup_maintenance' | 'reconcile_modules';
@@ -162,6 +167,15 @@ function resultPreview(result: FirstRunCommandResult): string {
   return JSON.stringify(result.parsed ?? {}, null, 2);
 }
 
+function formatInitializeEvent(event: FirstRunInitializeEvent, t: Translate): string {
+  if (!event) return t('settings.firstRun.initializePending.progress');
+  const duration =
+    event.duration_ms && event.duration_ms > 0
+      ? t('settings.firstRun.initializePending.duration', { seconds: Math.max(1, Math.round(event.duration_ms / 1000)) })
+      : '';
+  return `${event.label}${duration}`;
+}
+
 function formatFirstRunError(
   error: string | null,
   codexConfigBlocked: boolean,
@@ -216,6 +230,7 @@ const FirstRun: React.FC = () => {
   const [actionResult, setActionResult] = useState<FirstRunCommandResult>(null);
   const [apiKey, setApiKey] = useState('');
   const [initializeLoading, setInitializeLoading] = useState(false);
+  const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
   const [actionLoading, setActionLoading] = useState<MaintenanceAction | 'configure_codex' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -235,7 +250,7 @@ const FirstRun: React.FC = () => {
   const maintenanceItems = initialize?.setup_flow?.maintenance_items ?? [];
   const hasBlockingItems = blockingItems.length > 0;
   const currentPhase = initializePending
-    ? t('settings.firstRun.initializePending.phase')
+    ? (initializeEvent?.phase ?? t('settings.firstRun.initializePending.phase'))
     : (initialize?.setup_flow?.phase ?? initialize?.overall_state ?? t('settings.firstRun.status.unknown'));
   const userFacingError = formatFirstRunError(error, codexConfigBlocked, hasBlockingItems, t);
   const rawNextVisibleStep = findNextVisibleStep(initialize);
@@ -251,6 +266,7 @@ const FirstRun: React.FC = () => {
 
   const refreshInitialize = useCallback(async () => {
     setInitializeLoading(true);
+    setInitializeEvent(null);
     setError(null);
     try {
       const result = await ipcBridge.oplRuntime.getInitialize.invoke();
@@ -319,6 +335,12 @@ const FirstRun: React.FC = () => {
   }, [apiKey, refreshInitialize, t]);
 
   useEffect(() => {
+    return ipcBridge.oplRuntime.initializeEvent.on((event) => {
+      setInitializeEvent(event);
+    });
+  }, []);
+
+  useEffect(() => {
     document.title = 'One Person Lab App';
     void refreshInitialize();
   }, [refreshInitialize]);
@@ -382,7 +404,7 @@ const FirstRun: React.FC = () => {
                 <Progress percent={progressPercent} />
                 {initializePending ? (
                   <p data-testid='opl-first-run-initialize-pending'>
-                    {t('settings.firstRun.initializePending.progress')}
+                    {formatInitializeEvent(initializeEvent, t)}
                   </p>
                 ) : (
                   <p data-testid='opl-first-run-core-progress'>
