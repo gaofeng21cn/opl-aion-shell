@@ -45,7 +45,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     const secondaryMatches = query
       ? getSearchableSecondarySettingsModalItems(t)
           .filter((item) => item.searchText.includes(query) && !visibleIds.has(item.id))
-          .map((item) => ({ ...item, path: item.id }))
+          .map((item) => ({ ...item, path: item.id, isImageIcon: false }))
       : [];
     const searchResult = [...visibleMatches, ...secondaryMatches];
 
