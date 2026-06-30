@@ -196,8 +196,9 @@ mac:
   entitlementsInherit: entitlements.plist
 
 dmg:
-  # Use UDZO format which is more reliable on CI
-  format: UDZO
+  # Use electron-builder-supported LZFSE compression for smaller standard DMGs.
+  # ULMO is reserved for a separate postprocess experiment because the current schema rejects it.
+  format: ULFO
   # Disable internet-enabled DMG to avoid network issues
   internetEnabled: false
   # Simple window settings to avoid layout issues
