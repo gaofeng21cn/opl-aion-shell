@@ -13,6 +13,14 @@ import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection, type DockerWebuiAction } from '../accessProjection';
 
+type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
+
+function assertOplCommandOk(result: OplCommandResult): void {
+  if (result?.ok === false) {
+    throw new Error(result.error?.message || result.error?.stderr || 'OPL command failed');
+  }
+}
+
 export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
@@ -30,7 +38,8 @@ export const AccessSettingsContent: React.FC = () => {
 
     setConfigureLoading(true);
     try {
-      await ipcBridge.oplRuntime.configureCodex.invoke({ apiKey: trimmed });
+      const result = await ipcBridge.oplRuntime.configureCodex.invoke({ apiKey: trimmed });
+      assertOplCommandOk(result);
       setCodexApiKey('');
       Message.success(t('settings.accessPage.modelAccount.configureSuccess'));
       await appStateQuery.load('fast', { showRefreshing: true });
@@ -45,10 +54,11 @@ export const AccessSettingsContent: React.FC = () => {
     if (action.payloadRequired) return;
     setRunningActionId(action.actionId);
     try {
-      await ipcBridge.oplRuntime.executeAction.invoke({
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId: action.actionId,
         dryRun: true,
       });
+      assertOplCommandOk(result);
       Message.success(t('settings.accessPage.remote.actionDryRunSuccess'));
       await appStateQuery.load('fast', { showRefreshing: true });
     } catch {

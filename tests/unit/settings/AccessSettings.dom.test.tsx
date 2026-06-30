@@ -374,6 +374,30 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('sk-opl-secret-value');
   });
 
+  it('does not report Codex API key configuration success when the OPL bridge returns a structured failure', async () => {
+    const mocks = getMocks();
+    mocks.configureCodexInvoke.mockResolvedValueOnce({
+      surface: 'configure_codex',
+      command: 'opl system configure-codex --api-key-stdin --json',
+      stdout: '',
+      parsed: null,
+      ok: false,
+      error: {
+        message: 'configure failed',
+      },
+    });
+    const view = render(<AccessSettingsContent />);
+
+    const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
+    fireEvent.input(input, { target: { value: 'sk-opl-secret-value' } });
+    fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
+
+    await waitFor(() => expect(view.getByText('Could not save Codex API key.')).toBeTruthy());
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(input.value).toBe('sk-opl-secret-value');
+    expect(document.body.textContent).not.toContain('Codex API key saved.');
+  });
+
   it('does not call the bridge when the Codex API key is empty', async () => {
     const view = render(<AccessSettingsContent />);
 
@@ -400,6 +424,27 @@ describe('AccessSettingsContent', () => {
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
     expect(await view.findByText('Docker WebUI route checked.')).toBeTruthy();
+  });
+
+  it('does not report Docker WebUI action success when the App control-plane bridge returns a structured failure', async () => {
+    const mocks = getMocks();
+    mocks.executeActionInvoke.mockResolvedValueOnce({
+      surface: 'app_action',
+      command: 'opl app action execute --action settings_install_docker_webui --dry-run --json',
+      stdout: '',
+      parsed: null,
+      ok: false,
+      error: {
+        message: 'route failed',
+      },
+    });
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
+
+    await waitFor(() => expect(view.getByText('Docker WebUI route check failed.')).toBeTruthy());
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(document.body.textContent).not.toContain('Docker WebUI route checked.');
   });
 
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
