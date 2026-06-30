@@ -10,7 +10,7 @@ import { CheckOne, FolderSearch, Repair, UpdateRotation } from '@icon-park/react
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { getOplCodexSessionContext } from '@/common/config/oplProductProfile';
+import { getOplCodexSessionContext, getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateMutation,
@@ -70,6 +70,17 @@ type PendingUpdateAction = {
   component: ManagedUpdateComponent;
   source: 'managed-updates' | 'module-maintenance';
 } | null;
+
+type SettingsAppActionId = 'doctor' | 'repair';
+
+const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
+
+function runSettingsControlPlaneAction(actionId: SettingsAppActionId): Promise<IOplRuntimeCommandResult> {
+  return ipcBridge.oplRuntime.executeAction.invoke({
+    actionId: SETTINGS_ACTION_CONTRACT.recommended_action_ids[actionId],
+    dryRun: false,
+  });
+}
 
 function componentDisplayLabel(component: ManagedUpdateComponent | undefined, t: Translate): string {
   if (!component) return t('settings.oplEnvironmentPage.updates.components.unknown');
@@ -873,7 +884,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     setMakeUsableRunning(true);
     try {
       const translate = tRef.current;
-      const repairResult = await ipcBridge.oplRuntime.runInstallPrep.invoke();
+      const repairResult = await runSettingsControlPlaneAction('repair');
       if (!bridgeResultSucceeded(repairResult)) {
         messageRef.current.error(
           repairResult?.error?.message || translate('settings.oplEnvironmentPage.messages.commandFailed')
@@ -950,18 +961,15 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     }
   }, [managedUpdateMaintenance.result, managedUpdateMaintenance.running, runManagedUpdateRead]);
 
-  const runOplCommand = useCallback(
-    async (_args: string[], actionId: string, successText: string) => {
+  const runSettingsAppAction = useCallback(
+    async (actionId: SettingsAppActionId, successText: string) => {
       try {
-        const result =
-          actionId === 'doctor'
-            ? await ipcBridge.oplRuntime.getInitialize.invoke()
-            : await ipcBridge.oplRuntime.runInstallPrep.invoke();
+        const result = await runSettingsControlPlaneAction(actionId);
         if (bridgeResultSucceeded(result)) {
           message.success(successText);
           await appStateQuery.load('fast', { showRefreshing: true });
         } else {
-          message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
+          message.error(result?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
         }
       } catch {
         message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
@@ -994,7 +1002,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           runMaintenanceHubCheck,
           runMakeOplUsable: requestMakeOplUsable,
           runRepairSuggestions: () =>
-            void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
+            void runSettingsAppAction('repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
         },
         t,
       }),
@@ -1010,7 +1018,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       openUpdateModal,
       requestMakeOplUsable,
       runMaintenanceHubCheck,
-      runOplCommand,
+      runSettingsAppAction,
       t,
     ]
   );
@@ -1142,10 +1150,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
             <Space wrap>
               <Button
                 key='runtime-action-doctor'
+                data-testid='opl-runtime-action-doctor'
                 type='primary'
                 icon={<CheckOne theme='outline' />}
                 onClick={() =>
-                  void runOplCommand(['doctor'], 'doctor', t('settings.oplEnvironmentPage.messages.doctorComplete'))
+                  void runSettingsAppAction('doctor', t('settings.oplEnvironmentPage.messages.doctorComplete'))
                 }
               >
                 {t('settings.oplEnvironmentPage.actions.doctor')}
@@ -1160,9 +1169,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               </Button>
               <Button
                 key='runtime-action-repair'
+                data-testid='opl-runtime-action-repair'
                 icon={<Repair theme='outline' />}
                 onClick={() =>
-                  void runOplCommand(['install'], 'repair', t('settings.oplEnvironmentPage.messages.repairComplete'))
+                  void runSettingsAppAction('repair', t('settings.oplEnvironmentPage.messages.repairComplete'))
                 }
               >
                 {t('settings.oplEnvironmentPage.actions.repair')}

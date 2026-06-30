@@ -4,6 +4,12 @@ import AppLoader from '@renderer/components/layout/AppLoader';
 import StartupGate from '@renderer/components/layout/StartupGate';
 import { useAuth } from '@renderer/hooks/context/AuthContext';
 import { TEAM_MODE_ENABLED } from '@/common/config/constants';
+import {
+  LEGACY_SETTINGS_ROUTE_REDIRECTS,
+  SETTINGS_DEFAULT_ROUTE,
+  getSettingsRouteDefinitions,
+  type SettingsRouteDefinition,
+} from '@renderer/pages/settings/registry/settingsRegistry';
 const Conversation = React.lazy(() => import('@renderer/pages/conversation'));
 const FirstRun = React.lazy(() => import('@renderer/pages/FirstRun'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
@@ -29,6 +35,28 @@ const withRouteFallback = (Component: React.LazyExoticComponent<React.ComponentT
     <Component />
   </Suspense>
 );
+
+const SETTINGS_COMPONENTS = {
+  OverviewSettings,
+  WorkspaceSettings,
+  LocalServicesSettings,
+  RuntimeSettings,
+  StorageSettings,
+  CapabilitiesSettingsContent: CapabilitiesSettings,
+  AccessSettingsContent: AccessSettings,
+  AppearanceModalContent: AppearanceSettings,
+  SystemModalContent: SystemSettings,
+};
+
+function renderSettingsRoute({ routeId, path, componentKey }: SettingsRouteDefinition): React.ReactElement {
+  const Component = SETTINGS_COMPONENTS[componentKey];
+  return <Route key={`settings-route-${routeId}`} path={`/settings/${path}`} element={withRouteFallback(Component)} />;
+}
+
+function renderSettingsRedirect([legacyId, targetPath]: [string, string]): React.ReactElement {
+  const path = `/settings/${legacyId}`;
+  return <Route key={`settings-redirect-${legacyId}`} path={path} element={<Navigate to={targetPath} replace />} />;
+}
 
 const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
   const { status } = useAuth();
@@ -64,33 +92,12 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
             path='/team/:id'
             element={TEAM_MODE_ENABLED ? withRouteFallback(TeamIndex) : <Navigate to='/guid' replace />}
           />
-          <Route path='/settings/general' element={withRouteFallback(OverviewSettings)} />
-          <Route path='/settings/overview' element={<Navigate to='/settings/general' replace />} />
-          <Route path='/settings/workspace' element={withRouteFallback(WorkspaceSettings)} />
-          <Route path='/settings/local-services' element={withRouteFallback(LocalServicesSettings)} />
-          <Route path='/settings/environment' element={withRouteFallback(RuntimeSettings)} />
-          <Route path='/settings/maintenance' element={<Navigate to='/settings/environment' replace />} />
-          <Route path='/settings/runtime' element={<Navigate to='/settings/environment' replace />} />
-          <Route path='/settings/storage' element={withRouteFallback(StorageSettings)} />
-          <Route path='/settings/capabilities' element={withRouteFallback(CapabilitiesSettings)} />
-          <Route path='/settings/access' element={withRouteFallback(AccessSettings)} />
-          <Route path='/settings/start' element={<Navigate to='/settings/access' replace />} />
-          <Route path='/settings/get-started' element={<Navigate to='/settings/access' replace />} />
-          <Route path='/settings/appearance' element={withRouteFallback(AppearanceSettings)} />
-          <Route path='/settings/preferences' element={<Navigate to='/settings/appearance' replace />} />
-          <Route path='/settings/model' element={<Navigate to='/settings/environment' replace />} />
-          <Route path='/settings/agent' element={<Navigate to='/settings/capabilities' replace />} />
-          <Route path='/settings/assistants' element={<Navigate to='/settings/capabilities' replace />} />
-          <Route path='/settings/skills-hub' element={<Navigate to='/settings/capabilities?tab=skills' replace />} />
-          <Route path='/settings/tools' element={<Navigate to='/settings/capabilities?tab=tools' replace />} />
-          <Route path='/settings/display' element={<Navigate to='/settings/appearance' replace />} />
-          <Route path='/settings/webui' element={<Navigate to='/settings/access' replace />} />
-          <Route path='/settings/pet' element={<Navigate to='/settings/appearance' replace />} />
-          <Route path='/settings/advanced' element={withRouteFallback(SystemSettings)} />
-          <Route path='/settings/system' element={<Navigate to='/settings/advanced' replace />} />
-          <Route path='/settings/about' element={withRouteFallback(SystemSettings)} />
+          {getSettingsRouteDefinitions().map(renderSettingsRoute)}
+          {Object.entries(LEGACY_SETTINGS_ROUTE_REDIRECTS)
+            .filter(([legacyId, targetPath]) => targetPath !== `/settings/${legacyId}`)
+            .map(renderSettingsRedirect)}
           <Route path='/settings/ext/:tabId' element={withRouteFallback(ExtensionSettingsPage)} />
-          <Route path='/settings' element={<Navigate to='/settings/general' replace />} />
+          <Route path='/settings' element={<Navigate to={SETTINGS_DEFAULT_ROUTE} replace />} />
           <Route path='/runtime' element={withRouteFallback(RuntimePage)} />
           <Route path='/runtime/item' element={withRouteFallback(RuntimePage)} />
           <Route path='/test/components' element={withRouteFallback(ComponentsShowcase)} />

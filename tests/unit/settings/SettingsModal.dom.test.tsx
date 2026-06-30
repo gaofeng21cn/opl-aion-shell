@@ -98,34 +98,6 @@ vi.mock('@/renderer/utils/platform', () => ({
   resolveExtensionAssetUrl: () => '',
 }));
 
-vi.mock('@/common/config/oplProductProfile', () => ({
-  getOplGuiSettingsControlPlane: () => null,
-  getOplGuiSettingsVisibleTabs: () => [
-    'general',
-    'access',
-    'capabilities',
-    'environment',
-    'storage',
-    'appearance',
-    'advanced',
-    'about',
-  ],
-  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
-  getOplGuiLegacySettingsRouteRedirects: () => ({
-    overview: 'general',
-    runtime: 'environment',
-    system: 'advanced',
-    model: 'environment',
-    agent: 'capabilities',
-    assistants: 'capabilities',
-    'skills-hub': 'capabilities?tab=skills',
-    tools: 'capabilities?tab=tools',
-    display: 'appearance',
-    webui: 'access',
-    pet: 'appearance',
-  }),
-}));
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => {

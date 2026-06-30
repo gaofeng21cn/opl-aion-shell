@@ -70,8 +70,41 @@ const { controlPlane } = vi.hoisted(() => ({
       },
     ],
     secondary_pages: [
-      { id: 'workspace', path: '/settings/workspace', ia_group: 'overview', slot_id: 'workspace' },
-      { id: 'local-services', path: '/settings/local-services', ia_group: 'maintenance', slot_id: 'local_services' },
+      {
+        id: 'about',
+        path: '/settings/about',
+        ia_group: 'advanced',
+        slot_id: 'about',
+        visibility: 'secondary_or_deep_link',
+      },
+      {
+        id: 'update',
+        path: '/settings/update',
+        ia_group: 'maintenance',
+        slot_id: 'update',
+        visibility: 'secondary_or_deep_link',
+      },
+      {
+        id: 'theme',
+        path: '/settings/theme',
+        ia_group: 'preferences',
+        slot_id: 'settings_theme',
+        visibility: 'secondary_or_deep_link',
+      },
+      {
+        id: 'workspace',
+        path: '/settings/workspace',
+        ia_group: 'overview',
+        slot_id: 'workspace',
+        visibility: 'secondary_or_deep_link',
+      },
+      {
+        id: 'local-services',
+        path: '/settings/local-services',
+        ia_group: 'maintenance',
+        slot_id: 'local_services',
+        visibility: 'secondary_or_deep_link',
+      },
     ],
     legacy_route_redirects: {
       overview: 'general',
@@ -114,8 +147,27 @@ const { controlPlane } = vi.hoisted(() => ({
       settings_storage: { component_key: 'StorageSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_theme: { component_key: 'AppearanceModalContent', wrapper_policy: 'host_provides_wrapper' },
       settings_advanced: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
+      about: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
+      update: { component_key: 'RuntimeSettings', wrapper_policy: 'host_provides_wrapper' },
       workspace: { component_key: 'WorkspaceSettings', wrapper_policy: 'host_provides_wrapper' },
       local_services: { component_key: 'LocalServicesSettings', wrapper_policy: 'host_provides_wrapper' },
+    },
+    state_action_policy: {
+      default_state_source: 'opl app state --profile fast --json',
+      default_refresh_source: 'opl app state --profile fast --json',
+      full_profile_policy: 'diagnostic_or_release_evidence_only',
+      action_route: 'opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json',
+      recommended_action_ids: {
+        doctor: 'doctor',
+        repair: 'repair',
+      },
+      shell_must_not_own: [
+        'runtime truth',
+        'provider implementation',
+        'domain truth',
+        'owner receipts',
+        'release readiness',
+      ],
     },
   },
 }));
@@ -130,25 +182,8 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'storage',
     'appearance',
     'advanced',
-    'about',
   ],
   getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
-  getOplGuiLegacySettingsRouteRedirects: () => ({
-    overview: 'general',
-    runtime: 'environment',
-    system: 'advanced',
-    model: 'environment',
-    agent: 'capabilities',
-    assistants: 'capabilities',
-    'skills-hub': 'capabilities',
-    tools: 'capabilities',
-    display: 'appearance',
-    webui: 'access',
-    pet: 'appearance',
-    storage: 'storage',
-    workspace: 'workspace',
-    'local-services': 'local-services',
-  }),
 }));
 
 const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
@@ -180,15 +215,12 @@ describe('settingsNav App-owned tabs', () => {
     expect(LEGACY_SETTINGS_ROUTE_REDIRECTS).toEqual({
       overview: '/settings/general',
       runtime: '/settings/environment',
-      workspace: '/settings/workspace',
-      'local-services': '/settings/local-services',
       system: '/settings/advanced',
       model: '/settings/environment',
       agent: '/settings/capabilities',
       assistants: '/settings/capabilities',
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
-      storage: '/settings/storage',
       display: '/settings/appearance',
       webui: '/settings/access',
       pet: '/settings/appearance',
@@ -205,12 +237,20 @@ describe('settingsNav App-owned tabs', () => {
       'storage',
       'appearance',
       'advanced',
+      'about',
+      'update',
+      'theme',
       'workspace',
       'local-services',
     ]);
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('runtime');
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('tools');
-    expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('about');
+    expect(getSettingsRenderSlot('about')).toMatchObject({
+      id: 'about',
+      routeId: 'about',
+      componentKey: 'SystemModalContent',
+      wrapperPolicy: 'host_provides_wrapper',
+    });
   });
 
   it('maps App route ids to explicit Settings shell render slots', () => {
@@ -232,6 +272,12 @@ describe('settingsNav App-owned tabs', () => {
       componentKey: 'CapabilitiesSettingsContent',
       subrouteQueryParam: 'tab',
       legacySubroutes: { 'skills-hub': 'skills', tools: 'tools' },
+    });
+    expect(getSettingsRenderSlot('theme')).toMatchObject({
+      id: 'settings_theme',
+      routeId: 'theme',
+      componentKey: 'AppearanceModalContent',
+      wrapperPolicy: 'host_provides_wrapper',
     });
   });
 

@@ -226,7 +226,19 @@ export type OplSettingsControlPlane = {
       legacy_subroutes?: Record<string, string>;
     }
   >;
-  state_action_policy: Record<string, unknown>;
+  state_action_policy: OplSettingsControlPlaneActionContract;
+};
+
+export type OplSettingsControlPlaneActionContract = {
+  default_state_source: string;
+  default_refresh_source: string;
+  full_profile_policy: string;
+  action_route: string;
+  recommended_action_ids: {
+    doctor: string;
+    repair: string;
+  };
+  shell_must_not_own: string[];
 };
 
 type AppProductProfile = {
@@ -346,7 +358,7 @@ type AppProductProfile = {
     secondary_page_ids: string[];
     environment_items: string[];
     legacy_route_redirects: Record<string, string>;
-    control_plane: OplSettingsControlPlane | null;
+    control_plane: OplSettingsControlPlane;
     developer_profile: OplDeveloperProfileSettings;
   };
   boundary: {
@@ -1541,8 +1553,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   };
 }
 
-function readSettingsControlPlane(value: unknown): OplSettingsControlPlane | null {
-  if (value == null) return null;
+function readSettingsControlPlane(value: unknown): OplSettingsControlPlane {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: settings.control_plane must be an object');
   }
@@ -1558,6 +1569,7 @@ function readSettingsControlPlane(value: unknown): OplSettingsControlPlane | nul
     'settings.control_plane.extension_anchor_remap'
   );
   const slotRegistry = readSettingsControlPlaneSlotRegistry(value.slot_registry);
+  const actionContract = readSettingsControlPlaneActionContract(value.state_action_policy);
   if (value.source_contract_ref !== 'contracts/app-settings-control-plane.json') {
     throw new Error('Invalid OPL product profile: settings.control_plane must project the App control-plane contract');
   }
@@ -1568,6 +1580,11 @@ function readSettingsControlPlane(value: unknown): OplSettingsControlPlane | nul
     throw new Error(
       'Invalid OPL product profile: settings.control_plane ordinary routes must match ordinary_visible_tabs'
     );
+  }
+  for (const route of [...ordinaryRoutes, ...secondaryPages]) {
+    if (!slotRegistry[route.slot_id]) {
+      throw new Error(`Invalid OPL product profile: settings.control_plane missing slot ${route.slot_id}`);
+    }
   }
   return {
     source_contract_ref: 'contracts/app-settings-control-plane.json',
@@ -1580,7 +1597,51 @@ function readSettingsControlPlane(value: unknown): OplSettingsControlPlane | nul
     extension_anchor_remap: extensionAnchorRemap,
     extension_tab_policy: isRecord(value.extension_tab_policy) ? { ...value.extension_tab_policy } : {},
     slot_registry: slotRegistry,
-    state_action_policy: isRecord(value.state_action_policy) ? { ...value.state_action_policy } : {},
+    state_action_policy: actionContract,
+  };
+}
+
+function readSettingsControlPlaneActionContract(value: unknown): OplSettingsControlPlaneActionContract {
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: settings.control_plane.state_action_policy must be an object');
+  }
+  const shellMustNotOwn = readStringArray(value, 'shell_must_not_own', 'settings.control_plane.state_action_policy');
+  if (
+    readString(value, 'default_state_source', 'settings.control_plane.state_action_policy') !==
+      'opl app state --profile fast --json' ||
+    readString(value, 'default_refresh_source', 'settings.control_plane.state_action_policy') !==
+      'opl app state --profile fast --json' ||
+    readString(value, 'action_route', 'settings.control_plane.state_action_policy') !==
+      'opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json'
+  ) {
+    throw new Error('Invalid OPL product profile: settings control plane must consume App state/action surfaces');
+  }
+  for (const forbidden of ['runtime truth', 'provider implementation', 'domain truth', 'owner receipts']) {
+    if (!shellMustNotOwn.includes(forbidden)) {
+      throw new Error(`Invalid OPL product profile: settings action policy missing shell boundary ${forbidden}`);
+    }
+  }
+  return {
+    default_state_source: 'opl app state --profile fast --json',
+    default_refresh_source: 'opl app state --profile fast --json',
+    full_profile_policy: readString(value, 'full_profile_policy', 'settings.control_plane.state_action_policy'),
+    action_route: 'opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json',
+    recommended_action_ids: readSettingsRecommendedActionIds(value.recommended_action_ids),
+    shell_must_not_own: shellMustNotOwn,
+  };
+}
+
+function readSettingsRecommendedActionIds(
+  value: unknown
+): OplSettingsControlPlaneActionContract['recommended_action_ids'] {
+  if (!isRecord(value)) {
+    throw new Error(
+      'Invalid OPL product profile: settings.control_plane.state_action_policy.recommended_action_ids must be an object'
+    );
+  }
+  return {
+    doctor: readString(value, 'doctor', 'settings.control_plane.state_action_policy.recommended_action_ids'),
+    repair: readString(value, 'repair', 'settings.control_plane.state_action_policy.recommended_action_ids'),
   };
 }
 
@@ -1988,9 +2049,8 @@ export function getOplCommandLineToolsInstallMessage(): string {
   return OPL_PRODUCT_PROFILE.first_run.command_line_tools.messages.join('\n');
 }
 
-export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane | null {
+export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane {
   const controlPlane = OPL_PRODUCT_PROFILE.settings.control_plane;
-  if (!controlPlane) return null;
   return {
     ...controlPlane,
     ordinary_visible_tabs: [...controlPlane.ordinary_visible_tabs],
@@ -2008,27 +2068,32 @@ export function getOplGuiSettingsControlPlane(): OplSettingsControlPlane | null 
         },
       ])
     ),
-    state_action_policy: { ...controlPlane.state_action_policy },
+    state_action_policy: {
+      ...controlPlane.state_action_policy,
+      recommended_action_ids: { ...controlPlane.state_action_policy.recommended_action_ids },
+      shell_must_not_own: [...controlPlane.state_action_policy.shell_must_not_own],
+    },
   };
 }
 
 export function getOplGuiSettingsVisibleTabs(): string[] {
-  return [
-    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.ordinary_visible_tabs ?? OPL_PRODUCT_PROFILE.settings.visible_tabs),
-  ];
+  return [...OPL_PRODUCT_PROFILE.settings.control_plane.ordinary_visible_tabs];
 }
 
 export function getOplGuiSettingsSecondaryPageIds(): string[] {
-  return [
-    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.secondary_pages.map((page) => page.id) ??
-      OPL_PRODUCT_PROFILE.settings.secondary_page_ids),
-  ];
+  return [...OPL_PRODUCT_PROFILE.settings.control_plane.secondary_pages.map((page) => page.id)];
 }
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
+  return { ...OPL_PRODUCT_PROFILE.settings.control_plane.legacy_route_redirects };
+}
+
+export function getOplSettingsControlPlaneActionContract(): OplSettingsControlPlaneActionContract {
+  const policy = OPL_PRODUCT_PROFILE.settings.control_plane.state_action_policy;
   return {
-    ...(OPL_PRODUCT_PROFILE.settings.control_plane?.legacy_route_redirects ??
-      OPL_PRODUCT_PROFILE.settings.legacy_route_redirects),
+    ...policy,
+    recommended_action_ids: { ...policy.recommended_action_ids },
+    shell_must_not_own: [...policy.shell_must_not_own],
   };
 }
 

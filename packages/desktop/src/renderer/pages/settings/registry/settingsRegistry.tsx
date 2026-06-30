@@ -15,9 +15,10 @@ import React from 'react';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
   getOplGuiSettingsControlPlane,
-  getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
+  type OplSettingsControlPlaneRoute,
+  type OplSettingsControlPlaneSecondaryPage,
 } from '@/common/config/oplProductProfile';
 import { iconColors } from '@/renderer/styles/colors';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
@@ -34,64 +35,62 @@ export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
 
 export type AppSettingsTopLevelTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
 
-const APP_SETTINGS_TOP_LEVEL_TAB_SET = new Set<string>(APP_SETTINGS_TOP_LEVEL_TAB_IDS);
 const settingsControlPlane = getOplGuiSettingsControlPlane();
 const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
+const ordinaryRoutesById = new Map(settingsControlPlane.ordinary_routes.map((route) => [route.id, route]));
+const secondaryPagesById = new Map(settingsControlPlane.secondary_pages.map((page) => [page.id, page]));
 
 export const BUILTIN_TAB_IDS = APP_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) => profileTabIds.includes(id));
 
 export type BuiltinSettingsTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
 
-const OPL_SETTINGS_SECONDARY_SEARCH_IDS = ['workspace', 'local-services'] as const;
+export const OPL_SEARCHABLE_SECONDARY_TAB_IDS = settingsControlPlane.secondary_pages
+  .filter((page) => secondaryPageIds.includes(page.id) && page.visibility === 'secondary_or_deep_link')
+  .map((page) => page.id);
 
-export const OPL_SEARCHABLE_SECONDARY_TAB_IDS = OPL_SETTINGS_SECONDARY_SEARCH_IDS.filter((id) =>
-  secondaryPageIds.includes(id)
+export const SETTINGS_DEFAULT_ROUTE = settingsControlPlane.default_route;
+
+export const SETTINGS_ROUTE_PATHS: Record<string, string> = Object.fromEntries(
+  [...settingsControlPlane.ordinary_routes, ...settingsControlPlane.secondary_pages].map((route) => [
+    route.id,
+    route.path,
+  ])
 );
 
-export const SETTINGS_DEFAULT_ROUTE = settingsControlPlane?.default_route ?? '/settings/general';
+const pathToSettingsRoute = (path: string): string => {
+  const normalized = path.trim();
+  return normalized.startsWith('/settings/') || normalized === '/settings' ? normalized : SETTINGS_DEFAULT_ROUTE;
+};
 
-export const SETTINGS_ROUTE_PATHS = Object.fromEntries(
-  BUILTIN_TAB_IDS.map((id) => [
-    id,
-    settingsControlPlane?.ordinary_routes.find((route) => route.id === id)?.path ?? `/settings/${id}`,
-  ])
-) as Record<BuiltinSettingsTabId, string>;
-
-const legacyRedirectTargets = settingsControlPlane?.legacy_route_redirects ?? getOplGuiLegacySettingsRouteRedirects();
-const legacyAnchorRemap = settingsControlPlane?.extension_anchor_remap ?? legacyRedirectTargets;
-
-const parseSettingsRouteTarget = (targetId: string): { routeId: string; queryParams: Record<string, string> } => {
-  const [routeId, query = ''] = targetId.split('?');
+const parseSettingsRouteTarget = (routeId: string): { routeId: string; queryParams: Record<string, string> } => {
+  const [baseRouteId, query = ''] = routeId.split('?', 2);
   return {
-    routeId,
+    routeId: baseRouteId,
     queryParams: Object.fromEntries(new URLSearchParams(query).entries()),
   };
 };
 
-const redirectRouteFor = (legacyId: string, targetId: string): string => {
-  const target = parseSettingsRouteTarget(targetId);
-  const query = new URLSearchParams(target.queryParams).toString();
+const routePathFor = (routeId: string): string => {
+  const routeTarget = parseSettingsRouteTarget(routeId);
+  const route = ordinaryRoutesById.get(routeTarget.routeId);
+  const query = new URLSearchParams(routeTarget.queryParams).toString();
   const suffix = query ? `?${query}` : '';
-  if (legacyId === 'storage' || (secondaryPageIds.includes(legacyId) && legacyId === target.routeId)) {
-    return `/settings/${target.routeId}${suffix}`;
-  }
-  if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(target.routeId)) return SETTINGS_DEFAULT_ROUTE;
-  return `/settings/${target.routeId}${suffix}`;
+  if (route) return `${pathToSettingsRoute(route.path)}${suffix}`;
+  const page = secondaryPagesById.get(routeTarget.routeId);
+  if (page) return `${pathToSettingsRoute(page.path)}${suffix}`;
+  return SETTINGS_DEFAULT_ROUTE;
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  [
-    ...Object.entries(legacyRedirectTargets),
-    ...OPL_SETTINGS_SECONDARY_SEARCH_IDS.map((id) => [id, id] as const),
-    ['storage', 'storage'],
-    ['about', 'advanced'],
-  ].map(([legacyId, targetId]) => [legacyId, redirectRouteFor(legacyId, targetId)])
+  Object.entries(settingsControlPlane.legacy_route_redirects).map(([legacyId, targetId]) => [
+    legacyId,
+    routePathFor(targetId),
+  ])
 );
 
 export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {
-  ...legacyAnchorRemap,
-  about: 'advanced',
+  ...settingsControlPlane.extension_anchor_remap,
 };
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 
@@ -106,36 +105,18 @@ export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefine
 };
 
 const controlPlaneLabelKeys = Object.fromEntries(
-  (settingsControlPlane?.ordinary_routes ?? []).map((route) => [route.id, route.label_key])
+  settingsControlPlane.ordinary_routes.map((route) => [route.id, route.label_key])
 );
 
 export const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
-  general: 'settings.overview',
-  workspace: 'settings.workspace',
-  'local-services': 'settings.localServices',
-  environment: 'settings.maintenance',
-  storage: 'settings.storage',
-  capabilities: 'settings.capabilities',
-  access: 'settings.onboarding',
-  appearance: 'settings.preferences',
-  advanced: 'settings.advanced',
   ...controlPlaneLabelKeys,
 };
 
 const controlPlaneDefaultLabels = Object.fromEntries(
-  (settingsControlPlane?.ordinary_routes ?? []).map((route) => [route.id, route.default_label_en])
+  settingsControlPlane.ordinary_routes.map((route) => [route.id, route.default_label_en])
 );
 
 export const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
-  general: 'Overview',
-  workspace: 'Workspace',
-  'local-services': 'Local Services',
-  environment: 'Maintenance',
-  storage: 'Storage',
-  capabilities: 'Capabilities',
-  access: 'Get Started',
-  appearance: 'Preferences',
-  advanced: 'Advanced',
   ...controlPlaneDefaultLabels,
 };
 
@@ -156,8 +137,10 @@ export type TranslateFn = (key: string, options?: { defaultValue?: string }) => 
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
 export function getSettingsTabLabel(tabId: string, t: TranslateFn): string {
+  const route = ordinaryRoutesById.get(tabId);
   return t(OPL_SETTINGS_TAB_LABEL_KEYS[tabId] ?? `settings.${tabId}`, {
-    defaultValue: OPL_SETTINGS_TAB_DEFAULT_LABELS[tabId] ?? tabId,
+    defaultValue:
+      OPL_SETTINGS_TAB_DEFAULT_LABELS[tabId] ?? route?.default_label_en ?? secondaryPagesById.get(tabId)?.id ?? tabId,
   });
 }
 
@@ -166,10 +149,26 @@ export function normalizeSearchText(value: string): string {
 }
 
 export function getSettingsTabSearchText(tabId: string, label: string): string {
-  return normalizeSearchText([tabId, label, ...(OPL_SETTINGS_SEARCH_TERMS[tabId] ?? [])].join(' '));
+  const route = ordinaryRoutesById.get(tabId);
+  const page = secondaryPagesById.get(tabId);
+  return normalizeSearchText(
+    [
+      tabId,
+      label,
+      route?.default_label_en,
+      route?.default_label_zh,
+      route?.ia_group,
+      route?.state_source,
+      route?.refresh_source,
+      page?.ia_group,
+      page?.visibility,
+      ...(OPL_SETTINGS_SEARCH_TERMS[tabId] ?? []),
+    ].join(' ')
+  );
 }
 
 export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React.ReactElement {
+  const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
   if (slot === 'modal') {
     const modalIcons: Record<string, React.ReactElement> = {
       general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
@@ -182,7 +181,9 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
       appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
       advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
     };
-    return modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />;
+    return (
+      modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
+    );
   }
 
   const siderIcons: Record<string, React.ReactElement> = {
@@ -194,7 +195,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
     appearance: <SwitchThemes />,
     advanced: <System />,
   };
-  return siderIcons[tabId] ?? <Puzzle />;
+  return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle />;
 }
 
 export function resolveLegacySettingsAnchor(anchor: string): string {
@@ -202,7 +203,7 @@ export function resolveLegacySettingsAnchor(anchor: string): string {
 }
 
 export function resolveLegacySettingsRoute(tabId: string): string {
-  return LEGACY_SETTINGS_ROUTE_REDIRECTS[tabId] ?? `/settings/${tabId}`;
+  return LEGACY_SETTINGS_ROUTE_REDIRECTS[tabId] ?? routePathFor(tabId);
 }
 
 export function normalizeOplSettingsTab(tabId: string): string {
@@ -223,15 +224,12 @@ export type SettingsRenderTarget = {
 };
 
 export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget {
-  const routeTarget = parseSettingsRouteTarget(
-    legacyRedirectTargets[tabId] ?? LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId
-  );
-  const routeId = LEGACY_SETTINGS_ANCHOR_REMAP[routeTarget.routeId] ?? routeTarget.routeId;
-  const slotId = routeSlotIds.get(routeId) ?? fallbackRouteSlots[routeId]?.slotId;
-  const slotConfig = slotId ? settingsControlPlane?.slot_registry?.[slotId] : undefined;
-  const subrouteParam = slotConfig?.subroute_query_param ?? 'tab';
+  const routeTarget = parseSettingsRouteTarget(settingsControlPlane.legacy_route_redirects[tabId] ?? tabId);
+  const routeId = routeSlotIds.has(routeTarget.routeId) ? routeTarget.routeId : normalizeOplSettingsTab(routeTarget.routeId);
+  const slot = getSettingsRenderSlot(routeId);
+  const subrouteParam = slot?.subrouteQueryParam ?? 'tab';
   const tabFromRoute = normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);
-  const tabFromLegacySlot = normalizeCapabilityDetailTab(slotConfig?.legacy_subroutes?.[tabId]);
+  const tabFromLegacySlot = normalizeCapabilityDetailTab(slot?.legacySubroutes?.[tabId]);
 
   return {
     routeId,
@@ -318,11 +316,12 @@ export function getBuiltinSettingsNavItems(isDesktop: boolean, t: TranslateFn): 
   const slot: SettingsIconSlot = isDesktop ? 'siderDesktop' : 'siderMobile';
   return BUILTIN_TAB_IDS.map((id) => {
     const label = getSettingsTabLabel(id, t);
+    const path = routePathFor(id).replace(/^\/settings\/?/, '');
     return {
       id,
       label,
       icon: getSettingsTabIcon(id, slot),
-      path: id,
+      path,
       searchText: getSettingsTabSearchText(id, label),
     };
   });
@@ -425,25 +424,36 @@ export type SettingsShellRenderSlot = {
   legacySubroutes?: Record<string, string>;
 };
 
-const fallbackRouteSlots: Record<string, { slotId: string; componentKey: string }> = {
-  general: { slotId: 'settings_general', componentKey: 'OverviewSettings' },
-  workspace: { slotId: 'workspace', componentKey: 'WorkspaceSettings' },
-  'local-services': { slotId: 'local_services', componentKey: 'LocalServicesSettings' },
-  access: { slotId: 'settings_access', componentKey: 'AccessSettingsContent' },
-  capabilities: { slotId: 'settings_capabilities', componentKey: 'CapabilitiesSettingsContent' },
-  environment: { slotId: 'settings_environment', componentKey: 'RuntimeSettings' },
-  storage: { slotId: 'settings_storage', componentKey: 'StorageSettings' },
-  appearance: { slotId: 'settings_theme', componentKey: 'AppearanceModalContent' },
-  advanced: { slotId: 'settings_advanced', componentKey: 'SystemModalContent' },
-};
-
 const routeSlotIds = new Map<string, string>();
-for (const route of settingsControlPlane?.ordinary_routes ?? []) {
+for (const route of settingsControlPlane.ordinary_routes) {
   routeSlotIds.set(route.id, route.slot_id);
 }
-for (const page of settingsControlPlane?.secondary_pages ?? []) {
+for (const page of settingsControlPlane.secondary_pages) {
   routeSlotIds.set(page.id, page.slot_id);
 }
+
+type SettingsRouteComponentKey =
+  | 'OverviewSettings'
+  | 'WorkspaceSettings'
+  | 'LocalServicesSettings'
+  | 'AccessSettingsContent'
+  | 'CapabilitiesSettingsContent'
+  | 'RuntimeSettings'
+  | 'StorageSettings'
+  | 'AppearanceModalContent'
+  | 'SystemModalContent';
+
+const ROUTE_COMPONENT_KEYS = new Set<string>([
+  'OverviewSettings',
+  'WorkspaceSettings',
+  'LocalServicesSettings',
+  'AccessSettingsContent',
+  'CapabilitiesSettingsContent',
+  'RuntimeSettings',
+  'StorageSettings',
+  'AppearanceModalContent',
+  'SystemModalContent',
+]);
 
 function normalizeWrapperPolicy(value: string | undefined): SettingsShellWrapperPolicy {
   if (value === 'host_provides_wrapper') return value;
@@ -451,14 +461,13 @@ function normalizeWrapperPolicy(value: string | undefined): SettingsShellWrapper
 }
 
 export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot | null {
-  const normalizedRouteId = resolveSettingsRenderTarget(routeId).routeId;
-  const slotId = routeSlotIds.get(normalizedRouteId) ?? fallbackRouteSlots[normalizedRouteId]?.slotId;
+  const normalizedRouteId = routeSlotIds.has(routeId) ? routeId : normalizeOplSettingsTab(routeId);
+  const slotId = routeSlotIds.get(normalizedRouteId);
   if (!slotId) return null;
 
-  const slotConfig = settingsControlPlane?.slot_registry?.[slotId];
-  const fallback = fallbackRouteSlots[normalizedRouteId];
-  const componentKey = slotConfig?.component_key ?? fallback?.componentKey;
-  if (!componentKey) return null;
+  const slotConfig = settingsControlPlane.slot_registry[slotId];
+  const componentKey = slotConfig?.component_key;
+  if (!componentKey || !ROUTE_COMPONENT_KEYS.has(componentKey)) return null;
 
   return {
     id: slotId,
@@ -471,7 +480,41 @@ export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot 
 }
 
 export function getSettingsRenderSlots(): SettingsShellRenderSlot[] {
-  return [...BUILTIN_TAB_IDS, ...OPL_SEARCHABLE_SECONDARY_TAB_IDS]
+  return [
+    ...settingsControlPlane.ordinary_routes.map((route) => route.id),
+    ...settingsControlPlane.secondary_pages.map((page) => page.id),
+  ]
     .map((id) => getSettingsRenderSlot(id))
     .filter((slot): slot is SettingsShellRenderSlot => Boolean(slot));
+}
+
+export type SettingsRouteDefinition = {
+  routeId: string;
+  path: string;
+  componentKey: SettingsRouteComponentKey;
+};
+
+function pathSegmentFor(settingsPath: string): string {
+  return pathToSettingsRoute(settingsPath).replace(/^\/settings\/?/, '');
+}
+
+function routeDefinitionFrom(route: OplSettingsControlPlaneRoute | OplSettingsControlPlaneSecondaryPage) {
+  const slot = getSettingsRenderSlot(route.id);
+  if (!slot || !ROUTE_COMPONENT_KEYS.has(slot.componentKey)) return null;
+  return {
+    routeId: route.id,
+    path: pathSegmentFor(route.path),
+    componentKey: slot.componentKey as SettingsRouteComponentKey,
+  };
+}
+
+export function getSettingsRouteDefinitions(): SettingsRouteDefinition[] {
+  const seenPaths = new Set<string>();
+  return [...settingsControlPlane.ordinary_routes, ...settingsControlPlane.secondary_pages]
+    .map(routeDefinitionFrom)
+    .filter((definition): definition is SettingsRouteDefinition => {
+      if (!definition || seenPaths.has(definition.path)) return false;
+      seenPaths.add(definition.path);
+      return true;
+    });
 }

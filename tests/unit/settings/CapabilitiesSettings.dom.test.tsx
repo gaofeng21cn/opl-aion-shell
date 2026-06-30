@@ -37,71 +37,51 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   }),
 }));
 
-vi.mock('@/common/config/oplProductProfile', () => ({
-  getOplGuiSettingsControlPlane: () => null,
-  getOplGuiSettingsVisibleTabs: () => [
-    'general',
-    'access',
-    'capabilities',
-    'environment',
-    'storage',
-    'appearance',
-    'advanced',
-  ],
-  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
-  getOplGuiLegacySettingsRouteRedirects: () => ({
-    overview: 'general',
-    runtime: 'environment',
-    system: 'advanced',
-    model: 'environment',
-    agent: 'capabilities',
-    assistants: 'capabilities',
-    'skills-hub': 'capabilities',
-    tools: 'capabilities',
-    display: 'appearance',
-    webui: 'access',
-    pet: 'appearance',
-  }),
-  getOplDefaultHomeAssistants: () => [
-    {
-      id: 'mas',
-      display_name: 'Med Auto Science',
-      short_name: 'MAS',
-      home_purpose_label: 'Research',
-      description_i18n: { 'en-US': 'Use MAS for research workflows.' },
+vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/common/config/oplProductProfile')>();
+  return {
+    ...actual,
+    getOplDefaultHomeAssistants: () => [
+      {
+        id: 'mas',
+        display_name: 'Med Auto Science',
+        short_name: 'MAS',
+        home_purpose_label: 'Research',
+        description_i18n: { 'en-US': 'Use MAS for research workflows.' },
+      },
+      {
+        id: 'mag',
+        display_name: 'Med Auto Grant',
+        short_name: 'MAG',
+        home_purpose_label: 'Grant Writing',
+        description_i18n: { 'en-US': 'Use MAG for grant workflows.' },
+      },
+      {
+        id: 'rca',
+        display_name: 'RedCube AI',
+        short_name: 'RCA',
+        home_purpose_label: 'Presentations',
+        description_i18n: { 'en-US': 'Use RCA for presentation workflows.' },
+      },
+      {
+        id: 'bookforge',
+        display_name: 'OPL BookForge',
+        short_name: 'BookForge',
+        home_purpose_label: 'Writing books',
+        description_i18n: { 'en-US': 'Use BookForge for manuscripts.' },
+      },
+    ],
+    getOplAssistantSkillProfile: (assistantId: string) => {
+      const profiles: Record<string, { required_skills: string[] }> = {
+        mas: { required_skills: ['mas'] },
+        mag: { required_skills: ['mag'] },
+        rca: { required_skills: ['rca'] },
+        bookforge: { required_skills: ['opl-bookforge'] },
+      };
+      return profiles[assistantId];
     },
-    {
-      id: 'mag',
-      display_name: 'Med Auto Grant',
-      short_name: 'MAG',
-      home_purpose_label: 'Grant Writing',
-      description_i18n: { 'en-US': 'Use MAG for grant workflows.' },
-    },
-    {
-      id: 'rca',
-      display_name: 'RedCube AI',
-      short_name: 'RCA',
-      home_purpose_label: 'Presentations',
-      description_i18n: { 'en-US': 'Use RCA for presentation workflows.' },
-    },
-    {
-      id: 'bookforge',
-      display_name: 'OPL BookForge',
-      short_name: 'BookForge',
-      home_purpose_label: 'Writing books',
-      description_i18n: { 'en-US': 'Use BookForge for manuscripts.' },
-    },
-  ],
-  getOplAssistantSkillProfile: (assistantId: string) => {
-    const profiles: Record<string, { required_skills: string[] }> = {
-      mas: { required_skills: ['mas'] },
-      mag: { required_skills: ['mag'] },
-      rca: { required_skills: ['rca'] },
-      bookforge: { required_skills: ['opl-bookforge'] },
-    };
-    return profiles[assistantId];
-  },
-}));
+  };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

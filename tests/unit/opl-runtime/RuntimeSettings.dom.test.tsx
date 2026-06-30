@@ -278,6 +278,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValue(appStateResult);
     bridgeMocks.getInitializeInvoke.mockResolvedValue({ stdout: '{}', parsed: {} });
     bridgeMocks.runInstallPrepInvoke.mockResolvedValue({ stdout: '{}', parsed: {} });
+    bridgeMocks.executeActionInvoke.mockResolvedValue({ stdout: '{}', parsed: {} });
     bridgeMocks.getUpdateStatusInvoke.mockResolvedValue(managedUpdateStatusResult);
     bridgeMocks.runUpdateCheckInvoke.mockResolvedValue(managedUpdateStatusResult);
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValue(managedUpdateStatusResult);
@@ -520,7 +521,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(
       screen.getByTestId('opl-maintenance-hub-repairSuggestions').querySelector('button') as HTMLButtonElement
     );
-    await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
+    );
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
@@ -566,13 +569,14 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
   });
 
-  it('runs the Maintenance hub make-usable action through existing repair, check, and safe component actions', async () => {
+  it('runs the Maintenance hub make-usable action through App repair, check, and safe component actions', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
 
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
@@ -584,7 +588,10 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable-confirm'));
 
-    await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
+    );
+    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
@@ -602,6 +609,24 @@ describe('RuntimeSettings app state bridge usage', () => {
     });
     expect(bridgeMocks.rollbackUpdateComponentInvoke).not.toHaveBeenCalled();
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
+  });
+
+  it('routes recommended doctor and repair actions through the App action contract', async () => {
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('opl-runtime-action-doctor'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
+    );
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('opl-runtime-action-repair'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
+    );
+    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
   });
 
   it('renders user-friendly agent module maintenance from app state modules and managed update actions', async () => {

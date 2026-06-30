@@ -20,6 +20,7 @@ import {
   getOplGuiLegacySettingsRouteRedirects,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
+  getOplSettingsControlPlaneActionContract,
   getOplHomeModelStatusLabel,
   getOplModelStatusDisplayText,
   getOplRuntimeEnvironmentItems,
@@ -172,12 +173,40 @@ describe('OPL generated product profile', () => {
       about: 'advanced',
     });
     const controlPlane = getOplGuiSettingsControlPlane();
-    expect(controlPlane?.source_contract_ref).toBe('contracts/app-settings-control-plane.json');
-    expect(controlPlane?.default_route).toBe('/settings/general');
-    expect(controlPlane?.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
-    expect(controlPlane?.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
-    expect(controlPlane?.extension_anchor_remap['skills-hub']).toBe('capabilities');
-    expect(controlPlane?.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
+    expect(controlPlane.source_contract_ref).toBe('contracts/app-settings-control-plane.json');
+    expect(controlPlane.default_route).toBe('/settings/general');
+    expect(controlPlane.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
+    expect(controlPlane.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
+    expect(controlPlane.extension_anchor_remap['skills-hub']).toBe('capabilities');
+    expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
+    expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
+    expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
+    expect(controlPlane.slot_registry.workspace.component_key).toBe('WorkspaceSettings');
+    expect(controlPlane.slot_registry.local_services.component_key).toBe('LocalServicesSettings');
+    expect(controlPlane.state_action_policy).toMatchObject({
+      default_state_source: 'opl app state --profile fast --json',
+      default_refresh_source: 'opl app state --profile fast --json',
+      action_route: 'opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json',
+      recommended_action_ids: {
+        doctor: 'doctor',
+        repair: 'repair',
+      },
+    });
+    expect(controlPlane.state_action_policy.shell_must_not_own).toEqual(
+      expect.arrayContaining(['runtime truth', 'provider implementation', 'domain truth', 'owner receipts'])
+    );
+    const actionContract = getOplSettingsControlPlaneActionContract();
+    expect(actionContract.action_route).toBe(
+      'opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json'
+    );
+    actionContract.recommended_action_ids.doctor = 'caller-local-action';
+    expect(getOplSettingsControlPlaneActionContract().recommended_action_ids.doctor).toBe('doctor');
+    actionContract.shell_must_not_own.push('caller-local-policy');
+    expect(getOplSettingsControlPlaneActionContract().shell_must_not_own).not.toContain('caller-local-policy');
+    controlPlane.state_action_policy.recommended_action_ids.repair = 'caller-local-action';
+    expect(getOplGuiSettingsControlPlane().state_action_policy.recommended_action_ids.repair).toBe('repair');
+    controlPlane.state_action_policy.shell_must_not_own.push('caller-local-policy');
+    expect(getOplGuiSettingsControlPlane().state_action_policy.shell_must_not_own).not.toContain('caller-local-policy');
     expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'oma', 'app']);
   });
 
