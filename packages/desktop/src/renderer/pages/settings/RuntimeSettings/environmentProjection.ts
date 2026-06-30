@@ -115,6 +115,9 @@ export function runtimeCardActionKey(key: string, status: string, t: Translate):
 }
 
 export function componentUserSummary(component: ManagedUpdateComponent, t: Translate): string {
+  if (component.id === 'workflow_profile') {
+    return t('settings.oplEnvironmentPage.updates.userSummaries.workflowProfile');
+  }
   if (component.dirtyCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
   if (component.developerCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.developerCheckout');
   if (component.hostExecutorRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired');
@@ -128,6 +131,9 @@ export function componentUserSummary(component: ManagedUpdateComponent, t: Trans
 }
 
 export function updateComponentUserAction(component: ManagedUpdateComponent, t: Translate): string {
+  if (component.id === 'workflow_profile') {
+    return t('settings.oplEnvironmentPage.updates.nextActions.semanticMerge');
+  }
   if (component.manualRequired || component.developerCheckout || component.dirtyCheckout) {
     return componentUserSummary(component, t);
   }

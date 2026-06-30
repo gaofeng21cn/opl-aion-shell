@@ -1878,6 +1878,7 @@
         "capability_packages": "OPL capability packages",
         "companion_tools": "Companion tools",
         "codex_surface": "Codex Surface",
+        "workflow_profile": "Workflow profile",
         "app_binary": "Installation carrier",
         "runtime_toolchain": "Runtime substrate",
         "agent_package_channel": "OPL capability packages",
@@ -1897,7 +1898,8 @@
         "applyUpdate": "Apply update",
         "previewChanges": "Preview changes",
         "reviewRuntimeToolchain": "Check runtime substrate",
-        "reviewCapabilityPacks": "Check capability packs"
+        "reviewCapabilityPacks": "Check capability packs",
+        "semanticMerge": "View semantic merge guidance"
       },
       "actionHelp": {
         "status": "Reads the current status only. It does not look for newer versions or create a change plan.",
@@ -1914,7 +1916,8 @@
         "manualRequired": "Manual confirmation is required; the app will not handle this silently.",
         "developerCheckout": "Local developer checkout detected. Handle it in that checkout or switch back to managed packages.",
         "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
-        "checkDetails": "Check diagnostics before deciding what to do."
+        "checkDetails": "Check diagnostics before deciding what to do.",
+        "workflowProfile": "Workflow profile changes require Codex semantic merge; the app will not apply them silently."
       },
       "nextStep": "Next step: {{action}}",
       "nextActions": {
@@ -1923,7 +1926,8 @@
         "repair": "Run the repair action.",
         "restart": "Restart the app.",
         "reload": "Reload the app or Codex capabilities.",
-        "review": "Open diagnostics and review the detail."
+        "review": "Open diagnostics and review the detail.",
+        "semanticMerge": "Review the semantic merge guidance."
       },
       "advancedActions": "Advanced update actions",
       "diagnostics": {

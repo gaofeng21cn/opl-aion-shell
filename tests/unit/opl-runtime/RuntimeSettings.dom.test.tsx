@@ -231,6 +231,20 @@ const managedUpdateStatusResult = {
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
         },
+        {
+          component_id: 'workflow_profile',
+          display_group: 'Workflow profile',
+          state: 'current',
+          conditions: [
+            {
+              type: 'SemanticMergeRequired',
+              status: 'True',
+              reason: 'NoSilentProfileOverwrite',
+              message: 'Existing Codex profile files require semantic merge instead of updater apply.',
+            },
+          ],
+          receipt: { last_receipt_ref: 'receipt://workflow_profile/current' },
+        },
       ],
       repair_actions: [
         {
@@ -284,6 +298,16 @@ const managedUpdateAutoApplyPlanResult = {
           state: 'staged',
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
+        },
+        {
+          component_id: 'workflow_profile',
+          state: 'current',
+          auto_apply: {
+            mode: 'projection_only',
+            eligible: false,
+            app_background_safe: false,
+            blocked_reasons: ['workflow_profile_requires_codex_semantic_merge'],
+          },
         },
       ],
     },
@@ -460,6 +484,13 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('Runtime substrate');
     expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent('OPL capability packages');
     expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent('Codex Surface');
+    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent('Workflow profile');
+    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.workflowProfile'
+    );
+    expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.semanticMerge'
+    );
     expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired'
     );
@@ -537,6 +568,13 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByTestId('opl-managed-update-apply-installation_carrier')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-codex_surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-apply-workflow_profile')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-repair-workflow_profile')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-rollback-workflow_profile')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('opl-managed-update-semantic-merge-workflow_profile'));
+    await waitFor(() => expect(bridgeMocks.getUpdatePlanInvoke).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
@@ -825,6 +863,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(backgroundStatus).toHaveTextContent('installation_carrier: host_executor_required');
     expect(backgroundStatus).toHaveTextContent('runtime_substrate: restart_required');
     expect(backgroundStatus).toHaveTextContent('codex_surface: manual_confirmation_required');
+    expect(backgroundStatus).not.toHaveTextContent('workflow_profile: manual_confirmation_required');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.reloadGuidance');
     expect(backgroundStatus).toHaveTextContent('Reload after applying capability_packages.');
   });

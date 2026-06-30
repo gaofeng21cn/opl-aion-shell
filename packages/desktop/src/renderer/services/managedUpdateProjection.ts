@@ -11,7 +11,8 @@ export type ManagedUpdateComponentId =
   | 'runtime_substrate'
   | 'capability_packages'
   | 'companion_tools'
-  | 'codex_surface';
+  | 'codex_surface'
+  | 'workflow_profile';
 
 export type ManagedUpdateCondition = {
   id: string;
@@ -68,6 +69,7 @@ export const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = [
   'capability_packages',
   'companion_tools',
   'codex_surface',
+  'workflow_profile',
 ];
 
 const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
@@ -76,6 +78,7 @@ const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
   capability_packages: 'OPL capability packages',
   companion_tools: 'Companion tools',
   codex_surface: 'Codex Surface',
+  workflow_profile: 'Workflow profile',
 };
 
 const MANAGED_UPDATE_COMPONENT_ALIASES: Record<string, ManagedUpdateComponentId> = {
@@ -86,11 +89,13 @@ const MANAGED_UPDATE_COMPONENT_ALIASES: Record<string, ManagedUpdateComponentId>
   agent_packages: 'capability_packages',
   agent_package_channel: 'capability_packages',
   capability_exposure: 'codex_surface',
+  workflow_profile: 'workflow_profile',
 };
 
 const MUTATION_FORBIDDEN_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'installation_carrier',
   'codex_surface',
+  'workflow_profile',
 ]);
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([

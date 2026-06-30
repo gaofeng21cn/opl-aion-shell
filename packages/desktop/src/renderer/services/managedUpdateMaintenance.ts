@@ -63,6 +63,7 @@ const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'runtime_substrate',
   'companion_tools',
   'codex_surface',
+  'workflow_profile',
 ]);
 const AUTO_APPLY_STATES = new Set(['update_available', 'staged', 'needs_reload']);
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
@@ -366,11 +367,7 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
     booleanValue(component.manual_required) ||
     Boolean(stringValue(component.manual_guidance));
   const applyRequested = explicitAutoApply
-    ? explicitAutoApply.eligible ||
-      explicitAutoApply.blockedReasons.length > 0 ||
-      actionableState ||
-      safeToApply ||
-      manualRequired
+    ? explicitAutoApply.eligible || actionableState || safeToApply || manualRequired
     : actionableState || safeToApply || manualRequired;
   if (CONSERVATIVE_COMPONENT_IDS.has(componentId) && applyRequested) {
     if (componentId === 'installation_carrier' && state === 'host_executor_required') {

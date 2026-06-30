@@ -600,6 +600,17 @@ function ManagedUpdatesPanel({
                 </Typography.Text>
 
                 <Space wrap size='small'>
+                  {component.id === 'workflow_profile' && (
+                    <Button
+                      data-testid='opl-managed-update-semantic-merge-workflow_profile'
+                      size='small'
+                      loading={planLoading}
+                      disabled={Boolean(activeReadOperation && activeReadOperation !== 'plan')}
+                      onClick={onPlan}
+                    >
+                      {t('settings.oplEnvironmentPage.updates.actions.semanticMerge')}
+                    </Button>
+                  )}
                   {component.safeToApply && (
                     <Button
                       data-testid={`opl-managed-update-apply-${component.id}`}

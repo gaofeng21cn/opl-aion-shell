@@ -202,6 +202,9 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'codex_surface' })).toThrow(
       /OPL update apply is limited to managed kernel components/
     );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'workflow_profile' })).toThrow(
+      /OPL update apply is limited to managed kernel components/
+    );
     expect(() => __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime latest' })).toThrow(
       /Invalid OPL update receipt id/
     );

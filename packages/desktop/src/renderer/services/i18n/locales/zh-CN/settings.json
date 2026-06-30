@@ -1879,6 +1879,7 @@
         "capability_packages": "OPL 能力包",
         "companion_tools": "辅助工具",
         "codex_surface": "Codex Surface",
+        "workflow_profile": "工作流 Profile",
         "app_binary": "安装载体",
         "runtime_toolchain": "运行时基座",
         "agent_package_channel": "OPL 能力包",
@@ -1898,7 +1899,8 @@
         "applyUpdate": "应用更新",
         "previewChanges": "预览变更",
         "reviewRuntimeToolchain": "检查运行时基座",
-        "reviewCapabilityPacks": "检查能力包"
+        "reviewCapabilityPacks": "检查能力包",
+        "semanticMerge": "查看语义合并指引"
       },
       "actionHelp": {
         "status": "只重新读取当前状态，不查找新版本，也不生成变更计划。",
@@ -1915,7 +1917,8 @@
         "manualRequired": "需要你手动确认，App 不会静默自动处理。",
         "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
         "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",
-        "checkDetails": "状态需要查看诊断详情后再决定。"
+        "checkDetails": "状态需要查看诊断详情后再决定。",
+        "workflowProfile": "工作流 Profile 变更必须由 Codex 做语义合并，App 不会静默应用。"
       },
       "nextStep": "下一步：{{action}}",
       "nextActions": {
@@ -1924,7 +1927,8 @@
         "repair": "运行修复动作。",
         "restart": "重启 App。",
         "reload": "重新加载 App 或 Codex 能力。",
-        "review": "打开诊断详情后再判断。"
+        "review": "打开诊断详情后再判断。",
+        "semanticMerge": "查看语义合并指引。"
       },
       "advancedActions": "高级更新动作",
       "diagnostics": {

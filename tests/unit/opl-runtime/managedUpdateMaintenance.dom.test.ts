@@ -89,6 +89,16 @@ const managedUpdateAutoApplyPlanResult = {
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
         },
+        {
+          component_id: 'workflow_profile',
+          state: 'current',
+          auto_apply: {
+            mode: 'projection_only',
+            eligible: false,
+            app_background_safe: false,
+            blocked_reasons: ['workflow_profile_requires_codex_semantic_merge'],
+          },
+        },
       ],
     },
   },
@@ -171,8 +181,42 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastSkipReason).toContain('installation_carrier: host_executor_required');
     expect(snapshot.lastSkipReason).toContain('runtime_substrate: restart_required');
     expect(snapshot.lastSkipReason).toContain('codex_surface: manual_confirmation_required');
+    expect(snapshot.lastSkipReason).not.toContain('workflow_profile: manual_confirmation_required');
     expect(snapshot.reloadGuidance).toBe('Reload after applying capability_packages.');
     expect(snapshot.result?.surface).toBe('update_apply');
+  });
+
+  it('reports workflow profile as manual only when profile merge work is actually pending', async () => {
+    bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
+      surface: 'update_plan',
+      command: 'opl update plan --json',
+      stdout: '{}',
+      parsed: {
+        managed_update: {
+          operation: 'plan',
+          idempotency_lock: { status: 'released' },
+          execution: { status: 'completed' },
+          components: [
+            {
+              component_id: 'workflow_profile',
+              state: 'skipped_manual_required',
+              manual_guidance: 'Merge OPL Flow profile changes with Codex semantic merge.',
+            },
+          ],
+        },
+      },
+    });
+
+    await executeManagedUpdateRead('plan', {
+      background: true,
+      trigger: 'daily_background_maintenance',
+    });
+
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
+    const snapshot = getManagedUpdateMaintenanceSnapshot();
+    expect(snapshot.lastAction).toBeNull();
+    expect(snapshot.lastSkipReason).toContain('workflow_profile: manual_confirmation_required');
+    expect(snapshot.result?.surface).toBe('update_plan');
   });
 
   it('does not auto-apply managed agent components that are already current', async () => {
