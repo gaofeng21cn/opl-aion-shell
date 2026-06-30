@@ -3236,6 +3236,22 @@ function copyArtifact(source, target) {
   fs.copyFileSync(source, target);
 }
 
+async function captureFullReleaseScreenshotEvidence(options, client, sourcePath = null) {
+  if (!shouldCaptureFullReleaseScreenshot(options)) {
+    return null;
+  }
+  const targetPath = path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.full);
+  if (fs.existsSync(targetPath)) {
+    return { status: 'already_present', target: targetPath };
+  }
+  if (sourcePath) {
+    copyArtifact(sourcePath, targetPath);
+    return { status: 'copied', target: targetPath, source: sourcePath };
+  }
+  await captureCdpScreenshot(client, targetPath);
+  return { status: 'captured', target: targetPath, source: 'cdp_current_page' };
+}
+
 function serializeCdpRemoteObject(remoteObject) {
   if (!remoteObject || typeof remoteObject !== 'object') return null;
   if ('value' in remoteObject) return remoteObject.value;
@@ -3418,9 +3434,7 @@ async function waitForGuidEntryViaCdp(options, secret) {
       if (shouldCaptureFirstRunBeginnerScreenshot(firstRunBeginnerUx)) {
         const beginnerScreenshotPath = path.join(options.artifacts, 'first-run-beginner.png');
         await captureCdpScreenshot(client, beginnerScreenshotPath);
-        if (shouldCaptureFullReleaseScreenshot(options)) {
-          copyArtifact(beginnerScreenshotPath, path.join(options.artifacts, RELEASE_EVIDENCE_SCREENSHOTS.full));
-        }
+        await captureFullReleaseScreenshotEvidence(options, client, beginnerScreenshotPath);
       }
     }
     const state = await waitForCdpPredicate(
@@ -3429,6 +3443,7 @@ async function waitForGuidEntryViaCdp(options, secret) {
       options.timeoutMs,
       'OPL usable entry did not become ready in the packaged app'
     );
+    await captureFullReleaseScreenshotEvidence(options, client);
     return { state, startupPreflight, firstRunBeginnerUx, labels: state.labels ?? [DEFAULT_LABELS.guidEntry] };
   } finally {
     client.close();
@@ -5462,6 +5477,7 @@ export const __test =
         collectMainBootstrapFatalArtifacts,
         defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,
+        captureFullReleaseScreenshotEvidence,
         unifiedLogPredicate,
         parseCfBundleExecutableFromPlistText,
         resolveAppExecutablePath,

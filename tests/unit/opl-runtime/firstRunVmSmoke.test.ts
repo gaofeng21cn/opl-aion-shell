@@ -646,6 +646,41 @@ describe('packaged first-run VM smoke helpers', () => {
     ).toBe(false);
   });
 
+  it('captures Full release screenshot evidence through CDP when beginner capture is skipped', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-full-screenshot-'));
+    const options = {
+      artifacts,
+      assertClean: true,
+      requireCodexConfigWizard: false,
+      runtimeProfile: 'full',
+    };
+    const client = {
+      send: vi.fn().mockResolvedValue({ data: Buffer.from('current-guid-page').toString('base64') }),
+    };
+
+    try {
+      const result = await __test.captureFullReleaseScreenshotEvidence(options, client);
+      const target = path.join(artifacts, 'screenshots', 'full.png');
+
+      expect(result).toEqual({ status: 'captured', target, source: 'cdp_current_page' });
+      expect(client.send).toHaveBeenCalledWith('Page.captureScreenshot', {
+        format: 'png',
+        captureBeyondViewport: false,
+      });
+      expect(fs.readFileSync(target, 'utf8')).toBe('current-guid-page');
+
+      const source = path.join(artifacts, 'first-run-beginner.png');
+      fs.writeFileSync(source, 'beginner-page', 'utf8');
+      expect(await __test.captureFullReleaseScreenshotEvidence(options, client, source)).toEqual({
+        status: 'already_present',
+        target,
+      });
+      expect(fs.readFileSync(target, 'utf8')).toBe('current-guid-page');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('records unsigned spctl rejection as local authorization diagnostic after codesign passes', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-smoke-local-authorization-'));
     const appPath = path.join(os.tmpdir(), 'One Person Lab.app');
