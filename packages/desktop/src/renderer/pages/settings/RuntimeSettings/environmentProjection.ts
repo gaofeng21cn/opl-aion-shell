@@ -29,7 +29,7 @@ const OPL_HOME_ASSISTANT_MODULE_IDS: Record<string, string> = {
 };
 
 const OPL_EXPLICIT_MODULE_DEFAULTS = [{ id: 'oplmetaagent', label: 'OPL Meta Agent' }];
-const MAKE_USABLE_COMPONENT_IDS = new Set(['runtime_toolchain', 'agent_package_channel', 'capability_exposure']);
+const MAKE_USABLE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
 
 const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
   .map((assistant) => {
@@ -72,10 +72,11 @@ export type RuntimeEnvironmentProjection = {
   componentsNeedingMaintenance: number;
   healthSummaryItems: EnvironmentHealthSummaryItem[];
   runtimeCards: EnvironmentReadinessCard[];
-  appBinaryComponent?: ManagedUpdateComponent;
-  runtimeToolchainComponent?: ManagedUpdateComponent;
-  agentPackageComponent?: ManagedUpdateComponent;
-  capabilityExposureComponent?: ManagedUpdateComponent;
+  installationCarrierComponent?: ManagedUpdateComponent;
+  runtimeSubstrateComponent?: ManagedUpdateComponent;
+  capabilityPackagesComponent?: ManagedUpdateComponent;
+  companionToolsComponent?: ManagedUpdateComponent;
+  codexSurfaceComponent?: ManagedUpdateComponent;
 };
 
 export function localAppVersion(): string {
@@ -116,6 +117,7 @@ export function runtimeCardActionKey(key: string, status: string, t: Translate):
 export function componentUserSummary(component: ManagedUpdateComponent, t: Translate): string {
   if (component.dirtyCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
   if (component.developerCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.developerCheckout');
+  if (component.hostExecutorRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired');
   if (component.manualRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.manualRequired');
   if (component.needsRestart) return t('settings.oplEnvironmentPage.updates.userSummaries.needsRestart');
   if (component.safeToApply) return t('settings.oplEnvironmentPage.updates.userSummaries.canApply');
@@ -330,9 +332,10 @@ export function buildRuntimeEnvironmentProjection({
     componentsNeedingMaintenance,
     healthSummaryItems,
     runtimeCards,
-    appBinaryComponent: componentById.get('app_binary'),
-    runtimeToolchainComponent: componentById.get('runtime_toolchain'),
-    agentPackageComponent: componentById.get('agent_package_channel'),
-    capabilityExposureComponent: componentById.get('capability_exposure'),
+    installationCarrierComponent: componentById.get('installation_carrier'),
+    runtimeSubstrateComponent: componentById.get('runtime_substrate'),
+    capabilityPackagesComponent: componentById.get('capability_packages'),
+    companionToolsComponent: componentById.get('companion_tools'),
+    codexSurfaceComponent: componentById.get('codex_surface'),
   };
 }

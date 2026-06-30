@@ -175,26 +175,32 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'update_plan',
       args: ['update', 'plan', '--json'],
     });
-    expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_toolchain' })).toEqual({
+    expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_substrate' })).toEqual({
       surface: 'update_apply',
-      args: ['update', 'apply', '--component', 'runtime_toolchain', '--json'],
+      args: ['update', 'apply', '--component', 'runtime_substrate', '--json'],
     });
     expect(
-      __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime_toolchain/latest' })
+      __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime_substrate/latest' })
     ).toEqual({
       surface: 'update_repair',
-      args: ['update', 'repair', '--receipt', 'receipt://runtime_toolchain/latest', '--json'],
+      args: ['update', 'repair', '--receipt', 'receipt://runtime_substrate/latest', '--json'],
     });
-    expect(__oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'agent_package_channel' })).toEqual({
+    expect(__oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'capability_packages' })).toEqual({
       surface: 'update_repair',
-      args: ['update', 'repair', '--component', 'agent_package_channel', '--json'],
+      args: ['update', 'repair', '--component', 'capability_packages', '--json'],
     });
-    expect(__oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'runtime_toolchain' })).toEqual({
+    expect(__oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'runtime_substrate' })).toEqual({
       surface: 'update_rollback',
-      args: ['update', 'rollback', '--component', 'runtime_toolchain', '--json'],
+      args: ['update', 'rollback', '--component', 'runtime_substrate', '--json'],
     });
-    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_toolchain;rm -rf /' })).toThrow(
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_substrate;rm -rf /' })).toThrow(
       /Invalid OPL update component id/
+    );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'installation_carrier' })).toThrow(
+      /OPL update apply is limited to managed kernel components/
+    );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'codex_surface' })).toThrow(
+      /OPL update apply is limited to managed kernel components/
     );
     expect(() => __oplRuntimeBridgeTest.buildUpdateRepairCommand({ receiptId: 'receipt://runtime latest' })).toThrow(
       /Invalid OPL update receipt id/

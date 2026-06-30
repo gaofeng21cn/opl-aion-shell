@@ -51,7 +51,7 @@ import {
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
 import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
-const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
+const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
 const DEVELOPER_SOURCE_MODES = new Set([
   'developer_checkout',
   'developer_mode',
@@ -671,6 +671,34 @@ function ManagedUpdatesPanel({
                         {component.needsReload && <span>{t('settings.oplEnvironmentPage.updates.needsReload')}</span>}
                         {component.reloadGuidance && <span>{component.reloadGuidance}</span>}
                         {component.manualGuidance && <span>{component.manualGuidance}</span>}
+                        {component.hostUpdateRoute && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.hostUpdateRoute', {
+                              route: component.hostUpdateRoute,
+                            })}
+                          </span>
+                        )}
+                        {component.dataVolumePreservation && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
+                              value: component.dataVolumePreservation,
+                            })}
+                          </span>
+                        )}
+                        {component.preservedMounts.length > 0 && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.preservedMounts', {
+                              value: component.preservedMounts.join(', '),
+                            })}
+                          </span>
+                        )}
+                        {component.requiredPreservationEvidence.length > 0 && (
+                          <span>
+                            {t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
+                              value: component.requiredPreservationEvidence.join(', '),
+                            })}
+                          </span>
+                        )}
                       </div>
                     </Collapse.Item>
                   </Collapse>
@@ -789,7 +817,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const tRef = useRef(t);
   const [activeReadOperation, setActiveReadOperation] = React.useState<'status' | 'check' | 'plan' | null>(null);
   const [maintenanceHubCheckTarget, setMaintenanceHubCheckTarget] = React.useState<
-    'runtimeToolchain' | 'capabilityPacks' | null
+    'runtimeSubstrate' | 'capabilityPacks' | null
   >(null);
   const [makeUsableRunning, setMakeUsableRunning] = React.useState(false);
   const [makeUsableConfirmationOpen, setMakeUsableConfirmationOpen] = React.useState(false);
@@ -844,7 +872,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, []);
 
   const runMaintenanceHubCheck = useCallback(
-    async (target: 'runtimeToolchain' | 'capabilityPacks') => {
+    async (target: 'runtimeSubstrate' | 'capabilityPacks') => {
       setMaintenanceHubCheckTarget(target);
       try {
         await runManagedUpdateRead('check');

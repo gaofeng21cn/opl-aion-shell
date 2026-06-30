@@ -11,6 +11,10 @@ import type {
   IOplUpdateComponentRequest,
   IOplUpdateRepairRequest,
 } from '@/common/adapter/ipcBridge';
+import {
+  canonicalManagedUpdateComponentId,
+  type ManagedUpdateComponentId,
+} from '@/renderer/services/managedUpdateProjection';
 
 export type ManagedUpdateMaintenanceTrigger =
   | 'app_startup_after_core_ready'
@@ -53,8 +57,13 @@ const DAILY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
-const AUTO_APPLY_COMPONENT_IDS = new Set(['agent_package_channel', 'capability_exposure']);
-const CONSERVATIVE_COMPONENT_IDS = new Set(['app_binary', 'runtime_toolchain']);
+const AUTO_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
+const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
+  'installation_carrier',
+  'runtime_substrate',
+  'companion_tools',
+  'codex_surface',
+]);
 const AUTO_APPLY_STATES = new Set(['update_available', 'staged', 'needs_reload']);
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',
@@ -167,7 +176,7 @@ function readReloadGuidance(result: IOplRuntimeCommandResult | null | undefined)
 function readReceiptRef(result: IOplRuntimeCommandResult | null | undefined, componentId: string): string | null {
   const root = managedUpdateRoot(result);
   const component = componentRecords(root).find(
-    (entry) => stringValue(entry.component_id ?? entry.componentId ?? entry.id) === componentId
+    (entry) => canonicalManagedUpdateComponentId(entry.component_id ?? entry.componentId ?? entry.id) === componentId
   );
   const receipt = nestedRecord(component, 'receipt') ?? nestedRecord(component, 'receipts');
   return (
@@ -332,7 +341,7 @@ async function invokeRead(operation: ManagedUpdateReadOperation): Promise<IOplRu
 }
 
 function skipReasonForComponent(component: Record<string, unknown>): string | null {
-  const componentId = stringValue(component.component_id ?? component.componentId ?? component.id);
+  const componentId = canonicalManagedUpdateComponentId(component.component_id ?? component.componentId ?? component.id);
   if (!componentId) return null;
   const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
   const actionableState = AUTO_APPLY_STATES.has(state);
@@ -350,7 +359,10 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   const developerCheckout = Boolean(source && DEVELOPER_CHECKOUT_SOURCES.has(source));
   const manualRequired =
     state === 'manual_required' ||
+    state === 'host_executor_required' ||
     state === 'skipped_manual_required' ||
+    booleanValue(component.host_executor_required) ||
+    booleanValue(component.hostExecutorRequired) ||
     booleanValue(component.manual_required) ||
     Boolean(stringValue(component.manual_guidance));
   const applyRequested = explicitAutoApply
@@ -359,8 +371,14 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
       actionableState ||
       safeToApply ||
       manualRequired
-    : actionableState || safeToApply;
+    : actionableState || safeToApply || manualRequired;
   if (CONSERVATIVE_COMPONENT_IDS.has(componentId) && applyRequested) {
+    if (componentId === 'installation_carrier' && state === 'host_executor_required') {
+      return `${componentId}: host_executor_required`;
+    }
+    if (componentId === 'installation_carrier' && manualRequired) {
+      return `${componentId}: manual_required`;
+    }
     return `${componentId}: ${needsRestart ? 'restart_required' : 'manual_confirmation_required'}`;
   }
   if (!AUTO_APPLY_COMPONENT_IDS.has(componentId) && applyRequested) {
@@ -447,7 +465,7 @@ function autoApplyCandidates(result: IOplRuntimeCommandResult): {
   const candidates: string[] = [];
   const skipReasons: string[] = [];
   for (const component of componentRecords(managedUpdateRoot(result))) {
-    const componentId = stringValue(component.component_id ?? component.componentId ?? component.id);
+    const componentId = canonicalManagedUpdateComponentId(component.component_id ?? component.componentId ?? component.id);
     const skipReason = skipReasonForComponent(component);
     if (skipReason) {
       skipReasons.push(skipReason);

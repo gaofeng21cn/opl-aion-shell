@@ -34,6 +34,7 @@ const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 let standardBootstrapCompleted = false;
+const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
   adapterId: 'aionui',
@@ -144,6 +145,14 @@ function assertUpdateComponentId(componentId: string): string {
   return normalized;
 }
 
+function assertApplyUpdateComponentId(componentId: string): string {
+  const normalized = assertUpdateComponentId(componentId);
+  if (!APPLY_ALLOWED_UPDATE_COMPONENT_IDS.has(normalized)) {
+    throw new Error('OPL update apply is limited to managed kernel components');
+  }
+  return normalized;
+}
+
 function assertUpdateReceiptId(receiptId: string): string {
   const normalized = receiptId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
@@ -238,7 +247,7 @@ function buildUpdatePlanCommand(): RuntimeCommandSpec {
 function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
   return {
     surface: 'update_apply',
-    args: ['update', 'apply', '--component', assertUpdateComponentId(request.componentId), '--json'],
+    args: ['update', 'apply', '--component', assertApplyUpdateComponentId(request.componentId), '--json'],
   };
 }
 
@@ -894,6 +903,7 @@ export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
   assertUpdateComponentId,
+  assertApplyUpdateComponentId,
   assertUpdateReceiptId,
   buildActionCommand,
   buildAppStateCommand,

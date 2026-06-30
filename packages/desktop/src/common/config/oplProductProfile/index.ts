@@ -448,7 +448,7 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
     entry.target_route !== '/guid' ||
     entry.route_state !== 'postInstallSelfCheck' ||
     entry.prompt_policy !==
-      'localized Codex CLI read-only diagnosis prompt describing target OPL working mode' ||
+      'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path' ||
     entry.mutation_policy !== 'diagnose_first_no_file_mutation_without_user_confirmation' ||
     entry.release_gate_policy !== 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt'
   ) {

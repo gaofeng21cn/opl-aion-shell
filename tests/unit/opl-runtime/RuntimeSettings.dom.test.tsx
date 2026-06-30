@@ -156,15 +156,27 @@ const managedUpdateStatusResult = {
       idempotency_lock: { status: 'free' },
       components: [
         {
-          component_id: 'app_binary',
+          component_id: 'installation_carrier',
           display_group: 'Installation carrier',
-          state: 'current',
-          conditions: [{ type: 'Available', status: 'True', reason: 'Current', message: 'App bundle is current' }],
-          receipt: { last_receipt_ref: 'receipt://app-binary/current' },
-          needs_restart: false,
+          state: 'host_executor_required',
+          host_executor_required: true,
+          host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
+          data_volume_preservation: 'required_before_replacing_docker_webui_image',
+          preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
+          required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
+          manual_guidance: 'Docker/WebUI image update must run from the host and preserve data volumes.',
+          conditions: [
+            {
+              type: 'HostRoute',
+              status: 'False',
+              reason: 'HostExecutorRequired',
+              message: 'Docker/WebUI image replacement cannot be applied from inside opl update apply.',
+            },
+          ],
+          receipt: { last_receipt_ref: 'receipt://installation_carrier/current' },
         },
         {
-          component_id: 'runtime_toolchain',
+          component_id: 'runtime_substrate',
           display_group: 'Runtime substrate',
           state: 'update_available',
           safe_to_apply: true,
@@ -177,15 +189,15 @@ const managedUpdateStatusResult = {
             },
           ],
           receipt: {
-            last_receipt_ref: 'receipt://runtime_toolchain/latest',
-            rollback_ref: 'rollback://runtime_toolchain/previous',
-            repair_action: 'runtime_toolchain_repair_only',
+            last_receipt_ref: 'receipt://runtime_substrate/latest',
+            rollback_ref: 'rollback://runtime_substrate/previous',
+            repair_action: 'runtime_substrate_repair_only',
           },
           needs_restart: true,
           reload_guidance: 'Restart the app after apply.',
         },
         {
-          component_id: 'agent_package_channel',
+          component_id: 'capability_packages',
           display_group: 'OPL capability packages',
           state: 'failed_with_repair',
           conditions: [
@@ -197,18 +209,16 @@ const managedUpdateStatusResult = {
             },
           ],
           receipt: {
-            last_receipt_ref: 'receipt://agent_package_channel/failed-sync',
+            last_receipt_ref: 'receipt://capability_packages/failed-sync',
             repair_action: 'agent_package_reconcile_and_skill_sync_only',
           },
           needs_reload: true,
           reload_guidance: 'Reload Codex plugin cache after repair.',
         },
         {
-          component_id: 'capability_exposure',
+          component_id: 'codex_surface',
           display_group: 'Codex Surface',
           state: 'needs_reload',
-          safe_to_apply: true,
-          rollback_allowed: true,
           conditions: [
             {
               type: 'Visible',
@@ -217,16 +227,16 @@ const managedUpdateStatusResult = {
               message: 'Codex Surface cache is stale',
             },
           ],
-          receipt: { last_receipt_ref: 'receipt://capability_exposure/cache' },
+          receipt: { last_receipt_ref: 'receipt://codex_surface/cache' },
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
         },
       ],
       repair_actions: [
         {
-          component_id: 'agent_package_channel',
-          receipt_ref: 'receipt://agent_package_channel/failed-sync',
-          action_ref: 'repair://agent_package_channel/sync',
+          component_id: 'capability_packages',
+          receipt_ref: 'receipt://capability_packages/failed-sync',
+          action_ref: 'repair://capability_packages/sync',
         },
       ],
       reload_guidance: 'Restart or reload only when a component reports it.',
@@ -246,22 +256,32 @@ const managedUpdateAutoApplyPlanResult = {
       reload_guidance: 'Reload visible OPL capabilities after background maintenance.',
       components: [
         {
-          component_id: 'runtime_toolchain',
+          component_id: 'installation_carrier',
+          state: 'host_executor_required',
+          safe_to_apply: true,
+          host_executor_required: true,
+          host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
+          data_volume_preservation: 'required_before_replacing_docker_webui_image',
+          preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
+          required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
+          manual_guidance: 'Update the installation carrier from the host, not from opl update apply.',
+        },
+        {
+          component_id: 'runtime_substrate',
           state: 'update_available',
           safe_to_apply: true,
           needs_restart: true,
           reload_guidance: 'Restart the app before the new runtime is visible.',
         },
         {
-          component_id: 'agent_package_channel',
+          component_id: 'capability_packages',
           state: 'update_available',
           safe_to_apply: true,
           reload_guidance: 'Reload Codex plugin cache after agent package sync.',
         },
         {
-          component_id: 'capability_exposure',
+          component_id: 'codex_surface',
           state: 'staged',
-          safe_to_apply: true,
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
         },
@@ -285,17 +305,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     bridgeMocks.applyUpdateComponentInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_apply',
-      command: 'opl update apply --component runtime_toolchain --json',
+      command: 'opl update apply --component runtime_substrate --json',
     });
     bridgeMocks.repairUpdateInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_repair',
-      command: 'opl update repair --receipt receipt://agent_package_channel/failed-sync --json',
+      command: 'opl update repair --receipt receipt://capability_packages/failed-sync --json',
     });
     bridgeMocks.rollbackUpdateComponentInvoke.mockResolvedValue({
       ...managedUpdateStatusResult,
       surface: 'update_rollback',
-      command: 'opl update rollback --component runtime_toolchain --json',
+      command: 'opl update rollback --component runtime_substrate --json',
     });
     bridgeMocks.getDrilldownInvoke.mockImplementation(({ detail }: { detail: 'summary' | 'full' }) =>
       Promise.resolve(
@@ -436,14 +456,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
-    expect(screen.getByTestId('opl-managed-update-app_binary')).toHaveTextContent('Installation carrier');
-    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime substrate');
-    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent('OPL capability packages');
-    expect(screen.getByTestId('opl-managed-update-capability_exposure')).toHaveTextContent('Codex Surface');
-    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
+    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent('Installation carrier');
+    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('Runtime substrate');
+    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent('OPL capability packages');
+    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent('Codex Surface');
+    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired'
+    );
+    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );
-    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
+    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.canRepair'
     );
     expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
@@ -477,7 +500,7 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'
     );
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.apply'
+      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.repair'
     );
     expect(screen.getByTestId('opl-managed-update-recommended-action')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.actions.recommendedRepair'
@@ -496,14 +519,24 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
     expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent('Preview changes');
     fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[1]);
-    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime update is verified');
-    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
-      'receipt://runtime_toolchain/latest'
+    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('Runtime update is verified');
+    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent(
+      'receipt://runtime_substrate/latest'
     );
     fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[2]);
-    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent(
+    expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
       'Reload Codex plugin cache after repair.'
     );
+    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[0]);
+    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
+      'host_executor_runs_documented_installer_or_compose_pull_and_up'
+    );
+    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
+      'OnePersonLab/data -> /data, OnePersonLab/projects -> /projects'
+    );
+    expect(screen.queryByTestId('opl-managed-update-apply-installation_carrier')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-apply-codex_surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-rollback-codex_surface')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
@@ -526,7 +559,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_toolchain'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
@@ -536,36 +569,36 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.updates.confirmation.willNotChange'
     );
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
-      'rollback://runtime_toolchain/previous'
+      'rollback://runtime_substrate/previous'
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
     );
     await waitFor(() =>
       expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
         'settings.oplEnvironmentPage.updates.postAction.title'
       )
     );
-    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('runtime_toolchain');
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('runtime_substrate');
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.postAction.nextCheck'
     );
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.postAction.reloadGuidance'
     );
-    fireEvent.click(screen.getByTestId('opl-managed-update-repair-agent_package_channel'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-repair-capability_packages'));
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'agent_package_channel',
-        receiptId: 'receipt://agent_package_channel/failed-sync',
+        componentId: 'capability_packages',
+        receiptId: 'receipt://capability_packages/failed-sync',
       })
     );
-    fireEvent.click(screen.getByTestId('opl-managed-update-rollback-runtime_toolchain'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-rollback-runtime_substrate'));
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
-      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_toolchain' })
+      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
     );
   });
 
@@ -595,17 +628,18 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'agent_package_channel',
-        receiptId: 'receipt://agent_package_channel/failed-sync',
-      })
-    );
-    await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_exposure',
+        componentId: 'capability_packages',
+        receiptId: 'receipt://capability_packages/failed-sync',
       })
     );
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'runtime_toolchain',
+      componentId: 'runtime_substrate',
+    });
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
+      componentId: 'codex_surface',
+    });
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
+      componentId: 'installation_carrier',
     });
     expect(bridgeMocks.rollbackUpdateComponentInvoke).not.toHaveBeenCalled();
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
@@ -650,32 +684,19 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByTestId('opl-module-maintenance-check'));
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-repair-agent_package_channel'));
+    fireEvent.click(screen.getByTestId('opl-module-maintenance-repair-capability_packages'));
     expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-module-maintenance-confirmation')).toHaveTextContent('Confirm Changes');
     fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
       expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'agent_package_channel',
-        receiptId: 'receipt://agent_package_channel/failed-sync',
+        componentId: 'capability_packages',
+        receiptId: 'receipt://capability_packages/failed-sync',
       })
     );
-
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-apply-capability_exposure'));
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_exposure',
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-rollback-capability_exposure'));
-    fireEvent.click(screen.getByTestId('opl-module-maintenance-confirmation').querySelector('.arco-btn-primary')!);
-    await waitFor(() =>
-      expect(bridgeMocks.rollbackUpdateComponentInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_exposure',
-      })
-    );
+    expect(screen.getByTestId('opl-module-maintenance-component-codex_surface')).toHaveTextContent('Codex Surface');
+    expect(screen.queryByTestId('opl-module-maintenance-apply-codex_surface')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-rollback-codex_surface')).not.toBeInTheDocument();
   });
 
   it('does not expose component mutation buttons for dirty managed module checkouts', async () => {
@@ -685,7 +706,7 @@ describe('RuntimeSettings app state bridge usage', () => {
         managed_update: {
           ...managedUpdateStatusResult.parsed.managed_update,
           components: managedUpdateStatusResult.parsed.managed_update.components.map((component) =>
-            component.component_id === 'agent_package_channel'
+            component.component_id === 'capability_packages'
               ? { ...component, dirty_checkout: true, safe_to_apply: true, rollback_allowed: true }
               : component
           ),
@@ -697,11 +718,11 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
-    const component = screen.getByTestId('opl-module-maintenance-component-agent_package_channel');
+    const component = screen.getByTestId('opl-module-maintenance-component-capability_packages');
     expect(component).toHaveTextContent('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
-    expect(screen.queryByTestId('opl-module-maintenance-apply-agent_package_channel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-module-maintenance-repair-agent_package_channel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-module-maintenance-rollback-agent_package_channel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-apply-capability_packages')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-repair-capability_packages')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-module-maintenance-rollback-capability_packages')).not.toBeInTheDocument();
   });
 
   it('projects background managed update maintenance timestamps and failures into Settings Runtime', async () => {
@@ -794,16 +815,18 @@ describe('RuntimeSettings app state bridge usage', () => {
       });
     });
 
-    await waitFor(() => expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
     const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
-    expect(backgroundStatus).toHaveTextContent('auto_apply capability_exposure completed');
+    expect(backgroundStatus).toHaveTextContent('auto_apply capability_packages completed');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastSkipReason');
-    expect(backgroundStatus).toHaveTextContent('runtime_toolchain: restart_required');
+    expect(backgroundStatus).toHaveTextContent('installation_carrier: host_executor_required');
+    expect(backgroundStatus).toHaveTextContent('runtime_substrate: restart_required');
+    expect(backgroundStatus).toHaveTextContent('codex_surface: manual_confirmation_required');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.reloadGuidance');
-    expect(backgroundStatus).toHaveTextContent('Reload after applying capability_exposure.');
+    expect(backgroundStatus).toHaveTextContent('Reload after applying capability_packages.');
   });
 
   it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {

@@ -711,7 +711,7 @@
     "updates": {
       "standard_channel": {
         "implementation_reference": "electron_autoUpdater_background_download_update_downloaded_restart_prompt",
-        "metadata_scope": ["latest-mac.yml", "latest-arm64-mac.yml"],
+        "metadata_scope": ["latest-arm64-mac.yml"],
         "download_policy": "background_download",
         "apply_policy": "restart_when_ready",
         "ready_prompt": "prompt_restart_after_download_ready",
@@ -732,7 +732,7 @@
         "trigger": "ready_to_launch first-run completion or explicit ready entry",
         "target_route": "/guid",
         "route_state": "postInstallSelfCheck",
-        "prompt_policy": "localized Codex CLI read-only diagnosis prompt describing target OPL working mode",
+        "prompt_policy": "localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path",
         "target_state_checks": [
           "codex_cli_callable",
           "ui_language_policy",
@@ -1382,6 +1382,7 @@
       "user_data_artifacts"
     ],
     "ordinary_ui_must_not_use_legacy_names": [
+      "app_binary",
       "runtime_toolchain",
       "agent_package_channel",
       "capability_exposure",

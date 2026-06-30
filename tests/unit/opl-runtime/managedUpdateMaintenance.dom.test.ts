@@ -60,29 +60,32 @@ const managedUpdateAutoApplyPlanResult = {
       reload_guidance: 'Reload visible OPL capabilities after background maintenance.',
       components: [
         {
-          component_id: 'app_binary',
-          state: 'update_available',
+          component_id: 'installation_carrier',
+          state: 'host_executor_required',
           safe_to_apply: true,
-          needs_restart: true,
-          reload_guidance: 'Install the app update from the standard updater.',
+          host_executor_required: true,
+          host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
+          data_volume_preservation: 'required_before_replacing_docker_webui_image',
+          preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
+          required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
+          manual_guidance: 'Update the installation carrier from the host, not from opl update apply.',
         },
         {
-          component_id: 'runtime_toolchain',
+          component_id: 'runtime_substrate',
           state: 'update_available',
           safe_to_apply: true,
           needs_restart: true,
           reload_guidance: 'Restart the app before the new runtime is visible.',
         },
         {
-          component_id: 'agent_package_channel',
+          component_id: 'capability_packages',
           state: 'update_available',
           safe_to_apply: true,
           reload_guidance: 'Reload Codex plugin cache after agent package sync.',
         },
         {
-          component_id: 'capability_exposure',
+          component_id: 'codex_surface',
           state: 'staged',
-          safe_to_apply: true,
           needs_reload: true,
           reload_guidance: 'Reload the app to refresh visible capabilities.',
         },
@@ -134,7 +137,7 @@ describe('managed update background maintenance scheduler', () => {
     stop();
   });
 
-  it('auto-applies clean managed agent and capability components from background plans', async () => {
+  it('auto-applies only clean managed kernel components from background plans', async () => {
     await executeManagedUpdateRead('plan', {
       background: true,
       trigger: 'daily_background_maintenance',
@@ -142,31 +145,33 @@ describe('managed update background maintenance scheduler', () => {
 
     await waitFor(() =>
       expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
-        componentId: 'agent_package_channel',
+        componentId: 'capability_packages',
       })
     );
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
-      componentId: 'capability_exposure',
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
+      componentId: 'codex_surface',
     });
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'app_binary',
+      componentId: 'installation_carrier',
     });
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
-      componentId: 'runtime_toolchain',
+      componentId: 'runtime_substrate',
     });
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('completed');
     expect(snapshot.lastAction).toEqual({
       kind: 'auto_apply',
-      componentId: 'capability_exposure',
+      componentId: 'capability_packages',
       status: 'completed',
       at: expect.any(String),
-      reloadGuidance: 'Reload after applying capability_exposure.',
+      reloadGuidance: 'Reload after applying capability_packages.',
     });
-    expect(snapshot.lastSkipReason).toContain('app_binary: restart_required');
-    expect(snapshot.lastSkipReason).toContain('runtime_toolchain: restart_required');
-    expect(snapshot.reloadGuidance).toBe('Reload after applying capability_exposure.');
+    expect(snapshot.lastSkipReason).toContain('installation_carrier: host_executor_required');
+    expect(snapshot.lastSkipReason).toContain('runtime_substrate: restart_required');
+    expect(snapshot.lastSkipReason).toContain('codex_surface: manual_confirmation_required');
+    expect(snapshot.reloadGuidance).toBe('Reload after applying capability_packages.');
     expect(snapshot.result?.surface).toBe('update_apply');
   });
 
@@ -182,12 +187,12 @@ describe('managed update background maintenance scheduler', () => {
           execution: { status: 'completed' },
           components: [
             {
-              component_id: 'agent_package_channel',
+              component_id: 'capability_packages',
               state: 'current',
               safe_to_apply: false,
             },
             {
-              component_id: 'capability_exposure',
+              component_id: 'codex_surface',
               state: 'current',
               safe_to_apply: false,
             },

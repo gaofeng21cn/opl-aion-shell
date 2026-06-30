@@ -1264,7 +1264,7 @@
     "accessTitle": "访问",
     "accessDescription": "配置桌面和远程访问入口。",
     "maintenanceTitle": "维护",
-    "maintenanceDescription": "打开运行状态、修复本机服务、管理智能体包，或查看存储与数据清理。",
+    "maintenanceDescription": "打开运行状态、修复本机服务、管理能力包，或查看存储与数据清理。",
     "actions": {
       "openRuntimeStatus": "打开运行状态",
       "openRuntimeSettings": "打开维护",
@@ -1392,7 +1392,7 @@
   },
   "runtimePage": {
     "title": "维护",
-    "description": "检查本机 App、工作目录、后台服务、智能体包、更新和本地数据是否需要处理。技术细节默认收起。",
+    "description": "检查本机 App、工作目录、后台服务、能力包、更新和本地数据是否需要处理。技术细节默认收起。",
     "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
     "latestStableDetail": "GitHub 最新稳定版：{{version}}",
     "releaseChannels": {
@@ -1754,6 +1754,8 @@
       "staged": "已暂存",
       "needs_restart": "需要重启",
       "needs_reload": "需要重新加载",
+      "host_executor_required": "需要主机更新",
+      "manual_required": "需要手动处理",
       "failed_with_repair": "需要修复",
       "skipped_manual_required": "需要手动处理",
       "compatible": "兼容",
@@ -1821,17 +1823,21 @@
       }
     },
     "moduleMaintenance": {
-      "title": "智能体模块维护",
+      "title": "能力包维护",
       "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 能力包，以及 App/Codex 中能看到的 Codex Surface。这里不会绕过 OPL 托管更新内核。",
-      "moduleCount": "{{ready}} / {{total}} 个模块就绪",
-      "modulesTitle": "已安装智能体模块",
-      "actionsTitle": "模块维护动作",
+      "moduleCount": "{{ready}} / {{total}} 个能力包就绪",
+      "modulesTitle": "已安装能力包",
+      "actionsTitle": "能力包维护动作",
       "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管能力包和 Codex Surface 变更，不绕过内核。",
       "components": {
+        "capability_packages": "OPL 能力包",
+        "codex_surface": "Codex Surface",
         "agent_package_channel": "OPL 能力包",
         "capability_exposure": "Codex Surface"
       },
       "componentDescriptions": {
+        "capability_packages": "更新由 OPL 管理的技能和模块包。",
+        "codex_surface": "刷新 Codex 可见的插件和技能入口。",
         "agent_package_channel": "更新由 OPL 管理的技能和模块包。",
         "capability_exposure": "刷新 Codex 可见的插件和技能入口。"
       },
@@ -1863,7 +1869,16 @@
       "rollbackRef": "回滚：{{ref}}",
       "needsRestart": "需要重启",
       "needsReload": "需要重新加载",
+      "hostUpdateRoute": "主机更新路径：{{route}}",
+      "dataVolumePreservation": "数据卷保留：{{value}}",
+      "preservedMounts": "保留挂载：{{value}}",
+      "requiredPreservationEvidence": "所需保留证明：{{value}}",
       "components": {
+        "installation_carrier": "安装载体",
+        "runtime_substrate": "运行时基座",
+        "capability_packages": "OPL 能力包",
+        "companion_tools": "辅助工具",
+        "codex_surface": "Codex Surface",
         "app_binary": "安装载体",
         "runtime_toolchain": "运行时基座",
         "agent_package_channel": "OPL 能力包",
@@ -1896,6 +1911,7 @@
         "canRepair": "检测到可修复问题；可以运行修复动作。",
         "needsRestart": "更新已准备好，但需要重启 App 后生效。",
         "needsReload": "更新后需要重新加载 App 或 Codex 能力。",
+        "hostExecutorRequired": "这个安装载体更新必须通过主机更新路径执行，不会由 OPL update apply 替换载体。",
         "manualRequired": "需要你手动确认，App 不会静默自动处理。",
         "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
         "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",

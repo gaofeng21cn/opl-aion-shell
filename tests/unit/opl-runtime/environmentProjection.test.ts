@@ -29,6 +29,10 @@ const t = (key: string, options?: Record<string, string | number>) => {
   return options?.status ? String(options.status) : key;
 };
 
+Object.defineProperty(globalThis, '__OPL_RELEASE_VERSION__', { value: '', configurable: true });
+Object.defineProperty(globalThis, '__APP_VERSION__', { value: '26.6.30', configurable: true });
+Object.defineProperty(globalThis, '__SHELL_VERSION__', { value: '26.6.30-shell', configurable: true });
+
 const maintenance: ManagedUpdateMaintenanceSnapshot = {
   result: null,
   running: false,
@@ -56,7 +60,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
       reloadGuidance: null,
       components: [
         {
-          id: 'app_binary',
+          id: 'installation_carrier',
           label: 'Installation carrier',
           state: 'current',
           conditions: [],
@@ -70,7 +74,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
           needsReload: false,
         },
         {
-          id: 'runtime_toolchain',
+          id: 'runtime_substrate',
           label: 'Runtime substrate',
           state: 'update_available',
           conditions: [],
@@ -84,7 +88,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
           needsReload: false,
         },
         {
-          id: 'agent_package_channel',
+          id: 'capability_packages',
           label: 'OPL capability packages',
           state: 'failed_with_repair',
           conditions: [],
@@ -157,7 +161,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
 
   it('chooses safe maintenance actions without applying restart-required runtime updates', () => {
     const runtimeToolchain = {
-      id: 'runtime_toolchain',
+      id: 'runtime_substrate',
       label: 'Runtime substrate',
       state: 'update_available',
       conditions: [],
@@ -171,7 +175,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
       needsReload: false,
     };
     const agentPackages = {
-      id: 'agent_package_channel',
+      id: 'capability_packages',
       label: 'OPL capability packages',
       state: 'failed_with_repair',
       conditions: [],

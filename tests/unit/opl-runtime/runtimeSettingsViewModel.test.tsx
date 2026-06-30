@@ -3,6 +3,15 @@ import { buildRuntimeSettingsViewModel } from '@/renderer/pages/settings/Runtime
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import { readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 
+vi.mock('@/common/config/oplProductProfile', () => ({
+  getOplDefaultHomeAssistants: () => [
+    { id: 'mas', display_name: 'MAS' },
+    { id: 'mag', display_name: 'MAG' },
+    { id: 'rca', display_name: 'RCA' },
+    { id: 'bookforge', display_name: 'BookForge' },
+  ],
+}));
+
 const t = (key: string, values?: Record<string, string | number>) => {
   const renderedValues = Object.values(values ?? {})
     .filter((value) => value !== undefined && value !== null && String(value).length > 0)
@@ -56,25 +65,25 @@ const managedUpdateResult = {
     update_channel: 'stable',
     components: [
       {
-        component_id: 'app_binary',
+        component_id: 'installation_carrier',
         display_group: 'Installation carrier',
         state: 'current',
       },
       {
-        component_id: 'runtime_toolchain',
+        component_id: 'runtime_substrate',
         display_group: 'Runtime substrate',
         state: 'update_available',
         safe_to_apply: true,
         needs_restart: true,
       },
       {
-        component_id: 'agent_package_channel',
+        component_id: 'capability_packages',
         display_group: 'OPL capability packages',
         state: 'failed_with_repair',
         repair_action: 'agent_package_reconcile_and_skill_sync_only',
       },
       {
-        component_id: 'capability_exposure',
+        component_id: 'codex_surface',
         display_group: 'Codex Surface',
         state: 'current',
       },

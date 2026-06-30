@@ -20,7 +20,7 @@ import { formatStatus, type Translate } from '../sections/runtimeStateView';
 export type RuntimeSettingsActions = {
   openStorageSettings: () => void;
   openUpdateModal: () => void;
-  runMaintenanceHubCheck: (target: 'runtimeToolchain' | 'capabilityPacks') => void;
+  runMaintenanceHubCheck: (target: 'runtimeSubstrate' | 'capabilityPacks') => void;
   runMakeOplUsable: () => void;
   runRepairSuggestions: () => void;
 };
@@ -31,7 +31,7 @@ export type RuntimeSettingsViewModelInput = {
   managedUpdateMaintenance: ManagedUpdateMaintenanceSnapshot;
   managedUpdatePlane: ManagedUpdatePlane;
   activeReadOperation: 'status' | 'check' | 'plan' | null;
-  maintenanceHubCheckTarget: 'runtimeToolchain' | 'capabilityPacks' | null;
+  maintenanceHubCheckTarget: 'runtimeSubstrate' | 'capabilityPacks' | null;
   makeUsableRunning: boolean;
   actions: RuntimeSettingsActions;
   t: Translate;
@@ -58,10 +58,10 @@ export function buildRuntimeSettingsViewModel({
     t,
   });
   const {
-    appBinaryComponent,
-    runtimeToolchainComponent,
-    agentPackageComponent,
-    capabilityExposureComponent,
+    installationCarrierComponent,
+    runtimeSubstrateComponent,
+    capabilityPackagesComponent,
+    codexSurfaceComponent,
     attentionCount,
     moduleReady,
     modules,
@@ -69,17 +69,17 @@ export function buildRuntimeSettingsViewModel({
   const updateReadDisabled = Boolean(activeReadOperation && activeReadOperation !== 'check');
   const capabilityPacksHealthy =
     moduleReady >= modules.length &&
-    (!agentPackageComponent || componentStatusTone(agentPackageComponent) === 'green') &&
-    (!capabilityExposureComponent || componentStatusTone(capabilityExposureComponent) === 'green');
+    (!capabilityPackagesComponent || componentStatusTone(capabilityPackagesComponent) === 'green') &&
+    (!codexSurfaceComponent || componentStatusTone(codexSurfaceComponent) === 'green');
   const maintenanceHubItems: RuntimeMaintenanceHubItem[] = [
     {
       key: 'appUpdates',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'),
-      detail: appBinaryComponent
-        ? componentUserSummary(appBinaryComponent, t)
+      detail: installationCarrierComponent
+        ? componentUserSummary(installationCarrierComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.description'),
-      status: formatStatus(appBinaryComponent?.state ?? 'unknown', t),
-      tone: appBinaryComponent ? componentStatusTone(appBinaryComponent) : 'orange',
+      status: formatStatus(installationCarrierComponent?.state ?? 'unknown', t),
+      tone: installationCarrierComponent ? componentStatusTone(installationCarrierComponent) : 'orange',
       icon: <UpdateRotation theme='outline' />,
       actionLabel: t('settings.checkForUpdates'),
       onAction: actions.openUpdateModal,
@@ -87,26 +87,26 @@ export function buildRuntimeSettingsViewModel({
     {
       key: 'runtimeToolchain',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'),
-      detail: runtimeToolchainComponent
-        ? componentUserSummary(runtimeToolchainComponent, t)
+      detail: runtimeSubstrateComponent
+        ? componentUserSummary(runtimeSubstrateComponent, t)
         : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.description'),
-      status: formatStatus(runtimeToolchainComponent?.state ?? 'unknown', t),
-      tone: runtimeToolchainComponent ? componentStatusTone(runtimeToolchainComponent) : 'orange',
+      status: formatStatus(runtimeSubstrateComponent?.state ?? 'unknown', t),
+      tone: runtimeSubstrateComponent ? componentStatusTone(runtimeSubstrateComponent) : 'orange',
       icon: <UpdateRotation theme='outline' />,
       actionLabel: t('settings.oplEnvironmentPage.updates.actions.reviewRuntimeToolchain'),
       actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.actionHelp'),
-      actionLoading: maintenanceHubCheckTarget === 'runtimeToolchain',
+      actionLoading: maintenanceHubCheckTarget === 'runtimeSubstrate',
       actionDisabled: updateReadDisabled,
-      onAction: () => actions.runMaintenanceHubCheck('runtimeToolchain'),
+      onAction: () => actions.runMaintenanceHubCheck('runtimeSubstrate'),
     },
     {
       key: 'capabilityPacks',
       title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'),
       detail:
-        agentPackageComponent || capabilityExposureComponent
+        capabilityPackagesComponent || codexSurfaceComponent
           ? [
-              agentPackageComponent ? componentUserSummary(agentPackageComponent, t) : null,
-              capabilityExposureComponent ? componentUserSummary(capabilityExposureComponent, t) : null,
+              capabilityPackagesComponent ? componentUserSummary(capabilityPackagesComponent, t) : null,
+              codexSurfaceComponent ? componentUserSummary(codexSurfaceComponent, t) : null,
             ]
               .filter((value): value is string => Boolean(value))
               .join(' ')

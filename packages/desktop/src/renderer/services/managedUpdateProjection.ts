@@ -7,10 +7,11 @@
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
 
 export type ManagedUpdateComponentId =
-  | 'app_binary'
-  | 'runtime_toolchain'
-  | 'agent_package_channel'
-  | 'capability_exposure';
+  | 'installation_carrier'
+  | 'runtime_substrate'
+  | 'capability_packages'
+  | 'companion_tools'
+  | 'codex_surface';
 
 export type ManagedUpdateCondition = {
   id: string;
@@ -22,6 +23,7 @@ export type ManagedUpdateCondition = {
 
 export type ManagedUpdateComponent = {
   id: ManagedUpdateComponentId;
+  sourceId?: string;
   label: string;
   state: string;
   conditions: ManagedUpdateCondition[];
@@ -38,6 +40,11 @@ export type ManagedUpdateComponent = {
   reloadGuidance?: string;
   manualGuidance?: string;
   manualRequired: boolean;
+  hostExecutorRequired: boolean;
+  hostUpdateRoute?: string;
+  dataVolumePreservation?: string;
+  preservedMounts: string[];
+  requiredPreservationEvidence: string[];
   developerCheckout: boolean;
   dirtyCheckout: boolean;
   safeToApply: boolean;
@@ -56,18 +63,35 @@ export type ManagedUpdatePlane = {
 };
 
 export const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = [
-  'app_binary',
-  'runtime_toolchain',
-  'agent_package_channel',
-  'capability_exposure',
+  'installation_carrier',
+  'runtime_substrate',
+  'capability_packages',
+  'companion_tools',
+  'codex_surface',
 ];
 
 const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
-  app_binary: 'Installation carrier',
-  runtime_toolchain: 'Runtime substrate',
-  agent_package_channel: 'OPL capability packages',
-  capability_exposure: 'Codex Surface',
+  installation_carrier: 'Installation carrier',
+  runtime_substrate: 'Runtime substrate',
+  capability_packages: 'OPL capability packages',
+  companion_tools: 'Companion tools',
+  codex_surface: 'Codex Surface',
 };
+
+const MANAGED_UPDATE_COMPONENT_ALIASES: Record<string, ManagedUpdateComponentId> = {
+  app_binary: 'installation_carrier',
+  runtime_toolchain: 'runtime_substrate',
+  codex_cli_fallback: 'runtime_substrate',
+  embedded_codex_executor: 'runtime_substrate',
+  agent_packages: 'capability_packages',
+  agent_package_channel: 'capability_packages',
+  capability_exposure: 'codex_surface',
+};
+
+const MUTATION_FORBIDDEN_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
+  'installation_carrier',
+  'codex_surface',
+]);
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',
@@ -88,6 +112,21 @@ function firstOplString(...values: unknown[]): string | undefined {
     if (stringValue) return stringValue;
   }
   return undefined;
+}
+
+function stringArrayValue(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((entry) => firstOplString(entry)).filter((entry): entry is string => Boolean(entry))
+    : [];
+}
+
+export function canonicalManagedUpdateComponentId(value: unknown): ManagedUpdateComponentId | null {
+  const raw = firstOplString(value);
+  if (!raw) return null;
+  if (MANAGED_UPDATE_COMPONENT_IDS.includes(raw as ManagedUpdateComponentId)) {
+    return raw as ManagedUpdateComponentId;
+  }
+  return MANAGED_UPDATE_COMPONENT_ALIASES[raw] ?? null;
 }
 
 function managedUpdateRoot(parsed: unknown, appState: Record<string, unknown>): Record<string, unknown> {
@@ -111,7 +150,7 @@ function managedUpdateComponentRecords(root: Record<string, unknown>): Record<st
 function findRepairAction(root: Record<string, unknown>, componentId: string): Record<string, unknown> {
   return (
     oplRecordList(root.repair_actions).find(
-      (action) => firstOplString(action.component_id, action.componentId) === componentId
+      (action) => canonicalManagedUpdateComponentId(firstOplString(action.component_id, action.componentId)) === componentId
     ) ?? {}
   );
 }
@@ -169,11 +208,13 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
   const root = managedUpdateRoot(parsed, appState);
   const byId = new Map<string, Record<string, unknown>>();
   for (const component of managedUpdateComponentRecords(root)) {
-    const id = firstOplString(component.component_id, component.componentId, component.id);
-    if (id) byId.set(id, component);
+    const sourceId = firstOplString(component.component_id, component.componentId, component.id);
+    const id = canonicalManagedUpdateComponentId(sourceId);
+    if (id && !byId.has(id)) byId.set(id, component);
   }
   const components = MANAGED_UPDATE_COMPONENT_IDS.map((id) => {
     const component = byId.get(id) ?? {};
+    const sourceId = firstOplString(component.component_id, component.componentId, component.id);
     const receipt = oplRecord(component.receipt ?? component.receipts);
     const repairAction = findRepairAction(root, id);
     const state = firstOplString(component.state, component.status, component.health_status) ?? 'unknown';
@@ -218,10 +259,21 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       component.rollback_manual_guidance,
       component.repair_manual_guidance
     );
+    const hostUpdateRoute = firstOplString(component.host_update_route, component.hostUpdateRoute);
+    const dataVolumePreservation = firstOplString(
+      component.data_volume_preservation,
+      component.dataVolumePreservation
+    );
+    const hostExecutorRequired =
+      state === 'host_executor_required' ||
+      oplBoolean(component.host_executor_required) ||
+      oplBoolean(component.hostExecutorRequired);
     const manualRequired =
       state === 'manual_required' ||
       state === 'skipped_manual_required' ||
+      state === 'host_executor_required' ||
       oplBoolean(component.manual_required) ||
+      hostExecutorRequired ||
       Boolean(manualGuidance);
     const developerCheckout = Boolean(source && DEVELOPER_CHECKOUT_SOURCES.has(source));
     const dirtyCheckout =
@@ -233,6 +285,7 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
     const mutationBlocked = manualRequired || developerCheckout || dirtyCheckout;
     return {
       id,
+      ...(sourceId && sourceId !== id ? { sourceId } : {}),
       label: firstOplString(component.display_group, component.label, component.name) ?? MANAGED_UPDATE_LABELS[id],
       state,
       conditions: readManagedUpdateConditions(component.conditions, id),
@@ -246,11 +299,16 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       reloadGuidance: firstOplString(component.reload_guidance, component.restart_guidance, root.reload_guidance),
       manualGuidance,
       manualRequired,
+      hostExecutorRequired,
+      hostUpdateRoute,
+      dataVolumePreservation,
+      preservedMounts: stringArrayValue(component.preserved_mounts),
+      requiredPreservationEvidence: stringArrayValue(component.required_preservation_evidence),
       developerCheckout,
       dirtyCheckout,
-      safeToApply: rawSafeToApply && !mutationBlocked,
-      repairAllowed: rawRepairAllowed && !mutationBlocked,
-      rollbackAllowed: rawRollbackAllowed && !mutationBlocked,
+      safeToApply: rawSafeToApply && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      repairAllowed: rawRepairAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      rollbackAllowed: rawRollbackAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
     };
   });
   return {
