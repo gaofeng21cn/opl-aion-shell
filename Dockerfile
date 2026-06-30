@@ -34,11 +34,12 @@ RUN npm install -g --prefix /opt/codex-cli "${OPL_CODEX_NPM_SPEC}" \
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ARG OPL_WEBUI_IMAGE_PROFILE=webui-full
+ARG OPL_WEBUI_BUN_VERSION=1.2.23
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git \
   && rm -rf /var/lib/apt/lists/* \
-  && npm install -g bun
+  && npm install -g "bun@${OPL_WEBUI_BUN_VERSION}"
 
 COPY package.json bun.lock ./
 COPY packages/desktop/package.json ./packages/desktop/package.json
@@ -47,7 +48,7 @@ COPY packages/web-cli/package.json ./packages/web-cli/package.json
 COPY packages/web-host/package.json ./packages/web-host/package.json
 COPY patches/ ./patches/
 
-RUN bun install --frozen-lockfile --ignore-scripts
+RUN bun install --frozen-lockfile --ignore-scripts --network-concurrency 8
 
 COPY . .
 COPY --from=opl-framework /opt/opl-framework ./resources/opl-image-seed/payload/opl_framework
@@ -62,7 +63,7 @@ RUN mkdir -p ./resources/opl-image-seed/payload/companion_skills ./resources/opl
 
 ENV NODE_ENV=production
 ENV OPL_WEBUI_IMAGE_PROFILE=${OPL_WEBUI_IMAGE_PROFILE}
-RUN bunx electron-vite build --config packages/desktop/electron.vite.config.ts
+RUN NODE_OPTIONS=--max-old-space-size=4096 bunx electron-vite build --config packages/desktop/electron.vite.config.ts
 RUN node scripts/pack-web-cli.js
 
 FROM node:22-bookworm-slim AS runtime
