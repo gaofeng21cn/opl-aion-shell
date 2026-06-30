@@ -22,7 +22,9 @@ export type SettingsShellAdapterSlotProps = {
   onCapabilitiesTabChange: (tab: CapabilitiesTab) => void;
 };
 
-type SettingsSlotRenderer = (props: Pick<SettingsShellAdapterSlotProps, 'capabilitiesTab' | 'onCapabilitiesTabChange'>) => React.ReactNode;
+type SettingsSlotRenderer = (
+  props: Pick<SettingsShellAdapterSlotProps, 'capabilitiesTab' | 'onCapabilitiesTabChange'>
+) => React.ReactNode;
 
 const settingsSlotRenderers: Record<string, SettingsSlotRenderer> = {
   OverviewSettings: () => <OverviewSettings withWrapper={false} />,

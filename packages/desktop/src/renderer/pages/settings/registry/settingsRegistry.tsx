@@ -223,7 +223,9 @@ export type SettingsRenderTarget = {
 };
 
 export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget {
-  const routeTarget = parseSettingsRouteTarget(legacyRedirectTargets[tabId] ?? LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId);
+  const routeTarget = parseSettingsRouteTarget(
+    legacyRedirectTargets[tabId] ?? LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId
+  );
   const routeId = LEGACY_SETTINGS_ANCHOR_REMAP[routeTarget.routeId] ?? routeTarget.routeId;
   const slotId = routeSlotIds.get(routeId) ?? fallbackRouteSlots[routeId]?.slotId;
   const slotConfig = slotId ? settingsControlPlane?.slot_registry?.[slotId] : undefined;
