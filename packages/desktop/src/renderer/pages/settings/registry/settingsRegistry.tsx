@@ -92,9 +92,9 @@ export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> 
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = getOplGuiLegacySettingsRouteRedirects();
 
-export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {
-  ...(settingsControlPlane?.extension_anchor_remap ?? {}),
-};
+export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = settingsControlPlane?.extension_anchor_remap
+  ? { ...settingsControlPlane.extension_anchor_remap }
+  : {};
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 
 export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefined> = {

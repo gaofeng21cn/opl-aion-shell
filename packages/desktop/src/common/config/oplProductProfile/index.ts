@@ -2081,7 +2081,7 @@ export function getOplGuiSettingsVisibleTabs(): string[] {
 }
 
 export function getOplGuiSettingsSecondaryPageIds(): string[] {
-  return [...OPL_PRODUCT_PROFILE.settings.control_plane.secondary_pages.map((page) => page.id)];
+  return OPL_PRODUCT_PROFILE.settings.control_plane.secondary_pages.map((page) => page.id);
 }
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
