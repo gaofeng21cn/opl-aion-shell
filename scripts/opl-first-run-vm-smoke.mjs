@@ -2155,6 +2155,32 @@ function writeOplJsonCommandErrorArtifacts(basePath, error, secret) {
   writeJsonArtifact(`${basePath}.error.json`, oplJsonCommandDiagnostics(error), secret);
 }
 
+function captureOplJsonCommandErrorArtifacts(basePath, error, secret) {
+  if (!(error instanceof OplJsonCommandError)) return null;
+  const diagnostics = error.diagnostics ?? {};
+  const summary = {
+    status: 'captured',
+    artifact_error_txt: `${path.basename(basePath)}.error.txt`,
+    artifact_error_json: `${path.basename(basePath)}.error.json`,
+    command: diagnostics.command ?? null,
+    status_code: diagnostics.status ?? null,
+    signal: diagnostics.signal ?? null,
+    timed_out: diagnostics.timed_out ?? null,
+  };
+  try {
+    writeOplJsonCommandErrorArtifacts(basePath, error, secret);
+    return summary;
+  } catch (writeError) {
+    const fallback = `${basePath}.error.write-error.txt`;
+    fs.writeFileSync(fallback, writeError instanceof Error ? writeError.message : String(writeError), 'utf8');
+    return {
+      ...summary,
+      status: 'write_failed',
+      artifact_write_error: path.basename(fallback),
+    };
+  }
+}
+
 function captureMacScreenArtifact(target) {
   if (process.env.OPL_FIRST_RUN_ENABLE_MACOS_SCREENCAPTURE !== '1') {
     fs.writeFileSync(
@@ -4936,20 +4962,32 @@ async function main() {
     );
 
     if (codexApiKey && !options.bootstrapLaunchDiagnostics) {
+      const codexConfigurePath = path.join(options.artifacts, 'codex-configure.json');
       const codexConfigure = await runSmokePhase(
         writeSmokeEvent,
         'configure_codex_api_key',
-        () =>
-          configureCodexApiKeyForSmoke(
-            withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
-            codexApiKey
-          ),
+        () => {
+          try {
+            return configureCodexApiKeyForSmoke(
+              withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs),
+              codexApiKey
+            );
+          } catch (error) {
+            const diagnostics = captureOplJsonCommandErrorArtifacts(codexConfigurePath, error, codexApiKey);
+            if (diagnostics) {
+              writeSmokeEventSafely(writeSmokeEvent, 'configure_codex_api_key_diagnostics', diagnostics.status, {
+                ...diagnostics,
+              });
+            }
+            throw error;
+          }
+        },
         {
           source: 'codex_api_key_file',
           timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
       );
-      writeJsonArtifact(path.join(options.artifacts, 'codex-configure.json'), codexConfigure, codexApiKey);
+      writeJsonArtifact(codexConfigurePath, codexConfigure, codexApiKey);
     }
 
     if (shouldTerminateExistingApp()) {
@@ -5419,6 +5457,7 @@ export const __test =
         OplJsonCommandError,
         oplJsonCommandDiagnostics,
         writeOplJsonCommandErrorArtifacts,
+        captureOplJsonCommandErrorArtifacts,
         resolveOplProbeTimeoutMs,
         eventTimestampMs,
         shouldProbeExistingGuidEntryBeforeFirstRun,

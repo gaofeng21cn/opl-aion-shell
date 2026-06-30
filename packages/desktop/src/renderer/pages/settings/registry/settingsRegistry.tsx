@@ -38,24 +38,23 @@ export type AppSettingsTopLevelTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[n
 const settingsControlPlane = getOplGuiSettingsControlPlane();
 const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
-const ordinaryRoutesById = new Map(settingsControlPlane.ordinary_routes.map((route) => [route.id, route]));
-const secondaryPagesById = new Map(settingsControlPlane.secondary_pages.map((page) => [page.id, page]));
+const ordinaryRoutes = settingsControlPlane?.ordinary_routes ?? [];
+const secondaryPages = settingsControlPlane?.secondary_pages ?? [];
+const ordinaryRoutesById = new Map(ordinaryRoutes.map((route) => [route.id, route]));
+const secondaryPagesById = new Map(secondaryPages.map((page) => [page.id, page]));
 
 export const BUILTIN_TAB_IDS = APP_SETTINGS_TOP_LEVEL_TAB_IDS.filter((id) => profileTabIds.includes(id));
 
 export type BuiltinSettingsTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
 
-export const OPL_SEARCHABLE_SECONDARY_TAB_IDS = settingsControlPlane.secondary_pages
+export const OPL_SEARCHABLE_SECONDARY_TAB_IDS = secondaryPages
   .filter((page) => secondaryPageIds.includes(page.id) && page.visibility === 'secondary_or_deep_link')
   .map((page) => page.id);
 
-export const SETTINGS_DEFAULT_ROUTE = settingsControlPlane.default_route;
+export const SETTINGS_DEFAULT_ROUTE = settingsControlPlane?.default_route ?? '/settings/general';
 
 export const SETTINGS_ROUTE_PATHS: Record<string, string> = Object.fromEntries(
-  [...settingsControlPlane.ordinary_routes, ...settingsControlPlane.secondary_pages].map((route) => [
-    route.id,
-    route.path,
-  ])
+  [...ordinaryRoutes, ...secondaryPages].map((route) => [route.id, route.path])
 );
 
 const pathToSettingsRoute = (path: string): string => {
@@ -82,15 +81,19 @@ const routePathFor = (routeId: string): string => {
   return SETTINGS_DEFAULT_ROUTE;
 };
 
-export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
-  Object.entries(settingsControlPlane.legacy_route_redirects).map(([legacyId, targetId]) => [
-    legacyId,
-    routePathFor(targetId),
-  ])
-);
+export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(settingsControlPlane?.legacy_route_redirects ?? {}).map(([legacyId, targetId]) => [
+      legacyId,
+      routePathFor(targetId),
+    ])
+  );
+}
+
+export const LEGACY_SETTINGS_ROUTE_REDIRECTS = getOplGuiLegacySettingsRouteRedirects();
 
 export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = {
-  ...settingsControlPlane.extension_anchor_remap,
+  ...(settingsControlPlane?.extension_anchor_remap ?? {}),
 };
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 
@@ -104,17 +107,13 @@ export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefine
   advanced: undefined,
 };
 
-const controlPlaneLabelKeys = Object.fromEntries(
-  settingsControlPlane.ordinary_routes.map((route) => [route.id, route.label_key])
-);
+const controlPlaneLabelKeys = Object.fromEntries(ordinaryRoutes.map((route) => [route.id, route.label_key]));
 
 export const OPL_SETTINGS_TAB_LABEL_KEYS: Record<string, string> = {
   ...controlPlaneLabelKeys,
 };
 
-const controlPlaneDefaultLabels = Object.fromEntries(
-  settingsControlPlane.ordinary_routes.map((route) => [route.id, route.default_label_en])
-);
+const controlPlaneDefaultLabels = Object.fromEntries(ordinaryRoutes.map((route) => [route.id, route.default_label_en]));
 
 export const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
   ...controlPlaneDefaultLabels,
@@ -224,8 +223,10 @@ export type SettingsRenderTarget = {
 };
 
 export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget {
-  const routeTarget = parseSettingsRouteTarget(settingsControlPlane.legacy_route_redirects[tabId] ?? tabId);
-  const routeId = routeSlotIds.has(routeTarget.routeId) ? routeTarget.routeId : normalizeOplSettingsTab(routeTarget.routeId);
+  const routeTarget = parseSettingsRouteTarget(settingsControlPlane?.legacy_route_redirects?.[tabId] ?? tabId);
+  const routeId = routeSlotIds.has(routeTarget.routeId)
+    ? routeTarget.routeId
+    : normalizeOplSettingsTab(routeTarget.routeId);
   const slot = getSettingsRenderSlot(routeId);
   const subrouteParam = slot?.subrouteQueryParam ?? 'tab';
   const tabFromRoute = normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);

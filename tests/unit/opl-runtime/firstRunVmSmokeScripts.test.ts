@@ -1688,6 +1688,56 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('captures configure-codex command diagnostics without leaking the API key', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-configure-command-diagnostics-'));
+    try {
+      const error = new vmSmoke.OplJsonCommandError('opl system configure-codex --api-key-stdin --json failed', {
+        schema: 'opl_vm_smoke_opl_command_error.v1',
+        args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
+        command: 'opl system configure-codex --api-key-stdin --json',
+        shell_command: 'command -v opl >/dev/null && opl system configure-codex --api-key-stdin --json',
+        runtime_home: null,
+        full_packaged_runtime: null,
+        standard_bootstrap: { status: 'passed' },
+        managed_opl_bin: '/Users/tester/.opl/one-person-lab/bin',
+        managed_node_bin: null,
+        opl_path: '/Users/tester/.opl/one-person-lab/bin/opl',
+        shell_executable: '/bin/zsh',
+        status: 1,
+        signal: null,
+        timed_out: false,
+        timeout_ms: 90_000,
+        stdout: '{"error":{"code":"unexpected_error"}}\n',
+        stderr: 'config write failed\n',
+        error: null,
+      });
+      const basePath = path.join(artifacts, 'codex-configure.json');
+
+      const summary = vmSmoke.captureOplJsonCommandErrorArtifacts(basePath, error, 'secret-token');
+
+      expect(summary).toEqual({
+        status: 'captured',
+        artifact_error_txt: 'codex-configure.json.error.txt',
+        artifact_error_json: 'codex-configure.json.error.json',
+        command: 'opl system configure-codex --api-key-stdin --json',
+        status_code: 1,
+        signal: null,
+        timed_out: false,
+      });
+      expect(JSON.parse(fs.readFileSync(`${basePath}.error.json`, 'utf8'))).toMatchObject({
+        diagnostics: {
+          command: 'opl system configure-codex --api-key-stdin --json',
+          stdout: '{"error":{"code":"unexpected_error"}}\n',
+          stderr: 'config write failed\n',
+        },
+      });
+      expect(JSON.stringify(summary)).not.toContain('config write failed');
+      expect(JSON.stringify(summary)).not.toContain('secret-token');
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('collects bounded macOS launch diagnostics when packaged GUI boot never reaches CDP', () => {
     const scriptSource = fs.readFileSync(path.join(process.cwd(), 'scripts/opl-first-run-vm-smoke.mjs'), 'utf8');
 
