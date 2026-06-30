@@ -65,6 +65,13 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent
   default: () => <div data-testid='webui-content'>Can Codex CLI and providers work now?</div>,
 }));
 
+vi.mock('@/renderer/pages/settings/sections/AccessSettings', () => ({
+  AccessSettingsContent: () => <div data-testid='access-content'>Model & Account remote Docker WebUI access</div>,
+  default: ({ withWrapper }: { withWrapper?: boolean }) => (
+    <div data-testid='access-content'>Access content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
+  ),
+}));
+
 vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent', () => ({
   default: () => <div data-testid='appearance-content'>Appearance</div>,
 }));
@@ -259,7 +266,8 @@ describe('SettingsModal OPL App navigation', () => {
   it('redirects legacy webui, display, and pet tab requests to Access and Appearance', () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='webui' />);
 
-    expect(screen.getByTestId('webui-content')).toHaveTextContent('Can Codex CLI and providers work now?');
+    expect(screen.getByTestId('access-content')).toHaveTextContent('remote Docker WebUI access');
+    expect(screen.queryByTestId('webui-content')).not.toBeInTheDocument();
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='display' />);
 
