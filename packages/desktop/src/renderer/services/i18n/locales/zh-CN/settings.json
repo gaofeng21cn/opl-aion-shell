@@ -1542,7 +1542,17 @@
       "description": "普通用户可以在这里启用 WebUI、查看访问地址，并找到远程访问相关配置。",
       "webui": "WebUI",
       "docker": "Docker",
-      "remoteAccess": "远程访问"
+      "remoteAccess": "远程访问",
+      "status": "状态：{{status}}",
+      "runtimeStatus": "运行代理：{{status}}",
+      "recoveryStatus": "恢复：{{status}}",
+      "runDryRoute": "检查路径",
+      "payloadRequired": "需要输入",
+      "payloadRequiredHelp": "此操作需要文件或文件夹引用，应从 App action flow 启动。",
+      "confirmationRequired": "变更前确认",
+      "actionDryRunSuccess": "Docker WebUI 路径检查完成。",
+      "actionDryRunFailed": "Docker WebUI 路径检查失败。",
+      "noActions": "暂时没有可用的 Docker WebUI 操作。"
     },
     "actions": {
       "recheck": "重新检查",

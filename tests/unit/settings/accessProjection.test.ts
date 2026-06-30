@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  buildDockerWebuiProjection,
   buildAccessProjection,
   compactAccessDetail,
   normalizeAccessStatus,
@@ -7,6 +8,8 @@ import {
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  oplRecordList: (value: unknown) =>
+    Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [],
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
 }));
 
@@ -94,6 +97,68 @@ describe('buildAccessProjection', () => {
     expect(projection.cards.find((card) => card.key === 'modelAccess')).toMatchObject({
       status: 'ready',
       tone: 'green',
+    });
+  });
+
+  it('reads Docker WebUI ordinary actions from the App settings control center read model', () => {
+    const projection = buildDockerWebuiProjection({
+      settings_control_center: {
+        app_settings_read_model: {
+          docker_webui: {
+            ordinary_status: 'action_available',
+            runtime_proxy: {
+              status: 'diagnose_with_doctor',
+            },
+            failure_recovery: {
+              status: 'available',
+            },
+            ordinary_next_actions: [
+              {
+                action_id: 'settings_install_docker_webui',
+                label: 'Install Docker WebUI',
+                state: 'ready',
+                route: 'opl app action execute --action settings_install_docker_webui',
+                dry_run_route: 'opl app action execute --action settings_install_docker_webui --dry-run',
+                payload_required: false,
+                confirmation_required: true,
+                danger_level: 'medium',
+              },
+              {
+                action_id: 'settings_select_webui_seed',
+                label: 'Select WebUI image seed',
+                state: 'ready',
+                route: 'opl app action execute --action settings_select_webui_seed',
+                dry_run_route: 'opl app action execute --action settings_select_webui_seed --dry-run',
+                payload_required: true,
+                confirmation_required: true,
+                danger_level: 'medium',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(projection).toMatchObject({
+      status: 'action_available',
+      runtimeStatus: 'diagnose_with_doctor',
+      recoveryStatus: 'available',
+      actions: [
+        {
+          actionId: 'settings_install_docker_webui',
+          label: 'Install Docker WebUI',
+          payloadRequired: false,
+          confirmationRequired: true,
+          dangerLevel: 'medium',
+        },
+        {
+          actionId: 'settings_select_webui_seed',
+          label: 'Select WebUI image seed',
+          payloadRequired: true,
+          confirmationRequired: true,
+          dangerLevel: 'medium',
+        },
+      ],
     });
   });
 });

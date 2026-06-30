@@ -1541,7 +1541,17 @@
       "description": "Enable WebUI, inspect access URLs, and find remote access configuration from one place.",
       "webui": "WebUI",
       "docker": "Docker",
-      "remoteAccess": "Remote access"
+      "remoteAccess": "Remote access",
+      "status": "Status: {{status}}",
+      "runtimeStatus": "Runtime proxy: {{status}}",
+      "recoveryStatus": "Recovery: {{status}}",
+      "runDryRoute": "Check route",
+      "payloadRequired": "Needs input",
+      "payloadRequiredHelp": "This action needs a file or folder reference and must be started from the App action flow.",
+      "confirmationRequired": "Confirms before changes",
+      "actionDryRunSuccess": "Docker WebUI route checked.",
+      "actionDryRunFailed": "Docker WebUI route check failed.",
+      "noActions": "Docker WebUI actions are not available yet."
     },
     "actions": {
       "recheck": "Recheck",

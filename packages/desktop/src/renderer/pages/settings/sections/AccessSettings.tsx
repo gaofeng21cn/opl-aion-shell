@@ -5,21 +5,21 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Card, Input, Message, Space, Tag, Typography } from '@arco-design/web-react';
-import { CheckOne, Earth, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
+import { Button, Card, Input, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { CheckOne, Earth, Open, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
-import { buildAccessProjection } from '../accessProjection';
+import { buildAccessProjection, type DockerWebuiAction } from '../accessProjection';
 
 export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   const [codexApiKey, setCodexApiKey] = useState('');
   const [configureLoading, setConfigureLoading] = useState(false);
-  const { cards } = buildAccessProjection(appStateQuery.appState, t);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const { cards, dockerWebui } = buildAccessProjection(appStateQuery.appState, t);
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -38,6 +38,23 @@ export const AccessSettingsContent: React.FC = () => {
       Message.error(t('settings.accessPage.modelAccount.configureFailed'));
     } finally {
       setConfigureLoading(false);
+    }
+  };
+
+  const handleDockerAction = async (action: DockerWebuiAction) => {
+    if (action.payloadRequired) return;
+    setRunningActionId(action.actionId);
+    try {
+      await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: action.actionId,
+        dryRun: true,
+      });
+      Message.success(t('settings.accessPage.remote.actionDryRunSuccess'));
+      await appStateQuery.load('fast', { showRefreshing: true });
+    } catch {
+      Message.error(t('settings.accessPage.remote.actionDryRunFailed'));
+    } finally {
+      setRunningActionId(null);
     }
   };
 
@@ -136,6 +153,15 @@ export const AccessSettingsContent: React.FC = () => {
               <Typography.Text className='block text-13px text-t-secondary break-words'>
                 {t('settings.accessPage.remote.description')}
               </Typography.Text>
+              <div className='mt-10px flex flex-wrap gap-8px'>
+                <Tag color='blue'>{t('settings.accessPage.remote.status', { status: dockerWebui.status })}</Tag>
+                <Tag color='gray'>
+                  {t('settings.accessPage.remote.runtimeStatus', { status: dockerWebui.runtimeStatus })}
+                </Tag>
+                <Tag color='green'>
+                  {t('settings.accessPage.remote.recoveryStatus', { status: dockerWebui.recoveryStatus })}
+                </Tag>
+              </div>
             </div>
             <Space wrap>
               <Tag color='blue'>
@@ -158,8 +184,58 @@ export const AccessSettingsContent: React.FC = () => {
               </Tag>
             </Space>
           </div>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+            {dockerWebui.actions.map((action) => {
+              const actionButton = (
+                <Button
+                  data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
+                  aria-label={`opl-settings-docker-webui-action-${action.actionId}`}
+                  type={action.dangerLevel === 'none' ? 'secondary' : 'primary'}
+                  icon={<Open theme='outline' />}
+                  loading={runningActionId === action.actionId}
+                  disabled={action.payloadRequired}
+                  onClick={() => void handleDockerAction(action)}
+                >
+                  {action.payloadRequired
+                    ? t('settings.accessPage.remote.payloadRequired')
+                    : t('settings.accessPage.remote.runDryRoute')}
+                </Button>
+              );
+              return (
+                <div
+                  key={action.actionId}
+                  className='flex flex-col gap-8px p-12px rd-8px bg-fill-1 min-w-0'
+                  data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
+                >
+                  <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='font-600 text-t-primary break-words'>{action.label}</Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary break-words'>
+                        {action.dryRunRoute || action.route || action.actionId}
+                      </Typography.Text>
+                    </div>
+                    <Space wrap>
+                      <Tag color={action.state === 'ready' ? 'green' : 'orange'}>{action.state}</Tag>
+                      {action.confirmationRequired && (
+                        <Tag color='orange'>{t('settings.accessPage.remote.confirmationRequired')}</Tag>
+                      )}
+                    </Space>
+                  </div>
+                  {action.payloadRequired ? (
+                    <Tooltip content={t('settings.accessPage.remote.payloadRequiredHelp')}>{actionButton}</Tooltip>
+                  ) : (
+                    actionButton
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {dockerWebui.actions.length === 0 && (
+            <Typography.Text className='text-13px text-t-secondary'>
+              {t('settings.accessPage.remote.noActions')}
+            </Typography.Text>
+          )}
         </div>
-        <WebuiModalContent />
       </Card>
     </div>
   );

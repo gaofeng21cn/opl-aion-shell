@@ -6,11 +6,13 @@ import { AccessSettingsContent } from '@/renderer/pages/settings/sections/Access
 
 type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
+  executeActionInvoke: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
+  executeActionInvoke: vi.fn(),
   load: vi.fn(),
 }));
 
@@ -91,6 +93,12 @@ vi.mock('@arco-design/web-react', () => {
   const Tag = ({ children, color: _color, ...props }: React.HTMLAttributes<HTMLSpanElement> & { color?: string }) => (
     <span {...props}>{children}</span>
   );
+  const Tooltip = ({
+    children,
+    content: _content,
+  }: React.PropsWithChildren<{
+    content?: React.ReactNode;
+  }>) => <>{children}</>;
   const Text = ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>;
   const Title = ({
     children,
@@ -126,6 +134,7 @@ vi.mock('@arco-design/web-react', () => {
     },
     Space,
     Tag,
+    Tooltip,
     Typography: { Text, Title },
   };
 });
@@ -134,12 +143,15 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       configureCodex: { invoke: accessSettingsMocks.configureCodexInvoke },
+      executeAction: { invoke: accessSettingsMocks.executeActionInvoke },
     },
   },
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
+  oplRecordList: (value: unknown) =>
+    Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) : [],
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => {
     return {
@@ -168,15 +180,56 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             },
           },
         },
+        settings_control_center: {
+          app_settings_read_model: {
+            docker_webui: {
+              ordinary_status: 'action_available',
+              runtime_proxy: {
+                status: 'diagnose_with_doctor',
+              },
+              failure_recovery: {
+                status: 'available',
+              },
+              ordinary_next_actions: [
+                {
+                  action_id: 'settings_install_docker_webui',
+                  label: 'Install Docker WebUI',
+                  state: 'ready',
+                  route: 'opl app action execute --action settings_install_docker_webui',
+                  dry_run_route: 'opl app action execute --action settings_install_docker_webui --dry-run',
+                  payload_required: false,
+                  confirmation_required: true,
+                  danger_level: 'medium',
+                },
+                {
+                  action_id: 'settings_select_webui_seed',
+                  label: 'Select WebUI image seed',
+                  state: 'ready',
+                  route: 'opl app action execute --action settings_select_webui_seed',
+                  dry_run_route: 'opl app action execute --action settings_select_webui_seed --dry-run',
+                  payload_required: true,
+                  confirmation_required: true,
+                  danger_level: 'medium',
+                },
+                {
+                  action_id: 'settings_diagnose_docker_webui',
+                  label: 'Diagnose Docker WebUI',
+                  state: 'ready',
+                  route: 'opl app action execute --action settings_diagnose_docker_webui',
+                  dry_run_route: 'opl app action execute --action settings_diagnose_docker_webui --dry-run',
+                  payload_required: false,
+                  confirmation_required: false,
+                  danger_level: 'none',
+                },
+              ],
+            },
+          },
+        },
       },
       load: accessSettingsMocks.load,
       refreshing: false,
     };
   },
-}));
-
-vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
-  default: () => <div data-testid='webui-content'>Remote access settings</div>,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -215,6 +268,17 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.remote.webui': 'WebUI',
         'settings.accessPage.remote.docker': 'Docker',
         'settings.accessPage.remote.remoteAccess': 'Remote access',
+        'settings.accessPage.remote.status': `Status: ${options?.status}`,
+        'settings.accessPage.remote.runtimeStatus': `Runtime proxy: ${options?.status}`,
+        'settings.accessPage.remote.recoveryStatus': `Recovery: ${options?.status}`,
+        'settings.accessPage.remote.runDryRoute': 'Check route',
+        'settings.accessPage.remote.payloadRequired': 'Needs input',
+        'settings.accessPage.remote.payloadRequiredHelp':
+          'This action needs a file or folder reference and must be started from the App action flow.',
+        'settings.accessPage.remote.confirmationRequired': 'Confirms before changes',
+        'settings.accessPage.remote.actionDryRunSuccess': 'Docker WebUI route checked.',
+        'settings.accessPage.remote.actionDryRunFailed': 'Docker WebUI route check failed.',
+        'settings.accessPage.remote.noActions': 'Docker WebUI actions are not available yet.',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -232,6 +296,12 @@ describe('AccessSettingsContent', () => {
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
+      stdout: '{}',
+      parsed: {},
+    });
+    mocks.executeActionInvoke.mockResolvedValue({
+      surface: 'app_action',
+      command: 'opl app action execute --action settings_install_docker_webui --dry-run --json',
       stdout: '{}',
       parsed: {},
     });
@@ -265,6 +335,14 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(view.getByText('Docker')).toBeTruthy();
     expect(view.getByText('Remote access')).toBeTruthy();
+    expect(view.getByText('Status: action_available')).toBeTruthy();
+    expect(view.getByText('Runtime proxy: diagnose_with_doctor')).toBeTruthy();
+    expect(view.getByText('Recovery: available')).toBeTruthy();
+    expect(view.getByText('Install Docker WebUI')).toBeTruthy();
+    expect(view.getByText('Select WebUI image seed')).toBeTruthy();
+    expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-docker-webui-route-settings_select_webui_seed')).toBeTruthy();
     expect(view.getByTestId('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByLabelText('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByTestId('opl-settings-configure-codex-button')).toBeTruthy();
@@ -278,7 +356,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
     const firstReadinessCard = view.getByText('Current Model');
-    const remoteControls = view.getByTestId('webui-content');
+    const remoteControls = view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui');
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
@@ -306,5 +384,32 @@ describe('AccessSettingsContent', () => {
     expect(mocks.configureCodexInvoke).not.toHaveBeenCalled();
     expect(mocks.load).not.toHaveBeenCalled();
     expect(await view.findByText('Enter an OPL Codex API key.')).toBeTruthy();
+  });
+
+  it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {
+    const view = render(<AccessSettingsContent />);
+
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
+
+    const mocks = getMocks();
+    await waitFor(() =>
+      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_install_docker_webui',
+        dryRun: true,
+      })
+    );
+    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    expect(await view.findByText('Docker WebUI route checked.')).toBeTruthy();
+  });
+
+  it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
+    const view = render(<AccessSettingsContent />);
+
+    const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
+    expect(seedAction).toHaveAttribute('disabled');
+    expect(seedAction.textContent).toContain('Needs input');
+    fireEvent.click(seedAction);
+
+    expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();
   });
 });
