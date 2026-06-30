@@ -49,9 +49,6 @@ const SettingsShellAdapterSlot: React.FC<SettingsShellAdapterSlotProps> = ({
 
   const renderSlot = settingsSlotRenderers[slot.componentKey];
   if (!renderSlot) {
-    if (import.meta.env.DEV) {
-      console.warn(`Unknown App Settings slot component: ${slot.componentKey}`);
-    }
     return null;
   }
   return renderSlot({ capabilitiesTab, onCapabilitiesTabChange });
