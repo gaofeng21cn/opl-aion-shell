@@ -22,6 +22,22 @@ export type SettingsShellAdapterSlotProps = {
   onCapabilitiesTabChange: (tab: CapabilitiesTab) => void;
 };
 
+type SettingsSlotRenderer = (props: Pick<SettingsShellAdapterSlotProps, 'capabilitiesTab' | 'onCapabilitiesTabChange'>) => React.ReactNode;
+
+const settingsSlotRenderers: Record<string, SettingsSlotRenderer> = {
+  OverviewSettings: () => <OverviewSettings withWrapper={false} />,
+  WorkspaceSettings: () => <WorkspaceSettings withWrapper={false} />,
+  LocalServicesSettings: () => <LocalServicesSettings withWrapper={false} />,
+  RuntimeSettings: () => <RuntimeSettings withWrapper={false} />,
+  CapabilitiesSettingsContent: ({ capabilitiesTab, onCapabilitiesTabChange }) => (
+    <CapabilitiesSettingsContent activeTab={capabilitiesTab} onTabChange={onCapabilitiesTabChange} />
+  ),
+  AccessSettingsContent: () => <AccessSettingsContent />,
+  AppearanceModalContent: () => <AppearanceModalContent />,
+  SystemModalContent: () => <SystemModalContent />,
+  StorageSettings: () => <StorageSettings withWrapper={false} />,
+};
+
 const SettingsShellAdapterSlot: React.FC<SettingsShellAdapterSlotProps> = ({
   slot,
   capabilitiesTab,
@@ -29,28 +45,14 @@ const SettingsShellAdapterSlot: React.FC<SettingsShellAdapterSlotProps> = ({
 }) => {
   if (!slot) return null;
 
-  switch (slot.componentKey) {
-    case 'OverviewSettings':
-      return <OverviewSettings withWrapper={false} />;
-    case 'WorkspaceSettings':
-      return <WorkspaceSettings withWrapper={false} />;
-    case 'LocalServicesSettings':
-      return <LocalServicesSettings withWrapper={false} />;
-    case 'RuntimeSettings':
-      return <RuntimeSettings withWrapper={false} />;
-    case 'CapabilitiesSettingsContent':
-      return <CapabilitiesSettingsContent activeTab={capabilitiesTab} onTabChange={onCapabilitiesTabChange} />;
-    case 'AccessSettingsContent':
-      return <AccessSettingsContent />;
-    case 'AppearanceModalContent':
-      return <AppearanceModalContent />;
-    case 'SystemModalContent':
-      return <SystemModalContent />;
-    case 'StorageSettings':
-      return <StorageSettings withWrapper={false} />;
-    default:
-      return null;
+  const renderSlot = settingsSlotRenderers[slot.componentKey];
+  if (!renderSlot) {
+    if (import.meta.env.DEV) {
+      console.warn(`Unknown App Settings slot component: ${slot.componentKey}`);
+    }
+    return null;
   }
+  return renderSlot({ capabilitiesTab, onCapabilitiesTabChange });
 };
 
 export default SettingsShellAdapterSlot;

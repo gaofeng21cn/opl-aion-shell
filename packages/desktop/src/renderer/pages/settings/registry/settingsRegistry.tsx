@@ -58,17 +58,26 @@ export const SETTINGS_ROUTE_PATHS = Object.fromEntries(
   ])
 ) as Record<BuiltinSettingsTabId, string>;
 
-const legacyRedirectTargets = getOplGuiLegacySettingsRouteRedirects();
+const legacyRedirectTargets = settingsControlPlane?.legacy_route_redirects ?? getOplGuiLegacySettingsRouteRedirects();
 const legacyAnchorRemap = settingsControlPlane?.extension_anchor_remap ?? legacyRedirectTargets;
 
+const parseSettingsRouteTarget = (targetId: string): { routeId: string; queryParams: Record<string, string> } => {
+  const [routeId, query = ''] = targetId.split('?');
+  return {
+    routeId,
+    queryParams: Object.fromEntries(new URLSearchParams(query).entries()),
+  };
+};
+
 const redirectRouteFor = (legacyId: string, targetId: string): string => {
-  if (legacyId === 'skills-hub') return '/settings/capabilities?tab=skills';
-  if (legacyId === 'tools') return '/settings/capabilities?tab=tools';
-  if (legacyId === 'storage' || (secondaryPageIds.includes(legacyId) && legacyId === targetId)) {
-    return `/settings/${legacyId}`;
+  const target = parseSettingsRouteTarget(targetId);
+  const query = new URLSearchParams(target.queryParams).toString();
+  const suffix = query ? `?${query}` : '';
+  if (legacyId === 'storage' || (secondaryPageIds.includes(legacyId) && legacyId === target.routeId)) {
+    return `/settings/${target.routeId}${suffix}`;
   }
-  if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(targetId)) return SETTINGS_DEFAULT_ROUTE;
-  return `/settings/${targetId}`;
+  if (!APP_SETTINGS_TOP_LEVEL_TAB_SET.has(target.routeId)) return SETTINGS_DEFAULT_ROUTE;
+  return `/settings/${target.routeId}${suffix}`;
 };
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = Object.fromEntries(
@@ -202,9 +211,34 @@ export function normalizeOplSettingsTab(tabId: string): string {
 
 export type SettingsCapabilityDetailTab = 'skills' | 'tools';
 
+const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools']);
+
+const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
+  return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;
+};
+
+export type SettingsRenderTarget = {
+  routeId: string;
+  capabilitiesTab: SettingsCapabilityDetailTab;
+};
+
+export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget {
+  const routeTarget = parseSettingsRouteTarget(legacyRedirectTargets[tabId] ?? LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId);
+  const routeId = LEGACY_SETTINGS_ANCHOR_REMAP[routeTarget.routeId] ?? routeTarget.routeId;
+  const slotId = routeSlotIds.get(routeId) ?? fallbackRouteSlots[routeId]?.slotId;
+  const slotConfig = slotId ? settingsControlPlane?.slot_registry?.[slotId] : undefined;
+  const subrouteParam = slotConfig?.subroute_query_param ?? 'tab';
+  const tabFromRoute = normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);
+  const tabFromLegacySlot = normalizeCapabilityDetailTab(slotConfig?.legacy_subroutes?.[tabId]);
+
+  return {
+    routeId,
+    capabilitiesTab: tabFromRoute ?? tabFromLegacySlot ?? 'skills',
+  };
+}
+
 export function capabilityDetailTabFor(tabId: string): SettingsCapabilityDetailTab {
-  if (tabId === 'tools') return 'tools';
-  return 'skills';
+  return resolveSettingsRenderTarget(tabId).capabilitiesTab;
 }
 
 type RegistryItem = {
@@ -415,7 +449,7 @@ function normalizeWrapperPolicy(value: string | undefined): SettingsShellWrapper
 }
 
 export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot | null {
-  const normalizedRouteId = normalizeOplSettingsTab(routeId);
+  const normalizedRouteId = resolveSettingsRenderTarget(routeId).routeId;
   const slotId = routeSlotIds.get(normalizedRouteId) ?? fallbackRouteSlots[normalizedRouteId]?.slotId;
   if (!slotId) return null;
 

@@ -7,7 +7,12 @@ import {
   getBuiltinSettingsNavItems,
 } from '@/renderer/pages/settings/sections/settingsNav';
 import { buildSettingsModalMenuItems } from '@/renderer/pages/settings/registry/settingsRegistry';
-import { getSettingsRenderSlot, getSettingsRenderSlots } from '@/renderer/pages/settings/registry/settingsRegistry';
+import {
+  capabilityDetailTabFor,
+  getSettingsRenderSlot,
+  getSettingsRenderSlots,
+  resolveSettingsRenderTarget,
+} from '@/renderer/pages/settings/registry/settingsRegistry';
 import type { IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 
 const { controlPlane } = vi.hoisted(() => ({
@@ -68,6 +73,20 @@ const { controlPlane } = vi.hoisted(() => ({
       { id: 'workspace', path: '/settings/workspace', ia_group: 'overview', slot_id: 'workspace' },
       { id: 'local-services', path: '/settings/local-services', ia_group: 'maintenance', slot_id: 'local_services' },
     ],
+    legacy_route_redirects: {
+      overview: 'general',
+      runtime: 'environment',
+      system: 'advanced',
+      model: 'environment',
+      agent: 'capabilities',
+      assistants: 'capabilities',
+      'skills-hub': 'capabilities?tab=skills',
+      tools: 'capabilities?tab=tools',
+      display: 'appearance',
+      webui: 'access',
+      pet: 'appearance',
+      about: 'advanced',
+    },
     extension_anchor_remap: {
       overview: 'general',
       runtime: 'environment',
@@ -214,6 +233,19 @@ describe('settingsNav App-owned tabs', () => {
       subrouteQueryParam: 'tab',
       legacySubroutes: { 'skills-hub': 'skills', tools: 'tools' },
     });
+  });
+
+  it('derives capabilities detail tabs from App control-plane legacy subroutes', () => {
+    expect(resolveSettingsRenderTarget('skills-hub')).toEqual({
+      routeId: 'capabilities',
+      capabilitiesTab: 'skills',
+    });
+    expect(resolveSettingsRenderTarget('tools')).toEqual({
+      routeId: 'capabilities',
+      capabilitiesTab: 'tools',
+    });
+    expect(capabilityDetailTabFor('tools')).toBe('tools');
+    expect(capabilityDetailTabFor('capabilities')).toBe('skills');
   });
 
   it('remaps legacy extension anchors before inserting extension settings tabs', () => {
