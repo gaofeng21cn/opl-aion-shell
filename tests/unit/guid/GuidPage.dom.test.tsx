@@ -443,10 +443,10 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('安装后智能自检'));
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('程序化初始化已经完成'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl-flow'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('不要覆盖用户已有的 AGENTS.md'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('模块自动更新'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('OPL Flow'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('用户已有工作区规则可以共存'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA/OMA/OBF'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('后台维护'));
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 
@@ -458,10 +458,10 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Post-install intelligent self-check'));
     expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Programmatic initialization has completed'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('opl-flow'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('Do not overwrite the user'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA'));
-    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('module auto-update'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('OPL Flow'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('existing workspace rules'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('MAS/MAG/RCA/OMA/OBF'));
+    expect(mocks.setInput).toHaveBeenCalledWith(expect.stringContaining('background maintenance'));
     expect(mocks.setInput).not.toHaveBeenCalledWith(expect.stringContaining('始终用中文'));
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });

@@ -63,10 +63,10 @@ export const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = [
 ];
 
 const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
-  app_binary: 'App binary',
-  runtime_toolchain: 'Runtime/toolchain',
-  agent_package_channel: 'Agent packages',
-  capability_exposure: 'Capability exposure',
+  app_binary: 'Installation carrier',
+  runtime_toolchain: 'Runtime substrate',
+  agent_package_channel: 'OPL capability packages',
+  capability_exposure: 'Codex Surface',
 };
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([

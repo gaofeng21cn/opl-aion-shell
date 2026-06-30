@@ -1415,7 +1415,7 @@
         "description": "Conversation files require archive and restore proof before cleanup."
       },
       "runtime": {
-        "title": "Runtime/toolchain",
+        "title": "Runtime substrate",
         "description": "Runtime cleanup must be previewed before it can run."
       },
       "logs": {
@@ -1665,7 +1665,7 @@
     },
     "maintenanceHub": {
       "title": "Maintenance hub",
-      "description": "Use one place for app updates, runtime/toolchain upkeep, capability packs, storage cleanup, and repair suggestions. Actions still run through their existing managed surfaces.",
+      "description": "Use one place for installation carrier updates, runtime substrate upkeep, capability packs, storage cleanup, and repair suggestions. Actions still run through their existing managed surfaces.",
       "makeUsable": {
         "label": "Make OPL usable",
         "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
@@ -1681,18 +1681,18 @@
       },
       "items": {
         "appUpdates": {
-          "title": "App updates",
-          "description": "Check the desktop app updater."
+          "title": "Installation carrier",
+          "description": "Check the App carrier update route."
         },
         "runtimeToolchain": {
-          "title": "Runtime/toolchain",
-          "description": "Check the managed runtime and toolchain lane.",
-          "actionHelp": "Runs the existing managed update check. It does not apply runtime or toolchain changes."
+          "title": "Runtime substrate",
+          "description": "Check the managed runtime substrate lane.",
+          "actionHelp": "Runs the existing managed update check. It does not apply runtime substrate changes."
         },
         "capabilityPacks": {
           "title": "OPL capability packs",
-          "description": "Check OPL agent packages and capability exposure.",
-          "actionHelp": "Runs the existing managed update check for agent packages and visible capability exposure."
+          "description": "Check OPL capability packages and Codex Surface visibility.",
+          "actionHelp": "Runs the existing managed update check for capability packages and Codex Surface visibility."
         },
         "storageCleanup": {
           "title": "Storage cleanup",
@@ -1821,18 +1821,18 @@
     },
     "moduleMaintenance": {
       "title": "Agent module maintenance",
-      "description": "Maintain OPL agent packages for MAS, MAG, RCA, BookForge, and the capabilities visible in the app. This never bypasses the OPL managed update kernel.",
+      "description": "Maintain OPL capability packages for MAS, MAG, RCA, BookForge, and the Codex Surface visible in the app. This never bypasses the OPL managed update kernel.",
       "moduleCount": "{{ready}} / {{total}} modules ready",
       "modulesTitle": "Installed agent modules",
       "actionsTitle": "Module maintenance actions",
-      "actionsDescription": "Check, apply, repair, or roll back managed agent package and capability exposure changes without bypassing OPL.",
+      "actionsDescription": "Check, apply, repair, or roll back managed capability package and Codex Surface changes without bypassing OPL.",
       "components": {
-        "agent_package_channel": "OPL agent packages",
-        "capability_exposure": "Agent capabilities visible in the app"
+        "agent_package_channel": "OPL capability packages",
+        "capability_exposure": "Codex Surface"
       },
       "componentDescriptions": {
-        "agent_package_channel": "Updates packaged agent skills and module packages managed by OPL.",
-        "capability_exposure": "Refreshes the agent capabilities that can be selected and used in the app."
+        "agent_package_channel": "Updates packaged skills and module packages managed by OPL.",
+        "capability_exposure": "Refreshes the Codex-visible plugin and skill surface."
       },
       "status": {
         "manualRequired": "Manual handling required",
@@ -1852,7 +1852,7 @@
     },
     "updates": {
       "title": "Updates & Maintenance",
-      "description": "Check whether the app, runtime toolchain, and OPL agent packages need updates. The default view shows impact and next step; receipts, locks, and internal modes stay in diagnostics.",
+      "description": "Check whether the installation carrier, runtime substrate, companion tools, and OPL capability packages need updates. The default view shows impact and next step; receipts, locks, and internal modes stay in diagnostics.",
       "channel": "Channel: {{channel}}",
       "lockStatus": "Lock: {{status}}",
       "operationMode": "Mode: {{mode}}",
@@ -1863,10 +1863,10 @@
       "needsRestart": "Restart required",
       "needsReload": "Reload required",
       "components": {
-        "app_binary": "App binary",
-        "runtime_toolchain": "Runtime/toolchain",
-        "agent_package_channel": "OPL agent packages",
-        "capability_exposure": "Agent capabilities visible in the app"
+        "app_binary": "Installation carrier",
+        "runtime_toolchain": "Runtime substrate",
+        "agent_package_channel": "OPL capability packages",
+        "capability_exposure": "Codex Surface"
       },
       "actions": {
         "refreshStatus": "Refresh status",
@@ -1881,7 +1881,7 @@
         "autoApply": "Background sync",
         "applyUpdate": "Apply update",
         "previewChanges": "Preview changes",
-        "reviewRuntimeToolchain": "Check runtime/toolchain",
+        "reviewRuntimeToolchain": "Check runtime substrate",
         "reviewCapabilityPacks": "Check capability packs"
       },
       "actionHelp": {

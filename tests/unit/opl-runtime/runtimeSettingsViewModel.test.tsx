@@ -57,25 +57,25 @@ const managedUpdateResult = {
     components: [
       {
         component_id: 'app_binary',
-        display_group: 'App binary',
+        display_group: 'Installation carrier',
         state: 'current',
       },
       {
         component_id: 'runtime_toolchain',
-        display_group: 'Runtime/toolchain',
+        display_group: 'Runtime substrate',
         state: 'update_available',
         safe_to_apply: true,
         needs_restart: true,
       },
       {
         component_id: 'agent_package_channel',
-        display_group: 'Agent packages',
+        display_group: 'OPL capability packages',
         state: 'failed_with_repair',
         repair_action: 'agent_package_reconcile_and_skill_sync_only',
       },
       {
         component_id: 'capability_exposure',
-        display_group: 'Capability exposure',
+        display_group: 'Codex Surface',
         state: 'current',
       },
     ],

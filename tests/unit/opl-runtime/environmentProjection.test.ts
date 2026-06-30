@@ -57,7 +57,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
       components: [
         {
           id: 'app_binary',
-          label: 'App binary',
+          label: 'Installation carrier',
           state: 'current',
           conditions: [],
           safeToApply: false,
@@ -71,7 +71,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         {
           id: 'runtime_toolchain',
-          label: 'Runtime/toolchain',
+          label: 'Runtime substrate',
           state: 'update_available',
           conditions: [],
           safeToApply: true,
@@ -85,7 +85,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         {
           id: 'agent_package_channel',
-          label: 'Agent packages',
+          label: 'OPL capability packages',
           state: 'failed_with_repair',
           conditions: [],
           safeToApply: false,
@@ -158,7 +158,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
   it('chooses safe maintenance actions without applying restart-required runtime updates', () => {
     const runtimeToolchain = {
       id: 'runtime_toolchain',
-      label: 'Runtime/toolchain',
+      label: 'Runtime substrate',
       state: 'update_available',
       conditions: [],
       safeToApply: true,
@@ -172,7 +172,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
     };
     const agentPackages = {
       id: 'agent_package_channel',
-      label: 'Agent packages',
+      label: 'OPL capability packages',
       state: 'failed_with_repair',
       conditions: [],
       safeToApply: false,

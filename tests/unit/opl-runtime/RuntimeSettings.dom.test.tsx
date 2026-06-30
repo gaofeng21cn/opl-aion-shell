@@ -157,7 +157,7 @@ const managedUpdateStatusResult = {
       components: [
         {
           component_id: 'app_binary',
-          display_group: 'App binary',
+          display_group: 'Installation carrier',
           state: 'current',
           conditions: [{ type: 'Available', status: 'True', reason: 'Current', message: 'App bundle is current' }],
           receipt: { last_receipt_ref: 'receipt://app-binary/current' },
@@ -165,7 +165,7 @@ const managedUpdateStatusResult = {
         },
         {
           component_id: 'runtime_toolchain',
-          display_group: 'Runtime/toolchain',
+          display_group: 'Runtime substrate',
           state: 'update_available',
           safe_to_apply: true,
           conditions: [
@@ -186,7 +186,7 @@ const managedUpdateStatusResult = {
         },
         {
           component_id: 'agent_package_channel',
-          display_group: 'Agent packages',
+          display_group: 'OPL capability packages',
           state: 'failed_with_repair',
           conditions: [
             {
@@ -205,7 +205,7 @@ const managedUpdateStatusResult = {
         },
         {
           component_id: 'capability_exposure',
-          display_group: 'Capability exposure',
+          display_group: 'Codex Surface',
           state: 'needs_reload',
           safe_to_apply: true,
           rollback_allowed: true,
@@ -214,7 +214,7 @@ const managedUpdateStatusResult = {
               type: 'Visible',
               status: 'Unknown',
               reason: 'CacheStale',
-              message: 'Capability exposure cache is stale',
+              message: 'Codex Surface cache is stale',
             },
           ],
           receipt: { last_receipt_ref: 'receipt://capability_exposure/cache' },
@@ -436,10 +436,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
-    expect(screen.getByTestId('opl-managed-update-app_binary')).toHaveTextContent('App binary');
-    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime/toolchain');
-    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent('Agent packages');
-    expect(screen.getByTestId('opl-managed-update-capability_exposure')).toHaveTextContent('Capability exposure');
+    expect(screen.getByTestId('opl-managed-update-app_binary')).toHaveTextContent('Installation carrier');
+    expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent('Runtime substrate');
+    expect(screen.getByTestId('opl-managed-update-agent_package_channel')).toHaveTextContent('OPL capability packages');
+    expect(screen.getByTestId('opl-managed-update-capability_exposure')).toHaveTextContent('Codex Surface');
     expect(screen.getByTestId('opl-managed-update-runtime_toolchain')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );

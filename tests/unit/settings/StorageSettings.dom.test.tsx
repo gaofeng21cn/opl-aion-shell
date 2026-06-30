@@ -60,7 +60,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.sections.updater.description': 'Installer package cache only.',
     'settings.storagePage.sections.conversations.title': 'Conversation artifacts',
     'settings.storagePage.sections.conversations.description': 'Conversation files require proof before cleanup.',
-    'settings.storagePage.sections.runtime.title': 'Runtime/toolchain',
+    'settings.storagePage.sections.runtime.title': 'Runtime substrate',
     'settings.storagePage.sections.runtime.description': 'Runtime cleanup must be previewed before it can run.',
     'settings.storagePage.sections.logs.title': 'Logs',
     'settings.storagePage.sections.logs.description': 'Log cleanup is separate from conversation artifacts.',

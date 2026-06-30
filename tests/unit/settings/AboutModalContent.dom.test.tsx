@@ -37,10 +37,10 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.includeNightlyUpdates') return '接收 Nightly 更新';
       if (key === 'settings.aboutMaintenanceMoved') return '更新与维护已移到维护页';
       if (key === 'settings.runtimePage.releaseChannels.stable') return 'Stable';
-      if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'App binary';
-      if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'Runtime/toolchain';
-      if (key === 'settings.oplEnvironmentPage.updates.components.agent_package_channel') return 'Agent packages';
-      if (key === 'settings.oplEnvironmentPage.updates.components.capability_exposure') return 'Capability exposure';
+      if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'Installation carrier';
+      if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'Runtime substrate';
+      if (key === 'settings.oplEnvironmentPage.updates.components.agent_package_channel') return 'OPL capability packages';
+      if (key === 'settings.oplEnvironmentPage.updates.components.capability_exposure') return 'Codex Surface';
       if (key === 'settings.oplEnvironmentPage.status.current') return 'Current';
       if (key === 'settings.oplEnvironmentPage.status.needs_reload') return 'Needs reload';
       if (key === 'settings.oplEnvironmentPage.status.update_available') return 'Update available';

@@ -1416,7 +1416,7 @@
         "description": "对话文件必须先有归档和恢复证明，才能清理。"
       },
       "runtime": {
-        "title": "运行时/工具链",
+        "title": "运行时基座",
         "description": "运行时清理必须先预览，确认后才能执行。"
       },
       "logs": {
@@ -1666,7 +1666,7 @@
     },
     "maintenanceHub": {
       "title": "维护中心",
-      "description": "在一个入口查看 App 更新、运行时/工具链、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
+      "description": "在一个入口查看安装载体更新、运行时基座、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
       "makeUsable": {
         "label": "让 OPL 可用",
         "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
@@ -1682,18 +1682,18 @@
       },
       "items": {
         "appUpdates": {
-          "title": "App 更新",
-          "description": "检查桌面 App 更新器。"
+          "title": "安装载体",
+          "description": "检查 App 安装载体的更新路径。"
         },
         "runtimeToolchain": {
-          "title": "运行时/工具链",
-          "description": "检查托管运行时和工具链通道。",
-          "actionHelp": "运行现有托管更新检查；不会应用运行时或工具链变更。"
+          "title": "运行时基座",
+          "description": "检查托管运行时基座通道。",
+          "actionHelp": "运行现有托管更新检查；不会应用运行时基座变更。"
         },
         "capabilityPacks": {
           "title": "OPL 能力包",
-          "description": "检查 OPL 智能体包和能力暴露。",
-          "actionHelp": "通过现有托管更新检查智能体包和可见能力暴露。"
+          "description": "检查 OPL 能力包和 Codex Surface 可见性。",
+          "actionHelp": "通过现有托管更新检查能力包和 Codex Surface 可见性。"
         },
         "storageCleanup": {
           "title": "存储清理",
@@ -1822,18 +1822,18 @@
     },
     "moduleMaintenance": {
       "title": "智能体模块维护",
-      "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 智能体包，以及 App 中能看到的能力入口。这里不会绕过 OPL 托管更新内核。",
+      "description": "维护 MAS、MAG、RCA、BookForge 等 OPL 能力包，以及 App/Codex 中能看到的 Codex Surface。这里不会绕过 OPL 托管更新内核。",
       "moduleCount": "{{ready}} / {{total}} 个模块就绪",
       "modulesTitle": "已安装智能体模块",
       "actionsTitle": "模块维护动作",
-      "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管智能体包和能力暴露变更，不绕过内核。",
+      "actionsDescription": "通过 OPL 检查、应用、修复或回滚托管能力包和 Codex Surface 变更，不绕过内核。",
       "components": {
-        "agent_package_channel": "OPL 智能体包",
-        "capability_exposure": "App 中可见的智能体能力"
+        "agent_package_channel": "OPL 能力包",
+        "capability_exposure": "Codex Surface"
       },
       "componentDescriptions": {
-        "agent_package_channel": "更新由 OPL 管理的智能体技能和模块包。",
-        "capability_exposure": "刷新 App 里可选择、可调用的智能体能力列表。"
+        "agent_package_channel": "更新由 OPL 管理的技能和模块包。",
+        "capability_exposure": "刷新 Codex 可见的插件和技能入口。"
       },
       "status": {
         "manualRequired": "需要人工处理",
@@ -1853,7 +1853,7 @@
     },
     "updates": {
       "title": "更新与维护",
-      "description": "查看 App、运行时工具链和 OPL 智能体包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
+      "description": "查看安装载体、运行时基座、辅助工具和 OPL 能力包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
       "channel": "通道：{{channel}}",
       "lockStatus": "锁：{{status}}",
       "operationMode": "模式：{{mode}}",
@@ -1864,10 +1864,10 @@
       "needsRestart": "需要重启",
       "needsReload": "需要重新加载",
       "components": {
-        "app_binary": "桌面 App",
-        "runtime_toolchain": "运行时工具链",
-        "agent_package_channel": "OPL 智能体包",
-        "capability_exposure": "App 中可见的智能体能力"
+        "app_binary": "安装载体",
+        "runtime_toolchain": "运行时基座",
+        "agent_package_channel": "OPL 能力包",
+        "capability_exposure": "Codex Surface"
       },
       "actions": {
         "refreshStatus": "刷新状态",
@@ -1882,7 +1882,7 @@
         "autoApply": "后台同步",
         "applyUpdate": "应用更新",
         "previewChanges": "预览变更",
-        "reviewRuntimeToolchain": "检查运行时/工具链",
+        "reviewRuntimeToolchain": "检查运行时基座",
         "reviewCapabilityPacks": "检查能力包"
       },
       "actionHelp": {
