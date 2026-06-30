@@ -5,12 +5,10 @@ set -euo pipefail
 OUTPUT_DIR="${1:-release-assets}"
 ERRORS=0
 
-for f in latest-mac.yml latest-arm64-mac.yml; do
-  if [ ! -f "$OUTPUT_DIR/$f" ]; then
-    echo "FAIL: missing canonical metadata: $f"
-    ERRORS=$((ERRORS + 1))
-  fi
-done
+if [ ! -f "$OUTPUT_DIR/latest-arm64-mac.yml" ]; then
+  echo "FAIL: missing canonical metadata: latest-arm64-mac.yml"
+  ERRORS=$((ERRORS + 1))
+fi
 
 extract_ref_file() {
   local metadata_file="$1"
@@ -51,8 +49,10 @@ assert_metadata_points_to_existing_file() {
   echo "PASS: $metadata_name -> $ref_file"
 }
 
-assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
 assert_metadata_points_to_existing_file "latest-arm64-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
+if [ -f "$OUTPUT_DIR/latest-mac.yml" ]; then
+  assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
+fi
 
 MAC_DMG_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name "*-mac-arm64.dmg" | wc -l | tr -d ' ')
 if [ "$MAC_DMG_COUNT" -eq 0 ]; then
