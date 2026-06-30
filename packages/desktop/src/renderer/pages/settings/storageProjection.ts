@@ -55,8 +55,8 @@ export type StorageSettingsViewModel = {
 
 export const STORAGE_SECTION_ORDER: LocalDataLifecycleSectionId[] = [
   'updater_cache',
-  'conversation_artifacts',
-  'runtime_toolchain',
+  'user_data_artifacts',
+  'runtime_substrate',
   'logs',
 ];
 

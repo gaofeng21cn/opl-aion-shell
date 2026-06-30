@@ -1263,7 +1263,7 @@
     "accessTitle": "Access",
     "accessDescription": "Configure desktop and remote access surfaces.",
     "maintenanceTitle": "Maintenance",
-    "maintenanceDescription": "Open runtime status, repair local services, manage agent packages, or review storage and data cleanup.",
+    "maintenanceDescription": "Open runtime status, repair local services, manage capability packages, or review storage and data cleanup.",
     "actions": {
       "openRuntimeStatus": "Open Runtime Status",
       "openRuntimeSettings": "Open Maintenance",
@@ -1391,7 +1391,7 @@
   },
   "runtimePage": {
     "title": "Maintenance",
-    "description": "Check whether the local app, workspace, background services, agent packages, updates, and stored data need action. Technical detail stays collapsed by default.",
+    "description": "Check whether the local app, workspace, background services, capability packages, updates, and stored data need action. Technical detail stays collapsed by default.",
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "releaseChannels": {

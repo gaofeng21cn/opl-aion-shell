@@ -65,8 +65,8 @@ describe('local data lifecycle service', () => {
     );
     expect(inventory.sections.map((section) => section.id)).toEqual([
       'updater_cache',
-      'conversation_artifacts',
-      'runtime_toolchain',
+      'user_data_artifacts',
+      'runtime_substrate',
       'logs',
     ]);
     expect(inventory.sections[0]).toMatchObject({
@@ -76,7 +76,7 @@ describe('local data lifecycle service', () => {
       roots: [{ path: updaterCacheRoot, exists: true, bytes: Buffer.byteLength('installer') }],
     });
     expect(inventory.sections[1]).toMatchObject({
-      id: 'conversation_artifacts',
+      id: 'user_data_artifacts',
       cleanup_mode: 'archive_required_before_cleanup',
       silent_delete_allowed: false,
       roots: [{ path: conversationRoot, exists: true, bytes: Buffer.byteLength('paper') }],

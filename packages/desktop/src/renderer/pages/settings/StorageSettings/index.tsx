@@ -53,11 +53,11 @@ const SECTION_META: Record<StorageInventorySectionViewModel['id'], SectionMeta> 
     titleKey: 'settings.storagePage.sections.updater.title',
     descriptionKey: 'settings.storagePage.sections.updater.description',
   },
-  conversation_artifacts: {
+  user_data_artifacts: {
     titleKey: 'settings.storagePage.sections.conversations.title',
     descriptionKey: 'settings.storagePage.sections.conversations.description',
   },
-  runtime_toolchain: {
+  runtime_substrate: {
     titleKey: 'settings.storagePage.sections.runtime.title',
     descriptionKey: 'settings.storagePage.sections.runtime.description',
   },

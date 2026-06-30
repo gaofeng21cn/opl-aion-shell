@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { resolveAutoUpdateCacheCleanupPlan } from '../autoUpdateCacheCleanup';
 
-type LifecycleSectionId = 'updater_cache' | 'conversation_artifacts' | 'runtime_toolchain' | 'logs';
+type LifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';
 type CleanupMode =
   | 'stale_installer_package_cleanup_allowed'
   | 'archive_required_before_cleanup'
@@ -463,13 +463,13 @@ export function buildLocalDataLifecycleInventory(input: LocalDataLifecycleInvent
       roots: input.updaterCacheRoots ?? [],
     },
     {
-      id: 'conversation_artifacts',
+      id: 'user_data_artifacts',
       cleanupMode: 'archive_required_before_cleanup',
       silentDeleteAllowed: false,
       roots: conversationRoots,
     },
     {
-      id: 'runtime_toolchain',
+      id: 'runtime_substrate',
       cleanupMode: 'pointer_based_dry_run_required',
       silentDeleteAllowed: false,
       roots: input.runtimeRoot ? [input.runtimeRoot] : [],

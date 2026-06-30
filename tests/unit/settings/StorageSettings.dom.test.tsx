@@ -119,14 +119,14 @@ const inventory = {
       roots: [{ path: '/tmp/updater-cache', exists: true, bytes: 10 }],
     },
     {
-      id: 'conversation_artifacts',
+      id: 'user_data_artifacts',
       cleanup_mode: 'archive_required_before_cleanup',
       silent_delete_allowed: false,
       bytes: 20,
       roots: [{ path: '/tmp/conversations', exists: true, bytes: 20 }],
     },
     {
-      id: 'runtime_toolchain',
+      id: 'runtime_substrate',
       cleanup_mode: 'pointer_based_dry_run_required',
       silent_delete_allowed: false,
       bytes: 30,
@@ -209,7 +209,7 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
   });
 
-  it('loads inventory and separates updater cache, conversation artifacts, runtime/toolchain, and logs', async () => {
+  it('loads inventory and separates updater cache, user data, runtime substrate, and logs', async () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
@@ -217,9 +217,9 @@ describe('StorageSettingsContent', () => {
 
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
-    expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-conversation_artifacts')).toHaveTextContent('Needs proof first');
-    expect(screen.getByTestId('storage-inventory-runtime_toolchain')).toHaveTextContent('/tmp/runtime');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('/tmp/conversations');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Needs proof first');
+    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Dry-run|dry-run|prune|silent delete|inventory/i);

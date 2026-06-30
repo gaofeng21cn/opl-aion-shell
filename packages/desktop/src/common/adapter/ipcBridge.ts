@@ -660,7 +660,7 @@ export const oplRuntime = {
   ),
 };
 
-export type LocalDataLifecycleSectionId = 'updater_cache' | 'conversation_artifacts' | 'runtime_toolchain' | 'logs';
+export type LocalDataLifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';
 
 export type LocalDataCleanupMode =
   | 'stale_installer_package_cleanup_allowed'
