@@ -58,6 +58,7 @@ const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
 const AUTO_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
+const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
 const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'installation_carrier',
   'runtime_substrate',
@@ -479,6 +480,20 @@ async function invokeApply(componentId: string): Promise<IOplRuntimeCommandResul
   return ipcBridge.oplRuntime.applyUpdateComponent.invoke({ componentId });
 }
 
+function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
+  return {
+    ok: false,
+    surface: `update_${kind}`,
+    command: `opl update ${kind} --component ${componentId} --json`,
+    stdout: '',
+    parsed: null,
+    error: {
+      message:
+        'OPL Settings can only apply capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.',
+    },
+  };
+}
+
 async function applyBackgroundCandidates(result: IOplRuntimeCommandResult): Promise<IOplRuntimeCommandResult> {
   const { candidates, skipReasons } = autoApplyCandidates(result);
   if (skipReasons.length > 0) {
@@ -603,6 +618,22 @@ export async function executeManagedUpdateMutation(
     receiptId?: string;
   }
 ): Promise<IOplRuntimeCommandResult | null> {
+  const componentId = canonicalManagedUpdateComponentId(input.componentId);
+  if (kind === 'apply' && (!componentId || !USER_APPLY_COMPONENT_IDS.has(componentId))) {
+    const result = mutationForbiddenResult(kind, input.componentId);
+    emit({
+      running: false,
+      operation: null,
+      busyAction: null,
+      executionStatus: 'failed',
+      lastTrigger: 'component_action',
+      lastRunAt: isoNow(),
+      lastFailure: result.error?.message ?? null,
+      result,
+    });
+    return result;
+  }
+
   if (inflight) {
     emit({
       executionStatus: 'skipped_locked',

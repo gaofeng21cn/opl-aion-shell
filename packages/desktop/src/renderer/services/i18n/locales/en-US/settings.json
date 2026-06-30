@@ -1869,9 +1869,12 @@
       "needsRestart": "Restart required",
       "needsReload": "Reload required",
       "hostUpdateRoute": "Host update route: {{route}}",
+      "hostUpdateRouteExamples": "Example host commands: {{value}}",
+      "manualGuidance": "Manual guidance: {{guidance}}",
       "dataVolumePreservation": "Data volume preservation: {{value}}",
       "preservedMounts": "Preserved mounts: {{value}}",
       "requiredPreservationEvidence": "Required preservation evidence: {{value}}",
+      "hostManualRouteTitle": "Host/manual route",
       "components": {
         "installation_carrier": "Installation carrier",
         "runtime_substrate": "Runtime substrate",
@@ -1882,7 +1885,8 @@
         "app_binary": "Installation carrier",
         "runtime_toolchain": "Runtime substrate",
         "agent_package_channel": "OPL capability packages",
-        "capability_exposure": "Codex Surface"
+        "capability_exposure": "Codex Surface",
+        "unknown": "OPL component"
       },
       "actions": {
         "refreshStatus": "Refresh status",
@@ -1917,6 +1921,7 @@
         "developerCheckout": "Local developer checkout detected. Handle it in that checkout or switch back to managed packages.",
         "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
         "checkDetails": "Check diagnostics before deciding what to do.",
+        "codexSurface": "Codex Surface is a visibility and reload projection of OPL capability packages, not a separate updater.",
         "workflowProfile": "Workflow profile changes require Codex semantic merge; the app will not apply them silently."
       },
       "nextStep": "Next step: {{action}}",
@@ -1926,6 +1931,8 @@
         "repair": "Run the repair action.",
         "restart": "Restart the app.",
         "reload": "Reload the app or Codex capabilities.",
+        "hostRoute": "Use the host/manual route shown on this card.",
+        "projectionOnly": "Review the projection status; no app-side apply action is available.",
         "review": "Open diagnostics and review the detail.",
         "semanticMerge": "Review the semantic merge guidance."
       },

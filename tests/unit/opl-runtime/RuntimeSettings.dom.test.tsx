@@ -161,6 +161,7 @@ const managedUpdateStatusResult = {
           state: 'host_executor_required',
           host_executor_required: true,
           host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
+          host_update_route_examples: ['install-docker-webui.sh --yes --update', 'docker compose pull && docker compose up -d'],
           data_volume_preservation: 'required_before_replacing_docker_webui_image',
           preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
           required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
@@ -199,7 +200,9 @@ const managedUpdateStatusResult = {
         {
           component_id: 'capability_packages',
           display_group: 'OPL capability packages',
-          state: 'failed_with_repair',
+          state: 'update_available',
+          safe_to_apply: true,
+          repair_allowed: true,
           conditions: [
             {
               type: 'PostApplySync',
@@ -275,6 +278,7 @@ const managedUpdateAutoApplyPlanResult = {
           safe_to_apply: true,
           host_executor_required: true,
           host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
+          host_update_route_examples: ['install-docker-webui.sh --yes --update', 'docker compose pull && docker compose up -d'],
           data_volume_preservation: 'required_before_replacing_docker_webui_image',
           preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
           required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
@@ -491,14 +495,23 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.semanticMerge'
     );
+    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.userSummaries.codexSurface'
+    );
+    expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.projectionOnly'
+    );
     expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired'
+    );
+    expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.hostRoute'
     );
     expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.userSummaries.needsRestart'
     );
     expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.userSummaries.canRepair'
+      'settings.oplEnvironmentPage.updates.userSummaries.canApply'
     );
     expect(screen.getByTestId('opl-runtime-health-summary')).toHaveTextContent(
       'settings.oplEnvironmentPage.healthSummary.usable'
@@ -558,14 +571,26 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent(
       'Reload Codex plugin cache after repair.'
     );
-    fireEvent.click(screen.getAllByText('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')[0]);
+    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.hostManualRouteTitle'
+    );
+    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.hostUpdateRoute host_executor_runs_documented_installer_or_compose_pull_and_up'
+    );
+    expect(screen.getByTestId('opl-managed-update-host-route-installation_carrier')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.hostUpdateRouteExamples install-docker-webui.sh --yes --update, docker compose pull && docker compose up -d'
+    );
     expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
-      'host_executor_runs_documented_installer_or_compose_pull_and_up'
+      'settings.oplEnvironmentPage.updates.manualGuidance Docker/WebUI image update must run from the host and preserve data volumes.'
     );
     expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent(
       'OnePersonLab/data -> /data, OnePersonLab/projects -> /projects'
     );
+    expect(screen.getByTestId('opl-managed-update-copy-host-route-installation_carrier')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-installation_carrier')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-repair-installation_carrier')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-rollback-installation_carrier')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-managed-update-apply-runtime_substrate')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-workflow_profile')).not.toBeInTheDocument();
@@ -597,7 +622,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-capability_packages'));
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
@@ -607,18 +632,18 @@ describe('RuntimeSettings app state bridge usage', () => {
       'settings.oplEnvironmentPage.updates.confirmation.willNotChange'
     );
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent(
-      'rollback://runtime_substrate/previous'
+      'receipt://capability_packages/failed-sync'
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
     await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'capability_packages' })
     );
     await waitFor(() =>
       expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
         'settings.oplEnvironmentPage.updates.postAction.title'
       )
     );
-    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('runtime_substrate');
+    expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent('capability_packages');
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.postAction.nextCheck'
     );

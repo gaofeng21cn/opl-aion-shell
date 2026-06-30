@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import {
+  executeManagedUpdateMutation,
   executeManagedUpdateRead,
   getManagedUpdateMaintenanceSnapshot,
   resetManagedUpdateMaintenanceForTest,
@@ -184,6 +185,17 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastSkipReason).not.toContain('workflow_profile: manual_confirmation_required');
     expect(snapshot.reloadGuidance).toBe('Reload after applying capability_packages.');
     expect(snapshot.result?.surface).toBe('update_apply');
+  });
+
+  it('rejects Settings apply mutations outside capability packages before IPC', async () => {
+    const result = await executeManagedUpdateMutation('apply', { componentId: 'installation_carrier' });
+
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
+    expect(result?.ok).toBe(false);
+    expect(result?.error?.message).toContain('capability_packages');
+    const snapshot = getManagedUpdateMaintenanceSnapshot();
+    expect(snapshot.executionStatus).toBe('failed');
+    expect(snapshot.lastFailure).toContain('capability_packages');
   });
 
   it('reports workflow profile as manual only when profile merge work is actually pending', async () => {

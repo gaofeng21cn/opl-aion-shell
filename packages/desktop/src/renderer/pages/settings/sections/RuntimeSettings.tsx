@@ -6,7 +6,7 @@
 
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Alert, Button, Card, Collapse, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, FolderSearch, Repair, UpdateRotation } from '@icon-park/react';
+import { CheckOne, Copy, FolderSearch, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -23,6 +23,7 @@ import {
   type ManagedUpdateComponent,
   type ManagedUpdatePlane,
 } from '@/renderer/services/managedUpdateProjection';
+import { copyText } from '@/renderer/utils/ui/clipboard';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   formatModuleAction,
@@ -131,8 +132,81 @@ function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate):
   return t('settings.oplEnvironmentPage.updates.confirmation.noReceiptYet');
 }
 
+function componentApplyAllowed(component: ManagedUpdateComponent): boolean {
+  return component.id === 'capability_packages' && component.safeToApply;
+}
+
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; t: Translate }) {
+  if (component.id !== 'installation_carrier') return null;
+  const routeLines = [
+    component.hostUpdateRoute ? t('settings.oplEnvironmentPage.updates.hostUpdateRoute', { route: component.hostUpdateRoute }) : null,
+    component.hostUpdateRouteExamples.length > 0
+      ? t('settings.oplEnvironmentPage.updates.hostUpdateRouteExamples', {
+          value: component.hostUpdateRouteExamples.join(', '),
+        })
+      : null,
+    component.manualGuidance
+      ? t('settings.oplEnvironmentPage.updates.manualGuidance', { guidance: component.manualGuidance })
+      : null,
+    component.dataVolumePreservation
+      ? t('settings.oplEnvironmentPage.updates.dataVolumePreservation', {
+          value: component.dataVolumePreservation,
+        })
+      : null,
+    component.preservedMounts.length > 0
+      ? t('settings.oplEnvironmentPage.updates.preservedMounts', {
+          value: component.preservedMounts.join(', '),
+        })
+      : null,
+    component.requiredPreservationEvidence.length > 0
+      ? t('settings.oplEnvironmentPage.updates.requiredPreservationEvidence', {
+          value: component.requiredPreservationEvidence.join(', '),
+        })
+      : null,
+  ].filter((line): line is string => Boolean(line));
+  if (routeLines.length === 0) return null;
+  const copyValue = [
+    component.hostUpdateRoute,
+    component.hostUpdateRouteExamples.join('\n'),
+    component.manualGuidance,
+    component.dataVolumePreservation,
+    component.preservedMounts.join(', '),
+    component.requiredPreservationEvidence.join(', '),
+  ]
+    .filter(Boolean)
+    .join('\n');
+  const handleCopy = () => {
+    void copyText(copyValue)
+      .then(() => Message.success(t('common.copySuccess')))
+      .catch(() => Message.error(t('common.copyFailed')));
+  };
+  return (
+    <div className='border border-solid border-border-1 rd-8px bg-fill-2 p-10px min-w-0' data-testid={`opl-managed-update-host-route-${component.id}`}>
+      <div className='flex items-center justify-between gap-8px'>
+        <Typography.Text className='font-600 text-t-primary break-words'>
+          {t('settings.oplEnvironmentPage.updates.hostManualRouteTitle')}
+        </Typography.Text>
+        <Tooltip content={t('common.copy')}>
+          <Button
+            size='mini'
+            type='text'
+            icon={<Copy theme='outline' size='14' />}
+            onClick={handleCopy}
+            data-testid={`opl-managed-update-copy-host-route-${component.id}`}
+          />
+        </Tooltip>
+      </div>
+      <div className='mt-6px flex flex-col gap-4px text-12px text-t-secondary break-words'>
+        {routeLines.map((line) => (
+          <code key={line}>{line}</code>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function AgentModuleMaintenancePanel({
@@ -316,7 +390,7 @@ function AgentModuleMaintenancePanel({
                       </Typography.Text>
                     )}
                     <Space wrap size='small' className='mt-8px'>
-                      {!manualHandling && component.safeToApply && (
+                      {!manualHandling && componentApplyAllowed(component) && (
                         <Button
                           data-testid={`opl-module-maintenance-apply-${component.id}`}
                           size='small'
@@ -611,7 +685,7 @@ function ManagedUpdatesPanel({
                       {t('settings.oplEnvironmentPage.updates.actions.semanticMerge')}
                     </Button>
                   )}
-                  {component.safeToApply && (
+                  {componentApplyAllowed(component) && (
                     <Button
                       data-testid={`opl-managed-update-apply-${component.id}`}
                       size='small'
@@ -643,12 +717,17 @@ function ManagedUpdatesPanel({
                     </Button>
                   )}
                 </Space>
+                <HostRouteDetail component={component} t={t} />
                 {(component.conditions.length > 0 ||
                   component.receiptRef ||
                   component.repairAction ||
                   component.rollbackRef ||
                   component.reloadGuidance ||
-                  component.manualGuidance) && (
+                  component.manualGuidance ||
+                  component.hostUpdateRoute ||
+                  component.dataVolumePreservation ||
+                  component.preservedMounts.length > 0 ||
+                  component.requiredPreservationEvidence.length > 0) && (
                   <Collapse className='mt-2px' bordered={false}>
                     <Collapse.Item
                       header={t('settings.oplEnvironmentPage.updates.diagnostics.componentDetails')}

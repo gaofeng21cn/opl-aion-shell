@@ -43,6 +43,7 @@ export type ManagedUpdateComponent = {
   manualRequired: boolean;
   hostExecutorRequired: boolean;
   hostUpdateRoute?: string;
+  hostUpdateRouteExamples: string[];
   dataVolumePreservation?: string;
   preservedMounts: string[];
   requiredPreservationEvidence: string[];
@@ -97,6 +98,7 @@ const MUTATION_FORBIDDEN_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'codex_surface',
   'workflow_profile',
 ]);
+const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',
@@ -306,12 +308,17 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       manualRequired,
       hostExecutorRequired,
       hostUpdateRoute,
+      hostUpdateRouteExamples: stringArrayValue(component.host_update_route_examples ?? component.hostUpdateRouteExamples),
       dataVolumePreservation,
       preservedMounts: stringArrayValue(component.preserved_mounts),
       requiredPreservationEvidence: stringArrayValue(component.required_preservation_evidence),
       developerCheckout,
       dirtyCheckout,
-      safeToApply: rawSafeToApply && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      safeToApply:
+        rawSafeToApply &&
+        !mutationBlocked &&
+        APPLY_ALLOWED_COMPONENT_IDS.has(id) &&
+        !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
       repairAllowed: rawRepairAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
       rollbackAllowed: rawRollbackAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
     };

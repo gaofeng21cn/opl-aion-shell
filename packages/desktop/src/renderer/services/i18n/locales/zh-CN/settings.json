@@ -1870,9 +1870,12 @@
       "needsRestart": "需要重启",
       "needsReload": "需要重新加载",
       "hostUpdateRoute": "主机更新路径：{{route}}",
+      "hostUpdateRouteExamples": "主机命令示例：{{value}}",
+      "manualGuidance": "手动处理说明：{{guidance}}",
       "dataVolumePreservation": "数据卷保留：{{value}}",
       "preservedMounts": "保留挂载：{{value}}",
       "requiredPreservationEvidence": "所需保留证明：{{value}}",
+      "hostManualRouteTitle": "主机/手动更新路径",
       "components": {
         "installation_carrier": "安装载体",
         "runtime_substrate": "运行时基座",
@@ -1883,7 +1886,8 @@
         "app_binary": "安装载体",
         "runtime_toolchain": "运行时基座",
         "agent_package_channel": "OPL 能力包",
-        "capability_exposure": "Codex Surface"
+        "capability_exposure": "Codex Surface",
+        "unknown": "OPL 组件"
       },
       "actions": {
         "refreshStatus": "刷新状态",
@@ -1918,6 +1922,7 @@
         "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
         "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",
         "checkDetails": "状态需要查看诊断详情后再决定。",
+        "codexSurface": "Codex Surface 只是 OPL 能力包的可见性和重载投影，不是单独的更新器。",
         "workflowProfile": "工作流 Profile 变更必须由 Codex 做语义合并，App 不会静默应用。"
       },
       "nextStep": "下一步：{{action}}",
@@ -1927,6 +1932,8 @@
         "repair": "运行修复动作。",
         "restart": "重启 App。",
         "reload": "重新加载 App 或 Codex 能力。",
+        "hostRoute": "使用此卡片显示的主机/手动更新路径。",
+        "projectionOnly": "查看投影状态；此项没有 App 侧应用按钮。",
         "review": "打开诊断详情后再判断。",
         "semanticMerge": "查看语义合并指引。"
       },
