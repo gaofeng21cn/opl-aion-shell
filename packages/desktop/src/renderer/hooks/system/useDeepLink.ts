@@ -7,6 +7,7 @@
 import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 
 /**
  * Deep link event payload from main process
@@ -23,19 +24,6 @@ export type DeepLinkAddProviderDetail = {
   platform?: string;
 };
 
-/** Pending deep link data for the add-provider action. Read-once: consumed by ModelModalContent on mount. */
-let pendingDeepLinkData: DeepLinkAddProviderDetail | null = null;
-
-/**
- * Consume (read and clear) pending deep link data.
- * Returns the data if present, or null. Subsequent calls return null until new data arrives.
- */
-export const consumePendingDeepLink = (): DeepLinkAddProviderDetail | null => {
-  const data = pendingDeepLinkData;
-  pendingDeepLinkData = null;
-  return data;
-};
-
 /**
  * Allowed route patterns for the navigate deep link action.
  * Only routes matching these patterns are permitted.
@@ -44,10 +32,8 @@ const ALLOWED_NAVIGATE_PATTERNS = [/^\/conversation\/[^/]+$/];
 
 /**
  * Hook to listen for aionui:// deep link events from main process.
- * Routes 'add-provider' action to the model settings page.
+ * Routes 'add-provider' action to the App-owned environment settings page.
  * Routes 'navigate' action to the specified route (whitelist-validated).
- * The pre-fill data is stored in a module-level variable and consumed
- * by ModelModalContent on mount via consumePendingDeepLink().
  */
 export const useDeepLink = () => {
   const navigate = useNavigate();
@@ -56,15 +42,7 @@ export const useDeepLink = () => {
     (payload: DeepLinkPayload) => {
       // Support both formats: "add-provider" and "provider/add" (one-api style)
       if (payload.action === 'add-provider' || payload.action === 'provider/add') {
-        pendingDeepLinkData = {
-          base_url: payload.params.base_url,
-          api_key: payload.params.api_key || payload.params.key,
-          name: payload.params.name,
-          platform: payload.params.platform,
-        };
-
-        // Navigate to model settings page; ModelModalContent will pick up the pending data
-        void navigate('/settings/model');
+        void navigate(resolveLegacySettingsRoute('model'));
         return;
       }
 

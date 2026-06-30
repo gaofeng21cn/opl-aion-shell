@@ -22,6 +22,7 @@ import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { useConversationShortcuts } from '@renderer/hooks/ui/useConversationShortcuts';
 import { isElectronDesktop } from '@renderer/utils/platform';
 import appLogo from '@renderer/assets/logos/brand/app.png';
+import { resolveLegacySettingsRoute } from '@renderer/pages/settings/registry/settingsRegistry';
 import '@renderer/styles/layout.css';
 
 const SidebarIcon: React.FC<{ size?: number; strokeWidth?: number }> = ({ size = 18, strokeWidth = 4 }) => (
@@ -195,7 +196,7 @@ const Layout: React.FC<{
       const result = await ipcBridge.task.stopAll.invoke();
       if (result?.success) {
         // Navigate to settings page to show task status
-        void navigate('/settings/system');
+        void navigate(resolveLegacySettingsRoute('system'));
       }
     };
 

@@ -8,7 +8,7 @@ import { ipcBridge } from '@/common';
 import type { IProvider } from '@/common/config/storage';
 import { Button, Divider, Message, Popconfirm, Collapse, Tag, Switch, Tooltip } from '@arco-design/web-react';
 import { DeleteFour, Info, Minus, Plus, Write, Heartbeat } from '@icon-park/react';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AddModelModal from '@/renderer/pages/settings/components/AddModelModal';
 import AddPlatformModal from '@/renderer/pages/settings/components/AddPlatformModal';
@@ -17,7 +17,6 @@ import EditModeModal from '@/renderer/pages/settings/components/EditModeModal';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useProvidersQuery } from '@/renderer/hooks/agent/useModelProviderList';
 import { useSettingsViewMode } from '../settingsViewContext';
-import { consumePendingDeepLink } from '@/renderer/hooks/system/useDeepLink';
 import '../model-provider.css';
 
 /**
@@ -299,14 +298,6 @@ const ModelModalContent: React.FC = () => {
       });
     },
   });
-
-  // Consume pending deep-link data on mount (set by useDeepLink hook before navigation)
-  useEffect(() => {
-    const pending = consumePendingDeepLink();
-    if (pending) {
-      addPlatformModalCtrl.open({ deepLinkData: pending });
-    }
-  }, [addPlatformModalCtrl]);
 
   const [addModelModalCtrl, addModelModalContext] = AddModelModal.useModal({
     onSubmit(platform) {

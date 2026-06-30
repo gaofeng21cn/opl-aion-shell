@@ -1,8 +1,12 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GuidModelSelector from '@/renderer/pages/guid/components/GuidModelSelector';
+
+const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+}));
 
 vi.mock('@/renderer/hooks/agent/useModelProviderList', () => ({
   useProvidersQuery: () => ({ data: [] }),
@@ -22,10 +26,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('react-router-dom', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mocks.navigate,
 }));
 
 describe('GuidModelSelector Codex display', () => {
+  beforeEach(() => {
+    mocks.navigate.mockReset();
+  });
+
   it('keeps model and reasoning controls in one menu without repeating reasoning on ordinary Home', async () => {
     const setSelectedAcpModel = vi.fn();
     const setSelectedReasoningEffort = vi.fn();
@@ -104,5 +112,26 @@ describe('GuidModelSelector Codex display', () => {
 
     expect(setSelectedAcpModel).toHaveBeenCalledWith(null);
     expect(setSelectedReasoningEffort).toHaveBeenCalledWith(null);
+  });
+
+  it('routes Gemini add-model actions through the App-owned environment settings page', async () => {
+    render(
+      <GuidModelSelector
+        backend='gemini'
+        isGeminiMode={true}
+        modelList={[]}
+        current_model={undefined}
+        setCurrentModel={vi.fn()}
+        currentAcpCachedModelInfo={null}
+        selectedAcpModel={null}
+        setSelectedAcpModel={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByTestId('guid-model-selector'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /settings.addModel/ }));
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
+    expect(mocks.navigate).not.toHaveBeenCalledWith('/settings/model');
   });
 });

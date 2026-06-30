@@ -10,6 +10,7 @@ import { Play, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type RuntimeSnapshot = Record<string, unknown>;
@@ -983,7 +984,9 @@ const RuntimePage: React.FC = () => {
             <Typography.Text className='text-t-secondary'>{t('common.runtime.description')}</Typography.Text>
           </div>
           <div className='flex gap-8px'>
-            <Button onClick={() => navigate('/settings/runtime')}>{t('common.runtime.settings')}</Button>
+            <Button onClick={() => navigate(resolveLegacySettingsRoute('runtime'))}>
+              {t('common.runtime.settings')}
+            </Button>
             <Button
               type='primary'
               icon={<UpdateRotation theme='outline' />}

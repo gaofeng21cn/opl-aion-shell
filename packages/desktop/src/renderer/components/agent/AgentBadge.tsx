@@ -9,6 +9,7 @@ import { iconColors } from '@/renderer/styles/colors';
 import { Robot } from '@icon-park/react';
 import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 
 export type AgentBadgeProps = {
   /** Agent backend type */
@@ -58,7 +59,7 @@ const AgentBadge: React.FC<AgentBadgeProps> = ({ backend, agent_name, agentLogo,
   const navigate = useNavigate();
   const handleClick = useCallback(() => {
     if (!assistantId) return;
-    navigate(`/settings/assistants?highlight=${encodeURIComponent(assistantId)}`);
+    navigate(resolveLegacySettingsRoute('assistants'));
   }, [assistantId, navigate]);
 
   return (

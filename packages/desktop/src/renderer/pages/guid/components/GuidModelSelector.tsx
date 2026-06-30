@@ -11,6 +11,7 @@ import {
   isOplCodexCliFixedExecutor,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
+import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import {
@@ -59,6 +60,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const modelSettingsRoute = resolveLegacySettingsRoute('model');
   const defaultModelLabel = t('common.defaultModel');
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
@@ -171,7 +173,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                   <Menu.Item
                     key='add-model'
                     className='text-12px text-t-secondary'
-                    onClick={() => navigate('/settings/model')}
+                    onClick={() => navigate(modelSettingsRoute)}
                   >
                     <Plus theme='outline' size='12' />
                     {t('settings.addModel')}
@@ -221,7 +223,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                   <Menu.Item
                     key='add-model'
                     className='text-12px text-t-secondary'
-                    onClick={() => navigate('/settings/model')}
+                    onClick={() => navigate(modelSettingsRoute)}
                   >
                     <Plus theme='outline' size='12' />
                     {t('settings.addModel')}

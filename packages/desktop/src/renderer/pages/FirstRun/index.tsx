@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import {
   coreProgressPercent,
   FIRST_RUN_ITEM_IDS,
@@ -603,7 +604,7 @@ const FirstRun: React.FC = () => {
               <div className={styles.firstRunSectionActions}>
                 <Button
                   icon={<SettingTwo />}
-                  onClick={() => navigate('/settings/runtime')}
+                  onClick={() => navigate(resolveLegacySettingsRoute('runtime'))}
                   data-testid='opl-settings-environment'
                   aria-label='opl-settings-environment'
                 >
