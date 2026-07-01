@@ -447,11 +447,24 @@ type RuntimeProjectProgress = {
   safeActionCount: number;
   paperLensCount: number;
   stageAttemptCount: number;
+  refsSummary: RuntimeRefsSummary;
   needsAttention: boolean;
 };
 
 type RuntimeTaskStatusItem = RuntimeProjectProgress & {
   running: boolean;
+};
+
+type RuntimeRefsSummary = {
+  artifact: string | null;
+  blocker: string | null;
+  reviewReceipt: string | null;
+  actionReceipt: string | null;
+};
+
+type ActionResultSummary = {
+  preview: string | null;
+  receipt: string | null;
 };
 
 type RuntimeTaskOverview = {
@@ -492,6 +505,75 @@ const PROJECT_PROGRESS_CLASS_KEYS: Record<string, string> = {
 const ATTENTION_STATES = new Set(['blocked', 'blocking', 'missing', 'attention_needed', 'attention_required']);
 const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
 const RUNNING_STATES = new Set(['running', 'in_progress', 'advancing']);
+
+function firstStringField(source: RuntimeSnapshot, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = stringValue(source[key]);
+    if (value) return value;
+  }
+  return null;
+}
+
+function firstRefField(source: RuntimeSnapshot, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = source[key];
+    const direct = refText(value);
+    if (direct) return direct;
+    const fromList = recordList(value)
+      .map(refText)
+      .find((ref): ref is string => Boolean(ref));
+    if (fromList) return fromList;
+  }
+  return null;
+}
+
+function isUserVisibleSummary(value: string | null): value is string {
+  return Boolean(value);
+}
+
+function refsSummaryFromTask(task: RuntimeSnapshot | undefined): RuntimeRefsSummary {
+  const source = task ?? {};
+  return {
+    artifact:
+      firstStringField(source, ['artifact_provenance_summary', 'artifact_summary', 'artifact_or_blocker_summary']) ??
+      firstRefField(source, ['artifact_or_blocker_ref', 'artifact_or_blocker_refs', 'artifact_ref', 'artifact_refs']) ??
+      null,
+    blocker:
+      firstStringField(source, ['blocker_summary', 'typed_blocker_summary']) ??
+      firstRefField(source, ['blocker_ref', 'blocker_refs', 'typed_blocker_ref', 'typed_blocker_refs']) ??
+      null,
+    reviewReceipt:
+      firstStringField(source, ['reviewer_receipt_summary', 'review_receipt_summary', 'receipt_summary']) ??
+      firstRefField(source, [
+        'review_receipt_ref',
+        'review_receipt_refs',
+        'reviewer_receipt_ref',
+        'reviewer_receipt_refs',
+      ]) ??
+      null,
+    actionReceipt:
+      firstStringField(source, ['action_receipt_summary']) ??
+      firstRefField(source, ['action_receipt_ref', 'action_receipt_refs']) ??
+      null,
+  };
+}
+
+function actionResultSummary(result: RuntimeSnapshot | null): ActionResultSummary {
+  const payload = record(result);
+  const actionPreview = record(payload.action_preview);
+  const receipt = record(payload.receipt);
+  return {
+    preview:
+      firstStringField(payload, ['action_preview_summary', 'preview_summary']) ??
+      firstStringField(actionPreview, ['summary', 'message']) ??
+      null,
+    receipt:
+      firstStringField(payload, ['receipt_summary']) ??
+      firstStringField(receipt, ['summary', 'message']) ??
+      firstRefField(payload, ['receipt_ref', 'receipt_refs']) ??
+      firstRefField(receipt, ['ref', 'receipt_ref']),
+  };
+}
 
 function translateMappedValue(
   value: unknown,
@@ -597,6 +679,7 @@ function taskFromActiveProjectLine(
     safeActionCount,
     paperLensCount,
     stageAttemptCount,
+    refsSummary: refsSummaryFromTask(detail ?? line),
     needsAttention,
   };
 }
@@ -670,6 +753,7 @@ function projectProgressItems(
           safeActionCount,
           paperLensCount,
           stageAttemptCount,
+          refsSummary: refsSummaryFromTask(task),
           needsAttention,
         },
       ];
@@ -919,6 +1003,20 @@ const RuntimePage: React.FC = () => {
     (task: RuntimeTaskStatusItem) => {
       const deliverableLabel = formatCountLabel(t('common.runtime.deliverableProgress'), task.deliverableCount);
       const platformRepairLabel = formatCountLabel(t('common.runtime.platformRepair'), task.platformRepairCount);
+      const refsRows = [
+        { key: 'artifact', label: t('common.runtime.artifactSummary'), value: task.refsSummary.artifact },
+        { key: 'blocker', label: t('common.runtime.blockerSummary'), value: task.refsSummary.blocker },
+        {
+          key: 'reviewReceipt',
+          label: t('common.runtime.reviewReceiptSummary'),
+          value: task.refsSummary.reviewReceipt,
+        },
+        {
+          key: 'actionReceipt',
+          label: t('common.runtime.actionReceiptSummary'),
+          value: task.refsSummary.actionReceipt,
+        },
+      ].filter((row): row is { key: string; label: string; value: string } => isUserVisibleSummary(row.value));
       return (
         <div key={task.id} className='py-12px'>
           <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
@@ -966,6 +1064,15 @@ const RuntimePage: React.FC = () => {
             )}
             {task.paperLensCount > 0 && <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>}
           </Space>
+          {refsRows.length > 0 && (
+            <div className='mt-8px flex flex-col gap-4px'>
+              {refsRows.map((row) => (
+                <Typography.Text key={row.key} className='block text-12px text-t-secondary break-words'>
+                  {row.label}: {row.value}
+                </Typography.Text>
+              ))}
+            </div>
+          )}
         </div>
       );
     },
@@ -1292,6 +1399,30 @@ const RuntimePage: React.FC = () => {
                         <Typography.Text className='block font-600 text-t-primary mb-10px'>
                           {t('common.runtime.actionResult')}
                         </Typography.Text>
+                        {(() => {
+                          const resultSummary = actionResultSummary(actionResult);
+                          const rows = [
+                            {
+                              key: 'preview',
+                              label: t('common.runtime.actionPreviewSummary'),
+                              value: resultSummary.preview,
+                            },
+                            {
+                              key: 'receipt',
+                              label: t('common.runtime.actionReceiptSummary'),
+                              value: resultSummary.receipt,
+                            },
+                          ].filter((row): row is { key: string; label: string; value: string } => Boolean(row.value));
+                          return rows.length > 0 ? (
+                            <div className='mb-10px flex flex-col gap-4px'>
+                              {rows.map((row) => (
+                                <Typography.Text key={row.key} className='block text-12px text-t-secondary break-words'>
+                                  {row.label}: {row.value}
+                                </Typography.Text>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
                         <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
                           {JSON.stringify(actionResult, null, 2)}
                         </pre>

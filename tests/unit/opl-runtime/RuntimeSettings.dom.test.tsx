@@ -1115,6 +1115,10 @@ describe('RuntimeSettings app state bridge usage', () => {
                   last_progress_at: '2026-06-02T00:01:12.853Z',
                   stage_attempt_ids: ['sat_dm002'],
                   blocker_ref_count: 0,
+                  artifact_provenance_summary: 'publication eval packet from current App state',
+                  reviewer_receipt_summary: 'review receipt accepted by reviewer lane',
+                  typed_blocker_summary: 'owner blocker cleared',
+                  action_receipt_ref: 'receipt://reviewer/current-action',
                 },
                 {
                   task_id: 'dm003-publication-gate',
@@ -1170,6 +1174,16 @@ describe('RuntimeSettings app state bridge usage', () => {
       screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
+    expect(document.body.textContent).toContain(
+      'common.runtime.artifactSummary: publication eval packet from current App state'
+    );
+    expect(document.body.textContent).toContain('common.runtime.blockerSummary: owner blocker cleared');
+    expect(document.body.textContent).toContain(
+      'common.runtime.reviewReceiptSummary: review receipt accepted by reviewer lane'
+    );
+    expect(document.body.textContent).toContain(
+      'common.runtime.actionReceiptSummary: receipt://reviewer/current-action'
+    );
     expect(screen.getByText('common.runtime.inactiveTasks')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.inactiveTaskSummaryText 1')).toBeInTheDocument();
     expect(screen.queryByText('DM003 grant aftercare')).not.toBeInTheDocument();
@@ -1249,5 +1263,75 @@ describe('RuntimeSettings app state bridge usage', () => {
         'studies/003-dpcc-primary-care-phenotype-treatment-gap/artifacts/controller_decisions/latest.json'
       )
     ).toBeInTheDocument();
+  });
+
+  it('renders action preview and receipt summaries without moving diagnostics into the default task view', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ...appStateResult,
+      parsed: {
+        app_state: {
+          ...appStateResult.parsed.app_state,
+          operator: {
+            status: 'ready',
+            workbench: {
+              task_drilldowns: [
+                {
+                  task_id: 'dm002-publication-eval',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  title: 'DM002 publication evaluation',
+                  state: 'running',
+                  active_stage_id: 'paper_autonomy/repair-recheck',
+                  progress_delta_classification: 'deliverable_progress',
+                  next_visible_step: 'Finish reviewer evaluation against current inputs',
+                  next_owner: 'AI reviewer',
+                  artifact_or_blocker_summary: 'publication evaluation artifact is available',
+                  action_receipt_refs: [{ ref: 'receipt://reviewer/task-ref' }],
+                },
+              ],
+            },
+          },
+          actions: [
+            {
+              action_id: 'reviewer-receipt-preview',
+              submit_via: 'opl app action execute',
+              can_submit_to_safe_action_shell: true,
+              dry_run_supported: true,
+            },
+          ],
+        },
+      },
+    });
+    bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
+      stdout: '{}',
+      parsed: {
+        action_preview_summary: 'would refresh reviewer receipt refs only',
+        receipt_ref: 'receipt://reviewer/dry-run',
+        current_control_state: { provider_kind: 'temporal' },
+      },
+    });
+
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument());
+    expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
+      'common.runtime.artifactSummary: publication evaluation artifact is available'
+    );
+    expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
+      'common.runtime.actionReceiptSummary: receipt://reviewer/task-ref'
+    );
+    expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).not.toMatch(
+      /Temporal|provider|current_control_state|attempt/i
+    );
+
+    fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
+    fireEvent.click(screen.getByText('common.runtime.dryRun'));
+
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'common.runtime.actionPreviewSummary: would refresh reviewer receipt refs only'
+      )
+    );
+    expect(document.body.textContent).toContain('common.runtime.actionReceiptSummary: receipt://reviewer/dry-run');
   });
 });
