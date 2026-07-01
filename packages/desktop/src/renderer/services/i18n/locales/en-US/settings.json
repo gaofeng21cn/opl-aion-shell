@@ -1441,6 +1441,16 @@
         "needsReview": "Needs review"
       }
     },
+    "researchLifecycle": {
+      "title": "Research workspace lifecycle",
+      "detail": "Read-only lifecycle refs from App state projections for research workspaces.",
+      "boundary": "The App shows refs only. It does not read SQLite sidecars, scan workspace trees, delete clinical data bodies, or authorize generic cleanup.",
+      "states": {
+        "available": "Ref available",
+        "attention": "Needs review",
+        "blocked": "Forbidden"
+      }
+    },
     "actions": {
       "refresh": "Refresh",
       "archive": "Archive conversations",

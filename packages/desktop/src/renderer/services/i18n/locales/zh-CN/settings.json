@@ -1442,6 +1442,16 @@
         "needsReview": "需要查看详情"
       }
     },
+    "researchLifecycle": {
+      "title": "研究工作区生命周期",
+      "detail": "只读展示 App state projection 中的研究工作区生命周期 refs。",
+      "boundary": "App 只展示 refs；不直接读取 SQLite sidecar，不扫描 workspace tree，不删除临床数据正文，也不授权 generic cleanup。",
+      "states": {
+        "available": "refs 可用",
+        "attention": "需要查看",
+        "blocked": "禁止"
+      }
+    },
     "actions": {
       "refresh": "刷新",
       "archive": "归档对话",

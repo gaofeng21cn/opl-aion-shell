@@ -23,6 +23,7 @@ import {
   type StorageInventorySectionViewModel,
   type StoragePlan,
   type StoragePlanKind,
+  type ResearchWorkspaceLifecycleRef,
 } from '../storageProjection';
 
 type AsyncAction =
@@ -78,6 +79,12 @@ const cleanupModeLabelKey = (mode: string | null | undefined): string =>
   mode
     ? (CLEANUP_MODE_LABEL_KEYS[mode] ?? 'settings.storagePage.inventory.cleanupModes.needsReview')
     : 'settings.storagePage.inventory.cleanupModes.needsReview';
+
+const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
+  if (state === 'blocked') return 'red';
+  if (state === 'attention') return 'orange';
+  return 'green';
+};
 
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
@@ -391,6 +398,19 @@ export const StorageSettingsContent: React.FC = () => {
     />
   );
 
+  const renderLifecycleRef = (item: ResearchWorkspaceLifecycleRef) => (
+    <div key={item.id} className='flex flex-col gap-4px min-w-0'>
+      <div className='flex items-start justify-between gap-8px'>
+        <Typography.Text className='font-600 text-t-primary'>{item.label}</Typography.Text>
+        <Tag color={lifecycleTagColor(item.state)}>
+          {t(`settings.storagePage.researchLifecycle.states.${item.state}`)}
+        </Tag>
+      </div>
+      <Typography.Text className='text-12px text-t-secondary'>{item.detail}</Typography.Text>
+      <Typography.Text className='text-12px break-words'>{item.ref}</Typography.Text>
+    </div>
+  );
+
   return (
     <div className='flex flex-col gap-16px' data-testid='storage-settings-page'>
       <div className='flex items-start justify-between gap-12px'>
@@ -443,6 +463,28 @@ export const StorageSettingsContent: React.FC = () => {
       )}
 
       <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{viewModel.sections.map(renderInventorySection)}</div>
+
+      <Card bordered className='rd-8px' data-testid='storage-research-lifecycle'>
+        <div className='flex flex-col gap-14px'>
+          <div>
+            <Typography.Text className='font-600 text-t-primary'>
+              {t('settings.storagePage.researchLifecycle.title')}
+            </Typography.Text>
+            <div className='text-12px text-t-secondary mt-4px'>
+              {t('settings.storagePage.researchLifecycle.detail')}
+            </div>
+          </div>
+          <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+            {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+            {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+            {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+            {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+            {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+            {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+          </div>
+        </div>
+      </Card>
 
       <Card bordered className='rd-8px' data-testid='storage-conversations'>
         <div className='flex flex-col gap-12px'>

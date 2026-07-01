@@ -78,6 +78,13 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Needs archive proof',
     'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
     'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
+    'settings.storagePage.researchLifecycle.title': 'Research workspace lifecycle',
+    'settings.storagePage.researchLifecycle.detail': 'Read-only lifecycle refs from App state projections.',
+    'settings.storagePage.researchLifecycle.boundary':
+      'Refs only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
+    'settings.storagePage.researchLifecycle.states.available': 'Ref available',
+    'settings.storagePage.researchLifecycle.states.attention': 'Needs review',
+    'settings.storagePage.researchLifecycle.states.blocked': 'Forbidden',
     'settings.storagePage.conversations.title': 'Conversation archive and restore proof',
     'settings.storagePage.conversations.detail': 'Delete is disabled until proof is available.',
     'settings.storagePage.conversations.receiptRequired': 'Archive conversations first.',
@@ -222,7 +229,30 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/Dry-run|dry-run|prune|silent delete|inventory/i);
+    expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
+  });
+
+  it('shows research workspace lifecycle refs as read-only App projection data', async () => {
+    render(<StorageSettingsContent />);
+
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    const lifecycle = screen.getByTestId('storage-research-lifecycle');
+    expect(lifecycle).toHaveTextContent('Research workspace lifecycle');
+    expect(lifecycle).toHaveTextContent('Lifecycle planes');
+    expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
+    expect(lifecycle).toHaveTextContent('Large body refs');
+    expect(lifecycle).toHaveTextContent('clinical data bodies and artifact bodies stay outside the App view');
+    expect(lifecycle).toHaveTextContent('Small-file pressure');
+    expect(lifecycle).toHaveTextContent('the App does not scan workspace trees');
+    expect(lifecycle).toHaveTextContent('Runtime compact preview');
+    expect(lifecycle).toHaveTextContent('runtime_compact_dry_run_refs');
+    expect(lifecycle).toHaveTextContent('Completed-project closeout');
+    expect(lifecycle).toHaveTextContent('completed_project_closeout_refs');
+    expect(lifecycle).toHaveTextContent('Generic cleanup boundary');
+    expect(lifecycle).toHaveTextContent('Generic cleanup without owner refs, dry-run refs, or closeout refs is forbidden');
+    expect(lifecycle.querySelectorAll('button')).toHaveLength(0);
+    expect(lifecycle.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });
 
   it('keeps delete and execute buttons disabled until receipt or dry-run plan exists', async () => {
