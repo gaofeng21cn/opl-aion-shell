@@ -19,6 +19,16 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.storage': 'Storage',
         'conversation.currentTask.resourceReceipt': 'Resource receipt',
         'conversation.currentTask.costEstimate': 'Cost estimate',
+        'conversation.currentTask.taskEvidence': 'Task evidence',
+        'conversation.currentTask.resourceSummary': 'Resource summary',
+        'conversation.currentTask.resourceConfirmation': 'Plan-approve-execute-collect confirmation',
+        'conversation.currentTask.receiptProvenance': 'Receipt and provenance',
+        'conversation.currentTask.confirmPlan': 'Plan',
+        'conversation.currentTask.confirmApproval': 'Approval',
+        'conversation.currentTask.confirmExecute': 'Execute',
+        'conversation.currentTask.confirmMonitor': 'Monitor',
+        'conversation.currentTask.confirmCollect': 'Collect',
+        'conversation.currentTask.jobReceipt': 'Job receipt',
       };
       if (key === 'conversation.currentTask.owner') return `Owner: ${options?.owner ?? ''}`;
       return map[key] ?? key;
@@ -70,20 +80,30 @@ describe('CurrentTaskAwareness', () => {
     );
 
     expect(screen.getByTestId('conversation-current-task-inspector')).toBeTruthy();
+    expect(screen.getByText('Task evidence')).toBeTruthy();
     expect(screen.getByText('Artifact')).toBeTruthy();
     expect(screen.getByText('draft manifest ready')).toBeTruthy();
     expect(screen.getByText('receipt://review')).toBeTruthy();
-    expect(screen.getByText('receipt://action')).toBeTruthy();
-    expect(screen.getByText('workflow://submission')).toBeTruthy();
+    expect(screen.getAllByText('receipt://action')).toHaveLength(4);
+    expect(screen.getAllByText('workflow://submission')).toHaveLength(2);
+    expect(screen.getByText('Resource summary')).toBeTruthy();
     expect(screen.getByText('Gateway status')).toBeTruthy();
-    expect(screen.getByText('opl://gateway/status')).toBeTruthy();
+    expect(screen.getAllByText('opl://gateway/status')).toHaveLength(2);
     expect(screen.getAllByText('Resource source')).toHaveLength(2);
     expect(screen.getByText('opl://resource-source/workspace')).toBeTruthy();
     expect(screen.getByText('opl://resource-source/fabric')).toBeTruthy();
-    expect(screen.getByText('opl://environment/default')).toBeTruthy();
-    expect(screen.getByText('opl://storage/default')).toBeTruthy();
-    expect(screen.getByText('receipt://resource')).toBeTruthy();
-    expect(screen.getByText('opl://cost/estimate')).toBeTruthy();
+    expect(screen.getAllByText('opl://environment/default')).toHaveLength(2);
+    expect(screen.getAllByText('opl://storage/default')).toHaveLength(2);
+    expect(screen.getAllByText('receipt://resource')).toHaveLength(2);
+    expect(screen.getAllByText('opl://cost/estimate')).toHaveLength(2);
+    expect(screen.getByText('Plan-approve-execute-collect confirmation')).toBeTruthy();
+    expect(screen.getByText('Plan')).toBeTruthy();
+    expect(screen.getByText('Approval')).toBeTruthy();
+    expect(screen.getByText('Execute')).toBeTruthy();
+    expect(screen.getByText('Monitor')).toBeTruthy();
+    expect(screen.getByText('Collect')).toBeTruthy();
+    expect(screen.getByText('Receipt and provenance')).toBeTruthy();
+    expect(screen.getByText('Job receipt')).toBeTruthy();
     expect(screen.queryByText('artifact body')).toBeNull();
   });
 

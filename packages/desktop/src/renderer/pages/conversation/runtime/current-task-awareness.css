@@ -57,7 +57,24 @@
 .current-task-awareness__evidence {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+}
+
+.current-task-awareness__evidence-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.current-task-awareness__section-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .current-task-awareness__evidence-label {

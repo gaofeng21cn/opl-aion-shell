@@ -59,6 +59,26 @@ const EvidenceLine: React.FC<{ label: string; value?: string; refValue?: string 
   );
 };
 
+type EvidenceItem = {
+  label: string;
+  value?: string;
+  refValue?: string;
+};
+
+const hasEvidence = (items: EvidenceItem[]): boolean => items.some((item) => trim(item.value) || trim(item.refValue));
+
+const EvidenceSection: React.FC<{ title: string; items: EvidenceItem[] }> = ({ title, items }) => {
+  if (!hasEvidence(items)) return null;
+  return (
+    <div className='current-task-awareness__evidence-section'>
+      <div className='current-task-awareness__section-title'>{title}</div>
+      {items.map((item) => (
+        <EvidenceLine key={`${item.label}:${item.value ?? item.refValue ?? ''}`} {...item} />
+      ))}
+    </div>
+  );
+};
+
 const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compact = false }) => {
   const { t } = useTranslation();
   if (!hasCurrentTaskAwareness(task)) return null;
@@ -68,6 +88,15 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
   const progress = trim(task.progress);
   const nextOwner = trim(task.next_owner);
   const nextStep = trim(task.next_step);
+  const resourceSources =
+    task.resource_source_refs?.map((ref) => ({
+      label: t('conversation.currentTask.resourceSource'),
+      refValue: ref,
+    })) ?? [];
+  const workflowRef = trim(task.workflow_ref);
+  const actionReceipt = trim(task.action_receipt_summary) ?? trim(task.action_receipt_ref);
+  const gatewayStatusRef = trim(task.gateway_status_ref);
+  const resourceReceiptRef = trim(task.resource_receipt_ref);
 
   return (
     <section
@@ -90,30 +119,61 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
       )}
       {!compact && (
         <div className='current-task-awareness__evidence'>
-          <EvidenceLine
-            label={t('conversation.currentTask.artifact')}
-            value={task.artifact_or_blocker_summary}
-            refValue={task.artifact_or_blocker_ref}
+          <EvidenceSection
+            title={t('conversation.currentTask.taskEvidence')}
+            items={[
+              {
+                label: t('conversation.currentTask.artifact'),
+                value: task.artifact_or_blocker_summary,
+                refValue: task.artifact_or_blocker_ref,
+              },
+              {
+                label: t('conversation.currentTask.review'),
+                value: task.review_receipt_summary,
+                refValue: task.review_receipt_ref,
+              },
+              {
+                label: t('conversation.currentTask.action'),
+                value: task.action_receipt_summary,
+                refValue: task.action_receipt_ref,
+              },
+              { label: t('conversation.currentTask.workflow'), refValue: task.workflow_ref },
+            ]}
           />
-          <EvidenceLine
-            label={t('conversation.currentTask.review')}
-            value={task.review_receipt_summary}
-            refValue={task.review_receipt_ref}
+          <EvidenceSection
+            title={t('conversation.currentTask.resourceSummary')}
+            items={[
+              { label: t('conversation.currentTask.gatewayStatus'), refValue: task.gateway_status_ref },
+              ...resourceSources,
+              { label: t('conversation.currentTask.environment'), refValue: task.environment_ref },
+              { label: t('conversation.currentTask.storage'), refValue: task.storage_ref },
+              { label: t('conversation.currentTask.costEstimate'), refValue: task.cost_estimate_ref },
+            ]}
           />
-          <EvidenceLine
-            label={t('conversation.currentTask.action')}
-            value={task.action_receipt_summary}
-            refValue={task.action_receipt_ref}
+          <EvidenceSection
+            title={t('conversation.currentTask.resourceConfirmation')}
+            items={[
+              { label: t('conversation.currentTask.confirmPlan'), refValue: workflowRef },
+              { label: t('conversation.currentTask.confirmApproval'), refValue: actionReceipt },
+              { label: t('conversation.currentTask.confirmExecute'), refValue: actionReceipt },
+              { label: t('conversation.currentTask.confirmMonitor'), refValue: gatewayStatusRef },
+              { label: t('conversation.currentTask.confirmCollect'), refValue: resourceReceiptRef },
+            ]}
           />
-          <EvidenceLine label={t('conversation.currentTask.workflow')} refValue={task.workflow_ref} />
-          <EvidenceLine label={t('conversation.currentTask.gatewayStatus')} refValue={task.gateway_status_ref} />
-          {task.resource_source_refs?.map((ref) => (
-            <EvidenceLine key={ref} label={t('conversation.currentTask.resourceSource')} refValue={ref} />
-          ))}
-          <EvidenceLine label={t('conversation.currentTask.environment')} refValue={task.environment_ref} />
-          <EvidenceLine label={t('conversation.currentTask.storage')} refValue={task.storage_ref} />
-          <EvidenceLine label={t('conversation.currentTask.resourceReceipt')} refValue={task.resource_receipt_ref} />
-          <EvidenceLine label={t('conversation.currentTask.costEstimate')} refValue={task.cost_estimate_ref} />
+          <EvidenceSection
+            title={t('conversation.currentTask.receiptProvenance')}
+            items={[
+              {
+                label: t('conversation.currentTask.jobReceipt'),
+                value: task.action_receipt_summary,
+                refValue: task.action_receipt_ref,
+              },
+              { label: t('conversation.currentTask.resourceReceipt'), refValue: task.resource_receipt_ref },
+              { label: t('conversation.currentTask.environment'), refValue: task.environment_ref },
+              { label: t('conversation.currentTask.storage'), refValue: task.storage_ref },
+              { label: t('conversation.currentTask.costEstimate'), refValue: task.cost_estimate_ref },
+            ]}
+          />
         </div>
       )}
     </section>
