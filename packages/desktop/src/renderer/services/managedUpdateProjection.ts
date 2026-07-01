@@ -157,7 +157,8 @@ function managedUpdateComponentRecords(root: Record<string, unknown>): Record<st
 function findRepairAction(root: Record<string, unknown>, componentId: string): Record<string, unknown> {
   return (
     oplRecordList(root.repair_actions).find(
-      (action) => canonicalManagedUpdateComponentId(firstOplString(action.component_id, action.componentId)) === componentId
+      (action) =>
+        canonicalManagedUpdateComponentId(firstOplString(action.component_id, action.componentId)) === componentId
     ) ?? {}
   );
 }
@@ -267,10 +268,7 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       component.repair_manual_guidance
     );
     const hostUpdateRoute = firstOplString(component.host_update_route, component.hostUpdateRoute);
-    const dataVolumePreservation = firstOplString(
-      component.data_volume_preservation,
-      component.dataVolumePreservation
-    );
+    const dataVolumePreservation = firstOplString(component.data_volume_preservation, component.dataVolumePreservation);
     const hostExecutorRequired =
       state === 'host_executor_required' ||
       oplBoolean(component.host_executor_required) ||
@@ -308,7 +306,9 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       manualRequired,
       hostExecutorRequired,
       hostUpdateRoute,
-      hostUpdateRouteExamples: stringArrayValue(component.host_update_route_examples ?? component.hostUpdateRouteExamples),
+      hostUpdateRouteExamples: stringArrayValue(
+        component.host_update_route_examples ?? component.hostUpdateRouteExamples
+      ),
       dataVolumePreservation,
       preservedMounts: stringArrayValue(component.preserved_mounts),
       requiredPreservationEvidence: stringArrayValue(component.required_preservation_evidence),

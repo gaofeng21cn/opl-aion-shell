@@ -343,7 +343,9 @@ async function invokeRead(operation: ManagedUpdateReadOperation): Promise<IOplRu
 }
 
 function skipReasonForComponent(component: Record<string, unknown>): string | null {
-  const componentId = canonicalManagedUpdateComponentId(component.component_id ?? component.componentId ?? component.id);
+  const componentId = canonicalManagedUpdateComponentId(
+    component.component_id ?? component.componentId ?? component.id
+  );
   if (!componentId) return null;
   const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
   const actionableState = AUTO_APPLY_STATES.has(state);
@@ -463,7 +465,9 @@ function autoApplyCandidates(result: IOplRuntimeCommandResult): {
   const candidates: string[] = [];
   const skipReasons: string[] = [];
   for (const component of componentRecords(managedUpdateRoot(result))) {
-    const componentId = canonicalManagedUpdateComponentId(component.component_id ?? component.componentId ?? component.id);
+    const componentId = canonicalManagedUpdateComponentId(
+      component.component_id ?? component.componentId ?? component.id
+    );
     const skipReason = skipReasonForComponent(component);
     if (skipReason) {
       skipReasons.push(skipReason);

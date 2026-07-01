@@ -246,9 +246,7 @@ describe('FirstRun readiness page', () => {
       });
     });
     await waitFor(() =>
-      expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent(
-        'Inspect OPL System Bridge'
-      )
+      expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent('Inspect OPL System Bridge')
     );
     expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
       'settings.firstRun.initializePending.itemSummary'

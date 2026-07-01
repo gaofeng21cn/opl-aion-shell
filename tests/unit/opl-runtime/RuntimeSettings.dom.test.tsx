@@ -161,7 +161,10 @@ const managedUpdateStatusResult = {
           state: 'host_executor_required',
           host_executor_required: true,
           host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
-          host_update_route_examples: ['install-docker-webui.sh --yes --update', 'docker compose pull && docker compose up -d'],
+          host_update_route_examples: [
+            'install-docker-webui.sh --yes --update',
+            'docker compose pull && docker compose up -d',
+          ],
           data_volume_preservation: 'required_before_replacing_docker_webui_image',
           preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
           required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],
@@ -278,7 +281,10 @@ const managedUpdateAutoApplyPlanResult = {
           safe_to_apply: true,
           host_executor_required: true,
           host_update_route: 'host_executor_runs_documented_installer_or_compose_pull_and_up',
-          host_update_route_examples: ['install-docker-webui.sh --yes --update', 'docker compose pull && docker compose up -d'],
+          host_update_route_examples: [
+            'install-docker-webui.sh --yes --update',
+            'docker compose pull && docker compose up -d',
+          ],
           data_volume_preservation: 'required_before_replacing_docker_webui_image',
           preserved_mounts: ['OnePersonLab/data -> /data', 'OnePersonLab/projects -> /projects'],
           required_preservation_evidence: ['compose_config_readback', 'volume_mount_readback'],

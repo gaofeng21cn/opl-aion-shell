@@ -143,7 +143,9 @@ function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefin
 function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; t: Translate }) {
   if (component.id !== 'installation_carrier') return null;
   const routeLines = [
-    component.hostUpdateRoute ? t('settings.oplEnvironmentPage.updates.hostUpdateRoute', { route: component.hostUpdateRoute }) : null,
+    component.hostUpdateRoute
+      ? t('settings.oplEnvironmentPage.updates.hostUpdateRoute', { route: component.hostUpdateRoute })
+      : null,
     component.hostUpdateRouteExamples.length > 0
       ? t('settings.oplEnvironmentPage.updates.hostUpdateRouteExamples', {
           value: component.hostUpdateRouteExamples.join(', '),
@@ -185,7 +187,10 @@ function HostRouteDetail({ component, t }: { component: ManagedUpdateComponent; 
       .catch(() => Message.error(t('common.copyFailed')));
   };
   return (
-    <div className='border border-solid border-border-1 rd-8px bg-fill-2 p-10px min-w-0' data-testid={`opl-managed-update-host-route-${component.id}`}>
+    <div
+      className='border border-solid border-border-1 rd-8px bg-fill-2 p-10px min-w-0'
+      data-testid={`opl-managed-update-host-route-${component.id}`}
+    >
       <div className='flex items-center justify-between gap-8px'>
         <Typography.Text className='font-600 text-t-primary break-words'>
           {t('settings.oplEnvironmentPage.updates.hostManualRouteTitle')}

@@ -123,7 +123,8 @@ export function componentUserSummary(component: ManagedUpdateComponent, t: Trans
   }
   if (component.dirtyCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.dirtyCheckout');
   if (component.developerCheckout) return t('settings.oplEnvironmentPage.updates.userSummaries.developerCheckout');
-  if (component.hostExecutorRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired');
+  if (component.hostExecutorRequired)
+    return t('settings.oplEnvironmentPage.updates.userSummaries.hostExecutorRequired');
   if (component.manualRequired) return t('settings.oplEnvironmentPage.updates.userSummaries.manualRequired');
   if (component.needsRestart) return t('settings.oplEnvironmentPage.updates.userSummaries.needsRestart');
   if (component.safeToApply) return t('settings.oplEnvironmentPage.updates.userSummaries.canApply');
