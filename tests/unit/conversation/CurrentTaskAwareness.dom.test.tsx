@@ -13,6 +13,12 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.review': 'Review',
         'conversation.currentTask.action': 'Action',
         'conversation.currentTask.workflow': 'Workflow',
+        'conversation.currentTask.gatewayStatus': 'Gateway status',
+        'conversation.currentTask.resourceSource': 'Resource source',
+        'conversation.currentTask.environment': 'Environment',
+        'conversation.currentTask.storage': 'Storage',
+        'conversation.currentTask.resourceReceipt': 'Resource receipt',
+        'conversation.currentTask.costEstimate': 'Cost estimate',
       };
       if (key === 'conversation.currentTask.owner') return `Owner: ${options?.owner ?? ''}`;
       return map[key] ?? key;
@@ -53,6 +59,12 @@ describe('CurrentTaskAwareness', () => {
           review_receipt_ref: 'receipt://review',
           action_receipt_ref: 'receipt://action',
           workflow_ref: 'workflow://submission',
+          gateway_status_ref: 'opl://gateway/status',
+          resource_source_refs: ['opl://resource-source/workspace', 'opl://resource-source/fabric'],
+          environment_ref: 'opl://environment/default',
+          storage_ref: 'opl://storage/default',
+          resource_receipt_ref: 'receipt://resource',
+          cost_estimate_ref: 'opl://cost/estimate',
         }}
       />
     );
@@ -63,6 +75,15 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByText('receipt://review')).toBeTruthy();
     expect(screen.getByText('receipt://action')).toBeTruthy();
     expect(screen.getByText('workflow://submission')).toBeTruthy();
+    expect(screen.getByText('Gateway status')).toBeTruthy();
+    expect(screen.getByText('opl://gateway/status')).toBeTruthy();
+    expect(screen.getAllByText('Resource source')).toHaveLength(2);
+    expect(screen.getByText('opl://resource-source/workspace')).toBeTruthy();
+    expect(screen.getByText('opl://resource-source/fabric')).toBeTruthy();
+    expect(screen.getByText('opl://environment/default')).toBeTruthy();
+    expect(screen.getByText('opl://storage/default')).toBeTruthy();
+    expect(screen.getByText('receipt://resource')).toBeTruthy();
+    expect(screen.getByText('opl://cost/estimate')).toBeTruthy();
     expect(screen.queryByText('artifact body')).toBeNull();
   });
 

@@ -28,6 +28,7 @@ import {
   buildCapabilitiesViewModel,
   type CapabilityActionRefViewModel,
   type CapabilityPurposeViewModel,
+  type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
   type CapabilityStatus,
 } from './capabilitiesProjection';
@@ -139,6 +140,35 @@ const capabilityRefRows = (
   );
 };
 
+const capabilityRefGroups = (groups: CapabilityRefGroupViewModel[], itemKey: string, t: (key: string) => string) => {
+  if (groups.length === 0) return null;
+  return (
+    <div className='grid grid-cols-1 gap-8px'>
+      {groups.map((group) => (
+        <div key={`${itemKey}-${group.key}`} data-testid={`capability-connector-group-${itemKey}-${group.key}`}>
+          <Typography.Text className='block text-12px font-600 text-t-primary mb-4px'>
+            {t(`settings.capabilitiesPage.connectorGroups.${group.key}`)}
+          </Typography.Text>
+          {capabilityRefRows(
+            group.refs,
+            `${itemKey}-${group.key}`,
+            t,
+            `capability-connector-refs-${itemKey}-${group.key}`
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ungroupedCapabilityRefs = (
+  refs: CapabilityRefViewModel[],
+  groups: CapabilityRefGroupViewModel[]
+): CapabilityRefViewModel[] => {
+  const groupedRefs = new Set(groups.flatMap((group) => group.refs));
+  return refs.filter((ref) => !groupedRefs.has(ref));
+};
+
 const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | null, t: (key: string) => string) => {
   if (!action) {
     return (
@@ -248,12 +278,24 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           <Typography.Text className='block text-t-secondary mb-4px'>
                             {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
                           </Typography.Text>
-                          {capabilityRefRows(
-                            item.connectorReadinessRefs,
-                            item.key,
-                            t,
-                            `capability-connector-refs-${item.key}`
+                          {item.connectorReadinessGroups.length > 0 && (
+                            <>
+                              {capabilityRefGroups(item.connectorReadinessGroups, item.key, t)}
+                              {capabilityRefRows(
+                                ungroupedCapabilityRefs(item.connectorReadinessRefs, item.connectorReadinessGroups),
+                                item.key,
+                                t,
+                                `capability-connector-refs-${item.key}`
+                              )}
+                            </>
                           )}
+                          {item.connectorReadinessGroups.length === 0 &&
+                            capabilityRefRows(
+                              item.connectorReadinessRefs,
+                              item.key,
+                              t,
+                              `capability-connector-refs-${item.key}`
+                            )}
                         </div>
                         <div className='min-w-0'>
                           <Typography.Text className='block text-t-secondary mb-4px'>

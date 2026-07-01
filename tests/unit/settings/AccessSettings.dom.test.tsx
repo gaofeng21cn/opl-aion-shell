@@ -223,6 +223,25 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 },
               ],
             },
+            resource_sources: {
+              cloud_remote_access: {
+                status: 'ready',
+                resource_source_refs: ['opl://resource-source/cloud-remote-access'],
+              },
+              opl_gateway: {
+                status: 'available',
+                gateway_status_ref: 'opl://gateway/status',
+              },
+              opl_workspace: {
+                status: 'ready',
+                environment_ref: 'opl://environment/default',
+                storage_ref: 'opl://storage/default',
+              },
+              opl_fabric: {
+                status: 'refs_only',
+                resource_source_ref: 'opl://fabric/resource-source',
+              },
+            },
           },
         },
       },
@@ -279,6 +298,12 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.remote.actionDryRunSuccess': 'Docker WebUI route checked.',
         'settings.accessPage.remote.actionDryRunFailed': 'Docker WebUI route check failed.',
         'settings.accessPage.remote.noActions': 'Docker WebUI actions are not available yet.',
+        'settings.accessPage.resourceSources.cloudRemoteAccess': 'Cloud & Remote Access',
+        'settings.accessPage.resourceSources.oplGateway': 'OPL Gateway',
+        'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
+        'settings.accessPage.resourceSources.oplFabric': 'OPL Fabric',
+        'settings.accessPage.resourceSources.status': `Resource status: ${options?.status}`,
+        'settings.accessPage.resourceSources.noRefs': 'No resource refs reported.',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -343,6 +368,16 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
     expect(view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeTruthy();
     expect(view.getByTestId('opl-settings-docker-webui-route-settings_select_webui_seed')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
+    expect(view.getByText('Cloud & Remote Access')).toBeTruthy();
+    expect(view.getByText('OPL Gateway')).toBeTruthy();
+    expect(view.getByText('OPL Workspace')).toBeTruthy();
+    expect(view.getByText('OPL Fabric')).toBeTruthy();
+    expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
+    expect(document.body.textContent).toContain('opl://gateway/status');
+    expect(document.body.textContent).toContain('opl://environment/default');
+    expect(document.body.textContent).toContain('opl://storage/default');
+    expect(document.body.textContent).toContain('opl://fabric/resource-source');
     expect(view.getByTestId('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByLabelText('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByTestId('opl-settings-configure-codex-button')).toBeTruthy();

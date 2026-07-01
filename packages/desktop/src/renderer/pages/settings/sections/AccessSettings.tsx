@@ -11,7 +11,7 @@ import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
-import { buildAccessProjection, type DockerWebuiAction } from '../accessProjection';
+import { buildAccessProjection, type DockerWebuiAction, type ResourceSourceProjection } from '../accessProjection';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
@@ -27,7 +27,7 @@ export const AccessSettingsContent: React.FC = () => {
   const [codexApiKey, setCodexApiKey] = useState('');
   const [configureLoading, setConfigureLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
-  const { cards, dockerWebui } = buildAccessProjection(appStateQuery.appState, t);
+  const { cards, dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -245,8 +245,37 @@ export const AccessSettingsContent: React.FC = () => {
               {t('settings.accessPage.remote.noActions')}
             </Typography.Text>
           )}
+          <ResourceSources sources={resourceSources} />
         </div>
       </Card>
+    </div>
+  );
+};
+
+const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
+  const { t } = useTranslation();
+  if (sources.length === 0) return null;
+  return (
+    <div className='grid grid-cols-1 md:grid-cols-2 gap-10px' data-testid='opl-settings-resource-sources'>
+      {sources.map((source) => (
+        <div key={source.key} className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
+          <div className='flex flex-wrap items-center gap-8px'>
+            <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
+            <Tag color='blue'>{t('settings.accessPage.resourceSources.status', { status: source.status })}</Tag>
+          </div>
+          {source.refs.length > 0 ? (
+            source.refs.map((ref) => (
+              <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
+                {ref}
+              </Typography.Text>
+            ))
+          ) : (
+            <Typography.Text className='text-12px text-t-secondary'>
+              {t('settings.accessPage.resourceSources.noRefs')}
+            </Typography.Text>
+          )}
+        </div>
+      ))}
     </div>
   );
 };

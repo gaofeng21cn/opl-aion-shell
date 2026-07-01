@@ -224,6 +224,12 @@ export type TConversationRuntimeSummary = {
     action_receipt_summary?: string;
     action_receipt_ref?: string;
     workflow_ref?: string;
+    gateway_status_ref?: string;
+    resource_source_refs?: string[];
+    environment_ref?: string;
+    storage_ref?: string;
+    resource_receipt_ref?: string;
+    cost_estimate_ref?: string;
   };
 };
 

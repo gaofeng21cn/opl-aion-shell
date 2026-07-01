@@ -1554,6 +1554,14 @@
       "actionDryRunFailed": "Docker WebUI 路径检查失败。",
       "noActions": "暂时没有可用的 Docker WebUI 操作。"
     },
+    "resourceSources": {
+      "cloudRemoteAccess": "云端与远程访问",
+      "oplGateway": "OPL Gateway",
+      "oplWorkspace": "OPL Workspace",
+      "oplFabric": "OPL Fabric",
+      "status": "状态：{{status}}",
+      "noRefs": "未报告资源引用。"
+    },
     "actions": {
       "recheck": "重新检查",
       "fix": "修复异常"
@@ -1623,6 +1631,10 @@
     "detailValues": {
       "notReported": "未报告",
       "none": "无"
+    },
+    "connectorGroups": {
+      "oplConnect": "OPL Connect",
+      "oplFabric": "OPL Fabric"
     },
     "refLabels": {
       "id": "ID",

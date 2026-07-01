@@ -30,6 +30,7 @@ export type CapabilityPurposeViewModel = {
   failureReason: string | null;
   workflowRefs: CapabilityRefViewModel[];
   connectorReadinessRefs: CapabilityRefViewModel[];
+  connectorReadinessGroups: CapabilityRefGroupViewModel[];
   exportBundleAction: CapabilityActionRefViewModel | null;
 };
 
@@ -43,6 +44,7 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'failureReason'
   | 'workflowRefs'
   | 'connectorReadinessRefs'
+  | 'connectorReadinessGroups'
   | 'exportBundleAction'
 >;
 
@@ -56,6 +58,11 @@ export type CapabilityRefViewModel = {
   ref: string;
   owner: string | null;
   nextAction: string | null;
+};
+
+export type CapabilityRefGroupViewModel = {
+  key: string;
+  refs: CapabilityRefViewModel[];
 };
 
 export type CapabilityActionRefViewModel = {
@@ -179,6 +186,21 @@ function capabilityRefsFromTask(task: RuntimeTaskItem | undefined, keys: string[
   return keys
     .flatMap((key) => listValues(task[key]).map((entry) => capabilityRef(entry, fallback)))
     .filter((ref): ref is CapabilityRefViewModel => Boolean(ref));
+}
+
+function connectorGroupKey(ref: CapabilityRefViewModel): 'oplConnect' | 'oplFabric' | null {
+  const text = `${ref.id} ${ref.title} ${ref.ref}`.toLowerCase();
+  if (text.includes('fabric')) return 'oplFabric';
+  if (text.includes('connect')) return 'oplConnect';
+  return null;
+}
+
+function connectorReadinessGroups(refs: CapabilityRefViewModel[]): CapabilityRefGroupViewModel[] {
+  const groups: CapabilityRefGroupViewModel[] = [
+    { key: 'oplConnect', refs: refs.filter((ref) => connectorGroupKey(ref) === 'oplConnect') },
+    { key: 'oplFabric', refs: refs.filter((ref) => connectorGroupKey(ref) === 'oplFabric') },
+  ];
+  return groups.filter((group) => group.refs.length > 0);
 }
 
 function exportBundleActionFromTask(task: RuntimeTaskItem | undefined): CapabilityActionRefViewModel | null {
@@ -325,12 +347,14 @@ function buildCapabilityPurpose(
     | 'failureReason'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
+    | 'connectorReadinessGroups'
     | 'exportBundleAction'
   >,
   module: RuntimeModuleItem | undefined,
   task: RuntimeTaskItem | undefined
 ): CapabilityPurposeViewModel {
   const status = mapCapabilityStatus(module);
+  const connectorReadinessRefs = capabilityRefsFromTask(task, ['connector_readiness_refs']);
   return {
     ...purpose,
     status,
@@ -340,7 +364,8 @@ function buildCapabilityPurpose(
     lastSync: capabilityLastSync(module),
     failureReason: capabilityFailureReason(module),
     workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
-    connectorReadinessRefs: capabilityRefsFromTask(task, ['connector_readiness_refs']),
+    connectorReadinessRefs,
+    connectorReadinessGroups: connectorReadinessGroups(connectorReadinessRefs),
     exportBundleAction: exportBundleActionFromTask(task),
   };
 }
