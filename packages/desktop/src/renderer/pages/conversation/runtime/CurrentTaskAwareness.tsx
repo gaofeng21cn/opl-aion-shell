@@ -17,11 +17,67 @@ type CurrentTaskAwarenessProps = {
   compact?: boolean;
 };
 
+type CurrentTaskV2Card = Record<string, unknown>;
+
+type ConversationCurrentTaskV2 = ConversationCurrentTask & {
+  conditions?: CurrentTaskV2Card[];
+  evidence_cards?: CurrentTaskV2Card[];
+  action_cards?: CurrentTaskV2Card[];
+  resource_cards?: CurrentTaskV2Card[];
+  diagnostics_ref?: string;
+};
+
 const trim = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined;
   const next = value.trim();
   return next.length ? next : undefined;
 };
+
+const cardList = (value: unknown): CurrentTaskV2Card[] =>
+  Array.isArray(value)
+    ? value.filter((entry): entry is CurrentTaskV2Card => Boolean(entry && typeof entry === 'object'))
+    : [];
+
+const firstCardText = (card: CurrentTaskV2Card, keys: string[]): string | undefined => {
+  for (const key of keys) {
+    const value = trim(card[key]);
+    if (value) return value;
+  }
+  return undefined;
+};
+
+const cardArrayText = (value: unknown): string | undefined =>
+  Array.isArray(value) ? value.map(trim).find((entry): entry is string => Boolean(entry)) : undefined;
+
+const cardsToEvidenceItems = (cards: CurrentTaskV2Card[], fallbackLabel: string): EvidenceItem[] =>
+  cards.flatMap((card, index): EvidenceItem[] => {
+    const refValue =
+      firstCardText(card, [
+        'summary_ref',
+        'ref',
+        'dry_run_ref',
+        'execute_ref',
+        'action_receipt',
+        'status_ref',
+        'environment_ref',
+        'usage_ref',
+        'receipt_ref',
+      ]) ??
+      cardArrayText(card.source_refs) ??
+      cardArrayText(card.lineage_refs);
+    const label = firstCardText(card, ['title', 'label', 'kind', 'type']) ?? fallbackLabel;
+    const value =
+      firstCardText(card, ['summary', 'message', 'reason']) ??
+      (refValue ? undefined : label !== fallbackLabel ? label : undefined);
+    if (!value && !refValue) return [];
+    return [
+      {
+        label,
+        refValue,
+        value: value ?? (refValue ? undefined : `${fallbackLabel} ${index + 1}`),
+      },
+    ];
+  });
 
 export const hasCurrentTaskAwareness = (
   task: ConversationCurrentTask | null | undefined
@@ -45,7 +101,12 @@ export const hasCurrentTaskAwareness = (
       trim(task.environment_ref) ||
       trim(task.storage_ref) ||
       trim(task.resource_receipt_ref) ||
-      trim(task.cost_estimate_ref))
+      trim(task.cost_estimate_ref) ||
+      cardList((task as ConversationCurrentTaskV2).conditions).length > 0 ||
+      cardList((task as ConversationCurrentTaskV2).evidence_cards).length > 0 ||
+      cardList((task as ConversationCurrentTaskV2).action_cards).length > 0 ||
+      cardList((task as ConversationCurrentTaskV2).resource_cards).length > 0 ||
+      trim((task as ConversationCurrentTaskV2).diagnostics_ref))
   );
 
 const EvidenceLine: React.FC<{ label: string; value?: string; refValue?: string }> = ({ label, value, refValue }) => {
@@ -83,6 +144,7 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
   const { t } = useTranslation();
   if (!hasCurrentTaskAwareness(task)) return null;
 
+  const taskV2 = task as ConversationCurrentTaskV2;
   const title = trim(task.title) ?? trim(task.task_id) ?? t('conversation.currentTask.defaultTitle');
   const stage = trim(task.stage);
   const progress = trim(task.progress);
@@ -97,6 +159,10 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
   const actionReceipt = trim(task.action_receipt_summary) ?? trim(task.action_receipt_ref);
   const gatewayStatusRef = trim(task.gateway_status_ref);
   const resourceReceiptRef = trim(task.resource_receipt_ref);
+  const conditionItems = cardsToEvidenceItems(cardList(taskV2.conditions), t('conversation.currentTask.condition'));
+  const evidenceItems = cardsToEvidenceItems(cardList(taskV2.evidence_cards), t('conversation.currentTask.evidence'));
+  const actionItems = cardsToEvidenceItems(cardList(taskV2.action_cards), t('conversation.currentTask.action'));
+  const resourceItems = cardsToEvidenceItems(cardList(taskV2.resource_cards), t('conversation.currentTask.resource'));
 
   return (
     <section
@@ -122,6 +188,8 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
           <EvidenceSection
             title={t('conversation.currentTask.taskEvidence')}
             items={[
+              ...conditionItems,
+              ...evidenceItems,
               {
                 label: t('conversation.currentTask.artifact'),
                 value: task.artifact_or_blocker_summary,
@@ -145,6 +213,7 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
             items={[
               { label: t('conversation.currentTask.gatewayStatus'), refValue: task.gateway_status_ref },
               ...resourceSources,
+              ...resourceItems,
               { label: t('conversation.currentTask.environment'), refValue: task.environment_ref },
               { label: t('conversation.currentTask.storage'), refValue: task.storage_ref },
               { label: t('conversation.currentTask.costEstimate'), refValue: task.cost_estimate_ref },
@@ -168,10 +237,12 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
                 value: task.action_receipt_summary,
                 refValue: task.action_receipt_ref,
               },
+              ...actionItems,
               { label: t('conversation.currentTask.resourceReceipt'), refValue: task.resource_receipt_ref },
               { label: t('conversation.currentTask.environment'), refValue: task.environment_ref },
               { label: t('conversation.currentTask.storage'), refValue: task.storage_ref },
               { label: t('conversation.currentTask.costEstimate'), refValue: task.cost_estimate_ref },
+              { label: t('conversation.currentTask.diagnostics'), refValue: taskV2.diagnostics_ref },
             ]}
           />
         </div>

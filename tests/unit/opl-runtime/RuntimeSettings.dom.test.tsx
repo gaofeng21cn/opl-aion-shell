@@ -484,6 +484,75 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByText('opl-flow')).not.toBeInTheDocument();
   });
 
+  it('renders TaskRunProjection v2 task list and selected task refs from fast app state', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ...appStateResult,
+      parsed: {
+        app_state: {
+          ...appStateResult.parsed.app_state,
+          operator: {
+            status: 'ready',
+            workbench: {
+              task_run_projection_v2: {
+                projection_kind: 'task_run_projection_v2',
+                schema_version: 2,
+                tasks: [
+                  {
+                    task_id: 'dm002-taskrun',
+                    title: 'DM002 TaskRun',
+                    state: 'running',
+                    status_label: 'Advancing',
+                    stage: 'review',
+                    progress_label: 'evidence ready',
+                    next_owner: 'reviewer',
+                    next_step: 'Review evidence cards',
+                    last_progress_at: '2026-07-01T00:00:00Z',
+                    blocker_refs: ['blocker://needs-owner'],
+                    evidence_cards: [
+                      {
+                        card_id: 'artifact',
+                        title: 'Publication artifact',
+                        summary_ref: 'artifact://summary',
+                      },
+                    ],
+                    action_cards: [
+                      {
+                        action_id: 'review-dry-run',
+                        label: 'Preview review',
+                        dry_run_ref: 'action://dry-run',
+                      },
+                    ],
+                    resource_cards: [
+                      {
+                        resource_id: 'fabric-resource',
+                        kind: 'fabric',
+                        status_ref: 'resource://status',
+                      },
+                    ],
+                    diagnostics_ref: 'diagnostics://task',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+
+    render(<RuntimeSettings />);
+
+    await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
+    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
+    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Preview review');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');
+  });
+
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
     render(<RuntimeSettings />);
 

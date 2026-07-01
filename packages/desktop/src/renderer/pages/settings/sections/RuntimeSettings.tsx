@@ -49,7 +49,9 @@ import {
   findRecommendedUpdateAction,
   updateComponentUserAction,
 } from '../RuntimeSettings/environmentProjection';
+import { normalizeRuntimeProjection } from '../RuntimeSettings/runtimeProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
+import type { RuntimeTaskDrilldown, RuntimeTaskRefCard } from '../RuntimeSettings/types';
 import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
@@ -118,6 +120,142 @@ function mutationWillChange(
 function mutationWillNotChange(kind: 'apply' | 'repair' | 'rollback', t: Translate): string {
   if (kind === 'rollback') return t('settings.oplEnvironmentPage.updates.confirmation.willNotRollback');
   return t('settings.oplEnvironmentPage.updates.confirmation.willNotApplyUnsafe');
+}
+
+function taskStatusLabel(task: RuntimeTaskDrilldown): string | undefined {
+  return task.status ?? task.state ?? task.progressLabel;
+}
+
+function TaskRunRefCards({ title, cards }: { title: string; cards: RuntimeTaskRefCard[] }) {
+  if (cards.length === 0) return null;
+  return (
+    <div className='flex flex-col gap-6px min-w-0'>
+      <Typography.Text className='text-12px font-600 text-t-primary'>{title}</Typography.Text>
+      <div className='grid gap-8px md:grid-cols-2'>
+        {cards.map((card) => (
+          <div key={card.id} className='rd-8px border border-border-1 bg-fill-2 p-10px min-w-0'>
+            <Typography.Text className='block text-12px font-600 text-t-primary break-words'>
+              {card.label}
+            </Typography.Text>
+            {(card.value || card.ref) && (
+              <Typography.Text className='block text-12px text-t-secondary break-all'>
+                {card.value ?? card.ref}
+              </Typography.Text>
+            )}
+            {card.value && card.ref && (
+              <Typography.Text className='block text-12px text-t-secondary break-all'>{card.ref}</Typography.Text>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldown[] }) {
+  const { t } = useTranslation();
+  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+  const selectedTask = useMemo(
+    () => tasks.find((task) => task.taskId === selectedTaskId) ?? tasks[0],
+    [selectedTaskId, tasks]
+  );
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <>
+      <Typography.Text className='font-600 text-t-primary'>{t('settings.runtimePage.taskRuns.title')}</Typography.Text>
+      <Card bordered className='rd-8px' data-testid='runtime-task-run-projection-v2'>
+        <div className='flex flex-col gap-12px'>
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.runtimePage.taskRuns.description')}
+          </Typography.Text>
+          <div className='grid gap-10px md:grid-cols-2'>
+            {tasks.map((task) => (
+              <Button
+                key={task.taskId}
+                className='h-auto text-left rd-8px border border-border-1 bg-fill-2 p-10px'
+                data-testid={`runtime-task-run-row-${task.taskId}`}
+                onClick={() => setSelectedTaskId(task.taskId)}
+              >
+                <span className='flex min-w-0 flex-col items-stretch'>
+                  <span className='block text-14px font-600 text-t-primary break-words'>{task.title}</span>
+                  <span className='mt-4px flex flex-wrap gap-6px text-12px text-t-secondary'>
+                    {taskStatusLabel(task) && <Tag size='small'>{taskStatusLabel(task)}</Tag>}
+                    {task.stage && <span>{task.stage}</span>}
+                    {task.nextOwner && (
+                      <span>{t('settings.runtimePage.taskRuns.nextOwner', { owner: task.nextOwner })}</span>
+                    )}
+                  </span>
+                  {task.nextStep && (
+                    <span className='mt-6px block text-12px text-t-secondary break-words'>{task.nextStep}</span>
+                  )}
+                </span>
+              </Button>
+            ))}
+          </div>
+          {selectedTask && (
+            <div className='rd-8px border border-border-1 p-12px' data-testid='runtime-task-run-detail'>
+              <div className='flex flex-col gap-6px'>
+                <div className='flex flex-wrap items-center gap-8px'>
+                  <Typography.Text className='font-600 text-t-primary'>{selectedTask.title}</Typography.Text>
+                  {taskStatusLabel(selectedTask) && <Tag size='small'>{taskStatusLabel(selectedTask)}</Tag>}
+                  {selectedTask.progressLabel && <Tag size='small'>{selectedTask.progressLabel}</Tag>}
+                </div>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {[
+                    selectedTask.stage ? t('settings.runtimePage.taskRuns.stage', { stage: selectedTask.stage }) : null,
+                    selectedTask.nextStep
+                      ? t('settings.runtimePage.taskRuns.nextStep', { step: selectedTask.nextStep })
+                      : null,
+                    selectedTask.lastProgressAt
+                      ? t('settings.runtimePage.taskRuns.lastProgress', { time: selectedTask.lastProgressAt })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Typography.Text>
+              </div>
+              {selectedTask.conditions.length > 0 && (
+                <div className='mt-12px flex flex-col gap-6px'>
+                  <Typography.Text className='text-12px font-600 text-t-primary'>
+                    {t('settings.runtimePage.taskRuns.conditions')}
+                  </Typography.Text>
+                  <div className='flex flex-col gap-6px'>
+                    {selectedTask.conditions.map((condition) => (
+                      <div key={condition.id} className='text-12px text-t-secondary break-words'>
+                        {[condition.type, condition.status, condition.reason, condition.message]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className='mt-12px flex flex-col gap-12px'>
+                <TaskRunRefCards
+                  title={t('settings.runtimePage.taskRuns.evidenceCards')}
+                  cards={selectedTask.evidenceCards}
+                />
+                <TaskRunRefCards
+                  title={t('settings.runtimePage.taskRuns.actionCards')}
+                  cards={selectedTask.actionCards}
+                />
+                <TaskRunRefCards
+                  title={t('settings.runtimePage.taskRuns.resourceRefs')}
+                  cards={selectedTask.resourceRefs}
+                />
+                <TaskRunRefCards
+                  title={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
+                  cards={selectedTask.diagnosticsRefs}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    </>
+  );
 }
 
 function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate): string {
@@ -926,6 +1064,7 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, [message, t]);
 
   const appState = appStateQuery.appState;
+  const runtimeProjection = useMemo(() => normalizeRuntimeProjection({ app_state: appState }), [appState]);
   const managedUpdatePlane = useMemo(
     () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appState),
     [appState, managedUpdateMaintenance.result]
@@ -1201,6 +1340,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         <RuntimeHealthSummary items={healthSummaryItems} />
 
         <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
+
+        <RuntimeTaskRunProjectionSection tasks={runtimeProjection.taskRunProjectionV2.tasks} />
 
         {(developerSourceActive || dirtyCheckoutActive) && (
           <Alert

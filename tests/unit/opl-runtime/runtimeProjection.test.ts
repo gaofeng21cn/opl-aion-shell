@@ -133,6 +133,99 @@ describe('runtime visualization projection normalization', () => {
     expect(model.refs.map((ref) => ref.ref)).toContain('/Users/example/workspace/med-autoscience');
   });
 
+  it('prefers workbench task_run_projection_v2 tasks over legacy task_drilldowns', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        operator: {
+          status: 'ready',
+          workbench: {
+            task_run_projection_v2: {
+              projection_kind: 'task_run_projection_v2',
+              schema_version: 2,
+              tasks: [
+                {
+                  task_id: 'dm002-taskrun',
+                  title: 'DM002 TaskRun',
+                  domain_id: 'medautoscience',
+                  state: 'running',
+                  status_label: 'Advancing',
+                  stage: 'review',
+                  progress_label: 'evidence ready',
+                  next_owner: 'reviewer',
+                  next_step: 'Review evidence cards',
+                  last_progress_at: '2026-07-01T00:00:00Z',
+                  blocker_refs: ['blocker://needs-owner'],
+                  evidence_cards: [
+                    {
+                      card_id: 'artifact',
+                      kind: 'artifact',
+                      title: 'Publication artifact',
+                      summary_ref: 'artifact://summary',
+                      lineage_refs: ['lineage://one'],
+                    },
+                  ],
+                  action_cards: [
+                    {
+                      action_id: 'dry-run-review',
+                      label: 'Preview review',
+                      dry_run_ref: 'action://dry-run',
+                      execute_ref: 'action://execute',
+                    },
+                  ],
+                  resource_cards: [
+                    {
+                      resource_id: 'fabric',
+                      kind: 'fabric',
+                      status_ref: 'resource://status',
+                      source_refs: ['resource://source'],
+                    },
+                  ],
+                  diagnostics_ref: 'diagnostics://task',
+                },
+              ],
+            },
+            task_drilldowns: [{ task_id: 'legacy-task', title: 'Legacy task' }],
+          },
+        },
+      },
+    });
+
+    expect(model.taskRunProjectionV2).toMatchObject({
+      projectionKind: 'task_run_projection_v2',
+      schemaVersion: 2,
+    });
+    expect(model.taskRunProjectionV2.tasks).toHaveLength(1);
+    expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
+      taskId: 'dm002-taskrun',
+      title: 'DM002 TaskRun',
+      status: 'Advancing',
+      stage: 'review',
+      progressLabel: 'evidence ready',
+      nextOwner: 'reviewer',
+      nextStep: 'Review evidence cards',
+      blockerRefCount: 1,
+    });
+    expect(model.taskRunProjectionV2.tasks[0]?.evidenceCards[0]).toMatchObject({
+      id: 'artifact',
+      label: 'Publication artifact',
+      ref: 'artifact://summary',
+    });
+    expect(model.taskRunProjectionV2.tasks[0]?.actionCards[0]).toMatchObject({
+      id: 'dry-run-review',
+      label: 'Preview review',
+      ref: 'action://dry-run',
+    });
+    expect(model.taskRunProjectionV2.tasks[0]?.resourceRefs[0]).toMatchObject({
+      id: 'fabric',
+      label: 'fabric',
+      ref: 'resource://status',
+    });
+    expect(model.taskRunProjectionV2.tasks[0]?.diagnosticsRefs[0]?.ref).toBe('diagnostics://task');
+    expect(model.taskRunProjectionV2.tasks.map((task) => task.taskId)).not.toContain('legacy-task');
+    expect(model.taskDrilldowns.map((task) => task.taskId)).toEqual(['dm002-taskrun']);
+  });
+
   it('keeps top-level runtime_visualization_projection out of the main renderer path', () => {
     const model = normalizeRuntimeProjection({
       runtime_visualization_projection: {

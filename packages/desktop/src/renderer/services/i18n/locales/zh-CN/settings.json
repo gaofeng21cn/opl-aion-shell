@@ -1395,6 +1395,19 @@
     "description": "检查本机 App、工作目录、后台服务、能力包、更新和本地数据是否需要处理。技术细节默认收起。",
     "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
     "latestStableDetail": "GitHub 最新稳定版：{{version}}",
+    "taskRuns": {
+      "title": "运行任务",
+      "description": "来自 OPL 运行时投影的用户任务。产物正文和 provider 内部细节不在这里显示。",
+      "nextOwner": "负责人：{{owner}}",
+      "stage": "阶段：{{stage}}",
+      "nextStep": "下一步：{{step}}",
+      "lastProgress": "最近进展：{{time}}",
+      "conditions": "条件",
+      "evidenceCards": "证据",
+      "actionCards": "动作",
+      "resourceRefs": "资源",
+      "diagnosticsRefs": "诊断"
+    },
     "releaseChannels": {
       "stable": "稳定版",
       "latest": "最新版",

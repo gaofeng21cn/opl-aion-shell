@@ -13,6 +13,10 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.review': 'Review',
         'conversation.currentTask.action': 'Action',
         'conversation.currentTask.workflow': 'Workflow',
+        'conversation.currentTask.condition': 'Condition',
+        'conversation.currentTask.evidence': 'Evidence',
+        'conversation.currentTask.resource': 'Resource',
+        'conversation.currentTask.diagnostics': 'Diagnostics',
         'conversation.currentTask.gatewayStatus': 'Gateway status',
         'conversation.currentTask.resourceSource': 'Resource source',
         'conversation.currentTask.environment': 'Environment',
@@ -105,6 +109,34 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByText('Receipt and provenance')).toBeTruthy();
     expect(screen.getByText('Job receipt')).toBeTruthy();
     expect(screen.queryByText('artifact body')).toBeNull();
+  });
+
+  it('renders v2 current task slice cards without a separate store', () => {
+    render(
+      <CurrentTaskAwareness
+        task={
+          {
+            title: 'TaskRun slice',
+            conditions: [{ type: 'HumanGate', status: 'False', reason: 'NeedsOwner', message: 'owner approval' }],
+            evidence_cards: [{ card_id: 'artifact', title: 'Artifact card', summary_ref: 'artifact://summary' }],
+            action_cards: [{ action_id: 'dry-run', label: 'Preview action', dry_run_ref: 'action://dry-run' }],
+            resource_cards: [{ resource_id: 'fabric', kind: 'fabric', status_ref: 'resource://status' }],
+            diagnostics_ref: 'diagnostics://task',
+          } as never
+        }
+      />
+    );
+
+    expect(screen.getByTestId('conversation-current-task-inspector')).toBeTruthy();
+    expect(screen.getByText('TaskRun slice')).toBeTruthy();
+    expect(screen.getByText('owner approval')).toBeTruthy();
+    expect(screen.getByText('Artifact card')).toBeTruthy();
+    expect(screen.getByText('artifact://summary')).toBeTruthy();
+    expect(screen.getByText('Preview action')).toBeTruthy();
+    expect(screen.getByText('action://dry-run')).toBeTruthy();
+    expect(screen.getByText('fabric')).toBeTruthy();
+    expect(screen.getByText('resource://status')).toBeTruthy();
+    expect(screen.getByText('diagnostics://task')).toBeTruthy();
   });
 
   it('does not render without current task refs', () => {

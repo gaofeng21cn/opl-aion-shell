@@ -15,7 +15,10 @@ import type {
   RuntimeRefreshPolicy,
   RuntimeSafeActionRoute,
   RuntimeSummaryCard,
+  RuntimeTaskCondition,
   RuntimeTaskDrilldown,
+  RuntimeTaskRefCard,
+  RuntimeTaskRunProjectionV2,
   RuntimeTimelineItem,
   RuntimeVisualizationModel,
 } from './types';
@@ -44,6 +47,10 @@ function asStringArray(value: unknown): string[] {
 
 function asRecordArray(value: unknown): JsonRecord[] {
   return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function firstRecord(...values: unknown[]): JsonRecord | undefined {
@@ -298,19 +305,151 @@ function readDomainLaneMap(workbench: JsonRecord): RuntimeDomainLane[] {
 }
 
 function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
-  return asRecordArray(workbench.task_drilldowns).map((entry, index) => ({
-    taskId: asString(entry.task_id) ?? `task-${index + 1}`,
-    title: asString(entry.title) ?? asString(entry.task_id) ?? `Task ${index + 1}`,
+  return asRecordArray(workbench.task_drilldowns).map((entry, index) => readTaskRunRecord(entry, index));
+}
+
+function readRefCardValue(value: unknown): { value?: string; ref?: string; kind?: string } {
+  if (isRecord(value)) {
+    return {
+      value: asString(value.summary) ?? asString(value.message) ?? asString(value.label) ?? asString(value.title),
+      ref:
+        asString(value.ref) ??
+        asString(value.summary_ref) ??
+        asString(value.receipt_ref) ??
+        asString(value.status_ref) ??
+        asString(value.dry_run_ref) ??
+        asString(value.execute_ref) ??
+        asString(value.action_receipt) ??
+        asString(value.environment_ref) ??
+        asString(value.usage_ref) ??
+        asStringArray(value.source_refs)[0] ??
+        asStringArray(value.lineage_refs)[0],
+      kind: asString(value.kind) ?? asString(value.type),
+    };
+  }
+  return { ref: asString(value) };
+}
+
+function readRefCards(value: unknown, fallbackPrefix: string, fallbackLabel: string): RuntimeTaskRefCard[] {
+  return asArray(value).flatMap((entry, index): RuntimeTaskRefCard[] => {
+    const card = readRefCardValue(entry);
+    if (!card.value && !card.ref) return [];
+    const record = isRecord(entry) ? entry : {};
+    return [
+      {
+        id:
+          asString(record.card_id) ??
+          asString(record.action_id) ??
+          asString(record.resource_id) ??
+          asString(record.id) ??
+          card.ref ??
+          `${fallbackPrefix}-${index + 1}`,
+        label:
+          asString(record.title) ??
+          asString(record.label) ??
+          asString(record.kind) ??
+          asString(record.type) ??
+          fallbackLabel,
+        value: card.value,
+        ref: card.ref,
+        kind: card.kind,
+      },
+    ];
+  });
+}
+
+function readSingleRefCard(
+  value: unknown,
+  id: string,
+  label: string,
+  options: { value?: unknown; kind?: string } = {}
+): RuntimeTaskRefCard[] {
+  const ref = readRefCardValue(value);
+  const display = asString(options.value) ?? ref.value;
+  if (!display && !ref.ref) return [];
+  return [{ id, label, value: display, ref: ref.ref, kind: options.kind ?? ref.kind }];
+}
+
+function readTaskConditions(entry: JsonRecord): RuntimeTaskCondition[] {
+  const explicitConditions = asRecordArray(entry.conditions).map((condition, index) => ({
+    id: asString(condition.id) ?? asString(condition.type) ?? asString(condition.reason) ?? `condition-${index + 1}`,
+    type: asString(condition.type),
+    status: asString(condition.status),
+    reason: asString(condition.reason),
+    message: asString(condition.message),
+  }));
+  const refConditions = [
+    ...readRefCards(entry.blocker_refs, 'blocker', 'Blocker'),
+    ...readRefCards(entry.human_gate_refs, 'human-gate', 'Human gate'),
+    ...readRefCards(entry.readiness_false_flag_refs, 'readiness-flag', 'Readiness flag'),
+  ].map((card) => ({
+    id: card.id,
+    type: card.label,
+    status: asString(entry.attention_state),
+    message: card.value ?? card.ref,
+  }));
+  return [...explicitConditions, ...refConditions];
+}
+
+function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldown {
+  const taskId = asString(entry.task_id) ?? `task-${index + 1}`;
+  const blockerRefsCount = asArray(entry.blocker_refs).length;
+  return {
+    taskId,
+    title: asString(entry.title) ?? taskId,
     domainId: asString(entry.domain_id),
     domainLabel: asString(entry.domain_label),
     state: asString(entry.state),
+    status: asString(entry.status_label) ?? asString(entry.status),
+    stage: asString(entry.stage) ?? asString(entry.active_stage_label) ?? asString(entry.active_stage_id),
+    progressLabel: asString(entry.progress_label) ?? asString(entry.progress_delta_classification),
+    nextStep: asString(entry.next_step) ?? asString(entry.next_visible_step) ?? asString(entry.required_next_action),
+    nextOwner: asString(entry.next_owner) ?? asString(entry.owner),
+    lastProgressAt: asString(entry.last_progress_at) ?? asString(entry.updated_at),
     activeStageId: asString(entry.active_stage_id),
     stageAttemptIds: asStringArray(entry.stage_attempt_ids),
     paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
-    safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? 0,
-    blockerRefCount: asNumber(entry.blocker_ref_count) ?? 0,
+    safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? asRecordArray(entry.action_cards).length,
+    blockerRefCount: asNumber(entry.blocker_ref_count) ?? blockerRefsCount + asRecordArray(entry.conditions).length,
     activePath: asRecordArray(entry.active_path).map((node, nodeIndex) => readNode(node, 'path', nodeIndex)),
-  }));
+    conditions: readTaskConditions(entry),
+    evidenceCards: [
+      ...readRefCards(entry.evidence_cards, 'evidence', 'Evidence'),
+      ...readSingleRefCard(entry.artifact_or_blocker, 'artifact-or-blocker', 'Artifact or blocker'),
+      ...readSingleRefCard(entry.review_receipt, 'review-receipt', 'Review receipt'),
+    ],
+    actionCards: [
+      ...readRefCards(entry.action_cards, 'action', 'Action'),
+      ...readSingleRefCard(entry.action_receipt, 'action-receipt', 'Action receipt'),
+      ...readSingleRefCard(entry.export_bundle_action_ref, 'export-bundle', 'Export bundle'),
+    ],
+    resourceRefs: [
+      ...readRefCards(entry.resource_cards, 'resource', 'Resource'),
+      ...readSingleRefCard(entry.gateway_status_ref, 'gateway-status', 'Gateway status'),
+      ...readRefCards(entry.resource_source_refs, 'resource-source', 'Resource source'),
+      ...readSingleRefCard(entry.environment_ref, 'environment', 'Environment'),
+      ...readSingleRefCard(entry.storage_ref, 'storage', 'Storage'),
+      ...readSingleRefCard(entry.resource_usage_ref, 'resource-usage', 'Resource usage'),
+      ...readSingleRefCard(entry.resource_receipt_ref, 'resource-receipt', 'Resource receipt'),
+      ...readSingleRefCard(entry.cost_estimate_ref, 'cost-estimate', 'Cost estimate'),
+    ],
+    diagnosticsRefs: [
+      ...readRefCards(entry.diagnostics_refs, 'diagnostics', 'Diagnostics'),
+      ...readSingleRefCard(entry.diagnostics_ref, 'diagnostics-ref', 'Diagnostics'),
+    ],
+  };
+}
+
+function readTaskRunProjectionV2(workbench: JsonRecord): RuntimeTaskRunProjectionV2 {
+  const projection = firstRecord(workbench.task_run_projection_v2);
+  if (projection) {
+    return {
+      projectionKind: asString(projection.projection_kind),
+      schemaVersion: asNumber(projection.schema_version),
+      tasks: asRecordArray(projection.tasks).map((entry, index) => readTaskRunRecord(entry, index)),
+    };
+  }
+  return { tasks: readTaskDrilldowns(workbench) };
 }
 
 function statusTone(status: string | undefined): string {
@@ -434,6 +573,7 @@ function normalizeAppStateRefs(appState: JsonRecord): RuntimeGraphNode[] {
 function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualizationModel {
   const operator = firstRecord(appState.operator);
   const workbench = firstRecord(operator?.workbench);
+  const taskRunProjectionV2 = readTaskRunProjectionV2(workbench ?? {});
   return {
     sourceSurface: asString(appState.surface_kind) ?? 'opl_app_state',
     state: asString(operator?.status) ?? asString(appState.status) ?? 'unknown',
@@ -443,7 +583,8 @@ function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualization
     summaryCards: normalizeAppStateSummaryCards(appState),
     actionQueue: [],
     domainLaneMap: normalizeAppStateDomainLaneMap(appState),
-    taskDrilldowns: [],
+    taskDrilldowns: taskRunProjectionV2.tasks,
+    taskRunProjectionV2,
     defaultReadSurfacePolicy: readDefaultReadSurfacePolicy(
       operator?.default_read_surface_policy ?? workbench?.default_read_surface_policy
     ),
@@ -462,6 +603,7 @@ function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualization
 
 function normalizeProjectionRecord(projection: JsonRecord): RuntimeVisualizationModel {
   const workbench = readRuntimeWorkbench(projection);
+  const taskRunProjectionV2 = readTaskRunProjectionV2(workbench);
   const unifiedGraph = readGraph(projection.graph, 'runtime');
   const stageGraph =
     unifiedGraph.nodes.length > 0
@@ -508,7 +650,8 @@ function normalizeProjectionRecord(projection: JsonRecord): RuntimeVisualization
     summaryCards: readSummaryCards(workbench),
     actionQueue: readActionQueue(workbench),
     domainLaneMap: readDomainLaneMap(workbench),
-    taskDrilldowns: readTaskDrilldowns(workbench),
+    taskDrilldowns: taskRunProjectionV2.tasks,
+    taskRunProjectionV2,
     defaultReadSurfacePolicy: readDefaultReadSurfacePolicy(
       projection.default_read_surface_policy ?? workbench.default_read_surface_policy
     ),

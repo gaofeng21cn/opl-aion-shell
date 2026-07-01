@@ -1394,6 +1394,19 @@
     "description": "Check whether the local app, workspace, background services, capability packages, updates, and stored data need action. Technical detail stays collapsed by default.",
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
+    "taskRuns": {
+      "title": "Runtime tasks",
+      "description": "User-visible task runs from the OPL runtime projection. Artifact bodies and provider internals stay outside this view.",
+      "nextOwner": "Owner: {{owner}}",
+      "stage": "Stage: {{stage}}",
+      "nextStep": "Next: {{step}}",
+      "lastProgress": "Last progress: {{time}}",
+      "conditions": "Conditions",
+      "evidenceCards": "Evidence",
+      "actionCards": "Actions",
+      "resourceRefs": "Resources",
+      "diagnosticsRefs": "Diagnostics"
+    },
     "releaseChannels": {
       "stable": "Stable",
       "latest": "Latest",

@@ -92,12 +92,45 @@ export type RuntimeTaskDrilldown = {
   domainId?: string;
   domainLabel?: string;
   state?: string;
+  status?: string;
+  stage?: string;
+  progressLabel?: string;
+  nextStep?: string;
+  nextOwner?: string;
+  lastProgressAt?: string;
   activeStageId?: string;
   stageAttemptIds: string[];
   paperRouteLensRefCount: number;
   safeActionRefCount: number;
   blockerRefCount: number;
   activePath: RuntimeGraphNode[];
+  conditions: RuntimeTaskCondition[];
+  evidenceCards: RuntimeTaskRefCard[];
+  actionCards: RuntimeTaskRefCard[];
+  resourceRefs: RuntimeTaskRefCard[];
+  diagnosticsRefs: RuntimeTaskRefCard[];
+};
+
+export type RuntimeTaskRunProjectionV2 = {
+  projectionKind?: string;
+  schemaVersion?: number;
+  tasks: RuntimeTaskDrilldown[];
+};
+
+export type RuntimeTaskCondition = {
+  id: string;
+  type?: string;
+  status?: string;
+  reason?: string;
+  message?: string;
+};
+
+export type RuntimeTaskRefCard = {
+  id: string;
+  label: string;
+  value?: string;
+  ref?: string;
+  kind?: string;
 };
 
 export type RuntimeRefreshPolicy = {
@@ -148,4 +181,5 @@ export type RuntimeVisualizationModel = {
   ownerBoundary: string[];
   safeActionRoutes: RuntimeSafeActionRoute[];
   refs: RuntimeGraphNode[];
+  taskRunProjectionV2: RuntimeTaskRunProjectionV2;
 };
