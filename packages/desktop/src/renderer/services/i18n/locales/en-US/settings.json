@@ -1628,11 +1628,11 @@
     }
   },
   "oplEnvironmentPage": {
-    "workspaceRootTitle": "Environment Base",
+    "workspaceRootTitle": "Env Cache / Isolated Prefix",
     "workspaceRootMissing": "No workspace root has been selected",
-    "modulesTitle": "Environment Base",
-    "localAssistantTitle": "Execution Core",
-    "localServiceTitle": "Execution Core",
+    "modulesTitle": "Package & Env Resolver",
+    "localAssistantTitle": "Language Runtimes",
+    "localServiceTitle": "Receipts",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
     "healthSummary": {
       "usable": "Can use",
@@ -1686,7 +1686,7 @@
         },
         "runtimeToolchain": {
           "title": "OPL Runtime Fabric",
-          "description": "Check the managed OPL Runtime Fabric lane.",
+          "description": "Check Language Runtimes, Package & Env Resolver, Env Cache / Isolated Prefix, and Receipts in the managed OPL Runtime Fabric lane.",
           "actionHelp": "Runs the existing managed update check. It does not apply OPL Runtime Fabric changes."
         },
         "capabilityPacks": {

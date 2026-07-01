@@ -3848,8 +3848,9 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     hash: '#/settings/environment',
     requiredTextAny: [
       ['OPL System Bridge'],
-      ['Execution Core'],
-      ['Environment Base'],
+      ['Language Runtimes', '语言运行时'],
+      ['Package & Env Resolver', '包与环境解析器'],
+      ['Env Cache / Isolated Prefix', '环境缓存 / 隔离前缀'],
     ],
   },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },

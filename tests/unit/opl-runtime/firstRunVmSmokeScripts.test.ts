@@ -383,8 +383,9 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
         ['OPL System Bridge'],
-        ['Execution Core'],
-        ['Environment Base'],
+        ['Language Runtimes', '语言运行时'],
+        ['Package & Env Resolver', '包与环境解析器'],
+        ['Env Cache / Isolated Prefix', '环境缓存 / 隔离前缀'],
       ])
     );
     expect(appearanceTarget?.requiredTextAny).toEqual(

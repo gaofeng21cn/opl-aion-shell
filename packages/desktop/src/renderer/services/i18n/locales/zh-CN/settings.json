@@ -1629,11 +1629,11 @@
     }
   },
   "oplEnvironmentPage": {
-    "workspaceRootTitle": "环境基座",
+    "workspaceRootTitle": "环境缓存 / 隔离前缀",
     "workspaceRootMissing": "尚未选择工作目录",
-    "modulesTitle": "环境基座",
-    "localAssistantTitle": "执行核心",
-    "localServiceTitle": "执行核心",
+    "modulesTitle": "包与环境解析器",
+    "localAssistantTitle": "语言运行时",
+    "localServiceTitle": "回执",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
     "healthSummary": {
       "usable": "是否可用",
@@ -1687,7 +1687,7 @@
         },
         "runtimeToolchain": {
           "title": "OPL Runtime Fabric",
-          "description": "检查托管 OPL Runtime Fabric 通道。",
+          "description": "检查托管 OPL Runtime Fabric 通道中的语言运行时、包与环境解析器、环境缓存 / 隔离前缀和回执。",
           "actionHelp": "运行现有托管更新检查；不会应用 OPL Runtime Fabric 变更。"
         },
         "capabilityPacks": {
