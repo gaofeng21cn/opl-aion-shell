@@ -382,7 +382,7 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['System Bridge'],
+        ['OPL System Bridge'],
         ['Execution Core'],
         ['Environment Base'],
       ])

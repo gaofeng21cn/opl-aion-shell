@@ -1651,7 +1651,7 @@
       "workspace": "Work directory",
       "agentPackages": "Capability packs",
       "storage": "Storage and data",
-      "maintenance": "System Bridge"
+      "maintenance": "OPL System Bridge"
     },
     "workspace": {
       "rootTitle": "Work directory",
@@ -1664,7 +1664,7 @@
       "openStorage": "Review storage"
     },
     "maintenanceHub": {
-      "title": "System Bridge",
+      "title": "OPL System Bridge",
       "description": "Use one place for Installation carrier updates, OPL Runtime Fabric upkeep, capability packs, storage cleanup, and repair suggestions. Actions still run through their existing managed surfaces.",
       "makeUsable": {
         "label": "Make OPL usable",
@@ -1857,7 +1857,7 @@
       }
     },
     "updates": {
-      "title": "System Bridge",
+      "title": "OPL System Bridge",
       "description": "Check whether the Installation carrier, OPL Runtime Fabric, companion tools, and OPL capability packages need updates. The default view shows impact and next step; receipts, locks, and internal modes stay in diagnostics.",
       "channel": "Channel: {{channel}}",
       "lockStatus": "Lock: {{status}}",

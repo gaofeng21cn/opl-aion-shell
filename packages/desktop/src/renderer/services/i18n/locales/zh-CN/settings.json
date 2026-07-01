@@ -1652,7 +1652,7 @@
       "workspace": "工作目录",
       "agentPackages": "能力包",
       "storage": "存储与数据",
-      "maintenance": "系统桥接"
+      "maintenance": "OPL 系统桥接"
     },
     "workspace": {
       "rootTitle": "工作目录",
@@ -1665,7 +1665,7 @@
       "openStorage": "查看存储"
     },
     "maintenanceHub": {
-      "title": "系统桥接",
+      "title": "OPL 系统桥接",
       "description": "在一个入口查看安装载体更新、OPL Runtime Fabric、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
       "makeUsable": {
         "label": "让 OPL 可用",
@@ -1858,7 +1858,7 @@
       }
     },
     "updates": {
-      "title": "系统桥接",
+      "title": "OPL 系统桥接",
       "description": "查看安装载体、OPL Runtime Fabric、辅助工具和 OPL 能力包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
       "channel": "通道：{{channel}}",
       "lockStatus": "锁：{{status}}",

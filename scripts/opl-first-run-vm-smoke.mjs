@@ -3847,7 +3847,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     id: 'environment',
     hash: '#/settings/environment',
     requiredTextAny: [
-      ['System Bridge'],
+      ['OPL System Bridge'],
       ['Execution Core'],
       ['Environment Base'],
     ],

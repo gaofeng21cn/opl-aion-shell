@@ -240,14 +240,14 @@ describe('FirstRun readiness page', () => {
         surface_id: 'opl_system_initialize_event',
         event_type: 'phase_start',
         phase: 'native_helpers',
-        label: 'Inspect native helper toolchain',
+        label: 'Inspect OPL System Bridge',
         sequence: 8,
         observed_at: '2026-06-29T00:00:00.000Z',
       });
     });
     await waitFor(() =>
       expect(screen.getByTestId('opl-first-run-initialize-pending')).toHaveTextContent(
-        'Inspect native helper toolchain'
+        'Inspect OPL System Bridge'
       )
     );
     expect(screen.getByTestId('opl-first-run-beginner-primary')).toHaveTextContent(
