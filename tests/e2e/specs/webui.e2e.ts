@@ -9,12 +9,12 @@
  *  - Start / stop lifecycle (via the Switch toggle)
  */
 import { test, expect } from '../fixtures';
-import { goToSettings, expectBodyContainsAny, ARCO_SWITCH, takeScreenshot, waitForClassChange } from '../helpers';
+import { goToLegacySettings, expectBodyContainsAny, ARCO_SWITCH, takeScreenshot, waitForClassChange } from '../helpers';
 
 test.describe('WebUI Service', () => {
   /** Navigate to the WebUI settings tab. */
   async function goToWebui(page: import('@playwright/test').Page): Promise<void> {
-    await goToSettings(page, 'webui');
+    await goToLegacySettings(page, 'webui');
   }
 
   // ── Page loads ───────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ export {
   navigateTo,
   goToGuid,
   goToSettings,
+  goToLegacySettings,
   goToExtensionSettings,
   goToChannelsTab,
   resetChannelsTabCache,
@@ -9,6 +10,7 @@ export {
   waitForClassChange,
   ROUTES,
   type SettingsTab,
+  type LegacySettingsTab,
 } from './navigation';
 export {
   CHAT_INPUT,

@@ -26,15 +26,18 @@ export const ROUTES = {
     agent: '#/settings/agent',
     assistants: '#/settings/assistants',
     display: '#/settings/display',
-    webui: '#/settings/webui',
     system: '#/settings/system',
     about: '#/settings/about',
+  },
+  legacySettings: {
+    webui: '#/settings/webui',
   },
   /** Dynamic extension settings tab route */
   extensionSettings: (tabId: string) => `#/settings/ext/${tabId}`,
 } as const;
 
 export type SettingsTab = keyof typeof ROUTES.settings;
+export type LegacySettingsTab = keyof typeof ROUTES.legacySettings;
 
 // ── Navigation helpers ───────────────────────────────────────────────────────
 
@@ -169,6 +172,11 @@ export async function goToSettings(page: Page, tab: SettingsTab): Promise<void> 
   await navigateWithRetry(page, ROUTES.settings[tab]);
 }
 
+/** Navigate to a legacy upstream settings route kept for compatibility-only tests. */
+export async function goToLegacySettings(page: Page, tab: LegacySettingsTab): Promise<void> {
+  await navigateWithRetry(page, ROUTES.legacySettings[tab]);
+}
+
 /** Navigate to the assistant settings page. */
 export async function goToAssistantSettings(page: Page): Promise<void> {
   await navigateWithRetry(page, ROUTES.settings.assistants);
@@ -183,9 +191,9 @@ export async function goToExtensionSettings(page: Page, tabId: string): Promise<
 let _onChannelsTab = false;
 
 /**
- * Navigate to the channels tab inside the webui settings page.
- * Extracted from individual test files to eliminate duplication.
- * Uses a session-level flag to skip re-navigation when already on the tab.
+ * Navigate to the channels tab inside the legacy WebUI settings page.
+ * Compatibility-only coverage uses the old upstream route explicitly so ordinary
+ * App settings tests do not treat it as a current product navigation target.
  */
 export async function goToChannelsTab(page: Page): Promise<void> {
   const channelItem = page
@@ -193,12 +201,12 @@ export async function goToChannelsTab(page: Page): Promise<void> {
     .first();
 
   // Quick check: if we're already on the channels tab, verify a channel item is still visible
-  if (_onChannelsTab && isAlreadyAt(page, ROUTES.settings.webui)) {
+  if (_onChannelsTab && isAlreadyAt(page, ROUTES.legacySettings.webui)) {
     const stillVisible = await channelItem.isVisible().catch(() => false);
     if (stillVisible) return;
   }
 
-  await goToSettings(page, 'webui');
+  await goToLegacySettings(page, 'webui');
 
   // Ensure route transition is actually complete before locating inner tabs
   await page
@@ -231,7 +239,7 @@ export async function goToChannelsTab(page: Page): Promise<void> {
     }
 
     // Retry once in case of slow Settings lazy-load in packaged CI runs
-    await goToSettings(page, 'webui');
+    await goToLegacySettings(page, 'webui');
     await waitForSettle(page, 2_000);
   }
 
