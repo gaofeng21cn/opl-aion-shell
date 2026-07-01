@@ -99,7 +99,13 @@
     "artifact": "产物",
     "review": "审查",
     "action": "动作",
-    "workflow": "流程"
+    "workflow": "流程",
+    "gatewayStatus": "网关状态",
+    "resourceSource": "资源来源",
+    "environment": "环境",
+    "storage": "存储",
+    "resourceReceipt": "资源回执",
+    "costEstimate": "成本估算"
   },
   "noAgentsAvailable": "没有可用的 Agent",
   "noModelConfigured": "未配置模型，请前往设置页面配置。",

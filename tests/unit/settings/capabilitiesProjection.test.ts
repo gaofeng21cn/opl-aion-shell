@@ -39,7 +39,7 @@ describe('buildCapabilitiesViewModel', () => {
                     body: 'must not render',
                   },
                 ],
-                connector_readiness_refs: ['opl://connector/pubmed/readiness'],
+                connector_readiness_refs: ['opl://connect/pubmed/readiness', 'opl://fabric/storage/readiness'],
                 export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
                 action_receipt: {
                   dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
@@ -68,9 +68,45 @@ describe('buildCapabilitiesViewModel', () => {
         id: 'readiness',
         title: 'readiness',
         status: 'blocked',
-        ref: 'opl://connector/pubmed/readiness',
+        ref: 'opl://connect/pubmed/readiness',
         owner: 'opl_framework',
         nextAction: 'repair connector',
+      },
+      {
+        id: 'readiness',
+        title: 'readiness',
+        status: 'blocked',
+        ref: 'opl://fabric/storage/readiness',
+        owner: 'opl_framework',
+        nextAction: 'repair connector',
+      },
+    ]);
+    expect(research.connectorReadinessGroups).toEqual([
+      {
+        key: 'oplConnect',
+        refs: [
+          {
+            id: 'readiness',
+            title: 'readiness',
+            status: 'blocked',
+            ref: 'opl://connect/pubmed/readiness',
+            owner: 'opl_framework',
+            nextAction: 'repair connector',
+          },
+        ],
+      },
+      {
+        key: 'oplFabric',
+        refs: [
+          {
+            id: 'readiness',
+            title: 'readiness',
+            status: 'blocked',
+            ref: 'opl://fabric/storage/readiness',
+            owner: 'opl_framework',
+            nextAction: 'repair connector',
+          },
+        ],
       },
     ]);
     expect(research.exportBundleAction).toEqual({

@@ -50,7 +50,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                   next_action: 'run dry-run first',
                 },
               ],
-              connector_readiness_refs: ['opl://connector/pubmed/readiness'],
+              connector_readiness_refs: [
+                'opl://connect/pubmed/readiness',
+                'opl://connector/generic/readiness',
+                {
+                  id: 'fabric-storage',
+                  title: 'Fabric storage readiness',
+                  ref: 'opl://fabric/storage/readiness',
+                  status: 'refs_only',
+                },
+              ],
               export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
               action_receipt: {
                 dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
@@ -138,6 +147,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
+        'settings.capabilitiesPage.connectorGroups.oplConnect': 'OPL Connect',
+        'settings.capabilitiesPage.connectorGroups.oplFabric': 'OPL Fabric',
         'settings.capabilitiesPage.refLabels.id': 'ID',
         'settings.capabilitiesPage.refLabels.ref': 'Ref',
         'settings.capabilitiesPage.refLabels.owner': 'Owner',
@@ -193,7 +204,13 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText('managed_root')).toBeInTheDocument();
     expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
     expect(within(research).getByText('Connector readiness refs')).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/connector\/pubmed\/readiness/)).toBeInTheDocument();
+    expect(within(research).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
+    expect(within(research).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
+    expect(within(research).getByText('OPL Connect')).toBeInTheDocument();
+    expect(within(research).getByText('OPL Fabric')).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/connect\/pubmed\/readiness/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/connector\/generic\/readiness/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
     expect(within(research).getByText('Reusable workflow refs')).toBeInTheDocument();
     expect(within(research).getByText('Module runtime repair')).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();

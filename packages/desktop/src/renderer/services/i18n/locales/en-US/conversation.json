@@ -99,7 +99,13 @@
     "artifact": "Artifact",
     "review": "Review",
     "action": "Action",
-    "workflow": "Workflow"
+    "workflow": "Workflow",
+    "gatewayStatus": "Gateway status",
+    "resourceSource": "Resource source",
+    "environment": "Environment",
+    "storage": "Storage",
+    "resourceReceipt": "Resource receipt",
+    "costEstimate": "Cost estimate"
   },
   "noAgentsAvailable": "No agents available",
   "noModelConfigured": "No model configured. Please configure in settings.",

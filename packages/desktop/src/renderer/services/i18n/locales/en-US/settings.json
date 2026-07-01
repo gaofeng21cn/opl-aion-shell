@@ -1553,6 +1553,14 @@
       "actionDryRunFailed": "Docker WebUI route check failed.",
       "noActions": "Docker WebUI actions are not available yet."
     },
+    "resourceSources": {
+      "cloudRemoteAccess": "Cloud & Remote Access",
+      "oplGateway": "OPL Gateway",
+      "oplWorkspace": "OPL Workspace",
+      "oplFabric": "OPL Fabric",
+      "status": "Status: {{status}}",
+      "noRefs": "No resource refs reported."
+    },
     "actions": {
       "recheck": "Recheck",
       "fix": "Fix issue"
@@ -1622,6 +1630,10 @@
     "detailValues": {
       "notReported": "Not reported",
       "none": "None"
+    },
+    "connectorGroups": {
+      "oplConnect": "OPL Connect",
+      "oplFabric": "OPL Fabric"
     },
     "refLabels": {
       "id": "ID",

@@ -90,6 +90,21 @@ describe('buildAccessProjection', () => {
         provider: {
           status: 'ok',
         },
+        settings_control_center: {
+          app_settings_read_model: {
+            resource_sources: {
+              cloud_remote_access: {
+                status: 'ready',
+                resource_source_refs: ['opl://resource-source/cloud'],
+                body: 'must not render',
+              },
+              opl_gateway: {
+                status: 'available',
+                gateway_status_ref: 'opl://gateway/status',
+              },
+            },
+          },
+        },
       },
       t
     );
@@ -98,6 +113,21 @@ describe('buildAccessProjection', () => {
       status: 'ready',
       tone: 'green',
     });
+    expect(projection.resourceSources).toEqual([
+      {
+        key: 'cloudRemoteAccess',
+        title: 'settings.accessPage.resourceSources.cloudRemoteAccess',
+        status: 'ready',
+        refs: ['opl://resource-source/cloud'],
+      },
+      {
+        key: 'oplGateway',
+        title: 'settings.accessPage.resourceSources.oplGateway',
+        status: 'available',
+        refs: ['opl://gateway/status'],
+      },
+    ]);
+    expect(JSON.stringify(projection)).not.toContain('must not render');
   });
 
   it('reads Docker WebUI ordinary actions from the App settings control center read model', () => {

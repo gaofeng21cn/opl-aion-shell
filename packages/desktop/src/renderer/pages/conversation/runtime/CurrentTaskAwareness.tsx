@@ -39,7 +39,13 @@ export const hasCurrentTaskAwareness = (
       trim(task.review_receipt_ref) ||
       trim(task.action_receipt_summary) ||
       trim(task.action_receipt_ref) ||
-      trim(task.workflow_ref))
+      trim(task.workflow_ref) ||
+      trim(task.gateway_status_ref) ||
+      task.resource_source_refs?.some(trim) ||
+      trim(task.environment_ref) ||
+      trim(task.storage_ref) ||
+      trim(task.resource_receipt_ref) ||
+      trim(task.cost_estimate_ref))
   );
 
 const EvidenceLine: React.FC<{ label: string; value?: string; refValue?: string }> = ({ label, value, refValue }) => {
@@ -100,6 +106,14 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
             refValue={task.action_receipt_ref}
           />
           <EvidenceLine label={t('conversation.currentTask.workflow')} refValue={task.workflow_ref} />
+          <EvidenceLine label={t('conversation.currentTask.gatewayStatus')} refValue={task.gateway_status_ref} />
+          {task.resource_source_refs?.map((ref) => (
+            <EvidenceLine key={ref} label={t('conversation.currentTask.resourceSource')} refValue={ref} />
+          ))}
+          <EvidenceLine label={t('conversation.currentTask.environment')} refValue={task.environment_ref} />
+          <EvidenceLine label={t('conversation.currentTask.storage')} refValue={task.storage_ref} />
+          <EvidenceLine label={t('conversation.currentTask.resourceReceipt')} refValue={task.resource_receipt_ref} />
+          <EvidenceLine label={t('conversation.currentTask.costEstimate')} refValue={task.cost_estimate_ref} />
         </div>
       )}
     </section>
