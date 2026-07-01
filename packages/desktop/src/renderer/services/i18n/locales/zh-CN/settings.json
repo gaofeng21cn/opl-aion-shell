@@ -1538,10 +1538,11 @@
       "configureFailed": "无法保存 Codex API key。"
     },
     "remote": {
-      "title": "Web / Docker / 远程访问",
-      "description": "普通用户可以在这里启用 WebUI、查看访问地址，并找到远程访问相关配置。",
+      "title": "云端与远程访问 / 部署入口",
+      "description": "在同一入口查看本机 App、Docker WebUI、OPL Workspace 和远程资源引用。",
       "webui": "WebUI",
-      "docker": "Docker",
+      "docker": "Docker WebUI",
+      "workspace": "OPL Workspace",
       "remoteAccess": "远程访问",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
@@ -1560,6 +1561,24 @@
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
       "status": "状态：{{status}}",
+      "environmentRefs": "环境目录引用",
+      "managementRefs": "OPL Console 管理引用",
+      "categories": {
+        "gateway": "模型接入",
+        "local": "本机资源",
+        "dockerWebui": "Docker/WebUI 部署",
+        "oplWorkspace": "OPL Workspace",
+        "sshHpc": "自有 SSH/HPC",
+        "oplCloudCompute": "OPL Cloud 托管计算",
+        "managedStorage": "托管存储",
+        "institutionalData": "机构数据源",
+        "fabric": "OPL Fabric",
+        "remote": "远程资源"
+      },
+      "management": {
+        "consoleManaged": "由 OPL Console 管理",
+        "selfManaged": "自管资源"
+      },
       "noRefs": "未报告资源引用。"
     },
     "actions": {
@@ -1626,6 +1645,7 @@
       "failureReason": "失败原因",
       "connectorReadinessRefs": "连接器就绪引用",
       "workflowRefs": "可复用工作流引用",
+      "resourceContextRefs": "环境与资源引用",
       "exportBundleAction": "可复现导出包动作"
     },
     "detailValues": {
@@ -1635,6 +1655,14 @@
     "connectorGroups": {
       "oplConnect": "OPL Connect",
       "oplFabric": "OPL Fabric"
+    },
+    "resourceContextGroups": {
+      "gateway": "OPL Gateway",
+      "environment": "环境目录",
+      "storage": "存储",
+      "resources": "资源来源",
+      "receipts": "资源回执",
+      "costs": "额度 / 成本"
     },
     "refLabels": {
       "id": "ID",

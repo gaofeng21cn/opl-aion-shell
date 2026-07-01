@@ -31,6 +31,8 @@ export type CapabilityPurposeViewModel = {
   workflowRefs: CapabilityRefViewModel[];
   connectorReadinessRefs: CapabilityRefViewModel[];
   connectorReadinessGroups: CapabilityRefGroupViewModel[];
+  resourceContextRefs: CapabilityRefViewModel[];
+  resourceContextGroups: CapabilityRefGroupViewModel[];
   exportBundleAction: CapabilityActionRefViewModel | null;
 };
 
@@ -45,6 +47,8 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'workflowRefs'
   | 'connectorReadinessRefs'
   | 'connectorReadinessGroups'
+  | 'resourceContextRefs'
+  | 'resourceContextGroups'
   | 'exportBundleAction'
 >;
 
@@ -151,7 +155,9 @@ function refValue(value: unknown): string | null {
 function listValues(value: unknown): unknown[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') return [value];
-  return oplRecordList(value);
+  const record = oplRecord(value);
+  if (Object.keys(record).length > 0) return [record];
+  return [];
 }
 
 function refIdFromRef(ref: string): string {
@@ -201,6 +207,22 @@ function connectorReadinessGroups(refs: CapabilityRefViewModel[]): CapabilityRef
     { key: 'oplFabric', refs: refs.filter((ref) => connectorGroupKey(ref) === 'oplFabric') },
   ];
   return groups.filter((group) => group.refs.length > 0);
+}
+
+function resourceContextGroupKey(ref: CapabilityRefViewModel): string {
+  const text = `${ref.id} ${ref.title} ${ref.ref}`.toLowerCase();
+  if (text.includes('gateway')) return 'gateway';
+  if (text.includes('environment') || text.includes('template')) return 'environment';
+  if (text.includes('storage')) return 'storage';
+  if (text.includes('receipt')) return 'receipts';
+  if (text.includes('cost') || text.includes('quota') || text.includes('billing')) return 'costs';
+  return 'resources';
+}
+
+function resourceContextGroups(refs: CapabilityRefViewModel[]): CapabilityRefGroupViewModel[] {
+  return ['gateway', 'environment', 'storage', 'resources', 'receipts', 'costs']
+    .map((key) => ({ key, refs: refs.filter((ref) => resourceContextGroupKey(ref) === key) }))
+    .filter((group) => group.refs.length > 0);
 }
 
 function exportBundleActionFromTask(task: RuntimeTaskItem | undefined): CapabilityActionRefViewModel | null {
@@ -348,6 +370,8 @@ function buildCapabilityPurpose(
     | 'workflowRefs'
     | 'connectorReadinessRefs'
     | 'connectorReadinessGroups'
+    | 'resourceContextRefs'
+    | 'resourceContextGroups'
     | 'exportBundleAction'
   >,
   module: RuntimeModuleItem | undefined,
@@ -355,6 +379,25 @@ function buildCapabilityPurpose(
 ): CapabilityPurposeViewModel {
   const status = mapCapabilityStatus(module);
   const connectorReadinessRefs = capabilityRefsFromTask(task, ['connector_readiness_refs']);
+  const resourceContextRefs = capabilityRefsFromTask(task, [
+    'resource_source_refs',
+    'gateway_status_ref',
+    'environment_ref',
+    'environment_refs',
+    'environment_template_ref',
+    'environment_template_refs',
+    'template_ref',
+    'template_refs',
+    'environment_version_ref',
+    'environment_version_refs',
+    'environment_source_ref',
+    'environment_source_refs',
+    'task_applicability_ref',
+    'task_applicability_refs',
+    'storage_ref',
+    'resource_receipt_ref',
+    'cost_estimate_ref',
+  ]);
   return {
     ...purpose,
     status,
@@ -366,6 +409,8 @@ function buildCapabilityPurpose(
     workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
     connectorReadinessRefs,
     connectorReadinessGroups: connectorReadinessGroups(connectorReadinessRefs),
+    resourceContextRefs,
+    resourceContextGroups: resourceContextGroups(resourceContextRefs),
     exportBundleAction: exportBundleActionFromTask(task),
   };
 }

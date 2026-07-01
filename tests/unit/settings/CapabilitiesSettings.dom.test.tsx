@@ -60,6 +60,15 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                   status: 'refs_only',
                 },
               ],
+              gateway_status_ref: 'opl://gateway/status/gflabtoken',
+              environment_ref: 'opl://environment/python-r-quarto',
+              environment_template_ref: 'opl://environment-template/python-r-quarto',
+              environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
+              task_applicability_ref: 'opl://task-applicability/mas',
+              storage_ref: 'opl://storage/workspace-volume/medautoscience',
+              resource_source_refs: ['opl://resource-source/opl-cloud/managed-compute'],
+              resource_receipt_ref: 'receipt://resource/latest',
+              cost_estimate_ref: 'opl://cost-estimate/mas/latest',
               export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
               action_receipt: {
                 dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
@@ -144,11 +153,18 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.failureReason': 'Failure reason',
         'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness refs',
         'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflow refs',
+        'settings.capabilitiesPage.detailLabels.resourceContextRefs': 'Environment and resource refs',
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
         'settings.capabilitiesPage.connectorGroups.oplConnect': 'OPL Connect',
         'settings.capabilitiesPage.connectorGroups.oplFabric': 'OPL Fabric',
+        'settings.capabilitiesPage.resourceContextGroups.gateway': 'OPL Gateway',
+        'settings.capabilitiesPage.resourceContextGroups.environment': 'Environment catalog',
+        'settings.capabilitiesPage.resourceContextGroups.storage': 'Storage',
+        'settings.capabilitiesPage.resourceContextGroups.resources': 'Resource sources',
+        'settings.capabilitiesPage.resourceContextGroups.receipts': 'Resource receipts',
+        'settings.capabilitiesPage.resourceContextGroups.costs': 'Quota / cost',
         'settings.capabilitiesPage.refLabels.id': 'ID',
         'settings.capabilitiesPage.refLabels.ref': 'Ref',
         'settings.capabilitiesPage.refLabels.owner': 'Owner',
@@ -214,6 +230,22 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText('Reusable workflow refs')).toBeInTheDocument();
     expect(within(research).getByText('Module runtime repair')).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
+    expect(within(research).getByText('Environment and resource refs')).toBeInTheDocument();
+    expect(within(research).getByText('OPL Gateway')).toBeInTheDocument();
+    expect(within(research).getByText('Environment catalog')).toBeInTheDocument();
+    expect(within(research).getByText('Storage')).toBeInTheDocument();
+    expect(within(research).getByText('Resource sources')).toBeInTheDocument();
+    expect(within(research).getByText('Resource receipts')).toBeInTheDocument();
+    expect(within(research).getByText('Quota / cost')).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/gateway\/status\/gflabtoken/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/environment\/python-r-quarto/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/environment-template\/python-r-quarto/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/task-applicability\/mas/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)).toBeInTheDocument();
+    expect(within(research).getByText(/receipt:\/\/resource\/latest/)).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/cost-estimate\/mas\/latest/)).toBeInTheDocument();
     expect(within(research).getByText('Reproducibility export bundle action')).toBeInTheDocument();
     expect(within(research).getByText('export_reproducibility_bundle')).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
