@@ -231,6 +231,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               opl_gateway: {
                 status: 'available',
                 gateway_status_ref: 'opl://gateway/status',
+                key_status_ref: 'opl://gateway/key/gflabtoken',
+                provider_policy_ref: 'opl://gateway/policy/provider-routing',
               },
               opl_workspace: {
                 status: 'ready',
@@ -240,6 +242,23 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               opl_fabric: {
                 status: 'refs_only',
                 resource_source_ref: 'opl://fabric/resource-source',
+              },
+              cloud_compute: {
+                status: 'available',
+                resource_source_ref: 'opl://resource-source/opl-cloud/managed-compute',
+                console_managed: true,
+                console_policy_ref: 'opl://console/policy/compute',
+                quota_ref: 'opl://console/quota/compute',
+                billing_ref: 'opl://console/billing/project',
+                permission_ref: 'opl://console/permission/workspace',
+                environment_template_ref: 'opl://environment-template/python-r-quarto',
+                environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
+                task_applicability_ref: 'opl://task-applicability/mas',
+              },
+              user_hpc: {
+                status: 'available',
+                resource_source_ref: 'opl://resource-source/ssh-hpc/lab',
+                user_provided: true,
               },
             },
           },
@@ -281,11 +300,12 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.modelAccount.configureButton': 'Save API key',
         'settings.accessPage.modelAccount.configureSuccess': 'Codex API key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save Codex API key.',
-        'settings.accessPage.remote.title': 'Web / Docker / Remote Access',
+        'settings.accessPage.remote.title': 'Cloud & Remote Access / Deployment Entry',
         'settings.accessPage.remote.description':
-          'Enable WebUI, inspect access URLs, and find remote access configuration from one place.',
+          'View Local App, Docker WebUI, OPL Workspace, and remote resource refs from one entry.',
         'settings.accessPage.remote.webui': 'WebUI',
-        'settings.accessPage.remote.docker': 'Docker',
+        'settings.accessPage.remote.docker': 'Docker WebUI',
+        'settings.accessPage.remote.workspace': 'OPL Workspace',
         'settings.accessPage.remote.remoteAccess': 'Remote access',
         'settings.accessPage.remote.status': `Status: ${options?.status}`,
         'settings.accessPage.remote.runtimeStatus': `Runtime proxy: ${options?.status}`,
@@ -303,6 +323,20 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
         'settings.accessPage.resourceSources.oplFabric': 'OPL Fabric',
         'settings.accessPage.resourceSources.status': `Resource status: ${options?.status}`,
+        'settings.accessPage.resourceSources.environmentRefs': 'Environment catalog refs',
+        'settings.accessPage.resourceSources.managementRefs': 'OPL Console management refs',
+        'settings.accessPage.resourceSources.categories.gateway': 'Model access',
+        'settings.accessPage.resourceSources.categories.local': 'Local resource',
+        'settings.accessPage.resourceSources.categories.dockerWebui': 'Docker/WebUI deployment',
+        'settings.accessPage.resourceSources.categories.oplWorkspace': 'OPL Workspace',
+        'settings.accessPage.resourceSources.categories.sshHpc': 'User SSH/HPC',
+        'settings.accessPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud managed compute',
+        'settings.accessPage.resourceSources.categories.managedStorage': 'Managed storage',
+        'settings.accessPage.resourceSources.categories.institutionalData': 'Institutional data source',
+        'settings.accessPage.resourceSources.categories.fabric': 'OPL Fabric',
+        'settings.accessPage.resourceSources.categories.remote': 'Remote resource',
+        'settings.accessPage.resourceSources.management.consoleManaged': 'Managed by OPL Console',
+        'settings.accessPage.resourceSources.management.selfManaged': 'Self-managed resource',
         'settings.accessPage.resourceSources.noRefs': 'No resource refs reported.',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
@@ -356,9 +390,10 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('127.0.0.1:7233');
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
-    expect(view.getByText('Web / Docker / Remote Access')).toBeTruthy();
+    expect(view.getByText('Cloud & Remote Access / Deployment Entry')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
-    expect(view.getByText('Docker')).toBeTruthy();
+    expect(view.getByText('Docker WebUI')).toBeTruthy();
+    expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getByText('Remote access')).toBeTruthy();
     expect(view.getByText('Status: action_available')).toBeTruthy();
     expect(view.getByText('Runtime proxy: diagnose_with_doctor')).toBeTruthy();
@@ -371,13 +406,29 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(view.getByText('Cloud & Remote Access')).toBeTruthy();
     expect(view.getByText('OPL Gateway')).toBeTruthy();
-    expect(view.getByText('OPL Workspace')).toBeTruthy();
-    expect(view.getByText('OPL Fabric')).toBeTruthy();
+    expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
+    expect(view.getAllByText('OPL Fabric').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).toContain('opl://gateway/status');
+    expect(document.body.textContent).toContain('opl://gateway/key/gflabtoken');
+    expect(document.body.textContent).toContain('opl://gateway/policy/provider-routing');
     expect(document.body.textContent).toContain('opl://environment/default');
     expect(document.body.textContent).toContain('opl://storage/default');
     expect(document.body.textContent).toContain('opl://fabric/resource-source');
+    expect(document.body.textContent).toContain('Managed by OPL Console');
+    expect(document.body.textContent).toContain('Self-managed resource');
+    expect(document.body.textContent).toContain('OPL Cloud managed compute');
+    expect(document.body.textContent).toContain('User SSH/HPC');
+    expect(document.body.textContent).toContain('OPL Console management refs');
+    expect(document.body.textContent).toContain('Environment catalog refs');
+    expect(document.body.textContent).toContain('opl://console/policy/compute');
+    expect(document.body.textContent).toContain('opl://console/quota/compute');
+    expect(document.body.textContent).toContain('opl://console/billing/project');
+    expect(document.body.textContent).toContain('opl://console/permission/workspace');
+    expect(document.body.textContent).toContain('opl://environment-template/python-r-quarto');
+    expect(document.body.textContent).toContain('opl://environment-version/python-r-quarto/2026-07');
+    expect(document.body.textContent).toContain('opl://task-applicability/mas');
+    expect(document.body.textContent).toContain('opl://resource-source/ssh-hpc/lab');
     expect(view.getByTestId('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByLabelText('opl-settings-codex-api-key-input')).toBeTruthy();
     expect(view.getByTestId('opl-settings-configure-codex-button')).toBeTruthy();
@@ -387,7 +438,6 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Codex CLI');
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
-    expect(document.body.textContent).not.toContain('gflabtoken');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
     const firstReadinessCard = view.getByText('Current Model');

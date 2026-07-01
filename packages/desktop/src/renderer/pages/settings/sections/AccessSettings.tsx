@@ -188,6 +188,12 @@ export const AccessSettingsContent: React.FC = () => {
               </Tag>
               <Tag color='blue'>
                 <span className='inline-flex items-center gap-4px'>
+                  <Open theme='outline' size='14' />
+                  {t('settings.accessPage.remote.workspace')}
+                </span>
+              </Tag>
+              <Tag color='blue'>
+                <span className='inline-flex items-center gap-4px'>
                   <CheckOne theme='outline' size='14' />
                   {t('settings.accessPage.remote.remoteAccess')}
                 </span>
@@ -262,7 +268,37 @@ const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ so
           <div className='flex flex-wrap items-center gap-8px'>
             <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
             <Tag color='blue'>{t('settings.accessPage.resourceSources.status', { status: source.status })}</Tag>
+            <Tag color='gray'>{t(`settings.accessPage.resourceSources.categories.${source.category}`)}</Tag>
+            {source.management && (
+              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+                {t(`settings.accessPage.resourceSources.management.${source.management}`)}
+              </Tag>
+            )}
           </div>
+          {source.managementRefs.length > 0 && (
+            <div className='grid grid-cols-1 gap-4px'>
+              <Typography.Text className='text-12px font-600 text-t-primary'>
+                {t('settings.accessPage.resourceSources.managementRefs')}
+              </Typography.Text>
+              {source.managementRefs.map((ref) => (
+                <Typography.Text key={`${source.key}-management-${ref}`} className='text-12px text-t-secondary break-words'>
+                  {ref}
+                </Typography.Text>
+              ))}
+            </div>
+          )}
+          {source.environmentRefs.length > 0 && (
+            <div className='grid grid-cols-1 gap-4px'>
+              <Typography.Text className='text-12px font-600 text-t-primary'>
+                {t('settings.accessPage.resourceSources.environmentRefs')}
+              </Typography.Text>
+              {source.environmentRefs.map((ref) => (
+                <Typography.Text key={`${source.key}-environment-${ref}`} className='text-12px text-t-secondary break-words'>
+                  {ref}
+                </Typography.Text>
+              ))}
+            </div>
+          )}
           {source.refs.length > 0 ? (
             source.refs.map((ref) => (
               <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>

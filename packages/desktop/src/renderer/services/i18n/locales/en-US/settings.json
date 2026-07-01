@@ -1537,10 +1537,11 @@
       "configureFailed": "Could not save Codex API key."
     },
     "remote": {
-      "title": "Web / Docker / Remote Access",
-      "description": "Enable WebUI, inspect access URLs, and find remote access configuration from one place.",
+      "title": "Cloud & Remote Access / Deployment Entry",
+      "description": "View Local App, Docker WebUI, OPL Workspace, and remote resource refs from one entry.",
       "webui": "WebUI",
-      "docker": "Docker",
+      "docker": "Docker WebUI",
+      "workspace": "OPL Workspace",
       "remoteAccess": "Remote access",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
@@ -1559,6 +1560,24 @@
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
       "status": "Status: {{status}}",
+      "environmentRefs": "Environment catalog refs",
+      "managementRefs": "OPL Console management refs",
+      "categories": {
+        "gateway": "Model access",
+        "local": "Local resource",
+        "dockerWebui": "Docker/WebUI deployment",
+        "oplWorkspace": "OPL Workspace",
+        "sshHpc": "User SSH/HPC",
+        "oplCloudCompute": "OPL Cloud managed compute",
+        "managedStorage": "Managed storage",
+        "institutionalData": "Institutional data source",
+        "fabric": "OPL Fabric",
+        "remote": "Remote resource"
+      },
+      "management": {
+        "consoleManaged": "Managed by OPL Console",
+        "selfManaged": "Self-managed resource"
+      },
       "noRefs": "No resource refs reported."
     },
     "actions": {
@@ -1625,6 +1644,7 @@
       "failureReason": "Failure reason",
       "connectorReadinessRefs": "Connector readiness refs",
       "workflowRefs": "Reusable workflow refs",
+      "resourceContextRefs": "Environment and resource refs",
       "exportBundleAction": "Reproducibility export bundle action"
     },
     "detailValues": {
@@ -1634,6 +1654,14 @@
     "connectorGroups": {
       "oplConnect": "OPL Connect",
       "oplFabric": "OPL Fabric"
+    },
+    "resourceContextGroups": {
+      "gateway": "OPL Gateway",
+      "environment": "Environment catalog",
+      "storage": "Storage",
+      "resources": "Resource sources",
+      "receipts": "Resource receipts",
+      "costs": "Quota / cost"
     },
     "refLabels": {
       "id": "ID",

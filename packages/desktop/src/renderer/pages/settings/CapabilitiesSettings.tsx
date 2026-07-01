@@ -140,14 +140,19 @@ const capabilityRefRows = (
   );
 };
 
-const capabilityRefGroups = (groups: CapabilityRefGroupViewModel[], itemKey: string, t: (key: string) => string) => {
+const capabilityRefGroups = (
+  groups: CapabilityRefGroupViewModel[],
+  itemKey: string,
+  t: (key: string) => string,
+  labelPrefix = 'settings.capabilitiesPage.connectorGroups'
+) => {
   if (groups.length === 0) return null;
   return (
     <div className='grid grid-cols-1 gap-8px'>
       {groups.map((group) => (
         <div key={`${itemKey}-${group.key}`} data-testid={`capability-connector-group-${itemKey}-${group.key}`}>
           <Typography.Text className='block text-12px font-600 text-t-primary mb-4px'>
-            {t(`settings.capabilitiesPage.connectorGroups.${group.key}`)}
+            {t(`${labelPrefix}.${group.key}`)}
           </Typography.Text>
           {capabilityRefRows(
             group.refs,
@@ -302,6 +307,34 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                             {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
                           </Typography.Text>
                           {capabilityRefRows(item.workflowRefs, item.key, t, `capability-workflow-refs-${item.key}`)}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
+                          </Typography.Text>
+                          {item.resourceContextGroups.length > 0 && (
+                            <>
+                              {capabilityRefGroups(
+                                item.resourceContextGroups,
+                                item.key,
+                                t,
+                                'settings.capabilitiesPage.resourceContextGroups'
+                              )}
+                              {capabilityRefRows(
+                                ungroupedCapabilityRefs(item.resourceContextRefs, item.resourceContextGroups),
+                                item.key,
+                                t,
+                                `capability-resource-context-refs-${item.key}`
+                              )}
+                            </>
+                          )}
+                          {item.resourceContextGroups.length === 0 &&
+                            capabilityRefRows(
+                              item.resourceContextRefs,
+                              item.key,
+                              t,
+                              `capability-resource-context-refs-${item.key}`
+                            )}
                         </div>
                         <div className='min-w-0'>
                           <Typography.Text className='block text-t-secondary mb-4px'>
