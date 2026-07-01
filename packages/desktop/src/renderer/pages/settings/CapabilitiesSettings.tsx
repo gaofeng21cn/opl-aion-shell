@@ -26,7 +26,9 @@ import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   buildCapabilitiesViewModel,
+  type CapabilityActionRefViewModel,
   type CapabilityPurposeViewModel,
+  type CapabilityRefViewModel,
   type CapabilityStatus,
 } from './capabilitiesProjection';
 
@@ -93,6 +95,82 @@ function capabilityDetailRows(
     },
   ];
 }
+
+const capabilityRefRows = (
+  refs: CapabilityRefViewModel[],
+  itemKey: string,
+  t: (key: string) => string,
+  testId: string
+) => {
+  if (refs.length === 0) {
+    return (
+      <Typography.Text className='block text-12px text-t-secondary'>
+        {t('settings.capabilitiesPage.detailValues.notReported')}
+      </Typography.Text>
+    );
+  }
+  return (
+    <div className='grid grid-cols-1 gap-8px' data-testid={testId}>
+      {refs.map((ref) => (
+        <div key={`${itemKey}-${ref.id}-${ref.ref}`} className='rd-8px bg-fill-1 p-8px text-12px'>
+          <div className='flex flex-wrap items-center gap-6px mb-4px'>
+            <Typography.Text className='font-600 text-t-primary break-words'>{ref.title}</Typography.Text>
+            {ref.status && <Tag>{ref.status}</Tag>}
+          </div>
+          <div className='grid grid-cols-1 gap-4px'>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.id')}: {ref.id}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.ref')}: {ref.ref}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.owner')}:{' '}
+              {ref.owner ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.nextAction')}:{' '}
+              {ref.nextAction ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | null, t: (key: string) => string) => {
+  if (!action) {
+    return (
+      <Typography.Text className='block text-12px text-t-secondary'>
+        {t('settings.capabilitiesPage.detailValues.notReported')}
+      </Typography.Text>
+    );
+  }
+  return (
+    <div className='rd-8px bg-fill-1 p-8px text-12px' data-testid='capability-export-bundle-action'>
+      <div className='flex flex-wrap items-center gap-6px mb-4px'>
+        <Typography.Text className='font-600 text-t-primary'>
+          {action.actionId ?? t('settings.capabilitiesPage.refLabels.action')}
+        </Typography.Text>
+        {action.status && <Tag>{action.status}</Tag>}
+      </div>
+      <div className='grid grid-cols-1 gap-4px'>
+        <Typography.Text className='text-t-secondary break-words'>
+          {t('settings.capabilitiesPage.refLabels.ref')}: {action.ref}
+        </Typography.Text>
+        <Typography.Text className='text-t-secondary break-words'>
+          {t('settings.capabilitiesPage.refLabels.dryRun')}:{' '}
+          {action.dryRunSummary ?? t('settings.capabilitiesPage.detailValues.notReported')}
+        </Typography.Text>
+        <Typography.Text className='text-t-secondary break-words'>
+          {t('settings.capabilitiesPage.refLabels.receipt')}:{' '}
+          {action.receiptSummary ?? t('settings.capabilitiesPage.detailValues.notReported')}
+        </Typography.Text>
+      </div>
+    </div>
+  );
+};
 
 type CapabilitiesSettingsContentProps = {
   activeTab: CapabilitiesTab;
@@ -166,6 +244,29 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                             <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
                           </div>
                         ))}
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                          </Typography.Text>
+                          {capabilityRefRows(
+                            item.connectorReadinessRefs,
+                            item.key,
+                            t,
+                            `capability-connector-refs-${item.key}`
+                          )}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                          </Typography.Text>
+                          {capabilityRefRows(item.workflowRefs, item.key, t, `capability-workflow-refs-${item.key}`)}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
+                          </Typography.Text>
+                          {capabilityExportBundleAction(item.exportBundleAction, t)}
+                        </div>
                       </div>
                     </Collapse.Item>
                   </Collapse>

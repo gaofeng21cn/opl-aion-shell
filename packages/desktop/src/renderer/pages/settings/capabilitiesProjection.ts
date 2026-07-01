@@ -28,14 +28,43 @@ export type CapabilityPurposeViewModel = {
   source: string | null;
   lastSync: string | null;
   failureReason: string | null;
+  workflowRefs: CapabilityRefViewModel[];
+  connectorReadinessRefs: CapabilityRefViewModel[];
+  exportBundleAction: CapabilityActionRefViewModel | null;
 };
 
 export type ExtraCapabilityPurposeInput = Omit<
   CapabilityPurposeViewModel,
-  'status' | 'codexVisibility' | 'version' | 'source' | 'lastSync' | 'failureReason'
+  | 'status'
+  | 'codexVisibility'
+  | 'version'
+  | 'source'
+  | 'lastSync'
+  | 'failureReason'
+  | 'workflowRefs'
+  | 'connectorReadinessRefs'
+  | 'exportBundleAction'
 >;
 
 type RuntimeModuleItem = OplAppStateRecord;
+type RuntimeTaskItem = OplAppStateRecord;
+
+export type CapabilityRefViewModel = {
+  id: string;
+  title: string;
+  status: string | null;
+  ref: string;
+  owner: string | null;
+  nextAction: string | null;
+};
+
+export type CapabilityActionRefViewModel = {
+  actionId: string | null;
+  ref: string;
+  status: string | null;
+  dryRunSummary: string | null;
+  receiptSummary: string | null;
+};
 
 const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
   mas: ['medautoscience', 'med-auto-science'],
@@ -67,6 +96,16 @@ function capabilityModuleRecords(value: unknown): RuntimeModuleItem[] {
     .map(([id, module]) => Object.assign({}, oplRecord(module), { module_id: id }));
 }
 
+function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
+  const operator = oplRecord(appState.operator);
+  const workbench = oplRecord(operator.workbench);
+  const drilldowns = workbench.task_drilldowns;
+  if (Array.isArray(drilldowns)) return oplRecordList(drilldowns);
+  return Object.entries(oplRecord(drilldowns))
+    .filter(([, task]) => Object.keys(oplRecord(task)).length > 0)
+    .map(([id, task]) => Object.assign({}, oplRecord(task), { task_id: id }));
+}
+
 function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
   if (!module) return 'not_configured';
   return (
@@ -75,6 +114,108 @@ function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
     (module.installed === true ? 'ready' : null) ??
     'unknown'
   );
+}
+
+function capabilityTaskId(task: RuntimeTaskItem): string {
+  return normalizeCapabilityModuleId(
+    oplString(task.task_id) ??
+      oplString(task.domain_id) ??
+      oplString(task.module_id) ??
+      oplString(task.id) ??
+      oplString(task.name) ??
+      ''
+  );
+}
+
+function firstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    const text = oplString(value);
+    if (text) return text;
+  }
+  return null;
+}
+
+function refValue(value: unknown): string | null {
+  if (typeof value === 'string') return oplString(value);
+  const record = oplRecord(value);
+  return firstString(record.ref, record.reference, record.uri, record.url, record.path, record.id);
+}
+
+function listValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return [value];
+  return oplRecordList(value);
+}
+
+function refIdFromRef(ref: string): string {
+  return ref.split('/').filter(Boolean).pop() ?? ref;
+}
+
+function capabilityRef(
+  value: unknown,
+  fallback: Pick<CapabilityRefViewModel, 'owner' | 'nextAction' | 'status'>
+): CapabilityRefViewModel | null {
+  const record = oplRecord(value);
+  const ref = refValue(value);
+  if (!ref) return null;
+  const id = firstString(record.id, record.workflow_id, record.connector_id, record.key) ?? refIdFromRef(ref);
+  return {
+    id,
+    title: firstString(record.title, record.label, record.name) ?? id,
+    status: firstString(record.status, record.state) ?? fallback.status,
+    ref,
+    owner: firstString(record.owner, record.next_owner) ?? fallback.owner,
+    nextAction: firstString(record.next_action, record.next_visible_step, record.next_step) ?? fallback.nextAction,
+  };
+}
+
+function capabilityRefsFromTask(task: RuntimeTaskItem | undefined, keys: string[]): CapabilityRefViewModel[] {
+  if (!task) return [];
+  const fallback = {
+    owner: firstString(task.next_owner, task.owner),
+    nextAction: firstString(task.next_visible_step, task.next_step),
+    status: firstString(task.status, task.state, task.progress_label),
+  };
+  return keys
+    .flatMap((key) => listValues(task[key]).map((entry) => capabilityRef(entry, fallback)))
+    .filter((ref): ref is CapabilityRefViewModel => Boolean(ref));
+}
+
+function exportBundleActionFromTask(task: RuntimeTaskItem | undefined): CapabilityActionRefViewModel | null {
+  if (!task) return null;
+  const actionReceipt = oplRecord(task.action_receipt);
+  const actionRecord = oplRecord(task.export_bundle_action_ref);
+  const actionFallback = oplRecord(task.export_bundle_action);
+  const ref =
+    refValue(task.export_bundle_action_ref) ??
+    refValue(task.export_bundle_action) ??
+    refValue(actionRecord) ??
+    refValue(actionFallback) ??
+    firstString(actionReceipt.dry_run_action_ref);
+  if (!ref) return null;
+  return {
+    actionId:
+      firstString(actionRecord.action_id, actionRecord.id, actionFallback.action_id, actionFallback.id) ??
+      refIdFromRef(ref),
+    ref,
+    status: firstString(actionRecord.status, actionFallback.status, actionReceipt.status, task.status, task.state),
+    dryRunSummary: firstString(
+      actionRecord.dry_run_summary,
+      actionRecord.preview_summary,
+      actionFallback.dry_run_summary,
+      actionFallback.preview_summary,
+      actionReceipt.dry_run_summary,
+      actionReceipt.action_route,
+      actionReceipt.dry_run_action_ref
+    ),
+    receiptSummary: firstString(
+      actionRecord.receipt_summary,
+      actionFallback.receipt_summary,
+      actionReceipt.receipt_summary,
+      actionReceipt.latest_receipt_ref,
+      actionReceipt.execute_receipt_ref
+    ),
+  };
 }
 
 function mapCapabilityStatus(module: RuntimeModuleItem | undefined): CapabilityStatus {
@@ -176,9 +317,18 @@ function capabilityFailureReason(module: RuntimeModuleItem | undefined): string 
 function buildCapabilityPurpose(
   purpose: Omit<
     CapabilityPurposeViewModel,
-    'status' | 'codexVisibility' | 'version' | 'source' | 'lastSync' | 'failureReason'
+    | 'status'
+    | 'codexVisibility'
+    | 'version'
+    | 'source'
+    | 'lastSync'
+    | 'failureReason'
+    | 'workflowRefs'
+    | 'connectorReadinessRefs'
+    | 'exportBundleAction'
   >,
-  module: RuntimeModuleItem | undefined
+  module: RuntimeModuleItem | undefined,
+  task: RuntimeTaskItem | undefined
 ): CapabilityPurposeViewModel {
   const status = mapCapabilityStatus(module);
   return {
@@ -189,6 +339,9 @@ function buildCapabilityPurpose(
     source: capabilitySource(module),
     lastSync: capabilityLastSync(module),
     failureReason: capabilityFailureReason(module),
+    workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
+    connectorReadinessRefs: capabilityRefsFromTask(task, ['connector_readiness_refs']),
+    exportBundleAction: exportBundleActionFromTask(task),
   };
 }
 
@@ -218,10 +371,15 @@ export function buildCapabilitiesViewModel(
   for (const module of capabilityModuleRecords(modulesPayload.items ?? modulesPayload.modules ?? modulesPayload)) {
     modules.set(capabilityModuleId(module), module);
   }
+  const tasks = new Map<string, RuntimeTaskItem>();
+  for (const task of capabilityTaskRecords(appState)) {
+    tasks.set(capabilityTaskId(task), task);
+  }
 
   const defaultPurposes = getOplDefaultHomeAssistants().map((assistant) => {
     const moduleIds = assistantModuleIds(assistant);
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     return buildCapabilityPurpose(
       {
         key: assistant.id,
@@ -231,17 +389,21 @@ export function buildCapabilitiesViewModel(
         tags: assistantTags(assistant),
         moduleIds,
       },
-      module
+      module,
+      task
     );
   });
   const explicitPurposes = extraPurposes.map((purpose) => {
-    const module = purpose.moduleIds.map((id) => modules.get(normalizeCapabilityModuleId(id))).find(Boolean);
+    const moduleIds = purpose.moduleIds.map(normalizeCapabilityModuleId);
+    const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
+    const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     return buildCapabilityPurpose(
       {
         ...purpose,
-        moduleIds: purpose.moduleIds.map(normalizeCapabilityModuleId),
+        moduleIds,
       },
-      module
+      module,
+      task
     );
   });
   return [...defaultPurposes, ...explicitPurposes];

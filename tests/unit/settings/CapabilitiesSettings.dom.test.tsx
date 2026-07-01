@@ -33,6 +33,33 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           { module_id: 'oplmetaagent', status: 'missing' },
         ],
       },
+      operator: {
+        workbench: {
+          task_drilldowns: {
+            medautoscience: {
+              status: 'blocked',
+              next_owner: 'opl_framework',
+              next_visible_step: 'repair connector',
+              workflow_refs: [
+                {
+                  id: 'module-runtime-repair',
+                  title: 'Module runtime repair',
+                  status: 'available',
+                  ref: 'opl://workflow/medautoscience/module-runtime-repair',
+                  owner: 'opl_framework',
+                  next_action: 'run dry-run first',
+                },
+              ],
+              connector_readiness_refs: ['opl://connector/pubmed/readiness'],
+              export_bundle_action_ref: 'opl://app-action/export_reproducibility_bundle',
+              action_receipt: {
+                dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
+                latest_receipt_ref: 'receipt://export/latest',
+              },
+            },
+          },
+        },
+      },
     },
   }),
 }));
@@ -106,8 +133,18 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
         'settings.capabilitiesPage.detailLabels.failureReason': 'Failure reason',
+        'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness refs',
+        'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflow refs',
+        'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
+        'settings.capabilitiesPage.refLabels.id': 'ID',
+        'settings.capabilitiesPage.refLabels.ref': 'Ref',
+        'settings.capabilitiesPage.refLabels.owner': 'Owner',
+        'settings.capabilitiesPage.refLabels.nextAction': 'Next action',
+        'settings.capabilitiesPage.refLabels.action': 'Action',
+        'settings.capabilitiesPage.refLabels.dryRun': 'Dry-run summary',
+        'settings.capabilitiesPage.refLabels.receipt': 'Receipt summary',
         'settings.capabilitiesPage.actions.openDetails': 'Review capability',
         'settings.capabilitiesPage.actions.installOrSync': 'Set up capability',
         'settings.capabilitiesPage.actions.updateOrSync': 'Update or sync',
@@ -155,6 +192,15 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText('1.2.3')).toBeInTheDocument();
     expect(within(research).getByText('managed_root')).toBeInTheDocument();
     expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
+    expect(within(research).getByText('Connector readiness refs')).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/connector\/pubmed\/readiness/)).toBeInTheDocument();
+    expect(within(research).getByText('Reusable workflow refs')).toBeInTheDocument();
+    expect(within(research).getByText('Module runtime repair')).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
+    expect(within(research).getByText('Reproducibility export bundle action')).toBeInTheDocument();
+    expect(within(research).getByText('export_reproducibility_bundle')).toBeInTheDocument();
+    expect(within(research).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
+    expect(within(research).getByText(/receipt:\/\/export\/latest/)).toBeInTheDocument();
 
     const presentations = screen.getByTestId('capability-purpose-rca');
     fireEvent.click(within(presentations).getByRole('button', { name: 'Capability details' }));

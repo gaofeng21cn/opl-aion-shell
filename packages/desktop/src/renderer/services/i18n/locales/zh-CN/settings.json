@@ -1615,11 +1615,23 @@
       "version": "版本",
       "source": "来源",
       "lastSync": "最后同步",
-      "failureReason": "失败原因"
+      "failureReason": "失败原因",
+      "connectorReadinessRefs": "连接器就绪引用",
+      "workflowRefs": "可复用工作流引用",
+      "exportBundleAction": "可复现导出包动作"
     },
     "detailValues": {
       "notReported": "未报告",
       "none": "无"
+    },
+    "refLabels": {
+      "id": "ID",
+      "ref": "引用",
+      "owner": "负责人",
+      "nextAction": "下一步",
+      "action": "动作",
+      "dryRun": "Dry-run 摘要",
+      "receipt": "回执摘要"
     },
     "actions": {
       "openDetails": "查看能力",

@@ -1614,11 +1614,23 @@
       "version": "Version",
       "source": "Source",
       "lastSync": "Last sync",
-      "failureReason": "Failure reason"
+      "failureReason": "Failure reason",
+      "connectorReadinessRefs": "Connector readiness refs",
+      "workflowRefs": "Reusable workflow refs",
+      "exportBundleAction": "Reproducibility export bundle action"
     },
     "detailValues": {
       "notReported": "Not reported",
       "none": "None"
+    },
+    "refLabels": {
+      "id": "ID",
+      "ref": "Ref",
+      "owner": "Owner",
+      "nextAction": "Next action",
+      "action": "Action",
+      "dryRun": "Dry-run summary",
+      "receipt": "Receipt summary"
     },
     "actions": {
       "openDetails": "Review capability",
