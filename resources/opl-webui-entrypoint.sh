@@ -138,8 +138,8 @@ if command -v opl >/dev/null 2>&1; then
       --projects-dir "${OPL_PROJECTS_DIR}" \
       --json || fail "OPL seed apply failed"
   fi
-  log "running OPL startup maintenance"
-  opl system startup-maintenance --json || fail "OPL startup maintenance failed"
+  log "running OPL runtime substrate startup maintenance"
+  opl system startup-maintenance --scope runtime_substrate --json || fail "OPL startup maintenance failed"
 else
   log "OPL maintenance CLI not found; skipping startup maintenance"
 fi

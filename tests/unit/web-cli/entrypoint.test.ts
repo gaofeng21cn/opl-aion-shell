@@ -128,7 +128,7 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     expect(result.status).toBe(0);
     expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim().split(/\r?\n/)).toEqual([
       `system seed-apply --from ${fixture.seedDir} --data-dir ${fixture.dataDir} --projects-dir ${fixture.projectsDir} --json`,
-      'system startup-maintenance --json',
+      'system startup-maintenance --scope runtime_substrate --json',
     ]);
     expect(fs.readFileSync(path.join(tmp, 'maintenance-manifest-path'), 'utf8').trim()).toBe(fixture.manifestPath);
     expect(fs.readFileSync(path.join(tmp, 'maintenance-seed-dir'), 'utf8').trim()).toBe(fixture.seedDir);
@@ -155,7 +155,7 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     expect(result.status).toBe(0);
     expect(result.stderr).toContain('slim seed metadata detected; skipping OPL seed apply');
     expect(fs.readFileSync(path.join(tmp, 'maintenance-args'), 'utf8').trim()).toBe(
-      'system startup-maintenance --json'
+      'system startup-maintenance --scope runtime_substrate --json'
     );
     expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start');
   });
