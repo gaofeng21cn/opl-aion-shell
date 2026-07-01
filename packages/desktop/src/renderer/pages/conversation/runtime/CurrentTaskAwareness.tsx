@@ -49,6 +49,16 @@ const firstCardText = (card: CurrentTaskV2Card, keys: string[]): string | undefi
 const cardArrayText = (value: unknown): string | undefined =>
   Array.isArray(value) ? value.map(trim).find((entry): entry is string => Boolean(entry)) : undefined;
 
+const recordText = (value: unknown, keys: string[]): string | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const record = value as Record<string, unknown>;
+  for (const key of keys) {
+    const result = trim(record[key]);
+    if (result) return result;
+  }
+  return undefined;
+};
+
 const cardsToEvidenceItems = (cards: CurrentTaskV2Card[], fallbackLabel: string): EvidenceItem[] =>
   cards.flatMap((card, index): EvidenceItem[] => {
     const refValue =
@@ -62,12 +72,17 @@ const cardsToEvidenceItems = (cards: CurrentTaskV2Card[], fallbackLabel: string)
         'environment_ref',
         'usage_ref',
         'receipt_ref',
+        'rollback_ref',
+        'verify_ref',
       ]) ??
+      recordText(card.open_action, ['route', 'action_ref', 'action_id']) ??
+      recordText(card.expected_output, ['ref', 'content_policy']) ??
       cardArrayText(card.source_refs) ??
       cardArrayText(card.lineage_refs);
     const label = firstCardText(card, ['title', 'label', 'kind', 'type']) ?? fallbackLabel;
     const value =
-      firstCardText(card, ['summary', 'message', 'reason']) ??
+      firstCardText(card, ['summary', 'message', 'reason', 'why_it_matters', 'owner']) ??
+      recordText(card.risk, ['mutation_policy', 'authority_boundary']) ??
       (refValue ? undefined : label !== fallbackLabel ? label : undefined);
     if (!value && !refValue) return [];
     return [
@@ -110,12 +125,15 @@ export const hasCurrentTaskAwareness = (
   );
 
 const EvidenceLine: React.FC<{ label: string; value?: string; refValue?: string }> = ({ label, value, refValue }) => {
-  const display = trim(value) ?? trim(refValue);
-  if (!display) return null;
+  const displayValue = trim(value);
+  const displayRef = trim(refValue);
+  if (!displayValue && !displayRef) return null;
   return (
     <div className='current-task-awareness__evidence-line'>
       <span className='current-task-awareness__evidence-label'>{label}</span>
-      <span className='current-task-awareness__evidence-value'>{display}</span>
+      <span className='current-task-awareness__evidence-value'>
+        {[displayValue, displayRef].filter(Boolean).join(' · ')}
+      </span>
     </div>
   );
 };

@@ -57,6 +57,15 @@ function firstRecord(...values: unknown[]): JsonRecord | undefined {
   return values.find(isRecord);
 }
 
+function jsonSummary(value: unknown): string | undefined {
+  if (!isRecord(value)) return undefined;
+  const parts = Object.entries(value).flatMap(([key, entry]) => {
+    const scalar = asString(entry) ?? asNumber(entry)?.toString() ?? asBoolean(entry)?.toString();
+    return scalar ? [`${key}: ${scalar}`] : [];
+  });
+  return parts.length > 0 ? parts.join(' · ') : undefined;
+}
+
 function readDiagnosticDrilldown(root: unknown): JsonRecord | undefined {
   if (!isRecord(root)) return undefined;
   const traySnapshot = firstRecord(root.runtime_tray_snapshot);
@@ -335,6 +344,28 @@ function readRefCards(value: unknown, fallbackPrefix: string, fallbackLabel: str
     const card = readRefCardValue(entry);
     if (!card.value && !card.ref) return [];
     const record = isRecord(entry) ? entry : {};
+    const openAction = firstRecord(record.open_action);
+    const risk = firstRecord(record.risk);
+    const expectedOutput = firstRecord(record.expected_output);
+    const detailEntries = [
+      ['kind', asString(record.kind) ?? asString(record.resource_kind) ?? asString(record.type)],
+      ['owner', asString(record.owner)],
+      ['updated_at', asString(record.updated_at)],
+      ['why_it_matters', asString(record.why_it_matters)],
+      ['open_action', asString(openAction?.route) ?? asString(openAction?.action_id)],
+      ['risk', jsonSummary(risk)],
+      ['write_targets', asStringArray(record.write_targets).join(', ')],
+      ['expected_output', asString(expectedOutput?.ref) ?? jsonSummary(expectedOutput)],
+      ['rollback_ref', asString(record.rollback_ref)],
+      ['verify_ref', asString(record.verify_ref)],
+      ['status_ref', asString(record.status_ref)],
+      ['usage_ref', asString(record.usage_ref)],
+      ['quota_ref', asString(record.quota_ref)],
+      ['permission_ref', asString(record.permission_ref)],
+      ['cost_estimate_ref', asString(record.cost_estimate_ref)],
+    ].flatMap(([key, detailValue]) =>
+      typeof detailValue === 'string' && detailValue.trim().length > 0 ? [{ key, value: detailValue }] : []
+    );
     return [
       {
         id:
@@ -353,6 +384,7 @@ function readRefCards(value: unknown, fallbackPrefix: string, fallbackLabel: str
         value: card.value,
         ref: card.ref,
         kind: card.kind,
+        details: detailEntries,
       },
     ];
   });
@@ -367,7 +399,7 @@ function readSingleRefCard(
   const ref = readRefCardValue(value);
   const display = asString(options.value) ?? ref.value;
   if (!display && !ref.ref) return [];
-  return [{ id, label, value: display, ref: ref.ref, kind: options.kind ?? ref.kind }];
+  return [{ id, label, value: display, ref: ref.ref, kind: options.kind ?? ref.kind, details: [] }];
 }
 
 function readTaskConditions(entry: JsonRecord): RuntimeTaskCondition[] {
@@ -443,13 +475,33 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
 function readTaskRunProjectionV2(workbench: JsonRecord): RuntimeTaskRunProjectionV2 {
   const projection = firstRecord(workbench.task_run_projection_v2);
   if (projection) {
+    const summary = firstRecord(projection.summary) ?? {};
     return {
       projectionKind: asString(projection.projection_kind),
       schemaVersion: asNumber(projection.schema_version),
+      summary: {
+        running: asNumber(summary.running_task_count) ?? asNumber(summary.running) ?? 0,
+        waiting: asNumber(summary.waiting_task_count) ?? asNumber(summary.waiting) ?? 0,
+        attention: asNumber(summary.attention_task_count) ?? asNumber(summary.attention) ?? 0,
+        completed: asNumber(summary.completed_task_count) ?? asNumber(summary.completed) ?? 0,
+        failed: asNumber(summary.failed_task_count) ?? asNumber(summary.failed) ?? 0,
+        available: asNumber(summary.task_count) ?? asNumber(summary.available) ?? asRecordArray(projection.tasks).length,
+      },
       tasks: asRecordArray(projection.tasks).map((entry, index) => readTaskRunRecord(entry, index)),
     };
   }
-  return { tasks: readTaskDrilldowns(workbench) };
+  const tasks = readTaskDrilldowns(workbench);
+  return {
+    summary: {
+      running: tasks.filter((task) => task.state === 'running').length,
+      waiting: tasks.filter((task) => task.state === 'waiting').length,
+      attention: tasks.filter((task) => task.state === 'attention_needed').length,
+      completed: tasks.filter((task) => task.state === 'completed').length,
+      failed: tasks.filter((task) => task.state === 'failed').length,
+      available: tasks.length,
+    },
+    tasks,
+  };
 }
 
 function statusTone(status: string | undefined): string {

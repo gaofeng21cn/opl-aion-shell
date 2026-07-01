@@ -145,6 +145,18 @@ function TaskRunRefCards({ title, cards }: { title: string; cards: RuntimeTaskRe
             {card.value && card.ref && (
               <Typography.Text className='block text-12px text-t-secondary break-all'>{card.ref}</Typography.Text>
             )}
+            {card.details.length > 0 && (
+              <div className='mt-6px flex flex-col gap-4px'>
+                {card.details.map((detail) => (
+                  <Typography.Text
+                    key={`${card.id}:${detail.key}:${detail.value}`}
+                    className='block text-11px text-t-tertiary break-words'
+                  >
+                    {detail.key}: {detail.value}
+                  </Typography.Text>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -159,6 +171,15 @@ function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldow
     () => tasks.find((task) => task.taskId === selectedTaskId) ?? tasks[0],
     [selectedTaskId, tasks]
   );
+  const overview = useMemo(
+    () => ({
+      attention: tasks.filter((task) => task.state === 'attention_needed' || task.status === 'attention_needed').length,
+      running: tasks.filter((task) => task.state === 'running' || task.status === 'running').length,
+      waiting: tasks.filter((task) => task.state === 'waiting' || task.status === 'waiting').length,
+      recent: tasks.length,
+    }),
+    [tasks]
+  );
 
   if (tasks.length === 0) return null;
 
@@ -170,6 +191,21 @@ function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldow
           <Typography.Text className='text-12px text-t-secondary'>
             {t('settings.runtimePage.taskRuns.description')}
           </Typography.Text>
+          <div className='grid gap-8px sm:grid-cols-2 lg:grid-cols-4' data-testid='runtime-task-run-overview'>
+            {[
+              ['attention', overview.attention],
+              ['running', overview.running],
+              ['waiting', overview.waiting],
+              ['recent', overview.recent],
+            ].map(([key, value]) => (
+              <div key={key} className='rd-8px border border-border-1 bg-fill-2 p-10px min-w-0'>
+                <Typography.Text className='block text-11px text-t-tertiary'>
+                  {t(`settings.runtimePage.taskRuns.overview.${key}`)}
+                </Typography.Text>
+                <Typography.Text className='block text-18px font-600 text-t-primary'>{value}</Typography.Text>
+              </div>
+            ))}
+          </div>
           <div className='grid gap-10px md:grid-cols-2'>
             {tasks.map((task) => (
               <Button
@@ -233,22 +269,50 @@ function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldow
                 </div>
               )}
               <div className='mt-12px flex flex-col gap-12px'>
-                <TaskRunRefCards
-                  title={t('settings.runtimePage.taskRuns.evidenceCards')}
-                  cards={selectedTask.evidenceCards}
-                />
-                <TaskRunRefCards
-                  title={t('settings.runtimePage.taskRuns.actionCards')}
-                  cards={selectedTask.actionCards}
-                />
-                <TaskRunRefCards
-                  title={t('settings.runtimePage.taskRuns.resourceRefs')}
-                  cards={selectedTask.resourceRefs}
-                />
-                <TaskRunRefCards
-                  title={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
-                  cards={selectedTask.diagnosticsRefs}
-                />
+                <Collapse bordered={false} defaultActiveKey={['evidence', 'actions', 'resources']}>
+                  <Collapse.Item
+                    name='evidence'
+                    header={t('settings.runtimePage.taskRuns.evidenceCards')}
+                    data-testid='runtime-task-run-detail-evidence'
+                  >
+                    <TaskRunRefCards
+                      title={t('settings.runtimePage.taskRuns.evidenceCards')}
+                      cards={selectedTask.evidenceCards}
+                    />
+                  </Collapse.Item>
+                  <Collapse.Item
+                    name='actions'
+                    header={t('settings.runtimePage.taskRuns.actionCards')}
+                    data-testid='runtime-task-run-detail-actions'
+                  >
+                    <TaskRunRefCards
+                      title={t('settings.runtimePage.taskRuns.actionCards')}
+                      cards={selectedTask.actionCards}
+                    />
+                  </Collapse.Item>
+                  <Collapse.Item
+                    name='resources'
+                    header={t('settings.runtimePage.taskRuns.resourceRefs')}
+                    data-testid='runtime-task-run-detail-resources'
+                  >
+                    <TaskRunRefCards
+                      title={t('settings.runtimePage.taskRuns.resourceRefs')}
+                      cards={selectedTask.resourceRefs}
+                    />
+                  </Collapse.Item>
+                  {selectedTask.diagnosticsRefs.length > 0 && (
+                    <Collapse.Item
+                      name='diagnostics'
+                      header={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
+                      data-testid='runtime-task-run-detail-diagnostics'
+                    >
+                      <TaskRunRefCards
+                        title={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
+                        cards={selectedTask.diagnosticsRefs}
+                      />
+                    </Collapse.Item>
+                  )}
+                </Collapse>
               </div>
             </div>
           )}

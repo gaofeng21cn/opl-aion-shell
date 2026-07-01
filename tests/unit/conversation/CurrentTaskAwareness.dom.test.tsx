@@ -118,9 +118,34 @@ describe('CurrentTaskAwareness', () => {
           {
             title: 'TaskRun slice',
             conditions: [{ type: 'HumanGate', status: 'False', reason: 'NeedsOwner', message: 'owner approval' }],
-            evidence_cards: [{ card_id: 'artifact', title: 'Artifact card', summary_ref: 'artifact://summary' }],
-            action_cards: [{ action_id: 'dry-run', label: 'Preview action', dry_run_ref: 'action://dry-run' }],
-            resource_cards: [{ resource_id: 'fabric', kind: 'fabric', status_ref: 'resource://status' }],
+            evidence_cards: [
+              {
+                card_id: 'artifact',
+                title: 'Artifact card',
+                summary: 'artifact summary',
+                ref: 'artifact://summary',
+                why_it_matters: 'artifact refs without body access',
+                open_action: { route: 'opl app action execute --action task_export_bundle_preview --dry-run' },
+              },
+            ],
+            action_cards: [
+              {
+                card_id: 'dry-run',
+                title: 'Preview action',
+                ref: 'action://dry-run',
+                risk: { mutation_policy: 'no_writes_preview_only' },
+                expected_output: { ref: 'receipt://expected' },
+              },
+            ],
+            resource_cards: [
+              {
+                card_id: 'fabric',
+                resource_kind: 'fabric',
+                title: 'Fabric resource',
+                status_ref: 'resource://status',
+                quota_ref: 'resource://quota',
+              },
+            ],
             diagnostics_ref: 'diagnostics://task',
           } as never
         }
@@ -131,10 +156,10 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByText('TaskRun slice')).toBeTruthy();
     expect(screen.getByText('owner approval')).toBeTruthy();
     expect(screen.getByText('Artifact card')).toBeTruthy();
-    expect(screen.getByText('artifact://summary')).toBeTruthy();
+    expect(screen.getByTestId('conversation-current-task-inspector')).toHaveTextContent('artifact://summary');
     expect(screen.getByText('Preview action')).toBeTruthy();
-    expect(screen.getByText('action://dry-run')).toBeTruthy();
-    expect(screen.getByText('fabric')).toBeTruthy();
+    expect(screen.getByTestId('conversation-current-task-inspector')).toHaveTextContent('action://dry-run');
+    expect(screen.getByText('Fabric resource')).toBeTruthy();
     expect(screen.getByText('resource://status')).toBeTruthy();
     expect(screen.getByText('diagnostics://task')).toBeTruthy();
   });

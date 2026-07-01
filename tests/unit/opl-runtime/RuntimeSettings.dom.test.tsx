@@ -511,22 +511,55 @@ describe('RuntimeSettings app state bridge usage', () => {
                     evidence_cards: [
                       {
                         card_id: 'artifact',
+                        kind: 'artifact_or_blocker_refs',
+                        owner: 'medautoscience',
+                        updated_at: '2026-07-01T00:00:00Z',
                         title: 'Publication artifact',
-                        summary_ref: 'artifact://summary',
+                        summary: 'Artifact refs available',
+                        ref: 'artifact://summary',
+                        why_it_matters: 'Shows the artifact refs without exposing the artifact body',
+                        open_action: {
+                          action_id: 'task-export',
+                          route: 'opl app action execute --action task_export_bundle_preview --dry-run',
+                        },
                       },
                     ],
                     action_cards: [
                       {
-                        action_id: 'review-dry-run',
-                        label: 'Preview review',
-                        dry_run_ref: 'action://dry-run',
+                        card_id: 'review-dry-run',
+                        title: 'Preview review',
+                        summary: 'Open dry-run receipt',
+                        ref: 'action://dry-run',
+                        action_ref: 'action://dry-run',
+                        open_action: {
+                          action_id: 'review-dry-run',
+                          route: 'opl app action execute --action review-dry-run --dry-run',
+                        },
+                        risk: {
+                          mutation_policy: 'no_writes_preview_only',
+                        },
+                        expected_output: {
+                          ref: 'receipt://expected',
+                        },
+                        rollback_ref: 'receipt://rollback',
+                        verify_ref: 'receipt://verify',
                       },
                     ],
                     resource_cards: [
                       {
-                        resource_id: 'fabric-resource',
-                        kind: 'fabric',
+                        card_id: 'fabric-resource',
+                        resource_kind: 'fabric',
+                        title: 'Fabric resource',
+                        ref: 'resource://status',
                         status_ref: 'resource://status',
+                        usage_ref: 'resource://usage',
+                        quota_ref: 'resource://quota',
+                        permission_ref: 'resource://permission',
+                        cost_estimate_ref: 'resource://cost',
+                        open_action: {
+                          action_id: 'workspace_inspect',
+                          route: 'opl app action execute --action workspace_inspect --dry-run',
+                        },
                       },
                     ],
                     diagnostics_ref: 'diagnostics://task',
@@ -544,11 +577,16 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
     expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
     expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
+    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent('settings.runtimePage.taskRuns.overview.running');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('why_it_matters');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('no_writes_preview_only');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Preview review');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://quota');
+    fireEvent.click(screen.getByText('settings.runtimePage.taskRuns.diagnosticsRefs'));
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
     expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');
   });

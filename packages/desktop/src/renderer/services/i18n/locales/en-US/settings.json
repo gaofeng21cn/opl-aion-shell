@@ -1402,6 +1402,12 @@
       "nextStep": "Next: {{step}}",
       "lastProgress": "Last progress: {{time}}",
       "conditions": "Conditions",
+      "overview": {
+        "attention": "Needs attention",
+        "running": "Running",
+        "waiting": "Waiting",
+        "recent": "Recent"
+      },
       "evidenceCards": "Evidence",
       "actionCards": "Actions",
       "resourceRefs": "Resources",

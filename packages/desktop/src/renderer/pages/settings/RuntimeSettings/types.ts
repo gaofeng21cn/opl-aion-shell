@@ -114,7 +114,17 @@ export type RuntimeTaskDrilldown = {
 export type RuntimeTaskRunProjectionV2 = {
   projectionKind?: string;
   schemaVersion?: number;
+  summary: RuntimeTaskRunSummary;
   tasks: RuntimeTaskDrilldown[];
+};
+
+export type RuntimeTaskRunSummary = {
+  running: number;
+  waiting: number;
+  attention: number;
+  completed: number;
+  failed: number;
+  available: number;
 };
 
 export type RuntimeTaskCondition = {
@@ -131,6 +141,12 @@ export type RuntimeTaskRefCard = {
   value?: string;
   ref?: string;
   kind?: string;
+  details: RuntimeTaskRefDetail[];
+};
+
+export type RuntimeTaskRefDetail = {
+  key: string;
+  value: string;
 };
 
 export type RuntimeRefreshPolicy = {
