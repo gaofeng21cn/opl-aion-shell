@@ -147,7 +147,12 @@ function sourceTitle(
   if (key === 'opl_gateway' || key === 'gateway') return t('settings.accessPage.resourceSources.oplGateway');
   if (key === 'opl_workspace' || key === 'workspace') return t('settings.accessPage.resourceSources.oplWorkspace');
   if (key === 'opl_fabric' || key === 'fabric') return t('settings.accessPage.resourceSources.oplFabric');
-  return oplString(record.title) ?? oplString(record.label) ?? oplString(record.name) ?? t(`settings.accessPage.resourceSources.categories.${category}`);
+  return (
+    oplString(record.title) ??
+    oplString(record.label) ??
+    oplString(record.name) ??
+    t(`settings.accessPage.resourceSources.categories.${category}`)
+  );
 }
 
 function sourceManagement(record: Record<string, unknown>, category: string): 'consoleManaged' | 'selfManaged' | null {
@@ -275,10 +280,7 @@ function buildResourceSourceProjection(
     })
     .filter(
       (entry) =>
-        entry.hasRecord ||
-        entry.refs.length > 0 ||
-        entry.environmentRefs.length > 0 ||
-        entry.managementRefs.length > 0
+        entry.hasRecord || entry.refs.length > 0 || entry.environmentRefs.length > 0 || entry.managementRefs.length > 0
     )
     .map(({ hasRecord: _hasRecord, ...entry }) => entry);
 }

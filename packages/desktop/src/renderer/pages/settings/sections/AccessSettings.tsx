@@ -281,7 +281,10 @@ const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ so
                 {t('settings.accessPage.resourceSources.managementRefs')}
               </Typography.Text>
               {source.managementRefs.map((ref) => (
-                <Typography.Text key={`${source.key}-management-${ref}`} className='text-12px text-t-secondary break-words'>
+                <Typography.Text
+                  key={`${source.key}-management-${ref}`}
+                  className='text-12px text-t-secondary break-words'
+                >
                   {ref}
                 </Typography.Text>
               ))}
@@ -293,7 +296,10 @@ const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ so
                 {t('settings.accessPage.resourceSources.environmentRefs')}
               </Typography.Text>
               {source.environmentRefs.map((ref) => (
-                <Typography.Text key={`${source.key}-environment-${ref}`} className='text-12px text-t-secondary break-words'>
+                <Typography.Text
+                  key={`${source.key}-environment-${ref}`}
+                  className='text-12px text-t-secondary break-words'
+                >
                   {ref}
                 </Typography.Text>
               ))}

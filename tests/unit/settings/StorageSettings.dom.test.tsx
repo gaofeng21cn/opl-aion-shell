@@ -250,7 +250,9 @@ describe('StorageSettingsContent', () => {
     expect(lifecycle).toHaveTextContent('Completed-project closeout');
     expect(lifecycle).toHaveTextContent('completed_project_closeout_refs');
     expect(lifecycle).toHaveTextContent('Generic cleanup boundary');
-    expect(lifecycle).toHaveTextContent('Generic cleanup without owner refs, dry-run refs, or closeout refs is forbidden');
+    expect(lifecycle).toHaveTextContent(
+      'Generic cleanup without owner refs, dry-run refs, or closeout refs is forbidden'
+    );
     expect(lifecycle.querySelectorAll('button')).toHaveLength(0);
     expect(lifecycle.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });

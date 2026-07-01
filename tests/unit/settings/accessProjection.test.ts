@@ -154,11 +154,7 @@ describe('buildAccessProjection', () => {
         status: 'available',
         category: 'gateway',
         management: null,
-        refs: [
-          'opl://gateway/status',
-          'opl://gateway/key/gflabtoken',
-          'opl://gateway/policy/provider-routing',
-        ],
+        refs: ['opl://gateway/status', 'opl://gateway/key/gflabtoken', 'opl://gateway/policy/provider-routing'],
         environmentRefs: [],
         managementRefs: [],
       },
