@@ -45,6 +45,8 @@ const ChatLayout: React.FC<{
   conversation_id?: string;
   /** Custom tabs slot; when provided, replaces the default ConversationTabs */
   tabsSlot?: React.ReactNode;
+  /** Inline current-task status from the shared runtime projection. */
+  currentTaskSlot?: React.ReactNode;
   /** Workspace path for opening in external tools */
   workspacePath?: string;
   /** Authoritative temp-workspace flag from `conversation.extra.is_temporary_workspace`. */
@@ -256,6 +258,7 @@ const ChatLayout: React.FC<{
           }}
         >
           <div className='shrink-0 !bg-1'>{headerBlock}</div>
+          {props.currentTaskSlot && <div className='shrink-0 !bg-1'>{props.currentTaskSlot}</div>}
           <div className='flex flex-1 min-h-0 relative'>
             {/* Chat area - always mounted, never unmounted on preview toggle */}
             <div

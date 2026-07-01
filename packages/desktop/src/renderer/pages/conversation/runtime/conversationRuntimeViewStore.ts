@@ -17,6 +17,7 @@ export type ConversationRuntimeView = {
   localSubmitting: boolean;
   hydrated: boolean;
   localStopping: boolean;
+  currentTask: TConversationRuntimeSummary['current_task'] | null;
 };
 
 export type ConversationRuntimeViewLogEvent =
@@ -85,6 +86,7 @@ export const createDefaultConversationRuntimeView = (conversation_id: string): C
   localSubmitting: false,
   hydrated: false,
   localStopping: false,
+  currentTask: null,
 });
 
 const summarizeView = (view: ConversationRuntimeView): Record<string, unknown> => ({
@@ -138,6 +140,7 @@ const viewFromRuntimeSummary = (
     hydrated: true,
     localSubmitting: pendingLocalSend,
     localStopping,
+    currentTask: runtime.current_task ?? null,
   };
 };
 

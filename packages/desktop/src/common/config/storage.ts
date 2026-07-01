@@ -210,6 +210,21 @@ export type TConversationRuntimeSummary = {
   is_processing: boolean;
   pending_confirmations: number;
   turn_id: string | null;
+  current_task?: {
+    task_id?: string;
+    title?: string;
+    stage?: string;
+    progress?: string;
+    next_owner?: string;
+    next_step?: string;
+    artifact_or_blocker_summary?: string;
+    artifact_or_blocker_ref?: string;
+    review_receipt_summary?: string;
+    review_receipt_ref?: string;
+    action_receipt_summary?: string;
+    action_receipt_ref?: string;
+    workflow_ref?: string;
+  };
 };
 
 interface IChatConversation<T, Extra> {

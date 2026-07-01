@@ -32,6 +32,7 @@ import AionrsModelSelector from '../platforms/aionrs/AionrsModelSelector';
 import { useAionrsModelSelection } from '../platforms/aionrs/useAionrsModelSelection';
 import LegacyReadOnlyConversation from '../platforms/legacy/LegacyReadOnlyConversation';
 import { useConversationRuntimeView } from '../runtime/useConversationRuntimeView';
+import CurrentTaskAwareness from '../runtime/CurrentTaskAwareness';
 import { isLegacyReadOnlyConversationType } from '../utils/conversationRuntime';
 import {
   isOplCodexCliFixedExecutor,
@@ -184,7 +185,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
   const chatLayoutProps = {
     title: conversation.name,
     siderTitle: sliderTitle,
-    sider: <ChatSlider conversation={conversation} />,
+    sider: <ChatSlider conversation={conversation} currentTask={runtimeView.currentTask} />,
     headerExtra: (
       <div className='flex items-center gap-8px'>
         <CronJobManager
@@ -195,6 +196,7 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
         {!isMobile && <AionrsModelSelector selection={modelSelection} />}
       </div>
     ),
+    currentTaskSlot: <CurrentTaskAwareness task={runtimeView.currentTask} compact />,
     workspaceEnabled,
     workspacePath: conversation.extra?.workspace,
     isTemporaryWorkspace: (conversation.extra as { is_temporary_workspace?: boolean } | undefined)
@@ -244,6 +246,8 @@ const ChatConversation: React.FC<{
   const acpAssistantId = acpConversation ? (resolveAssistantConfigId(acpConversation) ?? undefined) : undefined;
 
   const conversationAgentName = (conversation?.extra as { agent_name?: string } | undefined)?.agent_name;
+  const runtimeView = useConversationRuntimeView(conversation?.id ?? '');
+  const currentTask = runtimeView.currentTask ?? conversation?.runtime?.current_task ?? null;
   const assistantDisplayName = presetAssistantInfo?.name || conversationAgentName;
   const ordinaryExtra = useMemo(
     () => sanitizeOplOrdinaryConversationExtra(conversation?.extra as Record<string, unknown> | undefined),
@@ -382,7 +386,8 @@ const ChatConversation: React.FC<{
       {...chatLayoutProps}
       headerExtra={headerExtraNode}
       siderTitle={sliderTitle}
-      sider={<ChatSlider conversation={conversation} />}
+      sider={<ChatSlider conversation={conversation} currentTask={currentTask} />}
+      currentTaskSlot={<CurrentTaskAwareness task={currentTask} compact />}
       workspaceEnabled={workspaceEnabled}
       workspacePath={conversation?.extra?.workspace}
       isTemporaryWorkspace={

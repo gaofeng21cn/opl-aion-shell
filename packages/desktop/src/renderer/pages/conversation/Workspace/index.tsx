@@ -32,6 +32,7 @@ import { useAbortUploadsOnConversationChange } from '@/renderer/hooks/file/useAb
 import { useWorkspaceSearch } from './hooks/useWorkspaceSearch';
 import { useWorkspaceTree } from './hooks/useWorkspaceTree';
 import type { WorkspaceProps, WorkspaceTab } from './types';
+import CurrentTaskAwareness from '../runtime/CurrentTaskAwareness';
 import {
   computeContextMenuPosition,
   extractNodeData,
@@ -47,6 +48,7 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
   isTemporaryWorkspace: isTemporaryWorkspaceProp,
   eventPrefix = 'acp',
   messageApi: externalMessageApi,
+  currentTask,
 }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
@@ -272,6 +274,9 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
           closeDeleteModal={modalsHook.closeDeleteModal}
           handleDeleteConfirm={fileOpsHook.handleDeleteConfirm}
         />
+
+        {/* Tab bar */}
+        <CurrentTaskAwareness task={currentTask} />
 
         {/* Tab bar */}
         <WorkspaceTabBar

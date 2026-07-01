@@ -102,6 +102,33 @@ describe('conversationRuntimeViewStore turn id contract', () => {
     expect(view.activeTurnId).toBe('turn-1');
   });
 
+  it('projects current task refs from runtime summary', () => {
+    hydrateSucceeded('conv-1', {
+      ...runningRuntime('turn-1'),
+      current_task: {
+        task_id: 'task-1',
+        title: 'Manuscript review',
+        stage: 'review',
+        progress: '2/4',
+        next_owner: 'reviewer',
+        artifact_or_blocker_ref: 'artifact://draft',
+        review_receipt_ref: 'receipt://review',
+        action_receipt_ref: 'receipt://action',
+        workflow_ref: 'workflow://submission',
+      },
+    });
+
+    const view = getConversationRuntimeViewSnapshot('conv-1');
+    expect(view.currentTask).toMatchObject({
+      task_id: 'task-1',
+      title: 'Manuscript review',
+      artifact_or_blocker_ref: 'artifact://draft',
+      review_receipt_ref: 'receipt://review',
+      action_receipt_ref: 'receipt://action',
+      workflow_ref: 'workflow://submission',
+    });
+  });
+
   it('ignores stale stop ack for an older turn', () => {
     hydrateSucceeded('conv-1', runningRuntime('turn-2'));
     localStopRequested('conv-1', 'turn-1');

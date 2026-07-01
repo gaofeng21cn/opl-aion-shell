@@ -92,6 +92,15 @@
     "cliAgents": "CLI Agents",
     "presetAssistants": "预设助手"
   },
+  "currentTask": {
+    "kicker": "当前任务",
+    "defaultTitle": "任务进行中",
+    "owner": "Owner: {{owner}}",
+    "artifact": "产物",
+    "review": "审查",
+    "action": "动作",
+    "workflow": "流程"
+  },
   "noAgentsAvailable": "没有可用的 Agent",
   "noModelConfigured": "未配置模型，请前往设置页面配置。",
   "createFailed": "创建会话失败",

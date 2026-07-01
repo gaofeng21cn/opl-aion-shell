@@ -5,6 +5,7 @@
  */
 
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
+import type { TConversationRuntimeSummary } from '@/common/config/storage';
 import type { NodeInstance } from '@arco-design/web-react/es/Tree/interface';
 import type { Message } from '@arco-design/web-react';
 
@@ -26,6 +27,7 @@ export interface WorkspaceProps {
   isTemporaryWorkspace?: boolean;
   eventPrefix?: 'acp' | 'codex' | 'aionrs';
   messageApi?: MessageApi;
+  currentTask?: TConversationRuntimeSummary['current_task'] | null;
 }
 
 /**

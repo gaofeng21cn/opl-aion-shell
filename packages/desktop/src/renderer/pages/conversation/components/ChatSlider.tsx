@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { TChatConversation } from '@/common/config/storage';
+import type { TChatConversation, TConversationRuntimeSummary } from '@/common/config/storage';
 import { Message } from '@arco-design/web-react';
 import React from 'react';
 import ChatWorkspace from '../Workspace';
 
 const ChatSlider: React.FC<{
   conversation?: TChatConversation;
-}> = ({ conversation }) => {
+  currentTask?: TConversationRuntimeSummary['current_task'] | null;
+}> = ({ conversation, currentTask }) => {
   const [messageApi, messageContext] = Message.useMessage({ maxCount: 1 });
+  const task = currentTask ?? conversation?.runtime?.current_task;
 
   let workspaceNode: React.ReactNode = null;
   if (conversation?.type === 'acp' && conversation.extra?.workspace) {
@@ -25,6 +27,7 @@ const ChatSlider: React.FC<{
         }
         eventPrefix='acp'
         messageApi={messageApi}
+        currentTask={task}
       ></ChatWorkspace>
     );
   } else if (conversation?.type === 'codex' && conversation.extra?.workspace) {
@@ -37,6 +40,7 @@ const ChatSlider: React.FC<{
         }
         eventPrefix='codex'
         messageApi={messageApi}
+        currentTask={task}
       ></ChatWorkspace>
     );
   } else if (conversation?.type === 'aionrs' && conversation.extra?.workspace) {
@@ -49,6 +53,7 @@ const ChatSlider: React.FC<{
         }
         eventPrefix='aionrs'
         messageApi={messageApi}
+        currentTask={task}
       ></ChatWorkspace>
     );
   }

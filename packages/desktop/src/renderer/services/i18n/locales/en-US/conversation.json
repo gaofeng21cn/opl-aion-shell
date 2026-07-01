@@ -92,6 +92,15 @@
     "cliAgents": "CLI Agents",
     "presetAssistants": "Preset Assistants"
   },
+  "currentTask": {
+    "kicker": "Current task",
+    "defaultTitle": "Task in progress",
+    "owner": "Owner: {{owner}}",
+    "artifact": "Artifact",
+    "review": "Review",
+    "action": "Action",
+    "workflow": "Workflow"
+  },
   "noAgentsAvailable": "No agents available",
   "noModelConfigured": "No model configured. Please configure in settings.",
   "createFailed": "Failed to create conversation",
