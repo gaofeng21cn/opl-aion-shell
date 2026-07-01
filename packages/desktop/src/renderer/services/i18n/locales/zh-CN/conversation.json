@@ -105,7 +105,17 @@
     "environment": "环境",
     "storage": "存储",
     "resourceReceipt": "资源回执",
-    "costEstimate": "成本估算"
+    "costEstimate": "成本估算",
+    "taskEvidence": "任务证据",
+    "resourceSummary": "资源摘要",
+    "resourceConfirmation": "计划-批准-执行-回收确认",
+    "receiptProvenance": "回执与来源",
+    "confirmPlan": "计划",
+    "confirmApproval": "批准",
+    "confirmExecute": "执行",
+    "confirmMonitor": "监控",
+    "confirmCollect": "回收",
+    "jobReceipt": "任务回执"
   },
   "noAgentsAvailable": "没有可用的 Agent",
   "noModelConfigured": "未配置模型，请前往设置页面配置。",
