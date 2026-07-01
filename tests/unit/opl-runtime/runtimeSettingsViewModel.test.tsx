@@ -71,7 +71,7 @@ const managedUpdateResult = {
       },
       {
         component_id: 'runtime_substrate',
-        display_group: 'Runtime substrate',
+        display_group: 'OPL Runtime Fabric',
         state: 'update_available',
         safe_to_apply: true,
         needs_restart: true,

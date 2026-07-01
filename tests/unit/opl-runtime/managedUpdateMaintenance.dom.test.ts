@@ -187,15 +187,21 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.result?.surface).toBe('update_apply');
   });
 
-  it('rejects Settings apply mutations outside capability packages before IPC', async () => {
+  it('allows Settings apply for runtime substrate and capability packages only', async () => {
+    const runtimeResult = await executeManagedUpdateMutation('apply', { componentId: 'runtime_substrate' });
+
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' });
+    expect(runtimeResult?.surface).toBe('update_apply');
+
     const result = await executeManagedUpdateMutation('apply', { componentId: 'installation_carrier' });
 
-    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
     expect(result?.ok).toBe(false);
+    expect(result?.error?.message).toContain('runtime_substrate');
     expect(result?.error?.message).toContain('capability_packages');
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('failed');
-    expect(snapshot.lastFailure).toContain('capability_packages');
+    expect(snapshot.lastFailure).toContain('runtime_substrate');
   });
 
   it('reports workflow profile as manual only when profile merge work is actually pending', async () => {

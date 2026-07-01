@@ -1416,7 +1416,7 @@
         "description": "对话文件必须先有归档和恢复证明，才能清理。"
       },
       "runtime": {
-        "title": "运行时基座",
+        "title": "OPL Runtime Fabric",
         "description": "运行时清理必须先预览，确认后才能执行。"
       },
       "logs": {
@@ -1629,11 +1629,11 @@
     }
   },
   "oplEnvironmentPage": {
-    "workspaceRootTitle": "工作目录",
+    "workspaceRootTitle": "环境基座",
     "workspaceRootMissing": "尚未选择工作目录",
-    "modulesTitle": "智能体模块",
-    "localAssistantTitle": "本机助手",
-    "localServiceTitle": "本机后台服务",
+    "modulesTitle": "环境基座",
+    "localAssistantTitle": "执行核心",
+    "localServiceTitle": "执行核心",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
     "healthSummary": {
       "usable": "是否可用",
@@ -1652,7 +1652,7 @@
       "workspace": "工作目录",
       "agentPackages": "能力包",
       "storage": "存储与数据",
-      "maintenance": "更新维护"
+      "maintenance": "系统桥接"
     },
     "workspace": {
       "rootTitle": "工作目录",
@@ -1665,8 +1665,8 @@
       "openStorage": "查看存储"
     },
     "maintenanceHub": {
-      "title": "维护中心",
-      "description": "在一个入口查看安装载体更新、运行时基座、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
+      "title": "系统桥接",
+      "description": "在一个入口查看安装载体更新、OPL Runtime Fabric、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
       "makeUsable": {
         "label": "让 OPL 可用",
         "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
@@ -1686,9 +1686,9 @@
           "description": "检查 App 安装载体的更新路径。"
         },
         "runtimeToolchain": {
-          "title": "运行时基座",
-          "description": "检查托管运行时基座通道。",
-          "actionHelp": "运行现有托管更新检查；不会应用运行时基座变更。"
+          "title": "OPL Runtime Fabric",
+          "description": "检查托管 OPL Runtime Fabric 通道。",
+          "actionHelp": "运行现有托管更新检查；不会应用 OPL Runtime Fabric 变更。"
         },
         "capabilityPacks": {
           "title": "OPL 能力包",
@@ -1858,8 +1858,8 @@
       }
     },
     "updates": {
-      "title": "更新与维护",
-      "description": "查看安装载体、运行时基座、辅助工具和 OPL 能力包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
+      "title": "系统桥接",
+      "description": "查看安装载体、OPL Runtime Fabric、辅助工具和 OPL 能力包是否需要更新。默认只显示影响和下一步；回执、锁和内部模式放在诊断详情里。",
       "channel": "通道：{{channel}}",
       "lockStatus": "锁：{{status}}",
       "operationMode": "模式：{{mode}}",
@@ -1878,13 +1878,13 @@
       "hostManualRouteTitle": "主机/手动更新路径",
       "components": {
         "installation_carrier": "安装载体",
-        "runtime_substrate": "运行时基座",
+        "runtime_substrate": "OPL Runtime Fabric",
         "capability_packages": "OPL 能力包",
         "companion_tools": "辅助工具",
         "codex_surface": "Codex Surface",
         "workflow_profile": "工作流 Profile",
         "app_binary": "安装载体",
-        "runtime_toolchain": "运行时基座",
+        "runtime_toolchain": "OPL Runtime Fabric",
         "agent_package_channel": "OPL 能力包",
         "capability_exposure": "Codex Surface",
         "unknown": "OPL 组件"
@@ -1902,7 +1902,7 @@
         "autoApply": "后台同步",
         "applyUpdate": "应用更新",
         "previewChanges": "预览变更",
-        "reviewRuntimeToolchain": "检查运行时基座",
+        "reviewRuntimeToolchain": "检查 OPL Runtime Fabric",
         "reviewCapabilityPacks": "检查能力包",
         "semanticMerge": "查看语义合并指引"
       },

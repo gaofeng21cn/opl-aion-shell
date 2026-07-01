@@ -178,7 +178,7 @@ const managedUpdateStatusResult = {
         },
         {
           component_id: 'runtime_substrate',
-          display_group: 'Runtime substrate',
+          display_group: 'OPL Runtime Fabric',
           state: 'update_available',
           safe_to_apply: true,
           conditions: [
@@ -485,7 +485,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent('settings.oplEnvironmentPage.updates.title');
     expect(screen.getByTestId('opl-managed-update-installation_carrier')).toHaveTextContent('Installation carrier');
-    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('Runtime substrate');
+    expect(screen.getByTestId('opl-managed-update-runtime_substrate')).toHaveTextContent('OPL Runtime Fabric');
     expect(screen.getByTestId('opl-managed-update-capability_packages')).toHaveTextContent('OPL capability packages');
     expect(screen.getByTestId('opl-managed-update-codex_surface')).toHaveTextContent('Codex Surface');
     expect(screen.getByTestId('opl-managed-update-workflow_profile')).toHaveTextContent('Workflow profile');
@@ -590,7 +590,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByTestId('opl-managed-update-apply-installation_carrier')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-repair-installation_carrier')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-installation_carrier')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('opl-managed-update-apply-runtime_substrate')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-managed-update-apply-runtime_substrate')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-codex_surface')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-workflow_profile')).not.toBeInTheDocument();
@@ -649,6 +649,12 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(screen.getByTestId('opl-managed-update-post-action-notice')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.postAction.reloadGuidance'
+    );
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({ componentId: 'runtime_substrate' });
+    fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);
+    await waitFor(() =>
+      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({ componentId: 'runtime_substrate' })
     );
     fireEvent.click(screen.getByTestId('opl-managed-update-repair-capability_packages'));
     fireEvent.click(screen.getByTestId('opl-managed-update-confirmation').querySelector('.arco-btn-primary')!);

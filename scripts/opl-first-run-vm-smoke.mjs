@@ -3847,10 +3847,9 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
     id: 'environment',
     hash: '#/settings/environment',
     requiredTextAny: [
-      ['Maintenance hub', '维护中心'],
-      ['Local Assistant', '本机助手'],
-      ['Local Background Service', '本机后台服务'],
-      ['Foundry Modules', '智能体模块'],
+      ['System Bridge'],
+      ['Execution Core'],
+      ['Environment Base'],
     ],
   },
   { id: 'capabilities', hash: '#/settings/capabilities', requiredTextAny: [['Capabilities', '能力']] },

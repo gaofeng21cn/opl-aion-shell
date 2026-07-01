@@ -75,7 +75,7 @@ export const MANAGED_UPDATE_COMPONENT_IDS: ManagedUpdateComponentId[] = [
 
 const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
   installation_carrier: 'Installation carrier',
-  runtime_substrate: 'Runtime substrate',
+  runtime_substrate: 'OPL Runtime Fabric',
   capability_packages: 'OPL capability packages',
   companion_tools: 'Companion tools',
   codex_surface: 'Codex Surface',
@@ -98,7 +98,7 @@ const MUTATION_FORBIDDEN_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'codex_surface',
   'workflow_profile',
 ]);
-const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
+const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['runtime_substrate', 'capability_packages']);
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',

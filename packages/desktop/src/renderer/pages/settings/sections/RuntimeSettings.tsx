@@ -133,7 +133,7 @@ function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate):
 }
 
 function componentApplyAllowed(component: ManagedUpdateComponent): boolean {
-  return component.id === 'capability_packages' && component.safeToApply;
+  return (component.id === 'runtime_substrate' || component.id === 'capability_packages') && component.safeToApply;
 }
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {

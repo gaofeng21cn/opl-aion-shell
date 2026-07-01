@@ -58,7 +58,7 @@ const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
 const AUTO_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
-const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
+const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['runtime_substrate', 'capability_packages']);
 const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'installation_carrier',
   'runtime_substrate',
@@ -489,7 +489,7 @@ function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: s
     parsed: null,
     error: {
       message:
-        'OPL Settings can only apply capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.',
+        'OPL Settings can only apply runtime_substrate and capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.',
     },
   };
 }

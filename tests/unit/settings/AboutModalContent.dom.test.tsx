@@ -38,7 +38,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.aboutMaintenanceMoved') return '更新与维护已移到维护页';
       if (key === 'settings.runtimePage.releaseChannels.stable') return 'Stable';
       if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'Installation carrier';
-      if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'Runtime substrate';
+      if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'OPL Runtime Fabric';
       if (key === 'settings.oplEnvironmentPage.updates.components.agent_package_channel') return 'OPL capability packages';
       if (key === 'settings.oplEnvironmentPage.updates.components.capability_exposure') return 'Codex Surface';
       if (key === 'settings.oplEnvironmentPage.status.current') return 'Current';

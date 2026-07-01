@@ -75,7 +75,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
         },
         {
           id: 'runtime_substrate',
-          label: 'Runtime substrate',
+          label: 'OPL Runtime Fabric',
           state: 'update_available',
           conditions: [],
           safeToApply: true,
@@ -162,7 +162,7 @@ describe('buildRuntimeEnvironmentProjection', () => {
   it('chooses safe maintenance actions without applying restart-required runtime updates', () => {
     const runtimeToolchain = {
       id: 'runtime_substrate',
-      label: 'Runtime substrate',
+      label: 'OPL Runtime Fabric',
       state: 'update_available',
       conditions: [],
       safeToApply: true,

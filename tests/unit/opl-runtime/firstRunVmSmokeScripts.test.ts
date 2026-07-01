@@ -382,10 +382,9 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['Maintenance hub', '维护中心'],
-        ['Local Assistant', '本机助手'],
-        ['Local Background Service', '本机后台服务'],
-        ['Foundry Modules', '智能体模块'],
+        ['System Bridge'],
+        ['Execution Core'],
+        ['Environment Base'],
       ])
     );
     expect(appearanceTarget?.requiredTextAny).toEqual(
