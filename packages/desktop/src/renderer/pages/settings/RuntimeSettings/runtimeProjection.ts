@@ -485,7 +485,8 @@ function readTaskRunProjectionV2(workbench: JsonRecord): RuntimeTaskRunProjectio
         attention: asNumber(summary.attention_task_count) ?? asNumber(summary.attention) ?? 0,
         completed: asNumber(summary.completed_task_count) ?? asNumber(summary.completed) ?? 0,
         failed: asNumber(summary.failed_task_count) ?? asNumber(summary.failed) ?? 0,
-        available: asNumber(summary.task_count) ?? asNumber(summary.available) ?? asRecordArray(projection.tasks).length,
+        available:
+          asNumber(summary.task_count) ?? asNumber(summary.available) ?? asRecordArray(projection.tasks).length,
       },
       tasks: asRecordArray(projection.tasks).map((entry, index) => readTaskRunRecord(entry, index)),
     };

@@ -577,7 +577,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
     expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
     expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
-    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent('settings.runtimePage.taskRuns.overview.running');
+    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent(
+      'settings.runtimePage.taskRuns.overview.running'
+    );
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('why_it_matters');
