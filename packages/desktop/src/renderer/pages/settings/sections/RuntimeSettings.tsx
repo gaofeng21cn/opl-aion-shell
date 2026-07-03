@@ -51,7 +51,7 @@ import {
 } from '../RuntimeSettings/environmentProjection';
 import { normalizeRuntimeProjection } from '../RuntimeSettings/runtimeProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
-import type { RuntimeTaskDrilldown, RuntimeTaskRefCard } from '../RuntimeSettings/types';
+import type { ArtifactProvenanceDrawer, RuntimeTaskDrilldown, RuntimeTaskRefCard } from '../RuntimeSettings/types';
 import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
@@ -164,6 +164,105 @@ function TaskRunRefCards({ title, cards }: { title: string; cards: RuntimeTaskRe
   );
 }
 
+function refDetails(entries: Array<[string, string | undefined]>): RuntimeTaskRefCard['details'] {
+  return entries.flatMap(([key, value]) => (value ? [{ key, value }] : []));
+}
+
+function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer): RuntimeTaskRefCard[] {
+  const cards: RuntimeTaskRefCard[] = [];
+  if (drawer.provenanceProjectionRef || drawer.provenanceIndexRef) {
+    cards.push({
+      id: 'artifact-provenance-projection',
+      label: 'provenance_projection_ref',
+      value: drawer.provenanceProjectionRef,
+      ref: drawer.provenanceIndexRef,
+      kind: drawer.provenanceProjectionKind,
+      details: refDetails([['provenance_index_ref', drawer.provenanceIndexRef]]),
+    });
+  }
+  drawer.provenanceBundleRefs.forEach((entry, index) => {
+    cards.push({
+      id: `artifact-provenance-bundle-${entry.artifactId ?? entry.bundleRef ?? index + 1}`,
+      label: entry.artifactId ?? 'provenance_bundle_refs',
+      value: entry.bundleRef,
+      ref: entry.ledgerRecordRef,
+      kind: 'provenance_bundle_ref',
+      details: refDetails([
+        ['artifact_ref', entry.artifactRef],
+        ['ledger_record_ref', entry.ledgerRecordRef],
+        ['content_hash_ref', entry.contentHashRef],
+      ]),
+    });
+  });
+  if (drawer.roCrateMetadataRef) {
+    cards.push({
+      id: 'artifact-provenance-ro-crate',
+      label: 'ro_crate_metadata_ref',
+      ref: drawer.roCrateMetadataRef,
+      details: [],
+    });
+  }
+  if (drawer.replayStatusRef) {
+    cards.push({
+      id: 'artifact-provenance-replay-status',
+      label: 'replay_status_ref',
+      ref: drawer.replayStatusRef,
+      details: [],
+    });
+  }
+  drawer.agentTraceRefs.forEach((entry, index) => {
+    cards.push({
+      id: `artifact-provenance-agent-trace-${entry.traceKind ?? entry.traceRef ?? index + 1}`,
+      label: entry.traceKind ?? 'agent_trace_refs',
+      ref: entry.traceRef,
+      kind: 'agent_trace_ref',
+      details: refDetails([['access', entry.access]]),
+    });
+  });
+  drawer.reviewRefs.forEach((entry, index) => {
+    cards.push({
+      id: `artifact-provenance-review-${entry.reviewKind ?? entry.reviewRef ?? index + 1}`,
+      label: entry.reviewKind ?? 'review_refs',
+      ref: entry.reviewRef,
+      kind: 'review_ref',
+      details: refDetails([['reviewer_owner', entry.reviewerOwner]]),
+    });
+  });
+  drawer.typedIssues.forEach((entry, index) => {
+    cards.push({
+      id: `artifact-provenance-typed-issue-${entry.issueType ?? entry.ref ?? index + 1}`,
+      label: entry.issueType ?? 'typed_issues',
+      ref: entry.ref,
+      kind: 'typed_issue',
+      details: refDetails([
+        ['severity', entry.severity],
+        ['owner', entry.owner],
+      ]),
+    });
+  });
+  if (drawer.drawerRoute || drawer.drawerProjectionRef || drawer.drawerSurfaceKind) {
+    cards.push({
+      id: 'artifact-provenance-drawer',
+      label: 'provenance_drawer',
+      value: drawer.drawerRoute,
+      ref: drawer.drawerProjectionRef,
+      kind: drawer.drawerSurfaceKind,
+      details: [],
+    });
+  }
+  if (drawer.openAction) {
+    cards.push({
+      id: 'artifact-provenance-open-action',
+      label: 'provenance_drawer.open_action',
+      value: drawer.openAction.route,
+      ref: drawer.openAction.actionRef,
+      kind: drawer.openAction.requiredMode,
+      details: refDetails([['action_id', drawer.openAction.actionId]]),
+    });
+  }
+  return cards;
+}
+
 function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldown[] }) {
   const { t } = useTranslation();
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
@@ -269,7 +368,28 @@ function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldow
                 </div>
               )}
               <div className='mt-12px flex flex-col gap-12px'>
-                <Collapse bordered={false} defaultActiveKey={['evidence', 'actions', 'resources']}>
+                <Collapse
+                  key={selectedTask.taskId}
+                  bordered={false}
+                  defaultActiveKey={[
+                    ...(selectedTask.artifactProvenanceDrawer ? ['artifact-provenance'] : []),
+                    'evidence',
+                    'actions',
+                    'resources',
+                  ]}
+                >
+                  {selectedTask.artifactProvenanceDrawer && (
+                    <Collapse.Item
+                      name='artifact-provenance'
+                      header={t('settings.runtimePage.taskRuns.artifactProvenanceDrawer')}
+                      data-testid='runtime-task-run-detail-artifact-provenance'
+                    >
+                      <TaskRunRefCards
+                        title={t('settings.runtimePage.taskRuns.artifactProvenanceDrawer')}
+                        cards={artifactProvenanceCards(selectedTask.artifactProvenanceDrawer)}
+                      />
+                    </Collapse.Item>
+                  )}
                   <Collapse.Item
                     name='evidence'
                     header={t('settings.runtimePage.taskRuns.evidenceCards')}

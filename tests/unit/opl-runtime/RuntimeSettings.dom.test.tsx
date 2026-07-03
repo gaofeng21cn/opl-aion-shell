@@ -563,6 +563,66 @@ describe('RuntimeSettings app state bridge usage', () => {
                       },
                     ],
                     diagnostics_ref: 'diagnostics://task',
+                    artifact_native_drilldown: {
+                      provenance_projection_kind: 'artifact_provenance_bundle_projection',
+                      provenance_projection_ref:
+                        'contracts/app-runtime-bridge.json#artifact_provenance_bundle_projection',
+                      provenance_index_ref: 'opl://artifact-provenance-index/medautoscience/dm002',
+                      provenance_bundle_refs: [
+                        {
+                          artifact_id: 'figure:dm002-flow',
+                          artifact_ref: 'opl://artifact/medautoscience/dm002/figure-flow',
+                          bundle_ref: 'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow',
+                          ledger_record_ref: 'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow',
+                          content_hash_ref: 'sha256:dm002figureflow',
+                          content_policy: 'refs_only_no_artifact_body',
+                        },
+                      ],
+                      ro_crate_metadata_ref:
+                        'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow/ro-crate-metadata.json',
+                      replay_status_ref: 'opl://artifact-replay-status/medautoscience/dm002/figure-flow',
+                      agent_trace_refs: [
+                        {
+                          trace_kind: 'turn_summary_ref',
+                          trace_ref: 'opl://agent-trace/medautoscience/dm002/figure-flow/summary',
+                          access: 'readback',
+                          content_policy: 'ref_only_no_trace_body',
+                        },
+                      ],
+                      review_refs: [
+                        {
+                          review_kind: 'visual_audit_receipt',
+                          review_ref: 'opl://review/medautoscience/dm002/figure-flow/visual-audit',
+                          reviewer_owner: 'medautoscience_reviewer_agent',
+                          content_policy: 'ref_only_no_review_body_no_quality_verdict',
+                        },
+                      ],
+                      typed_issues: [
+                        {
+                          issue_type: 'replay_not_verified_in_fast_fixture',
+                          severity: 'info',
+                          ref: 'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified',
+                          owner: 'medautoscience',
+                          content_policy: 'refs_only_no_issue_body',
+                        },
+                      ],
+                      provenance_drawer: {
+                        surface_kind: 'artifact_provenance_bundle_drawer',
+                        route: 'right_context_inspector/artifacts/provenance',
+                        projection_ref: 'contracts/app-runtime-bridge.json#artifact_provenance_bundle_projection',
+                        open_action: {
+                          action_id: 'artifact_provenance_bundle_readback',
+                          action_ref:
+                            'app_state.operator.workbench.task_drilldowns[dm002-taskrun].artifact_native_drilldown.provenance_bundle_refs[0]',
+                          route: 'opl runtime app-operator-drilldown --task dm002-taskrun --json',
+                          required_mode: 'read_only',
+                          content_policy: 'refs_only_no_artifact_body',
+                        },
+                      },
+                      artifact_body: 'artifact_body should stay hidden',
+                      domain_verdict: 'domain_verdict should stay hidden',
+                      quality_verdict: 'quality_verdict should stay hidden',
+                    },
                   },
                 ],
               },
@@ -588,6 +648,40 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://quota');
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'settings.runtimePage.taskRuns.artifactProvenanceDrawer'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('ledger_record_ref');
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'ro_crate_metadata_ref'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://artifact-replay-status/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://agent-trace/medautoscience/dm002/figure-flow/summary'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://review/medautoscience/dm002/figure-flow/visual-audit'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'provenance_drawer.open_action'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl runtime app-operator-drilldown --task dm002-taskrun --json'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('artifact_body');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('domain_verdict');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('quality_verdict');
     fireEvent.click(screen.getByText('settings.runtimePage.taskRuns.diagnosticsRefs'));
     expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
     expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');

@@ -1409,6 +1409,7 @@
         "waiting": "等待中",
         "recent": "最近任务"
       },
+      "artifactProvenanceDrawer": "产物溯源",
       "evidenceCards": "证据",
       "actionCards": "动作",
       "resourceRefs": "资源",

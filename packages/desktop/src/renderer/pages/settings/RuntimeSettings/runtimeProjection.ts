@@ -5,6 +5,12 @@
  */
 
 import type {
+  ArtifactProvenanceDrawer,
+  ArtifactProvenanceOpenAction,
+  ArtifactProvenanceRef,
+  ArtifactProvenanceReviewRef,
+  ArtifactProvenanceTraceRef,
+  ArtifactProvenanceTypedIssue,
   RuntimeActionQueueItem,
   RuntimeDefaultReadSurfacePolicy,
   RuntimeDomainLane,
@@ -423,6 +429,119 @@ function readTaskConditions(entry: JsonRecord): RuntimeTaskCondition[] {
   return [...explicitConditions, ...refConditions];
 }
 
+function readArtifactProvenanceRefs(value: unknown): ArtifactProvenanceRef[] {
+  return asArray(value).flatMap((entry): ArtifactProvenanceRef[] => {
+    if (isRecord(entry)) {
+      const provenanceRef = {
+        artifactId: asString(entry.artifact_id),
+        artifactRef: asString(entry.artifact_ref),
+        bundleRef: asString(entry.bundle_ref),
+        ledgerRecordRef: asString(entry.ledger_record_ref),
+        contentHashRef: asString(entry.content_hash_ref),
+      };
+      return Object.values(provenanceRef).some(Boolean) ? [provenanceRef] : [];
+    }
+    const bundleRef = asString(entry);
+    return bundleRef ? [{ bundleRef }] : [];
+  });
+}
+
+function readArtifactProvenanceTraceRefs(value: unknown): ArtifactProvenanceTraceRef[] {
+  return asArray(value).flatMap((entry): ArtifactProvenanceTraceRef[] => {
+    if (isRecord(entry)) {
+      const traceRef = {
+        traceKind: asString(entry.trace_kind),
+        traceRef: asString(entry.trace_ref),
+        access: asString(entry.access),
+      };
+      return Object.values(traceRef).some(Boolean) ? [traceRef] : [];
+    }
+    const traceRef = asString(entry);
+    return traceRef ? [{ traceRef }] : [];
+  });
+}
+
+function readArtifactProvenanceReviewRefs(value: unknown): ArtifactProvenanceReviewRef[] {
+  return asArray(value).flatMap((entry): ArtifactProvenanceReviewRef[] => {
+    if (isRecord(entry)) {
+      const reviewRef = {
+        reviewKind: asString(entry.review_kind),
+        reviewRef: asString(entry.review_ref),
+        reviewerOwner: asString(entry.reviewer_owner),
+      };
+      return Object.values(reviewRef).some(Boolean) ? [reviewRef] : [];
+    }
+    const reviewRef = asString(entry);
+    return reviewRef ? [{ reviewRef }] : [];
+  });
+}
+
+function readArtifactProvenanceTypedIssues(value: unknown): ArtifactProvenanceTypedIssue[] {
+  return asArray(value).flatMap((entry): ArtifactProvenanceTypedIssue[] => {
+    if (isRecord(entry)) {
+      const issue = {
+        issueType: asString(entry.issue_type),
+        severity: asString(entry.severity),
+        ref: asString(entry.ref),
+        owner: asString(entry.owner),
+      };
+      return Object.values(issue).some(Boolean) ? [issue] : [];
+    }
+    const ref = asString(entry);
+    return ref ? [{ ref }] : [];
+  });
+}
+
+function readArtifactProvenanceOpenAction(value: unknown): ArtifactProvenanceOpenAction | undefined {
+  const openAction = firstRecord(value);
+  if (!openAction) return undefined;
+  const action = {
+    actionId: asString(openAction.action_id),
+    actionRef: asString(openAction.action_ref),
+    route: asString(openAction.route),
+    requiredMode: asString(openAction.required_mode),
+  };
+  return Object.values(action).some(Boolean) ? action : undefined;
+}
+
+function readArtifactProvenanceDrawer(value: unknown): ArtifactProvenanceDrawer | undefined {
+  const artifactDrilldown = firstRecord(value);
+  if (!artifactDrilldown) return undefined;
+  const drawer = firstRecord(artifactDrilldown.provenance_drawer);
+  const provenanceDrawer = {
+    provenanceProjectionKind: asString(artifactDrilldown.provenance_projection_kind),
+    provenanceProjectionRef: asString(artifactDrilldown.provenance_projection_ref),
+    provenanceIndexRef: asString(artifactDrilldown.provenance_index_ref),
+    provenanceBundleRefs: readArtifactProvenanceRefs(artifactDrilldown.provenance_bundle_refs),
+    roCrateMetadataRef: asString(artifactDrilldown.ro_crate_metadata_ref),
+    replayStatusRef: asString(artifactDrilldown.replay_status_ref),
+    agentTraceRefs: readArtifactProvenanceTraceRefs(artifactDrilldown.agent_trace_refs),
+    reviewRefs: readArtifactProvenanceReviewRefs(artifactDrilldown.review_refs),
+    typedIssues: readArtifactProvenanceTypedIssues(artifactDrilldown.typed_issues),
+    drawerSurfaceKind: asString(drawer?.surface_kind),
+    drawerRoute: asString(drawer?.route),
+    drawerProjectionRef: asString(drawer?.projection_ref),
+    openAction: readArtifactProvenanceOpenAction(drawer?.open_action),
+  };
+  const hasContent =
+    Boolean(
+      provenanceDrawer.provenanceProjectionKind ??
+      provenanceDrawer.provenanceProjectionRef ??
+      provenanceDrawer.provenanceIndexRef ??
+      provenanceDrawer.roCrateMetadataRef ??
+      provenanceDrawer.replayStatusRef ??
+      provenanceDrawer.drawerSurfaceKind ??
+      provenanceDrawer.drawerRoute ??
+      provenanceDrawer.drawerProjectionRef ??
+      provenanceDrawer.openAction
+    ) ||
+    provenanceDrawer.provenanceBundleRefs.length > 0 ||
+    provenanceDrawer.agentTraceRefs.length > 0 ||
+    provenanceDrawer.reviewRefs.length > 0 ||
+    provenanceDrawer.typedIssues.length > 0;
+  return hasContent ? provenanceDrawer : undefined;
+}
+
 function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldown {
   const taskId = asString(entry.task_id) ?? `task-${index + 1}`;
   const blockerRefsCount = asArray(entry.blocker_refs).length;
@@ -469,6 +588,7 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
       ...readRefCards(entry.diagnostics_refs, 'diagnostics', 'Diagnostics'),
       ...readSingleRefCard(entry.diagnostics_ref, 'diagnostics-ref', 'Diagnostics'),
     ],
+    artifactProvenanceDrawer: readArtifactProvenanceDrawer(entry.artifact_native_drilldown),
   };
 }
 

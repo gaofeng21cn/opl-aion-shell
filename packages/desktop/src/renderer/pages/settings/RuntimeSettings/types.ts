@@ -109,6 +109,57 @@ export type RuntimeTaskDrilldown = {
   actionCards: RuntimeTaskRefCard[];
   resourceRefs: RuntimeTaskRefCard[];
   diagnosticsRefs: RuntimeTaskRefCard[];
+  artifactProvenanceDrawer?: ArtifactProvenanceDrawer;
+};
+
+export type ArtifactProvenanceRef = {
+  artifactId?: string;
+  artifactRef?: string;
+  bundleRef?: string;
+  ledgerRecordRef?: string;
+  contentHashRef?: string;
+};
+
+export type ArtifactProvenanceTraceRef = {
+  traceKind?: string;
+  traceRef?: string;
+  access?: string;
+};
+
+export type ArtifactProvenanceReviewRef = {
+  reviewKind?: string;
+  reviewRef?: string;
+  reviewerOwner?: string;
+};
+
+export type ArtifactProvenanceTypedIssue = {
+  issueType?: string;
+  severity?: string;
+  ref?: string;
+  owner?: string;
+};
+
+export type ArtifactProvenanceOpenAction = {
+  actionId?: string;
+  actionRef?: string;
+  route?: string;
+  requiredMode?: string;
+};
+
+export type ArtifactProvenanceDrawer = {
+  provenanceProjectionKind?: string;
+  provenanceProjectionRef?: string;
+  provenanceIndexRef?: string;
+  provenanceBundleRefs: ArtifactProvenanceRef[];
+  roCrateMetadataRef?: string;
+  replayStatusRef?: string;
+  agentTraceRefs: ArtifactProvenanceTraceRef[];
+  reviewRefs: ArtifactProvenanceReviewRef[];
+  typedIssues: ArtifactProvenanceTypedIssue[];
+  drawerSurfaceKind?: string;
+  drawerRoute?: string;
+  drawerProjectionRef?: string;
+  openAction?: ArtifactProvenanceOpenAction;
 };
 
 export type RuntimeTaskRunProjectionV2 = {
