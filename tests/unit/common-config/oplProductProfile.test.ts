@@ -368,10 +368,28 @@ describe('OPL generated product profile', () => {
       delivery: 'session_scoped_preset_context',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+      optional_user_modes: {
+        head_down: {
+          id: 'head_down',
+          settings_key: 'codex.oplFlowHeadDownMode',
+          label_key: 'settings.oplFlowHeadDownMode',
+          description_key: 'settings.oplFlowHeadDownModeDesc',
+          prompt_line: 'DO NOT send optional commentary',
+          quick_action_label_key: 'conversation.headDownQuickAction',
+          quick_action_prompt:
+            'Spend time on thinking; you do not need to use the commentary channel to report progress to me.',
+          quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled',
+          injection_policy: 'prepend_before_opl_flow_context',
+        },
+      },
     });
 
     policy.source = 'caller-local-source';
     expect(getOplFlowContextPolicy().source).toBe('one-person-lab-app');
+    (policy.optional_user_modes!.head_down as { prompt_line: string }).prompt_line = 'caller-local-line';
+    expect(getOplFlowContextPolicy().optional_user_modes?.head_down.prompt_line).toBe(
+      'DO NOT send optional commentary'
+    );
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {

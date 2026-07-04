@@ -175,6 +175,21 @@ function sourceManagement(record: Record<string, unknown>, category: string): 'c
   return null;
 }
 
+function modelAccessSourceLabel(source: string | null | undefined, t: (key: string) => string): string | null {
+  switch (source) {
+    case 'opl_gateway':
+      return t('settings.accessPage.cards.account.source.oplGateway');
+    case 'codex_login':
+      return t('settings.accessPage.cards.account.source.codexLogin');
+    case 'custom_provider':
+      return t('settings.accessPage.cards.account.source.customProvider');
+    case 'env_api_key':
+      return t('settings.accessPage.cards.account.source.envApiKey');
+    default:
+      return null;
+  }
+}
+
 function buildResourceSourceProjection(
   appState: Record<string, unknown>,
   t: (key: string, options?: Record<string, string>) => string
@@ -320,6 +335,9 @@ export function buildAccessProjection(
   );
   const apiKeyPresent =
     codex.api_key_present === true || codexConfig.api_key_present === true || oplString(codexConfig.status) === 'ready';
+  const oplGatewayConfigured = codex.opl_gateway_configured === true;
+  const modelAccessReady = codex.model_access_ready === true || apiKeyPresent;
+  const modelAccessSource = oplString(codex.model_access_source);
   const providerStatus = normalizeAccessStatus(
     oplString(provider.health_status) ?? oplString(provider.status) ?? oplString(temporal.health_status),
     'unknown'
@@ -332,11 +350,14 @@ export function buildAccessProjection(
     oplString(provider.model) ??
     oplString(provider.default_model) ??
     t('settings.accessPage.cards.model.fallback');
-  const accountStatus = apiKeyPresent
-    ? t('settings.accessPage.cards.account.configured')
-    : t('settings.accessPage.cards.account.missing');
+  const accountStatus = oplGatewayConfigured
+    ? t('settings.accessPage.cards.account.oplGatewayConfigured')
+    : modelAccessReady
+      ? t('settings.accessPage.cards.account.existingCodexConfigured')
+      : t('settings.accessPage.cards.account.missing');
+  const accountSourceLabel = modelAccessSourceLabel(modelAccessSource, t);
   const modelAccessStatus =
-    codexStatus === 'ready' && apiKeyPresent && (providerStatus === 'ready' || providerStatus === 'ok')
+    codexStatus === 'ready' && modelAccessReady && (providerStatus === 'ready' || providerStatus === 'ok')
       ? 'ready'
       : 'attention_required';
 
@@ -351,9 +372,9 @@ export function buildAccessProjection(
     {
       key: 'account',
       title: t('settings.accessPage.cards.account.title'),
-      status: apiKeyPresent ? 'ready' : 'attention_required',
-      detail: accountStatus,
-      tone: apiKeyPresent ? 'green' : 'orange',
+      status: modelAccessReady ? 'ready' : 'attention_required',
+      detail: compactAccessDetail([accountStatus, accountSourceLabel], accountStatus),
+      tone: modelAccessReady ? 'green' : 'orange',
     },
     {
       key: 'modelAccess',

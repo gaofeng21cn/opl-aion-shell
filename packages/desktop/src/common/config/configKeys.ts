@@ -8,7 +8,11 @@ export type ConfigKeyMap = {
     proxy?: string;
   };
   'codex.config':
-    | { cli_path?: string; yoloMode?: boolean; sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access' }
+    | {
+        cli_path?: string;
+        yoloMode?: boolean;
+        sandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access';
+      }
     | undefined;
   'acp.config': {
     [backend: string]: {
@@ -51,6 +55,7 @@ export type ConfigKeyMap = {
   'workspace.pasteConfirm': boolean | undefined;
   'upload.saveToWorkspace': boolean | undefined;
   'guid.lastSelectedAgent': string | undefined;
+  'codex.oplFlowHeadDownMode': boolean | undefined;
   'system.closeToTray': boolean | undefined;
   'system.notificationEnabled': boolean | undefined;
   'system.cronNotificationEnabled': boolean | undefined;

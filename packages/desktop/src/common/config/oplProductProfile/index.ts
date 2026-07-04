@@ -106,6 +106,19 @@ export type OplFlowContextPolicy = {
   delivery: 'session_scoped_preset_context';
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
+  optional_user_modes?: {
+    head_down: {
+      id: 'head_down';
+      settings_key: 'codex.oplFlowHeadDownMode';
+      label_key: 'settings.oplFlowHeadDownMode';
+      description_key: 'settings.oplFlowHeadDownModeDesc';
+      prompt_line: 'DO NOT send optional commentary';
+      quick_action_label_key: 'conversation.headDownQuickAction';
+      quick_action_prompt: 'Spend time on thinking; you do not need to use the commentary channel to report progress to me.';
+      quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled';
+      injection_policy: 'prepend_before_opl_flow_context';
+    };
+  };
 };
 
 type OplCodexSessionContext = {
@@ -1118,12 +1131,43 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
   ) {
     throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
   }
+  const optionalUserModes = isRecord(value.optional_user_modes) ? value.optional_user_modes : null;
+  const headDownMode = optionalUserModes && isRecord(optionalUserModes.head_down) ? optionalUserModes.head_down : null;
+  const parsedHeadDownMode =
+    headDownMode &&
+    headDownMode.id === 'head_down' &&
+    headDownMode.settings_key === 'codex.oplFlowHeadDownMode' &&
+    headDownMode.label_key === 'settings.oplFlowHeadDownMode' &&
+    headDownMode.description_key === 'settings.oplFlowHeadDownModeDesc' &&
+    headDownMode.prompt_line === 'DO NOT send optional commentary' &&
+    headDownMode.quick_action_label_key === 'conversation.headDownQuickAction' &&
+    headDownMode.quick_action_prompt ===
+      'Spend time on thinking; you do not need to use the commentary channel to report progress to me.' &&
+    headDownMode.quick_action_policy === 'send_as_current_conversation_user_message_when_mode_enabled' &&
+    headDownMode.injection_policy === 'prepend_before_opl_flow_context'
+      ? {
+          id: 'head_down' as const,
+          settings_key: 'codex.oplFlowHeadDownMode' as const,
+          label_key: 'settings.oplFlowHeadDownMode' as const,
+          description_key: 'settings.oplFlowHeadDownModeDesc' as const,
+          prompt_line: 'DO NOT send optional commentary' as const,
+          quick_action_label_key: 'conversation.headDownQuickAction' as const,
+          quick_action_prompt:
+            'Spend time on thinking; you do not need to use the commentary channel to report progress to me.' as const,
+          quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled' as const,
+          injection_policy: 'prepend_before_opl_flow_context' as const,
+        }
+      : null;
+  if (optionalUserModes && !parsedHeadDownMode) {
+    throw new Error('Invalid OPL product profile: codex.opl_flow_context.optional_user_modes.head_down is unsupported');
+  }
   return {
     flow_id: 'opl-flow',
     source,
     delivery: 'session_scoped_preset_context',
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
+    ...(parsedHeadDownMode ? { optional_user_modes: { head_down: parsedHeadDownMode } } : {}),
   };
 }
 
@@ -1999,7 +2043,13 @@ export function sanitizeOplOrdinaryConversationExtra<T extends Record<string, un
 }
 
 export function getOplFlowContextPolicy(): OplFlowContextPolicy {
-  return { ...OPL_PRODUCT_PROFILE.codex.opl_flow_context };
+  const policy = OPL_PRODUCT_PROFILE.codex.opl_flow_context;
+  return {
+    ...policy,
+    ...(policy.optional_user_modes
+      ? { optional_user_modes: { head_down: { ...policy.optional_user_modes.head_down } } }
+      : {}),
+  };
 }
 
 export function getOplDefaultCodexSkills(): string[] {

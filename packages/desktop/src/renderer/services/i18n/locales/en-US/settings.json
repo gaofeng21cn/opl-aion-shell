@@ -1007,6 +1007,8 @@
   "oplDeveloperProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the managed GHCR capability packages channel unless they explicitly opt into a checkout source.",
   "oplFlowContext": "OPL Flow Context",
   "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
+  "oplFlowHeadDownMode": "Head-down mode",
+  "oplFlowHeadDownModeDesc": "New Codex sessions start with: DO NOT send optional commentary",
   "oplDeveloperProfileStates": {
     "contributor": "Contributor",
     "maintainer": "Maintainer",
@@ -1085,8 +1087,8 @@
       "codexConfig": {
         "pending": "Confirming model access.",
         "checking": "Checking model access.",
-        "ready": "Model access is configured.",
-        "needsAction": "Enter the access key from your administrator."
+        "ready": "Model access is available.",
+        "needsAction": "Enter the OPL Gateway access key."
       },
       "domainModules": {
         "pending": "Domain modules will prepare in the background.",
@@ -1110,7 +1112,7 @@
     "itemDescriptions": {
       "workspaceRoot": "Where OPL stores projects, files, and local task output.",
       "codex": "The local assistant runtime used by OPL to run sessions and commands.",
-      "codexConfig": "The access key that lets the local assistant reach the configured model service.",
+      "codexConfig": "The configuration that lets the local assistant reach OPL Gateway or existing Codex model access.",
       "domainModules": "Optional OPL capability packs such as MAS, MAG, RCA, and BookForge.",
       "familyRuntimeProvider": "The local background runner used for longer OPL tasks.",
       "recommendedSkills": "Companion skills that improve specialized OPL workflows."
@@ -1128,8 +1130,8 @@
         "waiting": "Wait for the startup check to finish."
       },
       "codexConfig": {
-        "ready": "No action needed.",
-        "needsAction": "Enter the access key below.",
+        "ready": "Already configured; skip.",
+        "needsAction": "Enter the OPL Gateway access key below.",
         "waiting": "Wait for the startup check to finish."
       },
       "domainModules": {
@@ -1151,7 +1153,7 @@
     "nextSteps": {
       "workspaceRoot": "Choose a local workspace folder.",
       "codex": "Wait for the local assistant to finish setup, or retry from technical details.",
-      "codexConfig": "Ask your administrator for the access key, then complete the setup below.",
+      "codexConfig": "Ask your administrator for the OPL Gateway access key, then complete setup below; existing Codex model access can skip first launch setup.",
       "domainModules": "Domain modules can continue preparing after you enter OPL.",
       "familyRuntimeProvider": "The runtime provider can continue preparing after you enter OPL.",
       "recommendedSkills": "Recommended skills can continue preparing after you enter OPL.",
@@ -1175,13 +1177,13 @@
       "completed": "Action completed"
     },
     "codex": {
-      "title": "Model Access",
-      "prompt": "Enter the access key from your administrator. You can start after this is configured.",
-      "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for the access step you may need to complete.",
-      "apiKeyPlaceholder": "Enter access key",
-      "apiKeyRequired": "Enter the access key",
-      "configure": "Finish setup",
-      "configured": "Model access configured"
+      "title": "OPL Gateway",
+      "prompt": "Enter the OPL Gateway access key from your administrator. If Codex model access already works, you can skip first launch setup and switch to OPL Gateway later in Settings.",
+      "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for OPL Gateway access when needed.",
+      "apiKeyPlaceholder": "Enter OPL Gateway access key",
+      "apiKeyRequired": "Enter the OPL Gateway access key",
+      "configure": "Configure OPL Gateway",
+      "configured": "OPL Gateway configured"
     },
     "maintenance": {
       "title": "Maintenance actions",
@@ -1538,7 +1540,15 @@
       "account": {
         "title": "Account / API key",
         "configured": "Account or API key is configured.",
-        "missing": "Account or API key needs attention."
+        "oplGatewayConfigured": "OPL Gateway is connected.",
+        "existingCodexConfigured": "Using existing Codex model access; skipped OPL Gateway first-launch setup.",
+        "missing": "Account or API key needs attention.",
+        "source": {
+          "oplGateway": "Currently using OPL Gateway.",
+          "codexLogin": "From Codex/OpenAI login.",
+          "customProvider": "From an existing provider configuration.",
+          "envApiKey": "From an environment variable."
+        }
       },
       "modelAccess": {
         "title": "Model Access Status",
@@ -1558,13 +1568,13 @@
     },
     "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
     "modelAccount": {
-      "title": "Model & Account",
-      "description": "Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors.",
-      "apiKeyPlaceholder": "Paste OPL Codex API key",
-      "apiKeyRequired": "Enter an OPL Codex API key.",
-      "configureButton": "Save API key",
-      "configureSuccess": "Codex API key saved.",
-      "configureFailed": "Could not save Codex API key."
+      "title": "OPL Gateway",
+      "description": "Switch current Codex model access to OPL Gateway here. Existing Codex login or another provider no longer blocks first launch.",
+      "apiKeyPlaceholder": "Paste OPL Gateway access key",
+      "apiKeyRequired": "Enter an OPL Gateway access key.",
+      "configureButton": "Configure OPL Gateway",
+      "configureSuccess": "OPL Gateway access key saved.",
+      "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
       "title": "Cloud & Remote Access / Deployment Entry",

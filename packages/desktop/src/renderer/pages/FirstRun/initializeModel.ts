@@ -56,7 +56,7 @@ export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
   const workspaceExists = readBoolean(workspaceRoot, 'exists');
   const workspaceHealth = readString(workspaceRoot, 'health_status');
   const codexInstalled = readBoolean(codex, 'installed');
-  const codexConfigured = readBoolean(codex, 'api_key_present');
+  const codexConfigured = readBoolean(codex, 'model_access_ready') ?? readBoolean(codex, 'api_key_present');
   const codexVersionStatus = readString(codex, 'version_status');
   const codexHealth = readString(codex, 'health_status');
 

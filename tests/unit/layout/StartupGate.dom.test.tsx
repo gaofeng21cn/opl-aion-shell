@@ -79,6 +79,33 @@ const blockedAppStateResult = {
   },
 };
 
+const existingCodexAccessResult = {
+  ...readyAppStateResult,
+  parsed: {
+    app_state: {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          api_key_present: false,
+          model_access_ready: true,
+          model_access_source: 'codex_login',
+          opl_gateway_configured: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/workspace',
+          exists: true,
+          health_status: 'ready',
+        },
+      },
+    },
+  },
+};
+
 describe('StartupGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,6 +153,15 @@ describe('StartupGate', () => {
 
   it('routes ready non-first-run installs directly to guid', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(readyAppStateResult);
+
+    render(<StartupGate />);
+
+    await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+    expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
+  });
+
+  it('routes existing Codex model access directly to guid without OPL Gateway setup', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce(existingCodexAccessResult);
 
     render(<StartupGate />);
 

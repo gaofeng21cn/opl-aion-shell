@@ -214,7 +214,7 @@ function buildInstallPrepCommand(): RuntimeCommandSpec {
 function buildConfigureCodexCommand(request: IOplConfigureCodexRequest): RuntimeCommandSpec {
   const apiKey = request.apiKey.trim();
   if (!apiKey) {
-    throw new Error('Codex API key is required.');
+    throw new Error('OPL Gateway access key is required.');
   }
   return {
     surface: 'configure_codex',

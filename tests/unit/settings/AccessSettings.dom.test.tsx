@@ -162,6 +162,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             model: 'gpt-5.5',
             version: '0.125.0',
             binary_path: '/usr/local/bin/codex',
+            model_access_ready: true,
+            model_access_source: 'opl_gateway',
+            opl_gateway_configured: true,
             config: {
               api_key_present: true,
             },
@@ -281,7 +284,14 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.model.fallback': 'Current model is not available yet.',
         'settings.accessPage.cards.account.title': 'Account / API key',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
+        'settings.accessPage.cards.account.oplGatewayConfigured': 'OPL Gateway is connected.',
+        'settings.accessPage.cards.account.existingCodexConfigured':
+          'Using existing Codex model access; skipped OPL Gateway first-launch setup.',
         'settings.accessPage.cards.account.missing': 'Account or API key needs attention.',
+        'settings.accessPage.cards.account.source.oplGateway': 'Currently using OPL Gateway.',
+        'settings.accessPage.cards.account.source.codexLogin': 'From Codex/OpenAI login.',
+        'settings.accessPage.cards.account.source.customProvider': 'From an existing provider configuration.',
+        'settings.accessPage.cards.account.source.envApiKey': 'From an environment variable.',
         'settings.accessPage.cards.modelAccess.title': 'Model Access Status',
         'settings.accessPage.cards.modelAccess.detail':
           'Checks whether the local assistant can reach the configured model service.',
@@ -292,14 +302,14 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
         'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Model & Account shows account/API key status.`,
-        'settings.accessPage.modelAccount.title': 'Model & Account',
+        'settings.accessPage.modelAccount.title': 'OPL Gateway',
         'settings.accessPage.modelAccount.description':
-          'Shows the current model, account/API key, model access, and permission status without exposing raw backend/provider selectors.',
-        'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Codex API key',
-        'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Codex API key.',
-        'settings.accessPage.modelAccount.configureButton': 'Save API key',
-        'settings.accessPage.modelAccount.configureSuccess': 'Codex API key saved.',
-        'settings.accessPage.modelAccount.configureFailed': 'Could not save Codex API key.',
+          'Switch current Codex model access to OPL Gateway here. Existing Codex login or another provider no longer blocks first launch.',
+        'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Gateway access key',
+        'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Gateway access key.',
+        'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
+        'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
+        'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
         'settings.accessPage.remote.title': 'Cloud & Remote Access / Deployment Entry',
         'settings.accessPage.remote.description':
           'View Local App, Docker WebUI, OPL Workspace, and remote resource refs from one entry.',
@@ -375,7 +385,8 @@ describe('AccessSettingsContent', () => {
   it('renders user-facing model, account, and remote access entries from the fast App state projection', () => {
     const view = render(<AccessSettingsContent />);
 
-    expect(view.getAllByText('Model & Account')).toHaveLength(2);
+    expect(view.getByText('Model & Account')).toBeTruthy();
+    expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
     expect(
       view.getByText('Confirm model and account access, then configure Web, Docker, and remote access.')
     ).toBeTruthy();
@@ -383,7 +394,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).toContain('gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
     expect(view.getByText('Account / API key')).toBeTruthy();
-    expect(view.getByText('Account or API key is configured.')).toBeTruthy();
+    expect(document.body.textContent).toContain('OPL Gateway is connected.');
     expect(view.getByText('Model Access Status')).toBeTruthy();
     expect(view.getByText(/configured model service/)).toBeTruthy();
     expect(view.getByText('Model service is reachable.')).toBeTruthy();
@@ -405,7 +416,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('opl-settings-docker-webui-route-settings_select_webui_seed')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(view.getByText('Cloud & Remote Access')).toBeTruthy();
-    expect(view.getByText('OPL Gateway')).toBeTruthy();
+    expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Fabric').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
@@ -445,7 +456,7 @@ describe('AccessSettingsContent', () => {
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('saves a trimmed Codex API key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
+  it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
     const view = render(<AccessSettingsContent />);
 
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
@@ -459,7 +470,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('sk-opl-secret-value');
   });
 
-  it('does not report Codex API key configuration success when the OPL bridge returns a structured failure', async () => {
+  it('does not report OPL Gateway configuration success when the OPL bridge returns a structured failure', async () => {
     const mocks = getMocks();
     mocks.configureCodexInvoke.mockResolvedValueOnce({
       surface: 'configure_codex',
@@ -477,13 +488,13 @@ describe('AccessSettingsContent', () => {
     fireEvent.input(input, { target: { value: 'sk-opl-secret-value' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
 
-    await waitFor(() => expect(view.getByText('Could not save Codex API key.')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('Could not save OPL Gateway access key.')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
     expect(input.value).toBe('sk-opl-secret-value');
-    expect(document.body.textContent).not.toContain('Codex API key saved.');
+    expect(document.body.textContent).not.toContain('OPL Gateway access key saved.');
   });
 
-  it('does not call the bridge when the Codex API key is empty', async () => {
+  it('does not call the bridge when the OPL Gateway access key is empty', async () => {
     const view = render(<AccessSettingsContent />);
 
     fireEvent.input(view.getByTestId('opl-settings-codex-api-key-input'), { target: { value: '   ' } });
@@ -492,7 +503,7 @@ describe('AccessSettingsContent', () => {
     const mocks = getMocks();
     expect(mocks.configureCodexInvoke).not.toHaveBeenCalled();
     expect(mocks.load).not.toHaveBeenCalled();
-    expect(await view.findByText('Enter an OPL Codex API key.')).toBeTruthy();
+    expect(await view.findByText('Enter an OPL Gateway access key.')).toBeTruthy();
   });
 
   it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {

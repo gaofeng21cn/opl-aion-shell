@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configService } from '@/common/config/configService';
 import SystemModalContent from '@/renderer/components/settings/SettingsModal/contents/SystemModalContent';
 import { SWRConfig } from 'swr';
 
@@ -21,7 +22,9 @@ vi.mock('@/common', () => ({
       systemInfo: { invoke: bridgeMocks.systemInfoInvoke },
       getStartOnBootStatus: { invoke: bridgeMocks.getStartOnBootStatusInvoke },
       getGpuStatus: { invoke: bridgeMocks.getGpuStatusInvoke },
-      getCdpStatus: { invoke: vi.fn().mockResolvedValue({ success: true, data: { isDevMode: false } }) },
+      getCdpStatus: {
+        invoke: vi.fn().mockResolvedValue({ success: true, data: { isDevMode: false } }),
+      },
       isDevToolsOpened: { invoke: vi.fn() },
       devToolsStateChanged: { on: vi.fn(() => vi.fn()) },
     },
@@ -59,6 +62,7 @@ vi.mock('@/common/config/configService', () => ({
       const defaults: Record<string, unknown> = {
         'system.notificationEnabled': true,
         'system.autoPreviewOfficeFiles': true,
+        'codex.oplFlowHeadDownMode': false,
       };
       return defaults[key];
     }),
@@ -176,8 +180,20 @@ describe('SystemModalContent OPL App state', () => {
       screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
     ).toBeInTheDocument();
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.oplFlowContextDesc');
+    expect(screen.getByTestId('opl-flow-head-down-mode-row')).toHaveTextContent('settings.oplFlowHeadDownMode');
+    expect(screen.getByTestId('opl-flow-head-down-mode-row')).toHaveTextContent('settings.oplFlowHeadDownModeDesc');
     expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();
+  });
+
+  it('persists OPL Flow head-down mode from the settings switch', async () => {
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    fireEvent.click(within(screen.getByTestId('opl-flow-head-down-mode-row')).getByRole('switch'));
+
+    await waitFor(() => expect(configService.set).toHaveBeenCalledWith('codex.oplFlowHeadDownMode', true));
   });
 
   it('does not expose machine Developer Mode states in the status pill', async () => {

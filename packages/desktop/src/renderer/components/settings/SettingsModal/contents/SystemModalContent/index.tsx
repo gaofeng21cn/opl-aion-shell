@@ -6,7 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import type { IGpuStatus, IStartOnBootStatus } from '@/common/adapter/ipcBridge';
-import { getOplDeveloperProfileSettings } from '@/common/config/oplProductProfile';
+import { getOplDeveloperProfileSettings, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import FeedbackButton from '@/renderer/components/base/FeedbackButton';
@@ -42,6 +42,8 @@ type DeveloperCapabilityDisplay = {
   status: string;
   level: string;
 };
+
+const OPL_FLOW_HEAD_DOWN_MODE = getOplFlowContextPolicy().optional_user_modes?.head_down;
 
 const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
   'contributor',
@@ -116,6 +118,7 @@ const SystemModalContent: React.FC = () => {
   const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
+  const [oplFlowHeadDownMode, setOplFlowHeadDownMode] = useState(false);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -156,6 +159,9 @@ const SystemModalContent: React.FC = () => {
     setCronNotificationEnabled(configService.get('system.cronNotificationEnabled') ?? false);
     setSaveUploadToWorkspace(configService.get('upload.saveToWorkspace') ?? false);
     setAutoPreviewOfficeFiles(configService.get('system.autoPreviewOfficeFiles') ?? true);
+    if (OPL_FLOW_HEAD_DOWN_MODE) {
+      setOplFlowHeadDownMode(configService.get(OPL_FLOW_HEAD_DOWN_MODE.settings_key) ?? false);
+    }
     const pt = configService.get('acp.promptTimeout');
     if (pt && pt > 0) setPromptTimeout(pt);
     const ait = configService.get('acp.agentIdleTimeout');
@@ -299,6 +305,15 @@ const SystemModalContent: React.FC = () => {
     configService.set('system.autoPreviewOfficeFiles', checked).catch(() => {
       setAutoPreviewOfficeFiles(!checked);
       configService.setLocal('system.autoPreviewOfficeFiles', !checked);
+    });
+  }, []);
+
+  const handleOplFlowHeadDownModeChange = useCallback((checked: boolean) => {
+    if (!OPL_FLOW_HEAD_DOWN_MODE) return;
+    setOplFlowHeadDownMode(checked);
+    configService.set(OPL_FLOW_HEAD_DOWN_MODE.settings_key, checked).catch(() => {
+      setOplFlowHeadDownMode(!checked);
+      configService.setLocal(OPL_FLOW_HEAD_DOWN_MODE.settings_key, !checked);
     });
   }, []);
 
@@ -518,7 +533,10 @@ const SystemModalContent: React.FC = () => {
                     </Tooltip>
                     <Button
                       type='text'
-                      style={{ borderLeft: '1px solid var(--color-border-2)', borderRadius: '0 8px 8px 0' }}
+                      style={{
+                        borderLeft: '1px solid var(--color-border-2)',
+                        borderRadius: '0 8px 8px 0',
+                      }}
                       icon={<FolderSearch theme='outline' size='18' fill={iconColors.primary} />}
                       onClick={(e: Event) => {
                         e.stopPropagation();
@@ -585,6 +603,15 @@ const SystemModalContent: React.FC = () => {
                 {oplFlowContextSource && <div className='truncate'>{oplFlowContextSource}</div>}
               </div>
             </PreferenceRow>
+            {OPL_FLOW_HEAD_DOWN_MODE && (
+              <PreferenceRow
+                label={t(OPL_FLOW_HEAD_DOWN_MODE.label_key)}
+                description={t(OPL_FLOW_HEAD_DOWN_MODE.description_key)}
+                testId='opl-flow-head-down-mode-row'
+              >
+                <Switch checked={oplFlowHeadDownMode} onChange={handleOplFlowHeadDownModeChange} />
+              </PreferenceRow>
+            )}
           </div>
 
           {/* Developer settings: DevTools + CDP (only visible in dev mode) */}

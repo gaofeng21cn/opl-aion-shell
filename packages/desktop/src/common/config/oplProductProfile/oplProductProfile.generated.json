@@ -309,6 +309,56 @@
         "scrub_extra_keys"
       ]
     },
+    "k_dense_byok_learning_surface": {
+      "surface_id": "k_dense_byok_learning_surface",
+      "external_source": {
+        "repo": "https://github.com/K-Dense-AI/k-dense-byok",
+        "commit": "dccc7ec4d034a00d7662eaabb3f5916bc3d00602",
+        "latest_verified_tag": "v0.6.0"
+      },
+      "ordinary_user_labels": {
+        "primary_label_zh": "外部工具",
+        "primary_label_en": "External Tools",
+        "primary_product_label": "OPL Connect",
+        "mcp_primary_ui_name_allowed": false,
+        "mcp_sdk_role": "connector_transport_implementation_preference"
+      },
+      "reuse_first_policy": {
+        "implementation_preference": "reuse_existing_open_source_modules_and_existing_dependencies_first",
+        "preferred_existing_modules": [
+          "@modelcontextprotocol/sdk",
+          "CodeMirror/Monaco",
+          "streamdown/react-markdown",
+          "mermaid",
+          "katex",
+          "zod"
+        ],
+        "must_not_introduce_dependencies": [
+          "@earendil-works/pi-* / Pi SDK",
+          "Fastify/Next application runtime",
+          "modal compute SDK as an App dependency"
+        ],
+        "modal_policy": "future_opl_fabric_provider_watch_only_or_adapter_candidate_only"
+      },
+      "workflow_starter_policy": {
+        "role": "assistant_scoped_route_prompt_seed_ref",
+        "allowed_refs": ["assistant_route_ref", "prompt_seed_ref", "workflow_ref"],
+        "creates_second_skill_truth": false,
+        "creates_second_runtime_truth": false
+      },
+      "ambiguous_high_risk_task_policy": {
+        "confirmation_surface": "existing_app_action_dry_run_confirmation_drawer_or_card",
+        "app_action_route": "opl app action execute --action <action_id> [--payload <json>] [--dry-run] --json",
+        "shell_private_modal_tool_allowed": false,
+        "required_before_mutation": [
+          "dry_run_receipt",
+          "confirmation_drawer_or_card",
+          "will_change",
+          "will_not_change",
+          "rollback_or_receipt"
+        ]
+      }
+    },
     "default_assistants": [
       {
         "id": "mas",
@@ -452,7 +502,20 @@
       "source": "one-person-lab-app",
       "delivery": "session_scoped_preset_context",
       "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
-      "language_policy": "follow_ui_locale_zh_only_when_ui_zh"
+      "language_policy": "follow_ui_locale_zh_only_when_ui_zh",
+      "optional_user_modes": {
+        "head_down": {
+          "id": "head_down",
+          "settings_key": "codex.oplFlowHeadDownMode",
+          "label_key": "settings.oplFlowHeadDownMode",
+          "description_key": "settings.oplFlowHeadDownModeDesc",
+          "prompt_line": "DO NOT send optional commentary",
+          "quick_action_label_key": "conversation.headDownQuickAction",
+          "quick_action_prompt": "Spend time on thinking; you do not need to use the commentary channel to report progress to me.",
+          "quick_action_policy": "send_as_current_conversation_user_message_when_mode_enabled",
+          "injection_policy": "prepend_before_opl_flow_context"
+        }
+      }
     },
     "default_visible_skills": [
       "mas",

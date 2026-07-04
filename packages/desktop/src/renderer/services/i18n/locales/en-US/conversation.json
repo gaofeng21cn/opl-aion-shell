@@ -123,6 +123,7 @@
   },
   "noAgentsAvailable": "No agents available",
   "noModelConfigured": "No model configured. Please configure in settings.",
+  "headDownQuickAction": "Head down",
   "createFailed": "Failed to create conversation",
   "createError": {
     "pathVariants": {

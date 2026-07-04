@@ -429,7 +429,7 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('sends Codex API keys only through stdin and keeps the command redacted', () => {
+  it('sends OPL Gateway keys only through stdin and keeps the command redacted', () => {
     expect(__oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: ' secret-key ' })).toEqual({
       surface: 'configure_codex',
       args: ['system', 'configure-codex', '--api-key-stdin', '--json'],
@@ -437,7 +437,7 @@ describe('OPL runtime bridge command whitelist', () => {
       redactedCommand: 'opl system configure-codex --api-key-stdin --json',
     });
     expect(() => __oplRuntimeBridgeTest.buildConfigureCodexCommand({ apiKey: '   ' })).toThrow(
-      /Codex API key is required/
+      /OPL Gateway access key is required/
     );
   });
 

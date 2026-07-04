@@ -46,6 +46,7 @@ const ALL_LEGACY_KEYS: ConfigKey[] = [
   'workspace.pasteConfirm',
   'upload.saveToWorkspace',
   'guid.lastSelectedAgent',
+  'codex.oplFlowHeadDownMode',
   'skillsMarket.enabled',
   'pet.enabled',
   'pet.size',

@@ -123,6 +123,7 @@
   },
   "noAgentsAvailable": "没有可用的 Agent",
   "noModelConfigured": "未配置模型，请前往设置页面配置。",
+  "headDownQuickAction": "埋头苦干",
   "createFailed": "创建会话失败",
   "createError": {
     "pathVariants": {

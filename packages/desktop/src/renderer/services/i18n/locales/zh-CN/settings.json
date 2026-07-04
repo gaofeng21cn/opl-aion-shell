@@ -1008,6 +1008,8 @@
   "oplDeveloperProfileDesc": "按能力显示当前开发者配置；普通用户默认使用稳定包通道，本地 checkout 需要显式选择。",
   "oplFlowContext": "OPL Flow 上下文",
   "oplFlowContextDesc": "App 管理的会话上下文跟随界面语言、尊重用户 AGENTS.md 文件，并记录来源，不改写用户文件。",
+  "oplFlowHeadDownMode": "埋头苦干模式",
+  "oplFlowHeadDownModeDesc": "新建 Codex 会话最前注入：DO NOT send optional commentary",
   "oplDeveloperProfileStates": {
     "contributor": "贡献者",
     "maintainer": "维护者",
@@ -1086,8 +1088,8 @@
       "codexConfig": {
         "pending": "正在确认模型访问。",
         "checking": "正在检查模型访问。",
-        "ready": "模型访问已配置。",
-        "needsAction": "请输入管理员提供的访问密钥。"
+        "ready": "模型访问已可用。",
+        "needsAction": "请输入 OPL Gateway 访问密钥。"
       },
       "domainModules": {
         "pending": "智能体模块会在后台准备。",
@@ -1111,7 +1113,7 @@
     "itemDescriptions": {
       "workspaceRoot": "OPL 存放项目、文件和本机任务产物的位置。",
       "codex": "OPL 用来启动会话和执行命令的本机助手运行环境。",
-      "codexConfig": "让本机助手访问已配置模型服务的访问密钥。",
+      "codexConfig": "让本机助手访问 OPL Gateway 或已有 Codex 模型服务的配置。",
       "domainModules": "MAS、MAG、RCA、BookForge 等可选 OPL 能力包。",
       "familyRuntimeProvider": "用于执行较长 OPL 任务的本机后台运行底座。",
       "recommendedSkills": "增强特定 OPL 工作流的配套能力。"
@@ -1129,8 +1131,8 @@
         "waiting": "等待启动检查完成。"
       },
       "codexConfig": {
-        "ready": "无需处理。",
-        "needsAction": "在下方输入访问密钥。",
+        "ready": "我已配置，跳过。",
+        "needsAction": "在下方输入 OPL Gateway 访问密钥。",
         "waiting": "等待启动检查完成。"
       },
       "domainModules": {
@@ -1152,7 +1154,7 @@
     "nextSteps": {
       "workspaceRoot": "选择一个本机工作目录。",
       "codex": "等待本机助手准备完成，或在技术详情中重试。",
-      "codexConfig": "联系管理员获取访问密钥，并在下方完成配置。",
+      "codexConfig": "可向本团队获取 OPL Gateway 访问密钥，并在下方完成配置；已有可用 Codex 配置时可跳过。",
       "domainModules": "进入 OPL 后后台继续准备智能体模块。",
       "familyRuntimeProvider": "进入 OPL 后后台继续准备运行底座。",
       "recommendedSkills": "进入 OPL 后后台继续准备推荐能力。",
@@ -1176,13 +1178,13 @@
       "completed": "操作已完成"
     },
     "codex": {
-      "title": "模型访问",
-      "prompt": "请输入管理员提供的访问密钥。配置完成后即可开始使用。",
-      "defaults": "服务商和模型细节保留在诊断信息中；首次配置页只展示你可能需要完成的访问步骤。",
-      "apiKeyPlaceholder": "输入访问密钥",
-      "apiKeyRequired": "请输入访问密钥",
-      "configure": "完成配置",
-      "configured": "模型访问已配置"
+      "title": "OPL Gateway",
+      "prompt": "请输入管理员提供的 OPL Gateway 访问密钥。已有可用 Codex 配置时可以跳过首启配置，之后仍可在设置中切换到 OPL Gateway。",
+      "defaults": "服务商和模型细节保留在诊断信息中；首次配置页只展示 OPL Gateway 访问步骤。",
+      "apiKeyPlaceholder": "输入 OPL Gateway 访问密钥",
+      "apiKeyRequired": "请输入 OPL Gateway 访问密钥",
+      "configure": "配置 OPL Gateway",
+      "configured": "OPL Gateway 已配置"
     },
     "maintenance": {
       "title": "维护操作",
@@ -1539,7 +1541,15 @@
       "account": {
         "title": "账号 / API key",
         "configured": "账号或 API key 已配置。",
-        "missing": "账号或 API key 需要处理。"
+        "oplGatewayConfigured": "OPL Gateway 已接入。",
+        "existingCodexConfigured": "已使用现有 Codex 模型访问，跳过 OPL Gateway 首启配置。",
+        "missing": "账号或 API key 需要处理。",
+        "source": {
+          "oplGateway": "当前使用 OPL Gateway。",
+          "codexLogin": "来自 Codex/OpenAI 登录。",
+          "customProvider": "来自已有 provider 配置。",
+          "envApiKey": "来自环境变量。"
+        }
       },
       "modelAccess": {
         "title": "模型访问状态",
@@ -1559,13 +1569,13 @@
     },
     "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
     "modelAccount": {
-      "title": "模型与账号",
-      "description": "这里显示当前模型、账号/API key、模型访问和权限状态；不会暴露底层 backend/provider selector。",
-      "apiKeyPlaceholder": "粘贴 OPL Codex API key",
-      "apiKeyRequired": "请输入 OPL Codex API key。",
-      "configureButton": "保存 API key",
-      "configureSuccess": "Codex API key 已保存。",
-      "configureFailed": "无法保存 Codex API key。"
+      "title": "OPL Gateway",
+      "description": "这里可以把当前 Codex 模型访问切换到 OPL Gateway；已有 Codex 登录或其它 provider 时不会阻塞首启。",
+      "apiKeyPlaceholder": "粘贴 OPL Gateway 访问密钥",
+      "apiKeyRequired": "请输入 OPL Gateway 访问密钥。",
+      "configureButton": "配置 OPL Gateway",
+      "configureSuccess": "OPL Gateway 访问密钥已保存。",
+      "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
       "title": "云端与远程访问 / 部署入口",

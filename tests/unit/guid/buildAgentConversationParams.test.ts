@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { configService } from '@/common/config/configService';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 
 const model = {
@@ -9,6 +10,14 @@ const model = {
 };
 
 describe('buildAgentConversationParams OPL flow context', () => {
+  beforeEach(() => {
+    configService.reset();
+  });
+
+  afterEach(() => {
+    configService.reset();
+  });
+
   it('adds App-managed OPL flow metadata and prepends the localized flow context without replacing preset context', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
@@ -77,6 +86,27 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).toContain('你正在 One Person Lab App');
     expect(params.extra.preset_context).toContain('已有智能体规则。');
     expect(params.extra.preset_context).not.toContain('## OPL App Default Session Rules');
+  });
+
+  it('prepends the head-down prompt line when enabled from settings', () => {
+    configService.setLocal('codex.oplFlowHeadDownMode', true);
+
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: '科研计划',
+      workspace: '/Users/example/workspace',
+      model,
+      is_preset: true,
+      preset_agent_type: 'codex',
+      preset_resources: {
+        rules: '已有智能体规则。',
+      },
+      language: 'zh-CN',
+    });
+
+    expect(params.extra.preset_context).toMatch(
+      /^DO NOT send optional commentary[\s\S]+你正在 One Person Lab App[\s\S]+已有智能体规则。/
+    );
   });
 
   it('sets max Codex reasoning by default while preserving user overrides', () => {
