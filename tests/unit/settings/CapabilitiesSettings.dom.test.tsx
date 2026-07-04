@@ -6,6 +6,7 @@ import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAss
 
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
+  loadAppState: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -143,6 +144,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         },
       },
     },
+    load: bridgeMocks.loadAppState,
   }),
 }));
 
@@ -336,6 +338,8 @@ describe('CapabilitiesSettingsContent', () => {
       ok: true,
       command: 'opl app action execute --action test --json',
     });
+    bridgeMocks.loadAppState.mockReset();
+    bridgeMocks.loadAppState.mockResolvedValue(null);
     localStorage.clear();
   });
 
@@ -448,70 +452,111 @@ describe('CapabilitiesSettingsContent', () => {
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_home_shortcut_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: 'mas',
+          shortcut_id: 'research',
+          visible: false,
+          sort_order: 0,
+        },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-home-down-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_home_shortcut_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          package_id: 'mas',
+          shortcut_id: 'research',
+          visible: false,
+          sort_order: 1,
+        },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-refresh-registry'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'refresh_registry',
-      dryRun: false,
-      payloadRefsOnlyJson: {
-        registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json',
-      },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'refresh_registry',
+        dryRun: false,
+        payloadRefsOnlyJson: {
+          registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json',
+        },
+      })
+    );
 
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });
     fireEvent.click(screen.getByTestId('agent-package-install-manifest'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'install_from_manifest_url',
-      dryRun: false,
-      payloadRefsOnlyJson: { manifest_url: 'https://example.test/agent.json' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'install_from_manifest_url',
+        dryRun: false,
+        payloadRefsOnlyJson: { manifest_url: 'https://example.test/agent.json' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_update',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_update',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-repair'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_repair',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_repair',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-rollback'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_rollback',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_rollback',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-uninstall'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_uninstall',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_uninstall',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-hide'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_hide',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_hide',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
 
     fireEvent.click(screen.getByTestId('agent-package-action-mas-show'));
-    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-      actionId: 'agent_package_unhide',
-      dryRun: false,
-      payloadRefsOnlyJson: { package_id: 'mas' },
-    });
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_unhide',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'mas' },
+      })
+    );
+    await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 
   it('uses persisted shortcut preferences when building Home agents', () => {
@@ -520,6 +565,36 @@ describe('CapabilitiesSettingsContent', () => {
       JSON.stringify({
         hiddenShortcutIds: ['grant'],
         orderedShortcutIds: ['book', 'research', 'ppt', 'grant'],
+      })
+    );
+
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual(['bookforge', 'mas', 'rca']);
+  });
+
+  it('uses Framework app-state shortcut preference readback before the local fallback', () => {
+    localStorage.setItem(
+      'opl.homeAgentShortcutPreferences.v1',
+      JSON.stringify({
+        hiddenShortcutIds: [],
+        orderedShortcutIds: ['research', 'grant', 'ppt', 'book'],
+      })
+    );
+    localStorage.setItem(
+      'opl.appState.fast.v1',
+      JSON.stringify({
+        payload: {
+          app_state: {
+            opl_agent_packages: {
+              home_shortcut_preferences: [
+                { package_id: 'bookforge', shortcut_id: 'book', visible: true, sort_order: 0 },
+                { package_id: 'mas', shortcut_id: 'research', visible: true, sort_order: 1 },
+                { package_id: 'mag', shortcut_id: 'grant', visible: false, sort_order: 2 },
+                { package_id: 'rca', shortcut_id: 'ppt', visible: true, sort_order: 3 },
+              ],
+            },
+          },
+        },
+        loadedAt: '12:00:00',
       })
     );
 

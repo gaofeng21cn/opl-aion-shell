@@ -27,7 +27,9 @@ import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   getOplHomeShortcutPreferences,
+  getOplHomeShortcutPreferencesFromAppState,
   getOplOrderedHomeAgentShortcuts,
+  type OplHomeShortcutPreferences,
   moveOplHomeShortcut,
   setOplHomeShortcutHidden,
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
@@ -425,6 +427,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     [shortcutPreferences.hiddenShortcutIds]
   );
 
+  useEffect(() => {
+    const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
+    if (appStatePreferences) setShortcutPreferences(appStatePreferences);
+  }, [appStateQuery.appState]);
+
   const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
     setBusyAction(actionId);
     try {
@@ -436,6 +443,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       if (result.ok === false) {
         throw new Error(result.error?.message || result.command);
       }
+      await appStateQuery.load('fast', { showRefreshing: true });
       Message.success(t('settings.capabilitiesPage.packageManager.actionQueued'));
     } catch (error) {
       Message.error(error instanceof Error ? error.message : String(error));
@@ -444,12 +452,37 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     }
   };
 
+  const executeShortcutPreferenceAction = async (
+    shortcutId: string,
+    preferences: OplHomeShortcutPreferences
+  ): Promise<void> => {
+    const shortcutOrder = getOplOrderedHomeAgentShortcuts();
+    const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
+    if (!shortcut) return;
+    const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
+    await executePackageAction('agent_package_home_shortcut_preferences_set', {
+      package_id: shortcut.package_id,
+      shortcut_id: shortcut.shortcut_id,
+      visible: !preferences.hiddenShortcutIds.includes(shortcut.shortcut_id),
+      sort_order:
+        preferenceSortOrder >= 0
+          ? preferenceSortOrder
+          : shortcutOrder.findIndex((entry) => entry.shortcut_id === shortcut.shortcut_id),
+    });
+  };
+
   const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
-    setShortcutPreferences(setOplHomeShortcutHidden(shortcutId, hidden));
+    if (!shortcutId) return;
+    const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
+    setShortcutPreferences(nextPreferences);
+    void executeShortcutPreferenceAction(shortcutId, nextPreferences);
   };
 
   const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
-    setShortcutPreferences(moveOplHomeShortcut(shortcutId, direction));
+    if (!shortcutId) return;
+    const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
+    setShortcutPreferences(nextPreferences);
+    void executeShortcutPreferenceAction(shortcutId, nextPreferences);
   };
 
   return (
