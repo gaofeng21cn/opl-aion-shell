@@ -64,9 +64,9 @@ const FULL_RUNTIME_MODULES = [
   ['oplbookforge', 'opl-bookforge', path.join('modules', 'bookforge'), ['contracts']],
 ];
 const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
-  { id: 'mas', badge: '@MAS', shortName: 'MAS' },
-  { id: 'mag', badge: '@MAG', shortName: 'MAG' },
-  { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+  { id: 'mas', badge: '@MAS', shortName: 'MAS', shortcutId: 'research' },
+  { id: 'mag', badge: '@MAG', shortName: 'MAG', shortcutId: 'grant' },
+  { id: 'rca', badge: '@RCA', shortName: 'RCA', shortcutId: 'ppt' },
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
@@ -3028,7 +3028,20 @@ function createAssistantRouteReceiptConversationExpression(target) {
   return `(async () => {
     const backendPort = window.__backendPort;
     if (!backendPort) return false;
-    const route = {
+    const agentPackageInvocation = {
+      receipt_type: 'capability_invocation',
+      route_kind: 'agent_package_shortcut',
+      executor: 'codex_cli',
+      package_id: ${cdpString(target.id)},
+      agent_id: ${cdpString(target.id)},
+      shortcut_id: ${cdpString(target.shortcutId)},
+      codex_visible_entry: ${cdpString(target.id)},
+      skill_ids: [${cdpString(target.id)}],
+      source: 'opl_app_home',
+      launched_from: 'opl_app_home',
+      display_policy: 'refs_only_no_domain_verdict',
+    };
+    const legacyRoute = {
       route_kind: 'builtin_capability',
       executor: 'codex_cli',
       assistant_id: ${cdpString(target.id)},
@@ -3046,7 +3059,8 @@ function createAssistantRouteReceiptConversationExpression(target) {
           custom_workspace: false,
           backend: 'codex',
           preset_assistant_id: ${cdpString(target.id)},
-          opl_assistant_route: route,
+          opl_agent_package_invocation: agentPackageInvocation,
+          opl_assistant_route: legacyRoute,
         },
       }),
     });
@@ -3064,7 +3078,7 @@ function createAssistantRouteReceiptConversationExpression(target) {
       status: 'created',
       assistant_id: ${cdpString(target.id)},
       conversation_id: conversationId,
-      route,
+      route: agentPackageInvocation,
     };
   })()`;
 }
@@ -3083,8 +3097,11 @@ function conversationRouteReceiptExpression(target, conversationId = null) {
     const payload = await response.json();
     const conversations = ${conversationId ? '[payload?.data || payload]' : 'payload?.data?.items || payload?.items || []'};
     const matched = conversations.find((conversation) => {
-      const route = conversation?.extra?.opl_assistant_route;
-      const assistantMatches = route?.assistant_id === ${cdpString(target.id)};
+      const invocation = conversation?.extra?.opl_agent_package_invocation;
+      const legacyRoute = conversation?.extra?.opl_assistant_route;
+      const assistantMatches =
+        invocation?.package_id === ${cdpString(target.id)} ||
+        legacyRoute?.assistant_id === ${cdpString(target.id)};
       const conversationMatches = ${conversationId ? `conversation?.id === ${cdpString(conversationId)}` : 'true'};
       return assistantMatches && conversationMatches;
     });
@@ -3094,26 +3111,38 @@ function conversationRouteReceiptExpression(target, conversationId = null) {
         assistant_id: ${cdpString(target.id)},
         expected_conversation_id: ${conversationId ? cdpString(conversationId) : 'null'},
         recent_conversation_count: conversations.length,
-        recent_routes: conversations.map((conversation) => conversation?.extra?.opl_assistant_route || null),
+        recent_routes: conversations.map((conversation) => conversation?.extra?.opl_agent_package_invocation || conversation?.extra?.opl_assistant_route || null),
       };
     }
-    const route = matched.extra.opl_assistant_route;
+    const invocation = matched.extra.opl_agent_package_invocation;
+    const legacyRoute = matched.extra.opl_assistant_route;
     const invalid = [];
-    if (route.route_kind !== 'builtin_capability') invalid.push('route_kind');
-    if (route.executor !== 'codex_cli') invalid.push('executor');
-    if (route.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('assistant_short_name');
-    if (route.source !== 'opl_app_home') invalid.push('source');
+    if (!invocation) invalid.push('opl_agent_package_invocation');
+    if (invocation?.receipt_type !== 'capability_invocation') invalid.push('receipt_type');
+    if (invocation?.route_kind !== 'agent_package_shortcut') invalid.push('route_kind');
+    if (invocation?.executor !== 'codex_cli') invalid.push('executor');
+    if (invocation?.package_id !== ${cdpString(target.id)}) invalid.push('package_id');
+    if (invocation?.agent_id !== ${cdpString(target.id)}) invalid.push('agent_id');
+    if (invocation?.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('shortcut_id');
+    if (invocation?.codex_visible_entry !== ${cdpString(target.id)}) invalid.push('codex_visible_entry');
+    if (!Array.isArray(invocation?.skill_ids) || !invocation.skill_ids.includes(${cdpString(target.id)})) invalid.push('skill_ids');
+    if (invocation?.source !== 'opl_app_home') invalid.push('source');
+    if (invocation?.launched_from !== 'opl_app_home') invalid.push('launched_from');
+    if (invocation?.display_policy !== 'refs_only_no_domain_verdict') invalid.push('display_policy');
+    if (legacyRoute?.route_kind !== 'builtin_capability') invalid.push('legacy_route_kind');
+    if (legacyRoute?.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('legacy_assistant_short_name');
     if (matched.type !== 'acp') invalid.push('conversation_type');
     if (matched.extra?.backend !== 'codex') invalid.push('backend');
     if (invalid.length > 0) {
-      throw new Error(\`Invalid OPL assistant route receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
+      throw new Error(\`Invalid OPL agent package invocation receipt for ${target.id}: \${invalid.join(', ')} \${JSON.stringify({ type: matched.type, extra: matched.extra })}\`);
     }
     return {
       status: 'passed',
       conversation_id: matched.id,
       conversation_type: matched.type,
       backend: matched.extra.backend,
-      route,
+      route: invocation,
+      legacy_route: legacyRoute ?? null,
     };
   })()`;
 }

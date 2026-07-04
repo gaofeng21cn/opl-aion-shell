@@ -799,9 +799,9 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(options.assistantRouteSmoke).toBe(true);
     expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
-      { id: 'mas', badge: '@MAS', shortName: 'MAS' },
-      { id: 'mag', badge: '@MAG', shortName: 'MAG' },
-      { id: 'rca', badge: '@RCA', shortName: 'RCA' },
+      { id: 'mas', badge: '@MAS', shortName: 'MAS', shortcutId: 'research' },
+      { id: 'mag', badge: '@MAG', shortName: 'MAG', shortcutId: 'grant' },
+      { id: 'rca', badge: '@RCA', shortName: 'RCA', shortcutId: 'ppt' },
     ]);
   });
 
@@ -829,16 +829,29 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(createExpression).toContain("method: 'POST'");
     expect(createExpression).toContain('preset_assistant_id');
     expect(createExpression).toContain('preset_assistant_id: "mas"');
+    expect(createExpression).toContain('opl_agent_package_invocation');
+    expect(createExpression).toContain("receipt_type: 'capability_invocation'");
+    expect(createExpression).toContain("route_kind: 'agent_package_shortcut'");
+    expect(createExpression).toContain('package_id: "mas"');
+    expect(createExpression).toContain('shortcut_id: "research"');
+    expect(createExpression).toContain('codex_visible_entry: "mas"');
+    expect(createExpression).toContain("display_policy: 'refs_only_no_domain_verdict'");
     expect(createExpression).toContain('opl_assistant_route');
     expect(createExpression).toContain("backend: 'codex'");
     expect(createExpression).not.toContain('guid-send-btn');
     expect(receiptExpression).toContain('/api/conversations?limit=10');
     expect(receiptByIdExpression).toContain('/api/conversations/conv-123');
     expect(receiptByIdExpression).toContain('expected_conversation_id');
+    expect(receiptExpression).toContain('opl_agent_package_invocation');
     expect(receiptExpression).toContain('opl_assistant_route');
+    expect(receiptExpression).toContain('agent_package_shortcut');
+    expect(receiptExpression).toContain('capability_invocation');
     expect(receiptExpression).toContain('builtin_capability');
     expect(receiptExpression).toContain('codex_cli');
     expect(receiptExpression).toContain('opl_app_home');
+    expect(receiptExpression).toContain('package_id');
+    expect(receiptExpression).toContain('shortcut_id');
+    expect(receiptExpression).toContain('codex_visible_entry');
     expect(receiptExpression).toContain("matched.type !== 'acp'");
     expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
