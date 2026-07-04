@@ -9,9 +9,7 @@
     "id": "one_person_lab_app",
     "display_name": "One Person Lab App",
     "primary_surface": "desktop_workbench",
-    "supported_release_platforms": [
-      "macos-arm64"
-    ],
+    "supported_release_platforms": ["macos-arm64"],
     "positioning": "purpose_first_codex_app_wrapper",
     "primary_user_path": "chat_first_codex_cli_with_builtin_mas_mag_rca_bookforge_purpose_entries"
   },
@@ -66,12 +64,7 @@
         "composer_position": "pinned_bottom",
         "composer_primary": true,
         "workspace_selector_visible": true,
-        "purpose_entries_visible": [
-          "research",
-          "grant",
-          "ppt",
-          "book"
-        ],
+        "purpose_entries_visible": ["research", "grant", "ppt", "book"],
         "workspace_session_rail_default_state": "collapsed",
         "right_context_inspector_default_state": "collapsed",
         "must_not_show": [
@@ -90,10 +83,7 @@
         "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
         "selection_persists_into_conversation": true,
-        "frontier_model_preference_order": [
-          "gpt-5.5",
-          "gpt-5.4"
-        ]
+        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4"]
       },
       "codex_model_display_options": {
         "display_policy": "friendly_model_name_primary_reasoning_configurable_in_model_menu",
@@ -140,12 +130,7 @@
             "en": "Ultra reasoning"
           }
         },
-        "user_reasoning_effort_options": [
-          "low",
-          "medium",
-          "high",
-          "xhigh"
-        ],
+        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh"],
         "visible_models": [
           {
             "id": "gpt-5.5",
@@ -200,9 +185,7 @@
           "primary_label": "科研",
           "package_short_name": "MAS",
           "codex_visible_entry": "mas",
-          "required_skill_ids": [
-            "mas"
-          ],
+          "required_skill_ids": ["mas"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -216,9 +199,7 @@
           "primary_label": "基金",
           "package_short_name": "MAG",
           "codex_visible_entry": "mag",
-          "required_skill_ids": [
-            "mag"
-          ],
+          "required_skill_ids": ["mag"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -232,9 +213,7 @@
           "primary_label": "演示",
           "package_short_name": "RCA",
           "codex_visible_entry": "rca",
-          "required_skill_ids": [
-            "rca"
-          ],
+          "required_skill_ids": ["rca"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -248,9 +227,7 @@
           "primary_label": "写书",
           "package_short_name": "BookForge",
           "codex_visible_entry": "opl-bookforge",
-          "required_skill_ids": [
-            "opl-bookforge"
-          ],
+          "required_skill_ids": ["opl-bookforge"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -339,22 +316,11 @@
           "authority": "app_owned_settings"
         }
       ],
-      "must_not_own": [
-        "runtime truth",
-        "domain truth",
-        "artifact body",
-        "memory body",
-        "backend selection authority"
-      ]
+      "must_not_own": ["runtime truth", "domain truth", "artifact body", "memory body", "backend selection authority"]
     },
     "agent_package_invocation_receipt_policy": {
       "scope": "package_shortcut_launch_to_codex_conversation",
-      "required_for_package_shortcuts": [
-        "research",
-        "grant",
-        "ppt",
-        "book"
-      ],
+      "required_for_package_shortcuts": ["research", "grant", "ppt", "book"],
       "route_kind": "agent_package_shortcut",
       "executor": "codex_cli",
       "source": "opl_app_home",
@@ -368,32 +334,17 @@
         "source"
       ],
       "receipt_authority": "launch_fact_only_no_session_behavior_domain_workflow_or_readiness",
-      "must_not_govern": [
-        "session_behavior",
-        "domain_workflow",
-        "domain_readiness"
-      ],
+      "must_not_govern": ["session_behavior", "domain_workflow", "domain_readiness"],
       "must_not_depend_on_visible_backend_selection": true
     },
     "builtin_assistant_route_receipt_policy": {
       "migration_alias_for": "agent_package_invocation_receipt_policy",
       "scope": "home_purpose_entry_to_conversation",
-      "required_for_assistants": [
-        "mas",
-        "mag",
-        "rca",
-        "bookforge"
-      ],
+      "required_for_assistants": ["mas", "mag", "rca", "bookforge"],
       "route_kind": "builtin_capability",
       "executor": "codex_cli",
       "source": "opl_app_home",
-      "required_fields": [
-        "route_kind",
-        "executor",
-        "assistant_id",
-        "assistant_short_name",
-        "source"
-      ],
+      "required_fields": ["route_kind", "executor", "assistant_id", "assistant_short_name", "source"],
       "must_not_depend_on_visible_backend_selection": true
     },
     "ordinary_capability_selector_policy": {
@@ -406,12 +357,7 @@
       "mcp_menu_policy": "empty_until_app_explicitly_whitelists_opl_mcp_servers",
       "visible_mcp_server_ids": [],
       "conversation_loaded_mcp_display_policy": "filter_to_visible_mcp_server_ids",
-      "forbidden_skill_examples": [
-        "aionui-skills",
-        "aionui-webui-setup",
-        "skill-creator",
-        "cron"
-      ],
+      "forbidden_skill_examples": ["aionui-skills", "aionui-webui-setup", "skill-creator", "cron"],
       "forbidden_mcp_policy": "do_not_surface_user_or_aionui_mcp_servers_in_ordinary_home_without_app_profile_allowlist",
       "forbidden_mcp_examples": [
         "aionui-team",
@@ -422,16 +368,9 @@
       ],
       "conversation_snapshot_policy": "scrub_disabled_team_mcp_and_team_metadata_before_rendering_or_inheriting_ordinary_conversations",
       "forbidden_mcp_matchers": {
-        "exact": [
-          "aionui-team"
-        ],
-        "prefixes": [
-          "team_",
-          "mcp__aionui-team"
-        ],
-        "contains": [
-          "aionui-team"
-        ]
+        "exact": ["aionui-team"],
+        "prefixes": ["team_", "mcp__aionui-team"],
+        "contains": ["aionui-team"]
       },
       "scrub_extra_keys": [
         "team_mcp_stdio_config",
@@ -482,11 +421,7 @@
       },
       "workflow_starter_policy": {
         "role": "assistant_scoped_route_prompt_seed_ref",
-        "allowed_refs": [
-          "assistant_route_ref",
-          "prompt_seed_ref",
-          "workflow_ref"
-        ],
+        "allowed_refs": ["assistant_route_ref", "prompt_seed_ref", "workflow_ref"],
         "creates_second_skill_truth": false,
         "creates_second_runtime_truth": false
       },
@@ -513,17 +448,9 @@
         "installed_manageable": true,
         "default_home_visible": true,
         "codex_visible_entry": "mas",
-        "home_shortcut_ids": [
-          "research"
-        ],
-        "required_skill_ids": [
-          "mas"
-        ],
-        "optional_skill_ids": [
-          "mineru-document-extractor",
-          "officecli-docx",
-          "officecli-xlsx"
-        ],
+        "home_shortcut_ids": ["research"],
+        "required_skill_ids": ["mas"],
+        "optional_skill_ids": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -537,17 +464,9 @@
         "installed_manageable": true,
         "default_home_visible": true,
         "codex_visible_entry": "mag",
-        "home_shortcut_ids": [
-          "grant"
-        ],
-        "required_skill_ids": [
-          "mag"
-        ],
-        "optional_skill_ids": [
-          "officecli-docx",
-          "officecli-xlsx",
-          "mineru-document-extractor"
-        ],
+        "home_shortcut_ids": ["grant"],
+        "required_skill_ids": ["mag"],
+        "optional_skill_ids": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -561,16 +480,9 @@
         "installed_manageable": true,
         "default_home_visible": true,
         "codex_visible_entry": "rca",
-        "home_shortcut_ids": [
-          "ppt"
-        ],
-        "required_skill_ids": [
-          "rca"
-        ],
-        "optional_skill_ids": [
-          "officecli-pptx",
-          "ui-ux-pro-max"
-        ],
+        "home_shortcut_ids": ["ppt"],
+        "required_skill_ids": ["rca"],
+        "optional_skill_ids": ["officecli-pptx", "ui-ux-pro-max"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -584,17 +496,9 @@
         "installed_manageable": true,
         "default_home_visible": true,
         "codex_visible_entry": "opl-bookforge",
-        "home_shortcut_ids": [
-          "book"
-        ],
-        "required_skill_ids": [
-          "opl-bookforge"
-        ],
-        "optional_skill_ids": [
-          "officecli-docx",
-          "pdf",
-          "mineru-document-extractor"
-        ],
+        "home_shortcut_ids": ["book"],
+        "required_skill_ids": ["opl-bookforge"],
+        "optional_skill_ids": ["officecli-docx", "pdf", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -609,9 +513,7 @@
         "default_home_visible": false,
         "codex_visible_entry": "opl-meta-agent",
         "home_shortcut_ids": [],
-        "required_skill_ids": [
-          "opl-meta-agent"
-        ],
+        "required_skill_ids": ["opl-meta-agent"],
         "optional_skill_ids": [],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -633,14 +535,8 @@
           "en-US": "Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress."
         },
         "prompts_i18n": {
-          "zh-CN": [
-            "整理当前课题的研究进度和下一步计划",
-            "帮我推进论文写作和质量检查"
-          ],
-          "en-US": [
-            "Organize this study's progress and next plan",
-            "Advance manuscript writing and quality checks"
-          ]
+          "zh-CN": ["整理当前课题的研究进度和下一步计划", "帮我推进论文写作和质量检查"],
+          "en-US": ["Organize this study's progress and next plan", "Advance manuscript writing and quality checks"]
         }
       },
       {
@@ -657,10 +553,7 @@
           "en-US": "Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses."
         },
         "prompts_i18n": {
-          "zh-CN": [
-            "把这个基金想法整理成申请书框架",
-            "检查这份标书还缺哪些关键材料"
-          ],
+          "zh-CN": ["把这个基金想法整理成申请书框架", "检查这份标书还缺哪些关键材料"],
           "en-US": [
             "Turn this grant idea into an application outline",
             "Check what key materials this proposal still needs"
@@ -681,14 +574,8 @@
           "en-US": "Advance slide decks, reports, figures, visual deliverables, and presentation materials."
         },
         "prompts_i18n": {
-          "zh-CN": [
-            "把这份材料改成汇报 PPT 大纲",
-            "帮我设计一版更清晰的视觉交付物"
-          ],
-          "en-US": [
-            "Turn these materials into a presentation outline",
-            "Design a clearer visual deliverable"
-          ]
+          "zh-CN": ["把这份材料改成汇报 PPT 大纲", "帮我设计一版更清晰的视觉交付物"],
+          "en-US": ["Turn these materials into a presentation outline", "Design a clearer visual deliverable"]
         }
       },
       {
@@ -705,10 +592,7 @@
           "en-US": "Advance book storylines, chapter drafting, figure and table planning, style checks, layout review, and export handoff."
         },
         "prompts_i18n": {
-          "zh-CN": [
-            "把这批材料整理成一本书的故事线和章节框架",
-            "把已确认的故事线推进成书稿包并检查图表、风格和排版"
-          ],
+          "zh-CN": ["把这批材料整理成一本书的故事线和章节框架", "把已确认的故事线推进成书稿包并检查图表、风格和排版"],
           "en-US": [
             "Turn these materials into a book storyline and chapter outline",
             "Materialize the approved storyline into a manuscript package and check figures, style, and layout"
@@ -719,55 +603,32 @@
     "assistant_skill_profiles": [
       {
         "assistant_id": "mas",
-        "required_skills": [
-          "mas"
-        ],
-        "optional_skills": [
-          "mineru-document-extractor",
-          "officecli-docx",
-          "officecli-xlsx"
-        ],
+        "required_skills": ["mas"],
+        "optional_skills": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
       },
       {
         "assistant_id": "mag",
-        "required_skills": [
-          "mag"
-        ],
-        "optional_skills": [
-          "officecli-docx",
-          "officecli-xlsx",
-          "mineru-document-extractor"
-        ],
+        "required_skills": ["mag"],
+        "optional_skills": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
       },
       {
         "assistant_id": "rca",
-        "required_skills": [
-          "rca"
-        ],
-        "optional_skills": [
-          "officecli-pptx",
-          "ui-ux-pro-max"
-        ],
+        "required_skills": ["rca"],
+        "optional_skills": ["officecli-pptx", "ui-ux-pro-max"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
       },
       {
         "assistant_id": "bookforge",
-        "required_skills": [
-          "opl-bookforge"
-        ],
-        "optional_skills": [
-          "officecli-docx",
-          "pdf",
-          "mineru-document-extractor"
-        ],
+        "required_skills": ["opl-bookforge"],
+        "optional_skills": ["officecli-docx", "pdf", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
         "skill_menu_policy": "assistant_scoped_required_checked_optional_visible"
@@ -787,14 +648,8 @@
           "en-US": "Design, test, and improve OPL Agents, including capability boundaries, contracts, and verification flows."
         },
         "prompts_i18n": {
-          "zh-CN": [
-            "帮我设计一个新的 OPL Agent",
-            "评估这个智能体的合同和测试是否完整"
-          ],
-          "en-US": [
-            "Help me design a new OPL Agent",
-            "Evaluate whether this agent's contract and tests are complete"
-          ]
+          "zh-CN": ["帮我设计一个新的 OPL Agent", "评估这个智能体的合同和测试是否完整"],
+          "en-US": ["Help me design a new OPL Agent", "Evaluate whether this agent's contract and tests are complete"]
         }
       }
     ]
@@ -925,17 +780,11 @@
     }
   },
   "first_run": {
-    "readiness_layers": [
-      "core"
-    ],
+    "readiness_layers": ["core"],
     "ready_to_launch_gate": {
       "id": "ready_to_launch",
       "ui_order": "before_guid",
-      "required_core_items": [
-        "workspace_root",
-        "codex_cli",
-        "codex_config"
-      ],
+      "required_core_items": ["workspace_root", "codex_cli", "codex_config"],
       "must_not_require": [
         "domain_modules",
         "family_runtime_provider",
@@ -973,10 +822,7 @@
       "gate": "acp_warmup_before_initial_send",
       "source_command": "opl system initialize --json",
       "ready_to_launch_must_be_true": true,
-      "must_wait_for": [
-        "conversation_record_ready",
-        "acp_warmup_complete"
-      ],
+      "must_wait_for": ["conversation_record_ready", "acp_warmup_complete"],
       "must_not_wait_for": [
         "domain_modules",
         "family_runtime_provider",
@@ -992,13 +838,7 @@
       "source_command": "opl system initialize --json",
       "source_path": "system_initialize.setup_flow",
       "renderer_truth_policy": "render_only_no_shell_private_progress_truth",
-      "required_setup_flow_fields": [
-        "phase",
-        "ready_to_launch",
-        "progress",
-        "blocking_items",
-        "maintenance_items"
-      ],
+      "required_setup_flow_fields": ["phase", "ready_to_launch", "progress", "blocking_items", "maintenance_items"],
       "required_progress_fields": [
         "ready_required_count",
         "total_required_count",
@@ -1028,12 +868,7 @@
     },
     "core_ready_policy": {
       "full_first_install_clean_machine": {
-        "missing_host_tools_allowed": [
-          "command_line_tools",
-          "homebrew",
-          "node",
-          "git"
-        ],
+        "missing_host_tools_allowed": ["command_line_tools", "homebrew", "node", "git"],
         "initial_runtime_source": "bundled_runtime",
         "core_ready_without_host_tools": true,
         "must_not_block_core_ready": [
@@ -1055,9 +890,7 @@
             "companion_skills_install",
             "ecosystem_module_updates"
           ],
-          "user_confirmation_items": [
-            "command_line_tools_install"
-          ]
+          "user_confirmation_items": ["command_line_tools_install"]
         }
       },
       "standard_package": {
@@ -1102,9 +935,7 @@
     "updates": {
       "standard_channel": {
         "implementation_reference": "electron_autoUpdater_background_download_update_downloaded_restart_prompt",
-        "metadata_scope": [
-          "latest-arm64-mac.yml"
-        ],
+        "metadata_scope": ["latest-arm64-mac.yml"],
         "download_policy": "background_download",
         "apply_policy": "restart_when_ready",
         "ready_prompt": "prompt_restart_after_download_ready",
@@ -1116,11 +947,7 @@
       "audience": "beginner_non_technical_users",
       "presentation_mode": "simplified_first_run",
       "primary_user_goal": "reach_guid_with_codex_ready",
-      "primary_steps": [
-        "workspace_root",
-        "codex_cli",
-        "codex_config"
-      ],
+      "primary_steps": ["workspace_root", "codex_cli", "codex_config"],
       "primary_progress_signal": "Core completed and total count",
       "advanced_progress_disclosure": "collapsed_or_secondary",
       "background_maintenance_presentation": "collapsed_technical_non_blocking",
@@ -1146,15 +973,7 @@
     }
   },
   "settings": {
-    "visible_tabs": [
-      "general",
-      "access",
-      "capabilities",
-      "environment",
-      "storage",
-      "appearance",
-      "advanced"
-    ],
+    "visible_tabs": ["general", "access", "capabilities", "environment", "storage", "appearance", "advanced"],
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",
@@ -1168,15 +987,7 @@
       "webui": "access",
       "pet": "appearance"
     },
-    "environment_items": [
-      "codex",
-      "temporal",
-      "mas",
-      "mag",
-      "rca",
-      "oma",
-      "app"
-    ],
+    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "oma", "app"],
     "developer_profile": {
       "label_key": "settings.developerProfile",
       "description_key": "settings.developerProfileDesc",
@@ -1239,10 +1050,7 @@
           "label_zh": "总览",
           "label_en": "Overview",
           "role": "control_center_summary",
-          "ordinary_entries": [
-            "settings_general",
-            "workspace"
-          ],
+          "ordinary_entries": ["settings_general", "workspace"],
           "required_prominence": "workspace_is_independent_ordinary_entry"
         },
         {
@@ -1250,34 +1058,22 @@
           "label_zh": "开始使用",
           "label_en": "Setup & Access",
           "role": "first_use_and_access_setup",
-          "ordinary_entries": [
-            "settings_access",
-            "first_run_setup_center"
-          ],
-          "primary_tasks": [
-            "workspace_root",
-            "codex_cli",
-            "codex_config"
-          ]
+          "ordinary_entries": ["settings_access", "first_run_setup_center"],
+          "primary_tasks": ["workspace_root", "codex_cli", "codex_config"]
         },
         {
           "id": "capabilities",
           "label_zh": "能力",
           "label_en": "Capabilities",
           "role": "purpose_grouped_capability_catalog",
-          "ordinary_entries": [
-            "settings_capabilities"
-          ]
+          "ordinary_entries": ["settings_capabilities"]
         },
         {
           "id": "maintenance",
           "label_zh": "维护",
           "label_en": "Maintenance & Updates",
           "role": "health_updates_and_repair",
-          "ordinary_entries": [
-            "settings_environment",
-            "update"
-          ],
+          "ordinary_entries": ["settings_environment", "update"],
           "owns": [
             "local_service_health",
             "installation_carrier_updates",
@@ -1291,39 +1087,22 @@
           "label_zh": "数据与存储",
           "label_en": "Data & Storage",
           "role": "safe_local_data_lifecycle_inventory_and_cleanup",
-          "ordinary_entries": [
-            "settings_storage"
-          ],
-          "owns": [
-            "storage_inventory",
-            "conversation_archives",
-            "runtime_cache",
-            "logs",
-            "safe_cleanup"
-          ]
+          "ordinary_entries": ["settings_storage"],
+          "owns": ["storage_inventory", "conversation_archives", "runtime_cache", "logs", "safe_cleanup"]
         },
         {
           "id": "preferences",
           "label_zh": "偏好",
           "label_en": "Preferences",
           "role": "user_preferences_not_runtime_health",
-          "ordinary_entries": [
-            "settings_theme",
-            "appearance",
-            "language",
-            "startup",
-            "tray"
-          ]
+          "ordinary_entries": ["settings_theme", "appearance", "language", "startup", "tray"]
         },
         {
           "id": "advanced",
           "label_zh": "高级",
           "label_en": "Advanced",
           "role": "developer_controls_version_links_and_collapsed_raw_diagnostics",
-          "ordinary_entries": [
-            "settings_advanced",
-            "about"
-          ],
+          "ordinary_entries": ["settings_advanced", "about"],
           "diagnostics_default_state": "collapsed"
         }
       ],
@@ -1393,28 +1172,12 @@
           "ordinary_entry_policy": "secondary_page_under_advanced"
         }
       },
-      "secondary_page_ids": [
-        "about",
-        "update",
-        "theme",
-        "workspace",
-        "local-services"
-      ],
+      "secondary_page_ids": ["about", "update", "theme", "workspace", "local-services"],
       "task_entry_policy": {
         "ordinary_entry_model": "user_task_first_sections_inside_the_seven_OPL_Control_Center_groups",
         "top_level_tab_policy": "do_not_add_new_top_level_tabs_for_model_workspace_updates_web_tools_or_developer_profile",
-        "p0_entries": [
-          "model_account",
-          "workspace_entry",
-          "maintenance_hub",
-          "capability_status"
-        ],
-        "p1_entries": [
-          "web_remote_access",
-          "developer_profile_status",
-          "external_tools_voice",
-          "custom_assistants"
-        ],
+        "p0_entries": ["model_account", "workspace_entry", "maintenance_hub", "capability_status"],
+        "p1_entries": ["web_remote_access", "developer_profile_status", "external_tools_voice", "custom_assistants"],
         "hidden_as_ordinary_ui": [
           "AionUI Team",
           "backend/provider raw selector",
@@ -1673,23 +1436,9 @@
       "cli_and_app_share_skill_semantics": true
     },
     "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
-    "tools": [
-      "officecli",
-      "mineru_open_api"
-    ],
-    "domain_modules": [
-      "mas",
-      "mag",
-      "rca",
-      "opl-meta-agent",
-      "opl-bookforge"
-    ],
-    "ecosystem_modules": [
-      "officecli",
-      "mineru",
-      "opl-meta-agent",
-      "opl-bookforge"
-    ],
+    "tools": ["officecli", "mineru_open_api"],
+    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent", "opl-bookforge"],
+    "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent", "opl-bookforge"],
     "management_authority": {
       "officecli": "app_or_cli_managed",
       "mineru": "app_or_cli_managed",
@@ -1715,9 +1464,7 @@
       "mineru-document-extractor",
       "ui-ux-pro-max"
     ],
-    "packaged_not_default_visible_codex_skill_ids": [
-      "opl-meta-agent"
-    ],
+    "packaged_not_default_visible_codex_skill_ids": ["opl-meta-agent"],
     "companion_skill_sync_default_ids": [
       "superpowers",
       "cron",
@@ -1733,12 +1480,7 @@
       "mineru-document-extractor",
       "ui-ux-pro-max"
     ],
-    "domain_plugin_skill_ids": [
-      "mas",
-      "mag",
-      "rca",
-      "opl-bookforge"
-    ],
+    "domain_plugin_skill_ids": ["mas", "mag", "rca", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "domain_exposure": [
       {
@@ -1823,12 +1565,7 @@
         "source": "app_state.operator.workbench.activity_center.active_projects + app_state.operator.visual_ref_groups.active_project_refs",
         "display_policy": "queued_or_escalated_owner_handled_project_lines_count_as_active_projects_without_claiming_active_worker_run",
         "status_preservation_required": true,
-        "must_preserve_fields": [
-          "status",
-          "active_run_id",
-          "next_visible_step",
-          "next_owner"
-        ]
+        "must_preserve_fields": ["status", "active_run_id", "next_visible_step", "next_owner"]
       },
       "secondary_questions": [
         "whether the next delta is deliverable progress, platform repair, human gate, typed blocker, or stop-loss",
