@@ -1692,6 +1692,19 @@
       "notReported": "未报告",
       "none": "无"
     },
+    "candidateReports": {
+      "title": "候选报告",
+      "description": "先按 refs 查看工作流和技能候选；此视图不会安装或启用技能。",
+      "purpose": "候选用途",
+      "report": "报告引用",
+      "decision": "决策",
+      "pendingDecision": "待 review",
+      "actions": {
+        "review": "Review",
+        "needsChanges": "Needs changes",
+        "openInCodex": "Open in Codex"
+      }
+    },
     "connectorGroups": {
       "oplConnect": "OPL Connect",
       "oplFabric": "OPL Fabric"

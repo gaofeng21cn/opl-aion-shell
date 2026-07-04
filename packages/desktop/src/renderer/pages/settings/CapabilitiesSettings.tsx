@@ -27,6 +27,8 @@ import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   buildCapabilitiesViewModel,
   type CapabilityActionRefViewModel,
+  type CapabilityCandidateReportViewModel,
+  type CapabilityDecisionAction,
   type CapabilityPurposeViewModel,
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
@@ -57,6 +59,10 @@ function capabilityActionLabel(item: CapabilityPurposeViewModel, t: (key: string
   if (item.status === 'update') return t('settings.capabilitiesPage.actions.updateOrSync');
   if (item.status === 'repair') return t('settings.capabilitiesPage.actions.repair');
   return t('settings.capabilitiesPage.actions.openDetails');
+}
+
+function capabilityDecisionActionLabel(action: CapabilityDecisionAction, t: (key: string) => string): string {
+  return t(`settings.capabilitiesPage.candidateReports.actions.${action}`);
 }
 
 function capabilityDetailRows(
@@ -133,6 +139,68 @@ const capabilityRefRows = (
               {t('settings.capabilitiesPage.refLabels.nextAction')}:{' '}
               {ref.nextAction ?? t('settings.capabilitiesPage.detailValues.notReported')}
             </Typography.Text>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const capabilityCandidateReportRows = (
+  refs: CapabilityCandidateReportViewModel[],
+  itemKey: string,
+  t: (key: string) => string
+) => {
+  if (refs.length === 0) return null;
+  return (
+    <div className='mt-10px grid grid-cols-1 gap-8px' data-testid={`capability-candidate-reports-${itemKey}`}>
+      <div>
+        <Typography.Text className='block text-12px font-600 text-t-primary'>
+          {t('settings.capabilitiesPage.candidateReports.title')}
+        </Typography.Text>
+        <Typography.Text className='block text-12px text-t-secondary'>
+          {t('settings.capabilitiesPage.candidateReports.description')}
+        </Typography.Text>
+      </div>
+      {refs.map((ref) => (
+        <div
+          key={`${itemKey}-${ref.id}-${ref.ref}`}
+          className='rd-8px bg-fill-1 p-8px text-12px'
+          data-testid={`capability-candidate-report-${itemKey}-${ref.id}`}
+        >
+          <div className='flex flex-wrap items-center gap-6px mb-4px'>
+            <Typography.Text className='font-600 text-t-primary break-words'>{ref.title}</Typography.Text>
+            {ref.status && <Tag>{ref.status}</Tag>}
+          </div>
+          <div className='grid grid-cols-1 gap-4px'>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.candidateReports.purpose')}:{' '}
+              {ref.purpose ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.owner')}:{' '}
+              {ref.owner ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.nextAction')}:{' '}
+              {ref.nextAction ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.refLabels.ref')}: {ref.ref}
+            </Typography.Text>
+            <Typography.Text className='text-t-secondary break-words'>
+              {t('settings.capabilitiesPage.candidateReports.report')}:{' '}
+              {ref.reportRef ?? t('settings.capabilitiesPage.detailValues.notReported')}
+            </Typography.Text>
+            <div className='flex flex-wrap items-center gap-6px'>
+              <Typography.Text className='text-t-secondary'>
+                {t('settings.capabilitiesPage.candidateReports.decision')}:{' '}
+                {ref.decisionStatus ?? t('settings.capabilitiesPage.candidateReports.pendingDecision')}
+              </Typography.Text>
+              {ref.decisionActions.map((action) => (
+                <Tag key={`${ref.id}-${action}`}>{capabilityDecisionActionLabel(action, t)}</Tag>
+              ))}
+            </div>
           </div>
         </div>
       ))}
@@ -267,6 +335,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Tag>
                     ))}
                   </div>
+                  {capabilityCandidateReportRows(item.workflowCandidateRefs, item.key, t)}
                   <Collapse bordered={false} className='mt-8px'>
                     <Collapse.Item
                       header={t('settings.capabilitiesPage.detailsHeader')}

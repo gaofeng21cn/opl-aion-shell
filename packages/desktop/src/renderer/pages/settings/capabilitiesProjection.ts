@@ -28,6 +28,7 @@ export type CapabilityPurposeViewModel = {
   source: string | null;
   lastSync: string | null;
   failureReason: string | null;
+  workflowCandidateRefs: CapabilityCandidateReportViewModel[];
   workflowRefs: CapabilityRefViewModel[];
   connectorReadinessRefs: CapabilityRefViewModel[];
   connectorReadinessGroups: CapabilityRefGroupViewModel[];
@@ -44,6 +45,7 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'source'
   | 'lastSync'
   | 'failureReason'
+  | 'workflowCandidateRefs'
   | 'workflowRefs'
   | 'connectorReadinessRefs'
   | 'connectorReadinessGroups'
@@ -62,6 +64,15 @@ export type CapabilityRefViewModel = {
   ref: string;
   owner: string | null;
   nextAction: string | null;
+};
+
+export type CapabilityDecisionAction = 'review' | 'needsChanges' | 'openInCodex';
+
+export type CapabilityCandidateReportViewModel = CapabilityRefViewModel & {
+  purpose: string | null;
+  reportRef: string | null;
+  decisionStatus: string | null;
+  decisionActions: CapabilityDecisionAction[];
 };
 
 export type CapabilityRefGroupViewModel = {
@@ -164,6 +175,14 @@ function refIdFromRef(ref: string): string {
   return ref.split('/').filter(Boolean).pop() ?? ref;
 }
 
+function firstRecord(...values: unknown[]): OplAppStateRecord {
+  for (const value of values) {
+    const record = oplRecord(value);
+    if (Object.keys(record).length > 0) return record;
+  }
+  return {};
+}
+
 function capabilityRef(
   value: unknown,
   fallback: Pick<CapabilityRefViewModel, 'owner' | 'nextAction' | 'status'>
@@ -182,6 +201,134 @@ function capabilityRef(
   };
 }
 
+const DEFAULT_CANDIDATE_DECISION_ACTIONS: CapabilityDecisionAction[] = ['review', 'needsChanges', 'openInCodex'];
+
+function candidateRefValue(value: unknown): string | null {
+  const record = oplRecord(value);
+  const report = firstRecord(record.candidate_report, record.report, record.review);
+  return (
+    refValue(value) ??
+    firstString(
+      record.candidate_ref,
+      record.candidate_report_ref,
+      record.report_ref,
+      record.review_ref,
+      record.workflow_ref,
+      record.current_workflow_ref,
+      record.stage_workflow_ref,
+      record.skill_ref,
+      record.skill_candidate_ref,
+      record.codex_ref,
+      record.open_codex_ref,
+      record.action_ref,
+      record.route
+    ) ??
+    refValue(report)
+  );
+}
+
+function normalizeDecisionAction(value: string): CapabilityDecisionAction | null {
+  const normalized = value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (
+    normalized.includes('needschange') ||
+    normalized.includes('needchange') ||
+    normalized.includes('requestchange') ||
+    normalized.includes('changesrequested')
+  ) {
+    return 'needsChanges';
+  }
+  if (normalized.includes('opencodex') || normalized.includes('codex')) return 'openInCodex';
+  if (normalized.includes('review')) return 'review';
+  return null;
+}
+
+function decisionActionStrings(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      const record = oplRecord(entry);
+      const text = firstString(entry, record.id, record.action_id, record.key, record.label, record.title, record.name);
+      return text ? [text] : [];
+    });
+  }
+  const record = oplRecord(value);
+  if (Object.keys(record).length === 0) {
+    const text = firstString(value);
+    return text ? [text] : [];
+  }
+  return Object.entries(record)
+    .filter(([, enabled]) => enabled !== false && enabled !== null)
+    .map(([key, entry]) => firstString(oplRecord(entry).id, oplRecord(entry).action_id, key))
+    .filter((text): text is string => Boolean(text));
+}
+
+function capabilityDecisionActions(record: OplAppStateRecord): CapabilityDecisionAction[] {
+  const actions = [
+    ...decisionActionStrings(record.decision_actions),
+    ...decisionActionStrings(record.available_decisions),
+    ...decisionActionStrings(record.available_actions),
+    ...decisionActionStrings(record.review_actions),
+    ...decisionActionStrings(record.actions),
+  ]
+    .map(normalizeDecisionAction)
+    .filter((action): action is CapabilityDecisionAction => Boolean(action));
+  return actions.length > 0 ? [...new Set(actions)] : DEFAULT_CANDIDATE_DECISION_ACTIONS;
+}
+
+function capabilityCandidateReport(
+  value: unknown,
+  fallback: Pick<CapabilityRefViewModel, 'owner' | 'nextAction' | 'status'>
+): CapabilityCandidateReportViewModel | null {
+  const record = oplRecord(value);
+  const report = firstRecord(record.candidate_report, record.report, record.review);
+  const ref = candidateRefValue(value);
+  if (!ref) return null;
+  const id =
+    firstString(record.id, record.candidate_id, record.report_id, record.review_id, record.workflow_id, record.key) ??
+    refIdFromRef(ref);
+  return {
+    id,
+    title:
+      firstString(record.title, record.candidate_title, record.report_title, record.label, record.name, report.title) ??
+      id,
+    status:
+      firstString(record.status, record.state, record.candidate_status, record.review_status, report.status) ??
+      fallback.status,
+    ref,
+    owner: firstString(record.owner, record.next_owner, report.owner, report.reviewer_owner) ?? fallback.owner,
+    nextAction:
+      firstString(
+        record.next_action,
+        record.next_visible_step,
+        record.next_step,
+        report.next_action,
+        report.next_visible_step
+      ) ?? fallback.nextAction,
+    purpose:
+      firstString(
+        record.candidate_purpose,
+        record.purpose,
+        record.intended_use,
+        record.use_case,
+        record.description,
+        record.summary,
+        report.purpose,
+        report.summary
+      ) ?? null,
+    reportRef:
+      firstString(record.candidate_report_ref, record.report_ref, record.review_ref, report.report_ref, report.ref) ??
+      refValue(report),
+    decisionStatus:
+      firstString(
+        record.decision_status,
+        record.review_status,
+        record.candidate_decision_status,
+        report.decision_status,
+        report.review_status
+      ) ?? null,
+    decisionActions: capabilityDecisionActions(record),
+  };
+}
+
 function capabilityRefsFromTask(task: RuntimeTaskItem | undefined, keys: string[]): CapabilityRefViewModel[] {
   if (!task) return [];
   const fallback = {
@@ -192,6 +339,31 @@ function capabilityRefsFromTask(task: RuntimeTaskItem | undefined, keys: string[
   return keys
     .flatMap((key) => listValues(task[key]).map((entry) => capabilityRef(entry, fallback)))
     .filter((ref): ref is CapabilityRefViewModel => Boolean(ref));
+}
+
+function capabilityCandidateReportsFromTask(task: RuntimeTaskItem | undefined): CapabilityCandidateReportViewModel[] {
+  if (!task) return [];
+  const fallback = {
+    owner: firstString(task.next_owner, task.owner),
+    nextAction: firstString(task.next_visible_step, task.next_step),
+    status: firstString(task.status, task.state, task.progress_label),
+  };
+  const refsFromKeys = (keys: string[]) =>
+    keys
+      .flatMap((key) => listValues(task[key]).map((entry) => capabilityCandidateReport(entry, fallback)))
+      .filter((ref): ref is CapabilityCandidateReportViewModel => Boolean(ref));
+  const reportFirstRefs = refsFromKeys([
+    'workflow_candidate_refs',
+    'candidate_workflow_refs',
+    'candidate_report_refs',
+    'candidate_reports',
+    'report_refs',
+    'review_refs',
+    'skill_candidate_refs',
+    'skill_pack_refs',
+    'skill_refs',
+  ]);
+  return reportFirstRefs.length > 0 ? reportFirstRefs : refsFromKeys(['workflow_refs']);
 }
 
 function connectorGroupKey(ref: CapabilityRefViewModel): 'oplConnect' | 'oplFabric' | null {
@@ -367,6 +539,7 @@ function buildCapabilityPurpose(
     | 'source'
     | 'lastSync'
     | 'failureReason'
+    | 'workflowCandidateRefs'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
     | 'connectorReadinessGroups'
@@ -406,6 +579,7 @@ function buildCapabilityPurpose(
     source: capabilitySource(module),
     lastSync: capabilityLastSync(module),
     failureReason: capabilityFailureReason(module),
+    workflowCandidateRefs: capabilityCandidateReportsFromTask(task),
     workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
     connectorReadinessRefs,
     connectorReadinessGroups: connectorReadinessGroups(connectorReadinessRefs),

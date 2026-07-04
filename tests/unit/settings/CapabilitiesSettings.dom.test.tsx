@@ -50,6 +50,21 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                   next_action: 'run dry-run first',
                 },
               ],
+              candidate_reports: [
+                {
+                  id: 'openscience-artifact-graph',
+                  title: 'OpenScience artifact graph review',
+                  status: 'candidate_report_ready',
+                  ref: 'candidate://openscience/artifact-graph',
+                  owner: 'opl_ledger',
+                  next_action: 'review report before enabling any skill',
+                  candidate_purpose: 'Review OpenScience artifact graph before enabling any skill.',
+                  report_ref: 'report://openscience/artifact-graph',
+                  decision_status: 'review_pending',
+                  decision_actions: ['review', 'needs_changes', 'open_in_codex'],
+                  body: 'must not render',
+                },
+              ],
               connector_readiness_refs: [
                 'opl://connect/pubmed/readiness',
                 'opl://connector/generic/readiness',
@@ -74,6 +89,19 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 dry_run_action_ref: 'opl://app-action/task_action_receipt_preview',
                 latest_receipt_ref: 'receipt://export/latest',
               },
+            },
+            medautogrant: {
+              status: 'ready',
+              next_owner: 'grant_owner',
+              next_visible_step: 'review reusable grant workflow first',
+              workflow_refs: [
+                {
+                  id: 'grant-workflow',
+                  title: 'Grant workflow candidate',
+                  status: 'refs_available',
+                  ref: 'opl://workflow/medautogrant/grant-draft',
+                },
+              ],
             },
           },
         },
@@ -157,6 +185,16 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
+        'settings.capabilitiesPage.candidateReports.title': 'Candidate reports',
+        'settings.capabilitiesPage.candidateReports.description':
+          'Review workflow and skill candidates as refs first. Nothing is installed or enabled from this view.',
+        'settings.capabilitiesPage.candidateReports.purpose': 'Candidate purpose',
+        'settings.capabilitiesPage.candidateReports.report': 'Report ref',
+        'settings.capabilitiesPage.candidateReports.decision': 'Decision',
+        'settings.capabilitiesPage.candidateReports.pendingDecision': 'Pending review',
+        'settings.capabilitiesPage.candidateReports.actions.review': 'Review',
+        'settings.capabilitiesPage.candidateReports.actions.needsChanges': 'Needs changes',
+        'settings.capabilitiesPage.candidateReports.actions.openInCodex': 'Open in Codex',
         'settings.capabilitiesPage.connectorGroups.oplConnect': 'OPL Connect',
         'settings.capabilitiesPage.connectorGroups.oplFabric': 'OPL Fabric',
         'settings.capabilitiesPage.resourceContextGroups.gateway': 'OPL Gateway',
@@ -215,6 +253,25 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
 
     const research = screen.getByTestId('capability-purpose-mas');
+    expect(within(research).getByText('Candidate reports')).toBeInTheDocument();
+    expect(within(research).getByText('OpenScience artifact graph review')).toBeInTheDocument();
+    const openscienceCandidate = within(research).getByTestId(
+      'capability-candidate-report-mas-openscience-artifact-graph'
+    );
+    expect(openscienceCandidate).toHaveTextContent('Review OpenScience artifact graph before enabling any skill.');
+    expect(openscienceCandidate).toHaveTextContent('candidate://openscience/artifact-graph');
+    expect(openscienceCandidate).toHaveTextContent('report://openscience/artifact-graph');
+    expect(openscienceCandidate).toHaveTextContent('review_pending');
+    expect(openscienceCandidate).toHaveTextContent('Needs changes');
+    expect(openscienceCandidate).toHaveTextContent('Open in Codex');
+    expect(openscienceCandidate).not.toHaveTextContent('must not render');
+
+    const grant = screen.getByTestId('capability-purpose-mag');
+    const grantCandidate = within(grant).getByTestId('capability-candidate-report-mag-grant-workflow');
+    expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
+    expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
+    expect(grantCandidate).toHaveTextContent('Pending review');
+
     fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
     expect(within(research).getByText('1.2.3')).toBeInTheDocument();
     expect(within(research).getByText('managed_root')).toBeInTheDocument();

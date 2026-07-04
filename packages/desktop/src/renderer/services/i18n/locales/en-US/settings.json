@@ -1691,6 +1691,19 @@
       "notReported": "Not reported",
       "none": "None"
     },
+    "candidateReports": {
+      "title": "Candidate reports",
+      "description": "Review workflow and skill candidates as refs first. Nothing is installed or enabled from this view.",
+      "purpose": "Candidate purpose",
+      "report": "Report ref",
+      "decision": "Decision",
+      "pendingDecision": "Pending review",
+      "actions": {
+        "review": "Review",
+        "needsChanges": "Needs changes",
+        "openInCodex": "Open in Codex"
+      }
+    },
     "connectorGroups": {
       "oplConnect": "OPL Connect",
       "oplFabric": "OPL Fabric"
