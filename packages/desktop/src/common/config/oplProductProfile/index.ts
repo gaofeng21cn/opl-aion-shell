@@ -39,6 +39,21 @@ export type OplHomePurposeEntry = {
   home_entry_policy: 'visible_click_to_start';
 };
 
+export type OplHomeAgentShortcut = {
+  shortcut_id: string;
+  package_id: string;
+  primary_label: string;
+  package_short_name: string;
+  codex_visible_entry: string;
+  required_skill_ids: string[];
+  source: 'opl_app_home';
+  executor: 'codex_cli';
+  display_policy: 'purpose_first';
+  home_entry_policy: 'visible_click_to_start';
+  default_visible: boolean;
+  user_configurable: boolean;
+};
+
 export type OplNonDefaultAssistant = {
   id: string;
   display_name: string;
@@ -60,7 +75,37 @@ export type OplAssistantSkillProfile = {
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
 };
 
+export type OplProfessionalAgentPackage = {
+  package_id: string;
+  display_name: string;
+  short_name: string;
+  role: string;
+  package_kind: string;
+  installed_manageable: boolean;
+  default_home_visible: boolean;
+  codex_visible_entry: string;
+  home_shortcut_ids: string[];
+  required_skill_ids: string[];
+  optional_skill_ids: string[];
+  required_skill_policy: 'checked_locked';
+  optional_skill_policy: 'unchecked_user_selectable';
+  skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
+};
+
+export type OplAgentPackageInvocationReceiptPolicy = {
+  scope: 'package_shortcut_launch_to_codex_conversation';
+  required_for_package_shortcuts: string[];
+  route_kind: 'agent_package_shortcut';
+  executor: 'codex_cli';
+  source: 'opl_app_home';
+  required_fields: string[];
+  receipt_authority: 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness';
+  must_not_govern: string[];
+  must_not_depend_on_visible_backend_selection: true;
+};
+
 export type OplBuiltinAssistantRouteReceiptPolicy = {
+  migration_alias_for?: 'agent_package_invocation_receipt_policy';
   scope: 'home_purpose_entry_to_conversation';
   required_for_assistants: string[];
   route_kind: 'builtin_capability';
@@ -73,7 +118,7 @@ export type OplBuiltinAssistantRouteReceiptPolicy = {
 export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
   authority: 'app_owned_opl_allowlist';
-  skill_source_ref: 'gui.assistant_skill_profiles.required_skills + optional_skills';
+  skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
   conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist';
   mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids';
@@ -314,10 +359,13 @@ type AppProductProfile = {
       };
       codex_model_display_options: OplCodexModelDisplayOptions;
       home_purpose_entries: OplHomePurposeEntry[];
+      home_agent_shortcuts: OplHomeAgentShortcut[];
       retired_codex_models_must_not_be_exposed: string[];
     };
+    agent_package_invocation_receipt_policy: OplAgentPackageInvocationReceiptPolicy;
     builtin_assistant_route_receipt_policy: OplBuiltinAssistantRouteReceiptPolicy;
     ordinary_capability_selector_policy: OplOrdinaryCapabilitySelectorPolicy;
+    professional_agent_packages: OplProfessionalAgentPackage[];
     default_assistants: OplHomeAssistant[];
     assistant_skill_profiles: OplAssistantSkillProfile[];
     non_default_assistants: OplNonDefaultAssistant[];
@@ -416,12 +464,12 @@ function readStringArray(
   record: Record<string, unknown>,
   key: string,
   context: string,
-  options: { allowBlank?: boolean } = {}
+  options: { allowBlank?: boolean; allowEmpty?: boolean } = {}
 ): string[] {
   const value = record[key];
   if (
     !Array.isArray(value) ||
-    value.length === 0 ||
+    (!options.allowEmpty && value.length === 0) ||
     value.some((entry) => typeof entry !== 'string' || (!options.allowBlank && !entry.trim()))
   ) {
     throw new Error(`Invalid OPL product profile: ${context}.${key} must be a non-empty string array`);
@@ -837,6 +885,122 @@ function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurpos
   return entries;
 }
 
+function readHomeAgentShortcuts(guiHome: Record<string, unknown>): OplHomeAgentShortcut[] {
+  const value = guiHome.home_agent_shortcuts;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must be a non-empty array');
+  }
+
+  const shortcuts = value.map((entry, index): OplHomeAgentShortcut => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: gui.home.home_agent_shortcuts[${index}] must be an object`);
+    }
+    const shortcutId = typeof entry.shortcut_id === 'string' ? entry.shortcut_id.trim() : '';
+    const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
+    const primaryLabel = typeof entry.primary_label === 'string' ? entry.primary_label.trim() : '';
+    const packageShortName = typeof entry.package_short_name === 'string' ? entry.package_short_name.trim() : '';
+    const codexVisibleEntry = typeof entry.codex_visible_entry === 'string' ? entry.codex_visible_entry.trim() : '';
+    if (!shortcutId || !packageId || !primaryLabel || !packageShortName || !codexVisibleEntry) {
+      throw new Error(`Invalid OPL product profile: gui.home.home_agent_shortcuts[${index}] has blank fields`);
+    }
+    if (
+      entry.source !== 'opl_app_home' ||
+      entry.executor !== 'codex_cli' ||
+      entry.display_policy !== 'purpose_first' ||
+      entry.home_entry_policy !== 'visible_click_to_start'
+    ) {
+      throw new Error(`Invalid OPL product profile: home agent shortcut ${shortcutId} has unsupported policy`);
+    }
+    return {
+      shortcut_id: shortcutId,
+      package_id: packageId,
+      primary_label: primaryLabel,
+      package_short_name: packageShortName,
+      codex_visible_entry: codexVisibleEntry,
+      required_skill_ids: readStringArray(entry, 'required_skill_ids', `gui.home.home_agent_shortcuts.${shortcutId}`),
+      source: 'opl_app_home',
+      executor: 'codex_cli',
+      display_policy: 'purpose_first',
+      home_entry_policy: 'visible_click_to_start',
+      default_visible: entry.default_visible === true,
+      user_configurable: entry.user_configurable === true,
+    };
+  });
+  const ids = shortcuts.map((shortcut) => shortcut.shortcut_id);
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('Invalid OPL product profile: gui.home.home_agent_shortcuts must not contain duplicate ids');
+  }
+  for (const required of ['research', 'grant', 'ppt', 'book']) {
+    if (!ids.includes(required)) {
+      throw new Error(`Invalid OPL product profile: home agent shortcuts must include ${required}`);
+    }
+  }
+  if (!shortcuts.every((shortcut) => shortcut.user_configurable)) {
+    throw new Error('Invalid OPL product profile: home agent shortcuts must be user configurable');
+  }
+  return shortcuts;
+}
+
+function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfessionalAgentPackage[] {
+  const value = gui.professional_agent_packages;
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Invalid OPL product profile: gui.professional_agent_packages must be a non-empty array');
+  }
+
+  const packages = value.map((entry, index): OplProfessionalAgentPackage => {
+    if (!isRecord(entry)) {
+      throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] must be an object`);
+    }
+    const packageId = typeof entry.package_id === 'string' ? entry.package_id.trim() : '';
+    const displayName = typeof entry.display_name === 'string' ? entry.display_name.trim() : '';
+    const shortName = typeof entry.short_name === 'string' ? entry.short_name.trim() : '';
+    const role = typeof entry.role === 'string' ? entry.role.trim() : '';
+    const packageKind = typeof entry.package_kind === 'string' ? entry.package_kind.trim() : '';
+    const codexVisibleEntry = typeof entry.codex_visible_entry === 'string' ? entry.codex_visible_entry.trim() : '';
+    if (!packageId || !displayName || !shortName || !role || !packageKind || !codexVisibleEntry) {
+      throw new Error(`Invalid OPL product profile: gui.professional_agent_packages[${index}] has blank fields`);
+    }
+    if (
+      entry.installed_manageable !== true ||
+      entry.required_skill_policy !== 'checked_locked' ||
+      entry.optional_skill_policy !== 'unchecked_user_selectable' ||
+      entry.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible'
+    ) {
+      throw new Error(`Invalid OPL product profile: professional agent package ${packageId} has unsupported policy`);
+    }
+    return {
+      package_id: packageId,
+      display_name: displayName,
+      short_name: shortName,
+      role,
+      package_kind: packageKind,
+      installed_manageable: true,
+      default_home_visible: entry.default_home_visible === true,
+      codex_visible_entry: codexVisibleEntry,
+      home_shortcut_ids: readStringArray(entry, 'home_shortcut_ids', `gui.professional_agent_packages.${packageId}`, {
+        allowEmpty: true,
+      }),
+      required_skill_ids: readStringArray(entry, 'required_skill_ids', `gui.professional_agent_packages.${packageId}`),
+      optional_skill_ids: readStringArray(entry, 'optional_skill_ids', `gui.professional_agent_packages.${packageId}`, {
+        allowEmpty: true,
+      }),
+      required_skill_policy: 'checked_locked',
+      optional_skill_policy: 'unchecked_user_selectable',
+      skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
+    };
+  });
+  const packageIds = packages.map((agentPackage) => agentPackage.package_id);
+  if (new Set(packageIds).size !== packageIds.length) {
+    throw new Error('Invalid OPL product profile: gui.professional_agent_packages must not contain duplicate ids');
+  }
+  for (const required of ['mas', 'mag', 'rca', 'bookforge', 'oma']) {
+    if (!packageIds.includes(required)) {
+      throw new Error(`Invalid OPL product profile: professional agent packages must include ${required}`);
+    }
+  }
+  return packages;
+}
+
 function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssistant[] {
   const value = gui.default_assistants;
   if (!Array.isArray(value) || value.length === 0) {
@@ -994,6 +1158,61 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
   return profiles;
 }
 
+function readAgentPackageInvocationReceiptPolicy(gui: Record<string, unknown>): OplAgentPackageInvocationReceiptPolicy {
+  const value = gui.agent_package_invocation_receipt_policy;
+  if (!isRecord(value)) {
+    throw new Error('Invalid OPL product profile: gui.agent_package_invocation_receipt_policy must be an object');
+  }
+  const requiredForShortcuts = readStringArray(
+    value,
+    'required_for_package_shortcuts',
+    'gui.agent_package_invocation_receipt_policy'
+  );
+  const requiredFields = readStringArray(value, 'required_fields', 'gui.agent_package_invocation_receipt_policy');
+  const mustNotGovern = readStringArray(value, 'must_not_govern', 'gui.agent_package_invocation_receipt_policy');
+  if (
+    value.scope !== 'package_shortcut_launch_to_codex_conversation' ||
+    value.route_kind !== 'agent_package_shortcut' ||
+    value.executor !== 'codex_cli' ||
+    value.source !== 'opl_app_home' ||
+    value.receipt_authority !== 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness' ||
+    value.must_not_depend_on_visible_backend_selection !== true
+  ) {
+    throw new Error('Invalid OPL product profile: agent package invocation receipt policy is unsupported');
+  }
+  for (const requiredField of [
+    'route_kind',
+    'executor',
+    'package_id',
+    'shortcut_id',
+    'codex_visible_entry',
+    'required_skill_ids',
+    'source',
+  ]) {
+    if (!requiredFields.includes(requiredField)) {
+      throw new Error(`Invalid OPL product profile: package invocation receipt policy must include ${requiredField}`);
+    }
+  }
+  for (const forbiddenAuthority of ['session_behavior', 'domain_workflow', 'domain_readiness']) {
+    if (!mustNotGovern.includes(forbiddenAuthority)) {
+      throw new Error(
+        `Invalid OPL product profile: package invocation receipt policy must not govern ${forbiddenAuthority}`
+      );
+    }
+  }
+  return {
+    scope: 'package_shortcut_launch_to_codex_conversation',
+    required_for_package_shortcuts: requiredForShortcuts,
+    route_kind: 'agent_package_shortcut',
+    executor: 'codex_cli',
+    source: 'opl_app_home',
+    required_fields: requiredFields,
+    receipt_authority: 'launch_fact_only_no_session_behavior_domain_workflow_or_readiness',
+    must_not_govern: mustNotGovern,
+    must_not_depend_on_visible_backend_selection: true,
+  };
+}
+
 function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): OplBuiltinAssistantRouteReceiptPolicy {
   const value = gui.builtin_assistant_route_receipt_policy;
   if (!isRecord(value)) {
@@ -1021,6 +1240,9 @@ function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): O
     }
   }
   return {
+    ...(value.migration_alias_for === 'agent_package_invocation_receipt_policy'
+      ? { migration_alias_for: 'agent_package_invocation_receipt_policy' as const }
+      : {}),
     scope: 'home_purpose_entry_to_conversation',
     required_for_assistants: requiredForAssistants,
     route_kind: 'builtin_capability',
@@ -1063,7 +1285,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
     value.authority !== 'app_owned_opl_allowlist' ||
-    value.skill_source_ref !== 'gui.assistant_skill_profiles.required_skills + optional_skills' ||
+    value.skill_source_ref !== 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids' ||
     value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
     value.conversation_loaded_skill_display_policy !== 'filter_to_ordinary_skill_allowlist' ||
     value.mcp_server_source_ref !== 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids' ||
@@ -1094,7 +1316,7 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   return {
     scope: 'home_composer_and_ordinary_conversation',
     authority: 'app_owned_opl_allowlist',
-    skill_source_ref: 'gui.assistant_skill_profiles.required_skills + optional_skills',
+    skill_source_ref: 'gui.professional_agent_packages.required_skill_ids + optional_skill_ids',
     skill_menu_policy: 'assistant_scoped_required_checked_optional_visible',
     conversation_loaded_skill_display_policy: 'filter_to_ordinary_skill_allowlist',
     mcp_server_source_ref: 'gui.ordinary_capability_selector_policy.visible_mcp_server_ids',
@@ -1385,7 +1607,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     frontierModelPreferenceOrder
   );
   const homePurposeEntries = readHomePurposeEntries(guiHome);
+  const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
+  const agentPackageInvocationReceiptPolicy = readAgentPackageInvocationReceiptPolicy(gui);
   const builtinAssistantRouteReceiptPolicy = readBuiltinAssistantRouteReceiptPolicy(gui);
   const ordinaryCapabilitySelectorPolicy = readOrdinaryCapabilitySelectorPolicy(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
@@ -1429,19 +1653,46 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const defaultHomeAssistants = readDefaultHomeAssistants(gui);
   const assistantSkillProfiles = readAssistantSkillProfiles(gui);
-  const defaultPackagedSkillSet = new Set(defaultPackagedCodexSkillIds);
-  for (const profile of assistantSkillProfiles) {
-    const unpackagedProfileSkills = [...profile.required_skills, ...profile.optional_skills].filter(
-      (skill) => !defaultPackagedSkillSet.has(skill)
+  const professionalAgentPackages = readProfessionalAgentPackages(gui);
+  const professionalPackageById = new Map(
+    professionalAgentPackages.map((agentPackage) => [agentPackage.package_id, agentPackage])
+  );
+  for (const shortcut of homeAgentShortcuts) {
+    const agentPackage = professionalPackageById.get(shortcut.package_id);
+    if (!agentPackage) {
+      throw new Error(
+        `Invalid OPL product profile: home shortcut ${shortcut.shortcut_id} references unknown package ${shortcut.package_id}`
+      );
+    }
+    if (
+      shortcut.codex_visible_entry !== agentPackage.codex_visible_entry ||
+      shortcut.package_short_name !== agentPackage.short_name ||
+      shortcut.required_skill_ids.join(',') !== agentPackage.required_skill_ids.join(',') ||
+      !agentPackage.home_shortcut_ids.includes(shortcut.shortcut_id)
+    ) {
+      throw new Error(`Invalid OPL product profile: home shortcut ${shortcut.shortcut_id} is not aligned to package`);
+    }
+  }
+  for (const requiredShortcut of homeAgentShortcuts.filter((shortcut) => shortcut.default_visible)) {
+    if (!agentPackageInvocationReceiptPolicy.required_for_package_shortcuts.includes(requiredShortcut.shortcut_id)) {
+      throw new Error(
+        `Invalid OPL product profile: package invocation receipt policy missing shortcut ${requiredShortcut.shortcut_id}`
+      );
+    }
+  }
+  const packagedSkillSet = new Set([...defaultPackagedCodexSkillIds, ...packagedNotDefaultVisibleCodexSkillIds]);
+  for (const agentPackage of professionalAgentPackages) {
+    const unpackagedProfileSkills = [...agentPackage.required_skill_ids, ...agentPackage.optional_skill_ids].filter(
+      (skill) => !packagedSkillSet.has(skill)
     );
     if (unpackagedProfileSkills.length > 0) {
       throw new Error(
-        `Invalid OPL product profile: assistant ${profile.assistant_id} references unpackaged skills: ${unpackagedProfileSkills.join(', ')}`
+        `Invalid OPL product profile: agent package ${agentPackage.package_id} references unpackaged skills: ${unpackagedProfileSkills.join(', ')}`
       );
     }
-    if (profile.optional_skills.includes('morph-ppt')) {
+    if (agentPackage.optional_skill_ids.includes('morph-ppt')) {
       throw new Error(
-        `Invalid OPL product profile: assistant ${profile.assistant_id} must not expose retired morph-ppt`
+        `Invalid OPL product profile: agent package ${agentPackage.package_id} must not expose retired morph-ppt`
       );
     }
   }
@@ -1529,10 +1780,13 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         },
         codex_model_display_options: codexModelDisplayOptions,
         home_purpose_entries: homePurposeEntries,
+        home_agent_shortcuts: homeAgentShortcuts,
         retired_codex_models_must_not_be_exposed: retiredCodexModels,
       },
+      agent_package_invocation_receipt_policy: agentPackageInvocationReceiptPolicy,
       builtin_assistant_route_receipt_policy: builtinAssistantRouteReceiptPolicy,
       ordinary_capability_selector_policy: ordinaryCapabilitySelectorPolicy,
+      professional_agent_packages: professionalAgentPackages,
       default_assistants: defaultHomeAssistants,
       assistant_skill_profiles: assistantSkillProfiles,
       non_default_assistants: nonDefaultAssistants,
@@ -1891,12 +2145,50 @@ export function getOplDefaultHomeAssistants(): OplHomeAssistant[] {
   }));
 }
 
-export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
-  return OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.map((profile) => ({
-    ...profile,
-    required_skills: [...profile.required_skills],
-    optional_skills: [...profile.optional_skills],
+export function getOplHomeAgentShortcuts(): OplHomeAgentShortcut[] {
+  return OPL_PRODUCT_PROFILE.gui.home.home_agent_shortcuts.map((shortcut) => ({
+    ...shortcut,
+    required_skill_ids: [...shortcut.required_skill_ids],
   }));
+}
+
+export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[] {
+  return OPL_PRODUCT_PROFILE.gui.professional_agent_packages.map((agentPackage) => ({
+    ...agentPackage,
+    home_shortcut_ids: [...agentPackage.home_shortcut_ids],
+    required_skill_ids: [...agentPackage.required_skill_ids],
+    optional_skill_ids: [...agentPackage.optional_skill_ids],
+  }));
+}
+
+export function getOplProfessionalAgentPackage(packageId: string): OplProfessionalAgentPackage | undefined {
+  const normalizedId = packageId
+    .replace(/^builtin-/, '')
+    .trim()
+    .toLowerCase();
+  const agentPackage = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.find(
+    (entry) => entry.package_id === normalizedId
+  );
+  if (!agentPackage) return undefined;
+  return {
+    ...agentPackage,
+    home_shortcut_ids: [...agentPackage.home_shortcut_ids],
+    required_skill_ids: [...agentPackage.required_skill_ids],
+    optional_skill_ids: [...agentPackage.optional_skill_ids],
+  };
+}
+
+export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
+  return OPL_PRODUCT_PROFILE.gui.professional_agent_packages
+    .filter((agentPackage) => agentPackage.default_home_visible)
+    .map((agentPackage) => ({
+      assistant_id: agentPackage.package_id,
+      required_skills: [...agentPackage.required_skill_ids],
+      optional_skills: [...agentPackage.optional_skill_ids],
+      required_skill_policy: agentPackage.required_skill_policy,
+      optional_skill_policy: agentPackage.optional_skill_policy,
+      skill_menu_policy: agentPackage.skill_menu_policy,
+    }));
 }
 
 export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSkillProfile | undefined {
@@ -1904,12 +2196,25 @@ export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSk
     .replace(/^builtin-/, '')
     .trim()
     .toLowerCase();
-  const profile = OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.find((entry) => entry.assistant_id === normalizedId);
-  if (!profile) return undefined;
+  const agentPackage = getOplProfessionalAgentPackage(normalizedId);
+  if (!agentPackage) return undefined;
   return {
-    ...profile,
-    required_skills: [...profile.required_skills],
-    optional_skills: [...profile.optional_skills],
+    assistant_id: agentPackage.package_id,
+    required_skills: [...agentPackage.required_skill_ids],
+    optional_skills: [...agentPackage.optional_skill_ids],
+    required_skill_policy: agentPackage.required_skill_policy,
+    optional_skill_policy: agentPackage.optional_skill_policy,
+    skill_menu_policy: agentPackage.skill_menu_policy,
+  };
+}
+
+export function getOplAgentPackageInvocationReceiptPolicy(): OplAgentPackageInvocationReceiptPolicy {
+  const policy = OPL_PRODUCT_PROFILE.gui.agent_package_invocation_receipt_policy;
+  return {
+    ...policy,
+    required_for_package_shortcuts: [...policy.required_for_package_shortcuts],
+    required_fields: [...policy.required_fields],
+    must_not_govern: [...policy.must_not_govern],
   };
 }
 
@@ -1940,9 +2245,9 @@ export function getOplOrdinaryCapabilitySelectorPolicy(): OplOrdinaryCapabilityS
 }
 
 export function getOplOrdinarySkillAllowlist(): string[] {
-  const skills = OPL_PRODUCT_PROFILE.gui.assistant_skill_profiles.flatMap((profile) => [
-    ...profile.required_skills,
-    ...profile.optional_skills,
+  const skills = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.flatMap((agentPackage) => [
+    ...agentPackage.required_skill_ids,
+    ...agentPackage.optional_skill_ids,
   ]);
   return Array.from(new Set(skills));
 }

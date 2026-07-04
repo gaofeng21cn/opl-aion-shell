@@ -143,6 +143,22 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     ]);
     expect(payload.extra.selected_mcp_server_ids).toEqual([]);
     expect(payload.extra.selected_session_mcp_servers).toEqual([]);
+    expect(payload.extra.opl_agent_package_invocation).toEqual({
+      route_kind: 'agent_package_shortcut',
+      executor: 'codex_cli',
+      package_id: 'mas',
+      shortcut_id: 'research',
+      codex_visible_entry: 'mas',
+      required_skill_ids: ['mas'],
+      source: 'opl_app_home',
+    });
+    expect(payload.extra.opl_assistant_route).toMatchObject({
+      route_kind: 'builtin_capability',
+      executor: 'codex_cli',
+      assistant_id: 'mas',
+      assistant_short_name: 'MAS',
+      source: 'opl_app_home',
+    });
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
   });
 });

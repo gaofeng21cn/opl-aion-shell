@@ -5,9 +5,9 @@
  */
 
 import {
-  getOplAssistantSkillProfile,
-  getOplDefaultHomeAssistants,
-  type OplHomeAssistant,
+  getOplHomeAgentShortcuts,
+  getOplProfessionalAgentPackages,
+  type OplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
 import type { OplAppStateRecord } from '@/common/types/opl/appState';
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
@@ -22,6 +22,14 @@ export type CapabilityPurposeViewModel = {
   description: string;
   tags: string[];
   moduleIds: string[];
+  packageId: string | null;
+  codexVisibleEntry: string | null;
+  defaultHomeVisible: boolean | null;
+  userConfigurable: boolean | null;
+  sourceKind: string | null;
+  packageLockRef: string | null;
+  actionReceiptRef: string | null;
+  rollbackRef: string | null;
   status: CapabilityStatus;
   codexVisibility: CapabilityCodexVisibility;
   version: string | null;
@@ -46,6 +54,14 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'lastSync'
   | 'failureReason'
   | 'workflowCandidateRefs'
+  | 'packageId'
+  | 'codexVisibleEntry'
+  | 'defaultHomeVisible'
+  | 'userConfigurable'
+  | 'sourceKind'
+  | 'packageLockRef'
+  | 'actionReceiptRef'
+  | 'rollbackRef'
   | 'workflowRefs'
   | 'connectorReadinessRefs'
   | 'connectorReadinessGroups'
@@ -530,6 +546,58 @@ function capabilityFailureReason(module: RuntimeModuleItem | undefined): string 
   );
 }
 
+function capabilitySourceKind(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const sourcePolicy = oplRecord(module.source_policy);
+  return firstString(module.source_kind, module.source_type, sourcePolicy.kind, sourcePolicy.source, sourcePolicy.mode);
+}
+
+function capabilityPackageLockRef(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const packageLock = oplRecord(module.package_lock);
+  const lockReceipt = oplRecord(module.lock_receipt);
+  return (
+    refValue(module.package_lock_ref) ??
+    refValue(module.lock_ref) ??
+    refValue(packageLock) ??
+    refValue(lockReceipt) ??
+    firstString(packageLock.receipt_id, lockReceipt.receipt_id)
+  );
+}
+
+function capabilityActionReceiptRef(
+  module: RuntimeModuleItem | undefined,
+  task: RuntimeTaskItem | undefined
+): string | null {
+  const moduleReceipt = oplRecord(module?.action_receipt);
+  const taskReceipt = oplRecord(task?.action_receipt);
+  return (
+    refValue(module?.action_receipt_ref) ??
+    refValue(task?.action_receipt_ref) ??
+    refValue(moduleReceipt) ??
+    refValue(taskReceipt) ??
+    firstString(
+      moduleReceipt.receipt_id,
+      moduleReceipt.latest_receipt_ref,
+      moduleReceipt.execute_receipt_ref,
+      taskReceipt.receipt_id,
+      taskReceipt.latest_receipt_ref,
+      taskReceipt.execute_receipt_ref
+    )
+  );
+}
+
+function capabilityRollbackRef(module: RuntimeModuleItem | undefined): string | null {
+  if (!module) return null;
+  const rollback = oplRecord(module.rollback);
+  return (
+    refValue(module.rollback_ref) ??
+    refValue(module.rollback_receipt_ref) ??
+    refValue(rollback) ??
+    firstString(rollback.ref, rollback.receipt_id)
+  );
+}
+
 function buildCapabilityPurpose(
   purpose: Omit<
     CapabilityPurposeViewModel,
@@ -540,13 +608,24 @@ function buildCapabilityPurpose(
     | 'lastSync'
     | 'failureReason'
     | 'workflowCandidateRefs'
+    | 'packageId'
+    | 'codexVisibleEntry'
+    | 'defaultHomeVisible'
+    | 'userConfigurable'
+    | 'sourceKind'
+    | 'packageLockRef'
+    | 'actionReceiptRef'
+    | 'rollbackRef'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
     | 'connectorReadinessGroups'
     | 'resourceContextRefs'
     | 'resourceContextGroups'
     | 'exportBundleAction'
-  >,
+  > &
+    Partial<
+      Pick<CapabilityPurposeViewModel, 'packageId' | 'codexVisibleEntry' | 'defaultHomeVisible' | 'userConfigurable'>
+    >,
   module: RuntimeModuleItem | undefined,
   task: RuntimeTaskItem | undefined
 ): CapabilityPurposeViewModel {
@@ -573,6 +652,14 @@ function buildCapabilityPurpose(
   ]);
   return {
     ...purpose,
+    packageId: purpose.packageId ?? null,
+    codexVisibleEntry: purpose.codexVisibleEntry ?? null,
+    defaultHomeVisible: purpose.defaultHomeVisible ?? null,
+    userConfigurable: purpose.userConfigurable ?? null,
+    sourceKind: capabilitySourceKind(module),
+    packageLockRef: capabilityPackageLockRef(module),
+    actionReceiptRef: capabilityActionReceiptRef(module, task),
+    rollbackRef: capabilityRollbackRef(module),
     status,
     codexVisibility: capabilityCodexVisibility(module, status),
     version: capabilityVersion(module),
@@ -589,20 +676,19 @@ function buildCapabilityPurpose(
   };
 }
 
-function assistantModuleIds(assistant: OplHomeAssistant): string[] {
-  const profile = getOplAssistantSkillProfile(assistant.id);
+function agentPackageModuleIds(agentPackage: OplProfessionalAgentPackage): string[] {
   const ids = [
-    assistant.id,
-    assistant.short_name,
-    ...(profile?.required_skills ?? []),
-    ...(ASSISTANT_MODULE_ALIASES[assistant.id] ?? []),
+    agentPackage.package_id,
+    agentPackage.short_name,
+    agentPackage.codex_visible_entry,
+    ...agentPackage.required_skill_ids,
+    ...(ASSISTANT_MODULE_ALIASES[agentPackage.package_id] ?? []),
   ];
   return [...new Set(ids.map(normalizeCapabilityModuleId).filter(Boolean))];
 }
 
-function assistantTags(assistant: OplHomeAssistant): string[] {
-  const profile = getOplAssistantSkillProfile(assistant.id);
-  return [...new Set([assistant.short_name, ...(profile?.required_skills ?? [])].filter(Boolean))];
+function agentPackageTags(agentPackage: OplProfessionalAgentPackage): string[] {
+  return [...new Set([agentPackage.short_name, ...agentPackage.required_skill_ids].filter(Boolean))];
 }
 
 export function buildCapabilitiesViewModel(
@@ -620,18 +706,24 @@ export function buildCapabilitiesViewModel(
     tasks.set(capabilityTaskId(task), task);
   }
 
-  const defaultPurposes = getOplDefaultHomeAssistants().map((assistant) => {
-    const moduleIds = assistantModuleIds(assistant);
+  const shortcutsByPackageId = new Map(getOplHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut]));
+  const defaultPurposes = getOplProfessionalAgentPackages().map((agentPackage) => {
+    const moduleIds = agentPackageModuleIds(agentPackage);
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
+    const shortcut = shortcutsByPackageId.get(agentPackage.package_id);
     return buildCapabilityPurpose(
       {
-        key: assistant.id,
-        title: assistant.home_purpose_label,
+        key: agentPackage.package_id,
+        title: shortcut?.primary_label ?? agentPackage.display_name,
         description:
-          assistant.description_i18n[localeKey] ?? assistant.description_i18n['en-US'] ?? assistant.display_name,
-        tags: assistantTags(assistant),
+          localeKey === 'zh-CN' && shortcut?.primary_label ? shortcut.primary_label : agentPackage.display_name,
+        tags: agentPackageTags(agentPackage),
         moduleIds,
+        packageId: agentPackage.package_id,
+        codexVisibleEntry: agentPackage.codex_visible_entry,
+        defaultHomeVisible: agentPackage.default_home_visible,
+        userConfigurable: shortcut?.user_configurable ?? false,
       },
       module,
       task

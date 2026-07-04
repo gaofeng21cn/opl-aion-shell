@@ -9,74 +9,18 @@ import {
   getOplAssistantSkillProfile,
   getOplDefaultExecutorAgentKey,
   getOplDefaultHomeAssistants,
+  getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
 import { OPL_HOME_PURPOSE_ASSISTANT_IDS, resolveOplHomePurposePresentation } from './utils/oplHomeAssistants';
 import type { AvailableAgent } from './types';
 
-const OPL_FOUNDRY_ASSISTANT_PROFILES = [
-  {
-    id: 'mas',
-    moduleId: 'medautoscience',
-    name: 'MAS',
-    name_i18n: {
-      'en-US': 'Research',
-      'zh-CN': '医学研究',
-    },
-    description:
-      'Advance research tasks, manuscript writing, reviewer responses, submission packages, and study progress.',
-    description_i18n: {
-      'en-US': 'Plan research tasks, organize evidence, and prepare manuscripts.',
-      'zh-CN': '规划医学研究任务，整理证据，推进分析和论文准备。',
-    },
-    avatar: '🧪',
-  },
-  {
-    id: 'mag',
-    moduleId: 'medautogrant',
-    name: 'MAG',
-    name_i18n: {
-      'en-US': 'Grants',
-      'zh-CN': '基金申请',
-    },
-    description:
-      'Advance grant topics, proposal structure, application writing, budget narratives, and reviewer responses.',
-    description_i18n: {
-      'en-US': 'Develop grant directions, proposals, critiques, and revision packages.',
-      'zh-CN': '辅助基金方向设计、申请书撰写、评审意见回应和修改材料准备。',
-    },
-    avatar: '📝',
-  },
-  {
-    id: 'rca',
-    moduleId: 'redcube',
-    name: 'RCA',
-    name_i18n: {
-      'en-US': 'Slides',
-      'zh-CN': '汇报材料',
-    },
-    description: 'Advance slide decks, reports, figures, visual deliverables, and presentation materials.',
-    description_i18n: {
-      'en-US': 'Create and polish slide decks, scripts, posters, and visual deliverables.',
-      'zh-CN': '制作和打磨幻灯片、讲稿、海报和其他视觉交付物。',
-    },
-    avatar: '📊',
-  },
-  {
-    id: 'oma',
-    moduleId: 'oplmetaagent',
-    name: 'OMA',
-    name_i18n: {
-      'en-US': 'Agent Lab',
-      'zh-CN': '智能体开发',
-    },
-    description: 'Design, test, and improve OPL-compatible Foundry Agents.',
-    description_i18n: {
-      'en-US': 'Design, test, and improve OPL-compatible Foundry Agents.',
-      'zh-CN': '设计、测试和改进 OPL 兼容的 Foundry Agent。',
-    },
-    avatar: '🛠️',
-  },
-] as const;
+const OPL_PACKAGE_MODULE_IDS: Record<string, string[]> = {
+  mas: ['medautoscience', 'med-auto-science'],
+  mag: ['medautogrant', 'med-auto-grant'],
+  rca: ['redcube', 'redcubeai', 'redcube-ai'],
+  bookforge: ['oplbookforge', 'opl-bookforge'],
+  oma: ['oplmetaagent', 'opl-meta-agent'],
+};
 
 function getAgentBackend(agent: Pick<AvailableAgent, 'backend' | 'agent_type'>): string {
   return agent.backend || agent.agent_type;
@@ -107,26 +51,24 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
       .filter((assistant) => OPL_HOME_PURPOSE_ASSISTANT_IDS.includes(assistant.id))
       .map((assistant) => [assistant.id, assistant])
   );
-  return OPL_FOUNDRY_ASSISTANT_PROFILES.filter((profile) => appAssistants.has(profile.id))
-    .map((profile) => {
-      const appAssistant = appAssistants.get(profile.id);
+  return getOplProfessionalAgentPackages()
+    .filter((agentPackage) => OPL_HOME_PURPOSE_ASSISTANT_IDS.includes(agentPackage.package_id))
+    .map((agentPackage) => {
+      const appAssistant = appAssistants.get(agentPackage.package_id);
       const presentation = resolveOplHomePurposePresentation(
-        profile.id,
-        appAssistant?.short_name ?? profile.name,
-        appAssistant?.avatar ?? profile.avatar
+        agentPackage.package_id,
+        appAssistant?.short_name ?? agentPackage.short_name,
+        appAssistant?.avatar ?? agentPackage.short_name
       );
-      const skillProfile = getOplAssistantSkillProfile(profile.id);
+      const skillProfile = getOplAssistantSkillProfile(agentPackage.package_id);
       return {
-        ...profile,
+        id: agentPackage.package_id,
         name: presentation.name,
-        name_i18n: {
-          ...profile.name_i18n,
-          ...presentation.name_i18n,
-        },
-        description: appAssistant?.description_i18n['en-US'] ?? profile.description,
-        description_i18n: {
-          ...profile.description_i18n,
-          ...appAssistant?.description_i18n,
+        name_i18n: presentation.name_i18n,
+        description: appAssistant?.description_i18n['en-US'] ?? agentPackage.display_name,
+        description_i18n: appAssistant?.description_i18n ?? {
+          'en-US': agentPackage.display_name,
+          'zh-CN': agentPackage.display_name,
         },
         avatar: presentation.avatar,
         enabled_skills: skillProfile?.required_skills ?? [],
@@ -155,9 +97,9 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
 
 export function getOplFoundryModuleIds(): string[] {
   const allowed = new Set(OPL_HOME_PURPOSE_ASSISTANT_IDS);
-  const profileModules = OPL_FOUNDRY_ASSISTANT_PROFILES.filter((profile) => allowed.has(profile.id)).map(
-    (profile) => profile.moduleId
-  );
+  const profileModules = getOplProfessionalAgentPackages()
+    .filter((agentPackage) => allowed.has(agentPackage.package_id))
+    .flatMap((agentPackage) => OPL_PACKAGE_MODULE_IDS[agentPackage.package_id] ?? [agentPackage.package_id]);
   return Array.from(new Set(profileModules));
 }
 

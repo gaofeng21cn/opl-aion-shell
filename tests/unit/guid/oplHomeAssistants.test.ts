@@ -38,9 +38,14 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', 'PPT']);
-    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual(['Research', 'Grants', 'PPT']);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
+    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
+      'Med Auto Science',
+      'Med Auto Grant',
+      'RedCube AI',
+      'OPL BookForge',
+    ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
     expect(resolved.map((item) => item.id)).not.toEqual(expect.arrayContaining(['cowork', 'mds']));
     expect(resolved.map((item) => item.id)).not.toContain('oma');
@@ -51,6 +56,7 @@ describe('OPL home assistants', () => {
       mas: ['mas'],
       mag: ['mag'],
       rca: ['rca'],
+      bookforge: ['opl-bookforge'],
     });
   });
 
@@ -59,11 +65,16 @@ describe('OPL home assistants', () => {
       assistant({ id: 'mas', name: 'Med Auto Science', name_i18n: { 'zh-CN': 'Med Auto Science' } }),
     ]);
 
-    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca']);
-    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', 'PPT']);
-    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual(['Research', 'Grants', 'PPT']);
-    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca']);
-    expect(resolved.map((item) => item.enabled_skills)).toEqual([['mas'], ['mag'], ['rca']]);
+    expect(resolved.map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
+    expect(resolved.map((item) => item.name_i18n['zh-CN'])).toEqual(['科研', '基金', '演示', '写书']);
+    expect(resolved.map((item) => item.name_i18n['en-US'])).toEqual([
+      'Med Auto Science',
+      'Med Auto Grant',
+      'RedCube AI',
+      'OPL BookForge',
+    ]);
+    expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual(['mas', 'mag', 'rca', 'bookforge']);
+    expect(resolved.map((item) => item.enabled_skills)).toEqual([['mas'], ['mag'], ['rca'], ['opl-bookforge']]);
   });
 
   it('keeps caller-added assistant skills while forcing the required profile skill', () => {

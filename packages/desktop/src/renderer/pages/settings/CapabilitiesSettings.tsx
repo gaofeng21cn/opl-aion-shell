@@ -81,6 +81,56 @@ function capabilityDetailRows(
       value: t(`settings.capabilitiesPage.codexVisibility.${item.codexVisibility}`),
     },
     {
+      key: 'packageId',
+      label: t('settings.capabilitiesPage.detailLabels.packageId'),
+      value: item.packageId ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'codexVisibleEntry',
+      label: t('settings.capabilitiesPage.detailLabels.codexVisibleEntry'),
+      value: item.codexVisibleEntry ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'defaultHomeVisible',
+      label: t('settings.capabilitiesPage.detailLabels.defaultHomeVisible'),
+      value:
+        item.defaultHomeVisible === null
+          ? t('settings.capabilitiesPage.detailValues.notReported')
+          : item.defaultHomeVisible
+            ? t('settings.capabilitiesPage.detailValues.yes')
+            : t('settings.capabilitiesPage.detailValues.no'),
+    },
+    {
+      key: 'userConfigurable',
+      label: t('settings.capabilitiesPage.detailLabels.userConfigurable'),
+      value:
+        item.userConfigurable === null
+          ? t('settings.capabilitiesPage.detailValues.notReported')
+          : item.userConfigurable
+            ? t('settings.capabilitiesPage.detailValues.yes')
+            : t('settings.capabilitiesPage.detailValues.no'),
+    },
+    {
+      key: 'sourceKind',
+      label: t('settings.capabilitiesPage.detailLabels.sourceKind'),
+      value: item.sourceKind ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'packageLockRef',
+      label: t('settings.capabilitiesPage.detailLabels.packageLockRef'),
+      value: item.packageLockRef ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'actionReceiptRef',
+      label: t('settings.capabilitiesPage.detailLabels.actionReceiptRef'),
+      value: item.actionReceiptRef ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'rollbackRef',
+      label: t('settings.capabilitiesPage.detailLabels.rollbackRef'),
+      value: item.rollbackRef ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
       key: 'version',
       label: t('settings.capabilitiesPage.detailLabels.version'),
       value: item.version ?? t('settings.capabilitiesPage.detailValues.notReported'),

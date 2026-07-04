@@ -5,12 +5,15 @@ import {
   getOplCodexDefaultPermissionMode,
   getOplCodexModelDisplayOptions,
   getOplFlowContextPolicy,
+  getOplAgentPackageInvocationReceiptPolicy,
   getOplProductDisplayName,
   getOplAssistantSkillProfile,
   getOplAssistantSkillProfiles,
   getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
   getOplDefaultExecutorAgentKey,
+  getOplHomeAgentShortcuts,
+  getOplProfessionalAgentPackages,
   getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
   getOplDefaultCodexSkills,
@@ -294,6 +297,40 @@ describe('OPL generated product profile', () => {
     expect(
       OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.every((entry) => entry.display_policy === 'purpose_first')
     ).toBe(true);
+    expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.shortcut_id)).toEqual([
+      'research',
+      'grant',
+      'ppt',
+      'book',
+    ]);
+    expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.package_id)).toEqual([
+      'mas',
+      'mag',
+      'rca',
+      'bookforge',
+    ]);
+    expect(getOplHomeAgentShortcuts().every((shortcut) => shortcut.user_configurable)).toBe(true);
+    expect(getOplProfessionalAgentPackages().map((agentPackage) => agentPackage.package_id)).toEqual([
+      'mas',
+      'mag',
+      'rca',
+      'bookforge',
+      'oma',
+    ]);
+    expect(
+      Object.fromEntries(
+        getOplProfessionalAgentPackages().map((agentPackage) => [
+          agentPackage.package_id,
+          agentPackage.codex_visible_entry,
+        ])
+      )
+    ).toMatchObject({
+      mas: 'mas',
+      mag: 'mag',
+      rca: 'rca',
+      bookforge: 'opl-bookforge',
+      oma: 'opl-meta-agent',
+    });
     expect(assistants.every((assistant) => assistant.home_entry_display_policy === 'purpose_first')).toBe(true);
     expect(assistants.every((assistant) => assistant.home_entry_policy === 'purpose_entry_target')).toBe(true);
     expect(assistants.map((assistant) => assistant.id)).not.toEqual(expect.arrayContaining(['mds', 'cowork']));
@@ -336,8 +373,26 @@ describe('OPL generated product profile', () => {
   });
 
   it('exposes the built-in assistant route receipt policy', () => {
+    const packagePolicy = getOplAgentPackageInvocationReceiptPolicy();
+    expect(packagePolicy.required_for_package_shortcuts).toEqual(['research', 'grant', 'ppt', 'book']);
+    expect(packagePolicy.route_kind).toBe('agent_package_shortcut');
+    expect(packagePolicy.executor).toBe('codex_cli');
+    expect(packagePolicy.source).toBe('opl_app_home');
+    expect(packagePolicy.required_fields).toEqual([
+      'route_kind',
+      'executor',
+      'package_id',
+      'shortcut_id',
+      'codex_visible_entry',
+      'required_skill_ids',
+      'source',
+    ]);
+    expect(packagePolicy.receipt_authority).toBe('launch_fact_only_no_session_behavior_domain_workflow_or_readiness');
+    expect(packagePolicy.must_not_govern).toEqual(['session_behavior', 'domain_workflow', 'domain_readiness']);
+
     const policy = getOplBuiltinAssistantRouteReceiptPolicy();
 
+    expect(policy.migration_alias_for).toBe('agent_package_invocation_receipt_policy');
     expect(policy.required_for_assistants).toEqual(['mas', 'mag', 'rca', 'bookforge']);
     expect(policy.route_kind).toBe('builtin_capability');
     expect(policy.executor).toBe('codex_cli');

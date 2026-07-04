@@ -8,8 +8,11 @@ import { ipcBridge } from '@/common';
 import {
   filterOplOrdinaryMcpServers,
   filterOplOrdinarySkillNames,
+  getOplAgentPackageInvocationReceiptPolicy,
   getOplBuiltinAssistantRouteReceiptPolicy,
   getOplDefaultHomeAssistants,
+  getOplHomeAgentShortcuts,
+  getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
@@ -29,6 +32,16 @@ type OplAssistantRouteReceipt = {
   executor: string;
   assistant_id: string;
   assistant_short_name: string;
+  source: string;
+};
+
+type OplAgentPackageInvocationReceipt = {
+  route_kind: string;
+  executor: string;
+  package_id: string;
+  shortcut_id: string;
+  codex_visible_entry: string;
+  required_skill_ids: string[];
   source: string;
 };
 
@@ -114,6 +127,32 @@ function buildOplAssistantRouteReceipt(
   };
 }
 
+function buildOplAgentPackageInvocationReceipt(
+  isPreset: boolean,
+  agentInfo: { custom_agent_id?: string } | undefined
+): OplAgentPackageInvocationReceipt | undefined {
+  if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
+  const packageId = agentInfo.custom_agent_id
+    .replace(/^builtin-/, '')
+    .trim()
+    .toLowerCase();
+  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === packageId && entry.default_visible);
+  if (!shortcut) return undefined;
+  const policy = getOplAgentPackageInvocationReceiptPolicy();
+  if (!policy.required_for_package_shortcuts.includes(shortcut.shortcut_id)) return undefined;
+  const agentPackage = getOplProfessionalAgentPackage(packageId);
+  if (!agentPackage) return undefined;
+  return {
+    route_kind: policy.route_kind,
+    executor: policy.executor,
+    package_id: agentPackage.package_id,
+    shortcut_id: shortcut.shortcut_id,
+    codex_visible_entry: agentPackage.codex_visible_entry,
+    required_skill_ids: [...agentPackage.required_skill_ids],
+    source: policy.source,
+  };
+}
+
 /**
  * Hook that manages the send logic for ACP and Aion CLI conversations.
  */
@@ -183,6 +222,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         : undefined;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
     const oplAssistantRoute = buildOplAssistantRouteReceipt(is_preset, agentInfo);
+    const oplAgentPackageInvocation = buildOplAgentPackageInvocationReceipt(is_preset, agentInfo);
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
     const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
     const selectedUserMcpServerIds = visibleMcpServers
@@ -223,6 +263,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           },
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_agent_package_invocation: oplAgentPackageInvocation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -272,6 +313,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           default_files: files,
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_agent_package_invocation: oplAgentPackageInvocation,
           opl_assistant_route: oplAssistantRoute,
         },
       });
@@ -322,6 +364,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             preset_rules: is_preset ? preset_rules : undefined,
             preset_enabled_skills: enabled_skills_to_send,
             exclude_auto_inject_skills: excludeBuiltinSkills,
+            opl_agent_package_invocation: oplAgentPackageInvocation,
             opl_assistant_route: oplAssistantRoute,
             selected_mcp_server_ids: selectedUserMcpServerIds,
             // aionrs should consume the authoritative session snapshot, just
@@ -409,6 +452,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         extra: {
           default_files: files,
           exclude_auto_inject_skills: excludeBuiltinSkills,
+          opl_agent_package_invocation: oplAgentPackageInvocation,
           opl_assistant_route: oplAssistantRoute,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,

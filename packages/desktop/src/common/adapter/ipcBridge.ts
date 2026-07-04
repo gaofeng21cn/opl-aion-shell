@@ -1784,6 +1784,15 @@ export interface ICreateConversationParams {
       assistant_short_name: string;
       source: string;
     };
+    opl_agent_package_invocation?: {
+      route_kind: string;
+      executor: string;
+      package_id: string;
+      shortcut_id: string;
+      codex_visible_entry: string;
+      required_skill_ids: string[];
+      source: string;
+    };
     opl_flow_context?: {
       flow_id: string;
       source: string;

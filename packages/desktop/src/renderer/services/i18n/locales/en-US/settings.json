@@ -1678,6 +1678,14 @@
     "detailLabels": {
       "purpose": "Purpose",
       "codexVisibility": "Codex visibility",
+      "packageId": "Package ID",
+      "codexVisibleEntry": "Codex entry",
+      "defaultHomeVisible": "Default Home shortcut",
+      "userConfigurable": "User configurable",
+      "sourceKind": "Source kind",
+      "packageLockRef": "Package lock receipt",
+      "actionReceiptRef": "Action receipt",
+      "rollbackRef": "Rollback ref",
       "version": "Version",
       "source": "Source",
       "lastSync": "Last sync",
@@ -1689,7 +1697,9 @@
     },
     "detailValues": {
       "notReported": "Not reported",
-      "none": "None"
+      "none": "None",
+      "yes": "Yes",
+      "no": "No"
     },
     "candidateReports": {
       "title": "Candidate reports",

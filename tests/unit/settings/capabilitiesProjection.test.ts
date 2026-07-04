@@ -2,16 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabilitiesProjection';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
-  getOplDefaultHomeAssistants: () => [
+  getOplHomeAgentShortcuts: () => [
     {
-      id: 'mas',
-      display_name: 'Med Auto Science',
-      short_name: 'MAS',
-      home_purpose_label: 'Research',
-      description_i18n: { 'en-US': 'Research workflows.' },
+      shortcut_id: 'research',
+      package_id: 'mas',
+      primary_label: 'Research',
+      user_configurable: true,
+      default_visible: true,
     },
   ],
-  getOplAssistantSkillProfile: () => ({ required_skills: ['mas'] }),
+  getOplProfessionalAgentPackages: () => [
+    {
+      package_id: 'mas',
+      display_name: 'Med Auto Science',
+      short_name: 'MAS',
+      codex_visible_entry: 'mas',
+      default_home_visible: true,
+      required_skill_ids: ['mas'],
+      optional_skill_ids: [],
+    },
+  ],
 }));
 
 describe('buildCapabilitiesViewModel', () => {

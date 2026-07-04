@@ -114,45 +114,74 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/common/config/oplProductProfile')>();
   return {
     ...actual,
-    getOplDefaultHomeAssistants: () => [
+    getOplHomeAgentShortcuts: () => [
       {
-        id: 'mas',
-        display_name: 'Med Auto Science',
-        short_name: 'MAS',
-        home_purpose_label: 'Research',
-        description_i18n: { 'en-US': 'Use MAS for research workflows.' },
+        shortcut_id: 'research',
+        package_id: 'mas',
+        primary_label: 'Research',
+        user_configurable: true,
+        default_visible: true,
       },
       {
-        id: 'mag',
-        display_name: 'Med Auto Grant',
-        short_name: 'MAG',
-        home_purpose_label: 'Grant Writing',
-        description_i18n: { 'en-US': 'Use MAG for grant workflows.' },
+        shortcut_id: 'grant',
+        package_id: 'mag',
+        primary_label: 'Grant Writing',
+        user_configurable: true,
+        default_visible: true,
       },
       {
-        id: 'rca',
-        display_name: 'RedCube AI',
-        short_name: 'RCA',
-        home_purpose_label: 'Presentations',
-        description_i18n: { 'en-US': 'Use RCA for presentation workflows.' },
+        shortcut_id: 'ppt',
+        package_id: 'rca',
+        primary_label: 'Presentations',
+        user_configurable: true,
+        default_visible: true,
       },
       {
-        id: 'bookforge',
-        display_name: 'OPL BookForge',
-        short_name: 'BookForge',
-        home_purpose_label: 'Writing books',
-        description_i18n: { 'en-US': 'Use BookForge for manuscripts.' },
+        shortcut_id: 'book',
+        package_id: 'bookforge',
+        primary_label: 'Writing books',
+        user_configurable: true,
+        default_visible: true,
       },
     ],
-    getOplAssistantSkillProfile: (assistantId: string) => {
-      const profiles: Record<string, { required_skills: string[] }> = {
-        mas: { required_skills: ['mas'] },
-        mag: { required_skills: ['mag'] },
-        rca: { required_skills: ['rca'] },
-        bookforge: { required_skills: ['opl-bookforge'] },
-      };
-      return profiles[assistantId];
-    },
+    getOplProfessionalAgentPackages: () => [
+      {
+        package_id: 'mas',
+        display_name: 'Med Auto Science',
+        short_name: 'MAS',
+        codex_visible_entry: 'mas',
+        default_home_visible: true,
+        required_skill_ids: ['mas'],
+        optional_skill_ids: [],
+      },
+      {
+        package_id: 'mag',
+        display_name: 'Med Auto Grant',
+        short_name: 'MAG',
+        codex_visible_entry: 'mag',
+        default_home_visible: true,
+        required_skill_ids: ['mag'],
+        optional_skill_ids: [],
+      },
+      {
+        package_id: 'rca',
+        display_name: 'RedCube AI',
+        short_name: 'RCA',
+        codex_visible_entry: 'rca',
+        default_home_visible: true,
+        required_skill_ids: ['rca'],
+        optional_skill_ids: [],
+      },
+      {
+        package_id: 'bookforge',
+        display_name: 'OPL BookForge',
+        short_name: 'BookForge',
+        codex_visible_entry: 'opl-bookforge',
+        default_home_visible: true,
+        required_skill_ids: ['opl-bookforge'],
+        optional_skill_ids: [],
+      },
+    ],
   };
 });
 
@@ -175,6 +204,14 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
         'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
+        'settings.capabilitiesPage.detailLabels.packageId': 'Package ID',
+        'settings.capabilitiesPage.detailLabels.codexVisibleEntry': 'Codex entry',
+        'settings.capabilitiesPage.detailLabels.defaultHomeVisible': 'Default Home shortcut',
+        'settings.capabilitiesPage.detailLabels.userConfigurable': 'User configurable',
+        'settings.capabilitiesPage.detailLabels.sourceKind': 'Source kind',
+        'settings.capabilitiesPage.detailLabels.packageLockRef': 'Package lock receipt',
+        'settings.capabilitiesPage.detailLabels.actionReceiptRef': 'Action receipt',
+        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Rollback ref',
         'settings.capabilitiesPage.detailLabels.version': 'Version',
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
@@ -185,6 +222,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
+        'settings.capabilitiesPage.detailValues.yes': 'Yes',
+        'settings.capabilitiesPage.detailValues.no': 'No',
         'settings.capabilitiesPage.candidateReports.title': 'Candidate reports',
         'settings.capabilitiesPage.candidateReports.description':
           'Review workflow and skill candidates as refs first. Nothing is installed or enabled from this view.',
@@ -306,7 +345,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText('Reproducibility export bundle action')).toBeInTheDocument();
     expect(within(research).getByText('export_reproducibility_bundle')).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
-    expect(within(research).getByText(/receipt:\/\/export\/latest/)).toBeInTheDocument();
+    expect(within(research).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
 
     const presentations = screen.getByTestId('capability-purpose-rca');
     fireEvent.click(within(presentations).getByRole('button', { name: 'Capability details' }));
