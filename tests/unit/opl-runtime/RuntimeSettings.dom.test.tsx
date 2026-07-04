@@ -1328,7 +1328,8 @@ describe('RuntimeSettings app state bridge usage', () => {
                   domain_id: 'medautogrant',
                   domain_label: 'Med Auto Grant',
                   title: 'DM003 grant aftercare',
-                  state: 'queued',
+                  state: 'attention_needed',
+                  status: 'failed',
                   active_stage_id: 'aftercare/reviewer-refresh',
                   active_stage_label: 'Reviewer refresh',
                   progress_delta_classification: 'human_gate',
@@ -1387,12 +1388,11 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain(
       'common.runtime.actionReceiptSummary: receipt://reviewer/current-action'
     );
-    expect(screen.getByText('common.runtime.inactiveTasks')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.inactiveTaskSummaryText 1')).toBeInTheDocument();
-    expect(screen.queryByText('DM003 grant aftercare')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('common.runtime.inactiveTasks'));
+    expect(screen.getByText('common.runtime.attentionTasks')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.attentionTaskSummaryText 1')).toBeInTheDocument();
     expect(screen.getByText('DM003 grant aftercare')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner User')).toBeInTheDocument();
+    expect(screen.queryByText('common.runtime.inactiveTasks')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|refs|stage attempt/i);
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();

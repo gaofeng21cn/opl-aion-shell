@@ -475,6 +475,7 @@ type RuntimeTaskOverview = {
   latestActivityAt: string | null;
   tasks: RuntimeTaskStatusItem[];
   runningTasks: RuntimeTaskStatusItem[];
+  attentionTasks: RuntimeTaskStatusItem[];
   inactiveTasks: RuntimeTaskStatusItem[];
 };
 
@@ -488,6 +489,8 @@ const PROJECT_STATE_KEYS: Record<string, string> = {
   repair: 'common.runtime.projectStates.qualityRepair',
   blocked: 'common.runtime.projectStates.blocked',
   blocking: 'common.runtime.projectStates.blocked',
+  failed: 'common.runtime.projectStates.failed',
+  error: 'common.runtime.projectStates.failed',
   missing: 'common.runtime.projectStates.needsSetup',
   attention_needed: 'common.runtime.projectStates.needsAttention',
   attention_required: 'common.runtime.projectStates.needsAttention',
@@ -502,7 +505,15 @@ const PROJECT_PROGRESS_CLASS_KEYS: Record<string, string> = {
   stop_loss: 'common.runtime.progressClasses.stop_loss',
 };
 
-const ATTENTION_STATES = new Set(['blocked', 'blocking', 'missing', 'attention_needed', 'attention_required']);
+const ATTENTION_STATES = new Set([
+  'blocked',
+  'blocking',
+  'failed',
+  'error',
+  'missing',
+  'attention_needed',
+  'attention_required',
+]);
 const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
 const RUNNING_STATES = new Set(['running', 'in_progress', 'advancing']);
 
@@ -798,7 +809,8 @@ function taskLooksQueued(task: RuntimeTaskStatusItem): boolean {
 function buildTaskOverview(projects: RuntimeProjectProgress[]): RuntimeTaskOverview {
   const tasks = taskStatusItems(projects);
   const runningTasks = tasks.filter((task) => task.running);
-  const inactiveTasks = tasks.filter((task) => !task.running);
+  const attentionTasks = tasks.filter((task) => !task.running && task.needsAttention);
+  const inactiveTasks = tasks.filter((task) => !task.running && !task.needsAttention);
   const runningTaskCount = runningTasks.length;
   const activeProjectCount = projects.length;
   const queuedTaskCount = tasks.filter(taskLooksQueued).length;
@@ -817,6 +829,7 @@ function buildTaskOverview(projects: RuntimeProjectProgress[]): RuntimeTaskOverv
     latestActivityAt,
     tasks,
     runningTasks,
+    attentionTasks,
     inactiveTasks,
   };
 }
@@ -1206,6 +1219,23 @@ const RuntimePage: React.FC = () => {
                   </div>
                 ) : (
                   <Alert type='info' content={t('common.runtime.noRunningTasks')} />
+                )}
+                {taskOverview.attentionTasks.length > 0 && (
+                  <div className='flex flex-col gap-8px'>
+                    <div className='flex flex-col gap-2px'>
+                      <Typography.Text className='font-600 text-t-primary'>
+                        {t('common.runtime.attentionTasks')}
+                      </Typography.Text>
+                      <Typography.Text className='text-12px text-t-secondary'>
+                        {t('common.runtime.attentionTaskSummaryText', {
+                          count: taskOverview.attentionTasks.length,
+                        })}
+                      </Typography.Text>
+                    </div>
+                    <div className='flex flex-col divide-y divide-border-1'>
+                      {taskOverview.attentionTasks.map(renderTaskItem)}
+                    </div>
+                  </div>
                 )}
                 {taskOverview.inactiveTasks.length > 0 && (
                   <Collapse bordered={false}>
