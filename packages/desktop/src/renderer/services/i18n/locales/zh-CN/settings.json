@@ -1973,9 +1973,9 @@
       },
       "componentDescriptions": {
         "capability_packages": "更新由 OPL 管理的技能和模块包。",
-        "codex_surface": "刷新 Codex 可见的插件和技能入口。",
+        "codex_surface": "展示由 Framework 管理的 Codex 插件入口同步和重载证明。",
         "agent_package_channel": "更新由 OPL 管理的技能和模块包。",
-        "capability_exposure": "刷新 Codex 可见的插件和技能入口。"
+        "capability_exposure": "展示由 Framework 管理的 Codex 插件入口同步和重载证明。"
       },
       "status": {
         "manualRequired": "需要人工处理",

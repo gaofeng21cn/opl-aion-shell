@@ -1972,9 +1972,9 @@
       },
       "componentDescriptions": {
         "capability_packages": "Updates packaged skills and module packages managed by OPL.",
-        "codex_surface": "Refreshes the Codex-visible plugin and skill surface.",
+        "codex_surface": "Shows Framework-managed Codex plugin surface sync and reload proof.",
         "agent_package_channel": "Updates packaged skills and module packages managed by OPL.",
-        "capability_exposure": "Refreshes the Codex-visible plugin and skill surface."
+        "capability_exposure": "Shows Framework-managed Codex plugin surface sync and reload proof."
       },
       "status": {
         "manualRequired": "Manual handling required",
