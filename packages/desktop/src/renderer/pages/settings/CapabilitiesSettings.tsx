@@ -158,6 +158,46 @@ function capabilityDetailRows(
       value: item.rollbackRef ?? t('settings.capabilitiesPage.detailValues.notReported'),
     },
     {
+      key: 'physicalSurfaceStatus',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceStatus'),
+      value: item.physicalSurface?.status ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'physicalSurfaceReloadRequired',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired'),
+      value:
+        item.physicalSurface?.reloadRequired === null || item.physicalSurface?.reloadRequired === undefined
+          ? t('settings.capabilitiesPage.detailValues.notReported')
+          : item.physicalSurface.reloadRequired
+            ? t('settings.capabilitiesPage.detailValues.yes')
+            : t('settings.capabilitiesPage.detailValues.no'),
+    },
+    {
+      key: 'physicalSurfacePluginId',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfacePluginId'),
+      value: item.physicalSurface?.pluginId ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'physicalSurfaceMarketplaceId',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplaceId'),
+      value: item.physicalSurface?.marketplaceId ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'physicalSurfaceCachePath',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceCachePath'),
+      value: item.physicalSurface?.codexPluginCachePath ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'physicalSurfaceMarketplacePath',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplacePath'),
+      value: item.physicalSurface?.marketplacePath ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
+      key: 'physicalSurfaceConfigPath',
+      label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath'),
+      value: item.physicalSurface?.codexConfigPath ?? t('settings.capabilitiesPage.detailValues.notReported'),
+    },
+    {
       key: 'version',
       label: t('settings.capabilitiesPage.detailLabels.version'),
       value: item.version ?? t('settings.capabilitiesPage.detailValues.notReported'),

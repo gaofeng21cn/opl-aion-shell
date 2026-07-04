@@ -30,6 +30,7 @@ export type CapabilityPurposeViewModel = {
   packageLockRef: string | null;
   actionReceiptRef: string | null;
   rollbackRef: string | null;
+  physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
   status: CapabilityStatus;
   codexVisibility: CapabilityCodexVisibility;
   version: string | null;
@@ -62,6 +63,7 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'packageLockRef'
   | 'actionReceiptRef'
   | 'rollbackRef'
+  | 'physicalSurface'
   | 'workflowRefs'
   | 'connectorReadinessRefs'
   | 'connectorReadinessGroups'
@@ -102,6 +104,16 @@ export type CapabilityActionRefViewModel = {
   status: string | null;
   dryRunSummary: string | null;
   receiptSummary: string | null;
+};
+
+export type CapabilityPhysicalSurfaceViewModel = {
+  status: string | null;
+  reloadRequired: boolean | null;
+  pluginId: string | null;
+  marketplaceId: string | null;
+  codexPluginCachePath: string | null;
+  marketplacePath: string | null;
+  codexConfigPath: string | null;
 };
 
 const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
@@ -598,6 +610,31 @@ function capabilityRollbackRef(module: RuntimeModuleItem | undefined): string | 
   );
 }
 
+function nullableBool(value: unknown): boolean | null {
+  return typeof value === 'boolean' ? value : null;
+}
+
+function capabilityPhysicalSurface(module: RuntimeModuleItem | undefined): CapabilityPhysicalSurfaceViewModel | null {
+  if (!module) return null;
+  const packageLock = oplRecord(module.package_lock);
+  const actionReceipt = oplRecord(module.action_receipt);
+  const surface = firstRecord(
+    module.physical_surface,
+    packageLock.physical_surface,
+    actionReceipt.physical_surface
+  );
+  if (Object.keys(surface).length === 0) return null;
+  return {
+    status: firstString(surface.status, surface.state),
+    reloadRequired: nullableBool(surface.reload_required),
+    pluginId: firstString(surface.plugin_id),
+    marketplaceId: firstString(surface.marketplace_id),
+    codexPluginCachePath: firstString(surface.codex_plugin_cache_path),
+    marketplacePath: firstString(surface.marketplace_path),
+    codexConfigPath: firstString(surface.codex_config_path),
+  };
+}
+
 function buildCapabilityPurpose(
   purpose: Omit<
     CapabilityPurposeViewModel,
@@ -616,6 +653,7 @@ function buildCapabilityPurpose(
     | 'packageLockRef'
     | 'actionReceiptRef'
     | 'rollbackRef'
+    | 'physicalSurface'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
     | 'connectorReadinessGroups'
@@ -660,6 +698,7 @@ function buildCapabilityPurpose(
     packageLockRef: capabilityPackageLockRef(module),
     actionReceiptRef: capabilityActionReceiptRef(module, task),
     rollbackRef: capabilityRollbackRef(module),
+    physicalSurface: capabilityPhysicalSurface(module),
     status,
     codexVisibility: capabilityCodexVisibility(module, status),
     version: capabilityVersion(module),

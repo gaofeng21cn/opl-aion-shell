@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { CapabilitiesSettingsContent } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
@@ -49,6 +49,18 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             status: 'ready',
             version: '1.2.3',
             source: 'managed_root',
+            package_lock: {
+              ref: 'opl://agent-package-lock/mas/0.1.0a4',
+              physical_surface: {
+                status: 'materialized',
+                plugin_id: 'mas',
+                marketplace_id: 'opl-agent-mas-local',
+                codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
+                marketplace_path: '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
+                codex_config_path: '/tmp/codex/config.toml',
+                reload_required: true,
+              },
+            },
             capability_exposure: { status: 'visible', last_sync_at: '2026-06-30T01:00:00Z' },
           },
           { module_id: 'medautogrant', status: 'update_available', exposure_status: 'needs_sync' },
@@ -236,6 +248,13 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.packageLockRef': 'Package lock receipt',
         'settings.capabilitiesPage.detailLabels.actionReceiptRef': 'Action receipt',
         'settings.capabilitiesPage.detailLabels.rollbackRef': 'Rollback ref',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceStatus': 'Installed Codex surface',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired': 'Codex reload required',
+        'settings.capabilitiesPage.detailLabels.physicalSurfacePluginId': 'Installed plugin',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplaceId': 'Local marketplace',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceCachePath': 'Plugin cache path',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceMarketplacePath': 'Marketplace path',
+        'settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath': 'Codex config path',
         'settings.capabilitiesPage.detailLabels.version': 'Version',
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
@@ -320,7 +339,7 @@ describe('CapabilitiesSettingsContent', () => {
     localStorage.clear();
   });
 
-  it('shows purpose capability groups before skills and tools details', () => {
+  it('shows purpose capability groups before skills and tools details', async () => {
     const onTabChange = vi.fn();
     render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={onTabChange} />);
 
@@ -366,6 +385,12 @@ describe('CapabilitiesSettingsContent', () => {
     expect(grantCandidate).toHaveTextContent('Pending review');
 
     fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
+    await waitFor(() => expect(within(research).getByText(/Installed Codex surface:/)).toBeInTheDocument());
+    expect(within(research).getByText('materialized')).toBeInTheDocument();
+    expect(within(research).getByText(/Codex reload required:/)).toBeInTheDocument();
+    expect(within(research).getAllByText('Yes').length).toBeGreaterThan(0);
+    expect(within(research).getByText('opl-agent-mas-local')).toBeInTheDocument();
+    expect(within(research).getByText('/tmp/codex/config.toml')).toBeInTheDocument();
     expect(within(research).getByText('1.2.3')).toBeInTheDocument();
     expect(within(research).getByText('managed_root')).toBeInTheDocument();
     expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
