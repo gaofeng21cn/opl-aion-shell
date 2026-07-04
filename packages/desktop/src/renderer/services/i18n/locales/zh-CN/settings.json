@@ -1741,6 +1741,27 @@
       "installOrSync": "设置能力",
       "updateOrSync": "更新或同步",
       "repair": "查看修复路径"
+    },
+    "packageManager": {
+      "title": "智能体包",
+      "description": "刷新注册表、安装 manifest，并把首页快捷入口保存为用户偏好。包生命周期变更仍走 App action 路由。",
+      "refreshRegistry": "刷新注册表",
+      "manifestUrlPlaceholder": "Manifest URL",
+      "installFromManifest": "安装 manifest",
+      "hideFromHome": "从首页隐藏",
+      "showOnHome": "显示到首页",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "pendingFrameworkAction": "等待 Framework 动作回执支持",
+      "actionQueued": "动作已路由到 OPL",
+      "actions": {
+        "update": "更新",
+        "repair": "修复",
+        "rollback": "回滚",
+        "uninstall": "卸载",
+        "hide": "隐藏",
+        "show": "显示"
+      }
     }
   },
   "oplEnvironmentPage": {

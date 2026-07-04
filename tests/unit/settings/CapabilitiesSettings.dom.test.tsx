@@ -1,7 +1,31 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { CapabilitiesSettingsContent } from '@/renderer/pages/settings/CapabilitiesSettings';
+import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+
+const bridgeMocks = vi.hoisted(() => ({
+  executeActionInvoke: vi.fn(),
+}));
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    oplRuntime: {
+      executeAction: { invoke: bridgeMocks.executeActionInvoke },
+    },
+  },
+}));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      success: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
   default: () => <div data-testid='skills-detail'>Skills detail</div>,
@@ -253,6 +277,24 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.actions.installOrSync': 'Set up capability',
         'settings.capabilitiesPage.actions.updateOrSync': 'Update or sync',
         'settings.capabilitiesPage.actions.repair': 'Review repair path',
+        'settings.capabilitiesPage.packageManager.title': 'Agent packages',
+        'settings.capabilitiesPage.packageManager.description': 'Package lifecycle actions use App action routes.',
+        'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
+        'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
+        'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
+        'settings.capabilitiesPage.packageManager.hideFromHome': 'Hide from Home',
+        'settings.capabilitiesPage.packageManager.showOnHome': 'Show on Home',
+        'settings.capabilitiesPage.packageManager.moveUp': 'Move up',
+        'settings.capabilitiesPage.packageManager.moveDown': 'Move down',
+        'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
+          'Waiting for Framework action receipt support',
+        'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
+        'settings.capabilitiesPage.packageManager.actions.update': 'Update',
+        'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
+        'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
+        'settings.capabilitiesPage.packageManager.actions.uninstall': 'Uninstall',
+        'settings.capabilitiesPage.packageManager.actions.hide': 'Hide',
+        'settings.capabilitiesPage.packageManager.actions.show': 'Show',
         'settings.capabilitiesPage.purposes.automation.title': 'OPL Meta Agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -269,11 +311,23 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('CapabilitiesSettingsContent', () => {
+  beforeEach(() => {
+    bridgeMocks.executeActionInvoke.mockReset();
+    bridgeMocks.executeActionInvoke.mockResolvedValue({
+      ok: true,
+      command: 'opl app action execute --action test --json',
+    });
+    localStorage.clear();
+  });
+
   it('shows purpose capability groups before skills and tools details', () => {
     const onTabChange = vi.fn();
     render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={onTabChange} />);
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Agent packages')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getByText('Research')).toBeInTheDocument();
     expect(screen.getByText('MAS')).toBeInTheDocument();
     expect(screen.getByText('Grant Writing')).toBeInTheDocument();
@@ -362,5 +416,88 @@ describe('CapabilitiesSettingsContent', () => {
 
     fireEvent.click(within(research).getByRole('button', { name: 'Review capability' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');
+  });
+
+  it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
+    render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('agent-package-home-toggle-mas'));
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
+
+    fireEvent.click(screen.getByTestId('agent-package-home-down-mas'));
+    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
+
+    fireEvent.click(screen.getByTestId('agent-package-refresh-registry'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'refresh_registry',
+      dryRun: false,
+      payloadRefsOnlyJson: {
+        registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json',
+      },
+    });
+
+    fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
+      target: { value: 'https://example.test/agent.json' },
+    });
+    fireEvent.click(screen.getByTestId('agent-package-install-manifest'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'install_from_manifest_url',
+      dryRun: false,
+      payloadRefsOnlyJson: { manifest_url: 'https://example.test/agent.json' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_update',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-repair'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_repair',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-rollback'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_rollback',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-uninstall'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_uninstall',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-hide'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_hide',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+
+    fireEvent.click(screen.getByTestId('agent-package-action-mas-show'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+      actionId: 'agent_package_unhide',
+      dryRun: false,
+      payloadRefsOnlyJson: { package_id: 'mas' },
+    });
+  });
+
+  it('uses persisted shortcut preferences when building Home agents', () => {
+    localStorage.setItem(
+      'opl.homeAgentShortcutPreferences.v1',
+      JSON.stringify({
+        hiddenShortcutIds: ['grant'],
+        orderedShortcutIds: ['book', 'research', 'ppt', 'grant'],
+      })
+    );
+
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual(['bookforge', 'mas', 'rca']);
   });
 });

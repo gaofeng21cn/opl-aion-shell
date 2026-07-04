@@ -6,6 +6,7 @@ import {
   getOplHomeAgentShortcuts,
   getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
+import { getOplVisibleHomeAgentShortcuts } from './oplHomeShortcutPreferences';
 
 const DEFAULT_PRESET_AGENT_TYPE = getOplDefaultExecutorAgentKey();
 
@@ -19,7 +20,7 @@ type OplHomePackageProfile = {
 };
 
 export function resolveOplHomePurposePresentation(id: string, fallbackName: string, fallbackAvatar: string) {
-  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === id && entry.default_visible);
+  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === id);
   const agentPackage = getOplProfessionalAgentPackage(id);
   const englishLabel = agentPackage?.display_name ?? fallbackName;
   const primaryLabel = shortcut?.primary_label ?? fallbackName;
@@ -34,10 +35,13 @@ export const OPL_HOME_PURPOSE_ASSISTANT_IDS = getOplHomeAgentShortcuts()
   .filter((shortcut) => shortcut.default_visible)
   .map((shortcut) => shortcut.package_id);
 
+export function getOplHomePurposeAssistantIds(): string[] {
+  return getOplVisibleHomeAgentShortcuts().map((shortcut) => shortcut.package_id);
+}
+
 function getOplHomePackageProfiles(): OplHomePackageProfile[] {
   const legacyAssistants = new Map(getOplDefaultHomeAssistants().map((assistant) => [assistant.id, assistant]));
-  return getOplHomeAgentShortcuts()
-    .filter((shortcut) => shortcut.default_visible)
+  return getOplVisibleHomeAgentShortcuts()
     .map((shortcut) => {
       const agentPackage = getOplProfessionalAgentPackage(shortcut.package_id);
       if (!agentPackage) return null;

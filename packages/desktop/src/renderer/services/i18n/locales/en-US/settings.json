@@ -1740,6 +1740,27 @@
       "installOrSync": "Set up capability",
       "updateOrSync": "Update or sync",
       "repair": "Review repair path"
+    },
+    "packageManager": {
+      "title": "Agent packages",
+      "description": "Refresh the registry, install a manifest, and keep Home shortcuts as user preferences. Package lifecycle mutations stay on App action routes.",
+      "refreshRegistry": "Refresh registry",
+      "manifestUrlPlaceholder": "Manifest URL",
+      "installFromManifest": "Install manifest",
+      "hideFromHome": "Hide from Home",
+      "showOnHome": "Show on Home",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "pendingFrameworkAction": "Waiting for Framework action receipt support",
+      "actionQueued": "Action routed to OPL",
+      "actions": {
+        "update": "Update",
+        "repair": "Repair",
+        "rollback": "Rollback",
+        "uninstall": "Uninstall",
+        "hide": "Hide",
+        "show": "Show"
+      }
     }
   },
   "oplEnvironmentPage": {

@@ -11,7 +11,7 @@ import {
   getOplDefaultHomeAssistants,
   getOplProfessionalAgentPackages,
 } from '@/common/config/oplProductProfile';
-import { OPL_HOME_PURPOSE_ASSISTANT_IDS, resolveOplHomePurposePresentation } from './utils/oplHomeAssistants';
+import { getOplHomePurposeAssistantIds, resolveOplHomePurposePresentation } from './utils/oplHomeAssistants';
 import type { AvailableAgent } from './types';
 
 const OPL_PACKAGE_MODULE_IDS: Record<string, string[]> = {
@@ -46,13 +46,14 @@ export function resolveOplDefaultAgentKey(agents: AvailableAgent[] | undefined):
 }
 
 export function getOplFoundryAssistantProfiles(): Assistant[] {
+  const homePurposeAssistantIds = getOplHomePurposeAssistantIds();
   const appAssistants = new Map(
     getOplDefaultHomeAssistants()
-      .filter((assistant) => OPL_HOME_PURPOSE_ASSISTANT_IDS.includes(assistant.id))
+      .filter((assistant) => homePurposeAssistantIds.includes(assistant.id))
       .map((assistant) => [assistant.id, assistant])
   );
   return getOplProfessionalAgentPackages()
-    .filter((agentPackage) => OPL_HOME_PURPOSE_ASSISTANT_IDS.includes(agentPackage.package_id))
+    .filter((agentPackage) => homePurposeAssistantIds.includes(agentPackage.package_id))
     .map((agentPackage) => {
       const appAssistant = appAssistants.get(agentPackage.package_id);
       const presentation = resolveOplHomePurposePresentation(
@@ -96,7 +97,7 @@ export function getOplFoundryAssistantProfiles(): Assistant[] {
 }
 
 export function getOplFoundryModuleIds(): string[] {
-  const allowed = new Set(OPL_HOME_PURPOSE_ASSISTANT_IDS);
+  const allowed = new Set(getOplHomePurposeAssistantIds());
   const profileModules = getOplProfessionalAgentPackages()
     .filter((agentPackage) => allowed.has(agentPackage.package_id))
     .flatMap((agentPackage) => OPL_PACKAGE_MODULE_IDS[agentPackage.package_id] ?? [agentPackage.package_id]);
@@ -104,7 +105,7 @@ export function getOplFoundryModuleIds(): string[] {
 }
 
 export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefined): Assistant[] {
-  const allowed = new Set(OPL_HOME_PURPOSE_ASSISTANT_IDS);
+  const allowed = new Set(getOplHomePurposeAssistantIds());
   const defaults = getOplFoundryAssistantProfiles().filter((assistant) => allowed.has(assistant.id));
   const defaultsById = new Map(defaults.map((assistant) => [assistant.id, assistant]));
   const existing = filterOplFoundryAssistants(assistants).map((assistant) => {
@@ -139,7 +140,7 @@ export function withOplFoundryAssistantDefaults(assistants: Assistant[] | undefi
 }
 
 export function filterOplFoundryAssistants(assistants: Assistant[] | undefined): Assistant[] {
-  const allowed = new Set(OPL_HOME_PURPOSE_ASSISTANT_IDS);
+  const allowed = new Set(getOplHomePurposeAssistantIds());
   return (assistants ?? []).filter(
     (assistant) => assistant.enabled !== false && allowed.has(normalizeAssistantId(assistant.id))
   );

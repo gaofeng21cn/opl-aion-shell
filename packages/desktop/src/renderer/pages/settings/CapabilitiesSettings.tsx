@@ -15,7 +15,7 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Button, Card, Collapse, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Button, Card, Collapse, Input, Message, Space, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Robot, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -23,7 +23,14 @@ import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
+import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import {
+  getOplHomeShortcutPreferences,
+  getOplOrderedHomeAgentShortcuts,
+  moveOplHomeShortcut,
+  setOplHomeShortcutHidden,
+} from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
   type CapabilityActionRefViewModel,
@@ -38,6 +45,22 @@ import {
 export type CapabilitiesTab = 'skills' | 'tools';
 
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
+const DEFAULT_AGENT_REGISTRY_URL =
+  'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json';
+
+type PackageAction = {
+  key: 'update' | 'repair' | 'rollback' | 'uninstall' | 'hide' | 'show';
+  actionId: string;
+};
+
+const PACKAGE_ACTIONS: PackageAction[] = [
+  { key: 'update', actionId: 'agent_package_update' },
+  { key: 'repair', actionId: 'agent_package_repair' },
+  { key: 'rollback', actionId: 'agent_package_rollback' },
+  { key: 'uninstall', actionId: 'agent_package_uninstall' },
+  { key: 'hide', actionId: 'agent_package_hide' },
+  { key: 'show', actionId: 'agent_package_unhide' },
+];
 
 function capabilityStatusColor(status: CapabilityStatus): 'green' | 'orange' | 'red' | 'gray' {
   if (status === 'ready') return 'green';
@@ -59,6 +82,10 @@ function capabilityActionLabel(item: CapabilityPurposeViewModel, t: (key: string
   if (item.status === 'update') return t('settings.capabilitiesPage.actions.updateOrSync');
   if (item.status === 'repair') return t('settings.capabilitiesPage.actions.repair');
   return t('settings.capabilitiesPage.actions.openDetails');
+}
+
+function packageActionRef(actionId: string): string {
+  return `opl app action execute --action ${actionId} --json`;
 }
 
 function capabilityDecisionActionLabel(action: CapabilityDecisionAction, t: (key: string) => string): string {
@@ -333,6 +360,13 @@ type CapabilitiesSettingsContentProps = {
 export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
   const { i18n, t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
+  const [manifestUrl, setManifestUrl] = useState('');
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
+  const shortcutByPackageId = React.useMemo(
+    () => new Map(getOplOrderedHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut])),
+    [shortcutPreferences]
+  );
   const purposeCapabilities = React.useMemo(
     () =>
       buildCapabilitiesViewModel(appStateQuery.appState, i18n.language, [
@@ -346,6 +380,37 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       ]),
     [appStateQuery.appState, i18n.language, t]
   );
+  const hiddenShortcutIds = React.useMemo(
+    () => new Set(shortcutPreferences.hiddenShortcutIds),
+    [shortcutPreferences.hiddenShortcutIds]
+  );
+
+  const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
+    setBusyAction(actionId);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId,
+        dryRun: false,
+        payloadRefsOnlyJson,
+      });
+      if (result.ok === false) {
+        throw new Error(result.error?.message || result.command);
+      }
+      Message.success(t('settings.capabilitiesPage.packageManager.actionQueued'));
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
+    setShortcutPreferences(setOplHomeShortcutHidden(shortcutId, hidden));
+  };
+
+  const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
+    setShortcutPreferences(moveOplHomeShortcut(shortcutId, direction));
+  };
 
   return (
     <>
@@ -356,8 +421,48 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
+        <Card bordered className='rd-8px' data-testid='agent-package-manager'>
+          <div className='flex flex-col gap-10px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.packageManager.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.packageManager.description')}
+              </Typography.Text>
+            </div>
+            <div className='flex flex-wrap gap-8px'>
+              <Button
+                size='small'
+                loading={busyAction === 'refresh_registry'}
+                onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
+                data-testid='agent-package-refresh-registry'
+              >
+                {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
+              </Button>
+              <Input
+                size='small'
+                className='max-w-360px min-w-220px'
+                value={manifestUrl}
+                onChange={setManifestUrl}
+                placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
+                data-testid='agent-package-manifest-url'
+              />
+              <Button
+                size='small'
+                type='primary'
+                loading={busyAction === 'install_from_manifest_url'}
+                disabled={!manifestUrl.trim()}
+                onClick={() => executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })}
+                data-testid='agent-package-install-manifest'
+              >
+                {t('settings.capabilitiesPage.packageManager.installFromManifest')}
+              </Button>
+            </div>
+          </div>
+        </Card>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
-          {purposeCapabilities.map((item) => (
+          {purposeCapabilities.map((item, index) => (
             <Card key={item.key} bordered className='rd-8px' data-testid={`capability-purpose-${item.key}`}>
               <div className='flex items-start gap-12px'>
                 <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
@@ -385,6 +490,65 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </Tag>
                     ))}
                   </div>
+                  {item.packageId && (
+                    <div
+                      className='mt-10px flex flex-col gap-8px'
+                      data-testid={`capability-package-actions-${item.key}`}
+                    >
+                      {shortcutByPackageId.has(item.packageId) && (
+                        <Space wrap size={6}>
+                          <Button
+                            size='mini'
+                            onClick={() =>
+                              updateShortcutHidden(
+                                shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '',
+                                !hiddenShortcutIds.has(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '')
+                              )
+                            }
+                            data-testid={`agent-package-home-toggle-${item.key}`}
+                          >
+                            {hiddenShortcutIds.has(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '')
+                              ? t('settings.capabilitiesPage.packageManager.showOnHome')
+                              : t('settings.capabilitiesPage.packageManager.hideFromHome')}
+                          </Button>
+                          <Button
+                            size='mini'
+                            disabled={index === 0}
+                            onClick={() => moveShortcut(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '', -1)}
+                            data-testid={`agent-package-home-up-${item.key}`}
+                          >
+                            {t('settings.capabilitiesPage.packageManager.moveUp')}
+                          </Button>
+                          <Button
+                            size='mini'
+                            disabled={index === purposeCapabilities.length - 1}
+                            onClick={() => moveShortcut(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '', 1)}
+                            data-testid={`agent-package-home-down-${item.key}`}
+                          >
+                            {t('settings.capabilitiesPage.packageManager.moveDown')}
+                          </Button>
+                        </Space>
+                      )}
+                      <Space wrap size={6}>
+                        {PACKAGE_ACTIONS.map((action) => (
+                          <Button
+                            key={`${item.key}-${action.key}`}
+                            size='mini'
+                            loading={busyAction === action.actionId}
+                            onClick={() =>
+                              executePackageAction(action.actionId, {
+                                package_id: item.packageId,
+                              })
+                            }
+                            title={packageActionRef(action.actionId)}
+                            data-testid={`agent-package-action-${item.key}-${action.key}`}
+                          >
+                            {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
+                          </Button>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
                   {capabilityCandidateReportRows(item.workflowCandidateRefs, item.key, t)}
                   <Collapse bordered={false} className='mt-8px'>
                     <Collapse.Item
