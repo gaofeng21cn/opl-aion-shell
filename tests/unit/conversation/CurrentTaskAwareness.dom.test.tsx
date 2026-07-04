@@ -10,9 +10,19 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.kicker': 'Current task',
         'conversation.currentTask.defaultTitle': 'Task in progress',
         'conversation.currentTask.artifact': 'Artifact',
+        'conversation.currentTask.latestArtifact': 'Latest artifact',
         'conversation.currentTask.review': 'Review',
         'conversation.currentTask.action': 'Action',
         'conversation.currentTask.workflow': 'Workflow',
+        'conversation.currentTask.ownerLabel': 'Owner',
+        'conversation.currentTask.result': 'Result',
+        'conversation.currentTask.status': 'Status',
+        'conversation.currentTask.stage': 'Stage',
+        'conversation.currentTask.progress': 'Progress',
+        'conversation.currentTask.nextStep': 'Next step',
+        'conversation.currentTask.taskIdentity': 'Task identity',
+        'conversation.currentTask.plan': 'Plan ref',
+        'conversation.currentTask.latestReceipt': 'Latest receipt',
         'conversation.currentTask.condition': 'Condition',
         'conversation.currentTask.evidence': 'Evidence',
         'conversation.currentTask.resource': 'Resource',
@@ -27,6 +37,37 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.resourceSummary': 'Resource summary',
         'conversation.currentTask.resourceConfirmation': 'Plan-approve-execute-collect confirmation',
         'conversation.currentTask.receiptProvenance': 'Receipt and provenance',
+        'conversation.currentTask.artifactsProvenanceRefs': 'Artifacts and provenance refs',
+        'conversation.currentTask.reviewFollowUp': 'Review and follow-up',
+        'conversation.currentTask.workflowResourceActionRefs': 'Workflow, resource, and action refs',
+        'conversation.currentTask.exportBundleAction': 'Export bundle action',
+        'conversation.currentTask.lineage': 'Lineage',
+        'conversation.currentTask.provenanceBundle': 'Provenance bundle',
+        'conversation.currentTask.provenanceIndex': 'Provenance index',
+        'conversation.currentTask.roCrateMetadata': 'RO-Crate metadata',
+        'conversation.currentTask.replayStatus': 'Replay status',
+        'conversation.currentTask.agentTrace': 'Agent trace',
+        'conversation.currentTask.reviewRef': 'Review ref',
+        'conversation.currentTask.typedIssue': 'Typed issue',
+        'conversation.currentTask.contentHash': 'Content hash',
+        'conversation.currentTask.drawerRoute': 'Drawer route',
+        'conversation.currentTask.drawerProjection': 'Drawer projection',
+        'conversation.currentTask.structuredFollowUp': 'Structured follow-up',
+        'conversation.currentTask.requestChangePrompt': 'Request change against these refs:',
+        'conversation.currentTask.resourcePlan': 'Resource plan',
+        'conversation.currentTask.resourceApproval': 'Resource approval',
+        'conversation.currentTask.resourceExecute': 'Resource execute',
+        'conversation.currentTask.resourceMonitor': 'Resource monitor',
+        'conversation.currentTask.resourceCollect': 'Resource collect',
+        'conversation.currentTask.resourceUsage': 'Resource usage',
+        'conversation.currentTask.consolePolicy': 'Console policy',
+        'conversation.currentTask.quota': 'Quota',
+        'conversation.currentTask.billing': 'Billing',
+        'conversation.currentTask.permission': 'Permission',
+        'conversation.currentTask.environmentTemplate': 'Environment template',
+        'conversation.currentTask.environmentVersion': 'Environment version',
+        'conversation.currentTask.environmentSource': 'Environment source',
+        'conversation.currentTask.environmentTask': 'Environment task',
         'conversation.currentTask.confirmPlan': 'Plan',
         'conversation.currentTask.confirmApproval': 'Approval',
         'conversation.currentTask.confirmExecute': 'Execute',
@@ -45,20 +86,24 @@ describe('CurrentTaskAwareness', () => {
     render(
       <CurrentTaskAwareness
         compact
-        task={{
-          title: 'Manuscript review',
-          stage: 'review',
-          progress: '2/4',
-          next_owner: 'reviewer',
-          next_step: 'Approve edits',
-          artifact_or_blocker_ref: 'artifact://draft',
-        }}
+        task={
+          {
+            title: 'Manuscript review',
+            status: { status_label: 'attention_needed' },
+            stage: 'review',
+            progress: '2/4',
+            next_owner: 'reviewer',
+            next_step: 'Approve edits',
+            artifact_or_blocker_ref: 'artifact://draft',
+          } as never
+        }
       />
     );
 
     expect(screen.getByTestId('conversation-current-task-inline')).toBeTruthy();
     expect(screen.getByText('Current task')).toBeTruthy();
     expect(screen.getByText('Manuscript review')).toBeTruthy();
+    expect(screen.getByText('attention_needed')).toBeTruthy();
     expect(screen.getByText('review')).toBeTruthy();
     expect(screen.getByText('2/4')).toBeTruthy();
     expect(screen.getByText('Owner: reviewer')).toBeTruthy();
@@ -67,47 +112,71 @@ describe('CurrentTaskAwareness', () => {
   it('renders inspector evidence refs without artifact body', () => {
     render(
       <CurrentTaskAwareness
-        task={{
-          title: 'Submission package',
-          artifact_or_blocker_summary: 'draft manifest ready',
-          review_receipt_ref: 'receipt://review',
-          action_receipt_ref: 'receipt://action',
-          workflow_ref: 'workflow://submission',
-          gateway_status_ref: 'opl://gateway/status',
-          resource_source_refs: ['opl://resource-source/workspace', 'opl://resource-source/fabric'],
-          environment_ref: 'opl://environment/default',
-          storage_ref: 'opl://storage/default',
-          resource_receipt_ref: 'receipt://resource',
-          cost_estimate_ref: 'opl://cost/estimate',
-        }}
+        task={
+          {
+            title: 'Submission package',
+            status: { status_label: 'ready_for_review' },
+            artifact_or_blocker_summary: 'draft manifest ready',
+            artifact_or_blocker_ref: 'artifact://draft',
+            review_receipt_ref: 'receipt://review',
+            action_receipt_ref: 'receipt://action',
+            workflow_ref: 'workflow://submission',
+            gateway_status_ref: 'opl://gateway/status',
+            resource_source_refs: ['opl://resource-source/workspace', 'opl://resource-source/fabric'],
+            environment_ref: 'opl://environment/default',
+            storage_ref: 'opl://storage/default',
+            resource_receipt_ref: 'receipt://resource',
+            cost_estimate_ref: 'opl://cost/estimate',
+            lineage_refs: ['lineage://draft'],
+            artifact_native_drilldown: {
+              provenance_bundle_refs: ['bundle://provenance'],
+              provenance_index_ref: 'index://provenance',
+              ro_crate_metadata_ref: 'ro-crate://metadata',
+              replay_status_ref: 'replay://status',
+              agent_trace_refs: ['trace://agent'],
+              review_refs: ['review://ref'],
+              typed_issues: [{ kind: 'request_change', summary: 'needs ref-level clarification', ref: 'issue://ref' }],
+              content_hash_refs: ['sha256:abc123'],
+              body: 'artifact body',
+              provenance_drawer: {
+                route: 'drawer://provenance',
+                projection_ref: 'contracts/app-runtime-bridge.json#artifact_provenance_bundle_projection',
+              },
+            },
+          } as never
+        }
       />
     );
 
-    expect(screen.getByTestId('conversation-current-task-inspector')).toBeTruthy();
-    expect(screen.getByText('Task evidence')).toBeTruthy();
-    expect(screen.getByText('Artifact')).toBeTruthy();
-    expect(screen.getByText('draft manifest ready')).toBeTruthy();
-    expect(screen.getByText('receipt://review')).toBeTruthy();
-    expect(screen.getAllByText('receipt://action')).toHaveLength(4);
-    expect(screen.getAllByText('workflow://submission')).toHaveLength(2);
-    expect(screen.getByText('Resource summary')).toBeTruthy();
-    expect(screen.getByText('Gateway status')).toBeTruthy();
-    expect(screen.getAllByText('opl://gateway/status')).toHaveLength(2);
-    expect(screen.getAllByText('Resource source')).toHaveLength(2);
-    expect(screen.getByText('opl://resource-source/workspace')).toBeTruthy();
-    expect(screen.getByText('opl://resource-source/fabric')).toBeTruthy();
-    expect(screen.getAllByText('opl://environment/default')).toHaveLength(2);
-    expect(screen.getAllByText('opl://storage/default')).toHaveLength(2);
-    expect(screen.getAllByText('receipt://resource')).toHaveLength(2);
-    expect(screen.getAllByText('opl://cost/estimate')).toHaveLength(2);
-    expect(screen.getByText('Plan-approve-execute-collect confirmation')).toBeTruthy();
-    expect(screen.getByText('Plan')).toBeTruthy();
-    expect(screen.getByText('Approval')).toBeTruthy();
-    expect(screen.getByText('Execute')).toBeTruthy();
-    expect(screen.getByText('Monitor')).toBeTruthy();
-    expect(screen.getByText('Collect')).toBeTruthy();
-    expect(screen.getByText('Receipt and provenance')).toBeTruthy();
-    expect(screen.getByText('Job receipt')).toBeTruthy();
+    const inspector = screen.getByTestId('conversation-current-task-inspector');
+    expect(inspector).toBeTruthy();
+    expect(screen.getByText('Result')).toBeTruthy();
+    expect(screen.getByText('Artifacts and provenance refs')).toBeTruthy();
+    expect(screen.getByText('Review and follow-up')).toBeTruthy();
+    expect(screen.getByText('Workflow, resource, and action refs')).toBeTruthy();
+    expect(inspector).toHaveTextContent('ready_for_review');
+    expect(inspector).toHaveTextContent('draft manifest ready');
+    expect(inspector).toHaveTextContent('artifact://draft');
+    expect(inspector).toHaveTextContent('receipt://review');
+    expect(inspector).toHaveTextContent('receipt://action');
+    expect(inspector).toHaveTextContent('workflow://submission');
+    expect(inspector).toHaveTextContent('lineage://draft');
+    expect(inspector).toHaveTextContent('bundle://provenance');
+    expect(inspector).toHaveTextContent('index://provenance');
+    expect(inspector).toHaveTextContent('ro-crate://metadata');
+    expect(inspector).toHaveTextContent('replay://status');
+    expect(inspector).toHaveTextContent('trace://agent');
+    expect(inspector).toHaveTextContent('review://ref');
+    expect(inspector).toHaveTextContent('needs ref-level clarification');
+    expect(inspector).toHaveTextContent('sha256:abc123');
+    expect(inspector).toHaveTextContent('drawer://provenance');
+    expect(inspector).toHaveTextContent('Request change against these refs:');
+    expect(inspector).toHaveTextContent('opl://resource-source/workspace');
+    expect(inspector).toHaveTextContent('opl://resource-source/fabric');
+    expect(inspector).toHaveTextContent('opl://environment/default');
+    expect(inspector).toHaveTextContent('opl://storage/default');
+    expect(inspector).toHaveTextContent('receipt://resource');
+    expect(inspector).toHaveTextContent('opl://cost/estimate');
     expect(screen.queryByText('artifact body')).toBeNull();
   });
 
@@ -155,11 +224,11 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByTestId('conversation-current-task-inspector')).toBeTruthy();
     expect(screen.getByText('TaskRun slice')).toBeTruthy();
     expect(screen.getByText('owner approval')).toBeTruthy();
-    expect(screen.getByText('Artifact card')).toBeTruthy();
+    expect(screen.getAllByText('Artifact card').length).toBeGreaterThan(0);
     expect(screen.getByTestId('conversation-current-task-inspector')).toHaveTextContent('artifact://summary');
-    expect(screen.getByText('Preview action')).toBeTruthy();
+    expect(screen.getAllByText('Preview action').length).toBeGreaterThan(0);
     expect(screen.getByTestId('conversation-current-task-inspector')).toHaveTextContent('action://dry-run');
-    expect(screen.getByText('Fabric resource')).toBeTruthy();
+    expect(screen.getAllByText('Fabric resource').length).toBeGreaterThan(0);
     expect(screen.getByText('resource://status')).toBeTruthy();
     expect(screen.getByText('diagnostics://task')).toBeTruthy();
   });

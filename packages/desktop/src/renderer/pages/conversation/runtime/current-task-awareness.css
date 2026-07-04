@@ -89,3 +89,17 @@
   white-space: nowrap;
   color: var(--text-primary);
 }
+
+.current-task-awareness__follow-up {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--bg-3);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
