@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,13 +27,36 @@ type RuntimeCommandSpec = {
   redactedCommand?: string;
 };
 
+type OplDeveloperSupervisorEnabled = 'auto' | 'on' | 'off';
+type OplDeveloperSupervisorMode = 'external_observe' | 'developer_apply_safe';
+type OplDeveloperSupervisorConfig = {
+  enabled: OplDeveloperSupervisorEnabled;
+  mode: OplDeveloperSupervisorMode;
+  autoEnableGithubLogin: string;
+};
+
+type DeveloperModeGithubIdentity = {
+  status: 'ready' | 'unavailable';
+  login: string | null;
+};
+
+type OplCliEntrypoints = {
+  sourceCli: string | null;
+  distCli: string | null;
+};
+
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
+const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
 let standardBootstrapCompleted = false;
+let cachedDeveloperModeGithubIdentity: {
+  key: string;
+  value: DeveloperModeGithubIdentity;
+} | null = null;
 const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
@@ -391,6 +414,171 @@ function resolveHomeDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.HOME?.trim() || os.homedir();
 }
 
+function normalizeOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function parseJsonRecord(raw: string | null | undefined): Record<string, unknown> | null {
+  const trimmed = raw?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {}
+  return null;
+}
+
+function readJsonRecordFile(filePath: string): Record<string, unknown> | null {
+  try {
+    return parseJsonRecord(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function resolveOplStateDir(env: NodeJS.ProcessEnv): string {
+  const explicitStateDir = normalizeOptionalString(env.OPL_STATE_DIR);
+  if (explicitStateDir) {
+    return path.resolve(explicitStateDir);
+  }
+  const dataDir = normalizeOptionalString(env.OPL_DATA_DIR) ?? normalizeOptionalString(env.AIONUI_DATA_DIR);
+  if (dataDir) {
+    return path.join(path.resolve(dataDir), 'opl', 'state');
+  }
+  return path.join(resolveHomeDir(env), 'Library', 'Application Support', 'OPL', 'state');
+}
+
+function normalizeDeveloperSupervisorEnabled(value: unknown): OplDeveloperSupervisorEnabled {
+  return value === 'on' || value === 'off' || value === 'auto' ? value : 'auto';
+}
+
+function normalizeDeveloperSupervisorMode(value: unknown): OplDeveloperSupervisorMode {
+  return value === 'developer_apply_safe' ? 'developer_apply_safe' : 'external_observe';
+}
+
+function readOplDeveloperSupervisorConfig(env: NodeJS.ProcessEnv): OplDeveloperSupervisorConfig {
+  const parsed = readJsonRecordFile(path.join(resolveOplStateDir(env), 'developer-supervisor.json'));
+  return {
+    enabled: normalizeDeveloperSupervisorEnabled(parsed?.enabled),
+    mode: normalizeDeveloperSupervisorMode(parsed?.mode),
+    autoEnableGithubLogin: normalizeOptionalString(parsed?.auto_enable_github_login) ?? 'gaofeng21cn',
+  };
+}
+
+function readDeveloperModeFixtureLogin(env: NodeJS.ProcessEnv): string | null {
+  const explicitIdentity = normalizeOptionalString(env.OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE);
+  if (explicitIdentity) {
+    const parsed = parseJsonRecord(explicitIdentity);
+    if (parsed) {
+      return normalizeOptionalString(parsed.login);
+    }
+    return explicitIdentity;
+  }
+
+  const fixture = parseJsonRecord(env.OPL_DEVELOPER_MODE_GH_FIXTURE);
+  if (!fixture) {
+    return null;
+  }
+  const directLogin = normalizeOptionalString(fixture.login);
+  if (directLogin) {
+    return directLogin;
+  }
+  if (typeof fixture.user === 'string') {
+    return normalizeOptionalString(fixture.user);
+  }
+  if (typeof fixture.user === 'object' && fixture.user !== null && !Array.isArray(fixture.user)) {
+    return normalizeOptionalString((fixture.user as Record<string, unknown>).login);
+  }
+  return null;
+}
+
+function readDeveloperModeGhTimeoutMs(env: NodeJS.ProcessEnv): number {
+  const parsed = Number.parseInt(env.OPL_DEVELOPER_MODE_GH_TIMEOUT_MS ?? '', 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return Math.min(parsed, 10_000);
+  }
+  return 5_000;
+}
+
+function developerModeIdentityCacheKey(env: NodeJS.ProcessEnv): string {
+  return [
+    env.OPL_DEVELOPER_MODE_GH_FIXTURE ?? '',
+    env.OPL_DEVELOPER_MODE_GITHUB_IDENTITY_FIXTURE ?? '',
+    env.OPL_DEVELOPER_MODE_GH_BINARY ?? '',
+    env.OPL_DEVELOPER_MODE_GH_TIMEOUT_MS ?? '',
+  ].join('\0');
+}
+
+function detectDeveloperModeGithubIdentity(env: NodeJS.ProcessEnv): DeveloperModeGithubIdentity {
+  const fixtureLogin = readDeveloperModeFixtureLogin(env);
+  if (fixtureLogin) {
+    return {
+      status: 'ready',
+      login: fixtureLogin,
+    };
+  }
+
+  const cacheKey = developerModeIdentityCacheKey(env);
+  if (cachedDeveloperModeGithubIdentity?.key === cacheKey) {
+    return cachedDeveloperModeGithubIdentity.value;
+  }
+
+  const ghBinary = normalizeOptionalString(env.OPL_DEVELOPER_MODE_GH_BINARY) ?? 'gh';
+  const result = spawnSync(ghBinary, ['api', 'user'], {
+    encoding: 'utf8',
+    env,
+    timeout: readDeveloperModeGhTimeoutMs(env),
+    maxBuffer: 1024 * 1024,
+  });
+  const login = result.status === 0 ? normalizeOptionalString(parseJsonRecord(result.stdout)?.login) : null;
+  const identity: DeveloperModeGithubIdentity = login
+    ? {
+        status: 'ready',
+        login,
+      }
+    : {
+        status: 'unavailable',
+        login: null,
+      };
+  cachedDeveloperModeGithubIdentity = {
+    key: cacheKey,
+    value: identity,
+  };
+  return identity;
+}
+
+function developerModePrefersLocalCheckout(env: NodeJS.ProcessEnv): boolean {
+  const config = readOplDeveloperSupervisorConfig(env);
+  if (config.mode !== 'developer_apply_safe' || config.enabled === 'off') {
+    return false;
+  }
+  if (config.enabled === 'on') {
+    return true;
+  }
+
+  const identity = detectDeveloperModeGithubIdentity(env);
+  return identity.status === 'ready' && identity.login === config.autoEnableGithubLogin;
+}
+
+function resolveSelectedWorkspaceRoot(env: NodeJS.ProcessEnv): string {
+  const explicitWorkspaceRoot = normalizeOptionalString(env.OPL_WORKSPACE_ROOT);
+  if (explicitWorkspaceRoot) {
+    return path.resolve(explicitWorkspaceRoot);
+  }
+
+  const persisted = readJsonRecordFile(path.join(resolveOplStateDir(env), 'workspace-root.json'));
+  const selectedPath = normalizeOptionalString(persisted?.selected_path);
+  if (selectedPath) {
+    return path.resolve(selectedPath);
+  }
+
+  return resolveHomeDir(env);
+}
+
 function resolveManagedNodeBin(input: BuildStandardBootstrapEnvInput): string | null {
   const platform = input.platform ?? process.platform;
   if (platform !== 'darwin') {
@@ -433,6 +621,32 @@ function pathExistsFile(file: string): boolean {
   return fs.existsSync(file) && fs.statSync(file).isFile();
 }
 
+function resolveOplCliEntrypoints(packageRoot: string): OplCliEntrypoints {
+  return {
+    sourceCli:
+      [path.join(packageRoot, 'src', 'entrypoints', 'cli.ts'), path.join(packageRoot, 'src', 'cli.ts')].find(
+        pathExistsFile
+      ) ?? null,
+    distCli:
+      [path.join(packageRoot, 'dist', 'entrypoints', 'cli.js'), path.join(packageRoot, 'dist', 'cli.js')].find(
+        pathExistsFile
+      ) ?? null,
+  };
+}
+
+function hasOplCliEntrypoint(packageRoot: string): boolean {
+  const entrypoints = resolveOplCliEntrypoints(packageRoot);
+  return Boolean(entrypoints.sourceCli || entrypoints.distCli);
+}
+
+function isFrameworkCheckoutRoot(packageRoot: string): boolean {
+  return (
+    fs.existsSync(path.join(packageRoot, '.git'))
+    && pathExistsFile(path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'))
+    && hasOplCliEntrypoint(packageRoot)
+  );
+}
+
 function candidatePathsFromPath(pathValue: string | undefined, commandName: string): string[] {
   const candidates: string[] = [];
   const seen = new Set<string>();
@@ -458,7 +672,7 @@ function realpathIfPossible(file: string): string {
 function findAncestorWithOplCli(startPath: string): string | null {
   let current = fs.statSync(startPath).isDirectory() ? startPath : path.dirname(startPath);
   while (true) {
-    if (resolveOplCliEntrypoint(current)) {
+    if (hasOplCliEntrypoint(current)) {
       return current;
     }
     const parent = path.dirname(current);
@@ -469,7 +683,7 @@ function findAncestorWithOplCli(startPath: string): string | null {
 
 function resolveOplPackageRootFromExecutable(executablePath: string): string | null {
   const siblingFullRuntimePackageRoot = path.resolve(path.dirname(executablePath), '..', 'opl');
-  if (resolveOplCliEntrypoint(siblingFullRuntimePackageRoot)) {
+  if (hasOplCliEntrypoint(siblingFullRuntimePackageRoot)) {
     return siblingFullRuntimePackageRoot;
   }
   const realExecutablePath = realpathIfPossible(executablePath);
@@ -502,35 +716,82 @@ function packageSupportsCommand(packageRoot: string, spec: RuntimeCommandSpec): 
   return true;
 }
 
-function resolveOplCliEntrypoint(packageRoot: string): string | null {
-  for (const relativePath of ['src/entrypoints/cli.ts', 'src/cli.ts', 'dist/entrypoints/cli.js', 'dist/cli.js']) {
-    const cliPath = path.join(packageRoot, relativePath);
-    if (pathExistsFile(cliPath)) return cliPath;
+function resolveOplCliFromPackageRoot(packageRoot: string, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
+  const nodeCommand = resolveNodeCommand(env);
+  const entrypoints = resolveOplCliEntrypoints(packageRoot);
+  if (entrypoints.sourceCli) {
+    return {
+      command: nodeCommand.command,
+      argsPrefix: ['--experimental-strip-types', entrypoints.sourceCli],
+      env: nodeCommand.env,
+      source: entrypoints.sourceCli,
+    };
+  }
+  if (entrypoints.distCli) {
+    return {
+      command: nodeCommand.command,
+      argsPrefix: [entrypoints.distCli],
+      env: nodeCommand.env,
+      source: entrypoints.distCli,
+    };
   }
   return null;
 }
 
-function resolveOplCliFromPackageRoot(packageRoot: string, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
-  const nodeCommand = resolveNodeCommand(env);
-  const cliPath = resolveOplCliEntrypoint(packageRoot);
-  if (!cliPath) return null;
-  if (cliPath.endsWith('.ts')) {
-    return {
-      command: nodeCommand.command,
-      argsPrefix: ['--experimental-strip-types', cliPath],
-      env: nodeCommand.env,
-      source: cliPath,
-    };
+function resolveDeveloperModeCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
+  if (!developerModePrefersLocalCheckout(env)) {
+    return null;
   }
-  return {
-    command: nodeCommand.command,
-    argsPrefix: [cliPath],
-    env: nodeCommand.env,
-    source: cliPath,
-  };
+  const checkoutRoot = path.join(resolveSelectedWorkspaceRoot(env), OPL_FRAMEWORK_REPO_NAME);
+  return isFrameworkCheckoutRoot(checkoutRoot) ? checkoutRoot : null;
+}
+
+function resolvePackagedRuntimeCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
+  const runtimeHome = normalizeOptionalString(env.OPL_FULL_RUNTIME_HOME);
+  if (!runtimeHome) {
+    return null;
+  }
+  for (const candidate of [path.join(runtimeHome, 'opl'), runtimeHome]) {
+    if (hasOplCliEntrypoint(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function resolveManagedInstallCheckoutRoot(env: NodeJS.ProcessEnv): string | null {
+  const installDir =
+    normalizeOptionalString(env.OPL_INSTALL_DIR) ?? path.join(resolveHomeDir(env), '.opl', 'one-person-lab');
+  return hasOplCliEntrypoint(installDir) ? installDir : null;
+}
+
+function listExplicitOplPackageRoots(env: NodeJS.ProcessEnv): string[] {
+  const seen = new Set<string>();
+  const roots: string[] = [];
+  for (const candidate of [
+    resolveDeveloperModeCheckoutRoot(env),
+    resolvePackagedRuntimeCheckoutRoot(env),
+    resolveManagedInstallCheckoutRoot(env),
+  ]) {
+    if (!candidate) {
+      continue;
+    }
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) {
+      continue;
+    }
+    seen.add(resolved);
+    roots.push(resolved);
+  }
+  return roots;
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
+  for (const packageRoot of listExplicitOplPackageRoots(env)) {
+    if (!packageSupportsCommand(packageRoot, spec)) continue;
+    const resolved = resolveOplCliFromPackageRoot(packageRoot, env);
+    if (resolved) return resolved;
+  }
   for (const candidate of candidatePathsFromPath(env.PATH, 'opl')) {
     const packageRoot = resolveOplPackageRootFromExecutable(candidate);
     if (!packageRoot || !packageSupportsCommand(packageRoot, spec)) continue;
@@ -563,6 +824,7 @@ function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): 
   return {
     ...baseEnv,
     HOME: homeDir,
+    OPL_INSTALL_DIR: normalizeOptionalString(baseEnv.OPL_INSTALL_DIR) ?? path.join(homeDir, '.opl', 'one-person-lab'),
     PATH: normalizePathEntries([
       hasHealthyOplShim(managedOplBin) ? managedOplBin : null,
       shouldIncludeManagedNodeBin(managedNodeBin) ? managedNodeBin : null,
@@ -966,9 +1228,11 @@ export const __oplRuntimeBridgeTest = {
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
   commandFailureResult,
+  developerModePrefersLocalCheckout,
   readInitializeCompletePayload,
   readInitializeEventEnvelope,
   resolveOplCli,
+  resolveDeveloperModeCheckoutRoot,
   resolveOplPackageRootFromExecutable,
   parseJson,
   runInitializeEventsCommand,

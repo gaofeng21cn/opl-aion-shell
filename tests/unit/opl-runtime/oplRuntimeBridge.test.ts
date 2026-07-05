@@ -415,15 +415,15 @@ describe('OPL runtime bridge command whitelist', () => {
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const compatibleRoot = path.join(homeDir, 'compatible-opl');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(compatibleRoot, 'bin'), { recursive: true });
-    fs.mkdirSync(path.join(compatibleRoot, 'dist'), { recursive: true });
+    fs.mkdirSync(path.join(compatibleRoot, 'dist', 'entrypoints'), { recursive: true });
     fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'cli.js'), 'console.log("old")\n', 'utf8');
+    fs.writeFileSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'), 'console.log("old")\n', 'utf8');
     fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(compatibleRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
-    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'cli.js'), 'console.log("new")\n', 'utf8');
+    fs.writeFileSync(path.join(compatibleRoot, 'dist', 'entrypoints', 'cli.js'), 'console.log("new")\n', 'utf8');
     fs.writeFileSync(path.join(compatibleRoot, 'dist', 'managed-update-kernel.js'), 'export {}\n', 'utf8');
 
     const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
@@ -442,7 +442,7 @@ describe('OPL runtime bridge command whitelist', () => {
     );
     expect(updateCommand.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
     expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
-    expect(updateCommand.args).not.toContain(path.join(runtimeHome, 'opl', 'dist', 'cli.js'));
+    expect(updateCommand.args).not.toContain(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'));
     expect(updateCommand.redactedCommand).toBe('opl update status --json');
 
     const appStateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
@@ -450,7 +450,74 @@ describe('OPL runtime bridge command whitelist', () => {
       env
     );
     expect(appStateCommand.args).toEqual([
-      path.join(runtimeHome, 'opl', 'dist', 'cli.js'),
+      path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'),
+      'app',
+      'state',
+      '--profile',
+      'fast',
+      '--json',
+    ]);
+  });
+
+  it('prefers the explicit local framework checkout when Developer Mode is active', () => {
+    const homeDir = makeTempRoot('opl-devmode-source-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const stateDir = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'state');
+    const workspaceRoot = path.join(homeDir, 'workspace');
+    const developerCheckout = path.join(workspaceRoot, 'one-person-lab');
+
+    fs.mkdirSync(path.join(runtimeHome, 'opl', 'dist', 'entrypoints'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.mkdirSync(workspaceRoot, { recursive: true });
+    fs.mkdirSync(path.join(developerCheckout, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(developerCheckout, 'contracts', 'opl-framework'), { recursive: true });
+    fs.mkdirSync(path.join(developerCheckout, 'src', 'entrypoints'), { recursive: true });
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(stateDir, 'developer-supervisor.json'),
+      JSON.stringify({ enabled: 'on', mode: 'developer_apply_safe', auto_enable_github_login: 'gaofeng21cn' }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(stateDir, 'workspace-root.json'),
+      JSON.stringify({ selected_path: workspaceRoot }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'),
+      'console.log("runtime")\n',
+      'utf8'
+    );
+    fs.writeFileSync(path.join(developerCheckout, 'src', 'entrypoints', 'cli.ts'), 'console.log("checkout")\n', 'utf8');
+    fs.writeFileSync(
+      path.join(developerCheckout, 'contracts', 'opl-framework', 'public-surface-index.json'),
+      '{}',
+      'utf8'
+    );
+    fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+        OPL_WORKSPACE_ROOT: workspaceRoot,
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(__oplRuntimeBridgeTest.developerModePrefersLocalCheckout(env)).toBe(true);
+    expect(__oplRuntimeBridgeTest.resolveDeveloperModeCheckoutRoot(env)).toBe(developerCheckout);
+
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+      env
+    );
+    expect(command.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
+    expect(command.args).toEqual([
+      '--experimental-strip-types',
+      path.join(developerCheckout, 'src', 'entrypoints', 'cli.ts'),
       'app',
       'state',
       '--profile',

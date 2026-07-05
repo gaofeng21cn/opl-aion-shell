@@ -5,7 +5,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -180,6 +180,82 @@ childProcess.execSync = function mockedExecSync(command) {
       const builderCommand = commands.find((command) => command.includes('electron-builder'));
       expect(builderCommand).toContain('--dir');
       expect(builderCommand).not.toContain('--mac');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses the pack-only build path for WebUI refresh and prunes stale out bundles first', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'aionui-pack-only-build-test-'));
+    const hookPath = join(tempDir, 'hook.cjs');
+    const commandsPath = join(tempDir, 'commands.json');
+
+    writeFileSync(
+      hookPath,
+      `
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const Module = require('node:module');
+const path = require('node:path');
+
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request.endsWith('packages/shared-scripts/src/prepare-aioncore.js')) {
+    return { prepareAioncore: () => ({ prepared: true, dir: 'mock-bundled-aioncore', sourceType: 'mock' }) };
+  }
+  if (request === './resolveAioncoreVersion.js' || request.endsWith('/resolveAioncoreVersion.js')) {
+    return { resolveAioncoreVersion: () => 'v-test' };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+function record(command) {
+  const commandsPath = process.env.AIONUI_COMMANDS_FILE;
+  const commands = fs.existsSync(commandsPath) ? JSON.parse(fs.readFileSync(commandsPath, 'utf8')) : [];
+  commands.push(String(command));
+  fs.writeFileSync(commandsPath, JSON.stringify(commands));
+}
+
+childProcess.execSync = function mockedExecSync(command) {
+  const commandText = String(command);
+  record(commandText);
+  if (commandText.includes('electron-vite build')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  return Buffer.from('');
+};
+`,
+      'utf8'
+    );
+
+    try {
+      const result = withOutBundleBackup(() => {
+        mkdirSync(join(repoRoot, 'out', 'renderer', 'assets'), { recursive: true });
+        writeFileSync(join(repoRoot, 'out', 'renderer', 'assets', 'stale.js'), 'stale', 'utf8');
+        return spawnSync(
+          process.execPath,
+          ['scripts/build-with-builder.js', '--pack-only', '--skip-native', '--force'],
+          {
+            cwd: repoRoot,
+            encoding: 'utf8',
+            env: {
+              ...process.env,
+              AIONUI_COMMANDS_FILE: commandsPath,
+              NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+            },
+          }
+        );
+      });
+
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      const commands = JSON.parse(readFileSync(commandsPath, 'utf8')) as string[];
+      expect(commands.some((command) => command.includes('electron-builder'))).toBe(false);
+      expect(result.stdout).toContain('Package completed! (skipped distributable creation)');
+      expect(existsSync(join(repoRoot, 'out', 'renderer', 'assets', 'stale.js'))).toBe(false);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

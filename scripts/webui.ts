@@ -155,9 +155,11 @@ function runPackageIfNeeded(): void {
   if (has('--no-build')) return;
   if (parseBoolean(process.env.AIONUI_NO_BUILD)) return;
   if (process.env.AIONUI_STATIC_DIR) return;
-  console.log('[webui] running "bun run package" to refresh out/renderer (pass --no-build to skip)...');
+  console.log(
+    '[webui] running "node scripts/build-with-builder.js --pack-only --skip-native" to refresh out/renderer (pass --no-build to skip)...'
+  );
   const start = Date.now();
-  execSync('bun run package', { cwd: repoRoot, stdio: 'inherit' });
+  execSync('node scripts/build-with-builder.js --pack-only --skip-native', { cwd: repoRoot, stdio: 'inherit' });
   console.log(`[webui] package finished in ${((Date.now() - start) / 1000).toFixed(1)}s`);
 }
 
