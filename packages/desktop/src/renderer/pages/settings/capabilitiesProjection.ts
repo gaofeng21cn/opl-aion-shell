@@ -71,7 +71,9 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'resourceContextRefs'
   | 'resourceContextGroups'
   | 'exportBundleAction'
->;
+> & {
+  packageId?: string | null;
+};
 
 type RuntimeModuleItem = OplAppStateRecord;
 type RuntimeTaskItem = OplAppStateRecord;
