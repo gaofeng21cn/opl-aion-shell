@@ -60,6 +60,10 @@ vi.mock('react-i18next', () => ({
         'settings.runtimePage.taskRuns.artifactContext.ledgerRecord': 'Ledger record',
         'settings.runtimePage.taskRuns.artifactContext.roCrate': 'RO-Crate metadata',
         'settings.runtimePage.taskRuns.artifactContext.openAction': 'Open detail action',
+        'common.unit.second_short': 's',
+        'common.unit.minute_short': 'm',
+        'common.unit.hour_short': 'h',
+        'common.unit.day_short': 'd',
       };
       if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
@@ -1248,6 +1252,36 @@ describe('RuntimeSettings app state bridge usage', () => {
               profile: 'fast',
             },
             workbench: {
+              runtime_scope: {
+                scope_source: 'inferred',
+                inferred_scope_hint: 'dm-cvd-mortality-risk',
+                current_scope: {
+                  kind: 'all_projects',
+                  id: 'all-projects',
+                  value: 'all_projects',
+                  label: 'All projects',
+                },
+                scope_options: [
+                  {
+                    kind: 'all_projects',
+                    id: 'all-projects',
+                    value: 'all_projects',
+                    label: 'All projects',
+                  },
+                  {
+                    kind: 'workspace',
+                    id: 'workspace:dm-cvd-mortality-risk',
+                    value: 'dm-cvd-mortality-risk',
+                    label: 'DM CVD Mortality Risk',
+                  },
+                  {
+                    kind: 'project',
+                    id: 'project:dm002',
+                    value: 'dm002',
+                    label: 'DM002 paper line',
+                  },
+                ],
+              },
               domain_lane_map: {
                 lanes: [
                   {
@@ -1313,8 +1347,18 @@ describe('RuntimeSettings app state bridge usage', () => {
                   task_id: 'dm002-publication-eval',
                   domain_id: 'medautoscience',
                   domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm002',
+                  project_display_name: 'DM002 paper line',
+                  work_item_display_name: 'Publication evaluation',
                   title: 'DM002 publication evaluation',
                   state: 'running',
+                  primary_state: 'in_progress',
+                  primary_state_label: 'common.runtime.primaryStates.inProgress',
+                  automation_state: 'automation_running',
+                  automation_state_label: 'common.runtime.automationStates.running',
                   active_stage_id: 'paper_autonomy/repair-recheck',
                   active_stage_label: 'Publication repair check',
                   progress_delta_classification: 'deliverable_progress',
@@ -1325,6 +1369,12 @@ describe('RuntimeSettings app state bridge usage', () => {
                   next_owner: 'AI reviewer',
                   last_progress_at: '2026-06-02T00:01:12.853Z',
                   stage_attempt_ids: ['sat_dm002'],
+                  stage_run_cockpit: {
+                    elapsed_seconds: 5400,
+                    last_heartbeat_at: '2026-06-02T00:01:12.853Z',
+                    stage_usage: { total_tokens: 128 },
+                    task_total_usage: { total_tokens: 512 },
+                  },
                   blocker_ref_count: 0,
                   artifact_provenance_summary: 'publication eval packet from current App state',
                   reviewer_receipt_summary: 'review receipt accepted by reviewer lane',
@@ -1335,10 +1385,20 @@ describe('RuntimeSettings app state bridge usage', () => {
                   task_id: 'medautoscience:study:003-dpcc-primary-care-phenotype-treatment-gap',
                   domain_id: 'medautoscience',
                   domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm003',
+                  project_display_name: 'DM003 paper line',
+                  work_item_display_name: 'Runtime closeout',
                   study_id: '003-dpcc-primary-care-phenotype-treatment-gap',
                   title: 'DM003 paper mission runtime closeout',
                   state: 'attention_needed',
                   status: 'completed',
+                  primary_state: 'system_attention_required',
+                  primary_state_label: 'common.runtime.primaryStates.systemAttentionRequired',
+                  automation_state: 'result_pending_terminalization',
+                  automation_state_label: 'common.runtime.automationStates.pendingTerminalization',
                   status_label: 'OPL/MAS readback attention',
                   active_stage_id: 'write',
                   active_stage_label: 'Write',
@@ -1373,10 +1433,20 @@ describe('RuntimeSettings app state bridge usage', () => {
                   task_id: 'medautoscience:study:004-reviewer-followup',
                   domain_id: 'medautoscience',
                   domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm004',
+                  project_display_name: 'DM004 paper line',
+                  work_item_display_name: 'Reviewer follow-up',
                   study_id: '004-reviewer-followup',
                   title: 'DM004 reviewer follow-up',
                   state: 'pending',
                   status: 'queued',
+                  primary_state: 'paused_waiting_for_direction',
+                  primary_state_label: 'common.runtime.primaryStates.pausedWaitingForDirection',
+                  automation_state: 'automation_idle',
+                  automation_state_label: 'common.runtime.automationStates.idle',
                   status_label: 'Waiting to start',
                   active_stage_id: 'reviewer-refresh',
                   active_stage_label: 'Reviewer refresh',
@@ -1413,33 +1483,34 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getByText('common.runtime.taskOverview')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('common.runtime.overviewTitle')).toBeInTheDocument());
     expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
-    expect(screen.getByText('common.runtime.runningTasks')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.runningTaskCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.activeProjectCount 3')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.queuedTaskCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.attentionTaskCount 2')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.currentWorkbench')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.scopeSelector')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.scopeSourceLabel common.runtime.scopeSource.inferred')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.scopeInferredHint dm-cvd-mortality-risk')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.inProgress');
+    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.systemAttentionRequired');
+    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
+    expect(screen.getByText('common.runtime.runtimeGroupsTitle')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
-    expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.agentModule Med Auto Science');
-    expect(document.body.textContent).toContain('common.runtime.projectTask DM002 publication evaluation');
+    expect(screen.getByText('Publication evaluation')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.agentModule MAS');
+    expect(document.body.textContent).toContain('common.runtime.projectTask DM002 paper line');
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.stageElapsed');
+    expect(document.body.textContent).toContain('common.runtime.stageElapsed 1h');
     expect(document.body.textContent).toContain('common.runtime.runningProof common.runtime.runningProofHeartbeat');
     expect(screen.getAllByText(/common\.runtime\.runningProof common\.runtime\.runningProofHeartbeat/)).toHaveLength(1);
-    expect(document.body.textContent).toContain('common.runtime.stageUsage common.runtime.telemetryMissing');
-    expect(document.body.textContent).toContain('common.runtime.totalUsage common.runtime.telemetryMissing');
+    expect(document.body.textContent).toContain('common.runtime.stageUsage 128 tokens');
+    expect(document.body.textContent).toContain('common.runtime.totalUsage 512 tokens');
     expect(
       screen.getByText('common.runtime.blockerRoute Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.blockerSummaryLine owner blocker cleared');
-    expect(screen.getByText('common.runtime.attentionTasks')).toBeInTheDocument();
-    expect(screen.getByText('DM003 paper mission runtime closeout')).toBeInTheDocument();
-    expect(screen.getByText('OPL/MAS readback attention')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-group-system_attention_required')).toBeInTheDocument();
+    expect(screen.getByText('Runtime closeout')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.automationStates.pendingTerminalization')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.currentStage Write')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
     expect(document.body.textContent).toContain(
@@ -1570,7 +1641,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('DM002 publication evaluation').length).toBeGreaterThan(0));
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
       'common.runtime.blockerRoute Finish reviewer evaluation against current inputs'
     );

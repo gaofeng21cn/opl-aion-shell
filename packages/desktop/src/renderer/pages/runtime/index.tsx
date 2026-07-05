@@ -5,12 +5,19 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Collapse, Message, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Collapse, Message, Select, Space, Tag, Typography } from '@arco-design/web-react';
 import { Play, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
+import { normalizeRuntimeProjection } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
+import type {
+  RuntimeScopeOption,
+  RuntimeTaskAutomationState,
+  RuntimeTaskDrilldown,
+  RuntimeTaskPrimaryState,
+} from '@/renderer/pages/settings/RuntimeSettings/types';
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type RuntimeSnapshot = Record<string, unknown>;
@@ -535,6 +542,57 @@ type RuntimeTaskOverview = {
   inactiveTasks: RuntimeTaskStatusItem[];
 };
 
+type RuntimeOverviewTaskItem = {
+  task: RuntimeTaskDrilldown;
+  primaryState: RuntimeTaskPrimaryState;
+  automationState: RuntimeTaskAutomationState;
+  primaryLabel: string;
+  automationLabel: string;
+  agentLabel: string;
+  projectLabel: string;
+  taskLabel: string;
+  stageLabel: string | null;
+  elapsedLabel: string | null;
+  livenessLabel: string;
+  stageUsageLabel: string;
+  totalUsageLabel: string;
+  nextStep: string | null;
+  ownerLabel: string | null;
+  blockerSummary: string | null;
+  latestActivityAt: string | null;
+  currentnessTag: string | null;
+};
+
+type RuntimeOverviewSection = {
+  state: RuntimeTaskPrimaryState;
+  title: string;
+  summary: string;
+  tasks: RuntimeOverviewTaskItem[];
+};
+
+const PRIMARY_STATE_ORDER: RuntimeTaskPrimaryState[] = [
+  'in_progress',
+  'delivered_auto_paused',
+  'paused_waiting_for_direction',
+  'owner_decision_required',
+  'system_attention_required',
+];
+
+const PRIMARY_STATE_LABEL_KEYS: Record<RuntimeTaskPrimaryState, string> = {
+  in_progress: 'common.runtime.primaryStates.inProgress',
+  delivered_auto_paused: 'common.runtime.primaryStates.deliveredAutoPaused',
+  paused_waiting_for_direction: 'common.runtime.primaryStates.pausedWaitingForDirection',
+  owner_decision_required: 'common.runtime.primaryStates.ownerDecisionRequired',
+  system_attention_required: 'common.runtime.primaryStates.systemAttentionRequired',
+};
+
+const AUTOMATION_STATE_LABEL_KEYS: Record<RuntimeTaskAutomationState, string> = {
+  automation_running: 'common.runtime.automationStates.running',
+  automation_idle: 'common.runtime.automationStates.idle',
+  result_pending_terminalization: 'common.runtime.automationStates.pendingTerminalization',
+  automation_failed: 'common.runtime.automationStates.failed',
+};
+
 const PROJECT_STATE_KEYS: Record<string, string> = {
   ready: 'common.runtime.projectStates.ready',
   running: 'common.runtime.projectStates.running',
@@ -1002,8 +1060,205 @@ function formatElapsedSince(timestamp: string | null, t: (key: string) => string
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}${t('common.unit.minute_short')}`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  if (hours < 24) return `${hours}${t('common.unit.hour_short')}`;
+  return `${Math.floor(hours / 24)}${t('common.unit.day_short')}`;
+}
+
+function formatElapsedSeconds(seconds: number | null | undefined, t: (key: string) => string): string | null {
+  if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return null;
+  if (seconds < 60) return `${Math.floor(seconds)}${t('common.unit.second_short')}`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}${t('common.unit.minute_short')}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}${t('common.unit.hour_short')}`;
+  return `${Math.floor(hours / 24)}${t('common.unit.day_short')}`;
+}
+
+function normalizeScopeToken(value: string | null | undefined): string | null {
+  return value && value.trim().length > 0 ? value.trim().toLowerCase() : null;
+}
+
+function scopeMatchesTask(task: RuntimeTaskDrilldown, scope: RuntimeScopeOption | null): boolean {
+  if (!scope || scope.kind === 'all_projects') return true;
+  const scopeValue = normalizeScopeToken(scope.value ?? scope.label);
+  if (!scopeValue) return true;
+  const matches = (...values: Array<string | undefined>) =>
+    values.map(normalizeScopeToken).some((value) => value === scopeValue);
+  if (scope.kind === 'agent') {
+    return matches(task.domainId, task.domainLabel, task.agentDisplayName);
+  }
+  if (scope.kind === 'workspace') {
+    return matches(task.workspaceId, task.workspaceLabel);
+  }
+  if (scope.kind === 'project') {
+    return matches(task.projectId, task.projectDisplayName, task.studyId);
+  }
+  return matches(task.taskId, task.title, task.workItemDisplayName, task.executionRunLabel);
+}
+
+function primaryStateForTask(task: RuntimeTaskDrilldown): RuntimeTaskPrimaryState {
+  return task.primaryState ?? 'paused_waiting_for_direction';
+}
+
+function automationStateForTask(task: RuntimeTaskDrilldown): RuntimeTaskAutomationState {
+  return task.automationState ?? 'automation_idle';
+}
+
+function groupSummaryKey(state: RuntimeTaskPrimaryState): string {
+  switch (state) {
+    case 'in_progress':
+      return 'common.runtime.groupSummaries.inProgress';
+    case 'delivered_auto_paused':
+      return 'common.runtime.groupSummaries.deliveredAutoPaused';
+    case 'paused_waiting_for_direction':
+      return 'common.runtime.groupSummaries.pausedWaiting';
+    case 'owner_decision_required':
+      return 'common.runtime.groupSummaries.ownerDecision';
+    case 'system_attention_required':
+      return 'common.runtime.groupSummaries.systemAttention';
+  }
+}
+
+function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: RuntimeSnapshot[]): RuntimeSnapshot | null {
+  if (states.length === 0) return null;
+  const fallbackProject: RuntimeProjectProgress = {
+    id: task.taskId,
+    title: task.title,
+    domainId: task.domainId ?? null,
+    domainLabel: task.domainLabel ?? task.agentDisplayName ?? '',
+    priorityBucket: null,
+    stateRaw: task.state ?? null,
+    statusRaw: task.status ?? null,
+    progressClassRaw: null,
+    stateLabel: null,
+    statusLabel: task.status ?? null,
+    stageLabel: task.stage ?? null,
+    nextStep: task.nextStep ?? null,
+    nextOwner: task.nextOwner ?? null,
+    lastProgressAt: task.lastProgressAt ?? null,
+    studyId: task.projectId ?? null,
+    activeRunId: task.activeRunId ?? null,
+    progressClassLabel: null,
+    progressTone: 'blue',
+    deliverableCount: 0,
+    platformRepairCount: 0,
+    blockerCount: task.blockerRefCount,
+    safeActionCount: task.safeActionRefCount,
+    paperLensCount: task.paperRouteLensRefCount,
+    stageAttemptCount: task.stageAttemptIds.length,
+    stageAttemptIds: task.stageAttemptIds,
+    runtimeCloseoutObserved: false,
+    runtimeCloseoutRef: null,
+    masOwnerConsumptionStatus: null,
+    masOwnerConsumptionRef: null,
+    masOwnerConsumedStageAttemptId: null,
+    masOwnerConsumedCloseoutRef: null,
+    masOwnerConsumptionMatchesRuntimeCloseout: null,
+    refsSummary: { artifact: null, blocker: task.typedBlockerSummary ?? null, reviewReceipt: null, actionReceipt: null },
+    needsAttention: primaryStateForTask(task) === 'system_attention_required',
+  };
+  return matchControlState(fallbackProject, buildControlStateIndex(states));
+}
+
+function runtimeTaskItem(
+  task: RuntimeTaskDrilldown,
+  controlStates: RuntimeSnapshot[],
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeOverviewTaskItem {
+  const primaryState = primaryStateForTask(task);
+  const automationState = automationStateForTask(task);
+  const controlState = controlStateFallbackForTask(task, controlStates);
+  const providerRun = record(controlState?.provider_run);
+  const lastHeartbeatAt = task.lastHeartbeatAt ?? stringValue(providerRun.last_heartbeat_at);
+  const completedAt = stringValue(providerRun.completed_at);
+  const stageElapsed =
+    formatElapsedSeconds(task.elapsedSeconds, t) ?? formatElapsedSince(pickStageStartedAt(controlState), t);
+  const livenessLabel =
+    lastHeartbeatAt
+      ? t('common.runtime.runningProofHeartbeat', { time: lastHeartbeatAt })
+      : task.runningProofRef
+        ? task.runningProofRef
+        : completedAt
+          ? t('common.runtime.runningProofCompleted', {
+              status: stringValue(providerRun.provider_status) ?? stringValue(controlState?.current_attempt_state) ?? t('common.runtime.values.empty'),
+              time: completedAt,
+            })
+          : t('common.runtime.telemetryMissing');
+  const blockerSummary = task.typedBlockerSummary ?? stringValue(controlState?.blocker_reason) ?? null;
+  return {
+    task,
+    primaryState,
+    automationState,
+    primaryLabel: task.primaryStateLabel ?? t(PRIMARY_STATE_LABEL_KEYS[primaryState]),
+    automationLabel: task.automationStateLabel ?? t(AUTOMATION_STATE_LABEL_KEYS[automationState]),
+    agentLabel: task.agentDisplayName ?? task.domainLabel ?? task.domainId ?? t('common.runtime.unknownDomain'),
+    projectLabel: task.projectDisplayName ?? task.projectId ?? task.studyId ?? task.title,
+    taskLabel: task.workItemDisplayName ?? task.title,
+    stageLabel: task.stage ?? task.activeStageId ?? null,
+    elapsedLabel: stageElapsed,
+    livenessLabel,
+    stageUsageLabel: task.stageUsage ?? t('common.runtime.telemetryMissing'),
+    totalUsageLabel: task.taskTotalUsage ?? t('common.runtime.telemetryMissing'),
+    nextStep: task.nextStep ?? task.typedBlockerResolutionRef ?? null,
+    ownerLabel: task.nextOwner ?? task.typedBlockerOwner ?? null,
+    blockerSummary,
+    latestActivityAt: task.lastProgressAt ?? lastHeartbeatAt ?? completedAt ?? null,
+    currentnessTag:
+      typeof task.masOwnerConsumptionMatchesRuntimeCloseout === 'boolean'
+        ? task.masOwnerConsumptionMatchesRuntimeCloseout
+          ? t('common.runtime.masOwnerConsumptionCurrent')
+          : t('common.runtime.masOwnerConsumptionDrift')
+        : null,
+  };
+}
+
+function buildOverviewSections(
+  tasks: RuntimeTaskDrilldown[],
+  scope: RuntimeScopeOption | null,
+  controlStates: RuntimeSnapshot[],
+  t: (key: string, options?: Record<string, string | number>) => string
+): {
+  sections: RuntimeOverviewSection[];
+  latestActivityAt: string | null;
+  automationRunningCount: number;
+  counts: Record<RuntimeTaskPrimaryState, number>;
+} {
+  const filtered = tasks.filter((task) => scopeMatchesTask(task, scope));
+  const items = filtered.map((task) => runtimeTaskItem(task, controlStates, t));
+  const byState = new Map<RuntimeTaskPrimaryState, RuntimeOverviewTaskItem[]>();
+  PRIMARY_STATE_ORDER.forEach((state) => byState.set(state, []));
+  items.forEach((item) => {
+    byState.get(item.primaryState)?.push(item);
+  });
+  const sections = PRIMARY_STATE_ORDER.map((state) => {
+    const stateItems = (byState.get(state) ?? []).toSorted((left, right) =>
+      (right.latestActivityAt ?? '').localeCompare(left.latestActivityAt ?? '') || left.task.title.localeCompare(right.task.title)
+    );
+    return {
+      state,
+      title: t(PRIMARY_STATE_LABEL_KEYS[state]),
+      summary: t(groupSummaryKey(state), { count: stateItems.length }),
+      tasks: stateItems,
+    };
+  });
+  const latestActivityAt =
+    items
+      .map((item) => item.latestActivityAt)
+      .filter((value): value is string => Boolean(value))
+      .toSorted()
+      .at(-1) ?? null;
+  return {
+    sections,
+    latestActivityAt,
+    automationRunningCount: items.filter((item) => item.automationState === 'automation_running').length,
+    counts: {
+      in_progress: byState.get('in_progress')?.length ?? 0,
+      delivered_auto_paused: byState.get('delivered_auto_paused')?.length ?? 0,
+      paused_waiting_for_direction: byState.get('paused_waiting_for_direction')?.length ?? 0,
+      owner_decision_required: byState.get('owner_decision_required')?.length ?? 0,
+      system_attention_required: byState.get('system_attention_required')?.length ?? 0,
+    },
+  };
 }
 
 function taskStatusItems(projects: RuntimeProjectProgress[], controlStates: RuntimeSnapshot[]): RuntimeTaskStatusItem[] {
@@ -1141,6 +1396,7 @@ const RuntimePage: React.FC = () => {
   const tRef = useRef(t);
   const requestSeq = useRef({ summary: 0, full: 0 });
   const runningRefreshInFlight = useRef(false);
+  const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
 
   useEffect(() => {
     messageRef.current = message;
@@ -1154,6 +1410,7 @@ const RuntimePage: React.FC = () => {
     () => appStateToRuntimeProjection(appStateQuery.appState),
     [appStateQuery.appState]
   );
+  const runtimeModel = useMemo(() => normalizeRuntimeProjection(appStateQuery.appState), [appStateQuery.appState]);
   const userTaskDrilldown = appStateProjection;
   const displayDrilldown = fullDetailDrilldown ?? summaryDrilldown ?? appStateProjection;
   const actionDrilldown = useMemo(() => {
@@ -1237,17 +1494,39 @@ const RuntimePage: React.FC = () => {
   const actions = useMemo(() => collectSafeActions(actionDrilldown ?? {}), [actionDrilldown]);
   const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
   const lanes = useMemo(() => workbenchDomainLanes(userTaskDrilldown ?? {}), [userTaskDrilldown]);
-  const tasks = useMemo(() => workbenchTaskDrilldowns(userTaskDrilldown ?? {}), [userTaskDrilldown]);
   const moduleStatusItems = useMemo(() => parseModuleStatusItems(appStateQuery.appState, t), [appStateQuery.appState, t]);
-  const activeProjectLines = useMemo(() => workbenchActiveProjectLines(userTaskDrilldown ?? {}), [userTaskDrilldown]);
-  const projects = useMemo(() => projectProgressItems(tasks, activeProjectLines, t), [activeProjectLines, tasks, t]);
   const controlStates = useMemo(() => currentControlStateRecords(displayDrilldown ?? {}), [displayDrilldown]);
-  const projectSummary = useMemo(() => summarizeProjectProgress(projects, lanes), [projects, lanes]);
-  const taskOverview = useMemo(() => buildTaskOverview(projects, controlStates), [controlStates, projects]);
+  const maintenanceAttentionCount = useMemo(
+    () => lanes.reduce((total, lane) => total + (numberValue(lane.blocked_task_count) ?? 0), 0),
+    [lanes]
+  );
+  const runtimeScope = runtimeModel.scope;
+  const selectedScope =
+    runtimeScope.options.find((option) => option.id === selectedScopeId) ??
+    runtimeScope.current ??
+    runtimeScope.options[0] ??
+    null;
+  const scopeLabel = useMemo(() => {
+    if (!selectedScope) return t('common.runtime.scopeSource.default_global');
+    if (selectedScope.kind === 'all_projects') return t('common.runtime.scopeSource.default_global');
+    return selectedScope.label;
+  }, [selectedScope, t]);
+  const overview = useMemo(
+    () => buildOverviewSections(runtimeModel.taskRunProjectionV2.tasks, selectedScope, controlStates, t),
+    [controlStates, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
+  );
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
   useEffect(() => {
-    if (taskOverview.runningTaskCount <= 0) return undefined;
+    const currentScopeId = runtimeScope.current?.id ?? runtimeScope.options[0]?.id ?? null;
+    setSelectedScopeId((previous) => {
+      if (!previous) return currentScopeId;
+      return runtimeScope.options.some((option) => option.id === previous) ? previous : currentScopeId;
+    });
+  }, [runtimeScope.current, runtimeScope.options]);
+
+  useEffect(() => {
+    if (overview.automationRunningCount <= 0) return undefined;
     const timer = window.setInterval(() => {
       if (runningRefreshInFlight.current) return;
       runningRefreshInFlight.current = true;
@@ -1256,7 +1535,7 @@ const RuntimePage: React.FC = () => {
       });
     }, RUNTIME_RUNNING_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [refreshAppState, taskOverview.runningTaskCount]);
+  }, [overview.automationRunningCount, refreshAppState]);
 
   const dryRunAction = useCallback(async (actionId: string) => {
     setRunningActionId(actionId);
@@ -1276,108 +1555,74 @@ const RuntimePage: React.FC = () => {
   }, []);
 
   const renderTaskItem = useCallback(
-    (task: RuntimeTaskStatusItem) => {
-      const deliverableLabel = formatCountLabel(t('common.runtime.deliverableProgress'), task.deliverableCount);
-      const platformRepairLabel = formatCountLabel(t('common.runtime.platformRepair'), task.platformRepairCount);
-      const blockerSummary = task.refsSummary.blocker ?? task.blockerReason ?? null;
-      const runningProof =
-        task.lastHeartbeatAt
-          ? t('common.runtime.runningProofHeartbeat', { time: task.lastHeartbeatAt })
-          : task.completedAt
-            ? t('common.runtime.runningProofCompleted', {
-                time: task.completedAt,
-                status: task.providerStatus ?? task.currentAttemptState ?? t('common.runtime.values.empty'),
-              })
-            : task.providerStatus || task.currentAttemptState
-              ? t('common.runtime.runningProofState', {
-                  status: task.providerStatus ?? task.currentAttemptState ?? t('common.runtime.values.empty'),
-                })
-              : t('common.runtime.telemetryMissing');
-      const stageElapsed = formatElapsedSince(task.stageStartedAt, t);
+    (item: RuntimeOverviewTaskItem) => {
+      const { task } = item;
       return (
-        <div key={task.id} className='py-12px'>
+        <div key={task.taskId} className='py-12px'>
           <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
             <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary break-words'>{task.title}</Typography.Text>
+              <Typography.Text className='block font-600 text-t-primary break-words'>{item.taskLabel}</Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                {task.domainLabel}
-                {task.studyId ? ` · ${task.studyId}` : ''}
+                {item.projectLabel}
               </Typography.Text>
             </div>
             <Space wrap size='mini'>
-              {task.running && <Tag color='blue'>{t('common.runtime.runningNow')}</Tag>}
-              {task.statusLabel && <Tag>{task.statusLabel}</Tag>}
-              {task.stateLabel && <Tag>{task.stateLabel}</Tag>}
-              {task.progressClassLabel && <Tag color={task.progressTone}>{task.progressClassLabel}</Tag>}
-              {task.masOwnerConsumptionMatchesRuntimeCloseout !== null && (
-                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>
-                  {task.masOwnerConsumptionMatchesRuntimeCloseout
-                    ? t('common.runtime.masOwnerConsumptionCurrent')
-                    : t('common.runtime.masOwnerConsumptionDrift')}
-                </Tag>
+              <Tag color={item.primaryState === 'in_progress' ? 'blue' : item.primaryState === 'system_attention_required' ? 'orange' : 'green'}>
+                {item.primaryLabel}
+              </Tag>
+              <Tag>{item.automationLabel}</Tag>
+              {item.currentnessTag && (
+                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>{item.currentnessTag}</Tag>
               )}
             </Space>
           </div>
           <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.agentModule', { agent: task.domainLabel })}
+              {t('common.runtime.agentModule', { agent: item.agentLabel })}
             </Typography.Text>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.projectTask', { task: task.studyId ?? task.title })}
+              {t('common.runtime.projectTask', { task: item.projectLabel })}
             </Typography.Text>
-            {task.stageLabel && (
+            {item.stageLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
-                {t('common.runtime.currentStage', { stage: task.stageLabel })}
+                {t('common.runtime.currentStage', { stage: item.stageLabel })}
               </Typography.Text>
             )}
             <Typography.Text className='block text-12px text-t-secondary break-words'>
               {t('common.runtime.stageElapsed', {
-                value: stageElapsed ?? t('common.runtime.telemetryMissing'),
+                value: item.elapsedLabel ?? t('common.runtime.telemetryMissing'),
               })}
             </Typography.Text>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.runningProof', { proof: runningProof })}
+              {t('common.runtime.runningProof', { proof: item.livenessLabel })}
             </Typography.Text>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.stageUsage', {
-                value: task.usageTelemetryMissing ? t('common.runtime.telemetryMissing') : t('common.runtime.values.available'),
-              })}
+              {t('common.runtime.stageUsage', { value: item.stageUsageLabel })}
             </Typography.Text>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.totalUsage', {
-                value: task.usageTelemetryMissing ? t('common.runtime.telemetryMissing') : t('common.runtime.values.available'),
-              })}
+              {t('common.runtime.totalUsage', { value: item.totalUsageLabel })}
             </Typography.Text>
-            {task.nextOwner && (
+            {item.ownerLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
-                {t('common.runtime.nextOwner', { owner: task.nextOwner })}
+                {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
               </Typography.Text>
             )}
-            {blockerSummary && (
+            {item.blockerSummary && (
               <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
-                {t('common.runtime.blockerSummaryLine', { summary: blockerSummary })}
+                {t('common.runtime.blockerSummaryLine', { summary: item.blockerSummary })}
               </Typography.Text>
             )}
-            {task.nextStep && (
+            {item.nextStep && (
               <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
-                {t('common.runtime.blockerRoute', { route: task.nextStep })}
+                {t('common.runtime.blockerRoute', { route: item.nextStep })}
               </Typography.Text>
             )}
-            {task.lastProgressAt && (
+            {item.latestActivityAt && (
               <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('common.runtime.lastProgressAt', { time: task.lastProgressAt })}
+                {t('common.runtime.lastProgressAt', { time: item.latestActivityAt })}
               </Typography.Text>
             )}
           </div>
-          <Space wrap size='mini' className='mt-8px'>
-            {deliverableLabel && <Tag color='green'>{deliverableLabel}</Tag>}
-            {platformRepairLabel && <Tag color='orange'>{platformRepairLabel}</Tag>}
-            {task.safeActionCount > 0 && <Tag>{`${t('common.runtime.safeActions')}: ${task.safeActionCount}`}</Tag>}
-            {task.blockerCount > 0 && (
-              <Tag color='orange'>{`${t('common.runtime.blockers')}: ${task.blockerCount}`}</Tag>
-            )}
-            {task.paperLensCount > 0 && <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>}
-          </Space>
         </div>
       );
     },
@@ -1410,6 +1655,36 @@ const RuntimePage: React.FC = () => {
           </div>
         </div>
 
+        <Card bordered className='rd-8px' data-testid='runtime-scope-card'>
+          <div className='flex flex-col gap-12px md:flex-row md:items-end md:justify-between'>
+            <div className='min-w-0 flex-1'>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('common.runtime.scopeSelector')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                {t('common.runtime.scopeSourceLabel', {
+                      source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
+                    })}
+              </Typography.Text>
+              {runtimeScope.inferredHint && (
+                <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                  {t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}
+                </Typography.Text>
+              )}
+            </div>
+            <Select
+              className='min-w-240px'
+              data-testid='runtime-scope-selector'
+              value={selectedScope?.id}
+              onChange={(value) => setSelectedScopeId(String(value))}
+              options={runtimeScope.options.map((option) => ({
+                label: option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
+                value: option.id,
+              }))}
+            />
+          </div>
+        </Card>
+
         <Card bordered className='rd-8px'>
           <div className='flex items-center justify-between gap-16px'>
             <div className='min-w-0'>
@@ -1440,117 +1715,97 @@ const RuntimePage: React.FC = () => {
               <div className='flex flex-col gap-12px'>
                 <div className='flex flex-col gap-4px'>
                   <Typography.Text className='font-600 text-t-primary'>
-                    {t('common.runtime.taskOverview')}
+                    {t('common.runtime.overviewTitle')}
                   </Typography.Text>
                   <Typography.Text className='text-13px text-t-secondary'>
-                    {t('common.runtime.taskOverviewSummaryText', {
-                      running: taskOverview.runningTaskCount,
-                      active: taskOverview.activeProjectCount,
-                      queued: taskOverview.queuedTaskCount,
-                      attention: taskOverview.attentionTaskCount,
+                    {t('common.runtime.overviewSummaryText', {
+                      scope: scopeLabel,
+                      tasks: runtimeModel.taskRunProjectionV2.tasks.filter((task) => scopeMatchesTask(task, selectedScope)).length,
+                      automation: overview.automationRunningCount,
                     })}
                   </Typography.Text>
                 </div>
-                <div className='grid grid-cols-1 md:grid-cols-4 gap-12px'>
+                <div className='grid grid-cols-1 md:grid-cols-5 gap-12px' data-testid='runtime-primary-summary'>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.runningTasks')}
+                      {t('common.runtime.primaryStates.inProgress')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {t('common.runtime.runningTaskCount', { count: taskOverview.runningTaskCount })}
+                      {overview.counts.in_progress}
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.activeProjects')}
+                      {t('common.runtime.primaryStates.deliveredAutoPaused')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {t('common.runtime.activeProjectCount', { count: taskOverview.activeProjectCount })}
+                      {overview.counts.delivered_auto_paused}
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.queuedTasks')}
+                      {t('common.runtime.primaryStates.pausedWaitingForDirection')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {t('common.runtime.queuedTaskCount', { count: taskOverview.queuedTaskCount })}
+                      {overview.counts.paused_waiting_for_direction}
                     </Typography.Text>
                   </div>
                   <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.needAttention')}
+                      {t('common.runtime.primaryStates.ownerDecisionRequired')}
                     </Typography.Text>
                     <Typography.Text className='block font-600 text-t-primary break-words'>
-                      {t('common.runtime.attentionTaskCount', { count: taskOverview.attentionTaskCount })}
+                      {overview.counts.owner_decision_required}
+                    </Typography.Text>
+                  </div>
+                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('common.runtime.primaryStates.systemAttentionRequired')}
+                    </Typography.Text>
+                    <Typography.Text className='block font-600 text-t-primary break-words'>
+                      {overview.counts.system_attention_required}
                     </Typography.Text>
                   </div>
                 </div>
-                {taskOverview.latestActivityAt && (
+                <div className='flex flex-col gap-4px md:flex-row md:items-center md:justify-between'>
                   <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('common.runtime.latestActivityAt', { time: taskOverview.latestActivityAt })}
+                    {t('common.runtime.automationRunningCount', { count: overview.automationRunningCount })}
                   </Typography.Text>
-                )}
+                  {overview.latestActivityAt && (
+                    <Typography.Text className='text-12px text-t-secondary break-words'>
+                      {t('common.runtime.latestActivityAt', { time: overview.latestActivityAt })}
+                    </Typography.Text>
+                  )}
+                </div>
               </div>
             </Card>
 
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
                 <Typography.Text className='font-600 text-t-primary'>
-                  {t('common.runtime.currentWorkbench')}
+                  {t('common.runtime.runtimeGroupsTitle')}
                 </Typography.Text>
                 <Typography.Text className='text-13px text-t-secondary'>
-                  {t('common.runtime.currentWorkbenchSummaryText', {
-                    count: taskOverview.tasks.length,
-                    running: taskOverview.runningTaskCount,
-                    attention: taskOverview.attentionTaskCount,
+                  {t('common.runtime.runtimeGroupsSummaryText', {
+                    count: runtimeModel.taskRunProjectionV2.tasks.filter((task) => scopeMatchesTask(task, selectedScope)).length,
                   })}
                 </Typography.Text>
-                {taskOverview.runningTasks.length > 0 ? (
-                  <div className='flex flex-col divide-y divide-border-1'>
-                    {taskOverview.runningTasks.map(renderTaskItem)}
+                {overview.sections.some((section) => section.tasks.length > 0) ? (
+                  <div className='flex flex-col gap-12px'>
+                    {overview.sections
+                      .filter((section) => section.tasks.length > 0)
+                      .map((section) => (
+                        <div key={section.state} className='flex flex-col gap-8px' data-testid={`runtime-group-${section.state}`}>
+                          <div className='flex flex-col gap-2px'>
+                            <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
+                            <Typography.Text className='text-12px text-t-secondary'>{section.summary}</Typography.Text>
+                          </div>
+                          <div className='flex flex-col divide-y divide-border-1'>{section.tasks.map(renderTaskItem)}</div>
+                        </div>
+                      ))}
                   </div>
                 ) : (
-                  <Alert type='info' content={t('common.runtime.noRunningTasks')} />
-                )}
-                {taskOverview.attentionTasks.length > 0 && (
-                  <div className='flex flex-col gap-8px'>
-                    <div className='flex flex-col gap-2px'>
-                      <Typography.Text className='font-600 text-t-primary'>
-                        {t('common.runtime.attentionTasks')}
-                      </Typography.Text>
-                      <Typography.Text className='text-12px text-t-secondary'>
-                        {t('common.runtime.attentionTaskSummaryText', {
-                          count: taskOverview.attentionTasks.length,
-                        })}
-                      </Typography.Text>
-                    </div>
-                    <div className='flex flex-col divide-y divide-border-1'>
-                      {taskOverview.attentionTasks.map(renderTaskItem)}
-                    </div>
-                  </div>
-                )}
-                {taskOverview.inactiveTasks.length > 0 && (
-                  <Collapse bordered={false}>
-                    <Collapse.Item
-                      name='inactive-tasks'
-                      header={
-                        <div className='flex flex-col gap-2px'>
-                          <Typography.Text className='font-600 text-t-primary'>
-                            {t('common.runtime.inactiveTasks')}
-                          </Typography.Text>
-                          <Typography.Text className='text-12px text-t-secondary'>
-                            {t('common.runtime.inactiveTaskSummaryText', {
-                              count: taskOverview.inactiveTasks.length,
-                            })}
-                          </Typography.Text>
-                        </div>
-                      }
-                    >
-                      <div className='flex flex-col divide-y divide-border-1'>
-                        {taskOverview.inactiveTasks.map(renderTaskItem)}
-                      </div>
-                    </Collapse.Item>
-                  </Collapse>
+                  <Alert type='info' content={t('common.runtime.noTasksInScope')} />
                 )}
               </div>
             </Card>
@@ -1620,7 +1875,7 @@ const RuntimePage: React.FC = () => {
                         </Typography.Text>
                         <Typography.Text className='text-13px text-t-secondary'>
                           {t('common.runtime.maintenanceAttentionSummaryText', {
-                            count: projectSummary.maintenanceAttention,
+                            count: maintenanceAttentionCount,
                           })}
                         </Typography.Text>
                         <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>

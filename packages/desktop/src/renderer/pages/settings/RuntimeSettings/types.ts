@@ -91,14 +91,44 @@ export type RuntimeTaskDrilldown = {
   title: string;
   domainId?: string;
   domainLabel?: string;
+  agentDisplayName?: string;
+  workspaceId?: string;
+  workspaceLabel?: string;
+  projectId?: string;
+  projectDisplayName?: string;
+  studyId?: string;
+  workItemDisplayName?: string;
+  executionRunLabel?: string;
   state?: string;
   status?: string;
+  primaryState?: RuntimeTaskPrimaryState;
+  primaryStateLabel?: string;
+  primaryStateReason?: string;
+  automationState?: RuntimeTaskAutomationState;
+  automationStateLabel?: string;
+  automationStateReason?: string;
   stage?: string;
   progressLabel?: string;
   nextStep?: string;
   nextOwner?: string;
   lastProgressAt?: string;
   activeStageId?: string;
+  activeRunId?: string;
+  elapsedSeconds?: number;
+  lastHeartbeatAt?: string;
+  runningProofRef?: string;
+  stageUsage?: string;
+  taskTotalUsage?: string;
+  typedBlockerSummary?: string;
+  typedBlockerOwner?: string;
+  typedBlockerResolutionRef?: string;
+  runtimeCloseoutObserved?: boolean;
+  runtimeCloseoutRef?: string;
+  masOwnerConsumptionStatus?: string;
+  masOwnerConsumptionRef?: string;
+  masOwnerConsumedStageAttemptId?: string;
+  masOwnerConsumedCloseoutRef?: string;
+  masOwnerConsumptionMatchesRuntimeCloseout?: boolean;
   stageAttemptIds: string[];
   paperRouteLensRefCount: number;
   safeActionRefCount: number;
@@ -169,6 +199,38 @@ export type RuntimeTaskRunProjectionV2 = {
   tasks: RuntimeTaskDrilldown[];
 };
 
+export type RuntimeScopeOptionKind = 'all_projects' | 'agent' | 'workspace' | 'project' | 'task';
+
+export type RuntimeScopeSource = 'default_global' | 'user_selected' | 'inferred';
+
+export type RuntimeTaskPrimaryState =
+  | 'in_progress'
+  | 'delivered_auto_paused'
+  | 'paused_waiting_for_direction'
+  | 'owner_decision_required'
+  | 'system_attention_required';
+
+export type RuntimeTaskAutomationState =
+  | 'automation_running'
+  | 'automation_idle'
+  | 'result_pending_terminalization'
+  | 'automation_failed';
+
+export type RuntimeScopeOption = {
+  id: string;
+  kind: RuntimeScopeOptionKind;
+  label: string;
+  value?: string;
+};
+
+export type RuntimeScopeProjection = {
+  options: RuntimeScopeOption[];
+  current: RuntimeScopeOption;
+  source: RuntimeScopeSource;
+  inferredHint?: string;
+  frameworkBacked: boolean;
+};
+
 export type RuntimeTaskRunSummary = {
   running: number;
   waiting: number;
@@ -228,6 +290,7 @@ export type RuntimeVisualizationModel = {
   state: string;
   summary: Array<{ label: string; value: string }>;
   summaryCards: RuntimeSummaryCard[];
+  scope: RuntimeScopeProjection;
   actionQueue: RuntimeActionQueueItem[];
   domainLaneMap: RuntimeDomainLane[];
   taskDrilldowns: RuntimeTaskDrilldown[];

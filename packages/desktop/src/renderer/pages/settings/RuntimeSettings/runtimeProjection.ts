@@ -16,13 +16,19 @@ import type {
   RuntimeDomainLane,
   RuntimeGraphEdge,
   RuntimeGraphNode,
+  RuntimeScopeOption,
+  RuntimeScopeOptionKind,
+  RuntimeScopeProjection,
+  RuntimeScopeSource,
   RuntimeLaneTask,
   RuntimePerformancePolicy,
   RuntimeRefreshPolicy,
   RuntimeSafeActionRoute,
   RuntimeSummaryCard,
+  RuntimeTaskAutomationState,
   RuntimeTaskCondition,
   RuntimeTaskDrilldown,
+  RuntimeTaskPrimaryState,
   RuntimeTaskRefCard,
   RuntimeTaskRunProjectionV2,
   RuntimeTimelineItem,
@@ -102,6 +108,72 @@ function readAppState(root: unknown): JsonRecord | undefined {
   if (!isRecord(root)) return undefined;
   const appState = firstRecord(root.app_state, root);
   return asString(appState?.schema_version) === 'opl_app_state.v1' ? appState : undefined;
+}
+
+function normalizePrimaryState(value: unknown): RuntimeTaskPrimaryState | undefined {
+  switch (asString(value)) {
+    case 'in_progress':
+    case 'delivered_auto_paused':
+    case 'paused_waiting_for_direction':
+    case 'owner_decision_required':
+    case 'system_attention_required':
+      return asString(value) as RuntimeTaskPrimaryState;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeAutomationState(value: unknown): RuntimeTaskAutomationState | undefined {
+  switch (asString(value)) {
+    case 'automation_running':
+    case 'automation_idle':
+    case 'result_pending_terminalization':
+    case 'automation_failed':
+      return asString(value) as RuntimeTaskAutomationState;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeScopeKind(value: unknown): RuntimeScopeOptionKind | undefined {
+  switch (asString(value)) {
+    case 'all_projects':
+    case 'agent':
+    case 'workspace':
+    case 'project':
+    case 'task':
+      return asString(value) as RuntimeScopeOptionKind;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeScopeSource(value: unknown): RuntimeScopeSource | undefined {
+  switch (asString(value)) {
+    case 'default_global':
+    case 'user_selected':
+    case 'inferred':
+      return asString(value) as RuntimeScopeSource;
+    default:
+      return undefined;
+  }
+}
+
+function normalizeStageUsage(value: unknown): string | undefined {
+  const scalar = asString(value) ?? asNumber(value)?.toString();
+  if (scalar) return scalar;
+  if (!isRecord(value)) return undefined;
+  const totalTokens =
+    asNumber(value.total_tokens) ?? asNumber(value.total_token_count) ?? asNumber(value.token_count) ?? asNumber(value.tokens);
+  if (totalTokens !== undefined) return `${totalTokens} tokens`;
+  const inputTokens = asNumber(value.input_tokens) ?? asNumber(value.prompt_tokens);
+  const outputTokens = asNumber(value.output_tokens) ?? asNumber(value.completion_tokens);
+  if (inputTokens !== undefined || outputTokens !== undefined) {
+    return [inputTokens !== undefined ? `in ${inputTokens}` : null, outputTokens !== undefined ? `out ${outputTokens}` : null]
+      .filter((entry): entry is string => Boolean(entry))
+      .join(' · ');
+  }
+  return jsonSummary(value);
 }
 
 function readSummaryPairs(projection: JsonRecord): Array<{ label: string; value: string }> {
@@ -321,6 +393,126 @@ function readDomainLaneMap(workbench: JsonRecord): RuntimeDomainLane[] {
 
 function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
   return asRecordArray(workbench.task_drilldowns).map((entry, index) => readTaskRunRecord(entry, index));
+}
+
+function derivePrimaryState(entry: JsonRecord): RuntimeTaskPrimaryState {
+  const explicit = normalizePrimaryState(entry.primary_state);
+  if (explicit) return explicit;
+  const state = asString(entry.state);
+  const status = asString(entry.status);
+  const progress = asString(entry.progress_delta_classification);
+  if (['running', 'in_progress', 'advancing'].includes(state ?? '') || ['running', 'in_progress', 'advancing'].includes(status ?? '')) {
+    return 'in_progress';
+  }
+  if (progress === 'human_gate') {
+    return 'owner_decision_required';
+  }
+  if (
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(state ?? '') ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(status ?? '') ||
+    ['platform_repair', 'typed_blocker', 'stop_loss'].includes(progress ?? '')
+  ) {
+    return 'system_attention_required';
+  }
+  if (['completed', 'delivered'].includes(status ?? '') || ['completed', 'delivered'].includes(state ?? '')) {
+    return 'delivered_auto_paused';
+  }
+  return 'paused_waiting_for_direction';
+}
+
+function deriveAutomationState(entry: JsonRecord): RuntimeTaskAutomationState {
+  const explicit = normalizeAutomationState(entry.automation_state);
+  if (explicit) return explicit;
+  const state = asString(entry.state);
+  const status = asString(entry.status);
+  if (['running', 'in_progress', 'advancing'].includes(state ?? '') || ['running', 'in_progress', 'advancing'].includes(status ?? '')) {
+    return 'automation_running';
+  }
+  if (entry.runtime_closeout_observed === true && entry.mas_owner_consumption_matches_runtime_closeout === false) {
+    return 'result_pending_terminalization';
+  }
+  if (
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(state ?? '') ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(status ?? '') ||
+    ['platform_repair', 'typed_blocker', 'stop_loss'].includes(asString(entry.progress_delta_classification) ?? '')
+  ) {
+    return 'automation_failed';
+  }
+  return 'automation_idle';
+}
+
+function readScopeOption(entry: JsonRecord, index: number): RuntimeScopeOption {
+  const kind = normalizeScopeKind(entry.kind ?? entry.scope_kind ?? entry.option_kind) ?? 'task';
+  const value =
+    asString(entry.value) ??
+    asString(entry.scope_value) ??
+    asString(entry.scope_id) ??
+    asString(entry.id) ??
+    `${kind}-${index + 1}`;
+  return {
+    id: asString(entry.id) ?? `${kind}:${value}`,
+    kind,
+    label: asString(entry.label) ?? asString(entry.display_label) ?? asString(entry.title) ?? value,
+    value,
+  };
+}
+
+function uniqueScopeOptions(options: RuntimeScopeOption[]): RuntimeScopeOption[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${option.kind}:${option.value ?? option.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function deriveScopeOptionsFromTasks(tasks: RuntimeTaskDrilldown[]): RuntimeScopeOption[] {
+  const options: RuntimeScopeOption[] = [{ id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' }];
+  const append = (kind: RuntimeScopeOptionKind, value: string | undefined, label: string | undefined) => {
+    const normalizedValue = value?.trim();
+    const normalizedLabel = label?.trim();
+    if (!normalizedValue || !normalizedLabel) return;
+    options.push({ id: `${kind}:${normalizedValue}`, kind, label: normalizedLabel, value: normalizedValue });
+  };
+  tasks.forEach((task) => {
+    append('agent', task.domainId ?? task.agentDisplayName, task.agentDisplayName ?? task.domainLabel);
+    append('workspace', task.workspaceId ?? task.workspaceLabel, task.workspaceLabel);
+    append(
+      'project',
+      task.projectId ?? task.projectDisplayName ?? task.studyId,
+      task.projectDisplayName ?? task.studyId ?? task.title
+    );
+    append('task', task.taskId, task.workItemDisplayName ?? task.title);
+  });
+  return uniqueScopeOptions(options);
+}
+
+function readRuntimeScope(workbench: JsonRecord, tasks: RuntimeTaskDrilldown[]): RuntimeScopeProjection {
+  const runtimeScope = firstRecord(workbench.runtime_scope);
+  const projectedOptions = asRecordArray(runtimeScope?.scope_options).map(readScopeOption);
+  const options = projectedOptions.length > 0 ? uniqueScopeOptions(projectedOptions) : deriveScopeOptionsFromTasks(tasks);
+  const projectedCurrent = firstRecord(runtimeScope?.current_scope);
+  const projectedCurrentOption = projectedCurrent
+    ? readScopeOption(projectedCurrent, 0)
+    : options[0] ?? { id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' };
+  const current =
+    options.find(
+      (option) =>
+        option.id === projectedCurrentOption.id ||
+        (option.kind === projectedCurrentOption.kind && option.value === projectedCurrentOption.value)
+    ) ?? projectedCurrentOption;
+  const inferredHint =
+    asString(runtimeScope?.inferred_scope_hint) ??
+    asString(projectedCurrent?.inferred_scope_hint) ??
+    asString(firstRecord(runtimeScope?.inferred_scope_hint)?.label);
+  return {
+    options: options.length > 0 ? options : [current],
+    current,
+    source: normalizeScopeSource(runtimeScope?.scope_source ?? projectedCurrent?.scope_source) ?? 'default_global',
+    inferredHint,
+    frameworkBacked: Boolean(runtimeScope),
+  };
 }
 
 function readRefCardValue(value: unknown): { value?: string; ref?: string; kind?: string } {
@@ -545,19 +737,61 @@ function readArtifactProvenanceDrawer(value: unknown): ArtifactProvenanceDrawer 
 function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldown {
   const taskId = asString(entry.task_id) ?? `task-${index + 1}`;
   const blockerRefsCount = asArray(entry.blocker_refs).length;
+  const stageRun = firstRecord(entry.stage_run_cockpit, entry.stage_run_current_owner_delta);
+  const stageRunSummary = firstRecord(entry.stage_run_cockpit_summary);
   return {
     taskId,
     title: asString(entry.title) ?? taskId,
     domainId: asString(entry.domain_id),
     domainLabel: asString(entry.domain_label),
+    agentDisplayName: asString(entry.agent_display_name) ?? asString(entry.domain_label) ?? asString(entry.domain_id),
+    workspaceId: asString(entry.workspace_id),
+    workspaceLabel: asString(entry.workspace_label),
+    projectId: asString(entry.project_id) ?? asString(entry.study_id),
+    projectDisplayName: asString(entry.project_display_name) ?? asString(entry.study_id),
+    studyId: asString(entry.study_id),
+    workItemDisplayName: asString(entry.work_item_display_name) ?? asString(entry.title),
+    executionRunLabel: asString(entry.execution_run_label) ?? asString(entry.active_run_id),
     state: asString(entry.state),
     status: asString(entry.status_label) ?? asString(entry.status),
+    primaryState: derivePrimaryState(entry),
+    primaryStateLabel: asString(entry.primary_state_label),
+    primaryStateReason: asString(entry.primary_state_reason),
+    automationState: deriveAutomationState(entry),
+    automationStateLabel: asString(entry.automation_state_label),
+    automationStateReason: asString(entry.automation_state_reason),
     stage: asString(entry.stage) ?? asString(entry.active_stage_label) ?? asString(entry.active_stage_id),
     progressLabel: asString(entry.progress_label) ?? asString(entry.progress_delta_classification),
     nextStep: asString(entry.next_step) ?? asString(entry.next_visible_step) ?? asString(entry.required_next_action),
     nextOwner: asString(entry.next_owner) ?? asString(entry.owner),
     lastProgressAt: asString(entry.last_progress_at) ?? asString(entry.updated_at),
     activeStageId: asString(entry.active_stage_id),
+    activeRunId: asString(entry.active_run_id),
+    elapsedSeconds: asNumber(stageRun?.elapsed_seconds) ?? asNumber(stageRunSummary?.elapsed_seconds),
+    lastHeartbeatAt: asString(stageRun?.last_heartbeat_at) ?? asString(stageRunSummary?.last_heartbeat_at),
+    runningProofRef: asString(stageRun?.running_proof_ref) ?? asString(stageRunSummary?.running_proof_ref),
+    stageUsage: normalizeStageUsage(stageRun?.stage_usage) ?? normalizeStageUsage(stageRunSummary?.stage_usage),
+    taskTotalUsage:
+      normalizeStageUsage(stageRun?.task_total_usage) ?? normalizeStageUsage(stageRunSummary?.task_total_usage),
+    typedBlockerSummary:
+      asString(stageRun?.typed_blocker_summary) ??
+      asString(stageRunSummary?.typed_blocker_summary) ??
+      asString(entry.typed_blocker_summary) ??
+      asString(entry.blocker_summary),
+    typedBlockerOwner:
+      asString(stageRun?.typed_blocker_owner) ?? asString(stageRunSummary?.typed_blocker_owner) ?? asString(entry.next_owner),
+    typedBlockerResolutionRef:
+      asString(stageRun?.typed_blocker_resolution_ref) ?? asString(stageRunSummary?.typed_blocker_resolution_ref),
+    runtimeCloseoutObserved: entry.runtime_closeout_observed === true,
+    runtimeCloseoutRef: asString(entry.runtime_closeout_ref),
+    masOwnerConsumptionStatus: asString(entry.mas_owner_consumption_status),
+    masOwnerConsumptionRef: asString(entry.mas_owner_consumption_ref),
+    masOwnerConsumedStageAttemptId: asString(entry.mas_owner_consumed_stage_attempt_id),
+    masOwnerConsumedCloseoutRef: asString(entry.mas_owner_consumed_closeout_ref),
+    masOwnerConsumptionMatchesRuntimeCloseout:
+      typeof entry.mas_owner_consumption_matches_runtime_closeout === 'boolean'
+        ? entry.mas_owner_consumption_matches_runtime_closeout
+        : undefined,
     stageAttemptIds: asStringArray(entry.stage_attempt_ids),
     paperRouteLensRefCount: asNumber(entry.paper_route_lens_ref_count) ?? 0,
     safeActionRefCount: asNumber(entry.safe_action_ref_count) ?? asRecordArray(entry.action_cards).length,
@@ -754,6 +988,7 @@ function normalizeAppStateProjection(appState: JsonRecord): RuntimeVisualization
       ? [{ label: 'operator_summary', value: asString(operator?.summary) ?? '' }]
       : [],
     summaryCards: normalizeAppStateSummaryCards(appState),
+    scope: readRuntimeScope(workbench ?? {}, taskRunProjectionV2.tasks),
     actionQueue: [],
     domainLaneMap: normalizeAppStateDomainLaneMap(appState),
     taskDrilldowns: taskRunProjectionV2.tasks,
@@ -821,6 +1056,7 @@ function normalizeProjectionRecord(projection: JsonRecord): RuntimeVisualization
     state: asString(projection.state) ?? asString(projection.runtime_state) ?? asString(projection.status) ?? 'unknown',
     summary: readSummaryPairs(projection),
     summaryCards: readSummaryCards(workbench),
+    scope: readRuntimeScope(workbench, taskRunProjectionV2.tasks),
     actionQueue: readActionQueue(workbench),
     domainLaneMap: readDomainLaneMap(workbench),
     taskDrilldowns: taskRunProjectionV2.tasks,

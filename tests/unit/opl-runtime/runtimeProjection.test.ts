@@ -120,6 +120,13 @@ describe('runtime visualization projection normalization', () => {
       value: 'ready',
       tone: 'ready',
     });
+    expect(model.scope).toMatchObject({
+      current: {
+        kind: 'all_projects',
+      },
+      source: 'default_global',
+      frameworkBacked: false,
+    });
     expect(model.domainLaneMap[0]).toMatchObject({
       domainId: 'medautoscience',
       label: 'Med Auto Science',
@@ -140,6 +147,30 @@ describe('runtime visualization projection normalization', () => {
         operator: {
           status: 'ready',
           workbench: {
+            runtime_scope: {
+              scope_source: 'inferred',
+              inferred_scope_hint: 'dm-cvd-mortality-risk',
+              current_scope: {
+                kind: 'workspace',
+                id: 'workspace:dm-cvd-mortality-risk',
+                value: 'dm-cvd-mortality-risk',
+                label: 'DM CVD Mortality Risk',
+              },
+              scope_options: [
+                {
+                  kind: 'all_projects',
+                  id: 'all-projects',
+                  value: 'all_projects',
+                  label: 'All projects',
+                },
+                {
+                  kind: 'workspace',
+                  id: 'workspace:dm-cvd-mortality-risk',
+                  value: 'dm-cvd-mortality-risk',
+                  label: 'DM CVD Mortality Risk',
+                },
+              ],
+            },
             task_run_projection_v2: {
               projection_kind: 'task_run_projection_v2',
               schema_version: 2,
@@ -148,13 +179,29 @@ describe('runtime visualization projection normalization', () => {
                   task_id: 'dm002-taskrun',
                   title: 'DM002 TaskRun',
                   domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm002',
+                  project_display_name: 'DM002 paper line',
+                  work_item_display_name: 'Publication evaluation',
                   state: 'running',
+                  primary_state: 'in_progress',
+                  automation_state: 'automation_running',
                   status_label: 'Advancing',
                   stage: 'review',
                   progress_label: 'evidence ready',
                   next_owner: 'reviewer',
                   next_step: 'Review evidence cards',
                   last_progress_at: '2026-07-01T00:00:00Z',
+                  stage_run_cockpit: {
+                    elapsed_seconds: 5400,
+                    last_heartbeat_at: '2026-07-01T00:05:00Z',
+                    stage_usage: { total_tokens: 1234 },
+                    task_total_usage: { total_tokens: 4321 },
+                    typed_blocker_summary: 'none',
+                  },
                   blocker_refs: ['blocker://needs-owner'],
                   evidence_cards: [
                     {
@@ -195,15 +242,33 @@ describe('runtime visualization projection normalization', () => {
       projectionKind: 'task_run_projection_v2',
       schemaVersion: 2,
     });
+    expect(model.scope).toMatchObject({
+      source: 'inferred',
+      inferredHint: 'dm-cvd-mortality-risk',
+      current: {
+        kind: 'workspace',
+        label: 'DM CVD Mortality Risk',
+      },
+    });
     expect(model.taskRunProjectionV2.tasks).toHaveLength(1);
     expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
       taskId: 'dm002-taskrun',
       title: 'DM002 TaskRun',
+      agentDisplayName: 'MAS',
+      workspaceLabel: 'DM CVD Mortality Risk',
+      projectDisplayName: 'DM002 paper line',
+      workItemDisplayName: 'Publication evaluation',
+      primaryState: 'in_progress',
+      automationState: 'automation_running',
       status: 'Advancing',
       stage: 'review',
       progressLabel: 'evidence ready',
       nextOwner: 'reviewer',
       nextStep: 'Review evidence cards',
+      elapsedSeconds: 5400,
+      lastHeartbeatAt: '2026-07-01T00:05:00Z',
+      stageUsage: '1234 tokens',
+      taskTotalUsage: '4321 tokens',
       blockerRefCount: 1,
     });
     expect(model.taskRunProjectionV2.tasks[0]?.evidenceCards[0]).toMatchObject({
@@ -224,6 +289,51 @@ describe('runtime visualization projection normalization', () => {
     expect(model.taskRunProjectionV2.tasks[0]?.diagnosticsRefs[0]?.ref).toBe('diagnostics://task');
     expect(model.taskRunProjectionV2.tasks.map((task) => task.taskId)).not.toContain('legacy-task');
     expect(model.taskDrilldowns.map((task) => task.taskId)).toEqual(['dm002-taskrun']);
+  });
+
+  it('derives new primary and automation states from legacy task fields when framework labels are absent', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        operator: {
+          workbench: {
+            task_drilldowns: [
+              {
+                task_id: 'legacy-running',
+                title: 'Legacy running task',
+                state: 'running',
+              },
+              {
+                task_id: 'legacy-human-gate',
+                title: 'Legacy human gate',
+                state: 'pending',
+                progress_delta_classification: 'human_gate',
+              },
+              {
+                task_id: 'legacy-platform',
+                title: 'Legacy platform repair',
+                state: 'attention_needed',
+                progress_delta_classification: 'platform_repair',
+                runtime_closeout_observed: true,
+                mas_owner_consumption_matches_runtime_closeout: false,
+              },
+              {
+                task_id: 'legacy-complete',
+                title: 'Legacy complete',
+                status: 'completed',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(model.taskRunProjectionV2.tasks.map((task) => [task.taskId, task.primaryState, task.automationState])).toEqual([
+      ['legacy-running', 'in_progress', 'automation_running'],
+      ['legacy-human-gate', 'owner_decision_required', 'automation_idle'],
+      ['legacy-platform', 'system_attention_required', 'result_pending_terminalization'],
+      ['legacy-complete', 'delivered_auto_paused', 'automation_idle'],
+    ]);
   });
 
   it('keeps top-level runtime_visualization_projection out of the main renderer path', () => {
