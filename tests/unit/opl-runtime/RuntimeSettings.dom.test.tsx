@@ -1462,11 +1462,11 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimePage />);
 
-    await waitFor(() => expect(screen.getByText('common.runtime.overviewTitle')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('runtime-primary-summary')).toBeInTheDocument());
     expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
     expect(screen.getByText('common.runtime.scopeSelector')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.scopeSourceLabel common.runtime.scopeSource.inferred')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.scopeInferredHint dm-cvd-mortality-risk')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-scope-selector')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.scopeSourceLabel');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.inProgress');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent(
       'common.runtime.primaryStates.systemAttentionRequired'
@@ -1476,34 +1476,32 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('Publication evaluation')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('MAS · DM002 paper line');
+    expect(document.body.textContent).toContain('DM002 paper line');
+    expect(document.body.textContent).toContain('common.runtime.agentModule MAS');
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.stageElapsed 1h');
-    expect(document.body.textContent).toContain('common.runtime.runningProof common.runtime.runningProofHeartbeat');
-    expect(screen.getAllByText(/common\.runtime\.runningProof common\.runtime\.runningProofHeartbeat/)).toHaveLength(1);
-    expect(document.body.textContent).toContain('common.runtime.stageUsage 128 tokens');
-    expect(document.body.textContent).toContain('common.runtime.totalUsage 512 tokens');
+    expect(document.body.textContent).toContain('common.runtime.stageUsage 128 tokens / 512 tokens');
     expect(
-      screen.getByText('common.runtime.blockerRoute Finish reviewer evaluation against current inputs')
+      screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.blockerSummaryLine owner blocker cleared');
     expect(screen.getByTestId('runtime-group-system_attention_required')).toBeInTheDocument();
     expect(screen.getByText('Runtime closeout')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.automationStates.pendingTerminalization')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.currentStage Write')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
     expect(document.body.textContent).toContain(
-      'common.runtime.blockerRoute Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
+      'common.runtime.nextStep Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
     );
     expect(screen.getByText('common.runtime.nextOwner MAS paper mission')).toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
-    expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用/i);
+    expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|stage_attempt|wf_/i);
+    expect(defaultViewText).not.toContain('common.runtime.masOwnerConsumptionDrift');
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() =>
       expect(screen.getByText('common.runtime.maintenanceAttentionSummaryText 4')).toBeInTheDocument()
     );
+    expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
   });
 
   it('keeps explicit full-detail workbench tasks in diagnostics after full detail load', async () => {
@@ -1623,7 +1621,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getAllByText('DM002 publication evaluation').length).toBeGreaterThan(0));
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
-      'common.runtime.blockerRoute Finish reviewer evaluation against current inputs'
+      'common.runtime.nextStep Finish reviewer evaluation against current inputs'
     );
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).not.toMatch(
       /Temporal|provider|current_control_state|attempt/i

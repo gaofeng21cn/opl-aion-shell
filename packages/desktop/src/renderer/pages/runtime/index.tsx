@@ -1041,6 +1041,33 @@ const RuntimePage: React.FC = () => {
     [controlStates, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
   );
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
+  const advancedTaskRefs = useMemo(
+    () =>
+      overview.sections
+        .flatMap((section) => section.tasks)
+        .map((item) => {
+          const rows = [
+            item.task.activeRunId ? t('common.runtime.activeRun', { run: item.task.activeRunId }) : null,
+            item.task.stageAttemptIds.length > 0
+              ? t('common.runtime.stageAttemptRefsWithCount', { count: item.task.stageAttemptIds.length })
+              : null,
+            item.task.runningProofRef ? t('common.runtime.runningProof', { proof: item.task.runningProofRef }) : null,
+            item.task.runtimeCloseoutRef
+              ? t('common.runtime.closeoutEvidence', { ref: item.task.runtimeCloseoutRef })
+              : null,
+            item.task.masOwnerConsumptionStatus
+              ? t('common.runtime.masOwnerConsumption', { status: item.task.masOwnerConsumptionStatus })
+              : null,
+            item.task.masOwnerConsumedStageAttemptId
+              ? t('common.runtime.masOwnerConsumedAttempt', { attempt: item.task.masOwnerConsumedStageAttemptId })
+              : null,
+            item.currentnessTag,
+          ].filter((row): row is string => Boolean(row));
+          return { id: item.task.taskId, title: item.projectLabel, rows };
+        })
+        .filter((item) => item.rows.length > 0),
+    [overview.sections, t]
+  );
   const scopedTaskCount = runtimeModel.taskRunProjectionV2.tasks.filter((task) =>
     scopeMatchesTask(task, selectedScope)
   ).length;
@@ -1119,6 +1146,10 @@ const RuntimePage: React.FC = () => {
   const renderTaskItem = useCallback(
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
+      const usageLabel =
+        item.stageUsageLabel === item.totalUsageLabel
+          ? item.stageUsageLabel
+          : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
       return (
         <div
           key={task.taskId}
@@ -1131,9 +1162,11 @@ const RuntimePage: React.FC = () => {
         >
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ minWidth: 0 }}>
-              <Typography.Text className='block font-600 text-t-primary break-words'>{item.taskLabel}</Typography.Text>
+              <Typography.Text className='block font-600 text-t-primary break-words'>
+                {item.projectLabel}
+              </Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                {item.agentLabel} · {item.projectLabel}
+                {item.taskLabel}
               </Typography.Text>
             </div>
             <Space wrap size='mini' style={{ justifyContent: 'flex-end', flexShrink: 0 }}>
@@ -1149,21 +1182,22 @@ const RuntimePage: React.FC = () => {
                 {item.primaryLabel}
               </Tag>
               <Tag>{item.automationLabel}</Tag>
-              {item.currentnessTag && (
-                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>
-                  {item.currentnessTag}
-                </Tag>
-              )}
             </Space>
           </div>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: '8px 16px',
               marginTop: 10,
             }}
           >
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.agentModule', { agent: item.agentLabel })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.status')}: {item.primaryLabel}
+            </Typography.Text>
             {item.stageLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.currentStage', { stage: item.stageLabel })}
@@ -1175,27 +1209,16 @@ const RuntimePage: React.FC = () => {
               })}
             </Typography.Text>
             <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.runningProof', { proof: item.livenessLabel })}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.stageUsage', { value: item.stageUsageLabel })}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.totalUsage', { value: item.totalUsageLabel })}
+              {t('common.runtime.stageUsage', { value: usageLabel })}
             </Typography.Text>
             {item.ownerLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
               </Typography.Text>
             )}
-            {item.blockerSummary && (
-              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
-                {t('common.runtime.blockerSummaryLine', { summary: item.blockerSummary })}
-              </Typography.Text>
-            )}
             {item.nextStep && (
-              <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
-                {t('common.runtime.blockerRoute', { route: item.nextStep })}
+              <Typography.Text className='block text-13px text-t-primary break-words'>
+                {t('common.runtime.nextStep', { step: item.nextStep })}
               </Typography.Text>
             )}
             {item.latestActivityAt && (
@@ -1214,411 +1237,427 @@ const RuntimePage: React.FC = () => {
     <div className='w-full h-full overflow-auto box-border' style={{ background: '#f6f8fb', padding: '28px 40px' }}>
       {contextHolder}
       <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div className='flex flex-col gap-12px md:flex-row md:items-end md:justify-between'>
+        <div className='flex flex-col gap-12px xl:flex-row xl:items-end xl:justify-between'>
           <div>
             <Typography.Title heading={4} className='mb-6px'>
               {t('common.runtime.title')}
             </Typography.Title>
             <Typography.Text className='text-t-secondary'>{t('common.runtime.description')}</Typography.Text>
           </div>
-          <div className='flex gap-8px'>
-            <Button onClick={() => navigate(resolveLegacySettingsRoute('runtime'))}>
-              {t('common.runtime.settings')}
-            </Button>
+          <div className='flex flex-col gap-8px sm:flex-row sm:items-center'>
+            <Typography.Text className='text-13px text-t-secondary'>
+              {t('common.runtime.scopeSelector')}
+            </Typography.Text>
+            <Select
+              style={{ width: 220 }}
+              data-testid='runtime-scope-selector'
+              value={selectedScope?.id}
+              onChange={(value) => setSelectedScopeId(String(value))}
+              options={runtimeScope.options.map((option) => ({
+                label: option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
+                value: option.id,
+              }))}
+            />
             <Button
-              type='primary'
               icon={<UpdateRotation theme='outline' />}
               loading={loading}
               onClick={() => void refreshAppState(true)}
             >
               {t('common.refresh')}
             </Button>
+            <Button type='text' size='small' onClick={() => navigate(resolveLegacySettingsRoute('runtime'))}>
+              {t('common.runtime.settings')}
+            </Button>
           </div>
         </div>
 
         {displayDrilldown ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 16, alignItems: 'start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                <div className='flex flex-col gap-12px'>
-                  <div className='flex flex-col gap-6px md:flex-row md:items-start md:justify-between'>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block font-600 text-t-primary'>
-                        {t('common.runtime.overviewTitle')}
-                      </Typography.Text>
-                      <Typography.Text className='block text-13px text-t-secondary'>
-                        {t('common.runtime.overviewSummaryText', {
-                          scope: scopeLabel,
-                          tasks: scopedTaskCount,
-                          automation: overview.automationRunningCount,
-                        })}
-                      </Typography.Text>
-                    </div>
-                    <Tag color={displayDrilldown ? 'green' : 'orange'} style={{ flexShrink: 0 }}>
-                      {loading ? t('common.runtime.refreshing') : t('common.runtime.drilldownLoaded')}
-                    </Tag>
-                  </div>
-                  <div
-                    data-testid='runtime-primary-summary'
-                    style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}
-                  >
-                    {metricCards.map((card) => (
-                      <div
-                        key={card.key}
-                        style={{
-                          minWidth: 0,
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 8,
-                          padding: '10px 12px',
-                          background: '#f9fafb',
-                        }}
-                      >
-                        <Typography.Text className='block text-12px text-t-secondary break-words'>
-                          {card.label}
-                        </Typography.Text>
-                        <Typography.Text className='block font-600 break-words' style={{ color: card.color }}>
-                          {card.value}
-                        </Typography.Text>
-                      </div>
-                    ))}
-                  </div>
-                  <div className='flex flex-col gap-4px md:flex-row md:items-center md:justify-between'>
-                    {lastLoadedAt && (
-                      <Typography.Text className='text-12px text-t-secondary'>
-                        {t('common.runtime.loadedAt', { time: lastLoadedAt })}
-                      </Typography.Text>
-                    )}
-                  </div>
-                </div>
-              </Card>
-
-              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                <div className='flex flex-col gap-12px'>
-                  <Typography.Text className='font-600 text-t-primary'>
-                    {t('common.runtime.runtimeGroupsTitle')}
-                  </Typography.Text>
-                  <Typography.Text className='text-13px text-t-secondary'>
-                    {t('common.runtime.runtimeGroupsSummaryText', {
-                      count: runtimeModel.taskRunProjectionV2.tasks.filter((task) =>
-                        scopeMatchesTask(task, selectedScope)
-                      ).length,
+          <>
+            <div className='rounded-8px border border-border-1 bg-white px-16px py-12px shadow-sm'>
+              <div className='flex flex-col gap-8px md:flex-row md:items-center md:justify-between'>
+                <div className='min-w-0'>
+                  <Typography.Text className='text-13px text-t-secondary break-words'>
+                    {lastLoadedAt
+                      ? t('common.runtime.loadedAt', { time: lastLoadedAt })
+                      : t('common.runtime.refreshing')}{' '}
+                    ·{' '}
+                    {t('common.runtime.overviewSummaryText', {
+                      scope: scopeLabel,
+                      tasks: scopedTaskCount,
+                      automation: overview.automationRunningCount,
                     })}
                   </Typography.Text>
-                  {overview.sections.some((section) => section.tasks.length > 0) ? (
-                    <div className='flex flex-col gap-12px'>
-                      {overview.sections
-                        .filter((section) => section.tasks.length > 0)
-                        .map((section) => (
-                          <div
-                            key={section.state}
-                            className='flex flex-col gap-8px'
-                            data-testid={`runtime-group-${section.state}`}
-                          >
-                            <div className='flex flex-col gap-2px'>
-                              <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
-                              <Typography.Text className='text-12px text-t-secondary'>
-                                {section.summary}
-                              </Typography.Text>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                              {section.tasks.map(renderTaskItem)}
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <Alert type='info' content={t('common.runtime.noTasksInScope')} />
-                  )}
+                  <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                    {t('common.runtime.scopeSourceLabel', {
+                      source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
+                    })}
+                    {runtimeScope.inferredHint
+                      ? ` · ${t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}`
+                      : ''}
+                  </Typography.Text>
                 </div>
-              </Card>
+                <Tag color={loading ? 'orange' : 'green'} style={{ flexShrink: 0 }}>
+                  {loading ? t('common.runtime.refreshing') : t('common.runtime.drilldownLoaded')}
+                </Tag>
+              </div>
             </div>
 
-            <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-              <Card
-                bordered
-                className='rd-8px'
-                data-testid='runtime-scope-card'
-                style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
-              >
-                <div className='flex flex-col gap-12px'>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {t('common.runtime.scopeSelector')}
+            <div
+              data-testid='runtime-primary-summary'
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}
+            >
+              {metricCards.map((card) => (
+                <Card
+                  key={card.key}
+                  bordered
+                  className='rd-8px'
+                  bodyStyle={{ padding: 16 }}
+                  style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
+                >
+                  <div className='flex flex-col gap-6px min-w-0'>
+                    <Typography.Text className='block text-13px text-t-primary break-words'>
+                      {card.label}
                     </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                      {t('common.runtime.scopeSourceLabel', {
-                        source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
+                    <Typography.Text
+                      className='block font-600 text-26px leading-32px break-words'
+                      style={{ color: card.color }}
+                    >
+                      {card.value}
+                    </Typography.Text>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            <div className='grid grid-cols-1 xl:grid-cols-3 gap-16px items-start'>
+              <div className='xl:col-span-2 flex flex-col gap-16px min-w-0'>
+                <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                  <div className='flex flex-col gap-12px'>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {t('common.runtime.runtimeGroupsTitle')}
+                    </Typography.Text>
+                    <Typography.Text className='text-13px text-t-secondary'>
+                      {t('common.runtime.runtimeGroupsSummaryText', {
+                        count: runtimeModel.taskRunProjectionV2.tasks.filter((task) =>
+                          scopeMatchesTask(task, selectedScope)
+                        ).length,
                       })}
                     </Typography.Text>
-                    {runtimeScope.inferredHint && (
-                      <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                        {t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}
-                      </Typography.Text>
-                    )}
-                  </div>
-                  <Select
-                    style={{ width: '100%' }}
-                    data-testid='runtime-scope-selector'
-                    value={selectedScope?.id}
-                    onChange={(value) => setSelectedScopeId(String(value))}
-                    options={runtimeScope.options.map((option) => ({
-                      label:
-                        option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
-                      value: option.id,
-                    }))}
-                  />
-                </div>
-              </Card>
-
-              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                <div className='flex flex-col gap-12px'>
-                  <Typography.Text className='font-600 text-t-primary'>
-                    {t('common.runtime.moduleStatus')}
-                  </Typography.Text>
-                  <Typography.Text className='text-13px text-t-secondary'>
-                    {t('common.runtime.moduleStatusSummaryText', {
-                      healthy: healthyModuleCount,
-                      attention: attentionModuleCount,
-                    })}
-                  </Typography.Text>
-                  <div className='flex flex-col gap-8px'>
-                    {moduleStatusItems.map((item) => (
-                      <div key={item.id} className='rounded-6px border border-border-1 px-10px py-8px'>
-                        <div className='flex items-start justify-between gap-10px'>
-                          <Typography.Text className='font-600 text-t-primary break-words'>
-                            {item.title}
-                          </Typography.Text>
-                          {item.statusLabel && (
-                            <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
-                          )}
-                        </div>
-                        {item.detail && (
-                          <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
-                            {item.detail}
-                          </Typography.Text>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
-
-              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                <Collapse bordered={false}>
-                  <Collapse.Item
-                    name='advanced-runtime'
-                    header={
-                      <div className='flex flex-col gap-2px'>
-                        <Typography.Text className='font-600 text-t-primary'>
-                          {t('common.runtime.advancedRuntimeDetails')}
-                        </Typography.Text>
-                        <Typography.Text className='text-12px text-t-secondary'>
-                          {t('common.runtime.advancedRuntimeDetailsHint')}
-                        </Typography.Text>
-                      </div>
-                    }
-                  >
-                    <div className='flex flex-col gap-16px'>
-                      <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px'>
-                        <Typography.Text className='text-13px text-t-secondary'>
-                          {t('common.runtime.fullDetailHint')}
-                        </Typography.Text>
-                        <Button
-                          icon={<UpdateRotation theme='outline' />}
-                          loading={detailLoading}
-                          onClick={() => void loadFullDrilldown({ showToast: true })}
-                        >
-                          {t('common.runtime.fullDetail')}
-                        </Button>
-                      </div>
-
-                      {lanes.length > 0 && (
-                        <div className='flex flex-col gap-12px'>
-                          <Typography.Text className='font-600 text-t-primary'>
-                            {t('common.runtime.maintenanceAttention')}
-                          </Typography.Text>
-                          <Typography.Text className='text-13px text-t-secondary'>
-                            {t('common.runtime.maintenanceAttentionSummaryText', {
-                              count: maintenanceAttentionCount,
-                            })}
-                          </Typography.Text>
-                          <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                            {lanes.map((lane, laneIndex) => {
-                              const laneId = stringValue(lane.domain_id) ?? `lane-${laneIndex + 1}`;
-                              return (
-                                <div key={laneId} className='rounded-6px border border-border-1 px-12px py-10px'>
-                                  <div className='flex items-start justify-between gap-10px'>
-                                    <Typography.Text className='font-600 text-t-primary break-words'>
-                                      {stringValue(lane.lane_label) ?? laneId}
-                                    </Typography.Text>
-                                    <Space wrap size='mini'>
-                                      {(numberValue(lane.blocked_task_count) ?? 0) > 0 && (
-                                        <Tag color='orange'>{`${t('common.runtime.needAttention')}: ${numberValue(lane.blocked_task_count) ?? 0}`}</Tag>
-                                      )}
-                                    </Space>
-                                  </div>
-                                  <div className='mt-8px flex flex-col gap-6px'>
-                                    {recordList(lane.tasks)
-                                      .slice(0, 4)
-                                      .map((task, taskIndex) => {
-                                        const taskId = stringValue(task.task_id);
-                                        return (
-                                          <div key={taskId ?? taskIndex} className='min-w-0'>
-                                            <Typography.Text className='block text-13px text-t-primary break-words'>
-                                              {stringValue(task.label) ?? taskFallbackLabel(taskId, taskIndex)}
-                                            </Typography.Text>
-                                            <Space wrap size='mini' className='mt-4px'>
-                                              {stringValue(task.state) && (
-                                                <Tag>{translateMappedValue(task.state, PROJECT_STATE_KEYS, t)}</Tag>
-                                              )}
-                                              {stringValue(task.active_stage_id) && (
-                                                <Tag>
-                                                  {stringValue(task.active_stage_label) ??
-                                                    stringValue(task.active_stage_id)}
-                                                </Tag>
-                                              )}
-                                            </Space>
-                                          </div>
-                                        );
-                                      })}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
+                    {overview.sections.some((section) => section.tasks.length > 0) ? (
                       <div className='flex flex-col gap-12px'>
-                        <Typography.Text className='font-600 text-t-primary'>
-                          {t('common.runtime.diagnostics')}
-                        </Typography.Text>
-                        <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
-                          {summary.map((item) => (
-                            <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                                {item.label}
-                              </Typography.Text>
-                              <Typography.Text className='block font-600 text-t-primary break-words'>
-                                {formatValue(item.value, t)}
-                              </Typography.Text>
+                        {overview.sections
+                          .filter((section) => section.tasks.length > 0)
+                          .map((section) => (
+                            <div
+                              key={section.state}
+                              className='flex flex-col gap-8px'
+                              data-testid={`runtime-group-${section.state}`}
+                            >
+                              <div className='flex flex-col gap-2px'>
+                                <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
+                                <Typography.Text className='text-12px text-t-secondary'>
+                                  {section.summary}
+                                </Typography.Text>
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {section.tasks.map(renderTaskItem)}
+                              </div>
                             </div>
                           ))}
-                        </div>
                       </div>
+                    ) : (
+                      <Alert type='info' content={t('common.runtime.noTasksInScope')} />
+                    )}
+                  </div>
+                </Card>
+              </div>
 
-                      {refs.length > 0 && (
+              <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+                <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                  <div className='flex flex-col gap-12px'>
+                    <Typography.Text className='font-600 text-t-primary'>
+                      {t('common.runtime.moduleStatus')}
+                    </Typography.Text>
+                    <Typography.Text className='text-13px text-t-secondary'>
+                      {t('common.runtime.moduleStatusSummaryText', {
+                        healthy: healthyModuleCount,
+                        attention: attentionModuleCount,
+                      })}
+                    </Typography.Text>
+                    <div className='flex flex-col gap-8px'>
+                      {moduleStatusItems.map((item) => (
+                        <div key={item.id} className='rounded-6px border border-border-1 px-10px py-8px'>
+                          <div className='flex items-start justify-between gap-10px'>
+                            <Typography.Text className='font-600 text-t-primary break-words'>
+                              {item.title}
+                            </Typography.Text>
+                            {item.statusLabel && (
+                              <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
+                            )}
+                          </div>
+                          {item.detail && (
+                            <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
+                              {item.detail}
+                            </Typography.Text>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                  <Collapse bordered={false}>
+                    <Collapse.Item
+                      name='advanced-runtime'
+                      header={
+                        <div className='flex flex-col gap-2px'>
+                          <Typography.Text className='font-600 text-t-primary'>
+                            {t('common.runtime.advancedRuntimeDetails')}
+                          </Typography.Text>
+                          <Typography.Text className='text-12px text-t-secondary'>
+                            {t('common.runtime.advancedRuntimeDetailsHint')}
+                          </Typography.Text>
+                        </div>
+                      }
+                    >
+                      <div className='flex flex-col gap-16px'>
+                        <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px'>
+                          <Typography.Text className='text-13px text-t-secondary'>
+                            {t('common.runtime.fullDetailHint')}
+                          </Typography.Text>
+                          <Button
+                            icon={<UpdateRotation theme='outline' />}
+                            loading={detailLoading}
+                            onClick={() => void loadFullDrilldown({ showToast: true })}
+                          >
+                            {t('common.runtime.fullDetail')}
+                          </Button>
+                        </div>
+
+                        {lanes.length > 0 && (
+                          <div className='flex flex-col gap-12px'>
+                            <Typography.Text className='font-600 text-t-primary'>
+                              {t('common.runtime.maintenanceAttention')}
+                            </Typography.Text>
+                            <Typography.Text className='text-13px text-t-secondary'>
+                              {t('common.runtime.maintenanceAttentionSummaryText', {
+                                count: maintenanceAttentionCount,
+                              })}
+                            </Typography.Text>
+                            <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                              {lanes.map((lane, laneIndex) => {
+                                const laneId = stringValue(lane.domain_id) ?? `lane-${laneIndex + 1}`;
+                                return (
+                                  <div key={laneId} className='rounded-6px border border-border-1 px-12px py-10px'>
+                                    <div className='flex items-start justify-between gap-10px'>
+                                      <Typography.Text className='font-600 text-t-primary break-words'>
+                                        {stringValue(lane.lane_label) ?? laneId}
+                                      </Typography.Text>
+                                      <Space wrap size='mini'>
+                                        {(numberValue(lane.blocked_task_count) ?? 0) > 0 && (
+                                          <Tag color='orange'>{`${t('common.runtime.needAttention')}: ${numberValue(lane.blocked_task_count) ?? 0}`}</Tag>
+                                        )}
+                                      </Space>
+                                    </div>
+                                    <div className='mt-8px flex flex-col gap-6px'>
+                                      {recordList(lane.tasks)
+                                        .slice(0, 4)
+                                        .map((task, taskIndex) => {
+                                          const taskId = stringValue(task.task_id);
+                                          return (
+                                            <div key={taskId ?? taskIndex} className='min-w-0'>
+                                              <Typography.Text className='block text-13px text-t-primary break-words'>
+                                                {stringValue(task.label) ?? taskFallbackLabel(taskId, taskIndex)}
+                                              </Typography.Text>
+                                              <Space wrap size='mini' className='mt-4px'>
+                                                {stringValue(task.state) && (
+                                                  <Tag>{translateMappedValue(task.state, PROJECT_STATE_KEYS, t)}</Tag>
+                                                )}
+                                                {stringValue(task.active_stage_id) && (
+                                                  <Tag>
+                                                    {stringValue(task.active_stage_label) ??
+                                                      stringValue(task.active_stage_id)}
+                                                  </Tag>
+                                                )}
+                                              </Space>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         <div className='flex flex-col gap-12px'>
                           <Typography.Text className='font-600 text-t-primary'>
-                            {t('common.runtime.evidenceRefs')}
+                            {t('common.runtime.diagnostics')}
                           </Typography.Text>
-                          <div className='flex flex-col divide-y divide-border-1'>
-                            {refs.map((ref) => (
-                              <Typography.Text key={ref} className='block py-8px text-12px text-t-secondary break-all'>
-                                {ref}
-                              </Typography.Text>
+                          <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+                            {summary.map((item) => (
+                              <div
+                                key={item.key}
+                                className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'
+                              >
+                                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                                  {item.label}
+                                </Typography.Text>
+                                <Typography.Text className='block font-600 text-t-primary break-words'>
+                                  {formatValue(item.value, t)}
+                                </Typography.Text>
+                              </div>
                             ))}
                           </div>
                         </div>
-                      )}
 
-                      <div className='flex flex-col gap-12px'>
-                        <Typography.Text className='font-600 text-t-primary'>
-                          {t('common.runtime.safeActions')}
-                        </Typography.Text>
-                        {actions.length > 0 ? (
-                          <div className='flex flex-col divide-y divide-border-1'>
-                            {actions.map((action) => {
-                              const actionId = stringValue(action.action_id) ?? '';
-                              return (
-                                <div
-                                  key={actionId}
-                                  className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
+                        {refs.length > 0 && (
+                          <div className='flex flex-col gap-12px'>
+                            <Typography.Text className='font-600 text-t-primary'>
+                              {t('common.runtime.evidenceRefs')}
+                            </Typography.Text>
+                            <div className='flex flex-col divide-y divide-border-1'>
+                              {refs.map((ref) => (
+                                <Typography.Text
+                                  key={ref}
+                                  className='block py-8px text-12px text-t-secondary break-all'
                                 >
-                                  <div className='min-w-0'>
-                                    <Typography.Text className='block font-600 text-t-primary break-all'>
-                                      {actionId}
-                                    </Typography.Text>
-                                    <Space wrap size='mini' className='mt-6px'>
-                                      {stringValue(action.action_kind) && <Tag>{stringValue(action.action_kind)}</Tag>}
-                                      {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
-                                      {action.route_requires_domain_or_app_payload === true && (
-                                        <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
-                                      )}
-                                    </Space>
-                                  </div>
-                                  <Button
-                                    icon={<Play theme='outline' />}
-                                    loading={runningActionId === actionId}
-                                    disabled={!actionId}
-                                    onClick={() => void dryRunAction(actionId)}
-                                  >
-                                    {t('common.runtime.dryRun')}
-                                  </Button>
-                                </div>
-                              );
-                            })}
+                                  {ref}
+                                </Typography.Text>
+                              ))}
+                            </div>
                           </div>
-                        ) : (
-                          <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                        )}
+
+                        {advancedTaskRefs.length > 0 && (
+                          <div className='flex flex-col gap-12px'>
+                            <Typography.Text className='font-600 text-t-primary'>
+                              {t('common.runtime.taskOverview')}
+                            </Typography.Text>
+                            <div className='flex flex-col divide-y divide-border-1'>
+                              {advancedTaskRefs.map((task) => (
+                                <div key={task.id} className='py-8px'>
+                                  <Typography.Text className='block font-600 text-t-primary break-words'>
+                                    {task.title}
+                                  </Typography.Text>
+                                  {task.rows.map((row) => (
+                                    <Typography.Text
+                                      key={row}
+                                      className='block mt-4px text-12px text-t-secondary break-all'
+                                    >
+                                      {row}
+                                    </Typography.Text>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className='flex flex-col gap-12px'>
+                          <Typography.Text className='font-600 text-t-primary'>
+                            {t('common.runtime.safeActions')}
+                          </Typography.Text>
+                          {actions.length > 0 ? (
+                            <div className='flex flex-col divide-y divide-border-1'>
+                              {actions.map((action) => {
+                                const actionId = stringValue(action.action_id) ?? '';
+                                return (
+                                  <div
+                                    key={actionId}
+                                    className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
+                                  >
+                                    <div className='min-w-0'>
+                                      <Typography.Text className='block font-600 text-t-primary break-all'>
+                                        {actionId}
+                                      </Typography.Text>
+                                      <Space wrap size='mini' className='mt-6px'>
+                                        {stringValue(action.action_kind) && (
+                                          <Tag>{stringValue(action.action_kind)}</Tag>
+                                        )}
+                                        {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
+                                        {action.route_requires_domain_or_app_payload === true && (
+                                          <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
+                                        )}
+                                      </Space>
+                                    </div>
+                                    <Button
+                                      icon={<Play theme='outline' />}
+                                      loading={runningActionId === actionId}
+                                      disabled={!actionId}
+                                      onClick={() => void dryRunAction(actionId)}
+                                    >
+                                      {t('common.runtime.dryRun')}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                          )}
+                        </div>
+
+                        {actionResult && (
+                          <div>
+                            <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                              {t('common.runtime.actionResult')}
+                            </Typography.Text>
+                            {(() => {
+                              const resultSummary = actionResultSummary(actionResult);
+                              const rows = [
+                                {
+                                  key: 'preview',
+                                  label: t('common.runtime.actionPreviewSummary'),
+                                  value: resultSummary.preview,
+                                },
+                                {
+                                  key: 'receipt',
+                                  label: t('common.runtime.actionReceiptSummary'),
+                                  value: resultSummary.receipt,
+                                },
+                              ].filter((row): row is { key: string; label: string; value: string } =>
+                                Boolean(row.value)
+                              );
+                              return rows.length > 0 ? (
+                                <div className='mb-10px flex flex-col gap-4px'>
+                                  {rows.map((row) => (
+                                    <Typography.Text
+                                      key={row.key}
+                                      className='block text-12px text-t-secondary break-words'
+                                    >
+                                      {row.label}: {row.value}
+                                    </Typography.Text>
+                                  ))}
+                                </div>
+                              ) : null;
+                            })()}
+                            <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                              {JSON.stringify(actionResult, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+
+                        {fullDetailDigest && (
+                          <div>
+                            <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                              {t('common.runtime.fullDetail')}
+                            </Typography.Text>
+                            <Alert type='info' content={t('common.runtime.fullDetailReady')} />
+                            <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                              {JSON.stringify(fullDetailDigest, null, 2)}
+                            </pre>
+                          </div>
                         )}
                       </div>
-
-                      {actionResult && (
-                        <div>
-                          <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                            {t('common.runtime.actionResult')}
-                          </Typography.Text>
-                          {(() => {
-                            const resultSummary = actionResultSummary(actionResult);
-                            const rows = [
-                              {
-                                key: 'preview',
-                                label: t('common.runtime.actionPreviewSummary'),
-                                value: resultSummary.preview,
-                              },
-                              {
-                                key: 'receipt',
-                                label: t('common.runtime.actionReceiptSummary'),
-                                value: resultSummary.receipt,
-                              },
-                            ].filter((row): row is { key: string; label: string; value: string } => Boolean(row.value));
-                            return rows.length > 0 ? (
-                              <div className='mb-10px flex flex-col gap-4px'>
-                                {rows.map((row) => (
-                                  <Typography.Text
-                                    key={row.key}
-                                    className='block text-12px text-t-secondary break-words'
-                                  >
-                                    {row.label}: {row.value}
-                                  </Typography.Text>
-                                ))}
-                              </div>
-                            ) : null;
-                          })()}
-                          <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                            {JSON.stringify(actionResult, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-
-                      {fullDetailDigest && (
-                        <div>
-                          <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                            {t('common.runtime.fullDetail')}
-                          </Typography.Text>
-                          <Alert type='info' content={t('common.runtime.fullDetailReady')} />
-                          <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                            {JSON.stringify(fullDetailDigest, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  </Collapse.Item>
-                </Collapse>
-              </Card>
-            </aside>
-          </div>
+                    </Collapse.Item>
+                  </Collapse>
+                </Card>
+              </aside>
+            </div>
+          </>
         ) : (
           <Alert type='info' content={t('common.runtime.drilldownUnavailableDescription')} />
         )}
