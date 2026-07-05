@@ -25,6 +25,9 @@ const crypto = require('crypto');
 const DMG_RETRY_MAX = 3;
 const DMG_RETRY_DELAY_SEC = 30;
 const OPL_RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
+const PACKAGING_STAGE_DIR_RE = /^(?:mac(?:-(?:arm64|x64|universal))?|win(?:-[a-z0-9]+)?-unpacked|linux(?:-[a-z0-9._-]+)?)$/i;
+const PACKAGING_ARTIFACT_FILE_RE = /\.(?:dmg|zip|blockmap|exe|msi|7z|AppImage|deb|rpm|snap)$/i;
+const PACKAGING_METADATA_FILE_RE = /^(?:latest(?:-[^.]+)?\.ya?ml|builder-debug\.yml|builder-effective-config\.ya?ml)$/i;
 
 // Incremental build: hash of source files to detect changes
 const INCREMENTAL_CACHE_FILE = 'out/.build-hash';
@@ -148,6 +151,36 @@ function cleanViteBundleOutput() {
   }
   if (removed.length > 0) {
     console.log(`🧹 Cleaned stale Vite bundle output: ${removed.join(', ')}`);
+  }
+}
+
+function cleanupManagedOutArtifacts() {
+  const outDir = path.resolve(__dirname, '../out');
+  if (!fs.existsSync(outDir)) {
+    return;
+  }
+
+  const removed = [];
+  for (const entry of fs.readdirSync(outDir, { withFileTypes: true })) {
+    const fullPath = path.join(outDir, entry.name);
+
+    if (entry.isDirectory() && PACKAGING_STAGE_DIR_RE.test(entry.name)) {
+      fs.rmSync(fullPath, { recursive: true, force: true });
+      removed.push(`out/${entry.name}`);
+      continue;
+    }
+
+    if (
+      entry.isFile()
+      && (PACKAGING_ARTIFACT_FILE_RE.test(entry.name) || PACKAGING_METADATA_FILE_RE.test(entry.name))
+    ) {
+      fs.rmSync(fullPath, { force: true });
+      removed.push(`out/${entry.name}`);
+    }
+  }
+
+  if (removed.length > 0) {
+    console.log(`🧹 Pruned stale packaging output: ${removed.join(', ')}`);
   }
 }
 
@@ -532,6 +565,8 @@ try {
     packageJson.main = './out/main/index.js';
     fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
   }
+
+  cleanupManagedOutArtifacts();
 
   // 2. Check if we can skip Vite build (incremental build)
   const skipViteBuild = shouldSkipViteBuild(skipVite, forceBuild);

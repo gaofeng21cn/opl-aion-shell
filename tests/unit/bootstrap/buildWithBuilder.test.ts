@@ -235,7 +235,9 @@ childProcess.execSync = function mockedExecSync(command) {
     try {
       const result = withOutBundleBackup(() => {
         mkdirSync(join(repoRoot, 'out', 'renderer', 'assets'), { recursive: true });
+        mkdirSync(join(repoRoot, 'out', 'mac-arm64'), { recursive: true });
         writeFileSync(join(repoRoot, 'out', 'renderer', 'assets', 'stale.js'), 'stale', 'utf8');
+        writeFileSync(join(repoRoot, 'out', 'One-Person-Lab-26.7.5-mac-arm64.dmg'), 'stale dmg', 'utf8');
         return spawnSync(
           process.execPath,
           ['scripts/build-with-builder.js', '--pack-only', '--skip-native', '--force'],
@@ -256,6 +258,8 @@ childProcess.execSync = function mockedExecSync(command) {
       expect(commands.some((command) => command.includes('electron-builder'))).toBe(false);
       expect(result.stdout).toContain('Package completed! (skipped distributable creation)');
       expect(existsSync(join(repoRoot, 'out', 'renderer', 'assets', 'stale.js'))).toBe(false);
+      expect(existsSync(join(repoRoot, 'out', 'mac-arm64'))).toBe(false);
+      expect(existsSync(join(repoRoot, 'out', 'One-Person-Lab-26.7.5-mac-arm64.dmg'))).toBe(false);
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }

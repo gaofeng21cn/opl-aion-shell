@@ -116,6 +116,22 @@ describe('prepare-aioncore managed resources preparation', () => {
 });
 
 describe('prepare-aioncore prepared runtime cache', () => {
+  it('defaults the prepared runtime cache outside the project out directory', () => {
+    const dir = makeTempDir();
+    const homeDir = path.join(dir, 'home');
+    const projectRoot = path.join(dir, 'project');
+
+    fs.mkdirSync(homeDir, { recursive: true });
+    fs.mkdirSync(projectRoot, { recursive: true });
+
+    expect(__test__.defaultAioncoreCacheRoot({ platform: 'darwin', homeDir })).toBe(
+      path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore')
+    );
+
+    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.28');
+    expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
+  });
+
   it('reuses a complete prepared runtime cache without downloading or preparing managed resources', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');

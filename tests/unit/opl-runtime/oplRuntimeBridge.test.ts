@@ -459,7 +459,7 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('prefers the explicit local framework checkout when Developer Mode is active', () => {
+  it('prefers the explicit local framework checkout when Developer Mode auto-matches the developer identity', () => {
     const homeDir = makeTempRoot('opl-devmode-source-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const stateDir = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'state');
@@ -470,12 +470,13 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
     fs.mkdirSync(workspaceRoot, { recursive: true });
     fs.mkdirSync(path.join(developerCheckout, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(developerCheckout, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(developerCheckout, 'contracts', 'opl-framework'), { recursive: true });
     fs.mkdirSync(path.join(developerCheckout, 'src', 'entrypoints'), { recursive: true });
     fs.mkdirSync(stateDir, { recursive: true });
     fs.writeFileSync(
       path.join(stateDir, 'developer-supervisor.json'),
-      JSON.stringify({ enabled: 'on', mode: 'developer_apply_safe', auto_enable_github_login: 'gaofeng21cn' }),
+      JSON.stringify({ enabled: 'auto', mode: 'developer_apply_safe', auto_enable_github_login: 'gaofeng21cn' }),
       'utf8'
     );
     fs.writeFileSync(
@@ -488,6 +489,7 @@ describe('OPL runtime bridge command whitelist', () => {
       'console.log("runtime")\n',
       'utf8'
     );
+    fs.writeFileSync(path.join(developerCheckout, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
     fs.writeFileSync(path.join(developerCheckout, 'src', 'entrypoints', 'cli.ts'), 'console.log("checkout")\n', 'utf8');
     fs.writeFileSync(
       path.join(developerCheckout, 'contracts', 'opl-framework', 'public-surface-index.json'),
@@ -502,6 +504,7 @@ describe('OPL runtime bridge command whitelist', () => {
         PATH: '/usr/bin:/bin',
         OPL_FULL_RUNTIME_HOME: runtimeHome,
         OPL_WORKSPACE_ROOT: workspaceRoot,
+        OPL_DEVELOPER_MODE_GH_FIXTURE: JSON.stringify({ user: { login: 'gaofeng21cn' } }),
       },
       platform: 'darwin',
       arch: 'arm64',

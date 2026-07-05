@@ -121,8 +121,24 @@ function safeCacheSegment(value) {
   return String(value).replace(/[^0-9A-Za-z._-]/g, '_');
 }
 
+function defaultAioncoreCacheRoot({
+  platform = process.platform,
+  env = process.env,
+  homeDir = os.homedir(),
+} = {}) {
+  if (platform === 'darwin') {
+    return path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore');
+  }
+  if (platform === 'win32') {
+    const localAppData = env.LOCALAPPDATA?.trim();
+    return path.join(localAppData ? path.resolve(localAppData) : path.join(homeDir, 'AppData', 'Local'), 'One Person Lab', 'Cache', 'aioncore');
+  }
+  const xdgCacheHome = env.XDG_CACHE_HOME?.trim();
+  return path.join(xdgCacheHome ? path.resolve(xdgCacheHome) : path.join(homeDir, '.cache'), 'one-person-lab', 'aioncore');
+}
+
 function getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion) {
-  const cacheRoot = process.env.AIONUI_AIONCORE_CACHE_DIR?.trim() || path.join(projectRoot, 'out', 'aioncore-cache');
+  const cacheRoot = process.env.AIONUI_AIONCORE_CACHE_DIR?.trim() || defaultAioncoreCacheRoot();
   const cacheId = `${runtimeKey}-${safeCacheSegment(cacheVersion)}`;
   const resourcesRoot = path.join(cacheRoot, cacheId);
   const runtimeDir = path.join(resourcesRoot, 'bundled-aioncore', runtimeKey);
@@ -825,7 +841,9 @@ module.exports = {
   normalizeInternalSymlinks,
   prepareAioncore,
   __test__: {
+    defaultAioncoreCacheRoot,
     downloadFile,
+    getAioncoreCachePaths,
     getManagedResourcePrepareEnv,
     normalizeInternalSymlinks,
     prepareAioncore,
