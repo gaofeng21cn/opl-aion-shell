@@ -150,7 +150,8 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
-    expect(screen.queryByText('About')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-sider-footer-about')).toBeInTheDocument();
+    expect(screen.getByText('About')).toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
@@ -174,6 +175,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByText('Advanced')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-sider-footer-about')).toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();

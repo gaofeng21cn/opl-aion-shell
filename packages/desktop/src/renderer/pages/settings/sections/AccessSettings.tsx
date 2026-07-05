@@ -15,6 +15,9 @@ import { buildAccessProjection, type DockerWebuiAction, type ResourceSourceProje
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
+const BUILT_IN_REMOTE_SOURCE_KEYS = new Set(['cloud_remote_access', 'cloud_remote', 'remote_access']);
+const BUILT_IN_REMOTE_SOURCE_CATEGORIES = new Set(['remote', 'sshHpc', 'local']);
+
 function assertOplCommandOk(result: OplCommandResult): void {
   if (result?.ok === false) {
     throw new Error(result.error?.message || result.error?.stderr || 'OPL command failed');
@@ -28,6 +31,12 @@ export const AccessSettingsContent: React.FC = () => {
   const [configureLoading, setConfigureLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const { cards, dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
+  const builtInRemoteSources = resourceSources.filter(
+    (source) => BUILT_IN_REMOTE_SOURCE_KEYS.has(source.key) || BUILT_IN_REMOTE_SOURCE_CATEGORIES.has(source.category)
+  );
+  const oplAddOnSources = resourceSources.filter(
+    (source) => !BUILT_IN_REMOTE_SOURCE_KEYS.has(source.key) && !BUILT_IN_REMOTE_SOURCE_CATEGORIES.has(source.category)
+  );
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -251,73 +260,95 @@ export const AccessSettingsContent: React.FC = () => {
               {t('settings.accessPage.remote.noActions')}
             </Typography.Text>
           )}
-          <ResourceSources sources={resourceSources} />
+          <ResourceSources
+            title={t('settings.accessPage.resourceSources.builtIn.title')}
+            description={t('settings.accessPage.resourceSources.builtIn.description')}
+            sources={builtInRemoteSources}
+            testId='opl-settings-built-in-remote-sources'
+          />
+          <ResourceSources
+            title={t('settings.accessPage.resourceSources.oplAddOns.title')}
+            description={t('settings.accessPage.resourceSources.oplAddOns.description')}
+            sources={oplAddOnSources}
+            testId='opl-settings-opl-add-on-sources'
+          />
         </div>
       </Card>
     </div>
   );
 };
 
-const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
+const ResourceSources: React.FC<{
+  title: string;
+  description: string;
+  sources: ResourceSourceProjection[];
+  testId: string;
+}> = ({ title, description, sources, testId }) => {
   const { t } = useTranslation();
   if (sources.length === 0) return null;
   return (
-    <div className='grid grid-cols-1 md:grid-cols-2 gap-10px' data-testid='opl-settings-resource-sources'>
-      {sources.map((source) => (
-        <div key={source.key} className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
-          <div className='flex flex-wrap items-center gap-8px'>
-            <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
-            <Tag color='blue'>{t('settings.accessPage.resourceSources.status', { status: source.status })}</Tag>
-            <Tag color='gray'>{t(`settings.accessPage.resourceSources.categories.${source.category}`)}</Tag>
-            {source.management && (
-              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-                {t(`settings.accessPage.resourceSources.management.${source.management}`)}
-              </Tag>
+    <div className='flex flex-col gap-10px' data-testid={testId}>
+      <div className='flex flex-col gap-4px'>
+        <Typography.Text className='font-600 text-t-primary'>{title}</Typography.Text>
+        <Typography.Text className='text-12px text-t-secondary break-words'>{description}</Typography.Text>
+      </div>
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+        {sources.map((source) => (
+          <div key={source.key} className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
+            <div className='flex flex-wrap items-center gap-8px'>
+              <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
+              <Tag color='blue'>{t('settings.accessPage.resourceSources.status', { status: source.status })}</Tag>
+              <Tag color='gray'>{t(`settings.accessPage.resourceSources.categories.${source.category}`)}</Tag>
+              {source.management && (
+                <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+                  {t(`settings.accessPage.resourceSources.management.${source.management}`)}
+                </Tag>
+              )}
+            </div>
+            {source.managementRefs.length > 0 && (
+              <div className='grid grid-cols-1 gap-4px'>
+                <Typography.Text className='text-12px font-600 text-t-primary'>
+                  {t('settings.accessPage.resourceSources.managementRefs')}
+                </Typography.Text>
+                {source.managementRefs.map((ref) => (
+                  <Typography.Text
+                    key={`${source.key}-management-${ref}`}
+                    className='text-12px text-t-secondary break-words'
+                  >
+                    {ref}
+                  </Typography.Text>
+                ))}
+              </div>
+            )}
+            {source.environmentRefs.length > 0 && (
+              <div className='grid grid-cols-1 gap-4px'>
+                <Typography.Text className='text-12px font-600 text-t-primary'>
+                  {t('settings.accessPage.resourceSources.environmentRefs')}
+                </Typography.Text>
+                {source.environmentRefs.map((ref) => (
+                  <Typography.Text
+                    key={`${source.key}-environment-${ref}`}
+                    className='text-12px text-t-secondary break-words'
+                  >
+                    {ref}
+                  </Typography.Text>
+                ))}
+              </div>
+            )}
+            {source.refs.length > 0 ? (
+              source.refs.map((ref) => (
+                <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
+                  {ref}
+                </Typography.Text>
+              ))
+            ) : (
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.accessPage.resourceSources.noRefs')}
+              </Typography.Text>
             )}
           </div>
-          {source.managementRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.accessPage.resourceSources.managementRefs')}
-              </Typography.Text>
-              {source.managementRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-management-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
-          {source.environmentRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.accessPage.resourceSources.environmentRefs')}
-              </Typography.Text>
-              {source.environmentRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-environment-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
-          {source.refs.length > 0 ? (
-            source.refs.map((ref) => (
-              <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
-                {ref}
-              </Typography.Text>
-            ))
-          ) : (
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.accessPage.resourceSources.noRefs')}
-            </Typography.Text>
-          )}
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 };

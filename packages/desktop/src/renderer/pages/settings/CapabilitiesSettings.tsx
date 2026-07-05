@@ -405,6 +405,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const [manifestUrl, setManifestUrl] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
+  const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
   const shortcutByPackageId = React.useMemo(
     () => new Map(getOplOrderedHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut])),
     [shortcutPreferences]
@@ -425,6 +426,39 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const hiddenShortcutIds = React.useMemo(
     () => new Set(shortcutPreferences.hiddenShortcutIds),
     [shortcutPreferences.hiddenShortcutIds]
+  );
+  const packageRows = React.useMemo(
+    () => purposeCapabilities.filter((item) => item.packageId),
+    [purposeCapabilities]
+  );
+  const summaryCards = React.useMemo(
+    () => [
+      {
+        key: 'installed',
+        title: t('settings.capabilitiesPage.summary.installed'),
+        value: String(packageRows.filter((item) => item.status !== 'missing').length),
+        detail: t('settings.capabilitiesPage.packageDirectory.description'),
+      },
+      {
+        key: 'attention',
+        title: t('settings.capabilitiesPage.summary.attention'),
+        value: String(packageRows.filter((item) => item.status !== 'ready').length),
+        detail: t('settings.capabilitiesPage.summary.attentionDetail'),
+      },
+      {
+        key: 'shortcuts',
+        title: t('settings.capabilitiesPage.summary.shortcuts'),
+        value: String(orderedShortcuts.filter((shortcut) => !hiddenShortcutIds.has(shortcut.shortcut_id)).length),
+        detail: t('settings.capabilitiesPage.homeShortcuts.description'),
+      },
+      {
+        key: 'tools',
+        title: t('settings.capabilitiesPage.summary.tools'),
+        value: t('settings.capabilitiesPage.entries.externalTools.title'),
+        detail: t('settings.capabilitiesPage.toolsConnectors.description'),
+      },
+    ],
+    [hiddenShortcutIds, orderedShortcuts, packageRows, t]
   );
 
   useEffect(() => {
@@ -494,6 +528,17 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-12px' data-testid='capabilities-summary-strip'>
+          {summaryCards.map((card) => (
+            <Card key={card.key} bordered className='rd-8px'>
+              <div className='flex flex-col gap-6px min-w-0'>
+                <Typography.Text className='text-12px text-t-secondary'>{card.title}</Typography.Text>
+                <Typography.Text className='text-20px font-600 text-t-primary break-words'>{card.value}</Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
+              </div>
+            </Card>
+          ))}
+        </div>
         <Card bordered className='rd-8px' data-testid='agent-package-manager'>
           <div className='flex flex-col gap-10px'>
             <div>
@@ -534,222 +579,323 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             </div>
           </div>
         </Card>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
-          {purposeCapabilities.map((item, index) => (
-            <Card key={item.key} bordered className='rd-8px' data-testid={`capability-purpose-${item.key}`}>
-              <div className='flex items-start gap-12px'>
-                <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                  {capabilityIcon(item)}
-                </span>
-                <div className='min-w-0 flex-1'>
-                  <div className='flex flex-wrap items-center gap-8px mb-4px'>
-                    <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-                    <Tag color={capabilityStatusColor(item.status)}>
-                      {t(`settings.capabilitiesPage.status.${item.status}`)}
-                    </Tag>
-                  </div>
-                  <Typography.Text className='block text-13px text-t-secondary mb-10px break-words'>
-                    {item.description}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary mb-10px break-words'>
-                    {t('settings.capabilitiesPage.codexVisibilitySummary', {
-                      value: t(`settings.capabilitiesPage.codexVisibility.${item.codexVisibility}`),
-                    })}
-                  </Typography.Text>
-                  <div className='flex flex-wrap gap-6px'>
-                    {item.tags.map((tag) => (
-                      <Tag key={`${item.key}-${tag}`} color='arcoblue'>
-                        {tag}
-                      </Tag>
-                    ))}
-                  </div>
-                  {item.packageId && (
-                    <div
-                      className='mt-10px flex flex-col gap-8px'
-                      data-testid={`capability-package-actions-${item.key}`}
-                    >
-                      {shortcutByPackageId.has(item.packageId) && (
-                        <Space wrap size={6}>
-                          <Button
-                            size='mini'
-                            onClick={() =>
-                              updateShortcutHidden(
-                                shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '',
-                                !hiddenShortcutIds.has(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '')
-                              )
-                            }
-                            data-testid={`agent-package-home-toggle-${item.key}`}
-                          >
-                            {hiddenShortcutIds.has(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '')
-                              ? t('settings.capabilitiesPage.packageManager.showOnHome')
-                              : t('settings.capabilitiesPage.packageManager.hideFromHome')}
-                          </Button>
-                          <Button
-                            size='mini'
-                            disabled={index === 0}
-                            onClick={() => moveShortcut(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '', -1)}
-                            data-testid={`agent-package-home-up-${item.key}`}
-                          >
-                            {t('settings.capabilitiesPage.packageManager.moveUp')}
-                          </Button>
-                          <Button
-                            size='mini'
-                            disabled={index === purposeCapabilities.length - 1}
-                            onClick={() => moveShortcut(shortcutByPackageId.get(item.packageId)?.shortcut_id ?? '', 1)}
-                            data-testid={`agent-package-home-down-${item.key}`}
-                          >
-                            {t('settings.capabilitiesPage.packageManager.moveDown')}
-                          </Button>
-                        </Space>
-                      )}
-                      <Space wrap size={6}>
-                        {PACKAGE_ACTIONS.map((action) => (
-                          <Button
-                            key={`${item.key}-${action.key}`}
-                            size='mini'
-                            loading={busyAction === action.actionId}
-                            onClick={() =>
-                              executePackageAction(action.actionId, {
-                                package_id: item.packageId,
-                              })
-                            }
-                            title={packageActionRef(action.actionId)}
-                            data-testid={`agent-package-action-${item.key}-${action.key}`}
-                          >
-                            {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
-                          </Button>
-                        ))}
-                      </Space>
-                    </div>
-                  )}
-                  {capabilityCandidateReportRows(item.workflowCandidateRefs, item.key, t)}
-                  <Collapse bordered={false} className='mt-8px'>
-                    <Collapse.Item
-                      header={t('settings.capabilitiesPage.detailsHeader')}
-                      name={`capability-${item.key}-details`}
-                    >
-                      <div className='grid grid-cols-1 gap-6px text-12px'>
-                        {capabilityDetailRows(item, t).map((row) => (
-                          <div key={`${item.key}-${row.key}`} className='min-w-0'>
-                            <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
-                            <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-12px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.packageDirectory.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.packageDirectory.description')}
+              </Typography.Text>
+            </div>
+            <div className='flex flex-col divide-y divide-border-1'>
+              {purposeCapabilities.map((item) => {
+                const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : undefined;
+                const shortcutId = shortcut?.shortcut_id ?? '';
+                const homeVisibility = shortcut
+                  ? hiddenShortcutIds.has(shortcutId)
+                    ? t('settings.capabilitiesPage.homeShortcuts.hidden')
+                    : t('settings.capabilitiesPage.homeShortcuts.visible')
+                  : t('settings.capabilitiesPage.homeShortcuts.notAvailable');
+                return (
+                  <div key={item.key} className='py-12px min-w-0' data-testid={`capability-purpose-${item.key}`}>
+                    <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
+                      <div className='min-w-0 flex items-start gap-12px'>
+                        <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary shrink-0'>
+                          {capabilityIcon(item)}
+                        </span>
+                        <div className='min-w-0'>
+                          <div className='flex flex-wrap items-center gap-8px'>
+                            <Typography.Text className='font-600 text-t-primary break-words'>{item.title}</Typography.Text>
+                            <Tag color={capabilityStatusColor(item.status)}>
+                              {t(`settings.capabilitiesPage.status.${item.status}`)}
+                            </Tag>
+                            {item.tags[0] && <Tag color='arcoblue'>{item.tags[0]}</Tag>}
                           </div>
-                        ))}
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                          <Typography.Text className='block text-13px text-t-secondary mt-4px break-words'>
+                            {item.description}
                           </Typography.Text>
-                          {item.connectorReadinessGroups.length > 0 && (
-                            <>
-                              {capabilityRefGroups(item.connectorReadinessGroups, item.key, t)}
-                              {capabilityRefRows(
-                                ungroupedCapabilityRefs(item.connectorReadinessRefs, item.connectorReadinessGroups),
-                                item.key,
-                                t,
-                                `capability-connector-refs-${item.key}`
-                              )}
-                            </>
-                          )}
-                          {item.connectorReadinessGroups.length === 0 &&
-                            capabilityRefRows(
-                              item.connectorReadinessRefs,
-                              item.key,
-                              t,
-                              `capability-connector-refs-${item.key}`
-                            )}
-                        </div>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                          <div className='mt-8px flex flex-wrap gap-10px text-12px text-t-secondary'>
+                            <Typography.Text className='break-words'>
+                              {t('settings.capabilitiesPage.detailLabels.source')}: {item.source ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                            </Typography.Text>
+                            <Typography.Text className='break-words'>
+                              {t('settings.capabilitiesPage.detailLabels.version')}: {item.version ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                            </Typography.Text>
+                            <Typography.Text className='break-words'>
+                              {t('settings.capabilitiesPage.listLabels.home')}: {homeVisibility}
+                            </Typography.Text>
+                          </div>
+                          <Typography.Text className='block text-12px text-t-secondary mt-6px break-words'>
+                            {t('settings.capabilitiesPage.codexVisibilitySummary', {
+                              value: t(`settings.capabilitiesPage.codexVisibility.${item.codexVisibility}`),
+                            })}
                           </Typography.Text>
-                          {capabilityRefRows(item.workflowRefs, item.key, t, `capability-workflow-refs-${item.key}`)}
-                        </div>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
-                          </Typography.Text>
-                          {item.resourceContextGroups.length > 0 && (
-                            <>
-                              {capabilityRefGroups(
-                                item.resourceContextGroups,
-                                item.key,
-                                t,
-                                'settings.capabilitiesPage.resourceContextGroups'
-                              )}
-                              {capabilityRefRows(
-                                ungroupedCapabilityRefs(item.resourceContextRefs, item.resourceContextGroups),
-                                item.key,
-                                t,
-                                `capability-resource-context-refs-${item.key}`
-                              )}
-                            </>
-                          )}
-                          {item.resourceContextGroups.length === 0 &&
-                            capabilityRefRows(
-                              item.resourceContextRefs,
-                              item.key,
-                              t,
-                              `capability-resource-context-refs-${item.key}`
-                            )}
-                        </div>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
-                          </Typography.Text>
-                          {capabilityExportBundleAction(item.exportBundleAction, t)}
                         </div>
                       </div>
-                    </Collapse.Item>
-                  </Collapse>
-                  <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
-                    {capabilityActionLabel(item, t)}
-                  </Button>
-                </div>
+                      <Button size='small' type='primary' onClick={() => onTabChange('skills')}>
+                        {capabilityActionLabel(item, t)}
+                      </Button>
+                    </div>
+                    {item.packageId && (
+                      <div className='mt-10px flex flex-col gap-8px' data-testid={`capability-package-actions-${item.key}`}>
+                        <Collapse bordered={false}>
+                          <Collapse.Item
+                            header={t('settings.capabilitiesPage.detailsHeader')}
+                            name={`capability-${item.key}-details`}
+                          >
+                            <div className='grid grid-cols-1 gap-6px text-12px'>
+                              {shortcut && (
+                                <Space wrap size={6}>
+                                  <Button
+                                    size='mini'
+                                    onClick={() => updateShortcutHidden(shortcutId, !hiddenShortcutIds.has(shortcutId))}
+                                  >
+                                    {hiddenShortcutIds.has(shortcutId)
+                                      ? t('settings.capabilitiesPage.packageManager.showOnHome')
+                                      : t('settings.capabilitiesPage.packageManager.hideFromHome')}
+                                  </Button>
+                                  <Button
+                                    size='mini'
+                                    disabled={orderedShortcuts.findIndex((entry) => entry.shortcut_id === shortcutId) <= 0}
+                                    onClick={() => moveShortcut(shortcutId, -1)}
+                                  >
+                                    {t('settings.capabilitiesPage.packageManager.moveUp')}
+                                  </Button>
+                                  <Button
+                                    size='mini'
+                                    disabled={
+                                      orderedShortcuts.findIndex((entry) => entry.shortcut_id === shortcutId) ===
+                                      orderedShortcuts.length - 1
+                                    }
+                                    onClick={() => moveShortcut(shortcutId, 1)}
+                                  >
+                                    {t('settings.capabilitiesPage.packageManager.moveDown')}
+                                  </Button>
+                                </Space>
+                              )}
+                              <Space wrap size={6}>
+                                {PACKAGE_ACTIONS.map((action) => (
+                                  <Button
+                                    key={`${item.key}-${action.key}`}
+                                    size='mini'
+                                    loading={busyAction === action.actionId}
+                                    onClick={() =>
+                                      executePackageAction(action.actionId, {
+                                        package_id: item.packageId,
+                                      })
+                                    }
+                                    title={packageActionRef(action.actionId)}
+                                    data-testid={`agent-package-action-${item.key}-${action.key}`}
+                                  >
+                                    {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
+                                  </Button>
+                                ))}
+                              </Space>
+                              {capabilityCandidateReportRows(item.workflowCandidateRefs, item.key, t)}
+                              {capabilityDetailRows(item, t).map((row) => (
+                                <div key={`${item.key}-${row.key}`} className='min-w-0'>
+                                  <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                                  <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+                                </div>
+                              ))}
+                              <div className='min-w-0'>
+                                <Typography.Text className='block text-t-secondary mb-4px'>
+                                  {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                                </Typography.Text>
+                                {item.connectorReadinessGroups.length > 0 && (
+                                  <>
+                                    {capabilityRefGroups(item.connectorReadinessGroups, item.key, t)}
+                                    {capabilityRefRows(
+                                      ungroupedCapabilityRefs(item.connectorReadinessRefs, item.connectorReadinessGroups),
+                                      item.key,
+                                      t,
+                                      `capability-connector-refs-${item.key}`
+                                    )}
+                                  </>
+                                )}
+                                {item.connectorReadinessGroups.length === 0 &&
+                                  capabilityRefRows(
+                                    item.connectorReadinessRefs,
+                                    item.key,
+                                    t,
+                                    `capability-connector-refs-${item.key}`
+                                  )}
+                              </div>
+                              <div className='min-w-0'>
+                                <Typography.Text className='block text-t-secondary mb-4px'>
+                                  {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                                </Typography.Text>
+                                {capabilityRefRows(item.workflowRefs, item.key, t, `capability-workflow-refs-${item.key}`)}
+                              </div>
+                              <div className='min-w-0'>
+                                <Typography.Text className='block text-t-secondary mb-4px'>
+                                  {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
+                                </Typography.Text>
+                                {item.resourceContextGroups.length > 0 && (
+                                  <>
+                                    {capabilityRefGroups(
+                                      item.resourceContextGroups,
+                                      item.key,
+                                      t,
+                                      'settings.capabilitiesPage.resourceContextGroups'
+                                    )}
+                                    {capabilityRefRows(
+                                      ungroupedCapabilityRefs(item.resourceContextRefs, item.resourceContextGroups),
+                                      item.key,
+                                      t,
+                                      `capability-resource-context-refs-${item.key}`
+                                    )}
+                                  </>
+                                )}
+                                {item.resourceContextGroups.length === 0 &&
+                                  capabilityRefRows(
+                                    item.resourceContextRefs,
+                                    item.key,
+                                    t,
+                                    `capability-resource-context-refs-${item.key}`
+                                  )}
+                              </div>
+                              <div className='min-w-0'>
+                                <Typography.Text className='block text-t-secondary mb-4px'>
+                                  {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
+                                </Typography.Text>
+                                {capabilityExportBundleAction(item.exportBundleAction, t)}
+                              </div>
+                            </div>
+                          </Collapse.Item>
+                        </Collapse>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-12px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.homeShortcuts.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.homeShortcuts.description')}
+              </Typography.Text>
+            </div>
+            {orderedShortcuts.length === 0 ? (
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.homeShortcuts.noShortcuts')}
+              </Typography.Text>
+            ) : (
+              <div className='flex flex-col divide-y divide-border-1'>
+                {orderedShortcuts.map((shortcut, index) => {
+                  const item = packageRows.find((entry) => entry.packageId === shortcut.package_id);
+                  const hidden = hiddenShortcutIds.has(shortcut.shortcut_id);
+                  return (
+                    <div key={shortcut.shortcut_id} className='py-10px flex flex-col gap-8px md:flex-row md:items-center md:justify-between'>
+                      <div className='min-w-0'>
+                        <div className='flex flex-wrap items-center gap-8px'>
+                          <Typography.Text className='font-600 text-t-primary'>{shortcut.primary_label}</Typography.Text>
+                          <Tag color={hidden ? 'gray' : 'green'}>
+                            {hidden
+                              ? t('settings.capabilitiesPage.homeShortcuts.hidden')
+                              : t('settings.capabilitiesPage.homeShortcuts.visible')}
+                          </Tag>
+                        </div>
+                        <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                          {t('settings.capabilitiesPage.listLabels.source')}: {item?.title ?? shortcut.package_id} ·{' '}
+                          {t('settings.capabilitiesPage.listLabels.order')}: {index + 1}
+                        </Typography.Text>
+                      </div>
+                      <Space wrap size={6}>
+                        <Button
+                          size='mini'
+                          onClick={() => updateShortcutHidden(shortcut.shortcut_id, !hidden)}
+                          data-testid={`agent-package-home-toggle-${item?.key ?? shortcut.shortcut_id}`}
+                        >
+                          {hidden
+                            ? t('settings.capabilitiesPage.packageManager.showOnHome')
+                            : t('settings.capabilitiesPage.packageManager.hideFromHome')}
+                        </Button>
+                        <Button
+                          size='mini'
+                          disabled={index === 0}
+                          onClick={() => moveShortcut(shortcut.shortcut_id, -1)}
+                          data-testid={`agent-package-home-up-${item?.key ?? shortcut.shortcut_id}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.moveUp')}
+                        </Button>
+                        <Button
+                          size='mini'
+                          disabled={index === orderedShortcuts.length - 1}
+                          onClick={() => moveShortcut(shortcut.shortcut_id, 1)}
+                          data-testid={`agent-package-home-down-${item?.key ?? shortcut.shortcut_id}`}
+                        >
+                          {t('settings.capabilitiesPage.packageManager.moveDown')}
+                        </Button>
+                      </Space>
+                    </div>
+                  );
+                })}
               </div>
-            </Card>
-          ))}
-        </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
-          <Card bordered className='rd-8px' data-testid='capability-entry-external-tools'>
-            <div className='flex items-start gap-12px'>
-              <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                <Tool theme='outline' />
-              </span>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.capabilitiesPage.entries.externalTools.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-13px text-t-secondary break-words'>
-                  {t('settings.capabilitiesPage.entries.externalTools.description')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words mt-6px'>
-                  {t('settings.capabilitiesPage.entries.externalTools.technical')}
-                </Typography.Text>
-                <Button size='small' className='mt-10px' onClick={() => onTabChange('tools')}>
+            )}
+          </div>
+        </Card>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-12px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.toolsConnectors.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.toolsConnectors.description')}
+              </Typography.Text>
+            </div>
+            <div className='flex flex-col divide-y divide-border-1'>
+              <div className='py-10px flex flex-col gap-8px md:flex-row md:items-center md:justify-between' data-testid='capability-entry-external-tools'>
+                <div className='min-w-0 flex items-start gap-12px'>
+                  <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary shrink-0'>
+                    <Tool theme='outline' />
+                  </span>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.entries.externalTools.title')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-13px text-t-secondary break-words'>
+                      {t('settings.capabilitiesPage.entries.externalTools.description')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                      {t('settings.capabilitiesPage.entries.externalTools.technical')}
+                    </Typography.Text>
+                  </div>
+                </div>
+                <Button size='small' onClick={() => onTabChange('tools')}>
                   {t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
                 </Button>
               </div>
-            </div>
-          </Card>
-          <Card bordered className='rd-8px' data-testid='capability-entry-custom-assistants'>
-            <div className='flex items-start gap-12px'>
-              <span className='w-32px h-32px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                <Robot theme='outline' />
-              </span>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.capabilitiesPage.entries.customAssistants.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-13px text-t-secondary break-words'>
-                  {t('settings.capabilitiesPage.entries.customAssistants.description')}
-                </Typography.Text>
-                <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
+              <div className='py-10px flex flex-col gap-8px md:flex-row md:items-center md:justify-between' data-testid='capability-entry-custom-assistants'>
+                <div className='min-w-0 flex items-start gap-12px'>
+                  <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary shrink-0'>
+                    <Robot theme='outline' />
+                  </span>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.entries.customAssistants.title')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-13px text-t-secondary break-words'>
+                      {t('settings.capabilitiesPage.entries.customAssistants.description')}
+                    </Typography.Text>
+                  </div>
+                </div>
+                <Button size='small' onClick={() => onTabChange('skills')}>
                   {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
                 </Button>
               </div>
             </div>
-          </Card>
-        </div>
+          </div>
+        </Card>
       </div>
       <Tabs
         activeTab={activeTab}

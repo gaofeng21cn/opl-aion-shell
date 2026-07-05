@@ -634,57 +634,13 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimeSettings />);
 
-    await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
-    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
-    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
-    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent(
-      'settings.runtimePage.taskRuns.overview.running'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('why_it_matters');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('no_writes_preview_only');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Preview review');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://quota');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'settings.runtimePage.taskRuns.artifactProvenanceDrawer'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('ledger_record_ref');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'ro_crate_metadata_ref'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://artifact-replay-status/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://agent-trace/medautoscience/dm002/figure-flow/summary'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://review/medautoscience/dm002/figure-flow/visual-audit'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'provenance_drawer.open_action'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl runtime app-operator-drilldown --task dm002-taskrun --json'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('artifact_body');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('domain_verdict');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('quality_verdict');
-    fireEvent.click(screen.getByText('settings.runtimePage.taskRuns.diagnosticsRefs'));
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');
+    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
+    expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
+    expect(screen.queryByText('Publication artifact')).not.toBeInTheDocument();
+    expect(screen.queryByText('artifact://summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('diagnostics://task')).not.toBeInTheDocument();
+    expect(screen.queryByText('artifact_body should stay hidden')).not.toBeInTheDocument();
   });
 
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {

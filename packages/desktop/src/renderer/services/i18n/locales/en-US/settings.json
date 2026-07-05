@@ -1577,12 +1577,12 @@
       "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
-      "title": "Cloud & Remote Access / Deployment Entry",
-      "description": "View Local App, Docker WebUI, OPL Workspace, and remote resource refs from one entry.",
+      "title": "Remote access and optional OPL surfaces",
+      "description": "AionUI remote access stays available here; OPL adds Docker/WebUI, Workspace, and managed resources on top.",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
-      "remoteAccess": "Remote access",
+      "remoteAccess": "AionUI remote access",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
       "recoveryStatus": "Recovery: {{status}}",
@@ -1599,6 +1599,14 @@
       "oplGateway": "OPL Gateway",
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
+      "builtIn": {
+        "title": "Built-in remote access",
+        "description": "Keep the shell's native remote access visible. These entries are the base capability, not an OPL replacement."
+      },
+      "oplAddOns": {
+        "title": "OPL add-on surfaces",
+        "description": "Use these only when you need Docker/WebUI, OPL Workspace, Gateway, Fabric, or Console-managed resources."
+      },
       "status": "Status: {{status}}",
       "environmentRefs": "Environment catalog refs",
       "managementRefs": "OPL Console management refs",
@@ -1628,11 +1636,34 @@
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
     "description": "Choose capabilities by work purpose first. Skills and tools remain available as supporting details.",
+    "summary": {
+      "installed": "Installed packages",
+      "attention": "Needs attention",
+      "attentionDetail": "Update, repair, or install anything still missing before relying on it.",
+      "shortcuts": "Visible Home shortcuts",
+      "tools": "Tools & connectors"
+    },
     "status": {
       "ready": "Ready",
       "update": "Update available",
       "repair": "Needs repair",
       "missing": "Missing"
+    },
+    "packageDirectory": {
+      "title": "Agent package directory",
+      "description": "Manage packages as a compact list first. Receipts, refs, and raw surface details stay under details."
+    },
+    "homeShortcuts": {
+      "title": "Home shortcuts",
+      "description": "Manage which package shortcuts appear on Home and in what order.",
+      "visible": "Visible",
+      "hidden": "Hidden",
+      "notAvailable": "No shortcut",
+      "noShortcuts": "No Home shortcuts are available yet."
+    },
+    "toolsConnectors": {
+      "title": "Tools and connectors",
+      "description": "Open the detailed Skills and External Tools surfaces only when you need setup or diagnostics."
     },
     "entries": {
       "externalTools": {
@@ -1701,6 +1732,11 @@
       "workflowRefs": "Reusable workflow refs",
       "resourceContextRefs": "Environment and resource refs",
       "exportBundleAction": "Reproducibility export bundle action"
+    },
+    "listLabels": {
+      "source": "Package",
+      "home": "Home shortcut",
+      "order": "Order"
     },
     "detailValues": {
       "notReported": "Not reported",

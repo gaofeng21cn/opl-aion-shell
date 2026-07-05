@@ -230,6 +230,22 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.capabilitiesPage.title': 'Agents & Capabilities',
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
+        'settings.capabilitiesPage.summary.installed': 'Installed packages',
+        'settings.capabilitiesPage.summary.attention': 'Needs attention',
+        'settings.capabilitiesPage.summary.attentionDetail': 'Handle missing, update, or repair work first.',
+        'settings.capabilitiesPage.summary.shortcuts': 'Visible Home shortcuts',
+        'settings.capabilitiesPage.summary.tools': 'Tools & connectors',
+        'settings.capabilitiesPage.packageDirectory.title': 'Agent package directory',
+        'settings.capabilitiesPage.packageDirectory.description': 'Manage packages as a compact list first.',
+        'settings.capabilitiesPage.homeShortcuts.title': 'Home shortcuts',
+        'settings.capabilitiesPage.homeShortcuts.description': 'Manage which package shortcuts appear on Home.',
+        'settings.capabilitiesPage.homeShortcuts.visible': 'Visible',
+        'settings.capabilitiesPage.homeShortcuts.hidden': 'Hidden',
+        'settings.capabilitiesPage.homeShortcuts.notAvailable': 'No shortcut',
+        'settings.capabilitiesPage.homeShortcuts.noShortcuts': 'No Home shortcuts are available yet.',
+        'settings.capabilitiesPage.toolsConnectors.title': 'Tools and connectors',
+        'settings.capabilitiesPage.toolsConnectors.description':
+          'Open Skills and External Tools only when setup or diagnostics is needed.',
         'settings.capabilitiesPage.status.ready': 'Ready',
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
@@ -265,6 +281,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflow refs',
         'settings.capabilitiesPage.detailLabels.resourceContextRefs': 'Environment and resource refs',
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
+        'settings.capabilitiesPage.listLabels.home': 'Home shortcut',
+        'settings.capabilitiesPage.listLabels.order': 'Order',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
         'settings.capabilitiesPage.detailValues.yes': 'Yes',
@@ -349,15 +367,17 @@ describe('CapabilitiesSettingsContent', () => {
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Agent packages')).toBeInTheDocument();
+    expect(screen.getByText('Agent package directory')).toBeInTheDocument();
+    expect(screen.getByText('Home shortcuts')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
-    expect(screen.getByText('Research')).toBeInTheDocument();
+    expect(screen.getAllByText('Research').length).toBeGreaterThan(0);
     expect(screen.getByText('MAS')).toBeInTheDocument();
-    expect(screen.getByText('Grant Writing')).toBeInTheDocument();
+    expect(screen.getAllByText('Grant Writing').length).toBeGreaterThan(0);
     expect(screen.getByText('MAG')).toBeInTheDocument();
-    expect(screen.getByText('Presentations')).toBeInTheDocument();
+    expect(screen.getAllByText('Presentations').length).toBeGreaterThan(0);
     expect(screen.getByText('RCA')).toBeInTheDocument();
-    expect(screen.getByText('Writing books')).toBeInTheDocument();
+    expect(screen.getAllByText('Writing books').length).toBeGreaterThan(0);
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByText('OMA')).toBeInTheDocument();
@@ -369,6 +389,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
 
     const research = screen.getByTestId('capability-purpose-mas');
+    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
     expect(within(research).getByText('Candidate reports')).toBeInTheDocument();
     expect(within(research).getByText('OpenScience artifact graph review')).toBeInTheDocument();
     const openscienceCandidate = within(research).getByTestId(
@@ -383,12 +404,12 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
     const grant = screen.getByTestId('capability-purpose-mag');
+    fireEvent.click(within(grant).getByRole('button', { name: 'Capability details' }));
     const grantCandidate = within(grant).getByTestId('capability-candidate-report-mag-grant-workflow');
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
     expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
     expect(grantCandidate).toHaveTextContent('Pending review');
 
-    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
     await waitFor(() => expect(within(research).getByText(/Installed Codex surface:/)).toBeInTheDocument());
     expect(within(research).getByText('materialized')).toBeInTheDocument();
     expect(within(research).getByText(/Codex reload required:/)).toBeInTheDocument();
@@ -503,6 +524,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
+    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByRole('button', { name: 'Capability details' }));
     fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

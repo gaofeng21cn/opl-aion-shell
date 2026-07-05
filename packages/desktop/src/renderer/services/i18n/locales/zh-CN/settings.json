@@ -1578,12 +1578,12 @@
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
-      "title": "云端与远程访问 / 部署入口",
-      "description": "在同一入口查看本机 App、Docker WebUI、OPL Workspace 和远程资源引用。",
+      "title": "远程访问与 OPL 扩展能力",
+      "description": "这里保留 AionUI 原生远程访问；OPL 只是在其上增加 Docker/WebUI、Workspace 和托管资源入口。",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
-      "remoteAccess": "远程访问",
+      "remoteAccess": "AionUI 原生远程访问",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",
@@ -1600,6 +1600,14 @@
       "oplGateway": "OPL Gateway",
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
+      "builtIn": {
+        "title": "原生远程访问",
+        "description": "先保留 shell 自带的远程访问能力；这些入口是基础能力，不是被 OPL 替换的旧功能。"
+      },
+      "oplAddOns": {
+        "title": "OPL 叠加能力",
+        "description": "只有在需要 Docker/WebUI、OPL Workspace、Gateway、Fabric 或 Console 托管资源时，再进入这些扩展入口。"
+      },
       "status": "状态：{{status}}",
       "environmentRefs": "环境目录引用",
       "managementRefs": "OPL Console 管理引用",
@@ -1629,11 +1637,34 @@
   "capabilitiesPage": {
     "title": "智能体与能力",
     "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
+    "summary": {
+      "installed": "已安装包",
+      "attention": "待处理项",
+      "attentionDetail": "先把缺失、待更新或待修复的包处理完，再把它当成可用能力。",
+      "shortcuts": "首页可见快捷入口",
+      "tools": "工具与连接器"
+    },
     "status": {
       "ready": "已就绪",
       "update": "可更新",
       "repair": "需修复",
       "missing": "缺失"
+    },
+    "packageDirectory": {
+      "title": "智能体包目录",
+      "description": "默认先用紧凑列表管理包；回执、引用和底层 surface 细节都收进详情里。"
+    },
+    "homeShortcuts": {
+      "title": "首页快捷入口",
+      "description": "管理哪些包显示在首页，以及它们的顺序。",
+      "visible": "显示中",
+      "hidden": "已隐藏",
+      "notAvailable": "无快捷入口",
+      "noShortcuts": "目前还没有可用的首页快捷入口。"
+    },
+    "toolsConnectors": {
+      "title": "工具与连接器",
+      "description": "只有在需要配置或排查时，再打开 Skills 和外部工具的详细页面。"
     },
     "entries": {
       "externalTools": {
@@ -1702,6 +1733,11 @@
       "workflowRefs": "可复用工作流引用",
       "resourceContextRefs": "环境与资源引用",
       "exportBundleAction": "可复现导出包动作"
+    },
+    "listLabels": {
+      "source": "对应包",
+      "home": "首页快捷入口",
+      "order": "顺序"
     },
     "detailValues": {
       "notReported": "未报告",

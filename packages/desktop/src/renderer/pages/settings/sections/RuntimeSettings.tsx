@@ -1525,8 +1525,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
 
         <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
 
-        <RuntimeTaskRunProjectionSection tasks={runtimeProjection.taskRunProjectionV2.tasks} />
-
         {(developerSourceActive || dirtyCheckoutActive) && (
           <Alert
             type='warning'

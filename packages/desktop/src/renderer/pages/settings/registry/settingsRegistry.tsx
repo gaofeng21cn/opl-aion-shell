@@ -129,6 +129,7 @@ export const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
   storage: ['data', 'storage', 'cleanup', 'archive', 'restore', 'logs', 'cache', 'runtime roots'],
   appearance: ['preferences', 'appearance', 'theme', 'language', 'startup'],
   advanced: ['advanced', 'developer', 'diagnostics', 'about', 'version', 'logs', 'raw refs'],
+  about: ['about', 'updates', 'version', 'release notes', 'project links'],
 };
 
 export type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
@@ -179,6 +180,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
       access: <Earth theme='outline' size='20' fill={iconColors.secondary} />,
       appearance: <SwitchThemes theme='outline' size='20' fill={iconColors.secondary} />,
       advanced: <SettingConfig theme='outline' size='20' fill={iconColors.secondary} />,
+      about: <System theme='outline' size='20' fill={iconColors.secondary} />,
     };
     return (
       modalIcons[iconToken] ?? modalIcons[tabId] ?? <Puzzle theme='outline' size='20' fill={iconColors.secondary} />
@@ -193,6 +195,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
     storage: <Toolkit />,
     appearance: <SwitchThemes />,
     advanced: <System />,
+    about: <System />,
   };
   return siderIcons[iconToken] ?? siderIcons[tabId] ?? <Puzzle />;
 }
