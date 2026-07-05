@@ -436,7 +436,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="guid-input"]');
     expect(expression).toContain("window.location.hash.startsWith('#/guid')");
     expect(expression).toContain('[data-testid="opl-first-run-window"]');
-    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
     expect(expression).toContain('preset-pill-${assistantId}');
     expect(expression).toContain("entryKind: 'assistant_home'");
   });
@@ -448,7 +448,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('readyButton.click()');
     expect(expression).toContain("navigatedBy: 'ready_entry'");
     expect(expression).toContain("navigatedBy: 'usable_assistant_home'");
-    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
     expect(expression).toContain('preset-pill-${assistantId}');
     expect(expression).not.toContain("window.location.hash = '#/guid'");
   });
@@ -482,7 +482,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="opl-guid-entry"]');
     expect(expression).toContain('[data-testid="guid-input"]');
     expect(expression).toContain('[data-testid="guid-send-btn"]');
-    expect(expression).toContain('["mas","mag","rca"]');
+    expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
     expect(expression).toContain('preset-pill-${assistantId}');
   });
 
@@ -744,9 +744,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(labels).toContain('opl-first-run-primary-action');
     expect(labels).toContain('opl-first-run-technical-details-toggle');
     expect(labels).toContain('opl-guid-entry');
-    expect(labels).toContain('@MAS');
-    expect(labels).toContain('@MAG');
-    expect(labels).toContain('@RCA');
+    expect(labels).toContain('@科研');
+    expect(labels).toContain('@基金');
+    expect(labels).toContain('@演示');
     expect(labels).not.toContain('opl-first-run-background-maintenance-secondary');
     expect(labels).not.toContain('opl-first-run-install-button');
     expect(labels).not.toContain('opl-first-run-open-environment-button');
@@ -763,7 +763,8 @@ describe('packaged first-run VM smoke helpers', () => {
       __test.detectUsableEntryAccessibility([{ title: '@MAS' }, { name: 'MAG' }, { description: 'Run @RCA task' }])
     ).toMatchObject({
       entryKind: 'assistant_home',
-      labels: ['@MAS', '@MAG', '@RCA'],
+      labels: ['@科研', '@基金', '@演示'],
+      matchedLabels: ['@MAS', 'MAG', '@RCA'],
     });
     expect(__test.detectUsableEntryAccessibility([{ title: '@MAS' }, { name: '@MAG' }])).toBeNull();
   });
@@ -799,9 +800,30 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(options.assistantRouteSmoke).toBe(true);
     expect(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS).toEqual([
-      { id: 'mas', badge: '@MAS', shortName: 'MAS', shortcutId: 'research' },
-      { id: 'mag', badge: '@MAG', shortName: 'MAG', shortcutId: 'grant' },
-      { id: 'rca', badge: '@RCA', shortName: 'RCA', shortcutId: 'ppt' },
+      {
+        id: 'med-autoscience',
+        badge: '@科研',
+        shortName: 'MAS',
+        shortcutId: 'research',
+        codexVisibleEntry: 'mas',
+        requiredSkillIds: ['mas'],
+      },
+      {
+        id: 'med-autogrant',
+        badge: '@基金',
+        shortName: 'MAG',
+        shortcutId: 'grant',
+        codexVisibleEntry: 'mag',
+        requiredSkillIds: ['mag'],
+      },
+      {
+        id: 'redcube-ai',
+        badge: '@演示',
+        shortName: 'RCA',
+        shortcutId: 'ppt',
+        codexVisibleEntry: 'rca',
+        requiredSkillIds: ['rca'],
+      },
     ]);
   });
 
@@ -813,7 +835,8 @@ describe('packaged first-run VM smoke helpers', () => {
     const receiptExpression = __test.latestConversationRouteReceiptExpression(masTarget);
     const receiptByIdExpression = __test.conversationRouteReceiptExpression(masTarget, 'conv-123');
 
-    expect(selectionExpression).toContain('preset-pill-mas');
+    expect(selectionExpression).toContain('preset-pill-med-autoscience');
+    expect(readyExpression).toContain('@科研');
     expect(readyExpression).toContain('@MAS');
     for (const hiddenSelector of [
       'agent-mode-selector',
@@ -828,13 +851,14 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(createExpression).toContain('/api/conversations');
     expect(createExpression).toContain("method: 'POST'");
     expect(createExpression).toContain('preset_assistant_id');
-    expect(createExpression).toContain('preset_assistant_id: "mas"');
+    expect(createExpression).toContain('preset_assistant_id: "med-autoscience"');
     expect(createExpression).toContain('opl_agent_package_invocation');
     expect(createExpression).toContain("receipt_type: 'capability_invocation'");
     expect(createExpression).toContain("route_kind: 'agent_package_shortcut'");
-    expect(createExpression).toContain('package_id: "mas"');
+    expect(createExpression).toContain('package_id: "med-autoscience"');
     expect(createExpression).toContain('shortcut_id: "research"');
     expect(createExpression).toContain('codex_visible_entry: "mas"');
+    expect(createExpression).toContain('required_skill_ids');
     expect(createExpression).toContain("display_policy: 'refs_only_no_domain_verdict'");
     expect(createExpression).toContain('opl_assistant_route');
     expect(createExpression).toContain("backend: 'codex'");
@@ -860,7 +884,7 @@ describe('packaged first-run VM smoke helpers', () => {
     const receipt = __test.buildCodexFunctionalCheckReceipt({
       codexApiKey: null,
       codexCliProbe: { detected: false, command: 'codex', version: null },
-      assistantRouteSmoke: [{ id: 'mas' }, { id: 'mag' }, { id: 'rca' }],
+      assistantRouteSmoke: [{ id: 'med-autoscience' }, { id: 'med-autogrant' }, { id: 'redcube-ai' }],
     });
 
     expect(receipt).toMatchObject({
@@ -883,8 +907,8 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       assistant_route_receipts_checked: {
         status: 'passed',
-        required: ['mas', 'mag', 'rca'],
-        checked: ['mas', 'mag', 'rca'],
+        required: ['med-autoscience', 'med-autogrant', 'redcube-ai'],
+        checked: ['med-autoscience', 'med-autogrant', 'redcube-ai'],
         deterministic: true,
       },
       skills_or_plugins_policy_checked: {
@@ -928,7 +952,7 @@ describe('packaged first-run VM smoke helpers', () => {
         source: 'opl system initialize --json',
         status: 'ready',
       },
-      assistantRouteSmoke: [{ id: 'mas' }, { id: 'mag' }, { id: 'rca' }],
+      assistantRouteSmoke: [{ id: 'med-autoscience' }, { id: 'med-autogrant' }, { id: 'redcube-ai' }],
       codexFunctionalCheck: {
         schema: 'opl_codex_functional_check_receipt.v1',
         status: 'passed',
@@ -1154,7 +1178,7 @@ describe('packaged first-run VM smoke helpers', () => {
   });
 
   it('writes a fail-closed assistant route summary when packaged UI controls are missing', () => {
-    const error = new Error('Assistant route controls did not become ready for mas') as Error & {
+    const error = new Error('Assistant route controls did not become ready for med-autoscience') as Error & {
       lastState?: unknown;
       lastError?: string | null;
     };
@@ -1168,7 +1192,14 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(
       __test.buildAssistantRouteSmokeFailureSummary(
         { cdpPort: 9230 },
-        { id: 'mas', badge: '@MAS', shortName: 'MAS' },
+        {
+          id: 'med-autoscience',
+          badge: '@科研',
+          shortName: 'MAS',
+          shortcutId: 'research',
+          codexVisibleEntry: 'mas',
+          requiredSkillIds: ['mas'],
+        },
         [],
         error
       )
@@ -1176,9 +1207,9 @@ describe('packaged first-run VM smoke helpers', () => {
       surface_id: 'opl_packaged_gui_assistant_route_smoke',
       status: 'failed',
       cdp_port: 9230,
-      failed_assistant: 'mas',
+      failed_assistant: 'med-autoscience',
       assistants: [],
-      error: 'Assistant route controls did not become ready for mas',
+      error: 'Assistant route controls did not become ready for med-autoscience',
       last_state: {
         target_pill_present: false,
         selectors_hidden: false,
@@ -1186,7 +1217,7 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       last_error: null,
       required_contract: {
-        purpose_entries: ['preset-pill-mas', 'preset-pill-mag', 'preset-pill-rca'],
+        purpose_entries: ['preset-pill-med-autoscience', 'preset-pill-med-autogrant', 'preset-pill-redcube-ai'],
         selectors_hidden: ['guid-model-selector', 'agent-mode-selector-*', 'agent-pill-*'],
         route_receipt: {
           route_kind: 'builtin_capability',

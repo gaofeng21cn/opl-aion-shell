@@ -64,9 +64,30 @@ const FULL_RUNTIME_MODULES = [
   ['oplbookforge', 'opl-bookforge', path.join('modules', 'bookforge'), ['contracts']],
 ];
 const OPL_ASSISTANT_ROUTE_SMOKE_TARGETS = [
-  { id: 'mas', badge: '@MAS', shortName: 'MAS', shortcutId: 'research' },
-  { id: 'mag', badge: '@MAG', shortName: 'MAG', shortcutId: 'grant' },
-  { id: 'rca', badge: '@RCA', shortName: 'RCA', shortcutId: 'ppt' },
+  {
+    id: 'med-autoscience',
+    badge: '@科研',
+    shortName: 'MAS',
+    shortcutId: 'research',
+    codexVisibleEntry: 'mas',
+    requiredSkillIds: ['mas'],
+  },
+  {
+    id: 'med-autogrant',
+    badge: '@基金',
+    shortName: 'MAG',
+    shortcutId: 'grant',
+    codexVisibleEntry: 'mag',
+    requiredSkillIds: ['mag'],
+  },
+  {
+    id: 'redcube-ai',
+    badge: '@演示',
+    shortName: 'RCA',
+    shortcutId: 'ppt',
+    codexVisibleEntry: 'rca',
+    requiredSkillIds: ['rca'],
+  },
 ];
 const DEFAULT_CDP_COMMAND_TIMEOUT_MS = 15_000;
 const PACKAGED_APP_LAUNCH_ENV_ALLOWLIST = new Set([
@@ -2976,6 +2997,7 @@ function homeAssistantRouteSelectionExpression(target) {
 }
 
 function homeAssistantRouteReadyExpression(target) {
+  const acceptedBadges = Array.from(new Set([target.badge, `@${target.shortName}`, target.shortName]));
   return `(() => {
     const visible = (node) => {
       if (!node) return false;
@@ -2995,10 +3017,13 @@ function homeAssistantRouteReadyExpression(target) {
       return { status: 'failed', reason: 'ordinary_home_selector_visible_after_select', deniedVisible };
     }
     if (!visible(input) || !visible(sendButton) || !visible(card)) return false;
-    if (!text.includes(${cdpString(target.badge)})) return false;
+    const acceptedBadges = ${JSON.stringify(acceptedBadges)};
+    const matchedBadge = acceptedBadges.find((badge) => text.includes(badge));
+    if (!matchedBadge) return false;
     return {
       assistant_id: ${cdpString(target.id)},
       badge: ${cdpString(target.badge)},
+      matched_badge: matchedBadge,
       selected_card_text: card.textContent || '',
       selectors_hidden: true,
     };
@@ -3035,8 +3060,8 @@ function createAssistantRouteReceiptConversationExpression(target) {
       package_id: ${cdpString(target.id)},
       agent_id: ${cdpString(target.id)},
       shortcut_id: ${cdpString(target.shortcutId)},
-      codex_visible_entry: ${cdpString(target.id)},
-      skill_ids: [${cdpString(target.id)}],
+      codex_visible_entry: ${cdpString(target.codexVisibleEntry)},
+      required_skill_ids: ${JSON.stringify(target.requiredSkillIds)},
       source: 'opl_app_home',
       launched_from: 'opl_app_home',
       display_policy: 'refs_only_no_domain_verdict',
@@ -3124,8 +3149,11 @@ function conversationRouteReceiptExpression(target, conversationId = null) {
     if (invocation?.package_id !== ${cdpString(target.id)}) invalid.push('package_id');
     if (invocation?.agent_id !== ${cdpString(target.id)}) invalid.push('agent_id');
     if (invocation?.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('shortcut_id');
-    if (invocation?.codex_visible_entry !== ${cdpString(target.id)}) invalid.push('codex_visible_entry');
-    if (!Array.isArray(invocation?.skill_ids) || !invocation.skill_ids.includes(${cdpString(target.id)})) invalid.push('skill_ids');
+    if (invocation?.codex_visible_entry !== ${cdpString(target.codexVisibleEntry)}) invalid.push('codex_visible_entry');
+    const requiredSkillIds = ${JSON.stringify(target.requiredSkillIds)};
+    if (!Array.isArray(invocation?.required_skill_ids) || !requiredSkillIds.every((id) => invocation.required_skill_ids.includes(id))) {
+      invalid.push('required_skill_ids');
+    }
     if (invocation?.source !== 'opl_app_home') invalid.push('source');
     if (invocation?.launched_from !== 'opl_app_home') invalid.push('launched_from');
     if (invocation?.display_policy !== 'refs_only_no_domain_verdict') invalid.push('display_policy');
@@ -4314,7 +4342,7 @@ async function runAssistantRouteSmoke(options, secret) {
         }
         await captureCdpScreenshot(
           client,
-          path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.id}.png`)
+          path.join(options.artifacts, 'assistant-route-smoke', `${assistantTarget.codexVisibleEntry}.png`)
         );
         const created = await waitForCdpPredicate(
           client,
