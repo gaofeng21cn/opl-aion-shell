@@ -1555,14 +1555,14 @@
     "description": "查看模型访问、后台任务服务和远程入口。",
     "cards": {
       "model": {
-        "title": "当前模型",
+        "title": "默认模型",
         "fallback": "未读取到"
       },
       "codexCli": {
         "title": "Codex CLI",
         "fallback": "暂时无法读取 Codex CLI 状态。",
         "version": "已安装：{{version}}",
-        "model": "当前模型：{{model}}"
+        "model": "默认模型：{{model}}"
       },
       "account": {
         "title": "OPL Gateway",

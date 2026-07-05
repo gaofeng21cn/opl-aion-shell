@@ -93,7 +93,7 @@ function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
   if (item.key === 'mas') return <Experiment theme='outline' />;
   if (item.key === 'mag') return <FileWord theme='outline' />;
   if (item.key === 'rca') return <FilePpt theme='outline' />;
-  if (item.key === 'bookforge') return <FileWord theme='outline' />;
+  if (item.key === 'obf') return <FileWord theme='outline' />;
   return <Robot theme='outline' />;
 }
 
@@ -444,6 +444,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           description: t('settings.capabilitiesPage.purposes.automation.description'),
           tags: ['OMA', 'Skills', 'Tools'],
           moduleIds: ['oplmetaagent', 'opl-meta-agent', 'oma'],
+          packageId: 'opl-meta-agent',
         },
       ]),
     [appStateQuery.appState, i18n.language, t]

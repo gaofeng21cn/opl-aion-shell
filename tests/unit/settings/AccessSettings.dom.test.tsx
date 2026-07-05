@@ -8,14 +8,18 @@ type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
   executeActionInvoke: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
+  codexDefaultModel: string | null;
   codexModel: string | null;
+  codexDefaultProfileModel: string | null;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   load: vi.fn(),
-  codexModel: 'gpt-5.5',
+  codexDefaultModel: 'gpt-5.5',
+  codexModel: null,
+  codexDefaultProfileModel: 'gpt-5.4',
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -185,7 +189,11 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         core: {
           codex: {
             status: 'ready',
+            default_model: accessSettingsMocks.codexDefaultModel,
             model: accessSettingsMocks.codexModel,
+            default_profile: {
+              model: accessSettingsMocks.codexDefaultProfileModel,
+            },
             version: '0.125.0',
             binary_path: '/usr/local/bin/codex',
             model_access_ready: true,
@@ -308,7 +316,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.codexCli.title': 'Codex CLI',
         'settings.accessPage.cards.codexCli.fallback': 'Codex CLI status is not available yet.',
         'settings.accessPage.cards.codexCli.version': `Installed: ${options?.version}`,
-        'settings.accessPage.cards.codexCli.model': `Current model: ${options?.model}`,
+        'settings.accessPage.cards.codexCli.model': `Default model: ${options?.model}`,
         'settings.accessPage.cards.model.fallback': 'not read',
         'settings.accessPage.cards.account.title': 'OPL Gateway',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
@@ -413,7 +421,9 @@ describe('AccessSettingsContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const mocks = getMocks();
-    mocks.codexModel = 'gpt-5.5';
+    mocks.codexDefaultModel = 'gpt-5.5';
+    mocks.codexModel = null;
+    mocks.codexDefaultProfileModel = 'gpt-5.4';
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
@@ -442,7 +452,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('Check model access, background task service, and remote entries.')).toBeTruthy();
     expect(view.getByText('Codex CLI')).toBeTruthy();
     expect(document.body.textContent).toContain('Installed: 0.125.0');
-    expect(document.body.textContent).toContain('Current model: gpt-5.5');
+    expect(document.body.textContent).toContain('Default model: gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
     expect(document.body.textContent).not.toContain('OPL Gateway is connected.');
     expect(document.body.textContent).not.toContain('Currently using OPL Gateway.');
@@ -521,13 +531,15 @@ describe('AccessSettingsContent', () => {
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it('shows a clear Codex CLI model fallback when the current model was not read', () => {
+  it('shows a clear Codex CLI model fallback when the default model was not read', () => {
     const mocks = getMocks();
+    mocks.codexDefaultModel = null;
     mocks.codexModel = null;
+    mocks.codexDefaultProfileModel = null;
 
     render(<AccessSettingsContent />);
 
-    expect(document.body.textContent).toContain('Current model: not read');
+    expect(document.body.textContent).toContain('Default model: not read');
   });
 
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {

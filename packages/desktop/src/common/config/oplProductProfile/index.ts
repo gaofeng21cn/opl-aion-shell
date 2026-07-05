@@ -13,8 +13,32 @@ export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
 export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
 export type OplVisibleCssThemeId = (typeof OPL_VISIBLE_CSS_THEME_IDS)[number];
 
+const OPL_PROFESSIONAL_AGENT_ID_ALIASES = new Map<string, string>([
+  ['medautoscience', 'med-autoscience'],
+  ['mas', 'med-autoscience'],
+  ['medautogrant', 'med-autogrant'],
+  ['mag', 'med-autogrant'],
+  ['redcubeai', 'redcube-ai'],
+  ['redcube', 'redcube-ai'],
+  ['rca', 'redcube-ai'],
+  ['oplbookforge', 'opl-bookforge'],
+  ['bookforge', 'opl-bookforge'],
+  ['obf', 'opl-bookforge'],
+  ['oplmetaagent', 'opl-meta-agent'],
+  ['oma', 'opl-meta-agent'],
+]);
+
+function normalizeOplProfessionalAgentAlias(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 export function isOplVisibleCssThemeId(value: unknown): value is OplVisibleCssThemeId {
   return typeof value === 'string' && OPL_VISIBLE_CSS_THEME_IDS.includes(value as OplVisibleCssThemeId);
+}
+
+export function canonicalizeOplProfessionalAgentId(value: string): string {
+  const trimmed = value.replace(/^builtin-/, '').trim().toLowerCase();
+  return OPL_PROFESSIONAL_AGENT_ID_ALIASES.get(normalizeOplProfessionalAgentAlias(trimmed)) ?? trimmed;
 }
 
 export type OplHomeAssistant = {
@@ -879,7 +903,10 @@ function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurpos
   if (entries.map((entry) => entry.primary_label).join(',') !== ['科研', '基金', '演示', '写书'].join(',')) {
     throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
   }
-  if (entries.map((entry) => entry.target_assistant_id).join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',')) {
+  if (
+    entries.map((entry) => entry.target_assistant_id).join(',')
+    !== ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
+  ) {
     throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, RCA, and BookForge');
   }
   return entries;
@@ -993,7 +1020,7 @@ function readProfessionalAgentPackages(gui: Record<string, unknown>): OplProfess
   if (new Set(packageIds).size !== packageIds.length) {
     throw new Error('Invalid OPL product profile: gui.professional_agent_packages must not contain duplicate ids');
   }
-  for (const required of ['mas', 'mag', 'rca', 'bookforge', 'oma']) {
+  for (const required of ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent']) {
     if (!packageIds.includes(required)) {
       throw new Error(`Invalid OPL product profile: professional agent packages must include ${required}`);
     }
@@ -1048,13 +1075,13 @@ function readDefaultHomeAssistants(gui: Record<string, unknown>): OplHomeAssista
   if (new Set(ids).size !== ids.length) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must not contain duplicate ids');
   }
-  for (const required of ['mas', 'mag', 'rca', 'bookforge']) {
+  for (const required of ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']) {
     if (!ids.includes(required)) {
       throw new Error(`Invalid OPL product profile: gui.default_assistants must include ${required}`);
     }
   }
-  if (ids.includes('oma')) {
-    throw new Error('Invalid OPL product profile: gui.default_assistants must not include oma');
+  if (ids.includes('opl-meta-agent')) {
+    throw new Error('Invalid OPL product profile: gui.default_assistants must not include opl-meta-agent');
   }
   if (ids.includes('mds')) {
     throw new Error('Invalid OPL product profile: gui.default_assistants must not include mds');
@@ -1101,8 +1128,8 @@ function readNonDefaultAssistants(gui: Record<string, unknown>): OplNonDefaultAs
   });
 
   const ids = assistants.map((assistant) => assistant.id);
-  if (!ids.includes('oma')) {
-    throw new Error('Invalid OPL product profile: gui.non_default_assistants must include oma');
+  if (!ids.includes('opl-meta-agent')) {
+    throw new Error('Invalid OPL product profile: gui.non_default_assistants must include opl-meta-agent');
   }
   return assistants;
 }
@@ -1138,15 +1165,18 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
     };
   });
 
-  if (profiles.map((profile) => profile.assistant_id).join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',')) {
+  if (
+    profiles.map((profile) => profile.assistant_id).join(',')
+    !== ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
+  ) {
     throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, RCA, and BookForge');
   }
   for (const profile of profiles) {
     const requiredSkillsByAssistant: Record<string, string[]> = {
-      mas: ['mas'],
-      mag: ['mag'],
-      rca: ['rca'],
-      bookforge: ['opl-bookforge'],
+      'med-autoscience': ['mas'],
+      'med-autogrant': ['mag'],
+      'redcube-ai': ['rca'],
+      'opl-bookforge': ['opl-bookforge'],
     };
     if (profile.required_skills.join(',') !== (requiredSkillsByAssistant[profile.assistant_id] ?? []).join(',')) {
       throw new Error(`Invalid OPL product profile: assistant ${profile.assistant_id} must require its matching skill`);
@@ -1225,7 +1255,7 @@ function readBuiltinAssistantRouteReceiptPolicy(gui: Record<string, unknown>): O
   );
   const requiredFields = readStringArray(value, 'required_fields', 'gui.builtin_assistant_route_receipt_policy');
   if (
-    requiredForAssistants.join(',') !== ['mas', 'mag', 'rca', 'bookforge'].join(',') ||
+    requiredForAssistants.join(',') !== ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',') ||
     value.scope !== 'home_purpose_entry_to_conversation' ||
     value.route_kind !== 'builtin_capability' ||
     value.executor !== 'codex_cli' ||
@@ -2162,10 +2192,7 @@ export function getOplProfessionalAgentPackages(): OplProfessionalAgentPackage[]
 }
 
 export function getOplProfessionalAgentPackage(packageId: string): OplProfessionalAgentPackage | undefined {
-  const normalizedId = packageId
-    .replace(/^builtin-/, '')
-    .trim()
-    .toLowerCase();
+  const normalizedId = canonicalizeOplProfessionalAgentId(packageId);
   const agentPackage = OPL_PRODUCT_PROFILE.gui.professional_agent_packages.find(
     (entry) => entry.package_id === normalizedId
   );
@@ -2192,10 +2219,7 @@ export function getOplAssistantSkillProfiles(): OplAssistantSkillProfile[] {
 }
 
 export function getOplAssistantSkillProfile(assistantId: string): OplAssistantSkillProfile | undefined {
-  const normalizedId = assistantId
-    .replace(/^builtin-/, '')
-    .trim()
-    .toLowerCase();
+  const normalizedId = canonicalizeOplProfessionalAgentId(assistantId);
   const agentPackage = getOplProfessionalAgentPackage(normalizedId);
   if (!agentPackage) return undefined;
   return {

@@ -326,6 +326,7 @@ export function buildAccessProjection(
   const codex = oplRecord(core.codex);
   const executor = oplRecord(core.executor);
   const codexConfig = oplRecord(codex.config);
+  const codexDefaultProfile = oplRecord(codex.default_profile);
   const provider = oplRecord(appState.provider);
   const temporal = oplRecord(provider.temporal);
 
@@ -343,13 +344,16 @@ export function buildAccessProjection(
     'unknown'
   );
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'full-access';
+  const modelFallback = t('settings.accessPage.cards.model.fallback');
 
   const modelName =
+    oplString(codex.default_model) ??
+    oplString(codexDefaultProfile.model) ??
     oplString(codex.model) ??
     oplString(codexConfig.model) ??
     oplString(provider.model) ??
     oplString(provider.default_model) ??
-    t('settings.accessPage.cards.model.fallback');
+    modelFallback;
   const accountStatus = oplGatewayConfigured
     ? t('settings.accessPage.cards.account.oplGatewayConfigured')
     : modelAccessReady
@@ -357,9 +361,7 @@ export function buildAccessProjection(
       : t('settings.accessPage.cards.account.missing');
   const accountSourceLabel = modelAccessSourceLabel(modelAccessSource, t);
   const runtimeServiceStatus = providerStatus === 'ready' || providerStatus === 'ok' ? 'ready' : 'attention_required';
-  const modelFallback = t('settings.accessPage.cards.codexCli.fallback');
-  const modelLine =
-    modelName === modelFallback ? null : t('settings.accessPage.cards.codexCli.model', { model: modelName });
+  const modelLine = t('settings.accessPage.cards.codexCli.model', { model: modelName });
   const codexVersionLine = oplString(codex.version)
     ? t('settings.accessPage.cards.codexCli.version', { version: oplString(codex.version) ?? '' })
     : null;

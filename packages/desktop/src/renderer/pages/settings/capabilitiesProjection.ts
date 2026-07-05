@@ -5,6 +5,7 @@
  */
 
 import {
+  canonicalizeOplProfessionalAgentId,
   getOplHomeAgentShortcuts,
   getOplProfessionalAgentPackages,
   type OplProfessionalAgentPackage,
@@ -118,25 +119,39 @@ export type CapabilityPhysicalSurfaceViewModel = {
 };
 
 const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
-  mas: ['medautoscience', 'med-auto-science'],
-  mag: ['medautogrant', 'med-auto-grant'],
-  rca: ['redcube', 'redcubeai', 'redcube-ai'],
-  bookforge: ['oplbookforge', 'opl-bookforge'],
-  oma: ['oplmetaagent', 'opl-meta-agent'],
+  'med-autoscience': ['mas', 'medautoscience', 'med-auto-science'],
+  'med-autogrant': ['mag', 'medautogrant', 'med-auto-grant'],
+  'redcube-ai': ['rca', 'redcube', 'redcubeai', 'redcube-ai'],
+  'opl-bookforge': ['obf', 'oplbookforge', 'opl-bookforge'],
+  'opl-meta-agent': ['oma', 'oplmetaagent', 'opl-meta-agent'],
 };
 
 const DISPLAY_TOKEN_LABELS: Record<string, string> = {
   mas: 'MAS',
   mag: 'MAG',
   rca: 'RCA',
-  bookforge: 'OBF',
+  obf: 'OBF',
   oma: 'OMA',
+  medautoscience: 'MAS',
+  medautogrant: 'MAG',
+  redcubeai: 'RCA',
   oplbookforge: 'OBF',
   oplmetaagent: 'OMA',
 };
 
 function normalizeCapabilityModuleId(value: string): string {
   return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function capabilityPurposeKey(agentPackage: OplProfessionalAgentPackage): string {
+  const normalized = normalizeCapabilityModuleId(agentPackage.short_name);
+  return normalized || normalizeCapabilityModuleId(agentPackage.package_id);
+}
+
+function canonicalCapabilityPackageId(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const canonical = canonicalizeOplProfessionalAgentId(value);
+  return canonical ? normalizeCapabilityModuleId(canonical) : null;
 }
 
 export function formatCapabilityDisplayToken(value: string | null | undefined): string {
@@ -177,8 +192,9 @@ function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
 }
 
 function packageStateId(packageState: RuntimePackageStateItem): string {
-  return normalizeCapabilityModuleId(
-    firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? ''
+  return (
+    canonicalCapabilityPackageId(firstString(packageState.package_id, packageState.id, packageState.module_id)) ??
+    normalizeCapabilityModuleId(firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? '')
   );
 }
 
@@ -719,8 +735,8 @@ function capabilityPackageLockRef(
   return (
     refValue(packageState?.package_lock_ref) ??
     refValue(packageState?.lock_ref) ??
-    refValue(module.package_lock_ref) ??
-    refValue(module.lock_ref) ??
+    refValue(module?.package_lock_ref) ??
+    refValue(module?.lock_ref) ??
     refValue(packageLock) ??
     refValue(lockReceipt) ??
     firstString(packageLock.receipt_id, lockReceipt.receipt_id)
@@ -883,12 +899,13 @@ function buildCapabilityPurpose(
 }
 
 function agentPackageModuleIds(agentPackage: OplProfessionalAgentPackage): string[] {
+  const canonicalPackageId = canonicalizeOplProfessionalAgentId(agentPackage.package_id);
   const ids = [
-    agentPackage.package_id,
+    canonicalPackageId,
     agentPackage.short_name,
     agentPackage.codex_visible_entry,
     ...agentPackage.required_skill_ids,
-    ...(ASSISTANT_MODULE_ALIASES[agentPackage.package_id] ?? []),
+    ...(ASSISTANT_MODULE_ALIASES[canonicalPackageId] ?? []),
   ];
   return [...new Set(ids.map(normalizeCapabilityModuleId).filter(Boolean))];
 }
@@ -948,18 +965,19 @@ export function buildCapabilitiesViewModel(
   const shortcutsByPackageId = new Map(getOplHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut]));
   const defaultPurposes = getOplProfessionalAgentPackages().map((agentPackage) => {
     const moduleIds = agentPackageModuleIds(agentPackage);
-    const packageState = packageStates.get(normalizeCapabilityModuleId(agentPackage.package_id));
+    const packageState = packageStates.get(canonicalCapabilityPackageId(agentPackage.package_id) ?? '');
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
-    const shortcut = shortcutsByPackageId.get(agentPackage.package_id);
+    const canonicalPackageId = canonicalizeOplProfessionalAgentId(agentPackage.package_id);
+    const shortcut = shortcutsByPackageId.get(canonicalPackageId) ?? shortcutsByPackageId.get(agentPackage.package_id);
     return buildCapabilityPurpose(
       {
-        key: agentPackage.package_id,
+        key: capabilityPurposeKey(agentPackage),
         title: agentPackage.display_name,
         description: shortcut?.primary_label ?? agentPackage.short_name ?? agentPackage.display_name,
         tags: agentPackageTags(agentPackage),
         moduleIds,
-        packageId: agentPackage.package_id,
+        packageId: canonicalPackageId,
         codexVisibleEntry: agentPackage.codex_visible_entry,
         defaultHomeVisible: agentPackage.default_home_visible,
         userConfigurable: shortcut?.user_configurable ?? false,
@@ -972,12 +990,13 @@ export function buildCapabilitiesViewModel(
   const mergedPurposes = new Map(defaultPurposes.map((purpose) => [purpose.packageId ?? purpose.key, purpose]));
   const explicitPurposes = extraPurposes.map((purpose) => {
     const moduleIds = purpose.moduleIds.map(normalizeCapabilityModuleId);
-    const packageState = packageStates.get(normalizeCapabilityModuleId(purpose.key));
+    const packageState = packageStates.get(canonicalCapabilityPackageId(purpose.packageId ?? purpose.key) ?? '');
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     return buildCapabilityPurpose(
       {
         ...purpose,
+        packageId: purpose.packageId ? canonicalizeOplProfessionalAgentId(purpose.packageId) : purpose.packageId,
         moduleIds,
       },
       packageState,

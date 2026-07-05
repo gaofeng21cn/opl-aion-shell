@@ -11,6 +11,12 @@ export type RuntimeStatusTone = 'green' | 'orange';
 export type Translate = (key: string, options?: Record<string, string | number>) => string;
 
 const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
+  'med-autoscience': 'MAS',
+  'med-autogrant': 'MAG',
+  'redcubeai': 'RCA',
+  'redcube-ai': 'RCA',
+  'oplmetaagent': 'OMA',
+  'oplbookforge': 'OBF',
   mag: 'MAG',
   mas: 'MAS',
   medautoscience: 'MAS',
@@ -19,8 +25,6 @@ const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   oplflow: 'OPL Flow',
   redcube: 'RCA',
   rca: 'RCA',
-  oplmetaagent: 'OMA',
-  oplbookforge: 'OBF',
 };
 
 const DEVELOPER_MODULE_SOURCES = new Set([

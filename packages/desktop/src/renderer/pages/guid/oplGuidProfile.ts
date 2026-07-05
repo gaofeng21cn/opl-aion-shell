@@ -6,6 +6,7 @@
 
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import {
+  canonicalizeOplProfessionalAgentId,
   getOplAssistantSkillProfile,
   getOplDefaultExecutorAgentKey,
   getOplDefaultHomeAssistants,
@@ -15,11 +16,11 @@ import { getOplHomePurposeAssistantIds, resolveOplHomePurposePresentation } from
 import type { AvailableAgent } from './types';
 
 const OPL_PACKAGE_MODULE_IDS: Record<string, string[]> = {
-  mas: ['medautoscience', 'med-auto-science'],
-  mag: ['medautogrant', 'med-auto-grant'],
-  rca: ['redcube', 'redcubeai', 'redcube-ai'],
-  bookforge: ['oplbookforge', 'opl-bookforge'],
-  oma: ['oplmetaagent', 'opl-meta-agent'],
+  'med-autoscience': ['mas', 'medautoscience', 'med-auto-science'],
+  'med-autogrant': ['mag', 'medautogrant', 'med-auto-grant'],
+  'redcube-ai': ['rca', 'redcube', 'redcubeai', 'redcube-ai'],
+  'opl-bookforge': ['obf', 'oplbookforge', 'opl-bookforge'],
+  'opl-meta-agent': ['oma', 'oplmetaagent', 'opl-meta-agent'],
 };
 
 function getAgentBackend(agent: Pick<AvailableAgent, 'backend' | 'agent_type'>): string {
@@ -27,7 +28,7 @@ function getAgentBackend(agent: Pick<AvailableAgent, 'backend' | 'agent_type'>):
 }
 
 function normalizeAssistantId(id: string): string {
-  return id.replace(/^builtin-/, '').toLowerCase();
+  return canonicalizeOplProfessionalAgentId(id);
 }
 
 export function filterOplHomeAgents(agents: AvailableAgent[] | undefined): AvailableAgent[] {

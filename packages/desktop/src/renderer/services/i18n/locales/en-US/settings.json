@@ -1554,14 +1554,14 @@
     "description": "Check model access, background task service, and remote entries.",
     "cards": {
       "model": {
-        "title": "Current Model",
+        "title": "Default Model",
         "fallback": "not read"
       },
       "codexCli": {
         "title": "Codex CLI",
         "fallback": "Codex CLI status is not available yet.",
         "version": "Installed: {{version}}",
-        "model": "Current model: {{model}}"
+        "model": "Default model: {{model}}"
       },
       "account": {
         "title": "OPL Gateway",

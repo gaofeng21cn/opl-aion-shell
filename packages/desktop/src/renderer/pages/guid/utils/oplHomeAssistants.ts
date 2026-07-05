@@ -1,5 +1,6 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import {
+  canonicalizeOplProfessionalAgentId,
   getOplAssistantSkillProfile,
   getOplDefaultExecutorAgentKey,
   getOplDefaultHomeAssistants,
@@ -20,8 +21,9 @@ type OplHomePackageProfile = {
 };
 
 export function resolveOplHomePurposePresentation(id: string, fallbackName: string, fallbackAvatar: string) {
-  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === id);
-  const agentPackage = getOplProfessionalAgentPackage(id);
+  const canonicalId = canonicalizeOplProfessionalAgentId(id);
+  const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === canonicalId);
+  const agentPackage = getOplProfessionalAgentPackage(canonicalId);
   const englishLabel = agentPackage?.display_name ?? fallbackName;
   const primaryLabel = shortcut?.primary_label ?? fallbackName;
   return {
@@ -62,10 +64,7 @@ function getOplHomePackageProfiles(): OplHomePackageProfile[] {
 }
 
 const normalizeAssistantId = (id: string): string =>
-  id
-    .replace(/^builtin-/, '')
-    .trim()
-    .toLowerCase();
+  canonicalizeOplProfessionalAgentId(id);
 
 const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: number): Assistant => {
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);

@@ -2,17 +2,35 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabilitiesProjection';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  canonicalizeOplProfessionalAgentId: (value: string) => {
+    const normalized = value.replace(/^builtin-/, '').trim().toLowerCase();
+    const aliasMap: Record<string, string> = {
+      mas: 'med-autoscience',
+      medautoscience: 'med-autoscience',
+      mag: 'med-autogrant',
+      medautogrant: 'med-autogrant',
+      rca: 'redcube-ai',
+      redcube: 'redcube-ai',
+      redcubeai: 'redcube-ai',
+      oma: 'opl-meta-agent',
+      oplmetaagent: 'opl-meta-agent',
+      bookforge: 'opl-bookforge',
+      obf: 'opl-bookforge',
+      oplbookforge: 'opl-bookforge',
+    };
+    return aliasMap[normalized.replace(/[^a-z0-9]/g, '')] ?? normalized;
+  },
   getOplHomeAgentShortcuts: () => [
     {
       shortcut_id: 'research',
-      package_id: 'mas',
+      package_id: 'med-autoscience',
       primary_label: 'Research',
       user_configurable: true,
       default_visible: true,
     },
     {
       shortcut_id: 'automations',
-      package_id: 'oma',
+      package_id: 'opl-meta-agent',
       primary_label: 'Always-On/Automations',
       user_configurable: true,
       default_visible: false,
@@ -20,7 +38,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
   ],
   getOplProfessionalAgentPackages: () => [
     {
-      package_id: 'mas',
+      package_id: 'med-autoscience',
       display_name: 'Med Auto Science',
       short_name: 'MAS',
       codex_visible_entry: 'mas',
@@ -29,7 +47,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       optional_skill_ids: [],
     },
     {
-      package_id: 'oma',
+      package_id: 'opl-meta-agent',
       display_name: 'OPL Meta Agent',
       short_name: 'OMA',
       codex_visible_entry: 'opl-meta-agent',
@@ -120,6 +138,7 @@ describe('buildCapabilitiesViewModel', () => {
           description: 'Use OMA explicitly.',
           tags: ['OMA', 'Skills', 'Tools'],
           moduleIds: ['opl-meta-agent', 'oma'],
+          packageId: 'opl-meta-agent',
         },
       ]
     );
