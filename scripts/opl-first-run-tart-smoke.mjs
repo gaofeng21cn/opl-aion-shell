@@ -15,6 +15,7 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGTERM', 143],
 ]);
 const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
+const REQUIRED_ASSISTANT_ROUTE_IDS = ['med-autoscience', 'med-autogrant', 'redcube-ai'];
 const SMOKE_PROFILES = new Map([
   [
     'full-gate',
@@ -1489,9 +1490,9 @@ function assertGuestSmokeSummary(options, guestSummary) {
     const assistantIds = guestSummary.assistant_route_smoke.assistants;
     if (
       !Array.isArray(assistantIds) ||
-      !['mas', 'mag', 'rca'].every((assistantId) => assistantIds.includes(assistantId))
+      !REQUIRED_ASSISTANT_ROUTE_IDS.every((assistantId) => assistantIds.includes(assistantId))
     ) {
-      throw new Error('Guest assistant route smoke summary did not record MAS, MAG, and RCA.');
+      throw new Error('Guest assistant route smoke summary did not record the required App package route ids.');
     }
   }
   if (options.codexFunctionalCheck) {

@@ -49,7 +49,7 @@ function createReadySystemInitialize() {
   });
 }
 
-function createPassedAssistantRouteSmokeSummary(assistantIds = ['mas', 'mag', 'rca']) {
+function createPassedAssistantRouteSmokeSummary(assistantIds = ['med-autoscience', 'med-autogrant', 'redcube-ai']) {
   return {
     status: 'passed',
     assistants: assistantIds,
@@ -694,7 +694,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'standard',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
-        assistant_route_smoke: { status: 'passed', assistants: ['mas', 'mag', 'rca'] },
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(),
       })
     ).not.toThrow();
 
@@ -1955,7 +1955,7 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_profile: 'full',
         codex_config_wizard_submitted: false,
         settings_smoke: null,
-        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(['mas', 'mag']),
+        assistant_route_smoke: createPassedAssistantRouteSmokeSummary(['med-autoscience', 'med-autogrant']),
       })
     ).toThrow(/assistant route smoke/);
   });
