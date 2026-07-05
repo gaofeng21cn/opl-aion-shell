@@ -164,12 +164,18 @@ function normalizeStageUsage(value: unknown): string | undefined {
   if (scalar) return scalar;
   if (!isRecord(value)) return undefined;
   const totalTokens =
-    asNumber(value.total_tokens) ?? asNumber(value.total_token_count) ?? asNumber(value.token_count) ?? asNumber(value.tokens);
+    asNumber(value.total_tokens) ??
+    asNumber(value.total_token_count) ??
+    asNumber(value.token_count) ??
+    asNumber(value.tokens);
   if (totalTokens !== undefined) return `${totalTokens} tokens`;
   const inputTokens = asNumber(value.input_tokens) ?? asNumber(value.prompt_tokens);
   const outputTokens = asNumber(value.output_tokens) ?? asNumber(value.completion_tokens);
   if (inputTokens !== undefined || outputTokens !== undefined) {
-    return [inputTokens !== undefined ? `in ${inputTokens}` : null, outputTokens !== undefined ? `out ${outputTokens}` : null]
+    return [
+      inputTokens !== undefined ? `in ${inputTokens}` : null,
+      outputTokens !== undefined ? `out ${outputTokens}` : null,
+    ]
       .filter((entry): entry is string => Boolean(entry))
       .join(' · ');
   }
@@ -401,15 +407,22 @@ function derivePrimaryState(entry: JsonRecord): RuntimeTaskPrimaryState {
   const state = asString(entry.state);
   const status = asString(entry.status);
   const progress = asString(entry.progress_delta_classification);
-  if (['running', 'in_progress', 'advancing'].includes(state ?? '') || ['running', 'in_progress', 'advancing'].includes(status ?? '')) {
+  if (
+    ['running', 'in_progress', 'advancing'].includes(state ?? '') ||
+    ['running', 'in_progress', 'advancing'].includes(status ?? '')
+  ) {
     return 'in_progress';
   }
   if (progress === 'human_gate') {
     return 'owner_decision_required';
   }
   if (
-    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(state ?? '') ||
-    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(status ?? '') ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
+      state ?? ''
+    ) ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
+      status ?? ''
+    ) ||
     ['platform_repair', 'typed_blocker', 'stop_loss'].includes(progress ?? '')
   ) {
     return 'system_attention_required';
@@ -425,15 +438,22 @@ function deriveAutomationState(entry: JsonRecord): RuntimeTaskAutomationState {
   if (explicit) return explicit;
   const state = asString(entry.state);
   const status = asString(entry.status);
-  if (['running', 'in_progress', 'advancing'].includes(state ?? '') || ['running', 'in_progress', 'advancing'].includes(status ?? '')) {
+  if (
+    ['running', 'in_progress', 'advancing'].includes(state ?? '') ||
+    ['running', 'in_progress', 'advancing'].includes(status ?? '')
+  ) {
     return 'automation_running';
   }
   if (entry.runtime_closeout_observed === true && entry.mas_owner_consumption_matches_runtime_closeout === false) {
     return 'result_pending_terminalization';
   }
   if (
-    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(state ?? '') ||
-    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(status ?? '') ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
+      state ?? ''
+    ) ||
+    ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
+      status ?? ''
+    ) ||
     ['platform_repair', 'typed_blocker', 'stop_loss'].includes(asString(entry.progress_delta_classification) ?? '')
   ) {
     return 'automation_failed';
@@ -468,7 +488,9 @@ function uniqueScopeOptions(options: RuntimeScopeOption[]): RuntimeScopeOption[]
 }
 
 function deriveScopeOptionsFromTasks(tasks: RuntimeTaskDrilldown[]): RuntimeScopeOption[] {
-  const options: RuntimeScopeOption[] = [{ id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' }];
+  const options: RuntimeScopeOption[] = [
+    { id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' },
+  ];
   const append = (kind: RuntimeScopeOptionKind, value: string | undefined, label: string | undefined) => {
     const normalizedValue = value?.trim();
     const normalizedLabel = label?.trim();
@@ -491,11 +513,12 @@ function deriveScopeOptionsFromTasks(tasks: RuntimeTaskDrilldown[]): RuntimeScop
 function readRuntimeScope(workbench: JsonRecord, tasks: RuntimeTaskDrilldown[]): RuntimeScopeProjection {
   const runtimeScope = firstRecord(workbench.runtime_scope);
   const projectedOptions = asRecordArray(runtimeScope?.scope_options).map(readScopeOption);
-  const options = projectedOptions.length > 0 ? uniqueScopeOptions(projectedOptions) : deriveScopeOptionsFromTasks(tasks);
+  const options =
+    projectedOptions.length > 0 ? uniqueScopeOptions(projectedOptions) : deriveScopeOptionsFromTasks(tasks);
   const projectedCurrent = firstRecord(runtimeScope?.current_scope);
   const projectedCurrentOption = projectedCurrent
     ? readScopeOption(projectedCurrent, 0)
-    : options[0] ?? { id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' };
+    : (options[0] ?? { id: 'all-projects', kind: 'all_projects', label: 'All projects', value: 'all_projects' });
   const current =
     options.find(
       (option) =>
@@ -779,7 +802,9 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
       asString(entry.typed_blocker_summary) ??
       asString(entry.blocker_summary),
     typedBlockerOwner:
-      asString(stageRun?.typed_blocker_owner) ?? asString(stageRunSummary?.typed_blocker_owner) ?? asString(entry.next_owner),
+      asString(stageRun?.typed_blocker_owner) ??
+      asString(stageRunSummary?.typed_blocker_owner) ??
+      asString(entry.next_owner),
     typedBlockerResolutionRef:
       asString(stageRun?.typed_blocker_resolution_ref) ?? asString(stageRunSummary?.typed_blocker_resolution_ref),
     runtimeCloseoutObserved: entry.runtime_closeout_observed === true,

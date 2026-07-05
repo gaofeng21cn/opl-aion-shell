@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import {
+  canonicalizeOplProfessionalAgentId,
   filterOplOrdinaryMcpServers,
   filterOplOrdinarySkillNames,
   getOplAgentPackageInvocationReceiptPolicy,
@@ -111,10 +112,7 @@ function buildOplAssistantRouteReceipt(
   agentInfo: { custom_agent_id?: string; name?: string } | undefined
 ): OplAssistantRouteReceipt | undefined {
   if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
-  const assistantId = agentInfo.custom_agent_id
-    .replace(/^builtin-/, '')
-    .trim()
-    .toLowerCase();
+  const assistantId = canonicalizeOplProfessionalAgentId(agentInfo.custom_agent_id);
   const policy = getOplBuiltinAssistantRouteReceiptPolicy();
   if (!policy.required_for_assistants.includes(assistantId)) return undefined;
   const assistant = getOplDefaultHomeAssistants().find((entry) => entry.id === assistantId);
@@ -132,10 +130,7 @@ function buildOplAgentPackageInvocationReceipt(
   agentInfo: { custom_agent_id?: string } | undefined
 ): OplAgentPackageInvocationReceipt | undefined {
   if (!isPreset || !agentInfo?.custom_agent_id) return undefined;
-  const packageId = agentInfo.custom_agent_id
-    .replace(/^builtin-/, '')
-    .trim()
-    .toLowerCase();
+  const packageId = canonicalizeOplProfessionalAgentId(agentInfo.custom_agent_id);
   const shortcut = getOplHomeAgentShortcuts().find((entry) => entry.package_id === packageId && entry.default_visible);
   if (!shortcut) return undefined;
   const policy = getOplAgentPackageInvocationReceiptPolicy();

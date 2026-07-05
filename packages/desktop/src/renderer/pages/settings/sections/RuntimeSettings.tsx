@@ -177,7 +177,9 @@ function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer, t: Translate)
       value: drawer.provenanceProjectionRef,
       ref: drawer.provenanceIndexRef,
       kind: drawer.provenanceProjectionKind,
-      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.sourceIndex'), drawer.provenanceIndexRef]]),
+      details: refDetails([
+        [t('settings.runtimePage.taskRuns.artifactContext.sourceIndex'), drawer.provenanceIndexRef],
+      ]),
     });
   }
   drawer.provenanceBundleRefs.forEach((entry, index) => {

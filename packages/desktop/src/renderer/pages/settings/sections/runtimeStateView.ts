@@ -13,10 +13,10 @@ export type Translate = (key: string, options?: Record<string, string | number>)
 const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
   'med-autoscience': 'MAS',
   'med-autogrant': 'MAG',
-  'redcubeai': 'RCA',
+  redcubeai: 'RCA',
   'redcube-ai': 'RCA',
-  'oplmetaagent': 'OMA',
-  'oplbookforge': 'OBF',
+  oplmetaagent: 'OMA',
+  oplbookforge: 'OBF',
   mag: 'MAG',
   mas: 'MAS',
   medautoscience: 'MAS',

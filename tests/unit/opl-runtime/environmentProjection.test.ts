@@ -8,6 +8,11 @@ import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/manag
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  canonicalizeOplProfessionalAgentId: (value: string) =>
+    ({
+      mas: 'med-autoscience',
+      bookforge: 'opl-bookforge',
+    })[value] ?? value,
   getOplDefaultHomeAssistants: () => [
     { id: 'mas', display_name: 'MAS' },
     { id: 'bookforge', display_name: 'BookForge' },

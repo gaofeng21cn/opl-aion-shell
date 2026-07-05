@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId, getOplDefaultHomeAssistants } from '@/common/config/oplProductProfile';
 import { oplRecord, oplString } from '@/renderer/hooks/system/useOplAppState';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdateComponent, ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
@@ -33,7 +33,7 @@ const MAKE_USABLE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_pack
 
 const PROFILE_MODULE_DEFAULTS = getOplDefaultHomeAssistants()
   .map((assistant) => {
-    const id = OPL_HOME_ASSISTANT_MODULE_IDS[assistant.id];
+    const id = OPL_HOME_ASSISTANT_MODULE_IDS[canonicalizeOplProfessionalAgentId(assistant.id)];
     return id ? { id, label: assistant.display_name } : null;
   })
   .filter((entry): entry is { id: string; label: string } => Boolean(entry));

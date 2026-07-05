@@ -3,7 +3,10 @@ import { buildCapabilitiesViewModel } from '@/renderer/pages/settings/capabiliti
 
 vi.mock('@/common/config/oplProductProfile', () => ({
   canonicalizeOplProfessionalAgentId: (value: string) => {
-    const normalized = value.replace(/^builtin-/, '').trim().toLowerCase();
+    const normalized = value
+      .replace(/^builtin-/, '')
+      .trim()
+      .toLowerCase();
     const aliasMap: Record<string, string> = {
       mas: 'med-autoscience',
       medautoscience: 'med-autoscience',

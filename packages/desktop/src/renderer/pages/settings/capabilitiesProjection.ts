@@ -196,7 +196,9 @@ function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
 function packageStateId(packageState: RuntimePackageStateItem): string {
   return (
     canonicalCapabilityPackageId(firstString(packageState.package_id, packageState.id, packageState.module_id)) ??
-    normalizeCapabilityModuleId(firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? '')
+    normalizeCapabilityModuleId(
+      firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? ''
+    )
   );
 }
 

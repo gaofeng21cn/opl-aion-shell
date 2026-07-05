@@ -399,7 +399,9 @@ describe('updateBridge auto-update config handling', () => {
 
     autoUpdaterService.triggerEventForTest(
       'error',
-      new Error('ENOENT: no such file or directory, open /Applications/One Person Lab.app/Contents/Resources/app-update.yml')
+      new Error(
+        'ENOENT: no such file or directory, open /Applications/One Person Lab.app/Contents/Resources/app-update.yml'
+      )
     );
 
     expect(statusListener).toHaveBeenCalledWith({ status: 'not-available' });
@@ -407,10 +409,7 @@ describe('updateBridge auto-update config handling', () => {
       'Packaged auto-update config is unavailable; using manual release checks only:',
       'ENOENT: no such file or directory, open /Applications/One Person Lab.app/Contents/Resources/app-update.yml'
     );
-    expect(log.error).not.toHaveBeenCalledWith(
-      'Auto-updater error:',
-      expect.any(Error)
-    );
+    expect(log.error).not.toHaveBeenCalledWith('Auto-updater error:', expect.any(Error));
   });
 });
 

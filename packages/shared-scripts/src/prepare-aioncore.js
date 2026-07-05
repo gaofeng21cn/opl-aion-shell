@@ -121,20 +121,25 @@ function safeCacheSegment(value) {
   return String(value).replace(/[^0-9A-Za-z._-]/g, '_');
 }
 
-function defaultAioncoreCacheRoot({
-  platform = process.platform,
-  env = process.env,
-  homeDir = os.homedir(),
-} = {}) {
+function defaultAioncoreCacheRoot({ platform = process.platform, env = process.env, homeDir = os.homedir() } = {}) {
   if (platform === 'darwin') {
     return path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore');
   }
   if (platform === 'win32') {
     const localAppData = env.LOCALAPPDATA?.trim();
-    return path.join(localAppData ? path.resolve(localAppData) : path.join(homeDir, 'AppData', 'Local'), 'One Person Lab', 'Cache', 'aioncore');
+    return path.join(
+      localAppData ? path.resolve(localAppData) : path.join(homeDir, 'AppData', 'Local'),
+      'One Person Lab',
+      'Cache',
+      'aioncore'
+    );
   }
   const xdgCacheHome = env.XDG_CACHE_HOME?.trim();
-  return path.join(xdgCacheHome ? path.resolve(xdgCacheHome) : path.join(homeDir, '.cache'), 'one-person-lab', 'aioncore');
+  return path.join(
+    xdgCacheHome ? path.resolve(xdgCacheHome) : path.join(homeDir, '.cache'),
+    'one-person-lab',
+    'aioncore'
+  );
 }
 
 function getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion) {

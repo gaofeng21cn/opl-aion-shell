@@ -26,7 +26,8 @@ const { assertPackagedUpdaterConfig } = require('./packagedUpdaterConfig');
 const DMG_RETRY_MAX = 3;
 const DMG_RETRY_DELAY_SEC = 30;
 const OPL_RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
-const PACKAGING_STAGE_DIR_RE = /^(?:mac(?:-(?:arm64|x64|universal))?|win(?:-[a-z0-9]+)?-unpacked|linux(?:-[a-z0-9._-]+)?)$/i;
+const PACKAGING_STAGE_DIR_RE =
+  /^(?:mac(?:-(?:arm64|x64|universal))?|win(?:-[a-z0-9]+)?-unpacked|linux(?:-[a-z0-9._-]+)?)$/i;
 const PACKAGING_ARTIFACT_FILE_RE = /\.(?:dmg|zip|blockmap|exe|msi|7z|AppImage|deb|rpm|snap)$/i;
 const PACKAGING_METADATA_FILE_RE = /^(?:latest(?:-[^.]+)?\.ya?ml|builder-debug\.yml|builder-effective-config\.ya?ml)$/i;
 
@@ -172,8 +173,8 @@ function cleanupManagedOutArtifacts() {
     }
 
     if (
-      entry.isFile()
-      && (PACKAGING_ARTIFACT_FILE_RE.test(entry.name) || PACKAGING_METADATA_FILE_RE.test(entry.name))
+      entry.isFile() &&
+      (PACKAGING_ARTIFACT_FILE_RE.test(entry.name) || PACKAGING_METADATA_FILE_RE.test(entry.name))
     ) {
       fs.rmSync(fullPath, { force: true });
       removed.push(`out/${entry.name}`);
@@ -758,7 +759,9 @@ try {
   const builderCommand =
     `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
   const shouldRequirePackagedMacApp =
-    normalizedBuilderArgs.includes('--mac') || normalizedBuilderArgs.includes('--all') || (dirOnly && process.platform === 'darwin');
+    normalizedBuilderArgs.includes('--mac') ||
+    normalizedBuilderArgs.includes('--all') ||
+    (dirOnly && process.platform === 'darwin');
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {

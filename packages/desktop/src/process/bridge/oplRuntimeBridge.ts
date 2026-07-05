@@ -651,9 +651,9 @@ function hasOplCliEntrypoint(packageRoot: string): boolean {
 
 function isFrameworkCheckoutRoot(packageRoot: string): boolean {
   return (
-    fs.existsSync(path.join(packageRoot, '.git'))
-    && pathExistsFile(path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json'))
-    && hasOplCliEntrypoint(packageRoot)
+    fs.existsSync(path.join(packageRoot, '.git')) &&
+    pathExistsFile(path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json')) &&
+    hasOplCliEntrypoint(packageRoot)
   );
 }
 

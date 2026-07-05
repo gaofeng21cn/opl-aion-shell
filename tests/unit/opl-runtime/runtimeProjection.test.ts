@@ -328,7 +328,9 @@ describe('runtime visualization projection normalization', () => {
       },
     });
 
-    expect(model.taskRunProjectionV2.tasks.map((task) => [task.taskId, task.primaryState, task.automationState])).toEqual([
+    expect(
+      model.taskRunProjectionV2.tasks.map((task) => [task.taskId, task.primaryState, task.automationState])
+    ).toEqual([
       ['legacy-running', 'in_progress', 'automation_running'],
       ['legacy-human-gate', 'owner_decision_required', 'automation_idle'],
       ['legacy-platform', 'system_attention_required', 'result_pending_terminalization'],

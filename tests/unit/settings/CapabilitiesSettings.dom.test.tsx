@@ -165,28 +165,28 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
     getOplHomeAgentShortcuts: () => [
       {
         shortcut_id: 'research',
-        package_id: 'mas',
+        package_id: 'med-autoscience',
         primary_label: 'Research',
         user_configurable: true,
         default_visible: true,
       },
       {
         shortcut_id: 'grant',
-        package_id: 'mag',
+        package_id: 'med-autogrant',
         primary_label: 'Grant Writing',
         user_configurable: true,
         default_visible: true,
       },
       {
         shortcut_id: 'ppt',
-        package_id: 'rca',
+        package_id: 'redcube-ai',
         primary_label: 'Presentations',
         user_configurable: true,
         default_visible: true,
       },
       {
         shortcut_id: 'book',
-        package_id: 'bookforge',
+        package_id: 'opl-bookforge',
         primary_label: 'Writing books',
         user_configurable: true,
         default_visible: true,
@@ -201,7 +201,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
     ],
     getOplProfessionalAgentPackages: () => [
       {
-        package_id: 'mas',
+        package_id: 'med-autoscience',
         display_name: 'Med Auto Science',
         short_name: 'MAS',
         codex_visible_entry: 'mas',
@@ -210,7 +210,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         optional_skill_ids: [],
       },
       {
-        package_id: 'mag',
+        package_id: 'med-autogrant',
         display_name: 'Med Auto Grant',
         short_name: 'MAG',
         codex_visible_entry: 'mag',
@@ -219,7 +219,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         optional_skill_ids: [],
       },
       {
-        package_id: 'rca',
+        package_id: 'redcube-ai',
         display_name: 'RedCube AI',
         short_name: 'RCA',
         codex_visible_entry: 'rca',
@@ -228,7 +228,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         optional_skill_ids: [],
       },
       {
-        package_id: 'bookforge',
+        package_id: 'opl-bookforge',
         display_name: 'OPL BookForge',
         short_name: 'OBF',
         codex_visible_entry: 'opl-bookforge',
@@ -390,18 +390,18 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getByText('Med Auto Science')).toBeInTheDocument();
     expect(screen.getByText('Research')).toBeInTheDocument();
-    expect(screen.getByText('MAS')).toBeInTheDocument();
+    expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
     expect(screen.getByText('Grant Writing')).toBeInTheDocument();
-    expect(screen.getByText('MAG')).toBeInTheDocument();
+    expect(screen.getAllByText('MAG').length).toBeGreaterThan(0);
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
     expect(screen.getByText('Presentations')).toBeInTheDocument();
-    expect(screen.getByText('RCA')).toBeInTheDocument();
+    expect(screen.getAllByText('RCA').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL BookForge')).toBeInTheDocument();
     expect(screen.getByText('Writing books')).toBeInTheDocument();
     expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
-    expect(screen.getByText('OMA')).toBeInTheDocument();
+    expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
     expect(screen.getByText('Developer source')).toBeInTheDocument();
     expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
     expect(screen.getByText('Needs repair')).toBeInTheDocument();
@@ -430,7 +430,9 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     await waitFor(() =>
-      expect(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-connector-group-mas-oplConnect')
+      ).toBeInTheDocument()
     );
     detailedResearch = screen.getByTestId('capability-purpose-mas');
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
@@ -442,7 +444,9 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Reusable workflows')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Module runtime repair')).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
+    expect(
+      within(detailedResearch).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)
+    ).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Environment and resource context')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Gateway')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Environment catalog')).toBeInTheDocument();
@@ -453,10 +457,14 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getByText(/opl:\/\/gateway\/status\/gflabtoken/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/opl:\/\/environment\/python-r-quarto/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/opl:\/\/environment-template\/python-r-quarto/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)).toBeInTheDocument();
+    expect(
+      within(detailedResearch).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)
+    ).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/opl:\/\/task-applicability\/mas/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)).toBeInTheDocument();
+    expect(
+      within(detailedResearch).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)
+    ).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/receipt:\/\/resource\/latest/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText(/opl:\/\/cost-estimate\/mas\/latest/)).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Reproducibility export bundle action')).toBeInTheDocument();
@@ -475,7 +483,9 @@ describe('CapabilitiesSettingsContent', () => {
 
     const presentations = screen.getByTestId('capability-purpose-rca');
     fireEvent.click(within(presentations).getByTestId('capability-row-details-rca'));
-    expect(within(screen.getByTestId('capability-purpose-rca')).getAllByText('receipt missing').length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId('capability-purpose-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
+      0
+    );
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
@@ -487,7 +497,9 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
 
-    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-purpose-primary-action-mas'));
+    fireEvent.click(
+      within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-purpose-primary-action-mas')
+    );
     expect(onTabChange).toHaveBeenCalledWith('skills');
   });
 
@@ -501,7 +513,7 @@ describe('CapabilitiesSettingsContent', () => {
         actionId: 'agent_package_home_shortcut_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
-          package_id: 'mas',
+          package_id: 'med-autoscience',
           shortcut_id: 'research',
           visible: false,
           sort_order: 0,
@@ -516,7 +528,7 @@ describe('CapabilitiesSettingsContent', () => {
         actionId: 'agent_package_home_shortcut_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
-          package_id: 'mas',
+          package_id: 'med-autoscience',
           shortcut_id: 'research',
           visible: false,
           sort_order: 1,
@@ -553,7 +565,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_update',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
 
@@ -562,7 +574,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_repair',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
 
@@ -571,7 +583,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_rollback',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
 
@@ -580,7 +592,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_uninstall',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
 
@@ -589,7 +601,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_hide',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
 
@@ -598,7 +610,7 @@ describe('CapabilitiesSettingsContent', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_unhide',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'mas' },
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
       })
     );
     await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
@@ -613,7 +625,11 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual(['bookforge', 'mas', 'rca']);
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual([
+      'opl-bookforge',
+      'med-autoscience',
+      'redcube-ai',
+    ]);
   });
 
   it('uses Framework app-state shortcut preference readback before the local fallback', () => {
@@ -631,10 +647,10 @@ describe('CapabilitiesSettingsContent', () => {
           app_state: {
             opl_agent_packages: {
               home_shortcut_preferences: [
-                { package_id: 'bookforge', shortcut_id: 'book', visible: true, sort_order: 0 },
-                { package_id: 'mas', shortcut_id: 'research', visible: true, sort_order: 1 },
-                { package_id: 'mag', shortcut_id: 'grant', visible: false, sort_order: 2 },
-                { package_id: 'rca', shortcut_id: 'ppt', visible: true, sort_order: 3 },
+                { package_id: 'opl-bookforge', shortcut_id: 'book', visible: true, sort_order: 0 },
+                { package_id: 'med-autoscience', shortcut_id: 'research', visible: true, sort_order: 1 },
+                { package_id: 'med-autogrant', shortcut_id: 'grant', visible: false, sort_order: 2 },
+                { package_id: 'redcube-ai', shortcut_id: 'ppt', visible: true, sort_order: 3 },
               ],
             },
           },
@@ -643,6 +659,10 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual(['bookforge', 'mas', 'rca']);
+    expect(resolveOplHomeAssistants([]).map((assistant) => assistant.id)).toEqual([
+      'opl-bookforge',
+      'med-autoscience',
+      'redcube-ai',
+    ]);
   });
 });

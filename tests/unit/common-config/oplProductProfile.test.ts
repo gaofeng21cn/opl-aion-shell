@@ -411,12 +411,7 @@ describe('OPL generated product profile', () => {
     const policy = getOplBuiltinAssistantRouteReceiptPolicy();
 
     expect(policy.migration_alias_for).toBe('agent_package_invocation_receipt_policy');
-    expect(policy.required_for_assistants).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-    ]);
+    expect(policy.required_for_assistants).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
     expect(policy.route_kind).toBe('builtin_capability');
     expect(policy.executor).toBe('codex_cli');
     expect(policy.source).toBe('opl_app_home');

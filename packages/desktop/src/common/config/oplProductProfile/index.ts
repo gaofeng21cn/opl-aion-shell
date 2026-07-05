@@ -29,7 +29,10 @@ const OPL_PROFESSIONAL_AGENT_ID_ALIASES = new Map<string, string>([
 ]);
 
 function normalizeOplProfessionalAgentAlias(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 }
 
 export function isOplVisibleCssThemeId(value: unknown): value is OplVisibleCssThemeId {
@@ -37,7 +40,10 @@ export function isOplVisibleCssThemeId(value: unknown): value is OplVisibleCssTh
 }
 
 export function canonicalizeOplProfessionalAgentId(value: string): string {
-  const trimmed = value.replace(/^builtin-/, '').trim().toLowerCase();
+  const trimmed = value
+    .replace(/^builtin-/, '')
+    .trim()
+    .toLowerCase();
   return OPL_PROFESSIONAL_AGENT_ID_ALIASES.get(normalizeOplProfessionalAgentAlias(trimmed)) ?? trimmed;
 }
 
@@ -904,8 +910,8 @@ function readHomePurposeEntries(guiHome: Record<string, unknown>): OplHomePurpos
     throw new Error('Invalid OPL product profile: purpose entries must expose App-owned labels');
   }
   if (
-    entries.map((entry) => entry.target_assistant_id).join(',')
-    !== ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
+    entries.map((entry) => entry.target_assistant_id).join(',') !==
+    ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
   ) {
     throw new Error('Invalid OPL product profile: purpose entries must target MAS, MAG, RCA, and BookForge');
   }
@@ -1166,8 +1172,8 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
   });
 
   if (
-    profiles.map((profile) => profile.assistant_id).join(',')
-    !== ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
+    profiles.map((profile) => profile.assistant_id).join(',') !==
+    ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'].join(',')
   ) {
     throw new Error('Invalid OPL product profile: assistant skill profiles must be MAS, MAG, RCA, and BookForge');
   }

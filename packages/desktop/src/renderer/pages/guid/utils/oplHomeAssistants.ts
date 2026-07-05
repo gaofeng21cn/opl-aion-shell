@@ -63,8 +63,7 @@ function getOplHomePackageProfiles(): OplHomePackageProfile[] {
     .filter((profile): profile is OplHomePackageProfile => Boolean(profile));
 }
 
-const normalizeAssistantId = (id: string): string =>
-  canonicalizeOplProfessionalAgentId(id);
+const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
 
 const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: number): Assistant => {
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);

@@ -273,7 +273,8 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   const imageSeedDir = opts.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || '';
   const inheritUserOplEnvironment = opts.inheritUserOplEnvironment === true;
   const fullRuntimeHome =
-    process.env.OPL_FULL_RUNTIME_HOME?.trim() || resolveDefaultFullRuntimeHome(process.env.HOME?.trim() || os.homedir());
+    process.env.OPL_FULL_RUNTIME_HOME?.trim() ||
+    resolveDefaultFullRuntimeHome(process.env.HOME?.trim() || os.homedir());
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
@@ -297,7 +298,8 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
     ...(fullRuntimeHome
       ? {
           OPL_FULL_RUNTIME_HOME: fullRuntimeHome,
-          OPL_PACKAGED_SKILLS_ROOT: process.env.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(fullRuntimeHome, 'skills'),
+          OPL_PACKAGED_SKILLS_ROOT:
+            process.env.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(fullRuntimeHome, 'skills'),
           OPL_CODEX_BIN: process.env.OPL_CODEX_BIN?.trim() || path.join(fullRuntimeHome, 'bin', 'codex'),
           OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
           OPL_MODULE_PATH_MEDAUTOSCIENCE:
