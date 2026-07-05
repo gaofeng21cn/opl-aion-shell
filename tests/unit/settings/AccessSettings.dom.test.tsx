@@ -8,12 +8,14 @@ type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
   executeActionInvoke: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
+  codexModel: string | null;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
   load: vi.fn(),
+  codexModel: 'gpt-5.5',
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -183,7 +185,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         core: {
           codex: {
             status: 'ready',
-            model: 'gpt-5.5',
+            model: accessSettingsMocks.codexModel,
             version: '0.125.0',
             binary_path: '/usr/local/bin/codex',
             model_access_ready: true,
@@ -302,12 +304,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
-        'settings.accessPage.description':
-          'Manage OPL Gateway, Codex CLI, local background services, and remote access entries.',
+        'settings.accessPage.description': 'Check model access, background task service, and remote entries.',
         'settings.accessPage.cards.codexCli.title': 'Codex CLI',
         'settings.accessPage.cards.codexCli.fallback': 'Codex CLI status is not available yet.',
-        'settings.accessPage.cards.codexCli.version': `codex-cli ${options?.version}`,
+        'settings.accessPage.cards.codexCli.version': `Installed: ${options?.version}`,
         'settings.accessPage.cards.codexCli.model': `Current model: ${options?.model}`,
+        'settings.accessPage.cards.model.fallback': 'not read',
         'settings.accessPage.cards.account.title': 'OPL Gateway',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
         'settings.accessPage.cards.account.oplGatewayConfigured': 'OPL Gateway is connected.',
@@ -321,12 +323,12 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.modelAccess.title': 'Model Access Status',
         'settings.accessPage.cards.modelAccess.detail':
           'Checks whether the local assistant can reach the configured model service.',
-        'settings.accessPage.cards.runtimeService.title': 'Background Service / Temporal',
+        'settings.accessPage.cards.runtimeService.title': 'Background Task Service',
         'settings.accessPage.cards.runtimeService.detail':
-          'Checks whether local OPL scheduling and background services are available.',
+          'Checks whether local OPL scheduling and background task services are available; implementation details may include Temporal.',
         'settings.accessPage.cards.provider.summary': `${options?.status}`,
-        'settings.accessPage.cards.provider.ready': 'Model service is reachable.',
-        'settings.accessPage.cards.provider.needsAttention': 'Model service needs setup or maintenance.',
+        'settings.accessPage.cards.provider.ready': 'Background task service is available.',
+        'settings.accessPage.cards.provider.needsAttention': 'Background task service needs setup or maintenance.',
         'settings.accessPage.cards.provider.localRuntime': 'Local runtime service',
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
@@ -352,22 +354,24 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.remote.nativeAccount': 'Account: admin, editable in remote access settings.',
         'settings.accessPage.remote.nativePassword': 'Password: view, copy, or reset it in remote access settings.',
         'settings.accessPage.remote.openNativeSettings': 'Open remote access settings',
-        'settings.accessPage.remote.dockerTitle': 'Docker WebUI / OPL Workspace',
+        'settings.accessPage.remote.dockerTitle': 'Advanced deployment',
         'settings.accessPage.remote.dockerDescription':
-          'For browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.',
+          'Docker WebUI / OPL Workspace is for browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.',
         'settings.accessPage.remote.actions.settings_install_docker_webui': 'Install Docker WebUI',
         'settings.accessPage.remote.actions.settings_select_webui_seed': 'Select WebUI image seed',
         'settings.accessPage.remote.actions.settings_diagnose_docker_webui': 'Diagnose Docker WebUI',
         'settings.accessPage.remote.status': `Status: ${options?.status}`,
         'settings.accessPage.remote.runtimeStatus': `Runtime proxy: ${options?.status}`,
         'settings.accessPage.remote.recoveryStatus': `Recovery: ${options?.status}`,
-        'settings.accessPage.remote.runDryRoute': 'Check route',
+        'settings.accessPage.remote.showAdvancedDeployment': 'Expand',
+        'settings.accessPage.remote.hideAdvancedDeployment': 'Collapse',
+        'settings.accessPage.remote.runDryRoute': 'Precheck',
         'settings.accessPage.remote.payloadRequired': 'Needs input',
         'settings.accessPage.remote.payloadRequiredHelp':
           'This action needs a file or folder reference and must be started from the App action flow.',
         'settings.accessPage.remote.confirmationRequired': 'Confirms before changes',
-        'settings.accessPage.remote.actionDryRunSuccess': 'Docker WebUI route checked.',
-        'settings.accessPage.remote.actionDryRunFailed': 'Docker WebUI route check failed.',
+        'settings.accessPage.remote.actionDryRunSuccess': 'Docker WebUI precheck completed.',
+        'settings.accessPage.remote.actionDryRunFailed': 'Docker WebUI precheck failed.',
         'settings.accessPage.remote.noActions': 'Docker WebUI actions are not available yet.',
         'settings.accessPage.resourceSources.cloudRemoteAccess': 'Cloud & Remote Access',
         'settings.accessPage.resourceSources.oplGateway': 'OPL Gateway',
@@ -389,6 +393,11 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.management.consoleManaged': 'Managed by OPL Console',
         'settings.accessPage.resourceSources.management.selfManaged': 'Self-managed resource',
         'settings.accessPage.resourceSources.noRefs': 'No resource context reported.',
+        'settings.accessPage.statusLabels.action_available': 'Available action',
+        'settings.accessPage.statusLabels.available': 'Available',
+        'settings.accessPage.statusLabels.diagnose_with_doctor': 'Diagnostics available',
+        'settings.accessPage.statusLabels.ready': 'Ready',
+        'settings.accessPage.statusLabels.refs_only': 'Refs only',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -404,6 +413,7 @@ describe('AccessSettingsContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     const mocks = getMocks();
+    mocks.codexModel = 'gpt-5.5';
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
@@ -429,33 +439,44 @@ describe('AccessSettingsContent', () => {
 
     expect(view.getByText('Access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
-    expect(
-      view.getByText('Manage OPL Gateway, Codex CLI, local background services, and remote access entries.')
-    ).toBeTruthy();
+    expect(view.getByText('Check model access, background task service, and remote entries.')).toBeTruthy();
     expect(view.getByText('Codex CLI')).toBeTruthy();
+    expect(document.body.textContent).toContain('Installed: 0.125.0');
     expect(document.body.textContent).toContain('Current model: gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
-    expect(document.body.textContent).toContain('OPL Gateway is connected.');
-    expect(view.getByText('Background Service / Temporal')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('OPL Gateway is connected.');
+    expect(document.body.textContent).not.toContain('Currently using OPL Gateway.');
+    expect(view.getByText('Background Task Service')).toBeTruthy();
     expect(view.getByText(/local OPL scheduling/)).toBeTruthy();
-    expect(view.getByText('Model service is reachable.')).toBeTruthy();
+    expect(view.getByText('Background task service is available.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Model service is reachable.');
     expect(document.body.textContent).not.toContain('127.0.0.1:7233');
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
+    expect(document.body.textContent).not.toContain('Fix issue');
     expect(view.getByText('Web & Remote Access')).toBeTruthy();
     expect(view.getByText('AionUI Native Remote Access')).toBeTruthy();
     expect(view.getByText('Port: 25808')).toBeTruthy();
     expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
-    expect(view.getByText('Docker WebUI / OPL Workspace')).toBeTruthy();
+    expect(view.getByText('Advanced deployment')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(view.getByText('Docker WebUI')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getByText('Remote access')).toBeTruthy();
-    expect(view.getAllByText('Status: action_available').length).toBeGreaterThan(0);
-    expect(view.getAllByText('Runtime proxy: diagnose_with_doctor').length).toBeGreaterThan(0);
-    expect(view.getAllByText('Recovery: available').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain('Status: action_available');
+    expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
+    expect(document.body.textContent).not.toContain('Recovery: available');
+    expect(document.body.textContent).not.toContain('action_available');
+    expect(document.body.textContent).not.toContain('diagnose_with_doctor');
+    expect(document.body.textContent).not.toContain('Recovery: available');
+    expect(document.body.textContent).not.toContain('Install Docker WebUI');
+    expect(document.body.textContent).not.toContain('Select WebUI image seed');
+    expect(document.body.textContent).not.toContain('Diagnose Docker WebUI');
+    expect(view.queryByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeNull();
+    expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
+    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
     expect(view.getByText('Install Docker WebUI')).toBeTruthy();
     expect(view.getByText('Select WebUI image seed')).toBeTruthy();
     expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
@@ -498,6 +519,15 @@ describe('AccessSettingsContent', () => {
     const firstReadinessCard = view.getByText('Codex CLI');
     const remoteControls = view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui');
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it('shows a clear Codex CLI model fallback when the current model was not read', () => {
+    const mocks = getMocks();
+    mocks.codexModel = null;
+
+    render(<AccessSettingsContent />);
+
+    expect(document.body.textContent).toContain('Current model: not read');
   });
 
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
@@ -556,6 +586,7 @@ describe('AccessSettingsContent', () => {
   it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
 
     const mocks = getMocks();
@@ -566,7 +597,7 @@ describe('AccessSettingsContent', () => {
       })
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
-    expect(await view.findByText('Docker WebUI route checked.')).toBeTruthy();
+    expect(await view.findByText('Docker WebUI precheck completed.')).toBeTruthy();
   });
 
   it('does not report Docker WebUI action success when the App control-plane bridge returns a structured failure', async () => {
@@ -583,16 +614,18 @@ describe('AccessSettingsContent', () => {
     });
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
 
-    await waitFor(() => expect(view.getByText('Docker WebUI route check failed.')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('Docker WebUI precheck failed.')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toContain('Docker WebUI route checked.');
+    expect(document.body.textContent).not.toContain('Docker WebUI precheck completed.');
   });
 
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
     const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
     expect(seedAction).toHaveAttribute('disabled');
     expect(seedAction.textContent).toContain('Needs input');

@@ -1551,16 +1551,16 @@
   },
   "accessPage": {
     "title": "Access",
-    "description": "Manage OPL Gateway, Codex CLI, local background services, and remote access entries.",
+    "description": "Check model access, background task service, and remote entries.",
     "cards": {
       "model": {
         "title": "Current Model",
-        "fallback": "Current model is not available yet."
+        "fallback": "not read"
       },
       "codexCli": {
         "title": "Codex CLI",
         "fallback": "Codex CLI status is not available yet.",
-        "version": "codex-cli {{version}}",
+        "version": "Installed: {{version}}",
         "model": "Current model: {{model}}"
       },
       "account": {
@@ -1581,15 +1581,15 @@
         "detail": "Checks whether the local assistant can reach the configured model service."
       },
       "runtimeService": {
-        "title": "Background Service / Temporal",
-        "detail": "Checks whether local OPL scheduling and background services are available."
+        "title": "Background Task Service",
+        "detail": "Checks whether local OPL scheduling and background task services are available; implementation details may include Temporal."
       },
       "provider": {
         "fallback": "Background service details are not available yet.",
         "summary": "{{status}}",
         "localRuntime": "Local runtime service",
-        "ready": "Model service is reachable.",
-        "needsAttention": "Model service needs setup or maintenance."
+        "ready": "Background task service is available.",
+        "needsAttention": "Background task service needs setup or maintenance."
       },
       "permission": {
         "title": "Permission Mode",
@@ -1619,17 +1619,19 @@
       "nativeAccount": "Account: admin, editable in remote access settings.",
       "nativePassword": "Password: view, copy, or reset it in remote access settings.",
       "openNativeSettings": "Open remote access settings",
-      "dockerTitle": "Docker WebUI / OPL Workspace",
-      "dockerDescription": "For browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.",
+      "dockerTitle": "Advanced deployment",
+      "dockerDescription": "Docker WebUI / OPL Workspace is for browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
       "recoveryStatus": "Recovery: {{status}}",
-      "runDryRoute": "Check route",
+      "showAdvancedDeployment": "Expand",
+      "hideAdvancedDeployment": "Collapse",
+      "runDryRoute": "Precheck",
       "payloadRequired": "Needs input",
       "payloadRequiredHelp": "This action needs a file or folder reference and must be started from the App action flow.",
       "confirmationRequired": "Confirms before changes",
-      "actionDryRunSuccess": "Docker WebUI route checked.",
-      "actionDryRunFailed": "Docker WebUI route check failed.",
+      "actionDryRunSuccess": "Docker WebUI precheck completed.",
+      "actionDryRunFailed": "Docker WebUI precheck failed.",
       "noActions": "Docker WebUI actions are not available yet.",
       "actions": {
         "settings_install_docker_webui": "Install Docker WebUI",
@@ -1639,6 +1641,16 @@
         "settings_diagnose_docker_webui": "Diagnose Docker WebUI",
         "settings_open_docker_webui": "Open Docker WebUI"
       }
+    },
+    "statusLabels": {
+      "action_available": "Available action",
+      "available": "Available",
+      "diagnose_with_doctor": "Diagnostics available",
+      "healthy": "Healthy",
+      "ok": "OK",
+      "ready": "Ready",
+      "refs_only": "Refs only",
+      "unknown": "Not read"
     },
     "resourceSources": {
       "cloudRemoteAccess": "Cloud & Remote Access",

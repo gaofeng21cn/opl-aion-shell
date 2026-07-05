@@ -1059,7 +1059,8 @@
           "label_en": "Access",
           "role": "first_use_and_access_setup",
           "ordinary_entries": ["settings_access", "first_run_setup_center"],
-          "primary_tasks": ["workspace_root", "codex_cli", "codex_config"]
+          "primary_tasks": ["model_access", "local_runtime_ability", "remote_access", "advanced_deployment"],
+          "normal_state_policy": "show_conclusion_and_necessary_action_first_hide_internal_diagnostics_until_details_or_abnormal_state"
         },
         {
           "id": "capabilities",
@@ -1119,9 +1120,17 @@
           "label_zh": "访问方式",
           "label_en": "Access",
           "role": "first_use_and_access_setup",
-          "primary_question": "How do I connect the App, and where does work happen?",
+          "primary_question": "Can the App use a model, run locally, accept remote access, or use an advanced deployment?",
           "ia_group": "setup_access",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ordinary_entry_policy": "top_level_control_center_route",
+          "user_facing_groups": ["model_access", "local_runtime_ability", "remote_access", "advanced_deployment"],
+          "hidden_normal_state_terms": [
+            "repeated OPL Gateway summary lines",
+            "action_available",
+            "diagnose_with_doctor",
+            "available",
+            "CLI dry-run commands"
+          ]
         },
         "capabilities": {
           "label_zh": "能力",
@@ -1176,8 +1185,20 @@
       "task_entry_policy": {
         "ordinary_entry_model": "user_task_first_sections_inside_the_seven_OPL_Control_Center_groups",
         "top_level_tab_policy": "do_not_add_new_top_level_tabs_for_model_workspace_updates_web_tools_or_developer_profile",
-        "p0_entries": ["model_account", "workspace_entry", "maintenance_hub", "capability_status"],
-        "p1_entries": ["web_remote_access", "developer_profile_status", "external_tools_voice", "custom_assistants"],
+        "p0_entries": [
+          "model_access",
+          "local_runtime_ability",
+          "workspace_entry",
+          "maintenance_hub",
+          "capability_status"
+        ],
+        "p1_entries": [
+          "remote_access",
+          "advanced_deployment",
+          "developer_profile_status",
+          "external_tools_voice",
+          "custom_assistants"
+        ],
         "hidden_as_ordinary_ui": [
           "AionUI Team",
           "backend/provider raw selector",

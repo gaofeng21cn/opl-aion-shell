@@ -1552,16 +1552,16 @@
   },
   "accessPage": {
     "title": "访问方式",
-    "description": "管理 OPL Gateway、Codex CLI、本机后台服务和远程访问入口。",
+    "description": "查看模型访问、后台任务服务和远程入口。",
     "cards": {
       "model": {
         "title": "当前模型",
-        "fallback": "暂时无法读取当前模型。"
+        "fallback": "未读取到"
       },
       "codexCli": {
         "title": "Codex CLI",
         "fallback": "暂时无法读取 Codex CLI 状态。",
-        "version": "codex-cli {{version}}",
+        "version": "已安装：{{version}}",
         "model": "当前模型：{{model}}"
       },
       "account": {
@@ -1582,15 +1582,15 @@
         "detail": "用于确认本机助手是否能访问已配置的模型服务。"
       },
       "runtimeService": {
-        "title": "后台服务 / Temporal",
-        "detail": "确认本机 OPL 调度与后台服务是否可用。"
+        "title": "后台任务服务",
+        "detail": "确认本机 OPL 调度与后台任务服务是否可用；技术实现可能包含 Temporal。"
       },
       "provider": {
         "fallback": "暂时无法读取后台服务详情。",
         "summary": "{{status}}",
         "localRuntime": "本机运行服务",
-        "ready": "模型服务可访问。",
-        "needsAttention": "模型服务需要设置或维护。"
+        "ready": "后台任务服务可用。",
+        "needsAttention": "后台任务服务需要设置或维护。"
       },
       "permission": {
         "title": "权限模式",
@@ -1620,17 +1620,19 @@
       "nativeAccount": "账号：admin，可在远程访问设置中修改。",
       "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
       "openNativeSettings": "打开远程访问设置",
-      "dockerTitle": "Docker WebUI / OPL Workspace",
-      "dockerDescription": "用于浏览器、服务器或托管工作区形态；日常本机远程访问先使用左侧原生设置。",
+      "dockerTitle": "进阶部署",
+      "dockerDescription": "Docker WebUI / OPL Workspace 用于浏览器、服务器或托管工作区形态；日常本机远程访问先使用上方原生设置。",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",
-      "runDryRoute": "检查路径",
+      "showAdvancedDeployment": "展开",
+      "hideAdvancedDeployment": "收起",
+      "runDryRoute": "预检查",
       "payloadRequired": "需要输入",
       "payloadRequiredHelp": "此操作需要文件或文件夹引用，应从 App action flow 启动。",
       "confirmationRequired": "变更前确认",
-      "actionDryRunSuccess": "Docker WebUI 路径检查完成。",
-      "actionDryRunFailed": "Docker WebUI 路径检查失败。",
+      "actionDryRunSuccess": "Docker WebUI 预检查完成。",
+      "actionDryRunFailed": "Docker WebUI 预检查失败。",
       "noActions": "暂时没有可用的 Docker WebUI 操作。",
       "actions": {
         "settings_install_docker_webui": "安装 Docker WebUI",
@@ -1640,6 +1642,16 @@
         "settings_diagnose_docker_webui": "诊断 Docker WebUI",
         "settings_open_docker_webui": "打开 Docker WebUI"
       }
+    },
+    "statusLabels": {
+      "action_available": "可操作",
+      "available": "可用",
+      "diagnose_with_doctor": "可诊断",
+      "healthy": "正常",
+      "ok": "正常",
+      "ready": "可用",
+      "refs_only": "仅记录引用",
+      "unknown": "未读取到"
     },
     "resourceSources": {
       "cloudRemoteAccess": "云端与远程访问",
