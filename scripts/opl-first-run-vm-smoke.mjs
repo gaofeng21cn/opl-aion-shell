@@ -3965,8 +3965,8 @@ function runtimeStatusReadinessExpression() {
     }
     const text = document.body?.innerText || '';
     const hashOk = window.location.hash.startsWith('#/runtime');
-    const titleOk = /OPL Runtime Status|OPL 运行状态|Project Runtime Progress|项目运行进度/.test(text);
-    const summaryOk = /App\\/operator Drilldown|运行状态摘要|Task Overview|任务概览|Status Load|状态加载/.test(text);
+    const titleOk = /OPL Runtime Status|OPL 运行状态|Project Runtime Progress|项目运行进度|Project Runtime Overview|项目运行总览/.test(text);
+    const summaryOk = /App\\/operator Drilldown|运行状态摘要|Task Overview|任务概览|Project List|项目列表|Status Load|状态加载/.test(text);
     const loadedOk = /Loaded at|已加载于|Loaded|已加载/.test(text);
     const loadingOnly = /加载中|Loading/.test(text) && !summaryOk;
     return hashOk && titleOk && summaryOk && !loadingOnly
