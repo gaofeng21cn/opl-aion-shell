@@ -1075,23 +1075,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(checkButton?.className).not.toContain('arco-btn-loading'));
   });
 
-  it('projects background managed update auto-apply action, skip reason, and reload guidance', async () => {
+  it('projects background managed update refresh-only skip reason and reload guidance', async () => {
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce(managedUpdateAutoApplyPlanResult);
-    bridgeMocks.applyUpdateComponentInvoke.mockImplementation(({ componentId }: { componentId: string }) =>
-      Promise.resolve({
-        surface: 'update_apply',
-        command: `opl update apply --component ${componentId} --json`,
-        stdout: '{}',
-        parsed: {
-          managed_update: {
-            operation: 'apply',
-            idempotency_lock: { status: 'released' },
-            execution: { status: 'completed' },
-            reload_guidance: `Reload after applying ${componentId}.`,
-          },
-        },
-      })
-    );
 
     render(<RuntimeSettings />);
 
@@ -1104,19 +1089,17 @@ describe('RuntimeSettings app state bridge usage', () => {
       });
     });
 
-    await waitFor(() => expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1));
-
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.diagnostics.title'));
     const backgroundStatus = screen.getByTestId('opl-managed-update-background-status');
-    expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
-    expect(backgroundStatus).toHaveTextContent('auto_apply capability_packages completed');
+    expect(backgroundStatus).not.toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastAction');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.lastSkipReason');
     expect(backgroundStatus).toHaveTextContent('installation_carrier: host_executor_required');
     expect(backgroundStatus).toHaveTextContent('runtime_substrate: restart_required');
+    expect(backgroundStatus).toHaveTextContent('capability_packages: refresh_only');
     expect(backgroundStatus).toHaveTextContent('codex_surface: manual_confirmation_required');
     expect(backgroundStatus).not.toHaveTextContent('workflow_profile: manual_confirmation_required');
     expect(backgroundStatus).toHaveTextContent('settings.oplEnvironmentPage.updates.background.reloadGuidance');
-    expect(backgroundStatus).toHaveTextContent('Reload after applying capability_packages.');
+    expect(backgroundStatus).toHaveTextContent('Reload visible OPL capabilities after background maintenance.');
   });
 
   it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {
