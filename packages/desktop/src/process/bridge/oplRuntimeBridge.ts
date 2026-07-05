@@ -103,7 +103,6 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
-    'opl system initialize --events --json',
     'opl system initialize --json',
     'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
     'opl system configure-codex --api-key-stdin --json',
@@ -223,8 +222,8 @@ function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSp
 function buildInitializeCommand(): RuntimeCommandSpec {
   return {
     surface: 'system_initialize',
-    args: ['system', 'initialize', '--events', '--json'],
-    redactedCommand: 'opl system initialize --events --json',
+    args: ['system', 'initialize', '--json'],
+    redactedCommand: 'opl system initialize --json',
   };
 }
 
@@ -1129,9 +1128,7 @@ async function runPackagedStandardBootstrap(): Promise<void> {
 async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeCommandResult> {
   try {
     const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
-    return spec.surface === 'system_initialize'
-      ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
-      : await runSpawnJsonCommand(command);
+    return await runSpawnJsonCommand(command);
   } catch (error) {
     if (isInitializeEventsUnsupportedError(spec, error)) {
       const fallbackSpec = buildInitializeFallbackCommand();
@@ -1167,9 +1164,7 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
   try {
     await runPackagedStandardBootstrap();
     const command = buildOplSpawnCommand(spec, buildOplCommandEnv());
-    return spec.surface === 'system_initialize'
-      ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
-      : await runSpawnJsonCommand(command);
+    return await runSpawnJsonCommand(command);
   } catch (error) {
     return commandFailureResult(
       spec,

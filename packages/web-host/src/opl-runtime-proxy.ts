@@ -138,8 +138,8 @@ function buildCommandFromRequest(route: string, body: JsonRecord): RuntimeComman
     case 'initialize':
       return {
         surface: 'system_initialize',
-        args: ['system', 'initialize', '--events'],
-        redactedCommand: 'opl system initialize --events',
+        args: ['system', 'initialize', '--json'],
+        redactedCommand: 'opl system initialize --json',
       };
     case 'install-prep':
       return {
@@ -499,9 +499,7 @@ async function runOplCommand(spec: RuntimeCommandSpec, opts: OplRuntimeProxyOpti
   const env = buildOplEnv(opts);
   try {
     const command = buildSpawnCommand(spec, env);
-    return spec.surface === 'system_initialize'
-      ? await runInitializeEventsCommand(command)
-      : await runSpawnJsonCommand(command);
+    return await runSpawnJsonCommand(command);
   } catch (error) {
     if (!shouldBootstrap(spec) || (!isMissingOpl(error) && !isIncompleteOplInstall(error))) {
       return commandFailureResult(
@@ -518,9 +516,7 @@ async function runOplCommand(spec: RuntimeCommandSpec, opts: OplRuntimeProxyOpti
   try {
     await runBootstrap(opts, env);
     const command = buildSpawnCommand(spec, buildOplEnv(opts));
-    return spec.surface === 'system_initialize'
-      ? await runInitializeEventsCommand(command)
-      : await runSpawnJsonCommand(command);
+    return await runSpawnJsonCommand(command);
   } catch (error) {
     return commandFailureResult(
       spec,

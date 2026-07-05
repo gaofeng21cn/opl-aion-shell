@@ -54,7 +54,7 @@ vi.mock('react-router-dom', () => ({
 
 const initializeResult = {
   surface: 'system_initialize',
-  command: 'opl system initialize --events --json',
+  command: 'opl system initialize --json',
   stdout: '{}',
   parsed: {
     system_initialize: {
@@ -454,7 +454,7 @@ describe('FirstRun readiness page', () => {
 
   it('shows a user-facing first-run error and keeps the raw diagnostic in technical details', async () => {
     bridgeMocks.getInitializeInvoke.mockRejectedValueOnce(
-      new Error('OPL runtime command failed: opl system initialize --events --json')
+      new Error('OPL runtime command failed: opl system initialize --json')
     );
 
     render(<FirstRun />);
@@ -468,7 +468,7 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByText('settings.firstRun.technicalDetails'));
 
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent(
-      'OPL runtime command failed: opl system initialize --events --json'
+      'OPL runtime command failed: opl system initialize --json'
     );
   });
 
