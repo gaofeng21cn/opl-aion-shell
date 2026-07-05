@@ -756,8 +756,8 @@ function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: Runtime
   if (states.length === 0) return null;
   return matchControlState(
     {
-    activeRunId: task.activeRunId ?? null,
-    stageAttemptIds: task.stageAttemptIds,
+      activeRunId: task.activeRunId ?? null,
+      stageAttemptIds: task.stageAttemptIds,
     },
     buildControlStateIndex(states)
   );
