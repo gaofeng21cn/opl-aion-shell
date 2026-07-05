@@ -15,6 +15,7 @@ const repoRoot = resolve(__dirname, '../../..');
 function withOutBundleBackup<T>(callback: () => T): T {
   const tempDir = mkdtempSync(join(tmpdir(), 'aionui-out-backup-'));
   const targets = ['main', 'preload', 'renderer'];
+  const packagingStageDirs = ['mac', 'mac-arm64', 'mac-x64', 'mac-universal'];
 
   try {
     for (const target of targets) {
@@ -32,6 +33,9 @@ function withOutBundleBackup<T>(callback: () => T): T {
       if (existsSync(backup)) {
         cpSync(backup, join(repoRoot, 'out', target), { recursive: true });
       }
+    }
+    for (const target of packagingStageDirs) {
+      rmSync(join(repoRoot, 'out', target), { recursive: true, force: true });
     }
     rmSync(tempDir, { recursive: true, force: true });
   }
@@ -69,6 +73,23 @@ function record(command) {
   fs.writeFileSync(commandsPath, JSON.stringify(commands));
 }
 
+function writePackagedMacApp() {
+  const resourcesDir = path.join(process.cwd(), 'out/mac-arm64/One Person Lab.app/Contents/Resources');
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(resourcesDir, 'app-update.yml'),
+    [
+      'owner: gaofeng21cn',
+      'repo: one-person-lab-app',
+      'provider: github',
+      'publishAutoUpdate: true',
+      'releaseType: release',
+      'updaterCacheDirName: one-person-lab-aion-shell-updater',
+      '',
+    ].join('\\n')
+  );
+}
+
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   record(commandText);
@@ -78,6 +99,9 @@ childProcess.execSync = function mockedExecSync(command) {
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  if (commandText.includes('electron-builder')) {
+    writePackagedMacApp();
   }
   return Buffer.from('');
 };
@@ -142,6 +166,23 @@ function record(command) {
   fs.writeFileSync(commandsPath, JSON.stringify(commands));
 }
 
+function writePackagedMacApp() {
+  const resourcesDir = path.join(process.cwd(), 'out/mac-arm64/One Person Lab.app/Contents/Resources');
+  fs.mkdirSync(resourcesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(resourcesDir, 'app-update.yml'),
+    [
+      'owner: gaofeng21cn',
+      'repo: one-person-lab-app',
+      'provider: github',
+      'publishAutoUpdate: true',
+      'releaseType: release',
+      'updaterCacheDirName: one-person-lab-aion-shell-updater',
+      '',
+    ].join('\\n')
+  );
+}
+
 childProcess.execSync = function mockedExecSync(command) {
   const commandText = String(command);
   record(commandText);
@@ -152,6 +193,9 @@ childProcess.execSync = function mockedExecSync(command) {
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
   }
+  if (commandText.includes('electron-builder')) {
+    writePackagedMacApp();
+  }
   return Buffer.from('');
 };
 `,
@@ -159,8 +203,9 @@ childProcess.execSync = function mockedExecSync(command) {
     );
 
     try {
+      let updaterConfig = '';
       const result = withOutBundleBackup(() => {
-        return spawnSync(
+        const spawned = spawnSync(
           process.execPath,
           ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--dir-only', '--force'],
           {
@@ -173,6 +218,11 @@ childProcess.execSync = function mockedExecSync(command) {
             },
           }
         );
+        const updaterConfigPath = join(repoRoot, 'out/mac-arm64/One Person Lab.app/Contents/Resources/app-update.yml');
+        if (existsSync(updaterConfigPath)) {
+          updaterConfig = readFileSync(updaterConfigPath, 'utf8');
+        }
+        return spawned;
       });
 
       expect(result.status, result.stderr || result.stdout).toBe(0);
@@ -180,6 +230,69 @@ childProcess.execSync = function mockedExecSync(command) {
       const builderCommand = commands.find((command) => command.includes('electron-builder'));
       expect(builderCommand).toContain('--dir');
       expect(builderCommand).not.toContain('--mac');
+      expect(updaterConfig).toContain('provider: github');
+      expect(updaterConfig).toContain('owner: gaofeng21cn');
+      expect(updaterConfig).toContain('repo: one-person-lab-app');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects macOS app bundles without packaged updater config', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'aionui-missing-updater-config-build-test-'));
+    const hookPath = join(tempDir, 'hook.cjs');
+
+    writeFileSync(
+      hookPath,
+      `
+const childProcess = require('node:child_process');
+const fs = require('node:fs');
+const Module = require('node:module');
+const path = require('node:path');
+
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request.endsWith('packages/shared-scripts/src/prepare-aioncore.js')) {
+    return { prepareAioncore: () => ({ prepared: true, dir: 'mock-bundled-aioncore', sourceType: 'mock' }) };
+  }
+  if (request === './resolveAioncoreVersion.js' || request.endsWith('/resolveAioncoreVersion.js')) {
+    return { resolveAioncoreVersion: () => 'v-test' };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
+
+childProcess.execSync = function mockedExecSync(command) {
+  const commandText = String(command);
+  if (commandText.includes('electron-vite build')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/main'), { recursive: true });
+    fs.mkdirSync(path.join(process.cwd(), 'out/renderer/assets'), { recursive: true });
+    fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
+    fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  if (commandText.includes('electron-builder')) {
+    fs.mkdirSync(path.join(process.cwd(), 'out/mac-arm64/One Person Lab.app/Contents/Resources'), { recursive: true });
+  }
+  return Buffer.from('');
+};
+`,
+      'utf8'
+    );
+
+    try {
+      const result = withOutBundleBackup(() => {
+        return spawnSync(process.execPath, ['scripts/build-with-builder.js', 'arm64', '--mac', '--arm64', '--force'], {
+          cwd: repoRoot,
+          encoding: 'utf8',
+          env: {
+            ...process.env,
+            NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
+          },
+        });
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr || result.stdout).toContain('Missing packaged updater config');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -332,6 +445,22 @@ childProcess.execSync = function mockedExecSync(command) {
     fs.writeFileSync(path.join(process.cwd(), 'out/main/index.js'), 'require("./bootstrap");');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/index.html'), '<div id="root"></div>');
     fs.writeFileSync(path.join(process.cwd(), 'out/renderer/assets/index.js'), 'settings.firstRun.title');
+  }
+  if (commandText.includes('electron-builder') && commandText.includes('--mac')) {
+    const resourcesDir = path.join(process.cwd(), 'out/mac-arm64/One Person Lab.app/Contents/Resources');
+    fs.mkdirSync(resourcesDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(resourcesDir, 'app-update.yml'),
+      [
+        'owner: gaofeng21cn',
+        'repo: one-person-lab-app',
+        'provider: github',
+        'publishAutoUpdate: true',
+        'releaseType: release',
+        'updaterCacheDirName: one-person-lab-aion-shell-updater',
+        '',
+      ].join('\\n')
+    );
   }
   return Buffer.from('');
 };

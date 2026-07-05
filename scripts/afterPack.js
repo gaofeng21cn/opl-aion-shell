@@ -8,6 +8,7 @@ const {
   verifyModuleBinary,
   getModulesToRebuild,
 } = require('./rebuildNativeModules');
+const { writePackagedUpdaterConfig } = require('./packagedUpdaterConfig');
 const { verifyBundledAioncoreResources } = require('../packages/shared-scripts/src/verify-bundled-aioncore-resources');
 
 /**
@@ -60,6 +61,13 @@ module.exports = async function afterPack(context) {
   const resourcesDir = resolveResourcesDir(electronPlatformName, appOutDir, packager);
   console.log(`   Checking resources directory: ${resourcesDir}`);
   if (fs.existsSync(resourcesDir)) {
+    if (electronPlatformName === 'darwin') {
+      const { configPath } = writePackagedUpdaterConfig(resourcesDir, {
+        projectRoot: path.resolve(__dirname, '..'),
+      });
+      console.log(`   ✓ Packaged updater config verified: ${configPath}`);
+    }
+
     const resourcesContents = fs.readdirSync(resourcesDir);
     console.log(`   Contents: ${resourcesContents.join(', ')}`);
 

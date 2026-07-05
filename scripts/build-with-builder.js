@@ -15,6 +15,7 @@ const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { assertPackagedUpdaterConfig } = require('./packagedUpdaterConfig');
 
 // DMG retry logic for macOS: detects DMG creation failures by checking artifacts
 // (.app exists but .dmg missing) and retries only the DMG step using
@@ -260,6 +261,39 @@ function findAppDir(outDir) {
     }
   }
   return null;
+}
+
+function findMacAppResourcesDirs(outDir) {
+  const resourcesDirs = [];
+  if (!fs.existsSync(outDir)) return resourcesDirs;
+
+  for (const entry of fs.readdirSync(outDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^mac(?:-(?:arm64|x64|universal))?$/i.test(entry.name)) continue;
+    const appOutDir = path.join(outDir, entry.name);
+    for (const candidate of fs.readdirSync(appOutDir, { withFileTypes: true })) {
+      if (!candidate.isDirectory() || !candidate.name.endsWith('.app')) continue;
+      resourcesDirs.push(path.join(appOutDir, candidate.name, 'Contents', 'Resources'));
+    }
+  }
+
+  return resourcesDirs;
+}
+
+function assertPackagedMacUpdaterConfigs(outDir, requireMacApp) {
+  const resourcesDirs = findMacAppResourcesDirs(outDir);
+  if (resourcesDirs.length === 0) {
+    if (requireMacApp) {
+      throw new Error('Missing packaged macOS .app output; cannot verify app-update.yml');
+    }
+    return;
+  }
+
+  for (const resourcesDir of resourcesDirs) {
+    assertPackagedUpdaterConfig(resourcesDir, {
+      projectRoot: path.resolve(__dirname, '..'),
+    });
+  }
+  console.log(`✅ Packaged updater config verified for ${resourcesDirs.length} macOS app bundle(s)`);
 }
 
 // Check if DMG exists in output directory
@@ -723,6 +757,8 @@ try {
   const builderTargetArgs = dirOnly ? '--dir' : [normalizedBuilderArgs, nsisInclude].filter(Boolean).join(' ');
   const builderCommand =
     `bunx electron-builder --config packages/desktop/electron-builder.yml ${builderTargetArgs} ${archFlag} ${publishArg} ${oplReleaseVersionConfigArg}`.trim();
+  const shouldRequirePackagedMacApp =
+    normalizedBuilderArgs.includes('--mac') || normalizedBuilderArgs.includes('--all') || (dirOnly && process.platform === 'darwin');
   try {
     buildWithDmgRetry(builderCommand, targetArch);
   } catch (error) {
@@ -767,6 +803,7 @@ try {
     }
   }
 
+  assertPackagedMacUpdaterConfigs(outDir, shouldRequirePackagedMacApp);
   console.log('✅ Build completed!');
 } catch (error) {
   console.error('❌ Build failed:', error.message);
