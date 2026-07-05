@@ -57,7 +57,6 @@ const DAILY_BACKGROUND_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const RETRY_INTERVAL_MS = 30 * 60 * 1000;
 const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
-const AUTO_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['capability_packages']);
 const USER_APPLY_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['runtime_substrate', 'capability_packages']);
 const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'installation_carrier',
@@ -66,7 +65,7 @@ const CONSERVATIVE_COMPONENT_IDS = new Set<ManagedUpdateComponentId>([
   'codex_surface',
   'workflow_profile',
 ]);
-const AUTO_APPLY_STATES = new Set(['update_available', 'staged', 'needs_reload']);
+const ACTIONABLE_BACKGROUND_STATES = new Set(['update_available', 'staged', 'needs_reload']);
 const DEVELOPER_CHECKOUT_SOURCES = new Set([
   'developer_checkout',
   'developer_mode',
@@ -348,7 +347,7 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   );
   if (!componentId) return null;
   const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
-  const actionableState = AUTO_APPLY_STATES.has(state);
+  const actionableState = ACTIONABLE_BACKGROUND_STATES.has(state);
   const explicitAutoApply = autoApplyInfo(component);
   const safeToApply =
     booleanValue(component.safe_to_apply) || booleanValue(component.apply_allowed) || booleanValue(component.can_apply);
@@ -381,9 +380,6 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
     }
     return `${componentId}: ${needsRestart ? 'restart_required' : 'manual_confirmation_required'}`;
   }
-  if (!AUTO_APPLY_COMPONENT_IDS.has(componentId) && applyRequested) {
-    return `${componentId}: unsupported_component`;
-  }
   if (!applyRequested) {
     return null;
   }
@@ -395,6 +391,12 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   }
   if (manualRequired) {
     return `${componentId}: manual_required`;
+  }
+  if (componentId === 'capability_packages') {
+    return `${componentId}: refresh_only`;
+  }
+  if (componentId !== 'runtime_substrate') {
+    return `${componentId}: unsupported_component`;
   }
   if (explicitAutoApply) {
     if (explicitAutoApply.blockedReasons.length > 0) {
@@ -415,73 +417,18 @@ function skipReasonForComponent(component: Record<string, unknown>): string | nu
   return null;
 }
 
-function isAutoApplyCandidate(component: Record<string, unknown>): boolean {
-  const state = stringValue(component.state ?? component.status ?? component.health_status) ?? 'unknown';
-  const explicitAutoApply = autoApplyInfo(component);
-  if (explicitAutoApply) {
-    return (
-      explicitAutoApply.eligible &&
-      explicitAutoApply.appBackgroundSafe &&
-      Boolean(explicitAutoApply.commandRef) &&
-      !booleanValue(component.needs_restart) &&
-      !booleanValue(component.restart_required) &&
-      !booleanValue(component.manual_required) &&
-      !booleanValue(component.dirty_checkout) &&
-      !booleanValue(component.checkout_dirty) &&
-      !booleanValue(component.working_tree_dirty) &&
-      !booleanValue(nestedRecord(component, 'git')?.dirty) &&
-      !DEVELOPER_CHECKOUT_SOURCES.has(
-        stringValue(component.source ?? component.install_origin ?? component.checkout_source) ?? ''
-      ) &&
-      !stringValue(component.manual_guidance)
-    );
-  }
-  return (
-    AUTO_APPLY_STATES.has(state) &&
-    (booleanValue(component.safe_to_apply) ||
-      booleanValue(component.apply_allowed) ||
-      booleanValue(component.can_apply)) &&
-    !booleanValue(component.needs_restart) &&
-    !booleanValue(component.restart_required) &&
-    !booleanValue(component.manual_required) &&
-    !booleanValue(component.dirty_checkout) &&
-    !booleanValue(component.checkout_dirty) &&
-    !booleanValue(component.working_tree_dirty) &&
-    !booleanValue(nestedRecord(component, 'git')?.dirty) &&
-    !DEVELOPER_CHECKOUT_SOURCES.has(
-      stringValue(component.source ?? component.install_origin ?? component.checkout_source) ?? ''
-    ) &&
-    !stringValue(component.manual_guidance)
-  );
-}
-
-function autoApplyCandidates(result: IOplRuntimeCommandResult): {
-  candidates: string[];
-  skipReasons: string[];
-} {
+function backgroundRefreshSkipReasons(result: IOplRuntimeCommandResult): string[] {
   if (result.ok === false) {
-    return { candidates: [], skipReasons: [] };
+    return [];
   }
-  const candidates: string[] = [];
   const skipReasons: string[] = [];
   for (const component of componentRecords(managedUpdateRoot(result))) {
-    const componentId = canonicalManagedUpdateComponentId(
-      component.component_id ?? component.componentId ?? component.id
-    );
     const skipReason = skipReasonForComponent(component);
     if (skipReason) {
       skipReasons.push(skipReason);
-      continue;
-    }
-    if (componentId && AUTO_APPLY_COMPONENT_IDS.has(componentId) && isAutoApplyCandidate(component)) {
-      candidates.push(componentId);
     }
   }
-  return { candidates, skipReasons };
-}
-
-async function invokeApply(componentId: string): Promise<IOplRuntimeCommandResult> {
-  return ipcBridge.oplRuntime.applyUpdateComponent.invoke({ componentId });
+  return skipReasons;
 }
 
 function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
@@ -498,38 +445,15 @@ function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: s
   };
 }
 
-async function applyBackgroundCandidates(result: IOplRuntimeCommandResult): Promise<IOplRuntimeCommandResult> {
-  const { candidates, skipReasons } = autoApplyCandidates(result);
+function projectBackgroundRefresh(result: IOplRuntimeCommandResult): IOplRuntimeCommandResult {
+  const skipReasons = backgroundRefreshSkipReasons(result);
   if (skipReasons.length > 0) {
     emit({ lastSkipReason: skipReasons.join('; ') });
   } else {
     emit({ lastSkipReason: null });
   }
-  let latestResult = result;
-  for (const componentId of candidates) {
-    const applyResult = await invokeApply(componentId);
-    const actionAt = isoNow();
-    latestResult = applyResult;
-    const reloadGuidance = readReloadGuidance(applyResult) ?? readReloadGuidance(result) ?? snapshot.reloadGuidance;
-    emit({
-      lastAction: managedUpdateAction({
-        kind: 'auto_apply',
-        componentId,
-        status: summarizeResultStatus(applyResult),
-        at: actionAt,
-        receiptRef: readReceiptRef(applyResult, componentId) ?? readReceiptRef(result, componentId),
-        reloadGuidance,
-      }),
-      reloadGuidance,
-    });
-    if (applyResult.ok === false) {
-      return applyResult;
-    }
-  }
-  if (candidates.length === 0) {
-    emit({ reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance });
-  }
-  return latestResult;
+  emit({ reloadGuidance: readReloadGuidance(result) ?? snapshot.reloadGuidance });
+  return result;
 }
 
 export function getManagedUpdateMaintenanceSnapshot(): ManagedUpdateMaintenanceSnapshot {
@@ -578,7 +502,7 @@ export async function executeManagedUpdateRead(
     .then(async (readResult): Promise<IOplRuntimeCommandResult | null> => {
       const result =
         input.background && (operation === 'check' || operation === 'plan')
-          ? await applyBackgroundCandidates(readResult)
+          ? projectBackgroundRefresh(readResult)
           : readResult;
       const lastFailure = resultErrorMessage(result);
       const executionStatus = readExecutionStatus(result);

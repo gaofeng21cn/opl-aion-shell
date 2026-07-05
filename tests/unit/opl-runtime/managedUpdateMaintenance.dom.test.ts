@@ -148,18 +148,13 @@ describe('managed update background maintenance scheduler', () => {
     stop();
   });
 
-  it('auto-applies only clean managed kernel components from background plans', async () => {
+  it('keeps background plans refresh-only and does not apply managed components', async () => {
     await executeManagedUpdateRead('plan', {
       background: true,
       trigger: 'daily_background_maintenance',
     });
 
-    await waitFor(() =>
-      expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_packages',
-      })
-    );
-    expect(bridgeMocks.applyUpdateComponentInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
       componentId: 'codex_surface',
     });
@@ -172,19 +167,14 @@ describe('managed update background maintenance scheduler', () => {
 
     const snapshot = getManagedUpdateMaintenanceSnapshot();
     expect(snapshot.executionStatus).toBe('completed');
-    expect(snapshot.lastAction).toEqual({
-      kind: 'auto_apply',
-      componentId: 'capability_packages',
-      status: 'completed',
-      at: expect.any(String),
-      reloadGuidance: 'Reload after applying capability_packages.',
-    });
+    expect(snapshot.lastAction).toBeNull();
     expect(snapshot.lastSkipReason).toContain('installation_carrier: host_executor_required');
     expect(snapshot.lastSkipReason).toContain('runtime_substrate: restart_required');
+    expect(snapshot.lastSkipReason).toContain('capability_packages: refresh_only');
     expect(snapshot.lastSkipReason).toContain('codex_surface: manual_confirmation_required');
     expect(snapshot.lastSkipReason).not.toContain('workflow_profile: manual_confirmation_required');
-    expect(snapshot.reloadGuidance).toBe('Reload after applying capability_packages.');
-    expect(snapshot.result?.surface).toBe('update_apply');
+    expect(snapshot.reloadGuidance).toBe('Reload visible OPL capabilities after background maintenance.');
+    expect(snapshot.result?.surface).toBe('update_plan');
   });
 
   it('allows Settings apply for runtime substrate and capability packages only', async () => {
