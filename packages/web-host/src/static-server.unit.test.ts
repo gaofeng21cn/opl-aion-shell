@@ -477,6 +477,36 @@ describe('static-server', () => {
     expect(appStateSpec.timeoutMs).toBeUndefined();
   });
 
+  it('/api/opl-runtime/* prefers the installed App-managed runtime/current before developer PATH shims', () => {
+    const runtimeHome = path.join(staticDir, 'home', 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const originalHome = process.env.HOME;
+    const originalPath = process.env.PATH;
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    process.env.HOME = path.join(staticDir, 'home');
+    process.env.PATH = '/opt/homebrew/bin:/usr/bin:/bin';
+
+    try {
+      expect(__oplRuntimeProxyTest.resolveDefaultFullRuntimeHome(process.env.HOME)).toBe(runtimeHome);
+      const env = __oplRuntimeProxyTest.buildOplEnv({
+        dataDir: path.join(staticDir, 'data'),
+        projectsDir: path.join(staticDir, 'projects'),
+        resourcesPath: path.join(staticDir, 'resources'),
+      });
+      expect(env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
+      expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
+        path.join(runtimeHome, 'bin'),
+        path.join(runtimeHome, 'node', 'bin'),
+        path.join(runtimeHome, 'uv', 'bin'),
+      ]);
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.PATH = originalPath;
+    }
+  });
+
   it('/api/opl-runtime/* reruns bootstrap when an existing OPL checkout has missing dependencies', async () => {
     const backend = await startMockBackend((_req, res) => {
       res.writeHead(500, { 'content-type': 'application/json' });

@@ -261,12 +261,19 @@ function normalizePathEntries(entries: Array<string | undefined | null>): string
   return normalized.join(path.delimiter);
 }
 
+function resolveDefaultFullRuntimeHome(homeDir: string): string | null {
+  const detected = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+  return pathExistsFile(path.join(detected, 'bin', 'opl')) ? detected : null;
+}
+
 function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   const dataDir = path.resolve(opts.dataDir);
   const projectsDir = path.resolve(opts.projectsDir ?? process.env.OPL_WORKSPACE_ROOT ?? '/projects');
   const imageManifestPath = opts.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || '';
   const imageSeedDir = opts.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || '';
   const inheritUserOplEnvironment = opts.inheritUserOplEnvironment === true;
+  const fullRuntimeHome =
+    process.env.OPL_FULL_RUNTIME_HOME?.trim() || resolveDefaultFullRuntimeHome(process.env.HOME?.trim() || os.homedir());
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
@@ -287,11 +294,32 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
     OPL_PROJECTS_DIR: projectsDir,
     ...(imageManifestPath ? { OPL_IMAGE_MANIFEST_PATH: path.resolve(imageManifestPath) } : {}),
     ...(imageSeedDir ? { OPL_IMAGE_SEED_DIR: path.resolve(imageSeedDir) } : {}),
+    ...(fullRuntimeHome
+      ? {
+          OPL_FULL_RUNTIME_HOME: fullRuntimeHome,
+          OPL_PACKAGED_SKILLS_ROOT: process.env.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(fullRuntimeHome, 'skills'),
+          OPL_CODEX_BIN: process.env.OPL_CODEX_BIN?.trim() || path.join(fullRuntimeHome, 'bin', 'codex'),
+          OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
+          OPL_MODULE_PATH_MEDAUTOSCIENCE:
+            process.env.OPL_MODULE_PATH_MEDAUTOSCIENCE?.trim() || path.join(fullRuntimeHome, 'modules', 'mas'),
+          OPL_MODULE_PATH_MEDAUTOGRANT:
+            process.env.OPL_MODULE_PATH_MEDAUTOGRANT?.trim() || path.join(fullRuntimeHome, 'modules', 'mag'),
+          OPL_MODULE_PATH_REDCUBE:
+            process.env.OPL_MODULE_PATH_REDCUBE?.trim() || path.join(fullRuntimeHome, 'modules', 'rca'),
+          OPL_MODULE_PATH_OPLMETAAGENT:
+            process.env.OPL_MODULE_PATH_OPLMETAAGENT?.trim() || path.join(fullRuntimeHome, 'modules', 'meta-agent'),
+          OPL_MODULE_PATH_OPLBOOKFORGE:
+            process.env.OPL_MODULE_PATH_OPLBOOKFORGE?.trim() || path.join(fullRuntimeHome, 'modules', 'bookforge'),
+        }
+      : {}),
     NPM_CONFIG_PRODUCTION: 'false',
     npm_config_production: 'false',
     NPM_CONFIG_INCLUDE: 'dev',
     npm_config_include: 'dev',
     PATH: normalizePathEntries([
+      fullRuntimeHome ? path.join(fullRuntimeHome, 'bin') : null,
+      fullRuntimeHome ? path.join(fullRuntimeHome, 'node', 'bin') : null,
+      fullRuntimeHome ? path.join(fullRuntimeHome, 'uv', 'bin') : null,
       path.join(dataDir, '.opl', 'one-person-lab', 'bin'),
       path.join(dataDir, '.npm-global', 'bin'),
       path.join(dataDir, '.local', 'bin'),
@@ -572,5 +600,6 @@ export const __oplRuntimeProxyTest = {
   buildOplEnv,
   MAINTENANCE_TIMEOUT_MS,
   normalizeOplRuntimeProxyOptions,
+  resolveDefaultFullRuntimeHome,
   resolveOplInstaller,
 };

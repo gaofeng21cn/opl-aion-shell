@@ -409,6 +409,33 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
+  it('prefers the installed App-managed runtime/current when no explicit full runtime env is set', () => {
+    const homeDir = makeTempRoot('opl-detected-runtime-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'node', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(runtimeHome, 'uv', 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(runtimeHome, 'node', 'bin', 'node'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/opt/homebrew/bin:/usr/bin:/bin',
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(__oplRuntimeBridgeTest.resolveDefaultFullRuntimeHome({ HOME: homeDir })).toBe(runtimeHome);
+    expect(env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
+    expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
+      path.join(runtimeHome, 'bin'),
+      path.join(runtimeHome, 'node', 'bin'),
+      path.join(runtimeHome, 'uv', 'bin'),
+    ]);
+  });
+
   it('resolves managed update commands to an OPL CLI that supports the update kernel instead of Codex passthrough wrappers', () => {
     const homeDir = makeTempRoot('opl-update-bridge-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
@@ -551,7 +578,7 @@ describe('OPL runtime bridge command whitelist', () => {
 
     expect(command.args).toEqual([
       '--experimental-strip-types',
-      path.join(fs.realpathSync(linkedRoot), 'src', 'entrypoints', 'cli.ts'),
+      path.join(linkedRoot, 'src', 'entrypoints', 'cli.ts'),
       'system',
       'initialize',
       '--json',

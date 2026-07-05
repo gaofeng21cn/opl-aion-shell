@@ -578,6 +578,17 @@ function resolveSelectedWorkspaceRoot(env: NodeJS.ProcessEnv): string {
   return resolveHomeDir(env);
 }
 
+function resolveDefaultFullRuntimeHome(baseEnv: NodeJS.ProcessEnv): string | null {
+  const configured = baseEnv.OPL_FULL_RUNTIME_HOME?.trim();
+  if (configured) {
+    return configured;
+  }
+
+  const homeDir = resolveHomeDir(baseEnv);
+  const detected = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+  return pathExistsFile(path.join(detected, 'bin', 'opl')) ? detected : null;
+}
+
 function resolveManagedNodeBin(input: BuildStandardBootstrapEnvInput): string | null {
   const platform = input.platform ?? process.platform;
   if (platform !== 'darwin') {
@@ -602,7 +613,7 @@ function hasHealthyOplShim(binDir: string): boolean {
   try {
     const realPath = fs.realpathSync(shimPath);
     const packageRoot = path.resolve(path.dirname(realPath), '..');
-    return Boolean(resolveOplCliEntrypoint(packageRoot));
+    return hasOplCliEntrypoint(packageRoot);
   } catch {
     return false;
   }
@@ -841,7 +852,7 @@ function buildStandardBootstrapEnv(input: BuildStandardBootstrapEnvInput = {}): 
 }
 
 function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv | null {
-  const runtimeHome = baseEnv.OPL_FULL_RUNTIME_HOME?.trim();
+  const runtimeHome = resolveDefaultFullRuntimeHome(baseEnv);
   if (!runtimeHome) {
     return null;
   }
@@ -1222,6 +1233,7 @@ export const __oplRuntimeBridgeTest = {
   buildStartupMaintenanceCommand,
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
+  resolveDefaultFullRuntimeHome,
   commandFailureResult,
   developerModePrefersLocalCheckout,
   readInitializeCompletePayload,
