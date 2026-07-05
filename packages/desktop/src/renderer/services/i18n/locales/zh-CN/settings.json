@@ -1674,10 +1674,12 @@
   },
   "capabilitiesPage": {
     "title": "智能体与能力",
-    "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
+    "description": "先用目录式列表管理能力包；技能和工具保留为支撑详情。",
     "status": {
       "ready": "已就绪",
       "update": "可更新",
+      "sync": "需同步",
+      "source": "开发源",
       "attention": "需关注",
       "repair": "需修复",
       "missing": "缺失"
@@ -1798,7 +1800,7 @@
     },
     "packageManager": {
       "title": "智能体包",
-      "description": "刷新注册表、安装 manifest，并把首页快捷入口保存为用户偏好。包生命周期变更仍走 App action 路由。",
+      "description": "刷新注册表、安装 manifest，并在同一份包目录里管理首页快捷入口。包生命周期变更仍走 App action 路由。",
       "catalogTitle": "包目录",
       "catalogDescription": "在一份紧凑列表里统一管理安装状态和首页显示；只有在需要看细节或修复上下文时才展开。",
       "refreshRegistry": "刷新注册表",

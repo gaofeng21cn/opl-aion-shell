@@ -12,7 +12,7 @@ import {
 import type { OplAppStateRecord } from '@/common/types/opl/appState';
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
 
-export type CapabilityStatus = 'ready' | 'update' | 'attention' | 'repair' | 'missing';
+export type CapabilityStatus = 'ready' | 'update' | 'sync' | 'source' | 'attention' | 'repair' | 'missing';
 
 export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' | 'unknown';
 
@@ -74,6 +74,7 @@ export type ExtraCapabilityPurposeInput = Omit<
 
 type RuntimeModuleItem = OplAppStateRecord;
 type RuntimeTaskItem = OplAppStateRecord;
+type RuntimePackageStateItem = OplAppStateRecord;
 
 export type CapabilityRefViewModel = {
   id: string;
@@ -156,6 +157,25 @@ function capabilityTaskRecords(appState: OplAppStateRecord): RuntimeTaskItem[] {
     .map(([id, task]) => Object.assign({}, oplRecord(task), { task_id: id }));
 }
 
+function packageStateId(packageState: RuntimePackageStateItem): string {
+  return normalizeCapabilityModuleId(
+    firstString(packageState.package_id, packageState.id, packageState.module_id, packageState.name) ?? ''
+  );
+}
+
+function packageStateRecords(value: unknown): RuntimePackageStateItem[] {
+  if (Array.isArray(value)) return oplRecordList(value);
+  const record = oplRecord(value);
+  if (Object.keys(record).length === 0) return [];
+  const directId = firstString(record.package_id, record.id, record.module_id, record.name);
+  if (directId) return [record];
+  return Object.entries(record)
+    .filter(([key, entry]) => key !== 'home_shortcut_preferences' && Object.keys(oplRecord(entry)).length > 0)
+    .map(([key, entry]) =>
+      Object.assign({}, oplRecord(entry), { package_id: firstString(oplRecord(entry).package_id, key) ?? key })
+    );
+}
+
 function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
   if (!module) return 'not_configured';
   return (
@@ -164,6 +184,10 @@ function capabilityModuleStatus(module: RuntimeModuleItem | undefined): string {
     (module.installed === true ? 'ready' : null) ??
     'unknown'
   );
+}
+
+function normalizeStatusToken(value: string | null): string | null {
+  return value ? value.replace(/[^a-z0-9]/gi, '').toLowerCase() : null;
 }
 
 function capabilityTaskId(task: RuntimeTaskItem): string {
@@ -473,66 +497,119 @@ function exportBundleActionFromTask(task: RuntimeTaskItem | undefined): Capabili
   };
 }
 
-function mapCapabilityStatus(module: RuntimeModuleItem | undefined): CapabilityStatus {
-  const status = capabilityModuleStatus(module);
-  const action = oplString(module?.recommended_action);
-  const git = oplRecord(module?.git);
-  if (!module || ['missing', 'not_installed', 'notInstalled', 'not_configured'].includes(status)) return 'missing';
-  if (['update', 'install', 'reinstall'].includes(action ?? '') || ['update_available', 'staged'].includes(status)) {
+function isDeveloperCheckout(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): boolean {
+  const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+  const effectiveSource = normalizeStatusToken(
+    firstString(
+      sourcePolicy.effective_install_update_source,
+      sourcePolicy.source,
+      sourcePolicy.mode,
+      packageState?.checkout_source,
+      module?.checkout_source,
+      packageState?.source,
+      module?.source,
+      packageState?.install_origin,
+      module?.install_origin
+    )
+  );
+  const configuredBy = normalizeStatusToken(
+    firstString(sourcePolicy.configured_by, packageState?.configured_by, module?.configured_by)
+  );
+  return effectiveSource === 'gitcheckout' || configuredBy === 'developermode';
+}
+
+function mapCapabilityStatus(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): CapabilityStatus {
+  const status = normalizeStatusToken(
+    firstString(packageState?.status, packageState?.health_status, packageState?.state, capabilityModuleStatus(module))
+  );
+  const action = normalizeStatusToken(firstString(packageState?.recommended_action, module?.recommended_action));
+  const git = firstRecord(packageState?.git, module?.git);
+  const syncStatus = normalizeStatusToken(firstString(git.sync_status, git.status));
+  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
+  const exposureStatus = normalizeStatusToken(
+    firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
+  );
+  if (!packageState && !module) return 'missing';
+  if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
+  if (
+    ['update', 'install', 'reinstall'].includes(action ?? '') ||
+    ['updateavailable', 'staged'].includes(status ?? '')
+  ) {
     return 'update';
   }
   if (
-    status === 'dirty' &&
-    module.installed === true &&
-    (git.dirty === true ||
-      ['behind', 'diverged', 'ahead'].includes(firstString(git.sync_status, git.status) ?? ''))
+    isDeveloperCheckout(packageState, module) &&
+    (status === 'dirty' || git.dirty === true || ['behind', 'diverged', 'ahead'].includes(syncStatus ?? ''))
   ) {
+    return 'source';
+  }
+  if (
+    ['needssync', 'stale', 'syncrequired'].includes(exposureStatus ?? '') &&
+    !['failed', 'failedwithrepair', 'manualrequired', 'skippedmanualrequired', 'degraded', 'blocking'].includes(
+      status ?? ''
+    )
+  ) {
+    return 'sync';
+  }
+  if (status === 'dirty' || ['unknown', 'attentionrequired'].includes(status ?? '')) {
     return 'attention';
   }
   if (
-    [
-      'dirty',
-      'manual_required',
-      'skipped_manual_required',
-      'failed',
-      'failed_with_repair',
-      'degraded',
-      'blocking',
-      'attention_required',
-      'unknown',
-    ].includes(status)
+    ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
+      status ?? ''
+    )
   ) {
     return 'repair';
   }
-  if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(status)) return 'ready';
-  return 'repair';
+  if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(status ?? '')) return 'ready';
+  return 'attention';
 }
 
 function capabilityCodexVisibility(
+  packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined,
   status: CapabilityStatus
 ): CapabilityCodexVisibility {
-  if (!module) return 'notVisible';
-  const exposure = oplRecord(module.capability_exposure);
+  if (!packageState && !module) return 'notVisible';
+  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
   const codexVisible =
-    module.codex_visible ??
-    module.visible_to_codex ??
-    module.exposed_to_codex ??
+    packageState?.codex_visible ??
+    packageState?.visible_to_codex ??
+    packageState?.exposed_to_codex ??
+    module?.codex_visible ??
+    module?.visible_to_codex ??
+    module?.exposed_to_codex ??
     exposure.codex_visible ??
     exposure.visible_to_codex ??
     exposure.exposed;
-  const exposureStatus = oplString(exposure.status) ?? oplString(module.exposure_status);
+  const exposureStatus = normalizeStatusToken(
+    firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
+  );
   if (codexVisible === true || exposureStatus === 'visible' || exposureStatus === 'ready') return 'visible';
-  if (status === 'ready') return 'visible';
-  if (status === 'update' || exposureStatus === 'stale' || exposureStatus === 'needs_sync') return 'needsSync';
+  if (status === 'ready' || status === 'source') return 'visible';
+  if (status === 'update' || status === 'sync' || exposureStatus === 'stale' || exposureStatus === 'needssync') {
+    return 'needsSync';
+  }
   if (status === 'missing') return 'notVisible';
   return 'unknown';
 }
 
-function capabilityVersion(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const git = oplRecord(module.git);
+function capabilityVersion(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const git = firstRecord(packageState?.git, module?.git);
   return (
+    oplString(packageState?.version) ??
+    oplString(packageState?.package_version) ??
+    oplString(packageState?.installed_version) ??
     oplString(module.version) ??
     oplString(module.package_version) ??
     oplString(module.installed_version) ??
@@ -540,10 +617,16 @@ function capabilityVersion(module: RuntimeModuleItem | undefined): string | null
   );
 }
 
-function capabilitySource(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const sourcePolicy = oplRecord(module.source_policy);
+function capabilitySource(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
   return (
+    oplString(packageState?.source) ??
+    oplString(packageState?.install_origin) ??
+    oplString(packageState?.checkout_source) ??
     oplString(module.source) ??
     oplString(module.install_origin) ??
     oplString(module.checkout_source) ??
@@ -552,10 +635,16 @@ function capabilitySource(module: RuntimeModuleItem | undefined): string | null 
   );
 }
 
-function capabilityLastSync(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const exposure = oplRecord(module.capability_exposure);
+function capabilityLastSync(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
   return (
+    oplString(packageState?.last_sync_at) ??
+    oplString(packageState?.synced_at) ??
+    oplString(packageState?.updated_at) ??
     oplString(module.last_sync_at) ??
     oplString(module.synced_at) ??
     oplString(module.updated_at) ??
@@ -564,11 +653,17 @@ function capabilityLastSync(module: RuntimeModuleItem | undefined): string | nul
   );
 }
 
-function capabilityFailureReason(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const error = oplRecord(module.error);
-  const exposure = oplRecord(module.capability_exposure);
+function capabilityFailureReason(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const error = firstRecord(packageState?.error, module?.error);
+  const exposure = firstRecord(packageState?.capability_exposure, module?.capability_exposure);
   return (
+    oplString(packageState?.failure_reason) ??
+    oplString(packageState?.last_failure) ??
+    oplString(packageState?.reason) ??
     oplString(module.failure_reason) ??
     oplString(module.last_failure) ??
     oplString(module.reason) ??
@@ -578,17 +673,33 @@ function capabilityFailureReason(module: RuntimeModuleItem | undefined): string 
   );
 }
 
-function capabilitySourceKind(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const sourcePolicy = oplRecord(module.source_policy);
-  return firstString(module.source_kind, module.source_type, sourcePolicy.kind, sourcePolicy.source, sourcePolicy.mode);
+function capabilitySourceKind(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+  return firstString(
+    packageState?.source_kind,
+    packageState?.source_type,
+    module?.source_kind,
+    module?.source_type,
+    sourcePolicy.kind,
+    sourcePolicy.source,
+    sourcePolicy.mode
+  );
 }
 
-function capabilityPackageLockRef(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const packageLock = oplRecord(module.package_lock);
-  const lockReceipt = oplRecord(module.lock_receipt);
+function capabilityPackageLockRef(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const packageLock = firstRecord(packageState?.package_lock, module?.package_lock);
+  const lockReceipt = firstRecord(packageState?.lock_receipt, module?.lock_receipt);
   return (
+    refValue(packageState?.package_lock_ref) ??
+    refValue(packageState?.lock_ref) ??
     refValue(module.package_lock_ref) ??
     refValue(module.lock_ref) ??
     refValue(packageLock) ??
@@ -598,17 +709,24 @@ function capabilityPackageLockRef(module: RuntimeModuleItem | undefined): string
 }
 
 function capabilityActionReceiptRef(
+  packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined,
   task: RuntimeTaskItem | undefined
 ): string | null {
+  const packageReceipt = oplRecord(packageState?.action_receipt);
   const moduleReceipt = oplRecord(module?.action_receipt);
   const taskReceipt = oplRecord(task?.action_receipt);
   return (
+    refValue(packageState?.action_receipt_ref) ??
     refValue(module?.action_receipt_ref) ??
     refValue(task?.action_receipt_ref) ??
+    refValue(packageReceipt) ??
     refValue(moduleReceipt) ??
     refValue(taskReceipt) ??
     firstString(
+      packageReceipt.receipt_id,
+      packageReceipt.latest_receipt_ref,
+      packageReceipt.execute_receipt_ref,
       moduleReceipt.receipt_id,
       moduleReceipt.latest_receipt_ref,
       moduleReceipt.execute_receipt_ref,
@@ -619,10 +737,15 @@ function capabilityActionReceiptRef(
   );
 }
 
-function capabilityRollbackRef(module: RuntimeModuleItem | undefined): string | null {
-  if (!module) return null;
-  const rollback = oplRecord(module.rollback);
+function capabilityRollbackRef(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const rollback = firstRecord(packageState?.rollback, module?.rollback);
   return (
+    refValue(packageState?.rollback_ref) ??
+    refValue(packageState?.rollback_receipt_ref) ??
     refValue(module.rollback_ref) ??
     refValue(module.rollback_receipt_ref) ??
     refValue(rollback) ??
@@ -634,12 +757,16 @@ function nullableBool(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
-function capabilityPhysicalSurface(module: RuntimeModuleItem | undefined): CapabilityPhysicalSurfaceViewModel | null {
-  if (!module) return null;
-  const packageLock = oplRecord(module.package_lock);
-  const actionReceipt = oplRecord(module.action_receipt);
+function capabilityPhysicalSurface(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): CapabilityPhysicalSurfaceViewModel | null {
+  if (!packageState && !module) return null;
+  const packageLock = firstRecord(packageState?.package_lock, module?.package_lock);
+  const actionReceipt = firstRecord(packageState?.action_receipt, module?.action_receipt);
   const surface = firstRecord(
-    module.physical_surface,
+    packageState?.physical_surface,
+    module?.physical_surface,
     packageLock.physical_surface,
     actionReceipt.physical_surface
   );
@@ -684,10 +811,11 @@ function buildCapabilityPurpose(
     Partial<
       Pick<CapabilityPurposeViewModel, 'packageId' | 'codexVisibleEntry' | 'defaultHomeVisible' | 'userConfigurable'>
     >,
+  packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined,
   task: RuntimeTaskItem | undefined
 ): CapabilityPurposeViewModel {
-  const status = mapCapabilityStatus(module);
+  const status = mapCapabilityStatus(packageState, module);
   const connectorReadinessRefs = capabilityRefsFromTask(task, ['connector_readiness_refs']);
   const resourceContextRefs = capabilityRefsFromTask(task, [
     'resource_source_refs',
@@ -714,17 +842,17 @@ function buildCapabilityPurpose(
     codexVisibleEntry: purpose.codexVisibleEntry ?? null,
     defaultHomeVisible: purpose.defaultHomeVisible ?? null,
     userConfigurable: purpose.userConfigurable ?? null,
-    sourceKind: capabilitySourceKind(module),
-    packageLockRef: capabilityPackageLockRef(module),
-    actionReceiptRef: capabilityActionReceiptRef(module, task),
-    rollbackRef: capabilityRollbackRef(module),
-    physicalSurface: capabilityPhysicalSurface(module),
+    sourceKind: capabilitySourceKind(packageState, module),
+    packageLockRef: capabilityPackageLockRef(packageState, module),
+    actionReceiptRef: capabilityActionReceiptRef(packageState, module, task),
+    rollbackRef: capabilityRollbackRef(packageState, module),
+    physicalSurface: capabilityPhysicalSurface(packageState, module),
     status,
-    codexVisibility: capabilityCodexVisibility(module, status),
-    version: capabilityVersion(module),
-    source: capabilitySource(module),
-    lastSync: capabilityLastSync(module),
-    failureReason: capabilityFailureReason(module),
+    codexVisibility: capabilityCodexVisibility(packageState, module, status),
+    version: capabilityVersion(packageState, module),
+    source: capabilitySource(packageState, module),
+    lastSync: capabilityLastSync(packageState, module),
+    failureReason: capabilityFailureReason(packageState, module),
     workflowCandidateRefs: capabilityCandidateReportsFromTask(task),
     workflowRefs: capabilityRefsFromTask(task, ['workflow_refs']),
     connectorReadinessRefs,
@@ -752,9 +880,34 @@ function agentPackageTags(agentPackage: OplProfessionalAgentPackage): string[] {
 
 export function buildCapabilitiesViewModel(
   appState: OplAppStateRecord,
-  localeKey: string,
+  _localeKey: string,
   extraPurposes: ExtraCapabilityPurposeInput[] = []
 ): CapabilityPurposeViewModel[] {
+  const packageStates = new Map<string, RuntimePackageStateItem>();
+  const canonicalAgentPackages = oplRecord(appState.agent_packages);
+  const packageRoots = [
+    oplRecord(canonicalAgentPackages.directory),
+    oplRecord(canonicalAgentPackages.status_index),
+    oplRecord(appState.opl_agent_packages),
+    oplRecord(appState.opl_agent_package_status),
+  ];
+  for (const root of packageRoots) {
+    for (const candidate of [
+      root.items,
+      root.packages,
+      root.statuses,
+      root.package_status,
+      root.package_states,
+      root,
+    ]) {
+      for (const packageState of packageStateRecords(candidate)) {
+        const id = packageStateId(packageState);
+        if (!id) continue;
+        const existing = packageStates.get(id) ?? {};
+        packageStates.set(id, { ...existing, ...packageState });
+      }
+    }
+  }
   const modulesPayload = oplRecord(appState.modules);
   const modules = new Map<string, RuntimeModuleItem>();
   for (const module of capabilityModuleRecords(modulesPayload.items ?? modulesPayload.modules ?? modulesPayload)) {
@@ -768,15 +921,15 @@ export function buildCapabilitiesViewModel(
   const shortcutsByPackageId = new Map(getOplHomeAgentShortcuts().map((shortcut) => [shortcut.package_id, shortcut]));
   const defaultPurposes = getOplProfessionalAgentPackages().map((agentPackage) => {
     const moduleIds = agentPackageModuleIds(agentPackage);
+    const packageState = packageStates.get(normalizeCapabilityModuleId(agentPackage.package_id));
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     const shortcut = shortcutsByPackageId.get(agentPackage.package_id);
     return buildCapabilityPurpose(
       {
         key: agentPackage.package_id,
-        title: shortcut?.primary_label ?? agentPackage.display_name,
-        description:
-          localeKey === 'zh-CN' && shortcut?.primary_label ? shortcut.primary_label : agentPackage.display_name,
+        title: agentPackage.display_name,
+        description: shortcut?.primary_label ?? agentPackage.short_name ?? agentPackage.display_name,
         tags: agentPackageTags(agentPackage),
         moduleIds,
         packageId: agentPackage.package_id,
@@ -784,12 +937,15 @@ export function buildCapabilitiesViewModel(
         defaultHomeVisible: agentPackage.default_home_visible,
         userConfigurable: shortcut?.user_configurable ?? false,
       },
+      packageState,
       module,
       task
     );
   });
+  const mergedPurposes = new Map(defaultPurposes.map((purpose) => [purpose.packageId ?? purpose.key, purpose]));
   const explicitPurposes = extraPurposes.map((purpose) => {
     const moduleIds = purpose.moduleIds.map(normalizeCapabilityModuleId);
+    const packageState = packageStates.get(normalizeCapabilityModuleId(purpose.key));
     const module = moduleIds.map((id) => modules.get(id)).find(Boolean);
     const task = moduleIds.map((id) => tasks.get(id)).find(Boolean);
     return buildCapabilityPurpose(
@@ -797,9 +953,28 @@ export function buildCapabilitiesViewModel(
         ...purpose,
         moduleIds,
       },
+      packageState,
       module,
       task
     );
   });
-  return [...defaultPurposes, ...explicitPurposes];
+  for (const purpose of explicitPurposes) {
+    const packageKey = purpose.packageId ?? purpose.key;
+    const existingEntry = [...mergedPurposes.values()].find(
+      (entry) =>
+        entry.packageId === packageKey ||
+        entry.key === purpose.key ||
+        entry.moduleIds.some((moduleId) => purpose.moduleIds.includes(moduleId))
+    );
+    if (!existingEntry) {
+      mergedPurposes.set(packageKey, purpose);
+      continue;
+    }
+    mergedPurposes.set(existingEntry.packageId ?? existingEntry.key, {
+      ...existingEntry,
+      tags: [...new Set([...existingEntry.tags, ...purpose.tags])],
+      moduleIds: [...new Set([...existingEntry.moduleIds, ...purpose.moduleIds])],
+    });
+  }
+  return [...mergedPurposes.values()];
 }

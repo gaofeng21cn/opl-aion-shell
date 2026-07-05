@@ -10,6 +10,13 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       user_configurable: true,
       default_visible: true,
     },
+    {
+      shortcut_id: 'automations',
+      package_id: 'oma',
+      primary_label: 'Always-On/Automations',
+      user_configurable: true,
+      default_visible: false,
+    },
   ],
   getOplProfessionalAgentPackages: () => [
     {
@@ -21,11 +28,20 @@ vi.mock('@/common/config/oplProductProfile', () => ({
       required_skill_ids: ['mas'],
       optional_skill_ids: [],
     },
+    {
+      package_id: 'oma',
+      display_name: 'OPL Meta Agent',
+      short_name: 'OMA',
+      codex_visible_entry: 'opl-meta-agent',
+      default_home_visible: false,
+      required_skill_ids: ['opl-meta-agent'],
+      optional_skill_ids: [],
+    },
   ],
 }));
 
 describe('buildCapabilitiesViewModel', () => {
-  it('treats dirty developer checkouts as attention instead of repair', () => {
+  it('treats dirty developer checkouts as source instead of repair', () => {
     const [research] = buildCapabilitiesViewModel(
       {
         modules: {
@@ -34,6 +50,10 @@ describe('buildCapabilitiesViewModel', () => {
               module_id: 'medautoscience',
               installed: true,
               health_status: 'dirty',
+              source_policy: {
+                effective_install_update_source: 'git_checkout',
+                configured_by: 'developer_mode',
+              },
               git: {
                 dirty: true,
                 sync_status: 'behind',
@@ -46,8 +66,65 @@ describe('buildCapabilitiesViewModel', () => {
       'en-US'
     );
 
-    expect(research.status).toBe('attention');
+    expect(research.status).toBe('source');
     expect(research.version).toBe('4d4dead');
+    expect(research.title).toBe('Med Auto Science');
+    expect(research.description).toBe('Research');
+  });
+
+  it('prefers package-native projection when app_state exposes opl_agent_package_status', () => {
+    const [research] = buildCapabilitiesViewModel(
+      {
+        opl_agent_package_status: {
+          items: [
+            {
+              package_id: 'mas',
+              status: 'ready',
+              source: 'package_projection',
+              version: '9.9.9',
+              capability_exposure: { status: 'needs_sync' },
+            },
+          ],
+        },
+        modules: {
+          items: [
+            {
+              module_id: 'medautoscience',
+              status: 'failed_with_repair',
+              source: 'module_projection',
+              version: '1.2.3',
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+
+    expect(research.status).toBe('sync');
+    expect(research.source).toBe('package_projection');
+    expect(research.version).toBe('9.9.9');
+  });
+
+  it('deduplicates extra purpose overlays when the package already exists', () => {
+    const capabilities = buildCapabilitiesViewModel(
+      {
+        modules: {
+          items: [{ module_id: 'oplmetaagent', status: 'ready' }],
+        },
+      },
+      'en-US',
+      [
+        {
+          key: 'oma',
+          title: 'OPL Meta Agent',
+          description: 'Use OMA explicitly.',
+          tags: ['OMA', 'Skills', 'Tools'],
+          moduleIds: ['opl-meta-agent', 'oma'],
+        },
+      ]
+    );
+
+    expect(capabilities.filter((item) => item.key === 'oma')).toHaveLength(1);
   });
 
   it('projects workflow, connector, and export action refs without skill bodies or domain action execution', () => {

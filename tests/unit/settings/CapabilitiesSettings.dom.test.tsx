@@ -47,9 +47,18 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         items: [
           {
             module_id: 'medautoscience',
-            status: 'ready',
+            health_status: 'dirty',
+            source_policy: {
+              effective_install_update_source: 'git_checkout',
+              configured_by: 'developer_mode',
+            },
             version: '1.2.3',
-            source: 'managed_root',
+            source: 'git_checkout',
+            git: {
+              dirty: true,
+              sync_status: 'behind',
+              short_sha: '1a2b3c4',
+            },
             package_lock: {
               ref: 'opl://agent-package-lock/mas/0.1.0a4',
               physical_surface: {
@@ -57,7 +66,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 plugin_id: 'mas',
                 marketplace_id: 'opl-agent-mas-local',
                 codex_plugin_cache_path: '/tmp/codex/plugins/cache/opl-agent-mas-local/mas/0.1.0a4',
-                marketplace_path: '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
+                marketplace_path:
+                  '/tmp/opl/codex-plugin-marketplaces/opl-agent-mas-local/.agents/plugins/marketplace.json',
                 codex_config_path: '/tmp/codex/config.toml',
                 reload_required: true,
               },
@@ -66,8 +76,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           },
           { module_id: 'medautogrant', status: 'update_available', exposure_status: 'needs_sync' },
           { module_id: 'redcube', status: 'failed_with_repair', failure_reason: 'receipt missing' },
-          { module_id: 'oplbookforge', status: 'ready', codex_visible: true },
-          { module_id: 'oplmetaagent', status: 'missing' },
+          { module_id: 'oplbookforge', status: 'ready', codex_visible: true, recommended_action: 'update' },
+          { module_id: 'oplmetaagent', status: 'ready', recommended_action: 'update' },
         ],
       },
       operator: {
@@ -181,6 +191,13 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         user_configurable: true,
         default_visible: true,
       },
+      {
+        shortcut_id: 'automations',
+        package_id: 'oma',
+        primary_label: 'Always-On/Automations',
+        user_configurable: true,
+        default_visible: false,
+      },
     ],
     getOplProfessionalAgentPackages: () => [
       {
@@ -219,6 +236,15 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         required_skill_ids: ['opl-bookforge'],
         optional_skill_ids: [],
       },
+      {
+        package_id: 'oma',
+        display_name: 'OPL Meta Agent',
+        short_name: 'OMA',
+        codex_visible_entry: 'opl-meta-agent',
+        default_home_visible: false,
+        required_skill_ids: ['opl-meta-agent'],
+        optional_skill_ids: [],
+      },
     ],
   };
 });
@@ -232,6 +258,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
         'settings.capabilitiesPage.status.ready': 'Ready',
         'settings.capabilitiesPage.status.update': 'Update available',
+        'settings.capabilitiesPage.status.sync': 'Needs sync',
+        'settings.capabilitiesPage.status.source': 'Developer source',
         'settings.capabilitiesPage.status.attention': 'Needs attention',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
@@ -302,7 +330,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.title': 'Agent packages',
         'settings.capabilitiesPage.packageManager.description': 'Package lifecycle actions use App action routes.',
         'settings.capabilitiesPage.packageManager.catalogTitle': 'Package catalog',
-        'settings.capabilitiesPage.packageManager.catalogDescription': 'Manage install state and Home visibility from one compact list.',
+        'settings.capabilitiesPage.packageManager.catalogDescription':
+          'Manage install state and Home visibility from one compact list.',
         'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
@@ -313,8 +342,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.homeVisibleWithOrder': `Home visible · Order ${options?.order ?? ''}`,
         'settings.capabilitiesPage.packageManager.homeHidden': 'Home hidden',
         'settings.capabilitiesPage.packageManager.noHomeShortcut': 'No Home shortcut',
-        'settings.capabilitiesPage.packageManager.rowMeta':
-          `${options?.sourceLabel ?? ''}: ${options?.sourceValue ?? ''} · ${options?.versionLabel ?? ''}: ${options?.versionValue ?? ''} · ${options?.homeLabel ?? ''}`,
+        'settings.capabilitiesPage.packageManager.rowMeta': `${options?.sourceLabel ?? ''}: ${options?.sourceValue ?? ''} · ${options?.versionLabel ?? ''}: ${options?.versionValue ?? ''} · ${options?.homeLabel ?? ''}`,
         'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
@@ -360,29 +388,33 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Package catalog')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
+    expect(screen.getByText('Med Auto Science')).toBeInTheDocument();
     expect(screen.getByText('Research')).toBeInTheDocument();
     expect(screen.getByText('MAS')).toBeInTheDocument();
+    expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
     expect(screen.getByText('Grant Writing')).toBeInTheDocument();
     expect(screen.getByText('MAG')).toBeInTheDocument();
+    expect(screen.getByText('RedCube AI')).toBeInTheDocument();
     expect(screen.getByText('Presentations')).toBeInTheDocument();
     expect(screen.getByText('RCA')).toBeInTheDocument();
+    expect(screen.getByText('OPL BookForge')).toBeInTheDocument();
     expect(screen.getByText('Writing books')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByText('OMA')).toBeInTheDocument();
-    expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
-    expect(screen.getByText('Update available')).toBeInTheDocument();
+    expect(screen.getByText('Developer source')).toBeInTheDocument();
+    expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
     expect(screen.getByText('Needs repair')).toBeInTheDocument();
-    expect(screen.getByText('Missing')).toBeInTheDocument();
-    expect(screen.getAllByText('Codex visibility: Visible in Codex').length).toBeGreaterThan(0);
-    expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
+    expect(screen.getAllByText('Visible in Codex').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Needs sync before Codex sees the latest version').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText(/Home visible · Order 1/)).toBeInTheDocument();
-    fireEvent.click(within(research).getByText('Research'));
-    expect(within(research).getByText('Review suggestions')).toBeInTheDocument();
-    expect(within(research).getByText('OpenScience artifact graph review')).toBeInTheDocument();
-    const openscienceCandidate = within(research).getByTestId(
+    fireEvent.click(within(research).getByTestId('capability-row-details-mas'));
+    let detailedResearch = screen.getByTestId('capability-purpose-mas');
+    expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('OpenScience artifact graph review')).toBeInTheDocument();
+    const openscienceCandidate = within(detailedResearch).getByTestId(
       'capability-candidate-report-mas-openscience-artifact-graph'
     );
     expect(openscienceCandidate).toHaveTextContent('Review OpenScience artifact graph before enabling any skill.');
@@ -393,68 +425,69 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
+    detailedResearch = screen.getByTestId('capability-purpose-mas');
+    expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument()
+    );
+    detailedResearch = screen.getByTestId('capability-purpose-mas');
+    expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
+    expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('OPL Fabric')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/connect\/pubmed\/readiness/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/connector\/generic\/readiness/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Reusable workflows')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Module runtime repair')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Environment and resource context')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('OPL Gateway')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Environment catalog')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Storage')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Resource sources')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Resource receipts')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Quota / cost')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/gateway\/status\/gflabtoken/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/environment\/python-r-quarto/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/environment-template\/python-r-quarto/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/task-applicability\/mas/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/receipt:\/\/resource\/latest/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/cost-estimate\/mas\/latest/)).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('Reproducibility export bundle action')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText('export_reproducibility_bundle')).toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
+    expect(within(detailedResearch).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
+
     const grant = screen.getByTestId('capability-purpose-mag');
-    fireEvent.click(within(grant).getByText('Grant Writing'));
-    const grantCandidate = within(grant).getByTestId('capability-candidate-report-mag-grant-workflow');
+    fireEvent.click(within(grant).getByTestId('capability-row-details-mag'));
+    const grantCandidate = within(screen.getByTestId('capability-purpose-mag')).getByTestId(
+      'capability-candidate-report-mag-grant-workflow'
+    );
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
     expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
     expect(grantCandidate).toHaveTextContent('Needs review');
 
-    await waitFor(() => expect(within(research).getByText(/Installed Codex surface:/)).toBeInTheDocument());
-    expect(within(research).getByText('materialized')).toBeInTheDocument();
-    expect(within(research).getByText(/Codex reload required:/)).toBeInTheDocument();
-    expect(within(research).getAllByText('Yes').length).toBeGreaterThan(0);
-    expect(within(research).getByText('opl-agent-mas-local')).toBeInTheDocument();
-    expect(within(research).getByText('/tmp/codex/config.toml')).toBeInTheDocument();
-    expect(within(research).getByText('1.2.3')).toBeInTheDocument();
-    expect(within(research).getByText('managed_root')).toBeInTheDocument();
-    expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
-    expect(within(research).getByText('Connector readiness')).toBeInTheDocument();
-    expect(within(research).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
-    expect(within(research).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
-    expect(within(research).getByText('OPL Connect')).toBeInTheDocument();
-    expect(within(research).getByText('OPL Fabric')).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/connect\/pubmed\/readiness/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/connector\/generic\/readiness/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
-    expect(within(research).getByText('Reusable workflows')).toBeInTheDocument();
-    expect(within(research).getByText('Module runtime repair')).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
-    expect(within(research).getByText('Environment and resource context')).toBeInTheDocument();
-    expect(within(research).getByText('OPL Gateway')).toBeInTheDocument();
-    expect(within(research).getByText('Environment catalog')).toBeInTheDocument();
-    expect(within(research).getByText('Storage')).toBeInTheDocument();
-    expect(within(research).getByText('Resource sources')).toBeInTheDocument();
-    expect(within(research).getByText('Resource receipts')).toBeInTheDocument();
-    expect(within(research).getByText('Quota / cost')).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/gateway\/status\/gflabtoken/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/environment\/python-r-quarto/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/environment-template\/python-r-quarto/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/task-applicability\/mas/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)).toBeInTheDocument();
-    expect(within(research).getByText(/receipt:\/\/resource\/latest/)).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/cost-estimate\/mas\/latest/)).toBeInTheDocument();
-    expect(within(research).getByText('Reproducibility export bundle action')).toBeInTheDocument();
-    expect(within(research).getByText('export_reproducibility_bundle')).toBeInTheDocument();
-    expect(within(research).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
-    expect(within(research).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
-
     const presentations = screen.getByTestId('capability-purpose-rca');
-    fireEvent.click(within(presentations).getByText('Presentations'));
-    expect(within(presentations).getByText('receipt missing')).toBeInTheDocument();
+    fireEvent.click(within(presentations).getByTestId('capability-row-details-rca'));
+    expect(within(screen.getByTestId('capability-purpose-rca')).getAllByText('receipt missing').length).toBeGreaterThan(0);
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
     expect(screen.getAllByText('Skills').length).toBeGreaterThan(0);
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
+    expect(screen.getAllByText('OPL Meta Agent')).toHaveLength(1);
 
     const externalTools = screen.getByTestId('capability-entry-external-tools');
     fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
 
-    fireEvent.click(within(research).getByRole('button', { name: 'Review capability' }));
+    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-purpose-primary-action-mas'));
     expect(onTabChange).toHaveBeenCalledWith('skills');
   });
 
@@ -514,7 +547,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByText('Research'));
+    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-row-details-mas'));
     fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

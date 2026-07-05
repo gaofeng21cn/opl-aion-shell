@@ -1738,6 +1738,8 @@ export type I18nKey =
   | 'settings.capabilitiesPage.status.missing'
   | 'settings.capabilitiesPage.status.ready'
   | 'settings.capabilitiesPage.status.repair'
+  | 'settings.capabilitiesPage.status.source'
+  | 'settings.capabilitiesPage.status.sync'
   | 'settings.capabilitiesPage.status.update'
   | 'settings.capabilitiesPage.title'
   | 'settings.capabilitiesTab.skills'

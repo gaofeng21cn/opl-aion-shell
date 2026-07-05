@@ -1673,10 +1673,12 @@
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
-    "description": "Choose capabilities by work purpose first. Skills and tools remain available as supporting details.",
+    "description": "Manage capability packages from a directory-style list first. Skills and tools remain available as supporting details.",
     "status": {
       "ready": "Ready",
       "update": "Update available",
+      "sync": "Needs sync",
+      "source": "Developer source",
       "attention": "Needs attention",
       "repair": "Needs repair",
       "missing": "Missing"
@@ -1797,7 +1799,7 @@
     },
     "packageManager": {
       "title": "Agent packages",
-      "description": "Refresh the registry, install a manifest, and keep Home shortcuts as user preferences. Package lifecycle mutations stay on App action routes.",
+      "description": "Refresh the registry, install a manifest, and manage Home shortcuts in the same package directory. Package lifecycle mutations stay on App action routes.",
       "catalogTitle": "Package catalog",
       "catalogDescription": "Manage install state and Home visibility from one compact list. Open a row only when you need package details or repair context.",
       "refreshRegistry": "Refresh registry",
