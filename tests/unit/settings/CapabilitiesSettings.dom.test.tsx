@@ -230,7 +230,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
       {
         package_id: 'bookforge',
         display_name: 'OPL BookForge',
-        short_name: 'BookForge',
+        short_name: 'OBF',
         codex_visible_entry: 'opl-bookforge',
         default_home_visible: true,
         required_skill_ids: ['opl-bookforge'],
@@ -399,7 +399,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('RCA')).toBeInTheDocument();
     expect(screen.getByText('OPL BookForge')).toBeInTheDocument();
     expect(screen.getByText('Writing books')).toBeInTheDocument();
-    expect(screen.getByText('BookForge')).toBeInTheDocument();
+    expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByText('OMA')).toBeInTheDocument();
     expect(screen.getByText('Developer source')).toBeInTheDocument();

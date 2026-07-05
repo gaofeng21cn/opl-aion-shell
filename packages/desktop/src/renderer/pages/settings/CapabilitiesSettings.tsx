@@ -42,6 +42,7 @@ import {
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
   type CapabilityStatus,
+  formatCapabilityDisplayToken,
 } from './capabilitiesProjection';
 
 export type CapabilitiesTab = 'skills' | 'tools';
@@ -597,7 +598,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           {item.title}
                         </Typography.Text>
                         <Typography.Text className='block text-12px text-t-secondary break-words'>
-                          {item.packageId ?? item.key}
+                          {formatCapabilityDisplayToken(item.packageId ?? item.key)}
                         </Typography.Text>
                       </div>
                     </div>

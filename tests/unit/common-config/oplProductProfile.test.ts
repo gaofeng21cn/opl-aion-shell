@@ -281,6 +281,7 @@ describe('OPL generated product profile', () => {
       'RedCube AI',
       'OPL BookForge',
     ]);
+    expect(assistants.map((assistant) => assistant.short_name)).toEqual(['MAS', 'MAG', 'RCA', 'OBF']);
     expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示', '写书']);
     expect(OPL_PRODUCT_PROFILE.gui.home.home_purpose_entries.map((entry) => entry.id)).toEqual([
       'research',

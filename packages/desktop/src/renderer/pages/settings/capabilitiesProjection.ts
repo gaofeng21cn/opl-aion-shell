@@ -125,8 +125,27 @@ const ASSISTANT_MODULE_ALIASES: Record<string, string[]> = {
   oma: ['oplmetaagent', 'opl-meta-agent'],
 };
 
+const DISPLAY_TOKEN_LABELS: Record<string, string> = {
+  mas: 'MAS',
+  mag: 'MAG',
+  rca: 'RCA',
+  bookforge: 'OBF',
+  oma: 'OMA',
+  oplbookforge: 'OBF',
+  oplmetaagent: 'OMA',
+};
+
 function normalizeCapabilityModuleId(value: string): string {
   return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+export function formatCapabilityDisplayToken(value: string | null | undefined): string {
+  if (!value) return '';
+  const normalized = normalizeCapabilityModuleId(value);
+  const mapped = DISPLAY_TOKEN_LABELS[normalized];
+  if (mapped) return mapped;
+  if (/^[a-z0-9-]+$/.test(value) && value === value.toLowerCase()) return value.toUpperCase();
+  return value;
 }
 
 function capabilityModuleId(module: RuntimeModuleItem): string {
@@ -875,7 +894,15 @@ function agentPackageModuleIds(agentPackage: OplProfessionalAgentPackage): strin
 }
 
 function agentPackageTags(agentPackage: OplProfessionalAgentPackage): string[] {
-  return [...new Set([agentPackage.short_name, ...agentPackage.required_skill_ids].filter(Boolean))];
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const token of [agentPackage.short_name, ...agentPackage.required_skill_ids].filter(Boolean)) {
+    const formatted = formatCapabilityDisplayToken(token);
+    if (!formatted || seen.has(formatted)) continue;
+    seen.add(formatted);
+    tags.push(formatted);
+  }
+  return tags;
 }
 
 export function buildCapabilitiesViewModel(

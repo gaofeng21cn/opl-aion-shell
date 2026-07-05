@@ -173,7 +173,7 @@
           "id": "book",
           "primary_label": "写书",
           "target_assistant_id": "bookforge",
-          "target_assistant_short_name": "BookForge",
+          "target_assistant_short_name": "OBF",
           "display_policy": "purpose_first",
           "home_entry_policy": "visible_click_to_start"
         }
@@ -225,7 +225,7 @@
           "shortcut_id": "book",
           "package_id": "bookforge",
           "primary_label": "写书",
-          "package_short_name": "BookForge",
+          "package_short_name": "OBF",
           "codex_visible_entry": "opl-bookforge",
           "required_skill_ids": ["opl-bookforge"],
           "source": "opl_app_home",
@@ -490,7 +490,7 @@
       {
         "package_id": "bookforge",
         "display_name": "OPL BookForge",
-        "short_name": "BookForge",
+        "short_name": "OBF",
         "role": "book_authoring_agent",
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
@@ -581,7 +581,7 @@
       {
         "id": "bookforge",
         "display_name": "OPL BookForge",
-        "short_name": "BookForge",
+        "short_name": "OBF",
         "home_purpose_label": "写书",
         "home_entry_display_policy": "purpose_first",
         "role": "book_authoring_agent",
@@ -1607,7 +1607,7 @@
       "must_not_imply": [
         "stable_latest_promotion",
         "App release-ready without promotion decision",
-        "MAS/MAG/RCA/BookForge domain readiness",
+        "MAS/MAG/RCA/OBF domain readiness",
         "OPL family production readiness"
       ]
     }

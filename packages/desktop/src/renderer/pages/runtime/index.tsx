@@ -76,10 +76,6 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(stringValue).filter((item): item is string => Boolean(item)) : [];
 }
 
-function countValue(value: unknown): number {
-  return numberValue(record(value).count) ?? 0;
-}
-
 function pickRecordFields(source: RuntimeSnapshot, keys: string[]): RuntimeSnapshot {
   const result: RuntimeSnapshot = {};
   for (const key of keys) {
@@ -320,22 +316,6 @@ function workbenchDomainLanes(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
   return recordList(record(runtimeWorkbench(drilldown).domain_lane_map).lanes).slice(0, 8);
 }
 
-function workbenchActiveProjectLines(drilldown: RuntimeSnapshot): RuntimeSnapshot[] {
-  const workbench = runtimeWorkbench(drilldown);
-  const activityLines = recordList(record(workbench.activity_center).active_projects);
-  const visualLines = recordList(record(drilldown.visual_ref_groups).active_project_refs);
-  const seen = new Set<string>();
-  return [...activityLines, ...visualLines]
-    .filter((line) => {
-      const key = stringValue(line.task_id) ?? stringValue(line.id) ?? stringValue(line.source_ref);
-      if (!key) return true;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .slice(0, 32);
-}
-
 function currentControlState(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   return record(drilldown.current_control_state);
 }
@@ -456,59 +436,6 @@ function taskFallbackLabel(taskId: string | null, index: number): string {
   return taskId ?? `task-${index + 1}`;
 }
 
-function formatCountLabel(label: string, count: number): string | null {
-  return count > 0 ? `${label}: ${count}` : null;
-}
-
-type RuntimeProjectProgress = {
-  id: string;
-  title: string;
-  domainId: string | null;
-  domainLabel: string;
-  priorityBucket: string | null;
-  stateRaw: string | null;
-  statusRaw: string | null;
-  progressClassRaw: string | null;
-  stateLabel: string | null;
-  statusLabel: string | null;
-  stageLabel: string | null;
-  nextStep: string | null;
-  nextOwner: string | null;
-  lastProgressAt: string | null;
-  studyId: string | null;
-  activeRunId: string | null;
-  progressClassLabel: string | null;
-  progressTone: 'green' | 'orange' | 'blue' | 'red';
-  deliverableCount: number;
-  platformRepairCount: number;
-  blockerCount: number;
-  safeActionCount: number;
-  paperLensCount: number;
-  stageAttemptCount: number;
-  stageAttemptIds: string[];
-  runtimeCloseoutObserved: boolean;
-  runtimeCloseoutRef: string | null;
-  masOwnerConsumptionStatus: string | null;
-  masOwnerConsumptionRef: string | null;
-  masOwnerConsumedStageAttemptId: string | null;
-  masOwnerConsumedCloseoutRef: string | null;
-  masOwnerConsumptionMatchesRuntimeCloseout: boolean | null;
-  refsSummary: RuntimeRefsSummary;
-  needsAttention: boolean;
-};
-
-type RuntimeTaskStatusItem = RuntimeProjectProgress & {
-  running: boolean;
-  currentAttemptState: string | null;
-  providerStatus: string | null;
-  lastHeartbeatAt: string | null;
-  completedAt: string | null;
-  livenessSource: string | null;
-  blockerReason: string | null;
-  stageStartedAt: string | null;
-  usageTelemetryMissing: boolean;
-};
-
 type RuntimeModuleStatusItem = {
   id: string;
   title: string;
@@ -518,28 +445,9 @@ type RuntimeModuleStatusItem = {
   needsAttention: boolean;
 };
 
-type RuntimeRefsSummary = {
-  artifact: string | null;
-  blocker: string | null;
-  reviewReceipt: string | null;
-  actionReceipt: string | null;
-};
-
 type ActionResultSummary = {
   preview: string | null;
   receipt: string | null;
-};
-
-type RuntimeTaskOverview = {
-  runningTaskCount: number;
-  activeProjectCount: number;
-  queuedTaskCount: number;
-  attentionTaskCount: number;
-  latestActivityAt: string | null;
-  tasks: RuntimeTaskStatusItem[];
-  runningTasks: RuntimeTaskStatusItem[];
-  attentionTasks: RuntimeTaskStatusItem[];
-  inactiveTasks: RuntimeTaskStatusItem[];
 };
 
 type RuntimeOverviewTaskItem = {
@@ -610,28 +518,14 @@ const PROJECT_STATE_KEYS: Record<string, string> = {
   attention_required: 'common.runtime.projectStates.needsAttention',
 };
 
-const PROJECT_PROGRESS_CLASS_KEYS: Record<string, string> = {
-  deliverable_progress: 'common.runtime.progressClasses.deliverable_progress',
-  platform_repair: 'common.runtime.progressClasses.platform_repair',
-  mixed: 'common.runtime.progressClasses.mixed',
-  typed_blocker: 'common.runtime.progressClasses.typed_blocker',
-  human_gate: 'common.runtime.progressClasses.human_gate',
-  stop_loss: 'common.runtime.progressClasses.stop_loss',
-};
-
-const ATTENTION_STATES = new Set([
-  'blocked',
-  'blocking',
-  'failed',
-  'error',
+const MODULE_ATTENTION_STATES = new Set([
+  'dirty',
   'missing',
+  'blocked',
+  'failed',
   'attention_needed',
   'attention_required',
 ]);
-const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
-const RUNNING_STATES = new Set(['running', 'in_progress', 'advancing']);
-const QUEUED_STATES = new Set(['queued', 'pending', 'checkpointed']);
-const MODULE_ATTENTION_STATES = new Set(['dirty', 'missing', 'blocked', 'failed', 'attention_needed', 'attention_required']);
 
 function firstStringField(source: RuntimeSnapshot, keys: string[]): string | null {
   for (const key of keys) {
@@ -652,33 +546,6 @@ function firstRefField(source: RuntimeSnapshot, keys: string[]): string | null {
     if (fromList) return fromList;
   }
   return null;
-}
-
-function refsSummaryFromTask(task: RuntimeSnapshot | undefined): RuntimeRefsSummary {
-  const source = task ?? {};
-  return {
-    artifact:
-      firstStringField(source, ['artifact_provenance_summary', 'artifact_summary', 'artifact_or_blocker_summary']) ??
-      firstRefField(source, ['artifact_or_blocker_ref', 'artifact_or_blocker_refs', 'artifact_ref', 'artifact_refs']) ??
-      null,
-    blocker:
-      firstStringField(source, ['blocker_summary', 'typed_blocker_summary']) ??
-      firstRefField(source, ['blocker_ref', 'blocker_refs', 'typed_blocker_ref', 'typed_blocker_refs']) ??
-      null,
-    reviewReceipt:
-      firstStringField(source, ['reviewer_receipt_summary', 'review_receipt_summary', 'receipt_summary']) ??
-      firstRefField(source, [
-        'review_receipt_ref',
-        'review_receipt_refs',
-        'reviewer_receipt_ref',
-        'reviewer_receipt_refs',
-      ]) ??
-      null,
-    actionReceipt:
-      firstStringField(source, ['action_receipt_summary']) ??
-      firstRefField(source, ['action_receipt_ref', 'action_receipt_refs']) ??
-      null,
-  };
 }
 
 function actionResultSummary(result: RuntimeSnapshot | null): ActionResultSummary {
@@ -708,234 +575,6 @@ function translateMappedValue(
   return mapping[text] ? t(mapping[text]) : text;
 }
 
-function progressTone(progressClass: string | null, deliverableCount: number, platformRepairCount: number) {
-  if (progressClass === 'stop_loss') return 'red';
-  if (progressClass && ATTENTION_PROGRESS_CLASSES.has(progressClass)) return 'orange';
-  if (deliverableCount > 0) return 'green';
-  if (platformRepairCount > 0 || progressClass === 'platform_repair') return 'orange';
-  return 'blue';
-}
-
-function isUserProjectProgressTask(task: RuntimeSnapshot): boolean {
-  const activeStage = stringValue(task.active_stage_id);
-  const state = stringValue(task.state);
-  if (activeStage === 'module_runtime') return false;
-  if (state === 'dirty' || state === 'missing') return false;
-  return Boolean(
-    stringValue(task.progress_delta_classification) ||
-    task.deliverable_progress_delta !== undefined ||
-    task.platform_repair_delta !== undefined ||
-    stringValue(task.next_visible_step) ||
-    stringValue(task.next_owner)
-  );
-}
-
-function activeProjectLineByTaskId(lines: RuntimeSnapshot[]): Map<string, RuntimeSnapshot> {
-  const result = new Map<string, RuntimeSnapshot>();
-  for (const line of lines) {
-    const taskId = stringValue(line.task_id);
-    if (taskId && !result.has(taskId)) {
-      result.set(taskId, line);
-    }
-  }
-  return result;
-}
-
-function taskFromActiveProjectLine(
-  line: RuntimeSnapshot,
-  index: number,
-  t: (key: string, options?: Record<string, string | number>) => string,
-  detail?: RuntimeSnapshot
-): RuntimeProjectProgress {
-  const taskId = stringValue(line.task_id) ?? stringValue(detail?.task_id);
-  const title =
-    stringValue(line.title) ??
-    stringValue(detail?.title) ??
-    stringValue(detail?.label) ??
-    taskFallbackLabel(taskId, index);
-  const domainLabel =
-    stringValue(line.domain_label) ??
-    stringValue(detail?.domain_label) ??
-    stringValue(line.domain_id) ??
-    stringValue(detail?.domain_id) ??
-    t('common.runtime.unknownDomain');
-  const state = stringValue(line.state) ?? stringValue(detail?.state);
-  const status = stringValue(line.status) ?? stringValue(detail?.status);
-  const statusLabel = stringValue(line.status_label) ?? stringValue(detail?.status_label);
-  const progressClass = stringValue(detail?.progress_delta_classification);
-  const deliverableCount = countValue(detail?.deliverable_progress_delta);
-  const platformRepairCount = countValue(detail?.platform_repair_delta);
-  const blockerCount = numberValue(detail?.blocker_ref_count) ?? numberValue(line.blocker_ref_count) ?? 0;
-  const safeActionCount = numberValue(detail?.safe_action_ref_count) ?? numberValue(line.safe_action_ref_count) ?? 0;
-  const paperLensCount =
-    numberValue(detail?.paper_route_lens_ref_count) ?? numberValue(line.paper_route_lens_ref_count) ?? 0;
-  const stageAttemptIds = stringList(detail?.stage_attempt_ids);
-  const lineStageAttemptIds = stringList(line.stage_attempt_ids);
-  const visibleStageAttemptIds = stageAttemptIds.length > 0 ? stageAttemptIds : lineStageAttemptIds;
-  const stageAttemptCount = visibleStageAttemptIds.length;
-  const needsAttention =
-    blockerCount > 0 ||
-    (state ? ATTENTION_STATES.has(state) : false) ||
-    (status ? ATTENTION_STATES.has(status) : false) ||
-    (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
-
-  return {
-    id: taskId ?? `${title}-${index + 1}`,
-    title,
-    domainId: stringValue(line.domain_id) ?? stringValue(detail?.domain_id),
-    domainLabel,
-    priorityBucket: stringValue(line.priority_bucket) ?? stringValue(detail?.priority_bucket),
-    stateRaw: state,
-    statusRaw: status,
-    progressClassRaw: progressClass,
-    stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
-    statusLabel,
-    stageLabel:
-      stringValue(line.active_stage_label) ??
-      stringValue(detail?.active_stage_label) ??
-      stringValue(line.active_stage_id) ??
-      stringValue(detail?.active_stage_id),
-    nextStep:
-      stringValue(line.next_visible_step) ??
-      stringValue(detail?.next_visible_step) ??
-      stringValue(detail?.next_step) ??
-      stringValue(detail?.required_next_action) ??
-      null,
-    nextOwner: stringValue(detail?.next_owner) ?? stringValue(detail?.owner) ?? null,
-    lastProgressAt: stringValue(detail?.last_progress_at) ?? stringValue(detail?.updated_at) ?? null,
-    studyId: stringValue(line.study_id) ?? stringValue(detail?.study_id),
-    activeRunId: stringValue(line.active_run_id) ?? stringValue(detail?.active_run_id),
-    progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
-    progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
-    deliverableCount,
-    platformRepairCount,
-    blockerCount,
-    safeActionCount,
-    paperLensCount,
-    stageAttemptCount,
-    stageAttemptIds: visibleStageAttemptIds,
-    runtimeCloseoutObserved: line.runtime_closeout_observed === true || detail?.runtime_closeout_observed === true,
-    runtimeCloseoutRef: stringValue(line.runtime_closeout_ref) ?? stringValue(detail?.runtime_closeout_ref),
-    masOwnerConsumptionStatus:
-      stringValue(line.mas_owner_consumption_status) ?? stringValue(detail?.mas_owner_consumption_status),
-    masOwnerConsumptionRef: stringValue(line.mas_owner_consumption_ref) ?? stringValue(detail?.mas_owner_consumption_ref),
-    masOwnerConsumedStageAttemptId:
-      stringValue(line.mas_owner_consumed_stage_attempt_id) ?? stringValue(detail?.mas_owner_consumed_stage_attempt_id),
-    masOwnerConsumedCloseoutRef:
-      stringValue(line.mas_owner_consumed_closeout_ref) ?? stringValue(detail?.mas_owner_consumed_closeout_ref),
-    masOwnerConsumptionMatchesRuntimeCloseout:
-      typeof line.mas_owner_consumption_matches_runtime_closeout === 'boolean'
-        ? line.mas_owner_consumption_matches_runtime_closeout
-        : typeof detail?.mas_owner_consumption_matches_runtime_closeout === 'boolean'
-          ? detail.mas_owner_consumption_matches_runtime_closeout
-          : null,
-    refsSummary: refsSummaryFromTask(detail ?? line),
-    needsAttention,
-  };
-}
-
-function projectProgressItems(
-  tasks: RuntimeSnapshot[],
-  activeProjectLines: RuntimeSnapshot[],
-  t: (key: string, options?: Record<string, string | number>) => string
-): RuntimeProjectProgress[] {
-  const lineByTaskId = activeProjectLineByTaskId(activeProjectLines);
-  const taskById = new Map<string, RuntimeSnapshot>();
-  for (const task of tasks) {
-    const taskId = stringValue(task.task_id);
-    if (taskId && isUserProjectProgressTask(task)) {
-      taskById.set(taskId, task);
-    }
-  }
-
-  const activeLineItems = activeProjectLines.map((line, index) => {
-    const taskId = stringValue(line.task_id);
-    return taskFromActiveProjectLine(line, index, t, taskId ? taskById.get(taskId) : undefined);
-  });
-
-  const activeLineTaskIds = new Set(activeProjectLines.map((line) => stringValue(line.task_id)).filter(Boolean));
-  const drilldownItems = tasks
-    .filter(isUserProjectProgressTask)
-    .flatMap<RuntimeProjectProgress>((task, index): RuntimeProjectProgress[] => {
-      const taskId = stringValue(task.task_id);
-      if (taskId && activeLineTaskIds.has(taskId)) return [];
-      const title = stringValue(task.title) ?? stringValue(task.label) ?? taskFallbackLabel(taskId, index);
-      const domainLabel =
-        stringValue(task.domain_label) ?? stringValue(task.domain_id) ?? t('common.runtime.unknownDomain');
-      const state = stringValue(task.state);
-      const status = stringValue(task.status) ?? stringValue(lineByTaskId.get(taskId ?? '')?.status);
-      const statusLabel =
-        stringValue(task.status_label) ?? stringValue(lineByTaskId.get(taskId ?? '')?.status_label);
-      const progressClass = stringValue(task.progress_delta_classification);
-      const deliverableCount = countValue(task.deliverable_progress_delta);
-      const platformRepairCount = countValue(task.platform_repair_delta);
-      const blockerCount = numberValue(task.blocker_ref_count) ?? 0;
-      const safeActionCount = numberValue(task.safe_action_ref_count) ?? 0;
-      const paperLensCount = numberValue(task.paper_route_lens_ref_count) ?? 0;
-      const stageAttemptIds = stringList(task.stage_attempt_ids);
-      const stageAttemptCount = stageAttemptIds.length;
-      const needsAttention =
-        blockerCount > 0 ||
-        (state ? ATTENTION_STATES.has(state) : false) ||
-        (progressClass ? ATTENTION_PROGRESS_CLASSES.has(progressClass) : false);
-
-      return [
-        {
-          id: taskId ?? `${title}-${index + 1}`,
-          title,
-          domainId: stringValue(task.domain_id),
-          domainLabel,
-          priorityBucket: stringValue(task.priority_bucket),
-          stateRaw: state,
-          statusRaw: status,
-          progressClassRaw: progressClass,
-          stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
-          statusLabel,
-          stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
-          nextStep:
-            stringValue(task.next_visible_step) ??
-            stringValue(task.next_step) ??
-            stringValue(task.required_next_action) ??
-            null,
-          nextOwner: stringValue(task.next_owner) ?? stringValue(task.owner) ?? null,
-          lastProgressAt: stringValue(task.last_progress_at) ?? stringValue(task.updated_at) ?? null,
-          studyId: stringValue(task.study_id),
-          activeRunId: stringValue(task.active_run_id),
-          progressClassLabel: translateMappedValue(progressClass, PROJECT_PROGRESS_CLASS_KEYS, t),
-          progressTone: progressTone(progressClass, deliverableCount, platformRepairCount),
-          deliverableCount,
-          platformRepairCount,
-          blockerCount,
-          safeActionCount,
-          paperLensCount,
-          stageAttemptCount,
-          stageAttemptIds,
-          runtimeCloseoutObserved: task.runtime_closeout_observed === true,
-          runtimeCloseoutRef: stringValue(task.runtime_closeout_ref),
-          masOwnerConsumptionStatus: stringValue(task.mas_owner_consumption_status),
-          masOwnerConsumptionRef: stringValue(task.mas_owner_consumption_ref),
-          masOwnerConsumedStageAttemptId: stringValue(task.mas_owner_consumed_stage_attempt_id),
-          masOwnerConsumedCloseoutRef: stringValue(task.mas_owner_consumed_closeout_ref),
-          masOwnerConsumptionMatchesRuntimeCloseout:
-            typeof task.mas_owner_consumption_matches_runtime_closeout === 'boolean'
-              ? task.mas_owner_consumption_matches_runtime_closeout
-              : null,
-          refsSummary: refsSummaryFromTask(task),
-          needsAttention,
-        },
-      ];
-    });
-
-  return [...activeLineItems, ...drilldownItems];
-}
-
-function taskLooksRunning(project: RuntimeProjectProgress): boolean {
-  return Boolean(
-    (project.statusRaw && RUNNING_STATES.has(project.statusRaw)) ||
-    (project.stateRaw && RUNNING_STATES.has(project.stateRaw))
-  );
-}
-
 function parseModuleStatusItems(
   appState: RuntimeSnapshot,
   t: (key: string, options?: Record<string, string | number>) => string
@@ -950,8 +589,8 @@ function parseModuleStatusItems(
       statusRaw: dirty ? 'attention_needed' : status,
       statusLabel: dirty
         ? t('common.runtime.projectStates.needsAttention')
-        : translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status,
-      detail: dirty ? t('common.runtime.moduleDirty') : oplString(item.version) ?? null,
+        : (translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status),
+      detail: dirty ? t('common.runtime.moduleDirty') : (oplString(item.version) ?? null),
       needsAttention: dirty || (status ? MODULE_ATTENTION_STATES.has(status) : false),
     };
   });
@@ -1018,7 +657,10 @@ function firstControlStateMatch(states: RuntimeSnapshot[]): RuntimeSnapshot | nu
 }
 
 function matchControlState(
-  task: RuntimeProjectProgress,
+  task: {
+    activeRunId: string | null;
+    stageAttemptIds: string[];
+  },
   index: ReturnType<typeof buildControlStateIndex>
 ): RuntimeSnapshot | null {
   const matches: RuntimeSnapshot[] = [];
@@ -1040,15 +682,6 @@ function pickStageStartedAt(state: RuntimeSnapshot | null): string | null {
       'entered_at',
     ]) ?? null
   );
-}
-
-function usageTelemetryMissing(state: RuntimeSnapshot | null): boolean {
-  const stageProgress = record(state?.stage_progress_log);
-  const explicitMissing =
-    numberValue(stageProgress.missing_usage_telemetry_attempt_count) ??
-    numberValue(stageProgress.missing_usage_telemetry_count);
-  if (explicitMissing !== null) return explicitMissing > 0;
-  return true;
 }
 
 function formatElapsedSince(timestamp: string | null, t: (key: string) => string): string | null {
@@ -1121,43 +754,13 @@ function groupSummaryKey(state: RuntimeTaskPrimaryState): string {
 
 function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: RuntimeSnapshot[]): RuntimeSnapshot | null {
   if (states.length === 0) return null;
-  const fallbackProject: RuntimeProjectProgress = {
-    id: task.taskId,
-    title: task.title,
-    domainId: task.domainId ?? null,
-    domainLabel: task.domainLabel ?? task.agentDisplayName ?? '',
-    priorityBucket: null,
-    stateRaw: task.state ?? null,
-    statusRaw: task.status ?? null,
-    progressClassRaw: null,
-    stateLabel: null,
-    statusLabel: task.status ?? null,
-    stageLabel: task.stage ?? null,
-    nextStep: task.nextStep ?? null,
-    nextOwner: task.nextOwner ?? null,
-    lastProgressAt: task.lastProgressAt ?? null,
-    studyId: task.projectId ?? null,
+  return matchControlState(
+    {
     activeRunId: task.activeRunId ?? null,
-    progressClassLabel: null,
-    progressTone: 'blue',
-    deliverableCount: 0,
-    platformRepairCount: 0,
-    blockerCount: task.blockerRefCount,
-    safeActionCount: task.safeActionRefCount,
-    paperLensCount: task.paperRouteLensRefCount,
-    stageAttemptCount: task.stageAttemptIds.length,
     stageAttemptIds: task.stageAttemptIds,
-    runtimeCloseoutObserved: false,
-    runtimeCloseoutRef: null,
-    masOwnerConsumptionStatus: null,
-    masOwnerConsumptionRef: null,
-    masOwnerConsumedStageAttemptId: null,
-    masOwnerConsumedCloseoutRef: null,
-    masOwnerConsumptionMatchesRuntimeCloseout: null,
-    refsSummary: { artifact: null, blocker: task.typedBlockerSummary ?? null, reviewReceipt: null, actionReceipt: null },
-    needsAttention: primaryStateForTask(task) === 'system_attention_required',
-  };
-  return matchControlState(fallbackProject, buildControlStateIndex(states));
+    },
+    buildControlStateIndex(states)
+  );
 }
 
 function runtimeTaskItem(
@@ -1173,17 +776,19 @@ function runtimeTaskItem(
   const completedAt = stringValue(providerRun.completed_at);
   const stageElapsed =
     formatElapsedSeconds(task.elapsedSeconds, t) ?? formatElapsedSince(pickStageStartedAt(controlState), t);
-  const livenessLabel =
-    lastHeartbeatAt
-      ? t('common.runtime.runningProofHeartbeat', { time: lastHeartbeatAt })
-      : task.runningProofRef
-        ? task.runningProofRef
-        : completedAt
-          ? t('common.runtime.runningProofCompleted', {
-              status: stringValue(providerRun.provider_status) ?? stringValue(controlState?.current_attempt_state) ?? t('common.runtime.values.empty'),
-              time: completedAt,
-            })
-          : t('common.runtime.telemetryMissing');
+  const livenessLabel = lastHeartbeatAt
+    ? t('common.runtime.runningProofHeartbeat', { time: lastHeartbeatAt })
+    : task.runningProofRef
+      ? task.runningProofRef
+      : completedAt
+        ? t('common.runtime.runningProofCompleted', {
+            status:
+              stringValue(providerRun.provider_status) ??
+              stringValue(controlState?.current_attempt_state) ??
+              t('common.runtime.values.empty'),
+            time: completedAt,
+          })
+        : t('common.runtime.telemetryMissing');
   const blockerSummary = task.typedBlockerSummary ?? stringValue(controlState?.blocker_reason) ?? null;
   return {
     task,
@@ -1231,8 +836,10 @@ function buildOverviewSections(
     byState.get(item.primaryState)?.push(item);
   });
   const sections = PRIMARY_STATE_ORDER.map((state) => {
-    const stateItems = (byState.get(state) ?? []).toSorted((left, right) =>
-      (right.latestActivityAt ?? '').localeCompare(left.latestActivityAt ?? '') || left.task.title.localeCompare(right.task.title)
+    const stateItems = (byState.get(state) ?? []).toSorted(
+      (left, right) =>
+        (right.latestActivityAt ?? '').localeCompare(left.latestActivityAt ?? '') ||
+        left.task.title.localeCompare(right.task.title)
     );
     return {
       state,
@@ -1258,91 +865,6 @@ function buildOverviewSections(
       owner_decision_required: byState.get('owner_decision_required')?.length ?? 0,
       system_attention_required: byState.get('system_attention_required')?.length ?? 0,
     },
-  };
-}
-
-function taskStatusItems(projects: RuntimeProjectProgress[], controlStates: RuntimeSnapshot[]): RuntimeTaskStatusItem[] {
-  const controlIndex = buildControlStateIndex(controlStates);
-  const projectItems: RuntimeTaskStatusItem[] = projects.map((project) => ({
-    ...project,
-    running: taskLooksRunning(project),
-    currentAttemptState: null as string | null,
-    providerStatus: null as string | null,
-    lastHeartbeatAt: null as string | null,
-    completedAt: null as string | null,
-    livenessSource: null as string | null,
-    blockerReason: null as string | null,
-    stageStartedAt: null as string | null,
-    usageTelemetryMissing: true,
-  }));
-  const enrichedItems = projectItems.map((project) => {
-    const controlState = matchControlState(project, controlIndex);
-    const providerRun = record(controlState?.provider_run);
-    return {
-      ...project,
-      currentAttemptState: stringValue(controlState?.current_attempt_state),
-      providerStatus: stringValue(providerRun.provider_status),
-      lastHeartbeatAt: stringValue(providerRun.last_heartbeat_at),
-      completedAt: stringValue(providerRun.completed_at),
-      livenessSource: stringValue(providerRun.liveness_source),
-      blockerReason: stringValue(controlState?.blocker_reason),
-      stageStartedAt: pickStageStartedAt(controlState),
-      usageTelemetryMissing: usageTelemetryMissing(controlState),
-    };
-  });
-  if (enrichedItems.length > 0) {
-    return enrichedItems.toSorted((left, right) => {
-      if (left.running !== right.running) return left.running ? -1 : 1;
-      if (left.needsAttention !== right.needsAttention) return left.needsAttention ? -1 : 1;
-      return left.title.localeCompare(right.title);
-    });
-  }
-  return [];
-}
-
-function taskLooksQueued(task: RuntimeTaskStatusItem): boolean {
-  return (
-    (task.statusRaw ? QUEUED_STATES.has(task.statusRaw) : false) ||
-    (task.stateRaw ? QUEUED_STATES.has(task.stateRaw) : false) ||
-    (task.priorityBucket !== null && task.priorityBucket === 'waiting') ||
-    task.progressClassRaw === 'human_gate'
-  );
-}
-
-function buildTaskOverview(projects: RuntimeProjectProgress[], controlStates: RuntimeSnapshot[]): RuntimeTaskOverview {
-  const tasks = taskStatusItems(projects, controlStates);
-  const runningTasks = tasks.filter((task) => task.running);
-  const attentionTasks = tasks.filter((task) => !task.running && task.needsAttention);
-  const inactiveTasks = tasks.filter((task) => !task.running && !task.needsAttention);
-  const runningTaskCount = runningTasks.length;
-  const activeProjectCount = projects.length;
-  const queuedTaskCount = tasks.filter(taskLooksQueued).length;
-  const attentionTaskCount = tasks.filter((task) => task.needsAttention).length;
-  const latestActivityAt =
-    tasks
-      .map((task) => task.lastProgressAt)
-      .filter((value): value is string => Boolean(value))
-      .toSorted()
-      .at(-1) ?? null;
-  return {
-    runningTaskCount,
-    activeProjectCount,
-    queuedTaskCount,
-    attentionTaskCount,
-    latestActivityAt,
-    tasks,
-    runningTasks,
-    attentionTasks,
-    inactiveTasks,
-  };
-}
-
-function summarizeProjectProgress(projects: RuntimeProjectProgress[], lanes: RuntimeSnapshot[]) {
-  const maintenanceAttention = lanes.reduce((total, lane) => total + (numberValue(lane.blocked_task_count) ?? 0), 0);
-  return {
-    total: projects.length,
-    attention: projects.filter((project) => project.needsAttention).length,
-    maintenanceAttention,
   };
 }
 
@@ -1494,7 +1016,10 @@ const RuntimePage: React.FC = () => {
   const actions = useMemo(() => collectSafeActions(actionDrilldown ?? {}), [actionDrilldown]);
   const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
   const lanes = useMemo(() => workbenchDomainLanes(userTaskDrilldown ?? {}), [userTaskDrilldown]);
-  const moduleStatusItems = useMemo(() => parseModuleStatusItems(appStateQuery.appState, t), [appStateQuery.appState, t]);
+  const moduleStatusItems = useMemo(
+    () => parseModuleStatusItems(appStateQuery.appState, t),
+    [appStateQuery.appState, t]
+  );
   const controlStates = useMemo(() => currentControlStateRecords(displayDrilldown ?? {}), [displayDrilldown]);
   const maintenanceAttentionCount = useMemo(
     () => lanes.reduce((total, lane) => total + (numberValue(lane.blocked_task_count) ?? 0), 0),
@@ -1516,6 +1041,43 @@ const RuntimePage: React.FC = () => {
     [controlStates, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
   );
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
+  const scopedTaskCount = runtimeModel.taskRunProjectionV2.tasks.filter((task) =>
+    scopeMatchesTask(task, selectedScope)
+  ).length;
+  const healthyModuleCount = moduleStatusItems.filter((item) => !item.needsAttention).length;
+  const attentionModuleCount = moduleStatusItems.length - healthyModuleCount;
+  const metricCards = [
+    {
+      key: 'in_progress',
+      label: t('common.runtime.primaryStates.inProgress'),
+      value: overview.counts.in_progress,
+      color: '#2563eb',
+    },
+    {
+      key: 'automation',
+      label: t('common.runtime.automationStates.running'),
+      value: overview.automationRunningCount,
+      color: '#0f766e',
+    },
+    {
+      key: 'system_attention',
+      label: t('common.runtime.primaryStates.systemAttentionRequired'),
+      value: overview.counts.system_attention_required,
+      color: '#c2410c',
+    },
+    {
+      key: 'owner_decision',
+      label: t('common.runtime.primaryStates.ownerDecisionRequired'),
+      value: overview.counts.owner_decision_required,
+      color: '#7c3aed',
+    },
+    {
+      key: 'latest_activity',
+      label: t('common.runtime.latestActivityAt', { time: '' }).replace('：', '').trim(),
+      value: overview.latestActivityAt ?? '-',
+      color: '#374151',
+    },
+  ];
 
   useEffect(() => {
     const currentScopeId = runtimeScope.current?.id ?? runtimeScope.options[0]?.id ?? null;
@@ -1558,31 +1120,50 @@ const RuntimePage: React.FC = () => {
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
       return (
-        <div key={task.taskId} className='py-12px'>
-          <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
-            <div className='min-w-0'>
+        <div
+          key={task.taskId}
+          style={{
+            border: '1px solid #e5e7eb',
+            borderRadius: 8,
+            padding: 14,
+            background: '#fff',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
               <Typography.Text className='block font-600 text-t-primary break-words'>{item.taskLabel}</Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary break-words mt-2px'>
-                {item.projectLabel}
+                {item.agentLabel} · {item.projectLabel}
               </Typography.Text>
             </div>
-            <Space wrap size='mini'>
-              <Tag color={item.primaryState === 'in_progress' ? 'blue' : item.primaryState === 'system_attention_required' ? 'orange' : 'green'}>
+            <Space wrap size='mini' style={{ justifyContent: 'flex-end', flexShrink: 0 }}>
+              <Tag
+                color={
+                  item.primaryState === 'in_progress'
+                    ? 'blue'
+                    : item.primaryState === 'system_attention_required'
+                      ? 'orange'
+                      : 'green'
+                }
+              >
                 {item.primaryLabel}
               </Tag>
               <Tag>{item.automationLabel}</Tag>
               {item.currentnessTag && (
-                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>{item.currentnessTag}</Tag>
+                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>
+                  {item.currentnessTag}
+                </Tag>
               )}
             </Space>
           </div>
-          <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.agentModule', { agent: item.agentLabel })}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.projectTask', { task: item.projectLabel })}
-            </Typography.Text>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: '8px 16px',
+              marginTop: 10,
+            }}
+          >
             {item.stageLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.currentStage', { stage: item.stageLabel })}
@@ -1630,9 +1211,9 @@ const RuntimePage: React.FC = () => {
   );
 
   return (
-    <div className='w-full h-full overflow-auto px-24px md:px-48px py-28px box-border'>
+    <div className='w-full h-full overflow-auto box-border' style={{ background: '#f6f8fb', padding: '28px 40px' }}>
       {contextHolder}
-      <div className='max-w-1080px mx-auto flex flex-col gap-16px'>
+      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className='flex flex-col gap-12px md:flex-row md:items-end md:justify-between'>
           <div>
             <Typography.Title heading={4} className='mb-6px'>
@@ -1655,402 +1236,389 @@ const RuntimePage: React.FC = () => {
           </div>
         </div>
 
-        <Card bordered className='rd-8px' data-testid='runtime-scope-card'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-end md:justify-between'>
-            <div className='min-w-0 flex-1'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('common.runtime.scopeSelector')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                {t('common.runtime.scopeSourceLabel', {
-                      source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
-                    })}
-              </Typography.Text>
-              {runtimeScope.inferredHint && (
-                <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                  {t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}
-                </Typography.Text>
-              )}
-            </div>
-            <Select
-              className='min-w-240px'
-              data-testid='runtime-scope-selector'
-              value={selectedScope?.id}
-              onChange={(value) => setSelectedScopeId(String(value))}
-              options={runtimeScope.options.map((option) => ({
-                label: option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
-                value: option.id,
-              }))}
-            />
-          </div>
-        </Card>
-
-        <Card bordered className='rd-8px'>
-          <div className='flex items-center justify-between gap-16px'>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('common.runtime.drilldownStatus')}
-              </Typography.Text>
-              {lastLoadedAt && (
-                <Typography.Text className='block text-12px text-t-secondary'>
-                  {t('common.runtime.loadedAt', { time: lastLoadedAt })}
-                </Typography.Text>
-              )}
-            </div>
-            <Tag color={displayDrilldown ? 'green' : 'orange'}>
-              {loading
-                ? displayDrilldown
-                  ? t('common.runtime.refreshing')
-                  : t('common.loading')
-                : displayDrilldown
-                  ? t('common.runtime.drilldownLoaded')
-                  : t('common.runtime.drilldownUnavailable')}
-            </Tag>
-          </div>
-        </Card>
-
         {displayDrilldown ? (
-          <>
-            <Card bordered className='rd-8px'>
-              <div className='flex flex-col gap-12px'>
-                <div className='flex flex-col gap-4px'>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 16, alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                <div className='flex flex-col gap-12px'>
+                  <div className='flex flex-col gap-6px md:flex-row md:items-start md:justify-between'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('common.runtime.overviewTitle')}
+                      </Typography.Text>
+                      <Typography.Text className='block text-13px text-t-secondary'>
+                        {t('common.runtime.overviewSummaryText', {
+                          scope: scopeLabel,
+                          tasks: scopedTaskCount,
+                          automation: overview.automationRunningCount,
+                        })}
+                      </Typography.Text>
+                    </div>
+                    <Tag color={displayDrilldown ? 'green' : 'orange'} style={{ flexShrink: 0 }}>
+                      {loading ? t('common.runtime.refreshing') : t('common.runtime.drilldownLoaded')}
+                    </Tag>
+                  </div>
+                  <div
+                    data-testid='runtime-primary-summary'
+                    style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}
+                  >
+                    {metricCards.map((card) => (
+                      <div
+                        key={card.key}
+                        style={{
+                          minWidth: 0,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 8,
+                          padding: '10px 12px',
+                          background: '#f9fafb',
+                        }}
+                      >
+                        <Typography.Text className='block text-12px text-t-secondary break-words'>
+                          {card.label}
+                        </Typography.Text>
+                        <Typography.Text className='block font-600 break-words' style={{ color: card.color }}>
+                          {card.value}
+                        </Typography.Text>
+                      </div>
+                    ))}
+                  </div>
+                  <div className='flex flex-col gap-4px md:flex-row md:items-center md:justify-between'>
+                    {lastLoadedAt && (
+                      <Typography.Text className='text-12px text-t-secondary'>
+                        {t('common.runtime.loadedAt', { time: lastLoadedAt })}
+                      </Typography.Text>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                <div className='flex flex-col gap-12px'>
                   <Typography.Text className='font-600 text-t-primary'>
-                    {t('common.runtime.overviewTitle')}
+                    {t('common.runtime.runtimeGroupsTitle')}
                   </Typography.Text>
                   <Typography.Text className='text-13px text-t-secondary'>
-                    {t('common.runtime.overviewSummaryText', {
-                      scope: scopeLabel,
-                      tasks: runtimeModel.taskRunProjectionV2.tasks.filter((task) => scopeMatchesTask(task, selectedScope)).length,
-                      automation: overview.automationRunningCount,
+                    {t('common.runtime.runtimeGroupsSummaryText', {
+                      count: runtimeModel.taskRunProjectionV2.tasks.filter((task) =>
+                        scopeMatchesTask(task, selectedScope)
+                      ).length,
                     })}
                   </Typography.Text>
-                </div>
-                <div className='grid grid-cols-1 md:grid-cols-5 gap-12px' data-testid='runtime-primary-summary'>
-                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.primaryStates.inProgress')}
-                    </Typography.Text>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {overview.counts.in_progress}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.primaryStates.deliveredAutoPaused')}
-                    </Typography.Text>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {overview.counts.delivered_auto_paused}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.primaryStates.pausedWaitingForDirection')}
-                    </Typography.Text>
-                    <Typography.Text className='block font-600 text-t-primary'>
-                      {overview.counts.paused_waiting_for_direction}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.primaryStates.ownerDecisionRequired')}
-                    </Typography.Text>
-                    <Typography.Text className='block font-600 text-t-primary break-words'>
-                      {overview.counts.owner_decision_required}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('common.runtime.primaryStates.systemAttentionRequired')}
-                    </Typography.Text>
-                    <Typography.Text className='block font-600 text-t-primary break-words'>
-                      {overview.counts.system_attention_required}
-                    </Typography.Text>
-                  </div>
-                </div>
-                <div className='flex flex-col gap-4px md:flex-row md:items-center md:justify-between'>
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('common.runtime.automationRunningCount', { count: overview.automationRunningCount })}
-                  </Typography.Text>
-                  {overview.latestActivityAt && (
-                    <Typography.Text className='text-12px text-t-secondary break-words'>
-                      {t('common.runtime.latestActivityAt', { time: overview.latestActivityAt })}
-                    </Typography.Text>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            <Card bordered className='rd-8px'>
-              <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('common.runtime.runtimeGroupsTitle')}
-                </Typography.Text>
-                <Typography.Text className='text-13px text-t-secondary'>
-                  {t('common.runtime.runtimeGroupsSummaryText', {
-                    count: runtimeModel.taskRunProjectionV2.tasks.filter((task) => scopeMatchesTask(task, selectedScope)).length,
-                  })}
-                </Typography.Text>
-                {overview.sections.some((section) => section.tasks.length > 0) ? (
-                  <div className='flex flex-col gap-12px'>
-                    {overview.sections
-                      .filter((section) => section.tasks.length > 0)
-                      .map((section) => (
-                        <div key={section.state} className='flex flex-col gap-8px' data-testid={`runtime-group-${section.state}`}>
-                          <div className='flex flex-col gap-2px'>
-                            <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
-                            <Typography.Text className='text-12px text-t-secondary'>{section.summary}</Typography.Text>
-                          </div>
-                          <div className='flex flex-col divide-y divide-border-1'>{section.tasks.map(renderTaskItem)}</div>
-                        </div>
-                      ))}
-                  </div>
-                ) : (
-                  <Alert type='info' content={t('common.runtime.noTasksInScope')} />
-                )}
-              </div>
-            </Card>
-
-            <Card bordered className='rd-8px'>
-              <div className='flex flex-col gap-12px'>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('common.runtime.moduleStatus')}
-                </Typography.Text>
-                <Typography.Text className='text-13px text-t-secondary'>
-                  {t('common.runtime.moduleStatusSummaryText', {
-                    healthy: moduleStatusItems.filter((item) => !item.needsAttention).length,
-                    attention: moduleStatusItems.filter((item) => item.needsAttention).length,
-                  })}
-                </Typography.Text>
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                  {moduleStatusItems.map((item) => (
-                    <div key={item.id} className='rounded-6px border border-border-1 px-12px py-10px'>
-                      <div className='flex items-start justify-between gap-10px'>
-                        <Typography.Text className='font-600 text-t-primary break-words'>{item.title}</Typography.Text>
-                        {item.statusLabel && <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>}
-                      </div>
-                      {item.detail && (
-                        <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
-                          {item.detail}
-                        </Typography.Text>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-
-            <Card bordered className='rd-8px'>
-              <Collapse bordered={false}>
-                <Collapse.Item
-                  name='advanced-runtime'
-                  header={
-                    <div className='flex flex-col gap-2px'>
-                      <Typography.Text className='font-600 text-t-primary'>
-                        {t('common.runtime.advancedRuntimeDetails')}
-                      </Typography.Text>
-                      <Typography.Text className='text-12px text-t-secondary'>
-                        {t('common.runtime.advancedRuntimeDetailsHint')}
-                      </Typography.Text>
-                    </div>
-                  }
-                >
-                  <div className='flex flex-col gap-16px'>
-                    <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px'>
-                      <Typography.Text className='text-13px text-t-secondary'>
-                        {t('common.runtime.fullDetailHint')}
-                      </Typography.Text>
-                      <Button
-                        icon={<UpdateRotation theme='outline' />}
-                        loading={detailLoading}
-                        onClick={() => void loadFullDrilldown({ showToast: true })}
-                      >
-                        {t('common.runtime.fullDetail')}
-                      </Button>
-                    </div>
-
-                    {lanes.length > 0 && (
-                      <div className='flex flex-col gap-12px'>
-                        <Typography.Text className='font-600 text-t-primary'>
-                          {t('common.runtime.maintenanceAttention')}
-                        </Typography.Text>
-                        <Typography.Text className='text-13px text-t-secondary'>
-                          {t('common.runtime.maintenanceAttentionSummaryText', {
-                            count: maintenanceAttentionCount,
-                          })}
-                        </Typography.Text>
-                        <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                          {lanes.map((lane, laneIndex) => {
-                            const laneId = stringValue(lane.domain_id) ?? `lane-${laneIndex + 1}`;
-                            return (
-                              <div key={laneId} className='rounded-6px border border-border-1 px-12px py-10px'>
-                                <div className='flex items-start justify-between gap-10px'>
-                                  <Typography.Text className='font-600 text-t-primary break-words'>
-                                    {stringValue(lane.lane_label) ?? laneId}
-                                  </Typography.Text>
-                                  <Space wrap size='mini'>
-                                    {(numberValue(lane.blocked_task_count) ?? 0) > 0 && (
-                                      <Tag color='orange'>{`${t('common.runtime.needAttention')}: ${numberValue(lane.blocked_task_count) ?? 0}`}</Tag>
-                                    )}
-                                  </Space>
-                                </div>
-                                <div className='mt-8px flex flex-col gap-6px'>
-                                  {recordList(lane.tasks)
-                                    .slice(0, 4)
-                                    .map((task, taskIndex) => {
-                                      const taskId = stringValue(task.task_id);
-                                      return (
-                                        <div key={taskId ?? taskIndex} className='min-w-0'>
-                                          <Typography.Text className='block text-13px text-t-primary break-words'>
-                                            {stringValue(task.label) ?? taskFallbackLabel(taskId, taskIndex)}
-                                          </Typography.Text>
-                                          <Space wrap size='mini' className='mt-4px'>
-                                            {stringValue(task.state) && (
-                                              <Tag>{translateMappedValue(task.state, PROJECT_STATE_KEYS, t)}</Tag>
-                                            )}
-                                            {stringValue(task.active_stage_id) && (
-                                              <Tag>
-                                                {stringValue(task.active_stage_label) ??
-                                                  stringValue(task.active_stage_id)}
-                                              </Tag>
-                                            )}
-                                          </Space>
-                                        </div>
-                                      );
-                                    })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
+                  {overview.sections.some((section) => section.tasks.length > 0) ? (
                     <div className='flex flex-col gap-12px'>
-                      <Typography.Text className='font-600 text-t-primary'>
-                        {t('common.runtime.diagnostics')}
-                      </Typography.Text>
-                      <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
-                        {summary.map((item) => (
-                          <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
-                            <Typography.Text className='block text-12px text-t-secondary break-words'>
-                              {item.label}
-                            </Typography.Text>
-                            <Typography.Text className='block font-600 text-t-primary break-words'>
-                              {formatValue(item.value, t)}
-                            </Typography.Text>
+                      {overview.sections
+                        .filter((section) => section.tasks.length > 0)
+                        .map((section) => (
+                          <div
+                            key={section.state}
+                            className='flex flex-col gap-8px'
+                            data-testid={`runtime-group-${section.state}`}
+                          >
+                            <div className='flex flex-col gap-2px'>
+                              <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
+                              <Typography.Text className='text-12px text-t-secondary'>
+                                {section.summary}
+                              </Typography.Text>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                              {section.tasks.map(renderTaskItem)}
+                            </div>
                           </div>
                         ))}
-                      </div>
                     </div>
+                  ) : (
+                    <Alert type='info' content={t('common.runtime.noTasksInScope')} />
+                  )}
+                </div>
+              </Card>
+            </div>
 
-                    {refs.length > 0 && (
+            <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+              <Card
+                bordered
+                className='rd-8px'
+                data-testid='runtime-scope-card'
+                style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
+              >
+                <div className='flex flex-col gap-12px'>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('common.runtime.scopeSelector')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                      {t('common.runtime.scopeSourceLabel', {
+                        source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
+                      })}
+                    </Typography.Text>
+                    {runtimeScope.inferredHint && (
+                      <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                        {t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}
+                      </Typography.Text>
+                    )}
+                  </div>
+                  <Select
+                    style={{ width: '100%' }}
+                    data-testid='runtime-scope-selector'
+                    value={selectedScope?.id}
+                    onChange={(value) => setSelectedScopeId(String(value))}
+                    options={runtimeScope.options.map((option) => ({
+                      label:
+                        option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
+                      value: option.id,
+                    }))}
+                  />
+                </div>
+              </Card>
+
+              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                <div className='flex flex-col gap-12px'>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('common.runtime.moduleStatus')}
+                  </Typography.Text>
+                  <Typography.Text className='text-13px text-t-secondary'>
+                    {t('common.runtime.moduleStatusSummaryText', {
+                      healthy: healthyModuleCount,
+                      attention: attentionModuleCount,
+                    })}
+                  </Typography.Text>
+                  <div className='flex flex-col gap-8px'>
+                    {moduleStatusItems.map((item) => (
+                      <div key={item.id} className='rounded-6px border border-border-1 px-10px py-8px'>
+                        <div className='flex items-start justify-between gap-10px'>
+                          <Typography.Text className='font-600 text-t-primary break-words'>
+                            {item.title}
+                          </Typography.Text>
+                          {item.statusLabel && (
+                            <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
+                          )}
+                        </div>
+                        {item.detail && (
+                          <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
+                            {item.detail}
+                          </Typography.Text>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+
+              <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                <Collapse bordered={false}>
+                  <Collapse.Item
+                    name='advanced-runtime'
+                    header={
+                      <div className='flex flex-col gap-2px'>
+                        <Typography.Text className='font-600 text-t-primary'>
+                          {t('common.runtime.advancedRuntimeDetails')}
+                        </Typography.Text>
+                        <Typography.Text className='text-12px text-t-secondary'>
+                          {t('common.runtime.advancedRuntimeDetailsHint')}
+                        </Typography.Text>
+                      </div>
+                    }
+                  >
+                    <div className='flex flex-col gap-16px'>
+                      <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px'>
+                        <Typography.Text className='text-13px text-t-secondary'>
+                          {t('common.runtime.fullDetailHint')}
+                        </Typography.Text>
+                        <Button
+                          icon={<UpdateRotation theme='outline' />}
+                          loading={detailLoading}
+                          onClick={() => void loadFullDrilldown({ showToast: true })}
+                        >
+                          {t('common.runtime.fullDetail')}
+                        </Button>
+                      </div>
+
+                      {lanes.length > 0 && (
+                        <div className='flex flex-col gap-12px'>
+                          <Typography.Text className='font-600 text-t-primary'>
+                            {t('common.runtime.maintenanceAttention')}
+                          </Typography.Text>
+                          <Typography.Text className='text-13px text-t-secondary'>
+                            {t('common.runtime.maintenanceAttentionSummaryText', {
+                              count: maintenanceAttentionCount,
+                            })}
+                          </Typography.Text>
+                          <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                            {lanes.map((lane, laneIndex) => {
+                              const laneId = stringValue(lane.domain_id) ?? `lane-${laneIndex + 1}`;
+                              return (
+                                <div key={laneId} className='rounded-6px border border-border-1 px-12px py-10px'>
+                                  <div className='flex items-start justify-between gap-10px'>
+                                    <Typography.Text className='font-600 text-t-primary break-words'>
+                                      {stringValue(lane.lane_label) ?? laneId}
+                                    </Typography.Text>
+                                    <Space wrap size='mini'>
+                                      {(numberValue(lane.blocked_task_count) ?? 0) > 0 && (
+                                        <Tag color='orange'>{`${t('common.runtime.needAttention')}: ${numberValue(lane.blocked_task_count) ?? 0}`}</Tag>
+                                      )}
+                                    </Space>
+                                  </div>
+                                  <div className='mt-8px flex flex-col gap-6px'>
+                                    {recordList(lane.tasks)
+                                      .slice(0, 4)
+                                      .map((task, taskIndex) => {
+                                        const taskId = stringValue(task.task_id);
+                                        return (
+                                          <div key={taskId ?? taskIndex} className='min-w-0'>
+                                            <Typography.Text className='block text-13px text-t-primary break-words'>
+                                              {stringValue(task.label) ?? taskFallbackLabel(taskId, taskIndex)}
+                                            </Typography.Text>
+                                            <Space wrap size='mini' className='mt-4px'>
+                                              {stringValue(task.state) && (
+                                                <Tag>{translateMappedValue(task.state, PROJECT_STATE_KEYS, t)}</Tag>
+                                              )}
+                                              {stringValue(task.active_stage_id) && (
+                                                <Tag>
+                                                  {stringValue(task.active_stage_label) ??
+                                                    stringValue(task.active_stage_id)}
+                                                </Tag>
+                                              )}
+                                            </Space>
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
                       <div className='flex flex-col gap-12px'>
                         <Typography.Text className='font-600 text-t-primary'>
-                          {t('common.runtime.evidenceRefs')}
+                          {t('common.runtime.diagnostics')}
                         </Typography.Text>
-                        <div className='flex flex-col divide-y divide-border-1'>
-                          {refs.map((ref) => (
-                            <Typography.Text key={ref} className='block py-8px text-12px text-t-secondary break-all'>
-                              {ref}
-                            </Typography.Text>
+                        <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+                          {summary.map((item) => (
+                            <div key={item.key} className='min-w-0 rounded-6px border border-border-1 px-12px py-10px'>
+                              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                                {item.label}
+                              </Typography.Text>
+                              <Typography.Text className='block font-600 text-t-primary break-words'>
+                                {formatValue(item.value, t)}
+                              </Typography.Text>
+                            </div>
                           ))}
                         </div>
                       </div>
-                    )}
 
-                    <div className='flex flex-col gap-12px'>
-                      <Typography.Text className='font-600 text-t-primary'>
-                        {t('common.runtime.safeActions')}
-                      </Typography.Text>
-                      {actions.length > 0 ? (
-                        <div className='flex flex-col divide-y divide-border-1'>
-                          {actions.map((action) => {
-                            const actionId = stringValue(action.action_id) ?? '';
-                            return (
-                              <div
-                                key={actionId}
-                                className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
-                              >
-                                <div className='min-w-0'>
-                                  <Typography.Text className='block font-600 text-t-primary break-all'>
-                                    {actionId}
-                                  </Typography.Text>
-                                  <Space wrap size='mini' className='mt-6px'>
-                                    {stringValue(action.action_kind) && <Tag>{stringValue(action.action_kind)}</Tag>}
-                                    {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
-                                    {action.route_requires_domain_or_app_payload === true && (
-                                      <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
-                                    )}
-                                  </Space>
-                                </div>
-                                <Button
-                                  icon={<Play theme='outline' />}
-                                  loading={runningActionId === actionId}
-                                  disabled={!actionId}
-                                  onClick={() => void dryRunAction(actionId)}
-                                >
-                                  {t('common.runtime.dryRun')}
-                                </Button>
-                              </div>
-                            );
-                          })}
+                      {refs.length > 0 && (
+                        <div className='flex flex-col gap-12px'>
+                          <Typography.Text className='font-600 text-t-primary'>
+                            {t('common.runtime.evidenceRefs')}
+                          </Typography.Text>
+                          <div className='flex flex-col divide-y divide-border-1'>
+                            {refs.map((ref) => (
+                              <Typography.Text key={ref} className='block py-8px text-12px text-t-secondary break-all'>
+                                {ref}
+                              </Typography.Text>
+                            ))}
+                          </div>
                         </div>
-                      ) : (
-                        <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                      )}
+
+                      <div className='flex flex-col gap-12px'>
+                        <Typography.Text className='font-600 text-t-primary'>
+                          {t('common.runtime.safeActions')}
+                        </Typography.Text>
+                        {actions.length > 0 ? (
+                          <div className='flex flex-col divide-y divide-border-1'>
+                            {actions.map((action) => {
+                              const actionId = stringValue(action.action_id) ?? '';
+                              return (
+                                <div
+                                  key={actionId}
+                                  className='flex flex-col md:flex-row md:items-center md:justify-between gap-10px py-12px'
+                                >
+                                  <div className='min-w-0'>
+                                    <Typography.Text className='block font-600 text-t-primary break-all'>
+                                      {actionId}
+                                    </Typography.Text>
+                                    <Space wrap size='mini' className='mt-6px'>
+                                      {stringValue(action.action_kind) && <Tag>{stringValue(action.action_kind)}</Tag>}
+                                      {stringValue(action.owner) && <Tag>{stringValue(action.owner)}</Tag>}
+                                      {action.route_requires_domain_or_app_payload === true && (
+                                        <Tag color='orange'>{t('common.runtime.payloadRequired')}</Tag>
+                                      )}
+                                    </Space>
+                                  </div>
+                                  <Button
+                                    icon={<Play theme='outline' />}
+                                    loading={runningActionId === actionId}
+                                    disabled={!actionId}
+                                    onClick={() => void dryRunAction(actionId)}
+                                  >
+                                    {t('common.runtime.dryRun')}
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <Alert type='info' content={t('common.runtime.noSafeActions')} />
+                        )}
+                      </div>
+
+                      {actionResult && (
+                        <div>
+                          <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                            {t('common.runtime.actionResult')}
+                          </Typography.Text>
+                          {(() => {
+                            const resultSummary = actionResultSummary(actionResult);
+                            const rows = [
+                              {
+                                key: 'preview',
+                                label: t('common.runtime.actionPreviewSummary'),
+                                value: resultSummary.preview,
+                              },
+                              {
+                                key: 'receipt',
+                                label: t('common.runtime.actionReceiptSummary'),
+                                value: resultSummary.receipt,
+                              },
+                            ].filter((row): row is { key: string; label: string; value: string } => Boolean(row.value));
+                            return rows.length > 0 ? (
+                              <div className='mb-10px flex flex-col gap-4px'>
+                                {rows.map((row) => (
+                                  <Typography.Text
+                                    key={row.key}
+                                    className='block text-12px text-t-secondary break-words'
+                                  >
+                                    {row.label}: {row.value}
+                                  </Typography.Text>
+                                ))}
+                              </div>
+                            ) : null;
+                          })()}
+                          <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                            {JSON.stringify(actionResult, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+
+                      {fullDetailDigest && (
+                        <div>
+                          <Typography.Text className='block font-600 text-t-primary mb-10px'>
+                            {t('common.runtime.fullDetail')}
+                          </Typography.Text>
+                          <Alert type='info' content={t('common.runtime.fullDetailReady')} />
+                          <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
+                            {JSON.stringify(fullDetailDigest, null, 2)}
+                          </pre>
+                        </div>
                       )}
                     </div>
-
-                    {actionResult && (
-                      <div>
-                        <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                          {t('common.runtime.actionResult')}
-                        </Typography.Text>
-                        {(() => {
-                          const resultSummary = actionResultSummary(actionResult);
-                          const rows = [
-                            {
-                              key: 'preview',
-                              label: t('common.runtime.actionPreviewSummary'),
-                              value: resultSummary.preview,
-                            },
-                            {
-                              key: 'receipt',
-                              label: t('common.runtime.actionReceiptSummary'),
-                              value: resultSummary.receipt,
-                            },
-                          ].filter((row): row is { key: string; label: string; value: string } => Boolean(row.value));
-                          return rows.length > 0 ? (
-                            <div className='mb-10px flex flex-col gap-4px'>
-                              {rows.map((row) => (
-                                <Typography.Text key={row.key} className='block text-12px text-t-secondary break-words'>
-                                  {row.label}: {row.value}
-                                </Typography.Text>
-                              ))}
-                            </div>
-                          ) : null;
-                        })()}
-                        <pre className='m-0 max-h-360px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                          {JSON.stringify(actionResult, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    {fullDetailDigest && (
-                      <div>
-                        <Typography.Text className='block font-600 text-t-primary mb-10px'>
-                          {t('common.runtime.fullDetail')}
-                        </Typography.Text>
-                        <Alert type='info' content={t('common.runtime.fullDetailReady')} />
-                        <pre className='m-0 mt-12px max-h-180px overflow-auto text-12px leading-18px whitespace-pre-wrap break-words'>
-                          {JSON.stringify(fullDetailDigest, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                </Collapse.Item>
-              </Collapse>
-            </Card>
-          </>
+                  </Collapse.Item>
+                </Collapse>
+              </Card>
+            </aside>
+          </div>
         ) : (
           <Alert type='info' content={t('common.runtime.drilldownUnavailableDescription')} />
         )}

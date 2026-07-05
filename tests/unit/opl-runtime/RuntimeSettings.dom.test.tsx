@@ -669,9 +669,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
       'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow'
     );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'RO-Crate metadata'
-    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('RO-Crate metadata');
     expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
       'opl://artifact-replay-status/medautoscience/dm002/figure-flow'
     );
@@ -684,9 +682,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
       'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified'
     );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'Open detail action'
-    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('Open detail action');
     expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
       'opl runtime app-operator-drilldown --task dm002-taskrun --json'
     );
@@ -1472,14 +1468,15 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByText('common.runtime.scopeSourceLabel common.runtime.scopeSource.inferred')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.scopeInferredHint dm-cvd-mortality-risk')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.inProgress');
-    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.systemAttentionRequired');
+    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent(
+      'common.runtime.primaryStates.systemAttentionRequired'
+    );
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
     expect(screen.getByText('common.runtime.runtimeGroupsTitle')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('Publication evaluation')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.agentModule MAS');
-    expect(document.body.textContent).toContain('common.runtime.projectTask DM002 paper line');
+    expect(document.body.textContent).toContain('MAS · DM002 paper line');
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.stageElapsed 1h');
     expect(document.body.textContent).toContain('common.runtime.runningProof common.runtime.runningProofHeartbeat');
