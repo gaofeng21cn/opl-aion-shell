@@ -297,6 +297,49 @@ describe('static-server', () => {
     expect(json.data.parsed).toEqual({ ok: true });
   });
 
+  it('can inherit the user OPL environment for App runtime status', () => {
+    const dataDir = path.join(staticDir, 'user-home');
+    const projectsDir = path.join(staticDir, 'projects');
+    const resourcesPath = path.join(staticDir, 'resources');
+    const previous = {
+      OPL_DATA_DIR: process.env.OPL_DATA_DIR,
+      OPL_STATE_DIR: process.env.OPL_STATE_DIR,
+      CODEX_HOME: process.env.CODEX_HOME,
+      OPL_INSTALL_DIR: process.env.OPL_INSTALL_DIR,
+      OPL_MANAGED_TOOLCHAIN_ROOT: process.env.OPL_MANAGED_TOOLCHAIN_ROOT,
+    };
+
+    try {
+      delete process.env.OPL_DATA_DIR;
+      delete process.env.OPL_STATE_DIR;
+      delete process.env.CODEX_HOME;
+      delete process.env.OPL_INSTALL_DIR;
+      delete process.env.OPL_MANAGED_TOOLCHAIN_ROOT;
+
+      const env = __oplRuntimeProxyTest.buildOplEnv({
+        dataDir,
+        projectsDir,
+        resourcesPath,
+        inheritUserOplEnvironment: true,
+      });
+
+      expect(env.HOME).toBe(dataDir);
+      expect(env.OPL_WORKSPACE_ROOT).toBe(projectsDir);
+      expect(env.OPL_PROJECTS_DIR).toBe(projectsDir);
+      expect(env.OPL_DATA_DIR).toBeUndefined();
+      expect(env.OPL_STATE_DIR).toBeUndefined();
+      expect(env.CODEX_HOME).toBeUndefined();
+      expect(env.OPL_INSTALL_DIR).toBeUndefined();
+      expect(env.OPL_MANAGED_TOOLCHAIN_ROOT).toBeUndefined();
+      expect(env.PATH).toContain(path.join(dataDir, '.opl', 'one-person-lab', 'bin'));
+    } finally {
+      for (const [key, value] of Object.entries(previous)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
   it('/api/opl-runtime/configure-codex sends the API key through stdin only', async () => {
     const backend = await startMockBackend((_req, res) => {
       res.writeHead(500, { 'content-type': 'application/json' });

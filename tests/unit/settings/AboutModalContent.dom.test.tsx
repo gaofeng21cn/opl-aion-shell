@@ -34,8 +34,8 @@ vi.mock('react-i18next', () => ({
       if (key === 'settings.aboutFrameworkRevision') return `OPL 框架 ${options?.revision}`;
       if (key === 'settings.aboutLatestStableVersion') return `GitHub 最新稳定版 ${options?.version}`;
       if (key === 'settings.checkForUpdates') return '检查更新';
-      if (key === 'settings.updateLog') return '更新日志';
       if (key === 'settings.includeNightlyUpdates') return '接收 Nightly 更新';
+      if (key === 'settings.aboutMaintenanceMoved') return '更新与维护已移到维护页';
       if (key === 'settings.runtimePage.releaseChannels.stable') return 'Stable';
       if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'Installation carrier';
       if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'OPL Runtime Fabric';
@@ -133,12 +133,11 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
   });
 
-  it('keeps About focused on version, update entry, and project links instead of maintenance controls', async () => {
+  it('keeps About focused on version and project links instead of maintenance controls', async () => {
     renderWithFreshSWR();
 
-    expect(await screen.findByText('检查更新')).toBeInTheDocument();
-    expect(screen.getAllByText('更新日志').length).toBeGreaterThan(0);
-    expect(screen.queryByText('更新与维护已移到维护页')).not.toBeInTheDocument();
+    expect(await screen.findByText('更新与维护已移到维护页')).toBeInTheDocument();
+    expect(screen.queryByText('检查更新')).not.toBeInTheDocument();
     expect(screen.queryByText('接收 Nightly 更新')).not.toBeInTheDocument();
     expect(screen.queryByTestId('about-managed-update-summary')).not.toBeInTheDocument();
   });

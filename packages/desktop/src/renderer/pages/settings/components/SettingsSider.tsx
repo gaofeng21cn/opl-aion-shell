@@ -66,10 +66,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     return { menus: query ? searchResult : result, groupHeaderAt: headerAt, searchMatches: searchResult.length };
   }, [t, isDesktop, extensionTabs, resolveExtTabName, searchQuery]);
 
-  const aboutFooterItem = useMemo(() => {
-    return getSearchableSecondarySettingsModalItems(t).find((item) => item.id === 'about') ?? null;
-  }, [t]);
-
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (
     <div
@@ -158,45 +154,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
           </React.Fragment>
         );
       })}
-      {!collapsed && aboutFooterItem && (
-        <div className='mt-auto pt-8px border-t border-border-1'>
-          <Tooltip {...siderTooltipProps} content={aboutFooterItem.label} position='right'>
-            <div
-              data-testid='settings-sider-footer-about'
-              data-settings-id={aboutFooterItem.id}
-              data-settings-path='about'
-              className='settings-sider__item h-34px rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item px-10px mx-0 transition-colors hover:bg-fill-3 justify-start'
-              onClick={() => {
-                Promise.resolve(navigate('/settings/about', { replace: true })).catch((error) => {
-                  console.error('Navigation failed:', error);
-                });
-              }}
-            >
-              <span className='size-22px flex items-center justify-center shrink-0 line-height-0'>
-                {React.cloneElement(
-                  aboutFooterItem.icon as React.ReactElement<{
-                    theme?: string;
-                    size?: string | number;
-                    className?: string;
-                    strokeWidth?: number;
-                  }>,
-                  {
-                    theme: 'outline',
-                    size: '16',
-                    strokeWidth: 3,
-                    className: 'block leading-none text-t-secondary',
-                  }
-                )}
-              </span>
-              <FlexFullContainer className='h-24px collapsed-hidden'>
-                <div className='settings-sider__item-label text-nowrap overflow-hidden inline-block w-full text-14px font-[500] lh-24px whitespace-nowrap text-t-primary'>
-                  {aboutFooterItem.label}
-                </div>
-              </FlexFullContainer>
-            </div>
-          </Tooltip>
-        </div>
-      )}
     </div>
   );
 };

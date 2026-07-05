@@ -256,6 +256,19 @@ export async function startDesktopWebUI(opts: { port?: number; allowRemote?: boo
       workDir: sysDir.workDir,
       logDir: sysDir.logDir,
     },
+    oplRuntimeProxy: {
+      dataDir: process.env.OPL_RUNTIME_DATA_DIR?.trim() || process.env.HOME?.trim() || getDataPath(),
+      resourcesPath: app.getAppPath(),
+      projectsDir:
+        process.env.OPL_PROJECTS_DIR?.trim() ||
+        process.env.OPL_WORKSPACE_ROOT?.trim() ||
+        (process.env.HOME?.trim() && fs.existsSync(path.join(process.env.HOME.trim(), 'workspace'))
+          ? path.join(process.env.HOME.trim(), 'workspace')
+          : path.join(getDataPath(), 'projects')),
+      imageManifestPath: process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || undefined,
+      imageSeedDir: process.env.OPL_IMAGE_SEED_DIR?.trim() || undefined,
+      inheritUserOplEnvironment: true,
+    },
     backend: {
       kind: 'useExistingBackend',
       port: backendPort,

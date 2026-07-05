@@ -81,6 +81,7 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
     'opl system initialize --events --json',
+    'opl system initialize --json',
     'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
     'opl system configure-codex --api-key-stdin --json',
     'opl system startup-maintenance --json',
@@ -201,6 +202,14 @@ function buildInitializeCommand(): RuntimeCommandSpec {
     surface: 'system_initialize',
     args: ['system', 'initialize', '--events', '--json'],
     redactedCommand: 'opl system initialize --events --json',
+  };
+}
+
+function buildInitializeFallbackCommand(): RuntimeCommandSpec {
+  return {
+    surface: 'system_initialize',
+    args: ['system', 'initialize', '--json'],
+    redactedCommand: 'opl system initialize --json',
   };
 }
 
@@ -368,6 +377,16 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
   );
 }
 
+function isInitializeEventsUnsupportedError(spec: RuntimeCommandSpec, error: unknown): boolean {
+  return (
+    spec.surface === 'system_initialize' &&
+    error instanceof Error &&
+    /Unexpected positional argument: --events|unrecognized option ['"]?--events|unknown option ['"]?--events/i.test(
+      error.message
+    )
+  );
+}
+
 function resolveHomeDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.HOME?.trim() || os.homedir();
 }
@@ -395,8 +414,8 @@ function hasHealthyOplShim(binDir: string): boolean {
 
   try {
     const realPath = fs.realpathSync(shimPath);
-    const cliPath = path.join(path.dirname(realPath), '..', 'dist', 'cli.js');
-    return fs.existsSync(cliPath) && fs.statSync(cliPath).isFile();
+    const packageRoot = path.resolve(path.dirname(realPath), '..');
+    return Boolean(resolveOplCliEntrypoint(packageRoot));
   } catch {
     return false;
   }
@@ -439,7 +458,7 @@ function realpathIfPossible(file: string): string {
 function findAncestorWithOplCli(startPath: string): string | null {
   let current = fs.statSync(startPath).isDirectory() ? startPath : path.dirname(startPath);
   while (true) {
-    if (pathExistsFile(path.join(current, 'src', 'cli.ts')) || pathExistsFile(path.join(current, 'dist', 'cli.js'))) {
+    if (resolveOplCliEntrypoint(current)) {
       return current;
     }
     const parent = path.dirname(current);
@@ -450,10 +469,7 @@ function findAncestorWithOplCli(startPath: string): string | null {
 
 function resolveOplPackageRootFromExecutable(executablePath: string): string | null {
   const siblingFullRuntimePackageRoot = path.resolve(path.dirname(executablePath), '..', 'opl');
-  if (
-    pathExistsFile(path.join(siblingFullRuntimePackageRoot, 'src', 'cli.ts')) ||
-    pathExistsFile(path.join(siblingFullRuntimePackageRoot, 'dist', 'cli.js'))
-  ) {
+  if (resolveOplCliEntrypoint(siblingFullRuntimePackageRoot)) {
     return siblingFullRuntimePackageRoot;
   }
   const realExecutablePath = realpathIfPossible(executablePath);
@@ -486,27 +502,32 @@ function packageSupportsCommand(packageRoot: string, spec: RuntimeCommandSpec): 
   return true;
 }
 
-function resolveOplCliFromPackageRoot(packageRoot: string, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
-  const nodeCommand = resolveNodeCommand(env);
-  const sourceCli = path.join(packageRoot, 'src', 'cli.ts');
-  if (pathExistsFile(sourceCli)) {
-    return {
-      command: nodeCommand.command,
-      argsPrefix: ['--experimental-strip-types', sourceCli],
-      env: nodeCommand.env,
-      source: sourceCli,
-    };
-  }
-  const distCli = path.join(packageRoot, 'dist', 'cli.js');
-  if (pathExistsFile(distCli)) {
-    return {
-      command: nodeCommand.command,
-      argsPrefix: [distCli],
-      env: nodeCommand.env,
-      source: distCli,
-    };
+function resolveOplCliEntrypoint(packageRoot: string): string | null {
+  for (const relativePath of ['src/entrypoints/cli.ts', 'src/cli.ts', 'dist/entrypoints/cli.js', 'dist/cli.js']) {
+    const cliPath = path.join(packageRoot, relativePath);
+    if (pathExistsFile(cliPath)) return cliPath;
   }
   return null;
+}
+
+function resolveOplCliFromPackageRoot(packageRoot: string, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
+  const nodeCommand = resolveNodeCommand(env);
+  const cliPath = resolveOplCliEntrypoint(packageRoot);
+  if (!cliPath) return null;
+  if (cliPath.endsWith('.ts')) {
+    return {
+      command: nodeCommand.command,
+      argsPrefix: ['--experimental-strip-types', cliPath],
+      env: nodeCommand.env,
+      source: cliPath,
+    };
+  }
+  return {
+    command: nodeCommand.command,
+    argsPrefix: [cliPath],
+    env: nodeCommand.env,
+    source: cliPath,
+  };
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
@@ -850,6 +871,25 @@ async function runOplCommand(spec: RuntimeCommandSpec): Promise<IOplRuntimeComma
       ? await runInitializeEventsCommand({ ...command, surface: 'system_initialize' })
       : await runSpawnJsonCommand(command);
   } catch (error) {
+    if (isInitializeEventsUnsupportedError(spec, error)) {
+      const fallbackSpec = buildInitializeFallbackCommand();
+      try {
+        const fallbackCommand = buildOplSpawnCommand(fallbackSpec, buildOplCommandEnv());
+        return await runSpawnJsonCommand(fallbackCommand);
+      } catch (fallbackError) {
+        return commandFailureResult(
+          fallbackSpec,
+          fallbackSpec.redactedCommand ?? ['opl', ...fallbackSpec.args].join(' '),
+          fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          {
+            code:
+              fallbackError instanceof Error && 'code' in fallbackError && typeof fallbackError.code === 'string'
+                ? fallbackError.code
+                : undefined,
+          }
+        );
+      }
+    }
     if (!shouldAutoBootstrapAfterOplCommandError(spec, error)) {
       return commandFailureResult(
         spec,
@@ -909,6 +949,7 @@ export const __oplRuntimeBridgeTest = {
   buildAppStateCommand,
   buildConfigureCodexCommand,
   buildDrilldownCommand,
+  buildInitializeFallbackCommand,
   buildInitializeCommand,
   buildInstallPrepCommand,
   buildReconcileModulesCommand,
@@ -932,6 +973,7 @@ export const __oplRuntimeBridgeTest = {
   parseJson,
   runInitializeEventsCommand,
   runOplCommand,
+  isInitializeEventsUnsupportedError,
   shouldAutoBootstrapAfterOplCommandError,
   shouldAutoBootstrapOplCommand,
 };

@@ -84,7 +84,7 @@ export type CapabilityRefViewModel = {
   nextAction: string | null;
 };
 
-export type CapabilityDecisionAction = 'review' | 'needsChanges' | 'openInCodex';
+export type CapabilityDecisionAction = 'review' | 'needsChanges' | 'continueInConversation';
 
 export type CapabilityCandidateReportViewModel = CapabilityRefViewModel & {
   purpose: string | null;
@@ -229,7 +229,11 @@ function capabilityRef(
   };
 }
 
-const DEFAULT_CANDIDATE_DECISION_ACTIONS: CapabilityDecisionAction[] = ['review', 'needsChanges', 'openInCodex'];
+const DEFAULT_CANDIDATE_DECISION_ACTIONS: CapabilityDecisionAction[] = [
+  'review',
+  'needsChanges',
+  'continueInConversation',
+];
 
 function candidateRefValue(value: unknown): string | null {
   const record = oplRecord(value);
@@ -265,7 +269,14 @@ function normalizeDecisionAction(value: string): CapabilityDecisionAction | null
   ) {
     return 'needsChanges';
   }
-  if (normalized.includes('opencodex') || normalized.includes('codex')) return 'openInCodex';
+  if (
+    normalized.includes('continueconversation') ||
+    normalized.includes('conversation') ||
+    normalized.includes('opencodex') ||
+    normalized.includes('codex')
+  ) {
+    return 'continueInConversation';
+  }
   if (normalized.includes('review')) return 'review';
   return null;
 }

@@ -310,13 +310,13 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
-        'settings.accessPage.remote.title': 'Remote access and optional OPL surfaces',
+        'settings.accessPage.remote.title': 'Cloud & Remote Access / Deployment Entry',
         'settings.accessPage.remote.description':
-          'AionUI remote access stays available here; OPL adds Docker/WebUI, Workspace, and managed resources on top.',
+          'View Local App, Docker WebUI, OPL Workspace, and remote resource context from one entry.',
         'settings.accessPage.remote.webui': 'WebUI',
         'settings.accessPage.remote.docker': 'Docker WebUI',
         'settings.accessPage.remote.workspace': 'OPL Workspace',
-        'settings.accessPage.remote.remoteAccess': 'AionUI remote access',
+        'settings.accessPage.remote.remoteAccess': 'Remote access',
         'settings.accessPage.remote.status': `Status: ${options?.status}`,
         'settings.accessPage.remote.runtimeStatus': `Runtime proxy: ${options?.status}`,
         'settings.accessPage.remote.recoveryStatus': `Recovery: ${options?.status}`,
@@ -332,15 +332,9 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.oplGateway': 'OPL Gateway',
         'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
         'settings.accessPage.resourceSources.oplFabric': 'OPL Fabric',
-        'settings.accessPage.resourceSources.builtIn.title': 'Built-in remote access',
-        'settings.accessPage.resourceSources.builtIn.description':
-          'Keep the shell native remote access visible first.',
-        'settings.accessPage.resourceSources.oplAddOns.title': 'OPL add-on surfaces',
-        'settings.accessPage.resourceSources.oplAddOns.description':
-          'Use these when Docker/WebUI, Workspace, Gateway, Fabric, or Console-managed resources are needed.',
         'settings.accessPage.resourceSources.status': `Resource status: ${options?.status}`,
-        'settings.accessPage.resourceSources.environmentRefs': 'Environment catalog refs',
-        'settings.accessPage.resourceSources.managementRefs': 'OPL Console management refs',
+        'settings.accessPage.resourceSources.environmentRefs': 'Environment catalog',
+        'settings.accessPage.resourceSources.managementRefs': 'OPL Console context',
         'settings.accessPage.resourceSources.categories.gateway': 'Model access',
         'settings.accessPage.resourceSources.categories.local': 'Local resource',
         'settings.accessPage.resourceSources.categories.dockerWebui': 'Docker/WebUI deployment',
@@ -353,7 +347,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.categories.remote': 'Remote resource',
         'settings.accessPage.resourceSources.management.consoleManaged': 'Managed by OPL Console',
         'settings.accessPage.resourceSources.management.selfManaged': 'Self-managed resource',
-        'settings.accessPage.resourceSources.noRefs': 'No resource refs reported.',
+        'settings.accessPage.resourceSources.noRefs': 'No resource context reported.',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -407,11 +401,11 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('127.0.0.1:7233');
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
-    expect(view.getByText('Remote access and optional OPL surfaces')).toBeTruthy();
+    expect(view.getByText('Cloud & Remote Access / Deployment Entry')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(view.getByText('Docker WebUI')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
-    expect(view.getByText('AionUI remote access')).toBeTruthy();
+    expect(view.getByText('Remote access')).toBeTruthy();
     expect(view.getByText('Status: action_available')).toBeTruthy();
     expect(view.getByText('Runtime proxy: diagnose_with_doctor')).toBeTruthy();
     expect(view.getByText('Recovery: available')).toBeTruthy();
@@ -420,10 +414,7 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
     expect(view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeTruthy();
     expect(view.getByTestId('opl-settings-docker-webui-route-settings_select_webui_seed')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-built-in-remote-sources')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-opl-add-on-sources')).toBeTruthy();
-    expect(view.getByText('Built-in remote access')).toBeTruthy();
-    expect(view.getByText('OPL add-on surfaces')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(view.getByText('Cloud & Remote Access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
@@ -439,8 +430,8 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).toContain('Self-managed resource');
     expect(document.body.textContent).toContain('OPL Cloud managed compute');
     expect(document.body.textContent).toContain('User SSH/HPC');
-    expect(document.body.textContent).toContain('OPL Console management refs');
-    expect(document.body.textContent).toContain('Environment catalog refs');
+    expect(document.body.textContent).toContain('OPL Console context');
+    expect(document.body.textContent).toContain('Environment catalog');
     expect(document.body.textContent).toContain('opl://console/policy/compute');
     expect(document.body.textContent).toContain('opl://console/quota/compute');
     expect(document.body.textContent).toContain('opl://console/billing/project');

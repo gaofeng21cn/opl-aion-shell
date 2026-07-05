@@ -79,10 +79,10 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
     'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
     'settings.storagePage.researchLifecycle.title': 'Research workspace lifecycle',
-    'settings.storagePage.researchLifecycle.detail': 'Read-only lifecycle refs from App state projections.',
+    'settings.storagePage.researchLifecycle.detail': 'Read-only lifecycle context from App state.',
     'settings.storagePage.researchLifecycle.boundary':
-      'Refs only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
-    'settings.storagePage.researchLifecycle.states.available': 'Ref available',
+      'Source references only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
+    'settings.storagePage.researchLifecycle.states.available': 'Source available',
     'settings.storagePage.researchLifecycle.states.attention': 'Needs review',
     'settings.storagePage.researchLifecycle.states.blocked': 'Forbidden',
     'settings.storagePage.conversations.title': 'Conversation archive and restore proof',
@@ -232,7 +232,7 @@ describe('StorageSettingsContent', () => {
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
   });
 
-  it('shows research workspace lifecycle refs as read-only App projection data', async () => {
+  it('shows research workspace lifecycle context as read-only App projection data', async () => {
     render(<StorageSettingsContent />);
 
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
@@ -241,7 +241,7 @@ describe('StorageSettingsContent', () => {
     expect(lifecycle).toHaveTextContent('Research workspace lifecycle');
     expect(lifecycle).toHaveTextContent('Lifecycle planes');
     expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
-    expect(lifecycle).toHaveTextContent('Large body refs');
+    expect(lifecycle).toHaveTextContent('Large body context');
     expect(lifecycle).toHaveTextContent('clinical data bodies and artifact bodies stay outside the App view');
     expect(lifecycle).toHaveTextContent('Small-file pressure');
     expect(lifecycle).toHaveTextContent('the App does not scan workspace trees');
@@ -251,7 +251,7 @@ describe('StorageSettingsContent', () => {
     expect(lifecycle).toHaveTextContent('completed_project_closeout_refs');
     expect(lifecycle).toHaveTextContent('Generic cleanup boundary');
     expect(lifecycle).toHaveTextContent(
-      'Generic cleanup without owner refs, dry-run refs, or closeout refs is forbidden'
+      'Generic cleanup without owner, dry-run, or closeout source context is forbidden'
     );
     expect(lifecycle.querySelectorAll('button')).toHaveLength(0);
     expect(lifecycle.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);

@@ -36,24 +36,24 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.taskEvidence': 'Task evidence',
         'conversation.currentTask.resourceSummary': 'Resource summary',
         'conversation.currentTask.resourceConfirmation': 'Plan-approve-execute-collect confirmation',
-        'conversation.currentTask.receiptProvenance': 'Receipt and provenance',
-        'conversation.currentTask.artifactsProvenanceRefs': 'Artifacts and provenance refs',
+        'conversation.currentTask.receiptProvenance': 'Receipt context',
+        'conversation.currentTask.artifactsProvenanceRefs': 'Result context',
         'conversation.currentTask.reviewFollowUp': 'Review and follow-up',
-        'conversation.currentTask.workflowResourceActionRefs': 'Workflow, resource, and action refs',
+        'conversation.currentTask.workflowResourceActionRefs': 'Supporting context',
         'conversation.currentTask.exportBundleAction': 'Export bundle action',
         'conversation.currentTask.lineage': 'Lineage',
-        'conversation.currentTask.provenanceBundle': 'Provenance bundle',
-        'conversation.currentTask.provenanceIndex': 'Provenance index',
+        'conversation.currentTask.provenanceBundle': 'Source bundle',
+        'conversation.currentTask.provenanceIndex': 'Source index',
         'conversation.currentTask.roCrateMetadata': 'RO-Crate metadata',
         'conversation.currentTask.replayStatus': 'Replay status',
-        'conversation.currentTask.agentTrace': 'Agent trace',
-        'conversation.currentTask.reviewRef': 'Review ref',
+        'conversation.currentTask.agentTrace': 'Agent activity trail',
+        'conversation.currentTask.reviewRef': 'Review note',
         'conversation.currentTask.typedIssue': 'Typed issue',
         'conversation.currentTask.contentHash': 'Content hash',
-        'conversation.currentTask.drawerRoute': 'Drawer route',
-        'conversation.currentTask.drawerProjection': 'Drawer projection',
+        'conversation.currentTask.drawerRoute': 'Detail route',
+        'conversation.currentTask.drawerProjection': 'Detail source',
         'conversation.currentTask.structuredFollowUp': 'Structured follow-up',
-        'conversation.currentTask.requestChangePrompt': 'Request change against these refs:',
+        'conversation.currentTask.requestChangePrompt': 'Ask for changes with this context:',
         'conversation.currentTask.resourcePlan': 'Resource plan',
         'conversation.currentTask.resourceApproval': 'Resource approval',
         'conversation.currentTask.resourceExecute': 'Resource execute',
@@ -151,9 +151,9 @@ describe('CurrentTaskAwareness', () => {
     const inspector = screen.getByTestId('conversation-current-task-inspector');
     expect(inspector).toBeTruthy();
     expect(screen.getByText('Result')).toBeTruthy();
-    expect(screen.getByText('Artifacts and provenance refs')).toBeTruthy();
+    expect(screen.getByText('Result context')).toBeTruthy();
     expect(screen.getByText('Review and follow-up')).toBeTruthy();
-    expect(screen.getByText('Workflow, resource, and action refs')).toBeTruthy();
+    expect(screen.getByText('Supporting context')).toBeTruthy();
     expect(inspector).toHaveTextContent('ready_for_review');
     expect(inspector).toHaveTextContent('draft manifest ready');
     expect(inspector).toHaveTextContent('artifact://draft');
@@ -170,7 +170,7 @@ describe('CurrentTaskAwareness', () => {
     expect(inspector).toHaveTextContent('needs ref-level clarification');
     expect(inspector).toHaveTextContent('sha256:abc123');
     expect(inspector).toHaveTextContent('drawer://provenance');
-    expect(inspector).toHaveTextContent('Request change against these refs:');
+    expect(inspector).toHaveTextContent('Ask for changes with this context:');
     expect(inspector).toHaveTextContent('opl://resource-source/workspace');
     expect(inspector).toHaveTextContent('opl://resource-source/fabric');
     expect(inspector).toHaveTextContent('opl://environment/default');

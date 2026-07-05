@@ -14,6 +14,7 @@ import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/s
 import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 
 type RuntimeSnapshot = Record<string, unknown>;
+const RUNTIME_RUNNING_REFRESH_MS = 30_000;
 
 function isRecord(value: unknown): value is RuntimeSnapshot {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -266,10 +267,33 @@ function parseBridgePayload(result: { parsed?: unknown; stdout?: string } | null
 
 function detailDigest(drilldown: RuntimeSnapshot): RuntimeSnapshot {
   const attention = record(drilldown.attention_first_payload);
+  const taskRefs = workbenchTaskDrilldowns(drilldown)
+    .map((task) =>
+      pickRecordFields(task, [
+        'task_id',
+        'study_id',
+        'state',
+        'status',
+        'active_stage_id',
+        'active_run_id',
+        'stage_attempt_ids',
+        'runtime_closeout_observed',
+        'runtime_closeout_ref',
+        'mas_owner_consumption_status',
+        'mas_owner_consumption_ref',
+        'mas_owner_consumed_stage_attempt_id',
+        'mas_owner_consumed_closeout_ref',
+        'mas_owner_consumption_matches_runtime_closeout',
+        'next_visible_step',
+        'last_progress_at',
+      ])
+    )
+    .filter((task) => Object.keys(task).length > 0);
   return {
     detail_level: stringValue(drilldown.detail_level) ?? 'full',
     root_section_count: Object.keys(drilldown).length,
     lazy_load_target_count: recordList(attention.lazy_load_targets).length,
+    task_refs: taskRefs,
   };
 }
 
@@ -433,6 +457,7 @@ type RuntimeProjectProgress = {
   statusRaw: string | null;
   progressClassRaw: string | null;
   stateLabel: string | null;
+  statusLabel: string | null;
   stageLabel: string | null;
   nextStep: string | null;
   nextOwner: string | null;
@@ -447,6 +472,14 @@ type RuntimeProjectProgress = {
   safeActionCount: number;
   paperLensCount: number;
   stageAttemptCount: number;
+  stageAttemptIds: string[];
+  runtimeCloseoutObserved: boolean;
+  runtimeCloseoutRef: string | null;
+  masOwnerConsumptionStatus: string | null;
+  masOwnerConsumptionRef: string | null;
+  masOwnerConsumedStageAttemptId: string | null;
+  masOwnerConsumedCloseoutRef: string | null;
+  masOwnerConsumptionMatchesRuntimeCloseout: boolean | null;
   refsSummary: RuntimeRefsSummary;
   needsAttention: boolean;
 };
@@ -649,6 +682,7 @@ function taskFromActiveProjectLine(
     t('common.runtime.unknownDomain');
   const state = stringValue(line.state) ?? stringValue(detail?.state);
   const status = stringValue(line.status) ?? stringValue(detail?.status);
+  const statusLabel = stringValue(line.status_label) ?? stringValue(detail?.status_label);
   const progressClass = stringValue(detail?.progress_delta_classification);
   const deliverableCount = countValue(detail?.deliverable_progress_delta);
   const platformRepairCount = countValue(detail?.platform_repair_delta);
@@ -656,7 +690,10 @@ function taskFromActiveProjectLine(
   const safeActionCount = numberValue(detail?.safe_action_ref_count) ?? numberValue(line.safe_action_ref_count) ?? 0;
   const paperLensCount =
     numberValue(detail?.paper_route_lens_ref_count) ?? numberValue(line.paper_route_lens_ref_count) ?? 0;
-  const stageAttemptCount = stringList(detail?.stage_attempt_ids).length;
+  const stageAttemptIds = stringList(detail?.stage_attempt_ids);
+  const lineStageAttemptIds = stringList(line.stage_attempt_ids);
+  const visibleStageAttemptIds = stageAttemptIds.length > 0 ? stageAttemptIds : lineStageAttemptIds;
+  const stageAttemptCount = visibleStageAttemptIds.length;
   const needsAttention =
     blockerCount > 0 ||
     (state ? ATTENTION_STATES.has(state) : false) ||
@@ -671,7 +708,12 @@ function taskFromActiveProjectLine(
     statusRaw: status,
     progressClassRaw: progressClass,
     stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
-    stageLabel: stringValue(detail?.active_stage_label) ?? stringValue(detail?.active_stage_id),
+    statusLabel,
+    stageLabel:
+      stringValue(line.active_stage_label) ??
+      stringValue(detail?.active_stage_label) ??
+      stringValue(line.active_stage_id) ??
+      stringValue(detail?.active_stage_id),
     nextStep:
       stringValue(line.next_visible_step) ??
       stringValue(detail?.next_visible_step) ??
@@ -690,6 +732,22 @@ function taskFromActiveProjectLine(
     safeActionCount,
     paperLensCount,
     stageAttemptCount,
+    stageAttemptIds: visibleStageAttemptIds,
+    runtimeCloseoutObserved: line.runtime_closeout_observed === true || detail?.runtime_closeout_observed === true,
+    runtimeCloseoutRef: stringValue(line.runtime_closeout_ref) ?? stringValue(detail?.runtime_closeout_ref),
+    masOwnerConsumptionStatus:
+      stringValue(line.mas_owner_consumption_status) ?? stringValue(detail?.mas_owner_consumption_status),
+    masOwnerConsumptionRef: stringValue(line.mas_owner_consumption_ref) ?? stringValue(detail?.mas_owner_consumption_ref),
+    masOwnerConsumedStageAttemptId:
+      stringValue(line.mas_owner_consumed_stage_attempt_id) ?? stringValue(detail?.mas_owner_consumed_stage_attempt_id),
+    masOwnerConsumedCloseoutRef:
+      stringValue(line.mas_owner_consumed_closeout_ref) ?? stringValue(detail?.mas_owner_consumed_closeout_ref),
+    masOwnerConsumptionMatchesRuntimeCloseout:
+      typeof line.mas_owner_consumption_matches_runtime_closeout === 'boolean'
+        ? line.mas_owner_consumption_matches_runtime_closeout
+        : typeof detail?.mas_owner_consumption_matches_runtime_closeout === 'boolean'
+          ? detail.mas_owner_consumption_matches_runtime_closeout
+          : null,
     refsSummary: refsSummaryFromTask(detail ?? line),
     needsAttention,
   };
@@ -725,13 +783,16 @@ function projectProgressItems(
         stringValue(task.domain_label) ?? stringValue(task.domain_id) ?? t('common.runtime.unknownDomain');
       const state = stringValue(task.state);
       const status = stringValue(task.status) ?? stringValue(lineByTaskId.get(taskId ?? '')?.status);
+      const statusLabel =
+        stringValue(task.status_label) ?? stringValue(lineByTaskId.get(taskId ?? '')?.status_label);
       const progressClass = stringValue(task.progress_delta_classification);
       const deliverableCount = countValue(task.deliverable_progress_delta);
       const platformRepairCount = countValue(task.platform_repair_delta);
       const blockerCount = numberValue(task.blocker_ref_count) ?? 0;
       const safeActionCount = numberValue(task.safe_action_ref_count) ?? 0;
       const paperLensCount = numberValue(task.paper_route_lens_ref_count) ?? 0;
-      const stageAttemptCount = stringList(task.stage_attempt_ids).length;
+      const stageAttemptIds = stringList(task.stage_attempt_ids);
+      const stageAttemptCount = stageAttemptIds.length;
       const needsAttention =
         blockerCount > 0 ||
         (state ? ATTENTION_STATES.has(state) : false) ||
@@ -746,6 +807,7 @@ function projectProgressItems(
           statusRaw: status,
           progressClassRaw: progressClass,
           stateLabel: translateMappedValue(status ?? state, PROJECT_STATE_KEYS, t),
+          statusLabel,
           stageLabel: stringValue(task.active_stage_label) ?? stringValue(task.active_stage_id),
           nextStep:
             stringValue(task.next_visible_step) ??
@@ -764,6 +826,17 @@ function projectProgressItems(
           safeActionCount,
           paperLensCount,
           stageAttemptCount,
+          stageAttemptIds,
+          runtimeCloseoutObserved: task.runtime_closeout_observed === true,
+          runtimeCloseoutRef: stringValue(task.runtime_closeout_ref),
+          masOwnerConsumptionStatus: stringValue(task.mas_owner_consumption_status),
+          masOwnerConsumptionRef: stringValue(task.mas_owner_consumption_ref),
+          masOwnerConsumedStageAttemptId: stringValue(task.mas_owner_consumed_stage_attempt_id),
+          masOwnerConsumedCloseoutRef: stringValue(task.mas_owner_consumed_closeout_ref),
+          masOwnerConsumptionMatchesRuntimeCloseout:
+            typeof task.mas_owner_consumption_matches_runtime_closeout === 'boolean'
+              ? task.mas_owner_consumption_matches_runtime_closeout
+              : null,
           refsSummary: refsSummaryFromTask(task),
           needsAttention,
         },
@@ -892,6 +965,7 @@ const RuntimePage: React.FC = () => {
   const messageRef = useRef(message);
   const tRef = useRef(t);
   const requestSeq = useRef({ summary: 0, full: 0 });
+  const runningRefreshInFlight = useRef(false);
 
   useEffect(() => {
     messageRef.current = message;
@@ -995,6 +1069,18 @@ const RuntimePage: React.FC = () => {
   const taskOverview = useMemo(() => buildTaskOverview(projects), [projects]);
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
+  useEffect(() => {
+    if (taskOverview.runningTaskCount <= 0) return undefined;
+    const timer = window.setInterval(() => {
+      if (runningRefreshInFlight.current) return;
+      runningRefreshInFlight.current = true;
+      void refreshAppState(false).finally(() => {
+        runningRefreshInFlight.current = false;
+      });
+    }, RUNTIME_RUNNING_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [refreshAppState, taskOverview.runningTaskCount]);
+
   const dryRunAction = useCallback(async (actionId: string) => {
     setRunningActionId(actionId);
     try {
@@ -1042,8 +1128,16 @@ const RuntimePage: React.FC = () => {
             </div>
             <Space wrap size='mini'>
               {task.running && <Tag color='blue'>{t('common.runtime.runningNow')}</Tag>}
+              {task.statusLabel && <Tag>{task.statusLabel}</Tag>}
               {task.stateLabel && <Tag>{task.stateLabel}</Tag>}
               {task.progressClassLabel && <Tag color={task.progressTone}>{task.progressClassLabel}</Tag>}
+              {task.masOwnerConsumptionMatchesRuntimeCloseout !== null && (
+                <Tag color={task.masOwnerConsumptionMatchesRuntimeCloseout ? 'green' : 'orange'}>
+                  {task.masOwnerConsumptionMatchesRuntimeCloseout
+                    ? t('common.runtime.masOwnerConsumptionCurrent')
+                    : t('common.runtime.masOwnerConsumptionDrift')}
+                </Tag>
+              )}
             </Space>
           </div>
           <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
@@ -1055,6 +1149,37 @@ const RuntimePage: React.FC = () => {
             {task.nextOwner && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.nextOwner', { owner: task.nextOwner })}
+              </Typography.Text>
+            )}
+            {task.activeRunId && (
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {t('common.runtime.activeRun', { run: task.activeRunId })}
+              </Typography.Text>
+            )}
+            {task.stageAttemptCount > 0 && (
+              <Typography.Text className='block text-12px text-t-secondary break-words'>
+                {`${t('common.runtime.stageAttemptRefsWithCount', { count: task.stageAttemptCount })}: ${task.stageAttemptIds
+                  .slice(0, 3)
+                  .join(', ')}${task.stageAttemptIds.length > 3 ? ' ...' : ''}`}
+              </Typography.Text>
+            )}
+            {task.runtimeCloseoutObserved && (
+              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
+                {t('common.runtime.closeoutEvidence', {
+                  ref: task.runtimeCloseoutRef ?? t('common.runtime.values.available'),
+                })}
+              </Typography.Text>
+            )}
+            {task.masOwnerConsumptionStatus && (
+              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
+                {t('common.runtime.masOwnerConsumption', { status: task.masOwnerConsumptionStatus })}
+                {task.masOwnerConsumptionRef ? ` · ${task.masOwnerConsumptionRef}` : ''}
+              </Typography.Text>
+            )}
+            {task.masOwnerConsumedStageAttemptId && (
+              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
+                {t('common.runtime.masOwnerConsumedAttempt', { attempt: task.masOwnerConsumedStageAttemptId })}
+                {task.masOwnerConsumedCloseoutRef ? ` · ${task.masOwnerConsumedCloseoutRef}` : ''}
               </Typography.Text>
             )}
             {task.nextStep && (

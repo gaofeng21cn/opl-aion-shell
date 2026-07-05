@@ -88,9 +88,6 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
       .map(toSettingsMenuItem);
     return [...visibleMatches, ...secondaryMatches];
   }, [menuItems, menuSearchQuery, t]);
-  const aboutFooterItem = useMemo(() => {
-    return getSearchableSecondarySettingsModalItems(t).find((item) => item.id === 'about') ?? null;
-  }, [t]);
 
   useEffect(() => {
     setActiveTab(normalizeOplSettingsTab(defaultTab));
@@ -161,15 +158,6 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
           {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
         </div>
       )}
-      {aboutFooterItem && !filteredMenuItems.some((item) => item.key === 'about') && (
-        <div
-          className='mt-12px px-8px py-10px rd-8px bg-fill-1 text-13px text-t-primary cursor-pointer'
-          data-testid='settings-sider-footer-about'
-          onClick={() => handleTabChange('about')}
-        >
-          {aboutFooterItem.label}
-        </div>
-      )}
     </div>
   );
 
@@ -208,15 +196,6 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
             data-testid='settings-search-empty'
           >
             {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
-          </div>
-        )}
-        {aboutFooterItem && !filteredMenuItems.some((item) => item.key === 'about') && (
-          <div
-            className='mt-auto px-14px py-10px rd-8px bg-fill-1 text-14px text-t-primary cursor-pointer'
-            data-testid='settings-sider-footer-about'
-            onClick={() => handleTabChange('about')}
-          >
-            {aboutFooterItem.label}
           </div>
         )}
       </div>

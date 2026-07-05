@@ -65,6 +65,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
         'opl system initialize --events --json',
+        'opl system initialize --json',
         'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
         'opl system configure-codex --api-key-stdin --json',
         'opl system startup-maintenance --json',
@@ -147,6 +148,11 @@ describe('OPL runtime bridge command whitelist', () => {
       surface: 'system_initialize',
       args: ['system', 'initialize', '--events', '--json'],
       redactedCommand: 'opl system initialize --events --json',
+    });
+    expect(__oplRuntimeBridgeTest.buildInitializeFallbackCommand()).toEqual({
+      surface: 'system_initialize',
+      args: ['system', 'initialize', '--json'],
+      redactedCommand: 'opl system initialize --json',
     });
     expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
       surface: 'install_prep',
@@ -258,6 +264,30 @@ describe('OPL runtime bridge command whitelist', () => {
       __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
         __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
         appStateFailure
+      )
+    ).toBe(false);
+  });
+
+  it('detects older OPL runtimes that do not support initialize event streaming', () => {
+    const unsupported = new Error('OPL runtime command failed (2): Unexpected positional argument: --events.');
+    const ordinaryFailure = new Error('OPL runtime command failed (3): contract_shape_invalid');
+
+    expect(
+      __oplRuntimeBridgeTest.isInitializeEventsUnsupportedError(
+        __oplRuntimeBridgeTest.buildInitializeCommand(),
+        unsupported
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.isInitializeEventsUnsupportedError(
+        __oplRuntimeBridgeTest.buildInitializeCommand(),
+        ordinaryFailure
+      )
+    ).toBe(false);
+    expect(
+      __oplRuntimeBridgeTest.isInitializeEventsUnsupportedError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        unsupported
       )
     ).toBe(false);
   });
@@ -425,6 +455,36 @@ describe('OPL runtime bridge command whitelist', () => {
       'state',
       '--profile',
       'fast',
+      '--json',
+    ]);
+  });
+
+  it('prefers the current source entrypoint over stale root dist output for linked OPL checkouts', () => {
+    const homeDir = makeTempRoot('opl-entrypoint-bridge-home');
+    const linkedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    fs.mkdirSync(path.join(linkedRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(linkedRoot, 'src', 'entrypoints'), { recursive: true });
+    fs.mkdirSync(path.join(linkedRoot, 'dist'), { recursive: true });
+    fs.writeFileSync(path.join(linkedRoot, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(linkedRoot, 'src', 'entrypoints', 'cli.ts'), 'console.log("current")\n', 'utf8');
+    fs.writeFileSync(path.join(linkedRoot, 'dist', 'cli.js'), 'console.log("stale")\n', 'utf8');
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: { HOME: homeDir, PATH: `${path.join(linkedRoot, 'bin')}:/usr/bin:/bin` },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(
+      __oplRuntimeBridgeTest.buildInitializeFallbackCommand(),
+      env
+    );
+
+    expect(command.args).toEqual([
+      '--experimental-strip-types',
+      path.join(fs.realpathSync(linkedRoot), 'src', 'entrypoints', 'cli.ts'),
+      'system',
+      'initialize',
       '--json',
     ]);
   });

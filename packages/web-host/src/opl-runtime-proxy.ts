@@ -56,6 +56,7 @@ export type OplRuntimeProxyOptions = {
   projectsDir?: string;
   imageManifestPath?: string;
   imageSeedDir?: string;
+  inheritUserOplEnvironment?: boolean;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -265,22 +266,27 @@ function buildOplEnv(opts: OplRuntimeProxyOptions): NodeJS.ProcessEnv {
   const projectsDir = path.resolve(opts.projectsDir ?? process.env.OPL_WORKSPACE_ROOT ?? '/projects');
   const imageManifestPath = opts.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || '';
   const imageSeedDir = opts.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || '';
+  const inheritUserOplEnvironment = opts.inheritUserOplEnvironment === true;
   fs.mkdirSync(dataDir, { recursive: true });
   fs.mkdirSync(projectsDir, { recursive: true });
 
   return {
     ...process.env,
     HOME: dataDir,
-    OPL_DATA_DIR: process.env.OPL_DATA_DIR?.trim() || dataDir,
-    OPL_STATE_DIR: process.env.OPL_STATE_DIR?.trim() || path.join(dataDir, 'opl', 'state'),
-    CODEX_HOME: process.env.CODEX_HOME?.trim() || path.join(dataDir, '.codex'),
+    ...(inheritUserOplEnvironment
+      ? {}
+      : {
+          OPL_DATA_DIR: process.env.OPL_DATA_DIR?.trim() || dataDir,
+          OPL_STATE_DIR: process.env.OPL_STATE_DIR?.trim() || path.join(dataDir, 'opl', 'state'),
+          CODEX_HOME: process.env.CODEX_HOME?.trim() || path.join(dataDir, '.codex'),
+          OPL_INSTALL_DIR: process.env.OPL_INSTALL_DIR?.trim() || path.join(dataDir, '.opl', 'one-person-lab'),
+          OPL_MANAGED_TOOLCHAIN_ROOT:
+            process.env.OPL_MANAGED_TOOLCHAIN_ROOT?.trim() || path.join(dataDir, '.opl', 'toolchain'),
+        }),
     OPL_WORKSPACE_ROOT: projectsDir,
     OPL_PROJECTS_DIR: projectsDir,
     ...(imageManifestPath ? { OPL_IMAGE_MANIFEST_PATH: path.resolve(imageManifestPath) } : {}),
     ...(imageSeedDir ? { OPL_IMAGE_SEED_DIR: path.resolve(imageSeedDir) } : {}),
-    OPL_INSTALL_DIR: process.env.OPL_INSTALL_DIR?.trim() || path.join(dataDir, '.opl', 'one-person-lab'),
-    OPL_MANAGED_TOOLCHAIN_ROOT:
-      process.env.OPL_MANAGED_TOOLCHAIN_ROOT?.trim() || path.join(dataDir, '.opl', 'toolchain'),
     NPM_CONFIG_PRODUCTION: 'false',
     npm_config_production: 'false',
     NPM_CONFIG_INCLUDE: 'dev',
@@ -536,6 +542,7 @@ export function normalizeOplRuntimeProxyOptions(input: Partial<OplRuntimeProxyOp
     projectsDir: input.projectsDir?.trim() || process.env.OPL_WORKSPACE_ROOT?.trim() || '/projects',
     imageManifestPath: input.imageManifestPath?.trim() || process.env.OPL_IMAGE_MANIFEST_PATH?.trim() || undefined,
     imageSeedDir: input.imageSeedDir?.trim() || process.env.OPL_IMAGE_SEED_DIR?.trim() || undefined,
+    inheritUserOplEnvironment: input.inheritUserOplEnvironment === true,
   };
 }
 

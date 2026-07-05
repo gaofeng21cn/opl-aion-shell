@@ -57,6 +57,9 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run maintenance',
         'settings.oplEnvironmentPage.updates.components.unknown': 'OPL component',
         'settings.oplEnvironmentPage.updates.actions.previewChanges': 'Preview changes',
+        'settings.runtimePage.taskRuns.artifactContext.ledgerRecord': 'Ledger record',
+        'settings.runtimePage.taskRuns.artifactContext.roCrate': 'RO-Crate metadata',
+        'settings.runtimePage.taskRuns.artifactContext.openAction': 'Open detail action',
       };
       if (labels[key]) return labels[key];
       const renderedValues = Object.values(values ?? {})
@@ -634,13 +637,57 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimeSettings />);
 
-    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
-    expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
-    expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
-    expect(screen.queryByText('Publication artifact')).not.toBeInTheDocument();
-    expect(screen.queryByText('artifact://summary')).not.toBeInTheDocument();
-    expect(screen.queryByText('diagnostics://task')).not.toBeInTheDocument();
-    expect(screen.queryByText('artifact_body should stay hidden')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
+    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
+    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
+    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent(
+      'settings.runtimePage.taskRuns.overview.running'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('why_it_matters');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('no_writes_preview_only');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Preview review');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://quota');
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'settings.runtimePage.taskRuns.artifactProvenanceDrawer'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('Ledger record');
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'RO-Crate metadata'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://artifact-replay-status/medautoscience/dm002/figure-flow'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://agent-trace/medautoscience/dm002/figure-flow/summary'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://review/medautoscience/dm002/figure-flow/visual-audit'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'Open detail action'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
+      'opl runtime app-operator-drilldown --task dm002-taskrun --json'
+    );
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('artifact_body');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('domain_verdict');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('quality_verdict');
+    fireEvent.click(screen.getByText('settings.runtimePage.taskRuns.diagnosticsRefs'));
+    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
+    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');
   });
 
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
@@ -1269,6 +1316,7 @@ describe('RuntimeSettings app state bridge usage', () => {
                   progress_delta_classification: 'deliverable_progress',
                   deliverable_progress_delta: { count: 1 },
                   platform_repair_delta: { count: 0 },
+                  active_run_id: 'wf_full_dm002',
                   next_visible_step: 'Finish reviewer evaluation against current inputs',
                   next_owner: 'AI reviewer',
                   last_progress_at: '2026-06-02T00:01:12.853Z',
@@ -1280,20 +1328,42 @@ describe('RuntimeSettings app state bridge usage', () => {
                   action_receipt_ref: 'receipt://reviewer/current-action',
                 },
                 {
-                  task_id: 'dm003-publication-gate',
-                  domain_id: 'medautogrant',
-                  domain_label: 'Med Auto Grant',
-                  title: 'DM003 grant aftercare',
+                  task_id: 'medautoscience:study:003-dpcc-primary-care-phenotype-treatment-gap',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  study_id: '003-dpcc-primary-care-phenotype-treatment-gap',
+                  title: 'DM003 paper mission runtime closeout',
                   state: 'attention_needed',
-                  status: 'failed',
-                  active_stage_id: 'aftercare/reviewer-refresh',
-                  active_stage_label: 'Reviewer refresh',
-                  progress_delta_classification: 'human_gate',
+                  status: 'completed',
+                  status_label: 'OPL/MAS readback attention',
+                  active_stage_id: 'write',
+                  active_stage_label: 'Write',
+                  progress_delta_classification: 'platform_repair',
                   deliverable_progress_delta: { count: 0 },
-                  platform_repair_delta: { count: 0 },
-                  next_visible_step: 'Wait for owner confirmation',
-                  next_owner: 'User',
-                  blocker_ref_count: 1,
+                  platform_repair_delta: { count: 1 },
+                  active_run_id: 'wf_c7b369abb6b9f69f0c409f0d',
+                  next_visible_step:
+                    'Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.',
+                  next_owner: 'MAS paper mission',
+                  last_progress_at: '2026-07-04T16:43:40Z',
+                  stage_attempt_ids: [
+                    'sat_bf58a3caafa6ab7d654a3f5c',
+                    'sat_e3a155cc896fa9fd2e965d95',
+                    'sat_52667330acd398eba00f7940',
+                    'sat_d1b5d94ecc7aa1688c6f54c7',
+                    'sat_ccf4b55f0772e2a9e37d03fe',
+                  ],
+                  runtime_closeout_observed: true,
+                  runtime_closeout_ref:
+                    'ops/medautoscience/paper_mission_stage_attempts/sat_bf58a3caafa6ab7d654a3f5c/stage_attempt_closeout_packet.json',
+                  mas_owner_consumption_status: 'owner_consumed_route_checkpoint',
+                  mas_owner_consumption_ref:
+                    'ops/medautoscience/paper_mission_receipt_owner_consumption/003-dpcc-primary-care-phenotype-treatment-gap/receipt_owner_consumption.json',
+                  mas_owner_consumed_stage_attempt_id: 'sat_e3a155cc896fa9fd2e965d95',
+                  mas_owner_consumed_closeout_ref:
+                    'ops/medautoscience/paper_mission_stage_attempts/sat_e3a155cc896fa9fd2e965d95/stage_attempt_closeout_packet.json',
+                  mas_owner_consumption_matches_runtime_closeout: false,
+                  blocker_ref_count: 0,
                 },
                 {
                   task_id: 'redcube',
@@ -1330,6 +1400,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByText('common.runtime.taskProgress')).toBeInTheDocument();
     expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.activeRun wf_full_dm002')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.stageAttemptRefsWithCount 1: sat_dm002')).toBeInTheDocument();
     expect(
       screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
@@ -1345,12 +1417,32 @@ describe('RuntimeSettings app state bridge usage', () => {
       'common.runtime.actionReceiptSummary: receipt://reviewer/current-action'
     );
     expect(screen.getByText('common.runtime.attentionTasks')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.attentionTaskSummaryText 1')).toBeInTheDocument();
-    expect(screen.getByText('DM003 grant aftercare')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.nextOwner User')).toBeInTheDocument();
-    expect(screen.queryByText('common.runtime.inactiveTasks')).not.toBeInTheDocument();
+    expect(screen.getByText('DM003 paper mission runtime closeout')).toBeInTheDocument();
+    expect(screen.getByText('OPL/MAS readback attention')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.currentStage Write')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.activeRun wf_c7b369abb6b9f69f0c409f0d')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'common.runtime.stageAttemptRefsWithCount 5: sat_bf58a3caafa6ab7d654a3f5c, sat_e3a155cc896fa9fd2e965d95, sat_52667330acd398eba00f7940 ...'
+      )
+    ).toBeInTheDocument();
+    expect(document.body.textContent).toContain(
+      'common.runtime.closeoutEvidence ops/medautoscience/paper_mission_stage_attempts/sat_bf58a3caafa6ab7d654a3f5c/stage_attempt_closeout_packet.json'
+    );
+    expect(document.body.textContent).toContain('common.runtime.masOwnerConsumption owner_consumed_route_checkpoint');
+    expect(document.body.textContent).toContain(
+      'ops/medautoscience/paper_mission_receipt_owner_consumption/003-dpcc-primary-care-phenotype-treatment-gap/receipt_owner_consumption.json'
+    );
+    expect(document.body.textContent).toContain(
+      'common.runtime.masOwnerConsumedAttempt sat_e3a155cc896fa9fd2e965d95'
+    );
+    expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
+    expect(document.body.textContent).toContain(
+      'common.runtime.nextStep Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
+    );
+    expect(screen.getByText('common.runtime.nextOwner MAS paper mission')).toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
-    expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|refs|stage attempt/i);
+    expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用/i);
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() =>
@@ -1414,6 +1506,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getByText('common.runtime.fullDetailReady')).toBeInTheDocument());
     expect(screen.queryByText('Full detail DM002 guarded apply')).not.toBeInTheDocument();
+    expect(document.body.textContent).toContain('sat_full_dm002');
     expect(
       screen.getByText('studies/002-dm-china-us-mortality-attribution/artifacts/publication_eval/latest.json')
     ).toBeInTheDocument();
@@ -1464,7 +1557,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
       stdout: '{}',
       parsed: {
-        action_preview_summary: 'would refresh reviewer receipt refs only',
+        action_preview_summary: 'would refresh reviewer receipt sources only',
         receipt_ref: 'receipt://reviewer/dry-run',
         current_control_state: { provider_kind: 'temporal' },
       },
@@ -1488,7 +1581,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() =>
       expect(document.body.textContent).toContain(
-        'common.runtime.actionPreviewSummary: would refresh reviewer receipt refs only'
+        'common.runtime.actionPreviewSummary: would refresh reviewer receipt sources only'
       )
     );
     expect(document.body.textContent).toContain('common.runtime.actionReceiptSummary: receipt://reviewer/dry-run');

@@ -42,6 +42,7 @@ export type WebOplRuntimeProxyConfig = {
   projectsDir?: string;
   imageManifestPath?: string;
   imageSeedDir?: string;
+  inheritUserOplEnvironment?: boolean;
 };
 
 /**

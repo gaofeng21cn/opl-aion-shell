@@ -168,36 +168,36 @@ function refDetails(entries: Array<[string, string | undefined]>): RuntimeTaskRe
   return entries.flatMap(([key, value]) => (value ? [{ key, value }] : []));
 }
 
-function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer): RuntimeTaskRefCard[] {
+function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer, t: Translate): RuntimeTaskRefCard[] {
   const cards: RuntimeTaskRefCard[] = [];
   if (drawer.provenanceProjectionRef || drawer.provenanceIndexRef) {
     cards.push({
       id: 'artifact-provenance-projection',
-      label: 'provenance_projection_ref',
+      label: t('settings.runtimePage.taskRuns.artifactContext.sourceMap'),
       value: drawer.provenanceProjectionRef,
       ref: drawer.provenanceIndexRef,
       kind: drawer.provenanceProjectionKind,
-      details: refDetails([['provenance_index_ref', drawer.provenanceIndexRef]]),
+      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.sourceIndex'), drawer.provenanceIndexRef]]),
     });
   }
   drawer.provenanceBundleRefs.forEach((entry, index) => {
     cards.push({
       id: `artifact-provenance-bundle-${entry.artifactId ?? entry.bundleRef ?? index + 1}`,
-      label: entry.artifactId ?? 'provenance_bundle_refs',
+      label: entry.artifactId ?? t('settings.runtimePage.taskRuns.artifactContext.sourceBundle'),
       value: entry.bundleRef,
       ref: entry.ledgerRecordRef,
       kind: 'provenance_bundle_ref',
       details: refDetails([
-        ['artifact_ref', entry.artifactRef],
-        ['ledger_record_ref', entry.ledgerRecordRef],
-        ['content_hash_ref', entry.contentHashRef],
+        [t('settings.runtimePage.taskRuns.artifactContext.artifact'), entry.artifactRef],
+        [t('settings.runtimePage.taskRuns.artifactContext.ledgerRecord'), entry.ledgerRecordRef],
+        [t('settings.runtimePage.taskRuns.artifactContext.contentHash'), entry.contentHashRef],
       ]),
     });
   });
   if (drawer.roCrateMetadataRef) {
     cards.push({
       id: 'artifact-provenance-ro-crate',
-      label: 'ro_crate_metadata_ref',
+      label: t('settings.runtimePage.taskRuns.artifactContext.roCrate'),
       ref: drawer.roCrateMetadataRef,
       details: [],
     });
@@ -205,7 +205,7 @@ function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer): RuntimeTaskR
   if (drawer.replayStatusRef) {
     cards.push({
       id: 'artifact-provenance-replay-status',
-      label: 'replay_status_ref',
+      label: t('settings.runtimePage.taskRuns.artifactContext.replayStatus'),
       ref: drawer.replayStatusRef,
       details: [],
     });
@@ -213,37 +213,37 @@ function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer): RuntimeTaskR
   drawer.agentTraceRefs.forEach((entry, index) => {
     cards.push({
       id: `artifact-provenance-agent-trace-${entry.traceKind ?? entry.traceRef ?? index + 1}`,
-      label: entry.traceKind ?? 'agent_trace_refs',
+      label: entry.traceKind ?? t('settings.runtimePage.taskRuns.artifactContext.agentActivity'),
       ref: entry.traceRef,
       kind: 'agent_trace_ref',
-      details: refDetails([['access', entry.access]]),
+      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.access'), entry.access]]),
     });
   });
   drawer.reviewRefs.forEach((entry, index) => {
     cards.push({
       id: `artifact-provenance-review-${entry.reviewKind ?? entry.reviewRef ?? index + 1}`,
-      label: entry.reviewKind ?? 'review_refs',
+      label: entry.reviewKind ?? t('settings.runtimePage.taskRuns.artifactContext.reviewNote'),
       ref: entry.reviewRef,
       kind: 'review_ref',
-      details: refDetails([['reviewer_owner', entry.reviewerOwner]]),
+      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.reviewOwner'), entry.reviewerOwner]]),
     });
   });
   drawer.typedIssues.forEach((entry, index) => {
     cards.push({
       id: `artifact-provenance-typed-issue-${entry.issueType ?? entry.ref ?? index + 1}`,
-      label: entry.issueType ?? 'typed_issues',
+      label: entry.issueType ?? t('settings.runtimePage.taskRuns.artifactContext.typedIssue'),
       ref: entry.ref,
       kind: 'typed_issue',
       details: refDetails([
-        ['severity', entry.severity],
-        ['owner', entry.owner],
+        [t('settings.runtimePage.taskRuns.artifactContext.severity'), entry.severity],
+        [t('settings.runtimePage.taskRuns.artifactContext.owner'), entry.owner],
       ]),
     });
   });
   if (drawer.drawerRoute || drawer.drawerProjectionRef || drawer.drawerSurfaceKind) {
     cards.push({
       id: 'artifact-provenance-drawer',
-      label: 'provenance_drawer',
+      label: t('settings.runtimePage.taskRuns.artifactContext.detailDrawer'),
       value: drawer.drawerRoute,
       ref: drawer.drawerProjectionRef,
       kind: drawer.drawerSurfaceKind,
@@ -253,11 +253,11 @@ function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer): RuntimeTaskR
   if (drawer.openAction) {
     cards.push({
       id: 'artifact-provenance-open-action',
-      label: 'provenance_drawer.open_action',
+      label: t('settings.runtimePage.taskRuns.artifactContext.openAction'),
       value: drawer.openAction.route,
       ref: drawer.openAction.actionRef,
       kind: drawer.openAction.requiredMode,
-      details: refDetails([['action_id', drawer.openAction.actionId]]),
+      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.action'), drawer.openAction.actionId]]),
     });
   }
   return cards;
@@ -386,7 +386,7 @@ function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldow
                     >
                       <TaskRunRefCards
                         title={t('settings.runtimePage.taskRuns.artifactProvenanceDrawer')}
-                        cards={artifactProvenanceCards(selectedTask.artifactProvenanceDrawer)}
+                        cards={artifactProvenanceCards(selectedTask.artifactProvenanceDrawer, t)}
                       />
                     </Collapse.Item>
                   )}
@@ -1524,6 +1524,8 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         <RuntimeHealthSummary items={healthSummaryItems} />
 
         <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
+
+        <RuntimeTaskRunProjectionSection tasks={runtimeProjection.taskRunProjectionV2.tasks} />
 
         {(developerSourceActive || dirtyCheckoutActive) && (
           <Alert

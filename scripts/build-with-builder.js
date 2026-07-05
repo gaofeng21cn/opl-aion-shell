@@ -381,6 +381,28 @@ function cleanupWindowsPackOutput() {
   }
 }
 
+function cleanupStaleDistributableArtifacts(currentVersion) {
+  const outDir = path.resolve(__dirname, '../out');
+  if (!fs.existsSync(outDir)) return;
+
+  const removed = [];
+  const artifactRe =
+    /^One-Person-Lab-(.+)-(?:mac|win|linux)-[a-z0-9_]+\.(?:dmg|zip|exe|msi|deb|AppImage)(?:\.blockmap)?$/i;
+
+  for (const entry of fs.readdirSync(outDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const match = entry.name.match(artifactRe);
+    if (!match || match[1] === currentVersion) continue;
+
+    fs.rmSync(path.join(outDir, entry.name), { force: true });
+    removed.push(entry.name);
+  }
+
+  if (removed.length > 0) {
+    console.log(`🧹 Removed stale distributable artifacts: ${removed.join(', ')}`);
+  }
+}
+
 // Parse command line arguments
 const args = process.argv.slice(2);
 const archList = ['x64', 'arm64', 'ia32', 'armv7l'];
@@ -499,8 +521,9 @@ const packageJsonPath = path.resolve(__dirname, '../package.json');
 
 try {
   const oplReleaseVersionConfigArg = buildOplReleaseVersionConfigArg();
+  const oplReleaseVersion = process.env.OPL_RELEASE_VERSION.trim();
   if (oplReleaseVersionConfigArg) {
-    console.log(`📌 Stamping OPL App release version: ${process.env.OPL_RELEASE_VERSION.trim()}`);
+    console.log(`📌 Stamping OPL App release version: ${oplReleaseVersion}`);
   }
 
   // 1. Ensure package.json main entry is correct for electron-vite
@@ -659,6 +682,7 @@ try {
   if (isWindowsBuild) {
     cleanupWindowsPackOutput();
   }
+  cleanupStaleDistributableArtifacts(oplReleaseVersion);
 
   const normalizedBuilderArgs = normalizeBuilderTargetArgs(builderArgs);
   const builderTargetArgs = dirOnly ? '--dir' : [normalizedBuilderArgs, nsisInclude].filter(Boolean).join(' ');

@@ -98,7 +98,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                   candidate_purpose: 'Review OpenScience artifact graph before enabling any skill.',
                   report_ref: 'report://openscience/artifact-graph',
                   decision_status: 'review_pending',
-                  decision_actions: ['review', 'needs_changes', 'open_in_codex'],
+                  decision_actions: ['review', 'needs_changes', 'continue_in_conversation'],
                   body: 'must not render',
                 },
               ],
@@ -230,22 +230,6 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.capabilitiesPage.title': 'Agents & Capabilities',
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
-        'settings.capabilitiesPage.summary.installed': 'Installed packages',
-        'settings.capabilitiesPage.summary.attention': 'Needs attention',
-        'settings.capabilitiesPage.summary.attentionDetail': 'Handle missing, update, or repair work first.',
-        'settings.capabilitiesPage.summary.shortcuts': 'Visible Home shortcuts',
-        'settings.capabilitiesPage.summary.tools': 'Tools & connectors',
-        'settings.capabilitiesPage.packageDirectory.title': 'Agent package directory',
-        'settings.capabilitiesPage.packageDirectory.description': 'Manage packages as a compact list first.',
-        'settings.capabilitiesPage.homeShortcuts.title': 'Home shortcuts',
-        'settings.capabilitiesPage.homeShortcuts.description': 'Manage which package shortcuts appear on Home.',
-        'settings.capabilitiesPage.homeShortcuts.visible': 'Visible',
-        'settings.capabilitiesPage.homeShortcuts.hidden': 'Hidden',
-        'settings.capabilitiesPage.homeShortcuts.notAvailable': 'No shortcut',
-        'settings.capabilitiesPage.homeShortcuts.noShortcuts': 'No Home shortcuts are available yet.',
-        'settings.capabilitiesPage.toolsConnectors.title': 'Tools and connectors',
-        'settings.capabilitiesPage.toolsConnectors.description':
-          'Open Skills and External Tools only when setup or diagnostics is needed.',
         'settings.capabilitiesPage.status.ready': 'Ready',
         'settings.capabilitiesPage.status.update': 'Update available',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
@@ -265,7 +249,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.sourceKind': 'Source kind',
         'settings.capabilitiesPage.detailLabels.packageLockRef': 'Package lock receipt',
         'settings.capabilitiesPage.detailLabels.actionReceiptRef': 'Action receipt',
-        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Rollback ref',
+        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Rollback receipt',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceStatus': 'Installed Codex surface',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired': 'Codex reload required',
         'settings.capabilitiesPage.detailLabels.physicalSurfacePluginId': 'Installed plugin',
@@ -277,26 +261,24 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.source': 'Source',
         'settings.capabilitiesPage.detailLabels.lastSync': 'Last sync',
         'settings.capabilitiesPage.detailLabels.failureReason': 'Failure reason',
-        'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness refs',
-        'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflow refs',
-        'settings.capabilitiesPage.detailLabels.resourceContextRefs': 'Environment and resource refs',
+        'settings.capabilitiesPage.detailLabels.connectorReadinessRefs': 'Connector readiness',
+        'settings.capabilitiesPage.detailLabels.workflowRefs': 'Reusable workflows',
+        'settings.capabilitiesPage.detailLabels.resourceContextRefs': 'Environment and resource context',
         'settings.capabilitiesPage.detailLabels.exportBundleAction': 'Reproducibility export bundle action',
-        'settings.capabilitiesPage.listLabels.home': 'Home shortcut',
-        'settings.capabilitiesPage.listLabels.order': 'Order',
         'settings.capabilitiesPage.detailValues.notReported': 'Not reported',
         'settings.capabilitiesPage.detailValues.none': 'None',
         'settings.capabilitiesPage.detailValues.yes': 'Yes',
         'settings.capabilitiesPage.detailValues.no': 'No',
-        'settings.capabilitiesPage.candidateReports.title': 'Candidate reports',
+        'settings.capabilitiesPage.candidateReports.title': 'Review suggestions',
         'settings.capabilitiesPage.candidateReports.description':
-          'Review workflow and skill candidates as refs first. Nothing is installed or enabled from this view.',
-        'settings.capabilitiesPage.candidateReports.purpose': 'Candidate purpose',
-        'settings.capabilitiesPage.candidateReports.report': 'Report ref',
-        'settings.capabilitiesPage.candidateReports.decision': 'Decision',
-        'settings.capabilitiesPage.candidateReports.pendingDecision': 'Pending review',
+          'Review workflow and skill suggestions from their source context. This view does not install, enable, or edit skills.',
+        'settings.capabilitiesPage.candidateReports.purpose': 'Suggested use',
+        'settings.capabilitiesPage.candidateReports.report': 'Source report',
+        'settings.capabilitiesPage.candidateReports.decision': 'Review state',
+        'settings.capabilitiesPage.candidateReports.pendingDecision': 'Needs review',
         'settings.capabilitiesPage.candidateReports.actions.review': 'Review',
         'settings.capabilitiesPage.candidateReports.actions.needsChanges': 'Needs changes',
-        'settings.capabilitiesPage.candidateReports.actions.openInCodex': 'Open in Codex',
+        'settings.capabilitiesPage.candidateReports.actions.continueInConversation': 'Continue in conversation',
         'settings.capabilitiesPage.connectorGroups.oplConnect': 'OPL Connect',
         'settings.capabilitiesPage.connectorGroups.oplFabric': 'OPL Fabric',
         'settings.capabilitiesPage.resourceContextGroups.gateway': 'OPL Gateway',
@@ -306,7 +288,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.resourceContextGroups.receipts': 'Resource receipts',
         'settings.capabilitiesPage.resourceContextGroups.costs': 'Quota / cost',
         'settings.capabilitiesPage.refLabels.id': 'ID',
-        'settings.capabilitiesPage.refLabels.ref': 'Ref',
+        'settings.capabilitiesPage.refLabels.ref': 'Source',
         'settings.capabilitiesPage.refLabels.owner': 'Owner',
         'settings.capabilitiesPage.refLabels.nextAction': 'Next action',
         'settings.capabilitiesPage.refLabels.action': 'Action',
@@ -367,17 +349,15 @@ describe('CapabilitiesSettingsContent', () => {
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Agent packages')).toBeInTheDocument();
-    expect(screen.getByText('Agent package directory')).toBeInTheDocument();
-    expect(screen.getByText('Home shortcuts')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
-    expect(screen.getAllByText('Research').length).toBeGreaterThan(0);
+    expect(screen.getByText('Research')).toBeInTheDocument();
     expect(screen.getByText('MAS')).toBeInTheDocument();
-    expect(screen.getAllByText('Grant Writing').length).toBeGreaterThan(0);
+    expect(screen.getByText('Grant Writing')).toBeInTheDocument();
     expect(screen.getByText('MAG')).toBeInTheDocument();
-    expect(screen.getAllByText('Presentations').length).toBeGreaterThan(0);
+    expect(screen.getByText('Presentations')).toBeInTheDocument();
     expect(screen.getByText('RCA')).toBeInTheDocument();
-    expect(screen.getAllByText('Writing books').length).toBeGreaterThan(0);
+    expect(screen.getByText('Writing books')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByText('OMA')).toBeInTheDocument();
@@ -389,8 +369,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
 
     const research = screen.getByTestId('capability-purpose-mas');
-    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
-    expect(within(research).getByText('Candidate reports')).toBeInTheDocument();
+    expect(within(research).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(research).getByText('OpenScience artifact graph review')).toBeInTheDocument();
     const openscienceCandidate = within(research).getByTestId(
       'capability-candidate-report-mas-openscience-artifact-graph'
@@ -400,16 +379,16 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('report://openscience/artifact-graph');
     expect(openscienceCandidate).toHaveTextContent('review_pending');
     expect(openscienceCandidate).toHaveTextContent('Needs changes');
-    expect(openscienceCandidate).toHaveTextContent('Open in Codex');
+    expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
     const grant = screen.getByTestId('capability-purpose-mag');
-    fireEvent.click(within(grant).getByRole('button', { name: 'Capability details' }));
     const grantCandidate = within(grant).getByTestId('capability-candidate-report-mag-grant-workflow');
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
     expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
-    expect(grantCandidate).toHaveTextContent('Pending review');
+    expect(grantCandidate).toHaveTextContent('Needs review');
 
+    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
     await waitFor(() => expect(within(research).getByText(/Installed Codex surface:/)).toBeInTheDocument());
     expect(within(research).getByText('materialized')).toBeInTheDocument();
     expect(within(research).getByText(/Codex reload required:/)).toBeInTheDocument();
@@ -419,7 +398,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText('1.2.3')).toBeInTheDocument();
     expect(within(research).getByText('managed_root')).toBeInTheDocument();
     expect(within(research).getByText('2026-06-30T01:00:00Z')).toBeInTheDocument();
-    expect(within(research).getByText('Connector readiness refs')).toBeInTheDocument();
+    expect(within(research).getByText('Connector readiness')).toBeInTheDocument();
     expect(within(research).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
     expect(within(research).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(research).getByText('OPL Connect')).toBeInTheDocument();
@@ -427,10 +406,10 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getByText(/opl:\/\/connect\/pubmed\/readiness/)).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/connector\/generic\/readiness/)).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
-    expect(within(research).getByText('Reusable workflow refs')).toBeInTheDocument();
+    expect(within(research).getByText('Reusable workflows')).toBeInTheDocument();
     expect(within(research).getByText('Module runtime repair')).toBeInTheDocument();
     expect(within(research).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)).toBeInTheDocument();
-    expect(within(research).getByText('Environment and resource refs')).toBeInTheDocument();
+    expect(within(research).getByText('Environment and resource context')).toBeInTheDocument();
     expect(within(research).getByText('OPL Gateway')).toBeInTheDocument();
     expect(within(research).getByText('Environment catalog')).toBeInTheDocument();
     expect(within(research).getByText('Storage')).toBeInTheDocument();
@@ -524,7 +503,6 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByRole('button', { name: 'Capability details' }));
     fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

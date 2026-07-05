@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Divider, Typography } from '@arco-design/web-react';
+import { Divider, Typography } from '@arco-design/web-react';
 import { Github, Right } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -128,10 +128,6 @@ const AboutModalContent: React.FC = () => {
     }
   };
 
-  const openUpdateSettings = () => {
-    window.location.hash = '#/settings/update';
-  };
-
   const linkItems: LinkItem[] = [
     {
       title: t('settings.helpDocumentation'),
@@ -210,16 +206,12 @@ const AboutModalContent: React.FC = () => {
                 </Typography.Text>
               )}
             </div>
-            <div className='flex flex-wrap items-center justify-center gap-8px'>
-              {isElectron && (
-                <Button type='primary' size='small' onClick={openUpdateSettings} data-testid='about-open-update-settings'>
-                  {t('settings.checkForUpdates')}
-                </Button>
-              )}
-              <Button size='small' onClick={() => void openLink(OPL_APP_RELEASES_URL)} data-testid='about-release-notes'>
-                {t('settings.updateLog')}
-              </Button>
-            </div>
+
+            {isElectron && (
+              <Typography.Text className='text-12px text-t-secondary text-center'>
+                {t('settings.aboutMaintenanceMoved')}
+              </Typography.Text>
+            )}
           </div>
 
           {/* Divider */}

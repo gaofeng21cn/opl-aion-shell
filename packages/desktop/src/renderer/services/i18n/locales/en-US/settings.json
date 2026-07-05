@@ -1397,8 +1397,8 @@
     "versionDetail": "App {{oplVersion}} · Shell {{guiVersion}} · {{channel}}",
     "latestStableDetail": "Latest Stable on GitHub: {{version}}",
     "taskRuns": {
-      "title": "Runtime tasks",
-      "description": "User-visible task runs from the OPL runtime projection. Artifact bodies and provider internals stay outside this view.",
+      "title": "Active tasks",
+      "description": "Tasks shown from App state. Artifact bodies and provider internals stay outside this view.",
       "nextOwner": "Owner: {{owner}}",
       "stage": "Stage: {{stage}}",
       "nextStep": "Next: {{step}}",
@@ -1410,11 +1410,31 @@
         "waiting": "Waiting",
         "recent": "Recent"
       },
-      "artifactProvenanceDrawer": "Artifact provenance",
+      "artifactProvenanceDrawer": "Artifact context",
       "evidenceCards": "Evidence",
       "actionCards": "Actions",
       "resourceRefs": "Resources",
-      "diagnosticsRefs": "Diagnostics"
+      "diagnosticsRefs": "Diagnostics",
+      "artifactContext": {
+        "sourceMap": "Source map",
+        "sourceIndex": "Source index",
+        "sourceBundle": "Source bundle",
+        "artifact": "Artifact",
+        "ledgerRecord": "Ledger record",
+        "contentHash": "Content hash",
+        "roCrate": "RO-Crate metadata",
+        "replayStatus": "Replay status",
+        "agentActivity": "Agent activity trail",
+        "reviewNote": "Review note",
+        "typedIssue": "Typed issue",
+        "detailDrawer": "Detail view",
+        "openAction": "Open detail action",
+        "access": "Access",
+        "reviewOwner": "Review owner",
+        "severity": "Severity",
+        "owner": "Owner",
+        "action": "Action"
+      }
     },
     "releaseChannels": {
       "stable": "Stable",
@@ -1465,10 +1485,10 @@
     },
     "researchLifecycle": {
       "title": "Research workspace lifecycle",
-      "detail": "Read-only lifecycle refs from App state projections for research workspaces.",
-      "boundary": "The App shows refs only. It does not read SQLite sidecars, scan workspace trees, delete clinical data bodies, or authorize generic cleanup.",
+      "detail": "Read-only lifecycle context from App state for research workspaces.",
+      "boundary": "The App shows source references only. It does not read SQLite sidecars, scan workspace trees, delete clinical data bodies, or authorize generic cleanup.",
       "states": {
-        "available": "Ref available",
+        "available": "Source available",
         "attention": "Needs review",
         "blocked": "Forbidden"
       }
@@ -1577,12 +1597,12 @@
       "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
-      "title": "Remote access and optional OPL surfaces",
-      "description": "AionUI remote access stays available here; OPL adds Docker/WebUI, Workspace, and managed resources on top.",
+      "title": "Cloud & Remote Access / Deployment Entry",
+      "description": "View Local App, Docker WebUI, OPL Workspace, and remote resource context from one entry.",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
-      "remoteAccess": "AionUI remote access",
+      "remoteAccess": "Remote access",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
       "recoveryStatus": "Recovery: {{status}}",
@@ -1599,17 +1619,9 @@
       "oplGateway": "OPL Gateway",
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
-      "builtIn": {
-        "title": "Built-in remote access",
-        "description": "Keep the shell's native remote access visible. These entries are the base capability, not an OPL replacement."
-      },
-      "oplAddOns": {
-        "title": "OPL add-on surfaces",
-        "description": "Use these only when you need Docker/WebUI, OPL Workspace, Gateway, Fabric, or Console-managed resources."
-      },
       "status": "Status: {{status}}",
-      "environmentRefs": "Environment catalog refs",
-      "managementRefs": "OPL Console management refs",
+      "environmentRefs": "Environment catalog",
+      "managementRefs": "OPL Console context",
       "categories": {
         "gateway": "Model access",
         "local": "Local resource",
@@ -1626,7 +1638,7 @@
         "consoleManaged": "Managed by OPL Console",
         "selfManaged": "Self-managed resource"
       },
-      "noRefs": "No resource refs reported."
+      "noRefs": "No resource context reported."
     },
     "actions": {
       "recheck": "Recheck",
@@ -1636,34 +1648,11 @@
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
     "description": "Choose capabilities by work purpose first. Skills and tools remain available as supporting details.",
-    "summary": {
-      "installed": "Installed packages",
-      "attention": "Needs attention",
-      "attentionDetail": "Update, repair, or install anything still missing before relying on it.",
-      "shortcuts": "Visible Home shortcuts",
-      "tools": "Tools & connectors"
-    },
     "status": {
       "ready": "Ready",
       "update": "Update available",
       "repair": "Needs repair",
       "missing": "Missing"
-    },
-    "packageDirectory": {
-      "title": "Agent package directory",
-      "description": "Manage packages as a compact list first. Receipts, refs, and raw surface details stay under details."
-    },
-    "homeShortcuts": {
-      "title": "Home shortcuts",
-      "description": "Manage which package shortcuts appear on Home and in what order.",
-      "visible": "Visible",
-      "hidden": "Hidden",
-      "notAvailable": "No shortcut",
-      "noShortcuts": "No Home shortcuts are available yet."
-    },
-    "toolsConnectors": {
-      "title": "Tools and connectors",
-      "description": "Open the detailed Skills and External Tools surfaces only when you need setup or diagnostics."
     },
     "entries": {
       "externalTools": {
@@ -1716,7 +1705,7 @@
       "sourceKind": "Source kind",
       "packageLockRef": "Package lock receipt",
       "actionReceiptRef": "Action receipt",
-      "rollbackRef": "Rollback ref",
+      "rollbackRef": "Rollback receipt",
       "physicalSurfaceStatus": "Installed Codex surface",
       "physicalSurfaceReloadRequired": "Codex reload required",
       "physicalSurfacePluginId": "Installed plugin",
@@ -1728,15 +1717,10 @@
       "source": "Source",
       "lastSync": "Last sync",
       "failureReason": "Failure reason",
-      "connectorReadinessRefs": "Connector readiness refs",
-      "workflowRefs": "Reusable workflow refs",
-      "resourceContextRefs": "Environment and resource refs",
+      "connectorReadinessRefs": "Connector readiness",
+      "workflowRefs": "Reusable workflows",
+      "resourceContextRefs": "Environment and resource context",
       "exportBundleAction": "Reproducibility export bundle action"
-    },
-    "listLabels": {
-      "source": "Package",
-      "home": "Home shortcut",
-      "order": "Order"
     },
     "detailValues": {
       "notReported": "Not reported",
@@ -1745,16 +1729,16 @@
       "no": "No"
     },
     "candidateReports": {
-      "title": "Candidate reports",
-      "description": "Review workflow and skill candidates as refs first. Nothing is installed or enabled from this view.",
-      "purpose": "Candidate purpose",
-      "report": "Report ref",
-      "decision": "Decision",
-      "pendingDecision": "Pending review",
+      "title": "Review suggestions",
+      "description": "Review workflow and skill suggestions from their source context. This view does not install, enable, or edit skills.",
+      "purpose": "Suggested use",
+      "report": "Source report",
+      "decision": "Review state",
+      "pendingDecision": "Needs review",
       "actions": {
         "review": "Review",
         "needsChanges": "Needs changes",
-        "openInCodex": "Open in Codex"
+        "continueInConversation": "Continue in conversation"
       }
     },
     "connectorGroups": {
@@ -1771,7 +1755,7 @@
     },
     "refLabels": {
       "id": "ID",
-      "ref": "Ref",
+      "ref": "Source",
       "owner": "Owner",
       "nextAction": "Next action",
       "action": "Action",
@@ -2100,7 +2084,7 @@
         "developerCheckout": "Local developer checkout detected. Handle it in that checkout or switch back to managed packages.",
         "dirtyCheckout": "Uncommitted changes were detected. Save, commit, or clean them first.",
         "checkDetails": "Check diagnostics before deciding what to do.",
-        "codexSurface": "Codex Surface is a visibility and reload projection of OPL capability packages, not a separate updater.",
+        "codexSurface": "Codex Surface shows whether OPL capability packages are visible and need reload; it is not a separate updater.",
         "workflowProfile": "Workflow profile changes require Codex semantic merge; the app will not apply them silently."
       },
       "nextStep": "Next step: {{action}}",
@@ -2111,7 +2095,7 @@
         "restart": "Restart the app.",
         "reload": "Reload the app or Codex capabilities.",
         "hostRoute": "Use the host/manual route shown on this card.",
-        "projectionOnly": "Review the projection status; no app-side apply action is available.",
+        "projectionOnly": "Review the reported status; no app-side apply action is available.",
         "review": "Open diagnostics and review the detail.",
         "semanticMerge": "Review the semantic merge guidance."
       },

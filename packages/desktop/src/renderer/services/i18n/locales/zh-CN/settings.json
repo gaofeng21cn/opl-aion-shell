@@ -1398,8 +1398,8 @@
     "versionDetail": "应用 {{oplVersion}} · 界面 {{guiVersion}} · {{channel}}",
     "latestStableDetail": "GitHub 最新稳定版：{{version}}",
     "taskRuns": {
-      "title": "运行任务",
-      "description": "来自 OPL 运行时投影的用户任务。产物正文和 provider 内部细节不在这里显示。",
+      "title": "进行中的任务",
+      "description": "从 App 状态展示用户任务。产物正文和 provider 内部细节不在这里显示。",
       "nextOwner": "负责人：{{owner}}",
       "stage": "阶段：{{stage}}",
       "nextStep": "下一步：{{step}}",
@@ -1411,11 +1411,31 @@
         "waiting": "等待中",
         "recent": "最近任务"
       },
-      "artifactProvenanceDrawer": "产物溯源",
+      "artifactProvenanceDrawer": "产物上下文",
       "evidenceCards": "证据",
       "actionCards": "动作",
       "resourceRefs": "资源",
-      "diagnosticsRefs": "诊断"
+      "diagnosticsRefs": "诊断",
+      "artifactContext": {
+        "sourceMap": "来源地图",
+        "sourceIndex": "来源索引",
+        "sourceBundle": "来源包",
+        "artifact": "产物",
+        "ledgerRecord": "台账记录",
+        "contentHash": "内容哈希",
+        "roCrate": "RO-Crate 元数据",
+        "replayStatus": "重放状态",
+        "agentActivity": "Agent 执行记录",
+        "reviewNote": "审查记录",
+        "typedIssue": "结构化问题",
+        "detailDrawer": "详情视图",
+        "openAction": "打开详情动作",
+        "access": "访问方式",
+        "reviewOwner": "审查负责人",
+        "severity": "严重程度",
+        "owner": "负责人",
+        "action": "动作"
+      }
     },
     "releaseChannels": {
       "stable": "稳定版",
@@ -1466,10 +1486,10 @@
     },
     "researchLifecycle": {
       "title": "研究工作区生命周期",
-      "detail": "只读展示 App state projection 中的研究工作区生命周期 refs。",
-      "boundary": "App 只展示 refs；不直接读取 SQLite sidecar，不扫描 workspace tree，不删除临床数据正文，也不授权 generic cleanup。",
+      "detail": "只读展示 App 状态中的研究工作区生命周期上下文。",
+      "boundary": "App 只展示来源引用；不直接读取 SQLite sidecar，不扫描 workspace tree，不删除临床数据正文，也不授权 generic cleanup。",
       "states": {
-        "available": "refs 可用",
+        "available": "来源可用",
         "attention": "需要查看",
         "blocked": "禁止"
       }
@@ -1578,12 +1598,12 @@
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
-      "title": "远程访问与 OPL 扩展能力",
-      "description": "这里保留 AionUI 原生远程访问；OPL 只是在其上增加 Docker/WebUI、Workspace 和托管资源入口。",
+      "title": "云端与远程访问 / 部署入口",
+      "description": "在同一入口查看本机 App、Docker WebUI、OPL Workspace 和远程资源上下文。",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
-      "remoteAccess": "AionUI 原生远程访问",
+      "remoteAccess": "远程访问",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",
@@ -1600,17 +1620,9 @@
       "oplGateway": "OPL Gateway",
       "oplWorkspace": "OPL Workspace",
       "oplFabric": "OPL Fabric",
-      "builtIn": {
-        "title": "原生远程访问",
-        "description": "先保留 shell 自带的远程访问能力；这些入口是基础能力，不是被 OPL 替换的旧功能。"
-      },
-      "oplAddOns": {
-        "title": "OPL 叠加能力",
-        "description": "只有在需要 Docker/WebUI、OPL Workspace、Gateway、Fabric 或 Console 托管资源时，再进入这些扩展入口。"
-      },
       "status": "状态：{{status}}",
-      "environmentRefs": "环境目录引用",
-      "managementRefs": "OPL Console 管理引用",
+      "environmentRefs": "环境目录",
+      "managementRefs": "OPL Console 上下文",
       "categories": {
         "gateway": "模型接入",
         "local": "本机资源",
@@ -1627,7 +1639,7 @@
         "consoleManaged": "由 OPL Console 管理",
         "selfManaged": "自管资源"
       },
-      "noRefs": "未报告资源引用。"
+      "noRefs": "未报告资源上下文。"
     },
     "actions": {
       "recheck": "重新检查",
@@ -1637,34 +1649,11 @@
   "capabilitiesPage": {
     "title": "智能体与能力",
     "description": "先按工作目的选择能力；技能和工具保留为支撑详情。",
-    "summary": {
-      "installed": "已安装包",
-      "attention": "待处理项",
-      "attentionDetail": "先把缺失、待更新或待修复的包处理完，再把它当成可用能力。",
-      "shortcuts": "首页可见快捷入口",
-      "tools": "工具与连接器"
-    },
     "status": {
       "ready": "已就绪",
       "update": "可更新",
       "repair": "需修复",
       "missing": "缺失"
-    },
-    "packageDirectory": {
-      "title": "智能体包目录",
-      "description": "默认先用紧凑列表管理包；回执、引用和底层 surface 细节都收进详情里。"
-    },
-    "homeShortcuts": {
-      "title": "首页快捷入口",
-      "description": "管理哪些包显示在首页，以及它们的顺序。",
-      "visible": "显示中",
-      "hidden": "已隐藏",
-      "notAvailable": "无快捷入口",
-      "noShortcuts": "目前还没有可用的首页快捷入口。"
-    },
-    "toolsConnectors": {
-      "title": "工具与连接器",
-      "description": "只有在需要配置或排查时，再打开 Skills 和外部工具的详细页面。"
     },
     "entries": {
       "externalTools": {
@@ -1717,7 +1706,7 @@
       "sourceKind": "来源类型",
       "packageLockRef": "包锁定回执",
       "actionReceiptRef": "动作回执",
-      "rollbackRef": "回滚引用",
+      "rollbackRef": "回滚回执",
       "physicalSurfaceStatus": "已安装 Codex surface",
       "physicalSurfaceReloadRequired": "需要重载 Codex",
       "physicalSurfacePluginId": "已安装插件",
@@ -1729,15 +1718,10 @@
       "source": "来源",
       "lastSync": "最后同步",
       "failureReason": "失败原因",
-      "connectorReadinessRefs": "连接器就绪引用",
-      "workflowRefs": "可复用工作流引用",
-      "resourceContextRefs": "环境与资源引用",
+      "connectorReadinessRefs": "连接器就绪情况",
+      "workflowRefs": "可复用工作流",
+      "resourceContextRefs": "环境与资源上下文",
       "exportBundleAction": "可复现导出包动作"
-    },
-    "listLabels": {
-      "source": "对应包",
-      "home": "首页快捷入口",
-      "order": "顺序"
     },
     "detailValues": {
       "notReported": "未报告",
@@ -1746,16 +1730,16 @@
       "no": "否"
     },
     "candidateReports": {
-      "title": "候选报告",
-      "description": "先按 refs 查看工作流和技能候选；此视图不会安装或启用技能。",
-      "purpose": "候选用途",
-      "report": "报告引用",
-      "decision": "决策",
-      "pendingDecision": "待 review",
+      "title": "待审阅建议",
+      "description": "基于来源上下文审阅工作流和技能建议；这里不会安装、启用或改写技能。",
+      "purpose": "建议用途",
+      "report": "来源报告",
+      "decision": "审阅状态",
+      "pendingDecision": "待审阅",
       "actions": {
-        "review": "Review",
-        "needsChanges": "Needs changes",
-        "openInCodex": "Open in Codex"
+        "review": "审阅",
+        "needsChanges": "需要修改",
+        "continueInConversation": "在对话中继续"
       }
     },
     "connectorGroups": {
@@ -1772,7 +1756,7 @@
     },
     "refLabels": {
       "id": "ID",
-      "ref": "引用",
+      "ref": "来源",
       "owner": "负责人",
       "nextAction": "下一步",
       "action": "动作",
@@ -2101,7 +2085,7 @@
         "developerCheckout": "检测到本机开发目录，App 不会自动覆盖；请在开发仓库处理或切回托管包。",
         "dirtyCheckout": "检测到未提交改动；请先保存、提交或清理这些改动。",
         "checkDetails": "状态需要查看诊断详情后再决定。",
-        "codexSurface": "Codex Surface 只是 OPL 能力包的可见性和重载投影，不是单独的更新器。",
+        "codexSurface": "Codex Surface 只展示 OPL 能力包是否可见、是否需要重载，不是单独的更新器。",
         "workflowProfile": "工作流 Profile 变更必须由 Codex 做语义合并，App 不会静默应用。"
       },
       "nextStep": "下一步：{{action}}",
@@ -2112,7 +2096,7 @@
         "restart": "重启 App。",
         "reload": "重新加载 App 或 Codex 能力。",
         "hostRoute": "使用此卡片显示的主机/手动更新路径。",
-        "projectionOnly": "查看投影状态；此项没有 App 侧应用按钮。",
+        "projectionOnly": "查看报告状态；此项没有 App 侧应用按钮。",
         "review": "打开诊断详情后再判断。",
         "semanticMerge": "查看语义合并指引。"
       },

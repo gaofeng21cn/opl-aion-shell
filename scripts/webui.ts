@@ -93,6 +93,30 @@ function resolveBackendDataDir(): string {
   return dir;
 }
 
+function resolveProjectsDir(workDir: string): string {
+  const override = process.env.OPL_PROJECTS_DIR ?? process.env.OPL_WORKSPACE_ROOT;
+  if (override && override.trim().length > 0) return path.resolve(override);
+  const userWorkspace = path.join(os.homedir(), 'workspace');
+  if (fs.existsSync(userWorkspace)) return userWorkspace;
+  const dir = path.join(workDir, 'projects');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function resolveImageManifestPath(): string | undefined {
+  const override = process.env.OPL_IMAGE_MANIFEST_PATH;
+  if (override && override.trim().length > 0) return path.resolve(override);
+  const candidate = path.join(repoRoot, 'opl-image-manifest.json');
+  return fs.existsSync(candidate) ? candidate : undefined;
+}
+
+function resolveImageSeedDir(): string | undefined {
+  const override = process.env.OPL_IMAGE_SEED_DIR;
+  if (override && override.trim().length > 0) return path.resolve(override);
+  const candidate = path.join(repoRoot, 'opl-image-seed');
+  return fs.existsSync(candidate) ? candidate : undefined;
+}
+
 function parseBoolean(v: string | undefined): boolean {
   if (!v) return false;
   return ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase());
@@ -202,8 +226,14 @@ async function main(): Promise<void> {
   const staticDir = resolveStaticDir();
   const backendBin = resolveBackendBinary();
   const logDir = process.env.AIONUI_LOG_DIR ?? path.join(workDir, 'logs');
+  const oplRuntimeDataDir = process.env.OPL_RUNTIME_DATA_DIR?.trim() || os.homedir();
+  const projectsDir = resolveProjectsDir(workDir);
+  const imageManifestPath = resolveImageManifestPath();
+  const imageSeedDir = resolveImageSeedDir();
 
   console.log('[webui] work dir   :', workDir);
+  console.log('[webui] OPL home   :', oplRuntimeDataDir);
+  console.log('[webui] projects   :', projectsDir);
   console.log('[webui] static dir :', staticDir);
   console.log('[webui] backend bin:', backendBin);
   console.log(`[webui] launching  : port=${port} allowRemote=${allowRemote}`);
@@ -233,6 +263,14 @@ async function main(): Promise<void> {
       cacheDir: workDir,
       workDir: workDir,
       logDir,
+    },
+    oplRuntimeProxy: {
+      dataDir: oplRuntimeDataDir,
+      resourcesPath: repoRoot,
+      projectsDir,
+      imageManifestPath,
+      imageSeedDir,
+      inheritUserOplEnvironment: true,
     },
     backend: {
       kind: 'ownBackend',
