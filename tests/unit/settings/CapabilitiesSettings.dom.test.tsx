@@ -226,12 +226,13 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     i18n: { language: 'en-US' },
-    t: (key: string, options?: { defaultValue?: string }) => {
+    t: (key: string, options?: Record<string, string | undefined> & { defaultValue?: string }) => {
       const labels: Record<string, string> = {
         'settings.capabilitiesPage.title': 'Agents & Capabilities',
         'settings.capabilitiesPage.description': 'Choose capabilities by work purpose first.',
         'settings.capabilitiesPage.status.ready': 'Ready',
         'settings.capabilitiesPage.status.update': 'Update available',
+        'settings.capabilitiesPage.status.attention': 'Needs attention',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
         'settings.capabilitiesPage.detailsHeader': 'Capability details',
@@ -300,6 +301,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.actions.repair': 'Review repair path',
         'settings.capabilitiesPage.packageManager.title': 'Agent packages',
         'settings.capabilitiesPage.packageManager.description': 'Package lifecycle actions use App action routes.',
+        'settings.capabilitiesPage.packageManager.catalogTitle': 'Package catalog',
+        'settings.capabilitiesPage.packageManager.catalogDescription': 'Manage install state and Home visibility from one compact list.',
         'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
@@ -307,6 +310,11 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.showOnHome': 'Show on Home',
         'settings.capabilitiesPage.packageManager.moveUp': 'Move up',
         'settings.capabilitiesPage.packageManager.moveDown': 'Move down',
+        'settings.capabilitiesPage.packageManager.homeVisibleWithOrder': `Home visible · Order ${options?.order ?? ''}`,
+        'settings.capabilitiesPage.packageManager.homeHidden': 'Home hidden',
+        'settings.capabilitiesPage.packageManager.noHomeShortcut': 'No Home shortcut',
+        'settings.capabilitiesPage.packageManager.rowMeta':
+          `${options?.sourceLabel ?? ''}: ${options?.sourceValue ?? ''} · ${options?.versionLabel ?? ''}: ${options?.versionValue ?? ''} · ${options?.homeLabel ?? ''}`,
         'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
@@ -349,6 +357,7 @@ describe('CapabilitiesSettingsContent', () => {
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Agent packages')).toBeInTheDocument();
+    expect(screen.getByText('Package catalog')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getByText('Research')).toBeInTheDocument();
@@ -369,6 +378,8 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Codex visibility: Needs sync before Codex sees the latest version')).toBeInTheDocument();
 
     const research = screen.getByTestId('capability-purpose-mas');
+    expect(within(research).getByText(/Home visible · Order 1/)).toBeInTheDocument();
+    fireEvent.click(within(research).getByText('Research'));
     expect(within(research).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(research).getByText('OpenScience artifact graph review')).toBeInTheDocument();
     const openscienceCandidate = within(research).getByTestId(
@@ -383,12 +394,12 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
     const grant = screen.getByTestId('capability-purpose-mag');
+    fireEvent.click(within(grant).getByText('Grant Writing'));
     const grantCandidate = within(grant).getByTestId('capability-candidate-report-mag-grant-workflow');
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
     expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
     expect(grantCandidate).toHaveTextContent('Needs review');
 
-    fireEvent.click(within(research).getByRole('button', { name: 'Capability details' }));
     await waitFor(() => expect(within(research).getByText(/Installed Codex surface:/)).toBeInTheDocument());
     expect(within(research).getByText('materialized')).toBeInTheDocument();
     expect(within(research).getByText(/Codex reload required:/)).toBeInTheDocument();
@@ -431,7 +442,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(research).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
 
     const presentations = screen.getByTestId('capability-purpose-rca');
-    fireEvent.click(within(presentations).getByRole('button', { name: 'Capability details' }));
+    fireEvent.click(within(presentations).getByText('Presentations'));
     expect(within(presentations).getByText('receipt missing')).toBeInTheDocument();
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
@@ -503,6 +514,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
+    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByText('Research'));
     fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

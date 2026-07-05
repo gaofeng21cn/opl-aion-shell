@@ -1055,8 +1055,8 @@
         },
         {
           "id": "setup_access",
-          "label_zh": "开始使用",
-          "label_en": "Setup & Access",
+          "label_zh": "访问方式",
+          "label_en": "Access",
           "role": "first_use_and_access_setup",
           "ordinary_entries": ["settings_access", "first_run_setup_center"],
           "primary_tasks": ["workspace_root", "codex_cli", "codex_config"]
@@ -1116,8 +1116,8 @@
           "ordinary_entry_policy": "top_level_control_center_route"
         },
         "access": {
-          "label_zh": "开始使用",
-          "label_en": "Setup & Access",
+          "label_zh": "访问方式",
+          "label_en": "Access",
           "role": "first_use_and_access_setup",
           "primary_question": "How do I connect the App, and where does work happen?",
           "ia_group": "setup_access",
@@ -1217,8 +1217,8 @@
           "id": "access",
           "path": "/settings/access",
           "label_key": "settings.onboarding",
-          "default_label_en": "Setup & Access",
-          "default_label_zh": "开始使用",
+          "default_label_en": "Access",
+          "default_label_zh": "访问方式",
           "icon_token": "access",
           "ia_group": "setup_access",
           "slot_id": "settings_access",

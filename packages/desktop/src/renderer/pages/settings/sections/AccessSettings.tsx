@@ -5,13 +5,14 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Card, Input, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Button, Card, Input, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { CheckOne, Earth, Open, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection, type DockerWebuiAction, type ResourceSourceProjection } from '../accessProjection';
+import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
@@ -25,9 +26,13 @@ export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   const [codexApiKey, setCodexApiKey] = useState('');
+  const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
+  const [remoteSettingsVisible, setRemoteSettingsVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const { cards, dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
+  const gatewayCard = cards.find((card) => card.key === 'account');
+  const readinessCards = cards.filter((card) => card.key !== 'account');
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -87,31 +92,56 @@ export const AccessSettingsContent: React.FC = () => {
               <Typography.Text className='font-600 text-t-primary'>
                 {t('settings.accessPage.modelAccount.title')}
               </Typography.Text>
+              {gatewayCard && (
+                <Tag color={gatewayCard.tone}>
+                  {gatewayCard.statusLabel ??
+                    t(`settings.oplEnvironmentPage.status.${gatewayCard.status}`, { status: gatewayCard.status })}
+                </Tag>
+              )}
             </div>
             <Typography.Text className='block text-13px text-t-secondary break-words'>
               {t('settings.accessPage.modelAccount.description')}
             </Typography.Text>
-            <div className='mt-12px flex flex-col gap-8px md:flex-row md:items-center'>
-              <Input.Password
-                data-testid='opl-settings-codex-api-key-input'
-                aria-label='opl-settings-codex-api-key-input'
-                value={codexApiKey}
-                placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
-                autoComplete='off'
-                className='md:max-w-420px'
-                onChange={setCodexApiKey}
-                onPressEnter={() => void handleConfigureCodex()}
-              />
+            {gatewayCard && (
+              <div className='mt-8px flex flex-col gap-4px'>
+                {splitAccessDetail(gatewayCard.detail).map((line) => (
+                  <Typography.Text key={line} className='text-12px text-t-secondary break-words'>
+                    {line}
+                  </Typography.Text>
+                ))}
+              </div>
+            )}
+            {!gatewayFormVisible ? (
               <Button
-                data-testid='opl-settings-configure-codex-button'
-                aria-label='opl-settings-configure-codex-button'
-                type='primary'
-                loading={configureLoading}
-                onClick={() => void handleConfigureCodex()}
+                className='mt-12px'
+                data-testid='opl-settings-show-gateway-config-button'
+                onClick={() => setGatewayFormVisible(true)}
               >
-                {t('settings.accessPage.modelAccount.configureButton')}
+                {t('settings.accessPage.modelAccount.showConfigButton')}
               </Button>
-            </div>
+            ) : (
+              <div className='mt-12px flex flex-col gap-8px md:flex-row md:items-center'>
+                <Input.Password
+                  data-testid='opl-settings-codex-api-key-input'
+                  aria-label='opl-settings-codex-api-key-input'
+                  value={codexApiKey}
+                  placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
+                  autoComplete='off'
+                  className='md:max-w-420px'
+                  onChange={setCodexApiKey}
+                  onPressEnter={() => void handleConfigureCodex()}
+                />
+                <Button
+                  data-testid='opl-settings-configure-codex-button'
+                  aria-label='opl-settings-configure-codex-button'
+                  type='primary'
+                  loading={configureLoading}
+                  onClick={() => void handleConfigureCodex()}
+                >
+                  {t('settings.accessPage.modelAccount.configureButton')}
+                </Button>
+              </div>
+            )}
           </div>
           <Space wrap>
             <Button
@@ -134,8 +164,8 @@ export const AccessSettingsContent: React.FC = () => {
         </div>
       </Card>
 
-      <div className='grid grid-cols-1 md:grid-cols-4 gap-14px'>
-        {cards.map((card) => (
+      <div className='grid grid-cols-1 md:grid-cols-3 gap-14px'>
+        {readinessCards.map((card) => (
           <Card key={card.key} bordered className='rd-8px'>
             <div className='flex flex-col gap-8px min-w-0'>
               <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
@@ -143,7 +173,13 @@ export const AccessSettingsContent: React.FC = () => {
                 {card.statusLabel ?? t(`settings.oplEnvironmentPage.status.${card.status}`, { status: card.status })}
               </Tag>
               {card.help && <Typography.Text className='text-12px text-t-secondary'>{card.help}</Typography.Text>}
-              <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
+              <div className='flex flex-col gap-3px'>
+                {splitAccessDetail(card.detail).map((line) => (
+                  <Typography.Text key={line} className='text-12px text-t-secondary break-words'>
+                    {line}
+                  </Typography.Text>
+                ))}
+              </div>
             </div>
           </Card>
         ))}
@@ -173,32 +209,67 @@ export const AccessSettingsContent: React.FC = () => {
                 </Tag>
               </div>
             </div>
-            <Space wrap>
-              <Tag color='blue'>
-                <span className='inline-flex items-center gap-4px'>
-                  <Earth theme='outline' size='14' />
-                  {t('settings.accessPage.remote.webui')}
-                </span>
-              </Tag>
-              <Tag color='gray'>
-                <span className='inline-flex items-center gap-4px'>
-                  <Toolkit theme='outline' size='14' />
-                  {t('settings.accessPage.remote.docker')}
-                </span>
-              </Tag>
-              <Tag color='blue'>
-                <span className='inline-flex items-center gap-4px'>
-                  <Open theme='outline' size='14' />
-                  {t('settings.accessPage.remote.workspace')}
-                </span>
-              </Tag>
-              <Tag color='blue'>
-                <span className='inline-flex items-center gap-4px'>
-                  <CheckOne theme='outline' size='14' />
-                  {t('settings.accessPage.remote.remoteAccess')}
-                </span>
-              </Tag>
-            </Space>
+          </div>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+            <div className='flex flex-col gap-8px p-12px rd-8px bg-fill-1 min-w-0'>
+              <div className='flex flex-wrap items-center gap-8px'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.accessPage.remote.nativeTitle')}
+                </Typography.Text>
+                <Tag color='blue'>{t('settings.accessPage.remote.webui')}</Tag>
+                <Tag color='blue'>{t('settings.accessPage.remote.remoteAccess')}</Tag>
+              </div>
+              <div className='grid grid-cols-1 gap-4px'>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativePort')}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativeAccount')}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.accessPage.remote.nativePassword')}
+                </Typography.Text>
+              </div>
+              <Button
+                data-testid='opl-settings-open-native-remote-settings'
+                type='secondary'
+                icon={<Open theme='outline' />}
+                onClick={() => setRemoteSettingsVisible(true)}
+              >
+                {t('settings.accessPage.remote.openNativeSettings')}
+              </Button>
+            </div>
+            <div className='flex flex-col gap-8px p-12px rd-8px bg-fill-1 min-w-0'>
+              <div className='flex flex-wrap items-center gap-8px'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.accessPage.remote.dockerTitle')}
+                </Typography.Text>
+                <Tag color='gray'>
+                  <span className='inline-flex items-center gap-4px'>
+                    <Toolkit theme='outline' size='14' />
+                    {t('settings.accessPage.remote.docker')}
+                  </span>
+                </Tag>
+                <Tag color='blue'>
+                  <span className='inline-flex items-center gap-4px'>
+                    <Open theme='outline' size='14' />
+                    {t('settings.accessPage.remote.workspace')}
+                  </span>
+                </Tag>
+              </div>
+              <div className='flex flex-wrap gap-8px'>
+                <Tag color='blue'>{t('settings.accessPage.remote.status', { status: dockerWebui.status })}</Tag>
+                <Tag color='gray'>
+                  {t('settings.accessPage.remote.runtimeStatus', { status: dockerWebui.runtimeStatus })}
+                </Tag>
+                <Tag color='green'>
+                  {t('settings.accessPage.remote.recoveryStatus', { status: dockerWebui.recoveryStatus })}
+                </Tag>
+              </div>
+              <Typography.Text className='text-12px text-t-secondary break-words'>
+                {t('settings.accessPage.remote.dockerDescription')}
+              </Typography.Text>
+            </div>
           </div>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
             {dockerWebui.actions.map((action) => {
@@ -225,7 +296,9 @@ export const AccessSettingsContent: React.FC = () => {
                 >
                   <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
                     <div className='min-w-0'>
-                      <Typography.Text className='font-600 text-t-primary break-words'>{action.label}</Typography.Text>
+                      <Typography.Text className='font-600 text-t-primary break-words'>
+                        {t(`settings.accessPage.remote.actions.${action.actionId}`, { defaultValue: action.label })}
+                      </Typography.Text>
                       <Typography.Text className='block text-12px text-t-secondary break-words'>
                         {action.dryRunRoute || action.route || action.actionId}
                       </Typography.Text>
@@ -254,9 +327,23 @@ export const AccessSettingsContent: React.FC = () => {
           <ResourceSources sources={resourceSources} />
         </div>
       </Card>
+      <Modal
+        visible={remoteSettingsVisible}
+        title={t('settings.accessPage.remote.nativeTitle')}
+        footer={null}
+        className='settings-sub-modal'
+        style={{ width: 'min(820px, calc(100vw - 48px))' }}
+        onCancel={() => setRemoteSettingsVisible(false)}
+      >
+        <WebuiModalContent />
+      </Modal>
     </div>
   );
 };
+
+function splitAccessDetail(detail: string): string[] {
+  return detail.split(' · ').filter((line) => line.trim().length > 0);
+}
 
 const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
   const { t } = useTranslation();

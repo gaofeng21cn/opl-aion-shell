@@ -25,6 +25,31 @@ vi.mock('@/common/config/oplProductProfile', () => ({
 }));
 
 describe('buildCapabilitiesViewModel', () => {
+  it('treats dirty developer checkouts as attention instead of repair', () => {
+    const [research] = buildCapabilitiesViewModel(
+      {
+        modules: {
+          items: [
+            {
+              module_id: 'medautoscience',
+              installed: true,
+              health_status: 'dirty',
+              git: {
+                dirty: true,
+                sync_status: 'behind',
+                short_sha: '4d4dead',
+              },
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+
+    expect(research.status).toBe('attention');
+    expect(research.version).toBe('4d4dead');
+  });
+
   it('projects workflow, connector, and export action refs without skill bodies or domain action execution', () => {
     const [research] = buildCapabilitiesViewModel(
       {

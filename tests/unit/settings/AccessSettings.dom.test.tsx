@@ -57,6 +57,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
+  default: () => <div>Native remote settings</div>,
+}));
+
 vi.mock('@arco-design/web-react', () => {
   const message = (text: React.ReactNode) => {
     const element = document.createElement('div');
@@ -87,6 +91,25 @@ vi.mock('@arco-design/web-react', () => {
     bordered: _bordered,
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & { bordered?: boolean }) => <div {...props}>{children}</div>;
+  const Modal = ({
+    children,
+    visible,
+    title,
+    footer: _footer,
+    onCancel: _onCancel,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement> & {
+    visible?: boolean;
+    title?: React.ReactNode;
+    footer?: React.ReactNode;
+    onCancel?: () => void;
+  }) =>
+    visible ? (
+      <div {...props}>
+        <div>{title}</div>
+        {children}
+      </div>
+    ) : null;
   const Space = ({ children, wrap: _wrap, ...props }: React.HTMLAttributes<HTMLDivElement> & { wrap?: boolean }) => (
     <div {...props}>{children}</div>
   );
@@ -132,6 +155,7 @@ vi.mock('@arco-design/web-react', () => {
       success: vi.fn(message),
       error: vi.fn(message),
     },
+    Modal,
     Space,
     Tag,
     Tooltip,
@@ -170,7 +194,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             },
           },
           executor: {
-            permission_mode: 'full-access',
+            permission_mode: 'full_auto',
           },
         },
         provider: {
@@ -277,12 +301,14 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
-        'settings.accessPage.title': 'Model & Account',
+        'settings.accessPage.title': 'Access',
         'settings.accessPage.description':
-          'Confirm model and account access, then configure Web, Docker, and remote access.',
-        'settings.accessPage.cards.model.title': 'Current Model',
-        'settings.accessPage.cards.model.fallback': 'Current model is not available yet.',
-        'settings.accessPage.cards.account.title': 'Account / API key',
+          'Manage OPL Gateway, Codex CLI, local background services, and remote access entries.',
+        'settings.accessPage.cards.codexCli.title': 'Codex CLI',
+        'settings.accessPage.cards.codexCli.fallback': 'Codex CLI status is not available yet.',
+        'settings.accessPage.cards.codexCli.version': `codex-cli ${options?.version}`,
+        'settings.accessPage.cards.codexCli.model': `Current model: ${options?.model}`,
+        'settings.accessPage.cards.account.title': 'OPL Gateway',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
         'settings.accessPage.cards.account.oplGatewayConfigured': 'OPL Gateway is connected.',
         'settings.accessPage.cards.account.existingCodexConfigured':
@@ -295,6 +321,9 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.modelAccess.title': 'Model Access Status',
         'settings.accessPage.cards.modelAccess.detail':
           'Checks whether the local assistant can reach the configured model service.',
+        'settings.accessPage.cards.runtimeService.title': 'Background Service / Temporal',
+        'settings.accessPage.cards.runtimeService.detail':
+          'Checks whether local OPL scheduling and background services are available.',
         'settings.accessPage.cards.provider.summary': `${options?.status}`,
         'settings.accessPage.cards.provider.ready': 'Model service is reachable.',
         'settings.accessPage.cards.provider.needsAttention': 'Model service needs setup or maintenance.',
@@ -304,19 +333,31 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Model & Account shows account/API key status.`,
         'settings.accessPage.modelAccount.title': 'OPL Gateway',
         'settings.accessPage.modelAccount.description':
-          'Switch current Codex model access to OPL Gateway here. Existing Codex login or another provider no longer blocks first launch.',
+          'This machine is using OPL Gateway for model access; open configuration only when you need to replace the access key.',
+        'settings.accessPage.modelAccount.showConfigButton': 'Configure access key',
         'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Gateway access key',
         'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Gateway access key.',
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
-        'settings.accessPage.remote.title': 'Cloud & Remote Access / Deployment Entry',
+        'settings.accessPage.remote.title': 'Web & Remote Access',
         'settings.accessPage.remote.description':
-          'View Local App, Docker WebUI, OPL Workspace, and remote resource context from one entry.',
+          'Native AionUI remote access owns port, account, and password settings; Docker WebUI and OPL Workspace are additional deployment entries.',
         'settings.accessPage.remote.webui': 'WebUI',
         'settings.accessPage.remote.docker': 'Docker WebUI',
         'settings.accessPage.remote.workspace': 'OPL Workspace',
         'settings.accessPage.remote.remoteAccess': 'Remote access',
+        'settings.accessPage.remote.nativeTitle': 'AionUI Native Remote Access',
+        'settings.accessPage.remote.nativePort': 'Port: 25808',
+        'settings.accessPage.remote.nativeAccount': 'Account: admin, editable in remote access settings.',
+        'settings.accessPage.remote.nativePassword': 'Password: view, copy, or reset it in remote access settings.',
+        'settings.accessPage.remote.openNativeSettings': 'Open remote access settings',
+        'settings.accessPage.remote.dockerTitle': 'Docker WebUI / OPL Workspace',
+        'settings.accessPage.remote.dockerDescription':
+          'For browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.',
+        'settings.accessPage.remote.actions.settings_install_docker_webui': 'Install Docker WebUI',
+        'settings.accessPage.remote.actions.settings_select_webui_seed': 'Select WebUI image seed',
+        'settings.accessPage.remote.actions.settings_diagnose_docker_webui': 'Diagnose Docker WebUI',
         'settings.accessPage.remote.status': `Status: ${options?.status}`,
         'settings.accessPage.remote.runtimeStatus': `Runtime proxy: ${options?.status}`,
         'settings.accessPage.remote.recoveryStatus': `Recovery: ${options?.status}`,
@@ -352,6 +393,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.actions.fix': 'Fix issue',
         'settings.oplEnvironmentPage.status.ready': 'ready',
         'agentMode.full-access': 'Full Access',
+        'agentMode.full_auto': 'Full Auto',
       };
       return labels[key] ?? options?.status ?? options?.defaultValue ?? key;
     },
@@ -385,30 +427,35 @@ describe('AccessSettingsContent', () => {
   it('renders user-facing model, account, and remote access entries from the fast App state projection', () => {
     const view = render(<AccessSettingsContent />);
 
-    expect(view.getByText('Model & Account')).toBeTruthy();
+    expect(view.getByText('Access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
     expect(
-      view.getByText('Confirm model and account access, then configure Web, Docker, and remote access.')
+      view.getByText('Manage OPL Gateway, Codex CLI, local background services, and remote access entries.')
     ).toBeTruthy();
-    expect(view.getByText('Current Model')).toBeTruthy();
-    expect(document.body.textContent).toContain('gpt-5.5');
+    expect(view.getByText('Codex CLI')).toBeTruthy();
+    expect(document.body.textContent).toContain('Current model: gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
-    expect(view.getByText('Account / API key')).toBeTruthy();
     expect(document.body.textContent).toContain('OPL Gateway is connected.');
-    expect(view.getByText('Model Access Status')).toBeTruthy();
-    expect(view.getByText(/configured model service/)).toBeTruthy();
+    expect(view.getByText('Background Service / Temporal')).toBeTruthy();
+    expect(view.getByText(/local OPL scheduling/)).toBeTruthy();
     expect(view.getByText('Model service is reachable.')).toBeTruthy();
     expect(document.body.textContent).not.toContain('127.0.0.1:7233');
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
-    expect(view.getByText('Cloud & Remote Access / Deployment Entry')).toBeTruthy();
+    expect(view.getByText('Web & Remote Access')).toBeTruthy();
+    expect(view.getByText('AionUI Native Remote Access')).toBeTruthy();
+    expect(view.getByText('Port: 25808')).toBeTruthy();
+    expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
+    expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
+    expect(view.getByText('Docker WebUI / OPL Workspace')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(view.getByText('Docker WebUI')).toBeTruthy();
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getByText('Remote access')).toBeTruthy();
-    expect(view.getByText('Status: action_available')).toBeTruthy();
-    expect(view.getByText('Runtime proxy: diagnose_with_doctor')).toBeTruthy();
-    expect(view.getByText('Recovery: available')).toBeTruthy();
+    expect(view.getAllByText('Status: action_available').length).toBeGreaterThan(0);
+    expect(view.getAllByText('Runtime proxy: diagnose_with_doctor').length).toBeGreaterThan(0);
+    expect(view.getAllByText('Recovery: available').length).toBeGreaterThan(0);
     expect(view.getByText('Install Docker WebUI')).toBeTruthy();
     expect(view.getByText('Select WebUI image seed')).toBeTruthy();
     expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
@@ -440,18 +487,15 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).toContain('opl://environment-version/python-r-quarto/2026-07');
     expect(document.body.textContent).toContain('opl://task-applicability/mas');
     expect(document.body.textContent).toContain('opl://resource-source/ssh-hpc/lab');
-    expect(view.getByTestId('opl-settings-codex-api-key-input')).toBeTruthy();
-    expect(view.getByLabelText('opl-settings-codex-api-key-input')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-configure-codex-button')).toBeTruthy();
-    expect(view.getByLabelText('opl-settings-configure-codex-button')).toBeTruthy();
+    expect(view.queryByTestId('opl-settings-codex-api-key-input')).toBeNull();
+    expect(view.getByTestId('opl-settings-show-gateway-config-button')).toBeTruthy();
     expect(view.getByText('Permission Mode')).toBeTruthy();
-    expect(view.getByText('Full Access')).toBeTruthy();
-    expect(document.body.textContent).not.toContain('Codex CLI');
+    expect(view.getByText('Full Auto')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
-    const firstReadinessCard = view.getByText('Current Model');
+    const firstReadinessCard = view.getByText('Codex CLI');
     const remoteControls = view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui');
     expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
@@ -459,6 +503,7 @@ describe('AccessSettingsContent', () => {
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
     fireEvent.input(input, { target: { value: '  sk-opl-secret-value  ' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
@@ -484,6 +529,7 @@ describe('AccessSettingsContent', () => {
     });
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     const input = view.getByTestId('opl-settings-codex-api-key-input') as HTMLInputElement;
     fireEvent.input(input, { target: { value: 'sk-opl-secret-value' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
@@ -497,6 +543,7 @@ describe('AccessSettingsContent', () => {
   it('does not call the bridge when the OPL Gateway access key is empty', async () => {
     const view = render(<AccessSettingsContent />);
 
+    fireEvent.click(view.getByTestId('opl-settings-show-gateway-config-button'));
     fireEvent.input(view.getByTestId('opl-settings-codex-api-key-input'), { target: { value: '   ' } });
     fireEvent.click(view.getByTestId('opl-settings-configure-codex-button'));
 

@@ -356,17 +356,20 @@ export function buildAccessProjection(
       ? t('settings.accessPage.cards.account.existingCodexConfigured')
       : t('settings.accessPage.cards.account.missing');
   const accountSourceLabel = modelAccessSourceLabel(modelAccessSource, t);
-  const modelAccessStatus =
-    codexStatus === 'ready' && modelAccessReady && (providerStatus === 'ready' || providerStatus === 'ok')
-      ? 'ready'
-      : 'attention_required';
+  const runtimeServiceStatus = providerStatus === 'ready' || providerStatus === 'ok' ? 'ready' : 'attention_required';
+  const modelFallback = t('settings.accessPage.cards.codexCli.fallback');
+  const modelLine =
+    modelName === modelFallback ? null : t('settings.accessPage.cards.codexCli.model', { model: modelName });
+  const codexVersionLine = oplString(codex.version)
+    ? t('settings.accessPage.cards.codexCli.version', { version: oplString(codex.version) ?? '' })
+    : null;
 
   const cards: StatusCard[] = [
     {
       key: 'model',
-      title: t('settings.accessPage.cards.model.title'),
+      title: t('settings.accessPage.cards.codexCli.title'),
       status: codexStatus,
-      detail: compactAccessDetail([modelName, oplString(codex.version)], t('settings.accessPage.cards.model.fallback')),
+      detail: compactAccessDetail([codexVersionLine, modelLine], modelFallback),
       tone: codexStatus === 'ready' ? 'green' : 'orange',
     },
     {
@@ -378,16 +381,16 @@ export function buildAccessProjection(
     },
     {
       key: 'modelAccess',
-      title: t('settings.accessPage.cards.modelAccess.title'),
-      status: modelAccessStatus,
+      title: t('settings.accessPage.cards.runtimeService.title'),
+      status: runtimeServiceStatus,
       detail: t('settings.accessPage.cards.provider.summary', {
         status:
-          modelAccessStatus === 'ready'
+          runtimeServiceStatus === 'ready'
             ? t('settings.accessPage.cards.provider.ready')
             : t('settings.accessPage.cards.provider.needsAttention'),
       }),
-      help: t('settings.accessPage.cards.modelAccess.detail'),
-      tone: modelAccessStatus === 'ready' ? 'green' : 'orange',
+      help: t('settings.accessPage.cards.runtimeService.detail'),
+      tone: runtimeServiceStatus === 'ready' ? 'green' : 'orange',
     },
     {
       key: 'permission',

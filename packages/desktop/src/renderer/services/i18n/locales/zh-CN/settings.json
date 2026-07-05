@@ -179,7 +179,7 @@
   "model": "模型",
   "system": "系统",
   "about": "关于",
-  "onboarding": "开始使用",
+  "onboarding": "访问方式",
   "maintenance": "维护",
   "preferences": "偏好",
   "aboutMaintenanceMoved": "更新与维护已移到“维护”页；本页只保留版本和项目链接。",
@@ -1551,15 +1551,21 @@
     "receipt": "{{operation}} 回执：{{receipt}}"
   },
   "accessPage": {
-    "title": "模型与账号",
-    "description": "先确认模型与账号，再配置 Web、Docker 和远程访问。",
+    "title": "访问方式",
+    "description": "管理 OPL Gateway、Codex CLI、本机后台服务和远程访问入口。",
     "cards": {
       "model": {
         "title": "当前模型",
         "fallback": "暂时无法读取当前模型。"
       },
+      "codexCli": {
+        "title": "Codex CLI",
+        "fallback": "暂时无法读取 Codex CLI 状态。",
+        "version": "codex-cli {{version}}",
+        "model": "当前模型：{{model}}"
+      },
       "account": {
-        "title": "账号 / API key",
+        "title": "OPL Gateway",
         "configured": "账号或 API key 已配置。",
         "oplGatewayConfigured": "OPL Gateway 已接入。",
         "existingCodexConfigured": "已使用现有 Codex 模型访问，跳过 OPL Gateway 首启配置。",
@@ -1574,6 +1580,10 @@
       "modelAccess": {
         "title": "模型访问状态",
         "detail": "用于确认本机助手是否能访问已配置的模型服务。"
+      },
+      "runtimeService": {
+        "title": "后台服务 / Temporal",
+        "detail": "确认本机 OPL 调度与后台服务是否可用。"
       },
       "provider": {
         "fallback": "暂时无法读取后台服务详情。",
@@ -1590,7 +1600,8 @@
     "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
     "modelAccount": {
       "title": "OPL Gateway",
-      "description": "这里可以把当前 Codex 模型访问切换到 OPL Gateway；已有 Codex 登录或其它 provider 时不会阻塞首启。",
+      "description": "本机当前已通过 OPL Gateway 访问模型服务；只有需要更换访问密钥时才打开配置。",
+      "showConfigButton": "配置访问密钥",
       "apiKeyPlaceholder": "粘贴 OPL Gateway 访问密钥",
       "apiKeyRequired": "请输入 OPL Gateway 访问密钥。",
       "configureButton": "配置 OPL Gateway",
@@ -1598,12 +1609,19 @@
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
-      "title": "云端与远程访问 / 部署入口",
-      "description": "在同一入口查看本机 App、Docker WebUI、OPL Workspace 和远程资源上下文。",
+      "title": "Web 与远程访问",
+      "description": "AionUI 原生远程访问负责端口、账号和密码；Docker WebUI 与 OPL Workspace 是额外部署入口。",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
       "remoteAccess": "远程访问",
+      "nativeTitle": "AionUI 原生远程访问",
+      "nativePort": "端口：25808",
+      "nativeAccount": "账号：admin，可在远程访问设置中修改。",
+      "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
+      "openNativeSettings": "打开远程访问设置",
+      "dockerTitle": "Docker WebUI / OPL Workspace",
+      "dockerDescription": "用于浏览器、服务器或托管工作区形态；日常本机远程访问先使用左侧原生设置。",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",
@@ -1613,7 +1631,15 @@
       "confirmationRequired": "变更前确认",
       "actionDryRunSuccess": "Docker WebUI 路径检查完成。",
       "actionDryRunFailed": "Docker WebUI 路径检查失败。",
-      "noActions": "暂时没有可用的 Docker WebUI 操作。"
+      "noActions": "暂时没有可用的 Docker WebUI 操作。",
+      "actions": {
+        "settings_install_docker_webui": "安装 Docker WebUI",
+        "settings_configure_webui_api_key": "配置 WebUI API key",
+        "settings_select_webui_seed": "选择 WebUI 镜像种子",
+        "settings_run_webui_startup_maintenance": "运行 WebUI 启动维护",
+        "settings_diagnose_docker_webui": "诊断 Docker WebUI",
+        "settings_open_docker_webui": "打开 Docker WebUI"
+      }
     },
     "resourceSources": {
       "cloudRemoteAccess": "云端与远程访问",
@@ -1652,6 +1678,7 @@
     "status": {
       "ready": "已就绪",
       "update": "可更新",
+      "attention": "需关注",
       "repair": "需修复",
       "missing": "缺失"
     },
@@ -1772,6 +1799,8 @@
     "packageManager": {
       "title": "智能体包",
       "description": "刷新注册表、安装 manifest，并把首页快捷入口保存为用户偏好。包生命周期变更仍走 App action 路由。",
+      "catalogTitle": "包目录",
+      "catalogDescription": "在一份紧凑列表里统一管理安装状态和首页显示；只有在需要看细节或修复上下文时才展开。",
       "refreshRegistry": "刷新注册表",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "安装 manifest",
@@ -1779,6 +1808,10 @@
       "showOnHome": "显示到首页",
       "moveUp": "上移",
       "moveDown": "下移",
+      "homeVisibleWithOrder": "首页显示中 · 顺序 {{order}}",
+      "homeHidden": "首页已隐藏",
+      "noHomeShortcut": "无首页快捷入口",
+      "rowMeta": "{{sourceLabel}}：{{sourceValue}} · {{versionLabel}}：{{versionValue}} · {{homeLabel}}",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
       "actions": {

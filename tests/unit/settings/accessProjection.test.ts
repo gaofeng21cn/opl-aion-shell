@@ -30,7 +30,7 @@ describe('buildAccessProjection', () => {
     expect(compactAccessDetail([null, undefined, ' '], 'fallback')).toBe('fallback');
   });
 
-  it('keeps account readiness separate from local provider service details', () => {
+  it('keeps OPL Gateway readiness separate from local background service details', () => {
     const projection = buildAccessProjection(
       {
         core: {
@@ -69,14 +69,14 @@ describe('buildAccessProjection', () => {
       detail: 'settings.accessPage.cards.account.missing',
     });
     expect(modelAccessCard).toMatchObject({
-      status: 'attention_required',
-      detail: 'Model service needs setup or maintenance.',
+      status: 'ready',
+      detail: 'Model service is reachable.',
     });
     expect(JSON.stringify(projection)).not.toContain('127.0.0.1:7233');
     expect(JSON.stringify(projection)).not.toContain('temporal');
   });
 
-  it('marks model access ready only when Codex, account, and provider are all ready', () => {
+  it('marks the background service card ready from provider readiness', () => {
     const projection = buildAccessProjection(
       {
         core: {

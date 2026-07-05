@@ -179,7 +179,7 @@
   "model": "Model",
   "system": "System",
   "about": "About",
-  "onboarding": "Get Started",
+  "onboarding": "Access",
   "maintenance": "Maintenance",
   "preferences": "Preferences",
   "aboutMaintenanceMoved": "Updates and maintenance now live under Maintenance; this page keeps version and project links only.",
@@ -1550,15 +1550,21 @@
     "receipt": "{{operation}} receipt: {{receipt}}"
   },
   "accessPage": {
-    "title": "Model & Account",
-    "description": "Confirm model and account access, then configure Web, Docker, and remote access.",
+    "title": "Access",
+    "description": "Manage OPL Gateway, Codex CLI, local background services, and remote access entries.",
     "cards": {
       "model": {
         "title": "Current Model",
         "fallback": "Current model is not available yet."
       },
+      "codexCli": {
+        "title": "Codex CLI",
+        "fallback": "Codex CLI status is not available yet.",
+        "version": "codex-cli {{version}}",
+        "model": "Current model: {{model}}"
+      },
       "account": {
-        "title": "Account / API key",
+        "title": "OPL Gateway",
         "configured": "Account or API key is configured.",
         "oplGatewayConfigured": "OPL Gateway is connected.",
         "existingCodexConfigured": "Using existing Codex model access; skipped OPL Gateway first-launch setup.",
@@ -1573,6 +1579,10 @@
       "modelAccess": {
         "title": "Model Access Status",
         "detail": "Checks whether the local assistant can reach the configured model service."
+      },
+      "runtimeService": {
+        "title": "Background Service / Temporal",
+        "detail": "Checks whether local OPL scheduling and background services are available."
       },
       "provider": {
         "fallback": "Background service details are not available yet.",
@@ -1589,7 +1599,8 @@
     "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
     "modelAccount": {
       "title": "OPL Gateway",
-      "description": "Switch current Codex model access to OPL Gateway here. Existing Codex login or another provider no longer blocks first launch.",
+      "description": "This machine is using OPL Gateway for model access; open configuration only when you need to replace the access key.",
+      "showConfigButton": "Configure access key",
       "apiKeyPlaceholder": "Paste OPL Gateway access key",
       "apiKeyRequired": "Enter an OPL Gateway access key.",
       "configureButton": "Configure OPL Gateway",
@@ -1597,12 +1608,19 @@
       "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
-      "title": "Cloud & Remote Access / Deployment Entry",
-      "description": "View Local App, Docker WebUI, OPL Workspace, and remote resource context from one entry.",
+      "title": "Web & Remote Access",
+      "description": "Native AionUI remote access owns port, account, and password settings; Docker WebUI and OPL Workspace are additional deployment entries.",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
       "remoteAccess": "Remote access",
+      "nativeTitle": "AionUI Native Remote Access",
+      "nativePort": "Port: 25808",
+      "nativeAccount": "Account: admin, editable in remote access settings.",
+      "nativePassword": "Password: view, copy, or reset it in remote access settings.",
+      "openNativeSettings": "Open remote access settings",
+      "dockerTitle": "Docker WebUI / OPL Workspace",
+      "dockerDescription": "For browser, server, or hosted workspace deployments. Use native remote access first for local desktop sharing.",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
       "recoveryStatus": "Recovery: {{status}}",
@@ -1612,7 +1630,15 @@
       "confirmationRequired": "Confirms before changes",
       "actionDryRunSuccess": "Docker WebUI route checked.",
       "actionDryRunFailed": "Docker WebUI route check failed.",
-      "noActions": "Docker WebUI actions are not available yet."
+      "noActions": "Docker WebUI actions are not available yet.",
+      "actions": {
+        "settings_install_docker_webui": "Install Docker WebUI",
+        "settings_configure_webui_api_key": "Configure WebUI API key",
+        "settings_select_webui_seed": "Select WebUI image seed",
+        "settings_run_webui_startup_maintenance": "Run WebUI startup maintenance",
+        "settings_diagnose_docker_webui": "Diagnose Docker WebUI",
+        "settings_open_docker_webui": "Open Docker WebUI"
+      }
     },
     "resourceSources": {
       "cloudRemoteAccess": "Cloud & Remote Access",
@@ -1651,6 +1677,7 @@
     "status": {
       "ready": "Ready",
       "update": "Update available",
+      "attention": "Needs attention",
       "repair": "Needs repair",
       "missing": "Missing"
     },
@@ -1771,6 +1798,8 @@
     "packageManager": {
       "title": "Agent packages",
       "description": "Refresh the registry, install a manifest, and keep Home shortcuts as user preferences. Package lifecycle mutations stay on App action routes.",
+      "catalogTitle": "Package catalog",
+      "catalogDescription": "Manage install state and Home visibility from one compact list. Open a row only when you need package details or repair context.",
       "refreshRegistry": "Refresh registry",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "Install manifest",
@@ -1778,6 +1807,10 @@
       "showOnHome": "Show on Home",
       "moveUp": "Move up",
       "moveDown": "Move down",
+      "homeVisibleWithOrder": "Home visible · Order {{order}}",
+      "homeHidden": "Home hidden",
+      "noHomeShortcut": "No Home shortcut",
+      "rowMeta": "{{sourceLabel}}: {{sourceValue}} · {{versionLabel}}: {{versionValue}} · {{homeLabel}}",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
       "actions": {

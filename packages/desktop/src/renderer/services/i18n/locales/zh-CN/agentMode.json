@@ -9,6 +9,7 @@
   "auto": "自动",
   "read-only": "只读",
   "full-access": "完全访问",
+  "full_auto": "全自动",
   "dontAsk": "仅预批准",
   "bypass": "绕过检查",
   "bypassPermissions": "全自动",

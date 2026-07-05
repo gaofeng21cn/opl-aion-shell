@@ -9,6 +9,7 @@
   "auto": "Auto",
   "read-only": "Read Only",
   "full-access": "Full Access",
+  "full_auto": "Full Auto",
   "dontAsk": "Don't Ask",
   "bypass": "Bypass (YOLO)",
   "bypassPermissions": "YOLO",

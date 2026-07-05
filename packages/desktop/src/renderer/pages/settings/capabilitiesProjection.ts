@@ -12,7 +12,7 @@ import {
 import type { OplAppStateRecord } from '@/common/types/opl/appState';
 import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/useOplAppState';
 
-export type CapabilityStatus = 'ready' | 'update' | 'repair' | 'missing';
+export type CapabilityStatus = 'ready' | 'update' | 'attention' | 'repair' | 'missing';
 
 export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' | 'unknown';
 
@@ -476,9 +476,18 @@ function exportBundleActionFromTask(task: RuntimeTaskItem | undefined): Capabili
 function mapCapabilityStatus(module: RuntimeModuleItem | undefined): CapabilityStatus {
   const status = capabilityModuleStatus(module);
   const action = oplString(module?.recommended_action);
+  const git = oplRecord(module?.git);
   if (!module || ['missing', 'not_installed', 'notInstalled', 'not_configured'].includes(status)) return 'missing';
   if (['update', 'install', 'reinstall'].includes(action ?? '') || ['update_available', 'staged'].includes(status)) {
     return 'update';
+  }
+  if (
+    status === 'dirty' &&
+    module.installed === true &&
+    (git.dirty === true ||
+      ['behind', 'diverged', 'ahead'].includes(firstString(git.sync_status, git.status) ?? ''))
+  ) {
+    return 'attention';
   }
   if (
     [
