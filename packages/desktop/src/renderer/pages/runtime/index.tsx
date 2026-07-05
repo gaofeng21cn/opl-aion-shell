@@ -132,8 +132,12 @@ function compactCurrentControlState(state: RuntimeSnapshot): RuntimeSnapshot {
     'current_attempt_state',
     'reconciliation_status',
     'blocker_reason',
+    'closeout_receipt_status',
     'derivation_sources',
     'forbidden_derivation_sources',
+    'owner_receipt_refs',
+    'typed_blocker_refs',
+    'stage_progress_log',
     'provider_run',
   ]);
 }
@@ -452,7 +456,9 @@ function formatCountLabel(label: string, count: number): string | null {
 type RuntimeProjectProgress = {
   id: string;
   title: string;
+  domainId: string | null;
   domainLabel: string;
+  priorityBucket: string | null;
   stateRaw: string | null;
   statusRaw: string | null;
   progressClassRaw: string | null;
@@ -486,6 +492,23 @@ type RuntimeProjectProgress = {
 
 type RuntimeTaskStatusItem = RuntimeProjectProgress & {
   running: boolean;
+  currentAttemptState: string | null;
+  providerStatus: string | null;
+  lastHeartbeatAt: string | null;
+  completedAt: string | null;
+  livenessSource: string | null;
+  blockerReason: string | null;
+  stageStartedAt: string | null;
+  usageTelemetryMissing: boolean;
+};
+
+type RuntimeModuleStatusItem = {
+  id: string;
+  title: string;
+  statusRaw: string | null;
+  statusLabel: string | null;
+  detail: string | null;
+  needsAttention: boolean;
 };
 
 type RuntimeRefsSummary = {
@@ -549,6 +572,8 @@ const ATTENTION_STATES = new Set([
 ]);
 const ATTENTION_PROGRESS_CLASSES = new Set(['typed_blocker', 'human_gate', 'stop_loss']);
 const RUNNING_STATES = new Set(['running', 'in_progress', 'advancing']);
+const QUEUED_STATES = new Set(['queued', 'pending', 'checkpointed']);
+const MODULE_ATTENTION_STATES = new Set(['dirty', 'missing', 'blocked', 'failed', 'attention_needed', 'attention_required']);
 
 function firstStringField(source: RuntimeSnapshot, keys: string[]): string | null {
   for (const key of keys) {
@@ -569,10 +594,6 @@ function firstRefField(source: RuntimeSnapshot, keys: string[]): string | null {
     if (fromList) return fromList;
   }
   return null;
-}
-
-function isUserVisibleSummary(value: string | null): value is string {
-  return Boolean(value);
 }
 
 function refsSummaryFromTask(task: RuntimeSnapshot | undefined): RuntimeRefsSummary {
@@ -703,7 +724,9 @@ function taskFromActiveProjectLine(
   return {
     id: taskId ?? `${title}-${index + 1}`,
     title,
+    domainId: stringValue(line.domain_id) ?? stringValue(detail?.domain_id),
     domainLabel,
+    priorityBucket: stringValue(line.priority_bucket) ?? stringValue(detail?.priority_bucket),
     stateRaw: state,
     statusRaw: status,
     progressClassRaw: progressClass,
@@ -802,7 +825,9 @@ function projectProgressItems(
         {
           id: taskId ?? `${title}-${index + 1}`,
           title,
+          domainId: stringValue(task.domain_id),
           domainLabel,
+          priorityBucket: stringValue(task.priority_bucket),
           stateRaw: state,
           statusRaw: status,
           progressClassRaw: progressClass,
@@ -853,13 +878,165 @@ function taskLooksRunning(project: RuntimeProjectProgress): boolean {
   );
 }
 
-function taskStatusItems(projects: RuntimeProjectProgress[]): RuntimeTaskStatusItem[] {
-  const projectItems = projects.map((project) => ({
+function parseModuleStatusItems(
+  appState: RuntimeSnapshot,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeModuleStatusItem[] {
+  return oplRecordList(oplRecord(appState.modules).items).map((item, index) => {
+    const status = oplString(item.status);
+    const title = oplString(item.display_name) ?? oplString(item.module_id) ?? `module-${index + 1}`;
+    const dirty = oplRecord(item.git).dirty === true;
+    return {
+      id: oplString(item.module_id) ?? title,
+      title,
+      statusRaw: dirty ? 'attention_needed' : status,
+      statusLabel: dirty
+        ? t('common.runtime.projectStates.needsAttention')
+        : translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status,
+      detail: dirty ? t('common.runtime.moduleDirty') : oplString(item.version) ?? null,
+      needsAttention: dirty || (status ? MODULE_ATTENTION_STATES.has(status) : false),
+    };
+  });
+}
+
+function controlStateTimestamp(state: RuntimeSnapshot): number {
+  const providerRun = record(state.provider_run);
+  const timestamp =
+    stringValue(providerRun.last_heartbeat_at) ??
+    stringValue(providerRun.completed_at) ??
+    stringValue(record(state.stage_progress_log).last_heartbeat_at);
+  const epoch = timestamp ? Date.parse(timestamp) : Number.NaN;
+  return Number.isFinite(epoch) ? epoch : 0;
+}
+
+function compareControlStates(left: RuntimeSnapshot, right: RuntimeSnapshot): number {
+  const leftRunning = left.running_provider_attempt === true ? 1 : 0;
+  const rightRunning = right.running_provider_attempt === true ? 1 : 0;
+  if (leftRunning !== rightRunning) return rightRunning - leftRunning;
+  return controlStateTimestamp(right) - controlStateTimestamp(left);
+}
+
+function buildControlStateIndex(states: RuntimeSnapshot[]) {
+  const byRunId = new Map<string, RuntimeSnapshot[]>();
+  const byStageAttemptId = new Map<string, RuntimeSnapshot[]>();
+
+  const push = (map: Map<string, RuntimeSnapshot[]>, key: string | null, value: RuntimeSnapshot) => {
+    if (!key) return;
+    const existing = map.get(key) ?? [];
+    existing.push(value);
+    existing.sort(compareControlStates);
+    map.set(key, existing);
+  };
+
+  for (const state of states) {
+    push(byRunId, stringValue(state.active_run_id), state);
+    push(
+      byStageAttemptId,
+      stringValue(state.current_stage_attempt_id) ?? stringValue(state.active_stage_attempt_id),
+      state
+    );
+  }
+
+  return { byRunId, byStageAttemptId };
+}
+
+function firstControlStateMatch(states: RuntimeSnapshot[]): RuntimeSnapshot | null {
+  const matches: RuntimeSnapshot[] = [];
+  const seen = new Set<string>();
+  for (const state of states) {
+    const key =
+      stringValue(state.active_run_id) ??
+      stringValue(state.current_stage_attempt_id) ??
+      stringValue(state.active_stage_attempt_id) ??
+      stringValue(state.domain_id) ??
+      JSON.stringify(state);
+    if (!seen.has(key)) {
+      seen.add(key);
+      matches.push(state);
+    }
+  }
+  matches.sort(compareControlStates);
+  return matches[0] ?? null;
+}
+
+function matchControlState(
+  task: RuntimeProjectProgress,
+  index: ReturnType<typeof buildControlStateIndex>
+): RuntimeSnapshot | null {
+  const matches: RuntimeSnapshot[] = [];
+  if (task.activeRunId) matches.push(...(index.byRunId.get(task.activeRunId) ?? []));
+  for (const attemptId of task.stageAttemptIds) {
+    matches.push(...(index.byStageAttemptId.get(attemptId) ?? []));
+  }
+  return firstControlStateMatch(matches);
+}
+
+function pickStageStartedAt(state: RuntimeSnapshot | null): string | null {
+  const stageProgress = record(state?.stage_progress_log);
+  return (
+    firstStringField(stageProgress, [
+      'started_at',
+      'stage_started_at',
+      'current_stage_started_at',
+      'first_progress_at',
+      'entered_at',
+    ]) ?? null
+  );
+}
+
+function usageTelemetryMissing(state: RuntimeSnapshot | null): boolean {
+  const stageProgress = record(state?.stage_progress_log);
+  const explicitMissing =
+    numberValue(stageProgress.missing_usage_telemetry_attempt_count) ??
+    numberValue(stageProgress.missing_usage_telemetry_count);
+  if (explicitMissing !== null) return explicitMissing > 0;
+  return true;
+}
+
+function formatElapsedSince(timestamp: string | null, t: (key: string) => string): string | null {
+  if (!timestamp) return null;
+  const epoch = Date.parse(timestamp);
+  if (!Number.isFinite(epoch)) return null;
+  const seconds = Math.max(0, Math.floor((Date.now() - epoch) / 1000));
+  if (seconds < 60) return `${seconds}${t('common.unit.second_short')}`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}${t('common.unit.minute_short')}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return `${Math.floor(hours / 24)}d`;
+}
+
+function taskStatusItems(projects: RuntimeProjectProgress[], controlStates: RuntimeSnapshot[]): RuntimeTaskStatusItem[] {
+  const controlIndex = buildControlStateIndex(controlStates);
+  const projectItems: RuntimeTaskStatusItem[] = projects.map((project) => ({
     ...project,
     running: taskLooksRunning(project),
+    currentAttemptState: null as string | null,
+    providerStatus: null as string | null,
+    lastHeartbeatAt: null as string | null,
+    completedAt: null as string | null,
+    livenessSource: null as string | null,
+    blockerReason: null as string | null,
+    stageStartedAt: null as string | null,
+    usageTelemetryMissing: true,
   }));
-  if (projectItems.length > 0) {
-    return projectItems.toSorted((left, right) => {
+  const enrichedItems = projectItems.map((project) => {
+    const controlState = matchControlState(project, controlIndex);
+    const providerRun = record(controlState?.provider_run);
+    return {
+      ...project,
+      currentAttemptState: stringValue(controlState?.current_attempt_state),
+      providerStatus: stringValue(providerRun.provider_status),
+      lastHeartbeatAt: stringValue(providerRun.last_heartbeat_at),
+      completedAt: stringValue(providerRun.completed_at),
+      livenessSource: stringValue(providerRun.liveness_source),
+      blockerReason: stringValue(controlState?.blocker_reason),
+      stageStartedAt: pickStageStartedAt(controlState),
+      usageTelemetryMissing: usageTelemetryMissing(controlState),
+    };
+  });
+  if (enrichedItems.length > 0) {
+    return enrichedItems.toSorted((left, right) => {
       if (left.running !== right.running) return left.running ? -1 : 1;
       if (left.needsAttention !== right.needsAttention) return left.needsAttention ? -1 : 1;
       return left.title.localeCompare(right.title);
@@ -870,17 +1047,15 @@ function taskStatusItems(projects: RuntimeProjectProgress[]): RuntimeTaskStatusI
 
 function taskLooksQueued(task: RuntimeTaskStatusItem): boolean {
   return (
-    !task.running ||
-    task.statusRaw === 'queued' ||
-    task.statusRaw === 'pending' ||
-    task.stateRaw === 'queued' ||
-    task.stateRaw === 'pending' ||
+    (task.statusRaw ? QUEUED_STATES.has(task.statusRaw) : false) ||
+    (task.stateRaw ? QUEUED_STATES.has(task.stateRaw) : false) ||
+    (task.priorityBucket !== null && task.priorityBucket === 'waiting') ||
     task.progressClassRaw === 'human_gate'
   );
 }
 
-function buildTaskOverview(projects: RuntimeProjectProgress[]): RuntimeTaskOverview {
-  const tasks = taskStatusItems(projects);
+function buildTaskOverview(projects: RuntimeProjectProgress[], controlStates: RuntimeSnapshot[]): RuntimeTaskOverview {
+  const tasks = taskStatusItems(projects, controlStates);
   const runningTasks = tasks.filter((task) => task.running);
   const attentionTasks = tasks.filter((task) => !task.running && task.needsAttention);
   const inactiveTasks = tasks.filter((task) => !task.running && !task.needsAttention);
@@ -1063,10 +1238,12 @@ const RuntimePage: React.FC = () => {
   const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
   const lanes = useMemo(() => workbenchDomainLanes(userTaskDrilldown ?? {}), [userTaskDrilldown]);
   const tasks = useMemo(() => workbenchTaskDrilldowns(userTaskDrilldown ?? {}), [userTaskDrilldown]);
+  const moduleStatusItems = useMemo(() => parseModuleStatusItems(appStateQuery.appState, t), [appStateQuery.appState, t]);
   const activeProjectLines = useMemo(() => workbenchActiveProjectLines(userTaskDrilldown ?? {}), [userTaskDrilldown]);
   const projects = useMemo(() => projectProgressItems(tasks, activeProjectLines, t), [activeProjectLines, tasks, t]);
+  const controlStates = useMemo(() => currentControlStateRecords(displayDrilldown ?? {}), [displayDrilldown]);
   const projectSummary = useMemo(() => summarizeProjectProgress(projects, lanes), [projects, lanes]);
-  const taskOverview = useMemo(() => buildTaskOverview(projects), [projects]);
+  const taskOverview = useMemo(() => buildTaskOverview(projects, controlStates), [controlStates, projects]);
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
 
   useEffect(() => {
@@ -1102,20 +1279,21 @@ const RuntimePage: React.FC = () => {
     (task: RuntimeTaskStatusItem) => {
       const deliverableLabel = formatCountLabel(t('common.runtime.deliverableProgress'), task.deliverableCount);
       const platformRepairLabel = formatCountLabel(t('common.runtime.platformRepair'), task.platformRepairCount);
-      const refsRows = [
-        { key: 'artifact', label: t('common.runtime.artifactSummary'), value: task.refsSummary.artifact },
-        { key: 'blocker', label: t('common.runtime.blockerSummary'), value: task.refsSummary.blocker },
-        {
-          key: 'reviewReceipt',
-          label: t('common.runtime.reviewReceiptSummary'),
-          value: task.refsSummary.reviewReceipt,
-        },
-        {
-          key: 'actionReceipt',
-          label: t('common.runtime.actionReceiptSummary'),
-          value: task.refsSummary.actionReceipt,
-        },
-      ].filter((row): row is { key: string; label: string; value: string } => isUserVisibleSummary(row.value));
+      const blockerSummary = task.refsSummary.blocker ?? task.blockerReason ?? null;
+      const runningProof =
+        task.lastHeartbeatAt
+          ? t('common.runtime.runningProofHeartbeat', { time: task.lastHeartbeatAt })
+          : task.completedAt
+            ? t('common.runtime.runningProofCompleted', {
+                time: task.completedAt,
+                status: task.providerStatus ?? task.currentAttemptState ?? t('common.runtime.values.empty'),
+              })
+            : task.providerStatus || task.currentAttemptState
+              ? t('common.runtime.runningProofState', {
+                  status: task.providerStatus ?? task.currentAttemptState ?? t('common.runtime.values.empty'),
+                })
+              : t('common.runtime.telemetryMissing');
+      const stageElapsed = formatElapsedSince(task.stageStartedAt, t);
       return (
         <div key={task.id} className='py-12px'>
           <div className='flex flex-col md:flex-row md:items-start md:justify-between gap-8px'>
@@ -1141,50 +1319,48 @@ const RuntimePage: React.FC = () => {
             </Space>
           </div>
           <div className='mt-8px grid grid-cols-1 md:grid-cols-2 gap-8px'>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.agentModule', { agent: task.domainLabel })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.projectTask', { task: task.studyId ?? task.title })}
+            </Typography.Text>
             {task.stageLabel && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.currentStage', { stage: task.stageLabel })}
               </Typography.Text>
             )}
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.stageElapsed', {
+                value: stageElapsed ?? t('common.runtime.telemetryMissing'),
+              })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.runningProof', { proof: runningProof })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.stageUsage', {
+                value: task.usageTelemetryMissing ? t('common.runtime.telemetryMissing') : t('common.runtime.values.available'),
+              })}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary break-words'>
+              {t('common.runtime.totalUsage', {
+                value: task.usageTelemetryMissing ? t('common.runtime.telemetryMissing') : t('common.runtime.values.available'),
+              })}
+            </Typography.Text>
             {task.nextOwner && (
               <Typography.Text className='block text-13px text-t-primary break-words'>
                 {t('common.runtime.nextOwner', { owner: task.nextOwner })}
               </Typography.Text>
             )}
-            {task.activeRunId && (
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('common.runtime.activeRun', { run: task.activeRunId })}
-              </Typography.Text>
-            )}
-            {task.stageAttemptCount > 0 && (
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {`${t('common.runtime.stageAttemptRefsWithCount', { count: task.stageAttemptCount })}: ${task.stageAttemptIds
-                  .slice(0, 3)
-                  .join(', ')}${task.stageAttemptIds.length > 3 ? ' ...' : ''}`}
-              </Typography.Text>
-            )}
-            {task.runtimeCloseoutObserved && (
+            {blockerSummary && (
               <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
-                {t('common.runtime.closeoutEvidence', {
-                  ref: task.runtimeCloseoutRef ?? t('common.runtime.values.available'),
-                })}
-              </Typography.Text>
-            )}
-            {task.masOwnerConsumptionStatus && (
-              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
-                {t('common.runtime.masOwnerConsumption', { status: task.masOwnerConsumptionStatus })}
-                {task.masOwnerConsumptionRef ? ` · ${task.masOwnerConsumptionRef}` : ''}
-              </Typography.Text>
-            )}
-            {task.masOwnerConsumedStageAttemptId && (
-              <Typography.Text className='block md:col-span-2 text-12px text-t-secondary break-words'>
-                {t('common.runtime.masOwnerConsumedAttempt', { attempt: task.masOwnerConsumedStageAttemptId })}
-                {task.masOwnerConsumedCloseoutRef ? ` · ${task.masOwnerConsumedCloseoutRef}` : ''}
+                {t('common.runtime.blockerSummaryLine', { summary: blockerSummary })}
               </Typography.Text>
             )}
             {task.nextStep && (
               <Typography.Text className='block md:col-span-2 text-13px text-t-primary break-words'>
-                {t('common.runtime.nextStep', { step: task.nextStep })}
+                {t('common.runtime.blockerRoute', { route: task.nextStep })}
               </Typography.Text>
             )}
             {task.lastProgressAt && (
@@ -1202,15 +1378,6 @@ const RuntimePage: React.FC = () => {
             )}
             {task.paperLensCount > 0 && <Tag>{`${t('common.runtime.paperLensRefs')}: ${task.paperLensCount}`}</Tag>}
           </Space>
-          {refsRows.length > 0 && (
-            <div className='mt-8px flex flex-col gap-4px'>
-              {refsRows.map((row) => (
-                <Typography.Text key={row.key} className='block text-12px text-t-secondary break-words'>
-                  {row.label}: {row.value}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
         </div>
       );
     },
@@ -1329,10 +1496,10 @@ const RuntimePage: React.FC = () => {
             <Card bordered className='rd-8px'>
               <div className='flex flex-col gap-12px'>
                 <Typography.Text className='font-600 text-t-primary'>
-                  {t('common.runtime.taskProgress')}
+                  {t('common.runtime.currentWorkbench')}
                 </Typography.Text>
                 <Typography.Text className='text-13px text-t-secondary'>
-                  {t('common.runtime.taskProgressSummaryText', {
+                  {t('common.runtime.currentWorkbenchSummaryText', {
                     count: taskOverview.tasks.length,
                     running: taskOverview.runningTaskCount,
                     attention: taskOverview.attentionTaskCount,
@@ -1385,6 +1552,35 @@ const RuntimePage: React.FC = () => {
                     </Collapse.Item>
                   </Collapse>
                 )}
+              </div>
+            </Card>
+
+            <Card bordered className='rd-8px'>
+              <div className='flex flex-col gap-12px'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('common.runtime.moduleStatus')}
+                </Typography.Text>
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('common.runtime.moduleStatusSummaryText', {
+                    healthy: moduleStatusItems.filter((item) => !item.needsAttention).length,
+                    attention: moduleStatusItems.filter((item) => item.needsAttention).length,
+                  })}
+                </Typography.Text>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                  {moduleStatusItems.map((item) => (
+                    <div key={item.id} className='rounded-6px border border-border-1 px-12px py-10px'>
+                      <div className='flex items-start justify-between gap-10px'>
+                        <Typography.Text className='font-600 text-t-primary break-words'>{item.title}</Typography.Text>
+                        {item.statusLabel && <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>}
+                      </div>
+                      {item.detail && (
+                        <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
+                          {item.detail}
+                        </Typography.Text>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </Card>
 

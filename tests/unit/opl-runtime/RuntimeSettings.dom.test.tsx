@@ -401,6 +401,10 @@ describe('RuntimeSettings app state bridge usage', () => {
                         workflow_id: 'wf_dm002',
                         provider_kind: 'temporal',
                         current_attempt_state: 'running',
+                        stage_progress_log: {
+                          started_at: '2026-06-01T23:31:12.853Z',
+                          missing_usage_telemetry_attempt_count: 1,
+                        },
                         provider_run: {
                           provider_status: 'running',
                           last_heartbeat_at: '2026-06-02T00:01:12.853Z',
@@ -1366,6 +1370,25 @@ describe('RuntimeSettings app state bridge usage', () => {
                   blocker_ref_count: 0,
                 },
                 {
+                  task_id: 'medautoscience:study:004-reviewer-followup',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  study_id: '004-reviewer-followup',
+                  title: 'DM004 reviewer follow-up',
+                  state: 'pending',
+                  status: 'queued',
+                  status_label: 'Waiting to start',
+                  active_stage_id: 'reviewer-refresh',
+                  active_stage_label: 'Reviewer refresh',
+                  progress_delta_classification: 'human_gate',
+                  deliverable_progress_delta: { count: 0 },
+                  platform_repair_delta: { count: 0 },
+                  next_visible_step: 'Wait for reviewer lane to accept the next run.',
+                  next_owner: 'Reviewer lane',
+                  last_progress_at: '2026-07-04T18:00:00Z',
+                  blocker_ref_count: 0,
+                },
+                {
                   task_id: 'redcube',
                   domain_id: 'redcube',
                   title: 'RedCube AI',
@@ -1394,51 +1417,33 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
     expect(screen.getByText('common.runtime.runningTasks')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.runningTaskCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.activeProjectCount 2')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.activeProjectCount 3')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.queuedTaskCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.attentionTaskCount 1')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.taskProgress')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.attentionTaskCount 2')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.currentWorkbench')).toBeInTheDocument();
+    expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
+    expect(screen.getByText('BookForge')).toBeInTheDocument();
     expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.agentModule Med Auto Science');
+    expect(document.body.textContent).toContain('common.runtime.projectTask DM002 publication evaluation');
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.activeRun wf_full_dm002')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.stageAttemptRefsWithCount 1: sat_dm002')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.stageElapsed');
+    expect(document.body.textContent).toContain('common.runtime.runningProof common.runtime.runningProofHeartbeat');
+    expect(screen.getAllByText(/common\.runtime\.runningProof common\.runtime\.runningProofHeartbeat/)).toHaveLength(1);
+    expect(document.body.textContent).toContain('common.runtime.stageUsage common.runtime.telemetryMissing');
+    expect(document.body.textContent).toContain('common.runtime.totalUsage common.runtime.telemetryMissing');
     expect(
-      screen.getByText('common.runtime.nextStep Finish reviewer evaluation against current inputs')
+      screen.getByText('common.runtime.blockerRoute Finish reviewer evaluation against current inputs')
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
-    expect(document.body.textContent).toContain(
-      'common.runtime.artifactSummary: publication eval packet from current App state'
-    );
-    expect(document.body.textContent).toContain('common.runtime.blockerSummary: owner blocker cleared');
-    expect(document.body.textContent).toContain(
-      'common.runtime.reviewReceiptSummary: review receipt accepted by reviewer lane'
-    );
-    expect(document.body.textContent).toContain(
-      'common.runtime.actionReceiptSummary: receipt://reviewer/current-action'
-    );
+    expect(document.body.textContent).toContain('common.runtime.blockerSummaryLine owner blocker cleared');
     expect(screen.getByText('common.runtime.attentionTasks')).toBeInTheDocument();
     expect(screen.getByText('DM003 paper mission runtime closeout')).toBeInTheDocument();
     expect(screen.getByText('OPL/MAS readback attention')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.currentStage Write')).toBeInTheDocument();
-    expect(screen.getByText('common.runtime.activeRun wf_c7b369abb6b9f69f0c409f0d')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'common.runtime.stageAttemptRefsWithCount 5: sat_bf58a3caafa6ab7d654a3f5c, sat_e3a155cc896fa9fd2e965d95, sat_52667330acd398eba00f7940 ...'
-      )
-    ).toBeInTheDocument();
-    expect(document.body.textContent).toContain(
-      'common.runtime.closeoutEvidence ops/medautoscience/paper_mission_stage_attempts/sat_bf58a3caafa6ab7d654a3f5c/stage_attempt_closeout_packet.json'
-    );
-    expect(document.body.textContent).toContain('common.runtime.masOwnerConsumption owner_consumed_route_checkpoint');
-    expect(document.body.textContent).toContain(
-      'ops/medautoscience/paper_mission_receipt_owner_consumption/003-dpcc-primary-care-phenotype-treatment-gap/receipt_owner_consumption.json'
-    );
-    expect(document.body.textContent).toContain(
-      'common.runtime.masOwnerConsumedAttempt sat_e3a155cc896fa9fd2e965d95'
-    );
     expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
     expect(document.body.textContent).toContain(
-      'common.runtime.nextStep Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
+      'common.runtime.blockerRoute Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
     );
     expect(screen.getByText('common.runtime.nextOwner MAS paper mission')).toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
@@ -1567,10 +1572,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getByText('DM002 publication evaluation')).toBeInTheDocument());
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
-      'common.runtime.artifactSummary: publication evaluation artifact is available'
-    );
-    expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
-      'common.runtime.actionReceiptSummary: receipt://reviewer/task-ref'
+      'common.runtime.blockerRoute Finish reviewer evaluation against current inputs'
     );
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).not.toMatch(
       /Temporal|provider|current_control_state|attempt/i
