@@ -6,6 +6,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const fsMocks = vi.hoisted(() => ({
+  existsSync: vi.fn(() => true),
+}));
+
 vi.mock('@office-ai/platform', () => ({
   bridge: {
     buildProvider: vi.fn(() => {
@@ -33,6 +37,18 @@ vi.mock('@office-ai/platform', () => ({
     }),
   },
 }));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    default: {
+      ...actual.default,
+      existsSync: fsMocks.existsSync,
+    },
+    existsSync: fsMocks.existsSync,
+  };
+});
 
 vi.mock('electron', () => ({
   app: {
@@ -329,6 +345,7 @@ describe('updateBridge CDN URL rewriting', () => {
 describe('updateBridge auto-update config handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fsMocks.existsSync.mockReturnValue(true);
   });
 
   it('treats missing packaged app-update.yml as manual-update-only instead of an update error', async () => {
@@ -343,6 +360,57 @@ describe('updateBridge auto-update config handling', () => {
     const result = await handler({ channel: 'stable' });
 
     expect(result).toEqual({ success: true, data: { checked: true }, msg: undefined });
+  });
+
+  it('skips startup auto-update checks when packaged updater config is absent', async () => {
+    fsMocks.existsSync.mockReturnValue(false);
+    Object.defineProperty(process, 'resourcesPath', {
+      value: '/Applications/One Person Lab.app/Contents/Resources',
+      configurable: true,
+    });
+
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    const log = (await import('electron-log')).default;
+    const statusListener = vi.fn();
+
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    autoUpdaterService.on('update-status', statusListener);
+
+    await autoUpdaterService.checkForUpdatesAndNotify();
+
+    expect(autoUpdater.checkForUpdatesAndNotify).not.toHaveBeenCalled();
+    expect(statusListener).toHaveBeenCalledWith({ status: 'not-available' });
+    expect(log.warn).toHaveBeenCalledWith(
+      'Startup auto-update config is unavailable; manual update checks remain available:',
+      '/Applications/One Person Lab.app/Contents/Resources/app-update.yml'
+    );
+  });
+
+  it('suppresses missing packaged config error events as manual-update-only', async () => {
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    const log = (await import('electron-log')).default;
+    const statusListener = vi.fn();
+
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    autoUpdaterService.on('update-status', statusListener);
+
+    autoUpdaterService.triggerEventForTest(
+      'error',
+      new Error('ENOENT: no such file or directory, open /Applications/One Person Lab.app/Contents/Resources/app-update.yml')
+    );
+
+    expect(statusListener).toHaveBeenCalledWith({ status: 'not-available' });
+    expect(log.warn).toHaveBeenCalledWith(
+      'Packaged auto-update config is unavailable; using manual release checks only:',
+      'ENOENT: no such file or directory, open /Applications/One Person Lab.app/Contents/Resources/app-update.yml'
+    );
+    expect(log.error).not.toHaveBeenCalledWith(
+      'Auto-updater error:',
+      expect.any(Error)
+    );
   });
 });
 

@@ -9,6 +9,7 @@ import type { ProgressInfo, UpdateInfo } from 'electron-updater';
 import { app } from 'electron';
 import log from 'electron-log';
 import { EventEmitter } from 'events';
+import fs from 'node:fs';
 import * as path from 'node:path';
 import {
   recordAutoUpdateInstallNotAppliedIfNeeded,
@@ -67,6 +68,12 @@ export interface AutoUpdateStatus {
 
 export function isMissingPackagedUpdaterConfigError(message: string): boolean {
   return message.includes('app-update.yml') && /Cannot find|ENOENT|no such file|missing/i.test(message);
+}
+
+function resolvePackagedUpdaterConfigPath(): string | null {
+  const resourcesPath = typeof process.resourcesPath === 'string' ? process.resourcesPath : null;
+  if (!resourcesPath) return null;
+  return path.join(resourcesPath, 'app-update.yml');
 }
 
 /** Callback type for broadcasting update status */
@@ -213,6 +220,12 @@ class AutoUpdaterService extends EventEmitter {
     return this._allowPrerelease;
   }
 
+  private resolveMissingPackagedUpdaterConfigMessage(): string | null {
+    const configPath = resolvePackagedUpdaterConfigPath();
+    if (!configPath) return null;
+    return fs.existsSync(configPath) ? null : configPath;
+  }
+
   private setupEventHandlers(): void {
     const register = <T extends unknown[]>(event: string, handler: (...args: T) => void) => {
       // Cast to satisfy overloaded autoUpdater.on signature
@@ -262,6 +275,11 @@ class AutoUpdaterService extends EventEmitter {
     });
 
     register('error', (error: Error) => {
+      if (isMissingPackagedUpdaterConfigError(error.message)) {
+        log.warn('Packaged auto-update config is unavailable; using manual release checks only:', error.message);
+        this.broadcastStatus({ status: 'not-available' });
+        return;
+      }
       log.error('Auto-updater error:', error);
       this.broadcastStatus({
         status: 'error',
@@ -309,6 +327,11 @@ class AutoUpdaterService extends EventEmitter {
     try {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
+      }
+      const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
+      if (missingConfigPath) {
+        log.warn('Packaged auto-update config is unavailable; using manual release checks only:', missingConfigPath);
+        return { success: true };
       }
 
       const result = await autoUpdater.checkForUpdates();
@@ -399,6 +422,15 @@ class AutoUpdaterService extends EventEmitter {
    */
   async checkForUpdatesAndNotify(): Promise<void> {
     try {
+      const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
+      if (missingConfigPath) {
+        log.warn(
+          'Startup auto-update config is unavailable; manual update checks remain available:',
+          missingConfigPath
+        );
+        this.broadcastStatus({ status: 'not-available' });
+        return;
+      }
       // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
       autoUpdater.allowDowngrade = false;
       await autoUpdater.checkForUpdatesAndNotify();
