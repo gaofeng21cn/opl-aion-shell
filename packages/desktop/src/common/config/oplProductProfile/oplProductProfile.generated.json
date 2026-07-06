@@ -987,7 +987,7 @@
     }
   },
   "settings": {
-    "visible_tabs": ["general", "access", "workspace", "capabilities", "environment", "storage", "appearance", "advanced"],
+    "visible_tabs": ["general", "access", "workspace", "capabilities", "resources", "environment", "storage", "appearance"],
     "legacy_route_redirects": {
       "overview": "general",
       "runtime": "environment",
@@ -998,8 +998,9 @@
       "skills-hub": "capabilities",
       "tools": "capabilities",
       "display": "appearance",
-      "webui": "access",
-      "pet": "appearance"
+      "webui": "resources",
+      "pet": "appearance",
+      "about": "advanced"
     },
     "environment_items": [
       "codex",
@@ -1081,7 +1082,7 @@
           "label_en": "Access",
           "role": "first_use_and_access_setup",
           "ordinary_entries": ["settings_access", "first_run_setup_center"],
-          "primary_tasks": ["model_access", "local_runtime_ability", "remote_access", "advanced_deployment"],
+          "primary_tasks": ["model_access", "local_runtime_ability", "remote_access"],
           "normal_state_policy": "show_conclusion_and_necessary_action_first_hide_internal_diagnostics_until_details_or_abnormal_state"
         },
         {
@@ -1090,6 +1091,22 @@
           "label_en": "Capabilities",
           "role": "purpose_grouped_capability_catalog",
           "ordinary_entries": ["settings_capabilities"]
+        },
+        {
+          "id": "resources",
+          "label_zh": "资源与连接",
+          "label_en": "Resources & Connections",
+          "role": "resource_connection_catalog",
+          "ordinary_entries": ["settings_resources"],
+          "owns": [
+            "opl_connect",
+            "opl_fabric",
+            "docker_webui",
+            "opl_workspace",
+            "ssh_hpc",
+            "cloud_compute",
+            "managed_storage"
+          ]
         },
         {
           "id": "maintenance",
@@ -1124,9 +1141,10 @@
           "id": "advanced",
           "label_zh": "高级",
           "label_en": "Advanced",
-          "role": "developer_controls_version_links_and_collapsed_raw_diagnostics",
-          "ordinary_entries": ["settings_advanced", "about"],
-          "diagnostics_default_state": "collapsed"
+          "role": "secondary_deep_link_raw_diagnostics_versions_and_links",
+          "ordinary_entries": [],
+          "diagnostics_default_state": "collapsed",
+          "visibility": "secondary_or_deep_link_searchable"
         }
       ],
       "primary_tabs": {
@@ -1142,10 +1160,10 @@
           "label_zh": "访问方式",
           "label_en": "Access",
           "role": "first_use_and_access_setup",
-          "primary_question": "Can the App use a model, run locally, accept remote access, or use an advanced deployment?",
+          "primary_question": "Can the App use a model, run locally, and accept remote access?",
           "ia_group": "setup_access",
           "ordinary_entry_policy": "top_level_control_center_route",
-          "user_facing_groups": ["model_access", "local_runtime_ability", "remote_access", "advanced_deployment"],
+          "user_facing_groups": ["model_access", "local_runtime_ability", "remote_access"],
           "hidden_normal_state_terms": [
             "repeated OPL Gateway summary lines",
             "action_available",
@@ -1169,6 +1187,23 @@
           "primary_question": "What can OPL help me do?",
           "ia_group": "capabilities",
           "ordinary_entry_policy": "top_level_control_center_route"
+        },
+        "resources": {
+          "label_zh": "资源与连接",
+          "label_en": "Resources & Connections",
+          "role": "resource_connection_catalog",
+          "primary_question": "Which external, hosted, Docker, cloud, or workspace resources can OPL use?",
+          "ia_group": "resources",
+          "ordinary_entry_policy": "top_level_control_center_route",
+          "user_facing_groups": [
+            "opl_connect",
+            "opl_fabric",
+            "docker_webui",
+            "opl_workspace",
+            "ssh_hpc",
+            "cloud_compute",
+            "managed_storage"
+          ]
         },
         "environment": {
           "label_zh": "维护",
@@ -1197,10 +1232,10 @@
         "advanced": {
           "label_zh": "高级",
           "label_en": "Advanced",
-          "role": "developer_controls_version_links_and_collapsed_raw_diagnostics",
+          "role": "secondary_deep_link_raw_diagnostics_versions_and_links",
           "primary_question": "Where are technical details, raw references, versions, and links?",
           "ia_group": "advanced",
-          "ordinary_entry_policy": "top_level_control_center_route"
+          "ordinary_entry_policy": "secondary_or_deep_link_searchable"
         },
         "about": {
           "label_zh": "关于",
@@ -1211,10 +1246,10 @@
           "ordinary_entry_policy": "secondary_page_under_advanced"
         }
       },
-      "secondary_page_ids": ["about", "update", "theme", "local-services", "resources"],
+      "secondary_page_ids": ["advanced", "about", "update", "theme", "local-services"],
       "task_entry_policy": {
         "ordinary_entry_model": "user_task_first_sections_inside_the_eight_OPL_Control_Center_entries",
-        "top_level_tab_policy": "workspace_is_a_visible_top_level_entry; do_not_add_new_top_level_tabs_for_model_updates_web_tools_or_developer_profile",
+        "top_level_tab_policy": "workspace_and_resources_are_visible_top_level_entries; do_not_add_new_top_level_tabs_for_model_updates_web_tools_or_developer_profile",
         "p0_entries": [
           "model_access",
           "local_runtime_ability",
@@ -1224,7 +1259,7 @@
         ],
         "p1_entries": [
           "remote_access",
-          "advanced_deployment",
+          "resources_and_connections",
           "developer_profile_status",
           "external_tools_voice",
           "custom_assistants"
@@ -1247,10 +1282,10 @@
         "access",
         "workspace",
         "capabilities",
+        "resources",
         "environment",
         "storage",
-        "appearance",
-        "advanced"
+        "appearance"
       ],
       "ordinary_routes": [
         {
@@ -1306,6 +1341,22 @@
           "refresh_source": "opl app state --profile fast --json"
         },
         {
+          "id": "resources",
+          "path": "/settings/resources",
+          "label_key": "settings.resourcesPage.title",
+          "default_label_en": "Resources & Connections",
+          "default_label_zh": "资源与连接",
+          "icon_token": "resources",
+          "ia_group": "resources",
+          "slot_id": "settings_resources",
+          "state_source": "opl app state --profile fast --json",
+          "refresh_source": "opl app state --profile fast --json",
+          "scope": "external_and_hosted_resources",
+          "intent": "inspect_and_precheck_resource_connections",
+          "risk": "read_only_or_confirmed_app_action_routes",
+          "frequency": "first_setup_and_when_resources_change"
+        },
+        {
           "id": "environment",
           "path": "/settings/environment",
           "label_key": "settings.maintenance",
@@ -1340,21 +1391,20 @@
           "slot_id": "settings_theme",
           "state_source": "opl app state --profile fast --json",
           "refresh_source": "opl app state --profile fast --json"
-        },
-        {
-          "id": "advanced",
-          "path": "/settings/advanced",
-          "label_key": "settings.advanced",
-          "default_label_en": "Advanced",
-          "default_label_zh": "高级",
-          "icon_token": "advanced",
-          "ia_group": "advanced",
-          "slot_id": "settings_advanced",
-          "state_source": "opl app state --profile fast --json",
-          "refresh_source": "opl app state --profile fast --json"
         }
       ],
       "secondary_pages": [
+        {
+          "id": "advanced",
+          "path": "/settings/advanced",
+          "ia_group": "advanced",
+          "slot_id": "settings_advanced",
+          "visibility": "secondary_or_deep_link",
+          "scope": "developer_diagnostics",
+          "intent": "inspect_raw_refs_versions_and_diagnostics",
+          "risk": "read_only_or_expert_only",
+          "frequency": "troubleshooting"
+        },
         {
           "id": "about",
           "path": "/settings/about",
@@ -1382,13 +1432,6 @@
           "ia_group": "maintenance",
           "slot_id": "local_services",
           "visibility": "secondary_or_deep_link"
-        },
-        {
-          "id": "resources",
-          "path": "/settings/resources",
-          "ia_group": "setup_access",
-          "slot_id": "settings_resources",
-          "visibility": "secondary_or_deep_link"
         }
       ],
       "legacy_route_redirects": {
@@ -1401,7 +1444,7 @@
         "skills-hub": "capabilities?tab=skills",
         "tools": "capabilities?tab=tools",
         "display": "appearance",
-        "webui": "access",
+        "webui": "resources",
         "pet": "appearance",
         "about": "advanced"
       },
@@ -1415,7 +1458,7 @@
         "skills-hub": "capabilities",
         "tools": "capabilities",
         "display": "appearance",
-        "webui": "access",
+        "webui": "resources",
         "pet": "appearance",
         "about": "advanced"
       },
@@ -1476,7 +1519,7 @@
           "wrapper_policy": "host_provides_wrapper"
         },
         "settings_resources": {
-          "component_key": "AccessSettingsContent",
+          "component_key": "ResourcesSettingsContent",
           "wrapper_policy": "host_provides_wrapper"
         }
       },

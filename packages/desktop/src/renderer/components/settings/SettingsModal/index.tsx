@@ -32,6 +32,7 @@ export type BuiltinSettingTab =
   | 'local-services'
   | 'environment'
   | 'capabilities'
+  | 'resources'
   | 'access'
   | 'appearance'
   | 'advanced'

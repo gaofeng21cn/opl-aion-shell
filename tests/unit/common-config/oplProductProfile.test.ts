@@ -156,17 +156,17 @@ describe('OPL generated product profile', () => {
       'access',
       'workspace',
       'capabilities',
+      'resources',
       'environment',
       'storage',
       'appearance',
-      'advanced',
     ]);
     expect(getOplGuiSettingsSecondaryPageIds()).toEqual([
+      'advanced',
       'about',
       'update',
       'theme',
       'local-services',
-      'resources',
     ]);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',
@@ -178,7 +178,7 @@ describe('OPL generated product profile', () => {
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
-      webui: 'access',
+      webui: 'resources',
       pet: 'appearance',
       about: 'advanced',
     });
@@ -198,7 +198,15 @@ describe('OPL generated product profile', () => {
       frequency: 'first_run_and_project_switching',
     });
     expect(controlPlane.secondary_pages.map((page) => page.id)).not.toContain('workspace');
+    expect(controlPlane.ordinary_routes.find((route) => route.id === 'resources')).toMatchObject({
+      path: '/settings/resources',
+      label_key: 'settings.resourcesPage.title',
+      icon_token: 'resources',
+      scope: 'external_and_hosted_resources',
+      intent: 'inspect_and_precheck_resource_connections',
+    });
     expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
+    expect(controlPlane.slot_registry.settings_resources.component_key).toBe('ResourcesSettingsContent');
     expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
     expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.workspace.component_key).toBe('WorkspaceSettings');

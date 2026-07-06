@@ -10,6 +10,7 @@ import { LinkCloud, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { useTranslation } from 'react-i18next';
+import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   buildAccessProjection,
   type DockerWebuiAction,
@@ -164,6 +165,14 @@ export const ResourcesSettingsContent: React.FC = () => {
     </div>
   );
 };
+
+const ResourcesSettings: React.FC = () => (
+  <SettingsPageWrapper>
+    <ResourcesSettingsContent />
+  </SettingsPageWrapper>
+);
+
+export default ResourcesSettings;
 
 function accessStatusLabel(status: string, t: (key: string, options?: Record<string, string>) => string): string {
   return t(`settings.resourcesPage.statusLabels.${status}`, { defaultValue: status });

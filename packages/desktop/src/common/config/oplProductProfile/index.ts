@@ -1478,7 +1478,16 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
-  const expectedTabs = ['general', 'access', 'workspace', 'capabilities', 'environment', 'storage', 'appearance', 'advanced'];
+  const expectedTabs = [
+    'general',
+    'access',
+    'workspace',
+    'capabilities',
+    'resources',
+    'environment',
+    'storage',
+    'appearance',
+  ];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
@@ -1488,7 +1497,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const secondaryPageIds = settingsIa
     ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
     : [];
-  if (secondaryPageIds.join(',') !== 'about,update,theme,local-services,resources') {
+  if (secondaryPageIds.join(',') !== 'advanced,about,update,theme,local-services') {
     throw new Error('Invalid OPL product profile: GUI secondary settings pages must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');
@@ -1506,8 +1515,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     'skills-hub': 'capabilities',
     tools: 'capabilities',
     display: 'appearance',
-    webui: 'access',
+    webui: 'resources',
     pet: 'appearance',
+    about: 'advanced',
   };
   if (JSON.stringify(legacySettingsRouteRedirects) !== JSON.stringify(expectedLegacySettingsRouteRedirects)) {
     throw new Error('Invalid OPL product profile: GUI legacy settings redirects must match OPL App');

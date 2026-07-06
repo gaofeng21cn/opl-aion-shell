@@ -58,6 +58,13 @@ const { controlPlane } = vi.hoisted(() => ({
         slot_id: 'settings_capabilities',
       },
       {
+        id: 'resources',
+        path: '/settings/resources',
+        label_key: 'settings.resources',
+        default_label_en: 'Resources & Connections',
+        slot_id: 'settings_resources',
+      },
+      {
         id: 'environment',
         path: '/settings/environment',
         label_key: 'settings.maintenance',
@@ -78,15 +85,15 @@ const { controlPlane } = vi.hoisted(() => ({
         default_label_en: 'Preferences',
         slot_id: 'settings_theme',
       },
+    ],
+    secondary_pages: [
       {
         id: 'advanced',
         path: '/settings/advanced',
-        label_key: 'settings.advanced',
-        default_label_en: 'Advanced',
+        ia_group: 'advanced',
         slot_id: 'settings_advanced',
+        visibility: 'secondary_or_deep_link',
       },
-    ],
-    secondary_pages: [
       {
         id: 'about',
         path: '/settings/about',
@@ -126,7 +133,7 @@ const { controlPlane } = vi.hoisted(() => ({
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
-      webui: 'access',
+      webui: 'resources',
       pet: 'appearance',
       about: 'advanced',
     },
@@ -140,7 +147,7 @@ const { controlPlane } = vi.hoisted(() => ({
       'skills-hub': 'capabilities',
       tools: 'capabilities',
       display: 'appearance',
-      webui: 'access',
+      webui: 'resources',
       pet: 'appearance',
       about: 'advanced',
     },
@@ -157,6 +164,7 @@ const { controlPlane } = vi.hoisted(() => ({
       settings_storage: { component_key: 'StorageSettings', wrapper_policy: 'host_provides_wrapper' },
       settings_theme: { component_key: 'AppearanceModalContent', wrapper_policy: 'host_provides_wrapper' },
       settings_advanced: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
+      settings_resources: { component_key: 'ResourcesSettingsContent', wrapper_policy: 'host_provides_wrapper' },
       about: { component_key: 'SystemModalContent', wrapper_policy: 'host_provides_wrapper' },
       update: { component_key: 'RuntimeSettings', wrapper_policy: 'host_provides_wrapper' },
       workspace: { component_key: 'WorkspaceSettings', wrapper_policy: 'host_provides_wrapper' },
@@ -189,12 +197,12 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'access',
     'workspace',
     'capabilities',
+    'resources',
     'environment',
     'storage',
     'appearance',
-    'advanced',
   ],
-  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'local-services'],
+  getOplGuiSettingsSecondaryPageIds: () => ['advanced', 'about', 'update', 'theme', 'local-services'],
 }));
 
 const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
@@ -206,10 +214,10 @@ describe('settingsNav App-owned tabs', () => {
       'access',
       'workspace',
       'capabilities',
+      'resources',
       'environment',
       'storage',
       'appearance',
-      'advanced',
     ]);
     expect(SETTINGS_DEFAULT_ROUTE).toBe('/settings/general');
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
@@ -217,10 +225,10 @@ describe('settingsNav App-owned tabs', () => {
       'Setup & Access',
       'Workspace',
       'Capabilities',
+      'Resources & Connections',
       'Maintenance & Updates',
       'Data & Storage',
       'Preferences',
-      'Advanced',
     ]);
   });
 
@@ -235,7 +243,7 @@ describe('settingsNav App-owned tabs', () => {
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
       display: '/settings/appearance',
-      webui: '/settings/access',
+      webui: '/settings/resources',
       pet: '/settings/appearance',
       about: '/settings/advanced',
     });
@@ -247,6 +255,7 @@ describe('settingsNav App-owned tabs', () => {
       'access',
       'workspace',
       'capabilities',
+      'resources',
       'environment',
       'storage',
       'appearance',
@@ -255,7 +264,6 @@ describe('settingsNav App-owned tabs', () => {
       'update',
       'theme',
       'local-services',
-      'resources',
     ]);
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('runtime');
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('tools');
@@ -275,9 +283,9 @@ describe('settingsNav App-owned tabs', () => {
       wrapperPolicy: 'host_provides_wrapper',
     });
     expect(getSettingsRenderSlot('webui')).toMatchObject({
-      id: 'settings_access',
-      routeId: 'access',
-      componentKey: 'AccessSettingsContent',
+      id: 'settings_resources',
+      routeId: 'resources',
+      componentKey: 'ResourcesSettingsContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
     expect(getSettingsRenderSlot('tools')).toMatchObject({
@@ -302,7 +310,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getSettingsRenderSlot('resources')).toMatchObject({
       id: 'settings_resources',
       routeId: 'resources',
-      componentKey: 'AccessSettingsContent',
+      componentKey: 'ResourcesSettingsContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
   });
@@ -354,14 +362,14 @@ describe('settingsNav App-owned tabs', () => {
       'skills-extension',
       'capabilities',
       'tools-extension',
+      'resources',
       'environment',
       'storage',
       'appearance',
-      'advanced',
     ]);
   });
 
-  it('inserts unanchored extension settings before Advanced in page and modal hosts', () => {
+  it('appends unanchored extension settings after ordinary App entries in page and modal hosts', () => {
     const extensionTabs: IExtensionSettingsTab[] = [
       {
         id: 'unanchored-extension',
@@ -389,11 +397,11 @@ describe('settingsNav App-owned tabs', () => {
       'access',
       'workspace',
       'capabilities',
+      'resources',
       'environment',
       'storage',
       'appearance',
       'unanchored-extension',
-      'advanced',
     ]);
     expect(modalIds).toEqual(navIds);
   });

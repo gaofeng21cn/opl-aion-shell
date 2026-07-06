@@ -5,6 +5,7 @@ import {
   Earth,
   FolderOpen,
   Lightning,
+  LinkCloud,
   Puzzle,
   SettingConfig,
   SwitchThemes,
@@ -29,10 +30,10 @@ export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'access',
   'workspace',
   'capabilities',
+  'resources',
   'environment',
   'storage',
   'appearance',
-  'advanced',
 ] as const;
 
 export type AppSettingsTopLevelTabId = (typeof APP_SETTINGS_TOP_LEVEL_TAB_IDS)[number];
@@ -42,19 +43,7 @@ const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
 const ordinaryRoutes = settingsControlPlane?.ordinary_routes ?? [];
 const contractSecondaryPages = settingsControlPlane?.secondary_pages ?? [];
-const shellSecondaryPages: OplSettingsControlPlaneSecondaryPage[] = contractSecondaryPages.some(
-  (page) => page.id === 'resources'
-)
-  ? []
-  : [
-      {
-        id: 'resources',
-        path: '/settings/resources',
-        ia_group: 'setup_access',
-        slot_id: 'settings_resources',
-        visibility: 'secondary_or_deep_link',
-      },
-    ];
+const shellSecondaryPages: OplSettingsControlPlaneSecondaryPage[] = [];
 const secondaryPages = [...contractSecondaryPages, ...shellSecondaryPages];
 const ordinaryRoutesById = new Map(ordinaryRoutes.map((route) => [route.id, route]));
 const secondaryPagesById = new Map(secondaryPages.map((page) => [page.id, page]));
@@ -118,10 +107,10 @@ export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefine
   access: undefined,
   workspace: undefined,
   capabilities: undefined,
+  resources: undefined,
   environment: undefined,
   storage: undefined,
   appearance: undefined,
-  advanced: undefined,
 };
 
 const controlPlaneLabelKeys = Object.fromEntries(ordinaryRoutes.map((route) => [route.id, route.label_key]));
@@ -199,6 +188,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
       general: <Computer theme='outline' size='20' fill={iconColors.secondary} />,
       workspace: <FolderOpen theme='outline' size='20' fill={iconColors.secondary} />,
       'local-services': <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
+      resources: <LinkCloud theme='outline' size='20' fill={iconColors.secondary} />,
       environment: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
       storage: <Toolkit theme='outline' size='20' fill={iconColors.secondary} />,
       capabilities: <Lightning theme='outline' size='20' fill={iconColors.secondary} />,
@@ -216,6 +206,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
     access: slot === 'siderDesktop' ? <Earth /> : <Communication />,
     workspace: <FolderOpen />,
     capabilities: <Lightning />,
+    resources: <LinkCloud />,
     environment: <Toolkit />,
     storage: <Toolkit />,
     appearance: <SwitchThemes />,
@@ -465,24 +456,21 @@ type SettingsRouteComponentKey =
   | 'WorkspaceSettings'
   | 'LocalServicesSettings'
   | 'AccessSettingsContent'
+  | 'ResourcesSettingsContent'
   | 'CapabilitiesSettingsContent'
   | 'RuntimeSettings'
   | 'StorageSettings'
   | 'AppearanceModalContent'
   | 'SystemModalContent';
 
-const SHELL_SLOT_REGISTRY: OplSettingsControlPlane['slot_registry'] = {
-  settings_resources: {
-    component_key: 'AccessSettingsContent',
-    wrapper_policy: 'host_provides_wrapper',
-  },
-};
+const SHELL_SLOT_REGISTRY: OplSettingsControlPlane['slot_registry'] = {};
 
 const ROUTE_COMPONENT_KEYS = new Set<string>([
   'OverviewSettings',
   'WorkspaceSettings',
   'LocalServicesSettings',
   'AccessSettingsContent',
+  'ResourcesSettingsContent',
   'CapabilitiesSettingsContent',
   'RuntimeSettings',
   'StorageSettings',

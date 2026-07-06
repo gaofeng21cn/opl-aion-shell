@@ -72,6 +72,11 @@ vi.mock('@/renderer/pages/settings/sections/AccessSettings', () => ({
   ),
 }));
 
+vi.mock('@/renderer/pages/settings/sections/ResourcesSettings', () => ({
+  ResourcesSettingsContent: () => <div data-testid='resources-content'>Resources & Connections Docker WebUI cloud</div>,
+  default: () => <div data-testid='resources-content'>Resources & Connections Docker WebUI cloud</div>,
+}));
+
 vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent', () => ({
   default: () => <div data-testid='appearance-content'>Appearance</div>,
 }));
@@ -148,10 +153,11 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Advanced')).toBeInTheDocument();
+    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('System')).not.toBeInTheDocument();
@@ -172,10 +178,11 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Advanced')).toBeInTheDocument();
+    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
     expect(screen.queryByText('Runtime')).not.toBeInTheDocument();
     expect(screen.queryByText('Model')).not.toBeInTheDocument();
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
@@ -192,21 +199,21 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
   });
 
-  it('keeps Workspace visible while surfacing secondary resource pages through Settings search', () => {
+  it('keeps Resources ordinary while surfacing Advanced through Settings search', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.queryByText('Resources & Connections')).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'workspace' } });
-
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
+    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'diagnostics' } });
+
+    expect(screen.getByText('Advanced')).toBeInTheDocument();
     expect(screen.queryByText('Access')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Workspace'));
+    fireEvent.click(screen.getByText('Advanced'));
 
-    expect(screen.getByTestId('workspace-content')).toBeInTheDocument();
+    expect(screen.getByTestId('system-content')).toBeInTheDocument();
   });
 
   it('shows an empty state when no Settings route matches search', () => {
@@ -246,6 +253,10 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
 
     expect(screen.getByTestId('local-services-content')).toBeInTheDocument();
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='resources' />);
+
+    expect(screen.getByTestId('resources-content')).toBeInTheDocument();
   });
 
   it('redirects legacy agent and tools tab requests to purpose-first capability content', () => {
@@ -269,10 +280,10 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:tools');
   });
 
-  it('redirects legacy webui, display, and pet tab requests to Access and Appearance', () => {
+  it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='webui' />);
 
-    expect(screen.getByTestId('access-content')).toHaveTextContent('remote Docker WebUI access');
+    expect(screen.getByTestId('resources-content')).toHaveTextContent('Docker WebUI');
     expect(screen.queryByTestId('webui-content')).not.toBeInTheDocument();
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='display' />);
