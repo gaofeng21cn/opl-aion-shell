@@ -1416,8 +1416,10 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     intelligenceEnhancementMode.provider === 'codexcont' &&
     intelligenceEnhancementMode.local_proxy_base_url === 'http://127.0.0.1:8787/v1' &&
     intelligenceEnhancementMode.upstream_policy === 'preserve_current_codex_provider_via_local_responses_proxy' &&
-    intelligenceEnhancementMode.behavior_policy === 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' &&
-    intelligenceEnhancementMode.service_policy === 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' &&
+    intelligenceEnhancementMode.behavior_policy ===
+      'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' &&
+    intelligenceEnhancementMode.service_policy ===
+      'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' &&
     intelligenceEnhancementMode.status_action_id === 'intelligence_enhancement_status' &&
     intelligenceEnhancementMode.enable_action_id === 'intelligence_enhancement_enable' &&
     intelligenceEnhancementMode.disable_action_id === 'intelligence_enhancement_disable' &&
@@ -1432,7 +1434,8 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
           local_proxy_base_url: 'http://127.0.0.1:8787/v1' as const,
           upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy' as const,
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' as const,
-          service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' as const,
+          service_policy:
+            'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' as const,
           status_action_id: 'intelligence_enhancement_status' as const,
           enable_action_id: 'intelligence_enhancement_enable' as const,
           disable_action_id: 'intelligence_enhancement_disable' as const,

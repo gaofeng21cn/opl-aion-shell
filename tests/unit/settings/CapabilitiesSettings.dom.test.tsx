@@ -515,12 +515,16 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getByText('Quota / cost')).toBeInTheDocument();
     expect(within(detailedResearch).queryByText(/opl:\/\/gateway\/status\/gflabtoken/)).not.toBeInTheDocument();
     expect(within(detailedResearch).queryByText(/opl:\/\/environment\/python-r-quarto/)).not.toBeInTheDocument();
-    expect(within(detailedResearch).queryByText(/opl:\/\/environment-template\/python-r-quarto/)).not.toBeInTheDocument();
+    expect(
+      within(detailedResearch).queryByText(/opl:\/\/environment-template\/python-r-quarto/)
+    ).not.toBeInTheDocument();
     expect(
       within(detailedResearch).queryByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)
     ).not.toBeInTheDocument();
     expect(within(detailedResearch).queryByText(/opl:\/\/task-applicability\/mas/)).not.toBeInTheDocument();
-    expect(within(detailedResearch).queryByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).not.toBeInTheDocument();
+    expect(
+      within(detailedResearch).queryByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)
+    ).not.toBeInTheDocument();
     expect(
       within(detailedResearch).queryByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)
     ).not.toBeInTheDocument();
@@ -528,7 +532,9 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).queryByText(/opl:\/\/cost-estimate\/mas\/latest/)).not.toBeInTheDocument();
     expect(within(detailedResearch).getByText('Reproducibility export bundle action')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('export_reproducibility_bundle')).toBeInTheDocument();
-    expect(within(detailedResearch).queryByText(/opl:\/\/app-action\/task_action_receipt_preview/)).not.toBeInTheDocument();
+    expect(
+      within(detailedResearch).queryByText(/opl:\/\/app-action\/task_action_receipt_preview/)
+    ).not.toBeInTheDocument();
     expect(within(detailedResearch).queryByText(/receipt:\/\/export\/latest/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     detailedResearch = screen.getByTestId('capability-details-mas');
@@ -540,7 +546,9 @@ describe('CapabilitiesSettingsContent', () => {
     const grant = screen.getByTestId('capability-purpose-mag');
     fireEvent.click(grant);
     expect(
-      within(screen.getByTestId('capability-details-mag')).queryByTestId('capability-candidate-report-mag-grant-workflow')
+      within(screen.getByTestId('capability-details-mag')).queryByTestId(
+        'capability-candidate-report-mag-grant-workflow'
+      )
     ).not.toBeInTheDocument();
 
     const presentations = screen.getByTestId('capability-purpose-rca');

@@ -346,7 +346,9 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['med-autoscience'] }));
+      expect(mocks.useGuidSend).toHaveBeenCalledWith(
+        expect.objectContaining({ guidEnabledSkills: ['med-autoscience'] })
+      );
     });
   });
 

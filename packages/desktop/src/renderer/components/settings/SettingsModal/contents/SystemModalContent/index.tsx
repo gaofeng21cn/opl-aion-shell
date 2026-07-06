@@ -43,8 +43,7 @@ type DeveloperCapabilityDisplay = {
   level: string;
 };
 
-const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE =
-  getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
+const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
 
 const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
   'contributor',
@@ -335,33 +334,36 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleOplFlowIntelligenceEnhancementModeChange = useCallback(async (checked: boolean) => {
-    if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
-    const previous = oplFlowIntelligenceEnhancementMode;
-    setOplFlowIntelligenceEnhancementMode(checked);
-    setOplFlowIntelligenceEnhancementApplying(true);
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: checked
-          ? OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.enable_action_id
-          : OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.disable_action_id,
-        dryRun: false,
-      });
-      if (result.ok === false) {
-        throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+  const handleOplFlowIntelligenceEnhancementModeChange = useCallback(
+    async (checked: boolean) => {
+      if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
+      const previous = oplFlowIntelligenceEnhancementMode;
+      setOplFlowIntelligenceEnhancementMode(checked);
+      setOplFlowIntelligenceEnhancementApplying(true);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: checked
+            ? OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.enable_action_id
+            : OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.disable_action_id,
+          dryRun: false,
+        });
+        if (result.ok === false) {
+          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+        }
+        const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
+        setOplFlowIntelligenceEnhancementMode(enabled);
+        await configService.set(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
+        void appStateQuery.load('fast', { showRefreshing: true }).catch(() => {});
+      } catch (caughtError) {
+        setOplFlowIntelligenceEnhancementMode(previous);
+        configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, previous);
+        Message.error(caughtError instanceof Error ? caughtError.message : String(caughtError));
+      } finally {
+        setOplFlowIntelligenceEnhancementApplying(false);
       }
-      const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
-      setOplFlowIntelligenceEnhancementMode(enabled);
-      await configService.set(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
-      void appStateQuery.load('fast', { showRefreshing: true }).catch(() => {});
-    } catch (caughtError) {
-      setOplFlowIntelligenceEnhancementMode(previous);
-      configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, previous);
-      Message.error(caughtError instanceof Error ? caughtError.message : String(caughtError));
-    } finally {
-      setOplFlowIntelligenceEnhancementApplying(false);
-    }
-  }, [appStateQuery.load, oplFlowIntelligenceEnhancementMode]);
+    },
+    [appStateQuery.load, oplFlowIntelligenceEnhancementMode]
+  );
 
   const oplFlowContext = oplRecord(appState.opl_flow_context);
   const oplFlowContextDisplay =

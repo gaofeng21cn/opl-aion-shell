@@ -524,10 +524,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     : [];
   const selectedHasSupportingContext = Boolean(
     selectedCapability &&
-      (selectedCapability.connectorReadinessRefs.length > 0 ||
-        selectedCapability.workflowRefs.length > 0 ||
-        selectedCapability.resourceContextRefs.length > 0 ||
-        selectedCapability.exportBundleAction)
+    (selectedCapability.connectorReadinessRefs.length > 0 ||
+      selectedCapability.workflowRefs.length > 0 ||
+      selectedCapability.resourceContextRefs.length > 0 ||
+      selectedCapability.exportBundleAction)
   );
 
   useEffect(() => {
@@ -686,7 +686,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   type='primary'
                   loading={busyAction === 'install_from_manifest_url'}
                   disabled={!manifestUrl.trim()}
-                  onClick={() => executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })}
+                  onClick={() =>
+                    executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
+                  }
                   data-testid='agent-package-install-manifest'
                 >
                   {t('settings.capabilitiesPage.packageManager.installFromManifest')}
@@ -736,7 +738,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           </div>
                         </div>
                         <div className='min-w-0'>
-                          <Typography.Text className='block truncate text-t-primary'>{item.description}</Typography.Text>
+                          <Typography.Text className='block truncate text-t-primary'>
+                            {item.description}
+                          </Typography.Text>
                         </div>
                         <div className='min-w-0'>
                           <Tag color={capabilityStatusColor(item.status)}>{capabilityStatusLabel(item.status, t)}</Tag>
@@ -795,7 +799,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       {t('settings.capabilitiesPage.packageManager.tableHeaders.home')}: {selectedHomeLabel}
                     </Typography.Text>
                     {selectedUserDetailRows.map((row) => (
-                      <Typography.Text key={`${selectedCapability.key}-${row.key}`} className='text-t-secondary break-words'>
+                      <Typography.Text
+                        key={`${selectedCapability.key}-${row.key}`}
+                        className='text-t-secondary break-words'
+                      >
                         {row.label}: {row.value}
                       </Typography.Text>
                     ))}
@@ -828,7 +835,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   )}
                   {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
                   {selectedHasSupportingContext && (
-                    <div className='grid grid-cols-1 gap-10px' data-testid={`capability-support-context-${selectedCapability.key}`}>
+                    <div
+                      className='grid grid-cols-1 gap-10px'
+                      data-testid={`capability-support-context-${selectedCapability.key}`}
+                    >
                       {selectedCapability.connectorReadinessRefs.length > 0 && (
                         <div className='min-w-0'>
                           <Typography.Text className='block text-t-secondary mb-4px'>

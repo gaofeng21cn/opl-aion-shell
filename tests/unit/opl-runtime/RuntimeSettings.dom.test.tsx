@@ -646,7 +646,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByText('Publication artifact')).not.toBeInTheDocument();
     expect(screen.queryByText('artifact://summary')).not.toBeInTheDocument();
-    expect(screen.queryByText('opl runtime app-operator-drilldown --task dm002-taskrun --json')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('opl runtime app-operator-drilldown --task dm002-taskrun --json')
+    ).not.toBeInTheDocument();
   });
 
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {

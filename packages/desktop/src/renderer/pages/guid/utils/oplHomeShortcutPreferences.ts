@@ -133,8 +133,8 @@ export function isOplHomeShortcutVisible(
 
 export function getOplVisibleHomeAgentShortcuts(): OplHomeAgentShortcut[] {
   const preferences = getOplHomeShortcutPreferences();
-  return sortShortcuts(getOplHomeAgentShortcuts(), preferences.orderedShortcutIds).filter(
-    (shortcut) => isOplHomeShortcutVisible(shortcut, preferences)
+  return sortShortcuts(getOplHomeAgentShortcuts(), preferences.orderedShortcutIds).filter((shortcut) =>
+    isOplHomeShortcutVisible(shortcut, preferences)
   );
 }
 

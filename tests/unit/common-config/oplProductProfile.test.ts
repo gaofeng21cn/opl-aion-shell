@@ -161,13 +161,7 @@ describe('OPL generated product profile', () => {
       'storage',
       'appearance',
     ]);
-    expect(getOplGuiSettingsSecondaryPageIds()).toEqual([
-      'advanced',
-      'about',
-      'update',
-      'theme',
-      'local-services',
-    ]);
+    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about', 'update', 'theme', 'local-services']);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',
       runtime: 'environment',
@@ -487,7 +481,8 @@ describe('OPL generated product profile', () => {
           local_proxy_base_url: 'http://127.0.0.1:8787/v1',
           upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy',
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action',
-          service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair',
+          service_policy:
+            'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair',
           status_action_id: 'intelligence_enhancement_status',
           enable_action_id: 'intelligence_enhancement_enable',
           disable_action_id: 'intelligence_enhancement_disable',
