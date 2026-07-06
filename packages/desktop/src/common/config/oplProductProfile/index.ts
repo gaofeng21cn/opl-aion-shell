@@ -182,16 +182,15 @@ export type OplFlowContextPolicy = {
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
   optional_user_modes?: {
-    head_down: {
-      id: 'head_down';
-      settings_key: 'codex.oplFlowHeadDownMode';
-      label_key: 'settings.oplFlowHeadDownMode';
-      description_key: 'settings.oplFlowHeadDownModeDesc';
-      prompt_line: 'DO NOT send optional commentary';
-      quick_action_label_key: 'conversation.headDownQuickAction';
-      quick_action_prompt: 'Spend time on thinking; you do not need to use the commentary channel to report progress to me.';
-      quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled';
-      injection_policy: 'prepend_before_opl_flow_context';
+    intelligence_enhancement: {
+      id: 'intelligence_enhancement';
+      settings_key: 'codex.oplFlowIntelligenceEnhancementMode';
+      label_key: 'settings.oplFlowIntelligenceEnhancementMode';
+      description_key: 'settings.oplFlowIntelligenceEnhancementModeDesc';
+      provider: 'codexcont';
+      local_proxy_base_url: 'http://127.0.0.1:8787/v1';
+      upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy';
+      behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action';
     };
   };
 };
@@ -1398,34 +1397,35 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
   }
   const optionalUserModes = isRecord(value.optional_user_modes) ? value.optional_user_modes : null;
-  const headDownMode = optionalUserModes && isRecord(optionalUserModes.head_down) ? optionalUserModes.head_down : null;
-  const parsedHeadDownMode =
-    headDownMode &&
-    headDownMode.id === 'head_down' &&
-    headDownMode.settings_key === 'codex.oplFlowHeadDownMode' &&
-    headDownMode.label_key === 'settings.oplFlowHeadDownMode' &&
-    headDownMode.description_key === 'settings.oplFlowHeadDownModeDesc' &&
-    headDownMode.prompt_line === 'DO NOT send optional commentary' &&
-    headDownMode.quick_action_label_key === 'conversation.headDownQuickAction' &&
-    headDownMode.quick_action_prompt ===
-      'Spend time on thinking; you do not need to use the commentary channel to report progress to me.' &&
-    headDownMode.quick_action_policy === 'send_as_current_conversation_user_message_when_mode_enabled' &&
-    headDownMode.injection_policy === 'prepend_before_opl_flow_context'
+  const intelligenceEnhancementMode =
+    optionalUserModes && isRecord(optionalUserModes.intelligence_enhancement)
+      ? optionalUserModes.intelligence_enhancement
+      : null;
+  const parsedIntelligenceEnhancementMode =
+    intelligenceEnhancementMode &&
+    intelligenceEnhancementMode.id === 'intelligence_enhancement' &&
+    intelligenceEnhancementMode.settings_key === 'codex.oplFlowIntelligenceEnhancementMode' &&
+    intelligenceEnhancementMode.label_key === 'settings.oplFlowIntelligenceEnhancementMode' &&
+    intelligenceEnhancementMode.description_key === 'settings.oplFlowIntelligenceEnhancementModeDesc' &&
+    intelligenceEnhancementMode.provider === 'codexcont' &&
+    intelligenceEnhancementMode.local_proxy_base_url === 'http://127.0.0.1:8787/v1' &&
+    intelligenceEnhancementMode.upstream_policy === 'preserve_current_codex_provider_via_local_responses_proxy' &&
+    intelligenceEnhancementMode.behavior_policy === 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action'
       ? {
-          id: 'head_down' as const,
-          settings_key: 'codex.oplFlowHeadDownMode' as const,
-          label_key: 'settings.oplFlowHeadDownMode' as const,
-          description_key: 'settings.oplFlowHeadDownModeDesc' as const,
-          prompt_line: 'DO NOT send optional commentary' as const,
-          quick_action_label_key: 'conversation.headDownQuickAction' as const,
-          quick_action_prompt:
-            'Spend time on thinking; you do not need to use the commentary channel to report progress to me.' as const,
-          quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled' as const,
-          injection_policy: 'prepend_before_opl_flow_context' as const,
+          id: 'intelligence_enhancement' as const,
+          settings_key: 'codex.oplFlowIntelligenceEnhancementMode' as const,
+          label_key: 'settings.oplFlowIntelligenceEnhancementMode' as const,
+          description_key: 'settings.oplFlowIntelligenceEnhancementModeDesc' as const,
+          provider: 'codexcont' as const,
+          local_proxy_base_url: 'http://127.0.0.1:8787/v1' as const,
+          upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy' as const,
+          behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' as const,
         }
       : null;
-  if (optionalUserModes && !parsedHeadDownMode) {
-    throw new Error('Invalid OPL product profile: codex.opl_flow_context.optional_user_modes.head_down is unsupported');
+  if (optionalUserModes && !parsedIntelligenceEnhancementMode) {
+    throw new Error(
+      'Invalid OPL product profile: codex.opl_flow_context.optional_user_modes.intelligence_enhancement is unsupported'
+    );
   }
   return {
     flow_id: 'opl-flow',
@@ -1433,7 +1433,9 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     delivery: 'session_scoped_preset_context',
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-    ...(parsedHeadDownMode ? { optional_user_modes: { head_down: parsedHeadDownMode } } : {}),
+    ...(parsedIntelligenceEnhancementMode
+      ? { optional_user_modes: { intelligence_enhancement: parsedIntelligenceEnhancementMode } }
+      : {}),
   };
 }
 
@@ -2416,7 +2418,11 @@ export function getOplFlowContextPolicy(): OplFlowContextPolicy {
   return {
     ...policy,
     ...(policy.optional_user_modes
-      ? { optional_user_modes: { head_down: { ...policy.optional_user_modes.head_down } } }
+      ? {
+          optional_user_modes: {
+            intelligence_enhancement: { ...policy.optional_user_modes.intelligence_enhancement },
+          },
+        }
       : {}),
   };
 }

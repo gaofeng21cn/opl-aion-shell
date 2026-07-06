@@ -5,7 +5,6 @@
  */
 
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
-import { configService } from '@/common/config/configService';
 import {
   getOplCodexSessionContextForLocale,
   getOplDefaultCodexReasoningEffort,
@@ -45,13 +44,6 @@ function mergePresetContext(oplFlowContext: string, presetRules?: string): strin
   return [oplFlowContext.trim(), presetRules?.trim()].filter(Boolean).join('\n\n');
 }
 
-function buildOplFlowSessionContext(baseContext: string, policy: ReturnType<typeof getOplFlowContextPolicy>): string {
-  const headDownMode = policy.optional_user_modes?.head_down;
-  const headDownLine =
-    headDownMode && configService.get(headDownMode.settings_key) === true ? headDownMode.prompt_line : '';
-  return [headDownLine, baseContext.trim()].filter(Boolean).join('\n\n');
-}
-
 export function getConversationTypeForBackend(backend: string): ICreateConversationParams['type'] {
   return backend === 'aionrs' ? 'aionrs' : 'acp';
 }
@@ -83,10 +75,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const type = getConversationTypeForBackend(is_preset ? effectivePresetType : backend);
   const effectiveBackend = is_preset ? effectivePresetType : backend;
   const oplFlowContextPolicy = getOplFlowContextPolicy();
-  const oplFlowSessionContext = buildOplFlowSessionContext(
-    getOplCodexSessionContextForLocale(resolveLocaleKey(language)),
-    oplFlowContextPolicy
-  );
+  const oplFlowSessionContext = getOplCodexSessionContextForLocale(resolveLocaleKey(language));
   const extra: ICreateConversationParams['extra'] = {
     workspace,
     custom_workspace,
