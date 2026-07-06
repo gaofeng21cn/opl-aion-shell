@@ -4,6 +4,13 @@ import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/manag
 import { readManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
 
 vi.mock('@/common/config/oplProductProfile', () => ({
+  canonicalizeOplProfessionalAgentId: (value: string) =>
+    ({
+      mas: 'med-autoscience',
+      mag: 'med-autogrant',
+      rca: 'redcube-ai',
+      bookforge: 'opl-bookforge',
+    })[value] ?? value,
   getOplDefaultHomeAssistants: () => [
     { id: 'mas', display_name: 'MAS' },
     { id: 'mag', display_name: 'MAG' },
@@ -114,7 +121,7 @@ describe('RuntimeSettings view model adapter', () => {
   it('aggregates environment and maintenance hub state behind one adapter entrypoint', () => {
     const openUpdateModal = vi.fn();
     const runMaintenanceHubCheck = vi.fn();
-    const runRepairSuggestions = vi.fn();
+    const runServiceCheck = vi.fn();
     const model = buildRuntimeSettingsViewModel({
       appState,
       managedUpdateMaintenance: maintenance,
@@ -128,7 +135,7 @@ describe('RuntimeSettings view model adapter', () => {
         openUpdateModal,
         runMaintenanceHubCheck,
         runMakeOplUsable: vi.fn(),
-        runRepairSuggestions,
+        runServiceCheck,
       },
       t,
     });
@@ -140,31 +147,26 @@ describe('RuntimeSettings view model adapter', () => {
     expect(model.releaseChannelLabel).toBe('settings.runtimePage.releaseChannels.nightly nightly');
     expect(model.maintenanceHubItems.map((item) => item.key)).toEqual([
       'appUpdates',
-      'runtimeToolchain',
-      'capabilityPacks',
-      'storageCleanup',
-      'repairSuggestions',
+      'runtimeEnvironment',
+      'capabilitySurfaceSync',
+      'localServicesRepair',
     ]);
-    expect(model.maintenanceHubItems.find((item) => item.key === 'runtimeToolchain')).toMatchObject({
+    expect(model.maintenanceHubItems.find((item) => item.key === 'runtimeEnvironment')).toMatchObject({
       status: 'settings.oplEnvironmentPage.status.update_available update_available',
       tone: 'orange',
       actionDisabled: true,
     });
-    expect(model.maintenanceHubItems.find((item) => item.key === 'capabilityPacks')).toMatchObject({
+    expect(model.maintenanceHubItems.find((item) => item.key === 'capabilitySurfaceSync')).toMatchObject({
       actionLoading: true,
       actionDisabled: true,
     });
-    expect(model.maintenanceHubPrimaryAction).toMatchObject({
-      loading: true,
-      disabled: true,
-    });
 
     model.maintenanceHubItems[0].onAction?.();
-    model.maintenanceHubItems.find((item) => item.key === 'capabilityPacks')?.onAction?.();
-    model.maintenanceHubItems.find((item) => item.key === 'repairSuggestions')?.onAction?.();
+    model.maintenanceHubItems.find((item) => item.key === 'capabilitySurfaceSync')?.onAction?.();
+    model.maintenanceHubItems.find((item) => item.key === 'localServicesRepair')?.onAction?.();
 
     expect(openUpdateModal).toHaveBeenCalledTimes(1);
     expect(runMaintenanceHubCheck).toHaveBeenCalledWith('capabilityPacks');
-    expect(runRepairSuggestions).toHaveBeenCalledTimes(1);
+    expect(runServiceCheck).toHaveBeenCalledTimes(1);
   });
 });

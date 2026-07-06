@@ -457,12 +457,8 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.actions.refresh'));
-
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
-    expect(bridgeMocks.getAppStateInvoke).toHaveBeenLastCalledWith({ profile: 'fast' });
-    expect(bridgeMocks.getDrilldownInvoke).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument();
+    expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
   });
 
   it('renders runtime status and module path-source values through i18n aliases', async () => {
@@ -645,53 +641,12 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     render(<RuntimeSettings />);
 
-    await waitFor(() => expect(screen.getByTestId('runtime-task-run-projection-v2')).toBeInTheDocument());
-    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('DM002 TaskRun');
-    expect(screen.getByTestId('runtime-task-run-row-dm002-taskrun')).toHaveTextContent('Advancing');
-    expect(screen.getByTestId('runtime-task-run-overview')).toHaveTextContent(
-      'settings.runtimePage.taskRuns.overview.running'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Publication artifact');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('artifact://summary');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('why_it_matters');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('no_writes_preview_only');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('Preview review');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('action://dry-run');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://status');
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('resource://quota');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'settings.runtimePage.taskRuns.artifactProvenanceDrawer'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://artifact-provenance-bundle/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('Ledger record');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://ledger/artifact-provenance/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('RO-Crate metadata');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://artifact-replay-status/medautoscience/dm002/figure-flow'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://agent-trace/medautoscience/dm002/figure-flow/summary'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://review/medautoscience/dm002/figure-flow/visual-audit'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl://typed-issue/medautoscience/dm002/figure-flow/replay-not-verified'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent('Open detail action');
-    expect(screen.getByTestId('runtime-task-run-detail-artifact-provenance')).toHaveTextContent(
-      'opl runtime app-operator-drilldown --task dm002-taskrun --json'
-    );
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('artifact_body');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('domain_verdict');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('quality_verdict');
-    fireEvent.click(screen.getByText('settings.runtimePage.taskRuns.diagnosticsRefs'));
-    expect(screen.getByTestId('runtime-task-run-detail')).toHaveTextContent('diagnostics://task');
-    expect(screen.getByTestId('runtime-task-run-detail')).not.toHaveTextContent('Temporal');
+    await waitFor(() => expect(screen.getByTestId('opl-maintenance-hub')).toBeInTheDocument());
+    expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
+    expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
+    expect(screen.queryByText('Publication artifact')).not.toBeInTheDocument();
+    expect(screen.queryByText('artifact://summary')).not.toBeInTheDocument();
+    expect(screen.queryByText('opl runtime app-operator-drilldown --task dm002-taskrun --json')).not.toBeInTheDocument();
   });
 
   it('renders the unified Updates & Maintenance plane and routes controlled component actions through opl update IPC', async () => {
@@ -735,29 +690,24 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
-    );
+    expect(screen.queryByTestId('opl-maintenance-hub-make-usable')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeToolchain')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeToolchain')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.actions.reviewRuntimeToolchain'
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilityPacks')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'
+    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilityPacks')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.actions.reviewCapabilityPacks'
+    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-repairSuggestions')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'
+    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'
     );
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.repair'
@@ -771,10 +721,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
       'settings.oplEnvironmentPage.developerSource.dirtyImpact'
     );
-    expect(screen.getByText('settings.oplEnvironmentPage.sections.workspace')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-maintenance-hub-storageCleanup')).toHaveTextContent(
-      'settings.oplEnvironmentPage.storageData.openStorage'
-    );
+    expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent('settings.workspace');
+    expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent('settings.storage');
     expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
     expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent('Preview changes');
@@ -821,20 +769,15 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
 
     fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-runtimeToolchain').querySelector('button') as HTMLButtonElement
+      screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync').querySelector('button') as HTMLButtonElement
     );
     await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
 
     fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-storageCleanup').querySelector('button') as HTMLButtonElement
-    );
-    expect(window.location.hash).toBe('#/settings/storage');
-
-    fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-repairSuggestions').querySelector('button') as HTMLButtonElement
+      screen.getByTestId('opl-maintenance-hub-localServicesRepair').querySelector('button') as HTMLButtonElement
     );
     await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
     );
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
 
@@ -892,7 +835,9 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
+    fireEvent.click(
+      screen.getByTestId('opl-maintenance-hub-runtimeEnvironment').querySelector('button') as HTMLButtonElement
+    );
 
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
@@ -935,16 +880,13 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTestId('opl-runtime-action-doctor'));
+    fireEvent.click(
+      screen.getByTestId('opl-maintenance-hub-localServicesRepair').querySelector('button') as HTMLButtonElement
+    );
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
     );
     expect(bridgeMocks.getInitializeInvoke).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByTestId('opl-runtime-action-repair'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
-    );
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
   });
 
@@ -1098,7 +1040,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(backgroundStatus).toHaveTextContent('Reload visible OPL capabilities after background maintenance.');
   });
 
-  it('keeps the Settings Runtime refresh button idle during cached background revalidation', async () => {
+  it('does not expose a Settings Runtime fast-state refresh button during cached background revalidation', async () => {
     let resolveState: (value: typeof appStateResult) => void = () => {};
     bridgeMocks.getAppStateInvoke.mockReturnValue(
       new Promise((resolve) => {
@@ -1116,16 +1058,14 @@ describe('RuntimeSettings app state bridge usage', () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-    const button = screen.getByText('settings.oplEnvironmentPage.actions.refresh').closest('button');
-    expect(button?.className).not.toContain('arco-btn-loading');
-    expect(button?.getAttribute('aria-busy')).not.toBe('true');
+    expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
 
     await act(async () => {
       resolveState(appStateResult);
     });
   });
 
-  it('deduplicates Settings Runtime refresh while the initial App state read is still pending', async () => {
+  it('keeps Settings Runtime initial App state read single-flight without a manual refresh button', async () => {
     let resolveState: (value: typeof appStateResult) => void = () => {};
     bridgeMocks.getAppStateInvoke.mockReturnValue(
       new Promise((resolve) => {
@@ -1136,19 +1076,12 @@ describe('RuntimeSettings app state bridge usage', () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(1));
-    const button = screen.getByText('settings.oplEnvironmentPage.actions.refresh').closest('button');
-    expect(button).toBeTruthy();
-
-    fireEvent.click(button!);
-
+    expect(screen.queryByText('settings.oplEnvironmentPage.actions.refresh')).not.toBeInTheDocument();
     expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(1);
-    expect(button?.className).toContain('arco-btn-loading');
 
     await act(async () => {
       resolveState(appStateResult);
     });
-
-    await waitFor(() => expect(button?.className).not.toContain('arco-btn-loading'));
   });
 
   it('keeps the Runtime page refresh button idle during cached background revalidation', async () => {
