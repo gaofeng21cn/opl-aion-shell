@@ -92,8 +92,9 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
         'settings.workspacePage.root.missing': 'No work root.',
         'settings.workspacePage.cards.permission': 'Permission mode',
-        'settings.workspacePage.cards.modules': 'Capability modules',
         'settings.workspacePage.cards.lastCheck': 'Last check',
+        'settings.workspacePage.technical.title': 'Technical paths',
+        'settings.workspacePage.technical.description': 'Support-only paths.',
         'settings.workspacePage.modulesRoot.title': 'OPL modules directory',
         'settings.workspacePage.modulesRoot.description': 'Modules root detail.',
         'settings.workspacePage.modulesRoot.current': `Modules root: ${options?.path}`,
@@ -103,12 +104,9 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.logs.current': `Logs: ${options?.path}`,
         'settings.workspacePage.logs.missing': 'No logs root.',
         'settings.workspacePage.modules.title': 'Module paths',
-        'settings.workspacePage.modules.description': 'Module path detail.',
+        'settings.workspacePage.modules.description': `${options?.ready} / ${options?.total} ready in technical paths.`,
         'settings.workspacePage.modules.empty': 'No module paths.',
-        'settings.workspacePage.maintenance.title': 'Need to repair or update something?',
-        'settings.workspacePage.maintenance.description': 'Use Maintenance.',
         'settings.workspacePage.actions.openWorkspace': 'Open Workspace',
-        'settings.workspacePage.actions.openMaintenance': 'Open Maintenance',
         'settings.localServicesPage.title': 'Local Services',
         'settings.localServicesPage.description': 'Check local service health.',
         'settings.localServicesPage.cards.codex.title': 'Codex CLI',
@@ -148,9 +146,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
-    expect(screen.getAllByText('1 / 2 ready').length).toBeGreaterThan(0);
+    expect(screen.getByText('1 / 2 ready in technical paths.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({

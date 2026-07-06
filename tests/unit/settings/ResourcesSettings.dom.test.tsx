@@ -168,27 +168,28 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.title': 'Resources & Connections',
         'settings.resourcesPage.description':
           'Connect server WebUI, OPL Workspace, cloud or hosted workspaces, and external environments here.',
-        'settings.resourcesPage.docker.title': 'Docker WebUI and OPL Workspace',
+        'settings.resourcesPage.docker.title': 'Server WebUI and OPL Workspace',
         'settings.resourcesPage.docker.description':
-          'Use these entries for server, hosted workspace, or Docker WebUI deployments. Local browser access stays on Access.',
-        'settings.resourcesPage.docker.docker': 'Docker WebUI',
+          'Use these entries for server or hosted workspace deployments. Local browser access stays on Access.',
+        'settings.resourcesPage.docker.docker': 'Server WebUI',
         'settings.resourcesPage.docker.workspace': 'OPL Workspace',
-        'settings.resourcesPage.docker.runDryRoute': 'Precheck',
-        'settings.resourcesPage.docker.payloadRequired': 'Needs input',
+        'settings.resourcesPage.docker.runDryRoute': 'Check before deploy',
+        'settings.resourcesPage.docker.payloadRequired': 'Needs details',
         'settings.resourcesPage.docker.confirmationRequired': 'Confirms before changes',
-        'settings.resourcesPage.docker.actionDryRunSuccess': 'Docker WebUI precheck completed.',
-        'settings.resourcesPage.docker.actionDryRunFailed': 'Docker WebUI precheck failed.',
-        'settings.resourcesPage.docker.actions.settings_install_docker_webui': 'Install Docker WebUI',
-        'settings.resourcesPage.docker.actions.settings_select_webui_seed': 'Select WebUI image seed',
+        'settings.resourcesPage.docker.actionDryRunSuccess': 'Deployment check completed.',
+        'settings.resourcesPage.docker.actionDryRunFailed': 'Deployment check failed.',
+        'settings.resourcesPage.docker.actions.settings_install_docker_webui': 'Install server WebUI',
+        'settings.resourcesPage.docker.actions.settings_select_webui_seed': 'Choose initial WebUI image',
         'settings.resourcesPage.connections.title': 'Cloud, workspace, and external resources',
         'settings.resourcesPage.connections.description':
-          'Shows the resource sources reported by the App state without copying provider or workspace authority into the shell.',
+          'Shows cloud, workspace, and external environments tasks can use. Technical references stay collapsed.',
         'settings.resourcesPage.statusLabels.action_available': 'Available action',
         'settings.resourcesPage.statusLabels.available': 'Available',
         'settings.resourcesPage.statusLabels.ready': 'Ready',
         'settings.resourcesPage.resourceSources.status': `Resource status: ${options?.status}`,
-        'settings.resourcesPage.resourceSources.environmentRefs': 'Environment catalog',
-        'settings.resourcesPage.resourceSources.managementRefs': 'OPL Console context',
+        'settings.resourcesPage.resourceSources.environmentRefs': 'Has environment config',
+        'settings.resourcesPage.resourceSources.managementRefs': 'Has management info',
+        'settings.resourcesPage.resourceSources.technicalRefs': 'Technical references',
         'settings.resourcesPage.resourceSources.categories.remote': 'Remote resource',
         'settings.resourcesPage.resourceSources.categories.oplWorkspace': 'OPL Workspace',
         'settings.resourcesPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud managed compute',
@@ -224,19 +225,21 @@ describe('ResourcesSettingsContent', () => {
     const view = render(<ResourcesSettingsContent />);
 
     expect(view.getByText('Resources & Connections')).toBeTruthy();
-    expect(view.getByText('Docker WebUI and OPL Workspace')).toBeTruthy();
-    expect(view.getAllByText('Docker WebUI').length).toBeGreaterThan(0);
+    expect(view.getByText('Server WebUI and OPL Workspace')).toBeTruthy();
+    expect(view.getAllByText('Server WebUI').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
-    expect(view.getByText('Install Docker WebUI')).toBeTruthy();
-    expect(view.getByText('Select WebUI image seed')).toBeTruthy();
+    expect(view.getByText('Install server WebUI')).toBeTruthy();
+    expect(view.getByText('Choose initial WebUI image')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).toContain('opl://environment/default');
     expect(document.body.textContent).toContain('opl://storage/default');
     expect(document.body.textContent).toContain('Managed by OPL Console');
     expect(document.body.textContent).toContain('OPL Cloud managed compute');
-    expect(document.body.textContent).toContain('OPL Console context');
-    expect(document.body.textContent).toContain('Environment catalog');
+    expect(document.body.textContent).toContain('Has management info');
+    expect(document.body.textContent).toContain('Has environment config');
+    expect(document.body.textContent).toContain('Technical references');
     expect(document.body.textContent).toContain('opl://console/policy/compute');
     expect(document.body.textContent).toContain('opl://console/quota/compute');
     expect(document.body.textContent).toContain('opl://console/billing/project');
@@ -257,7 +260,7 @@ describe('ResourcesSettingsContent', () => {
       })
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
-    expect(await view.findByText('Docker WebUI precheck completed.')).toBeTruthy();
+    expect(await view.findByText('Deployment check completed.')).toBeTruthy();
   });
 
   it('does not report Docker WebUI action success when the App control-plane bridge returns a structured failure', async () => {
@@ -276,9 +279,9 @@ describe('ResourcesSettingsContent', () => {
 
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
 
-    await waitFor(() => expect(view.getByText('Docker WebUI precheck failed.')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('Deployment check failed.')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toContain('Docker WebUI precheck completed.');
+    expect(document.body.textContent).not.toContain('Deployment check completed.');
   });
 
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
@@ -286,7 +289,7 @@ describe('ResourcesSettingsContent', () => {
 
     const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
     expect(seedAction).toHaveAttribute('disabled');
-    expect(seedAction.textContent).toContain('Needs input');
+    expect(seedAction.textContent).toContain('Needs details');
     fireEvent.click(seedAction);
 
     expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();

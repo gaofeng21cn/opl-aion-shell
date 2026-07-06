@@ -1316,7 +1316,7 @@
   },
   "workspacePage": {
     "title": "Workspace",
-    "description": "Review where local projects, task artifacts, logs, and OPL modules live.",
+    "description": "Check where local projects and task artifacts are stored, and whether the App can access them.",
     "status": {
       "ready": "Workspace selected",
       "needsAction": "Workspace needs setup"
@@ -1328,8 +1328,11 @@
     },
     "cards": {
       "permission": "Permission mode",
-      "modules": "Capability modules",
       "lastCheck": "Last check"
+    },
+    "technical": {
+      "title": "Technical paths",
+      "description": "Use these paths only when troubleshooting or sharing support details."
     },
     "modulesRoot": {
       "title": "OPL modules directory",
@@ -1345,16 +1348,11 @@
     },
     "modules": {
       "title": "Module paths",
-      "description": "Shows the actual module paths the app is using. Updates and repairs stay in Maintenance.",
+      "description": "{{ready}} / {{total}} modules are ready. Updates and repairs stay in Maintenance.",
       "empty": "No module paths are currently reported."
     },
-    "maintenance": {
-      "title": "Need to repair or update something?",
-      "description": "Workspace shows where things live. Use Maintenance for updates, repairs, and managed module changes."
-    },
     "actions": {
-      "openWorkspace": "Open Workspace",
-      "openMaintenance": "Open Maintenance"
+      "openWorkspace": "Open Workspace"
     }
   },
   "localServicesPage": {
@@ -1688,29 +1686,29 @@
     "title": "Resources & Connections",
     "description": "Connect server WebUI, OPL Workspace, cloud or hosted workspaces, and external environments here.",
     "docker": {
-      "title": "Docker WebUI and OPL Workspace",
-      "description": "Use these entries for server, hosted workspace, or Docker WebUI deployments. Local browser access stays on Access.",
-      "docker": "Docker WebUI",
+      "title": "Server WebUI and OPL Workspace",
+      "description": "Use these entries for server or hosted workspace deployments. Local browser access stays on Access.",
+      "docker": "Server WebUI",
       "workspace": "OPL Workspace",
-      "runDryRoute": "Precheck",
-      "payloadRequired": "Needs input",
-      "payloadRequiredHelp": "This action needs a file or folder reference and must be started from the App action flow.",
+      "runDryRoute": "Check before deploy",
+      "payloadRequired": "Needs details",
+      "payloadRequiredHelp": "Choose a file or fill in the required configuration before running this action.",
       "confirmationRequired": "Confirms before changes",
-      "actionDryRunSuccess": "Docker WebUI precheck completed.",
-      "actionDryRunFailed": "Docker WebUI precheck failed.",
-      "noActions": "Docker WebUI actions are not available yet.",
+      "actionDryRunSuccess": "Deployment check completed.",
+      "actionDryRunFailed": "Deployment check failed.",
+      "noActions": "Server WebUI actions are not available yet.",
       "actions": {
-        "settings_install_docker_webui": "Install Docker WebUI",
-        "settings_configure_webui_api_key": "Configure WebUI API key",
-        "settings_select_webui_seed": "Select WebUI image seed",
-        "settings_run_webui_startup_maintenance": "Run WebUI startup maintenance",
-        "settings_diagnose_docker_webui": "Diagnose Docker WebUI",
-        "settings_open_docker_webui": "Open Docker WebUI"
+        "settings_install_docker_webui": "Install server WebUI",
+        "settings_configure_webui_api_key": "Enter WebUI access key",
+        "settings_select_webui_seed": "Choose initial WebUI image",
+        "settings_run_webui_startup_maintenance": "Check WebUI startup",
+        "settings_diagnose_docker_webui": "Check server WebUI",
+        "settings_open_docker_webui": "Open server WebUI"
       }
     },
     "connections": {
       "title": "Cloud, workspace, and external resources",
-      "description": "Shows the resource sources reported by the App state without copying provider or workspace authority into the shell.",
+      "description": "Shows cloud, workspace, and external environments tasks can use. Technical references stay collapsed.",
       "noSources": "No resource connections are currently reported."
     },
     "statusLabels": {
@@ -1725,12 +1723,13 @@
     },
     "resourceSources": {
       "status": "Status: {{status}}",
-      "environmentRefs": "Environment catalog",
-      "managementRefs": "OPL Console context",
+      "environmentRefs": "Has environment config",
+      "managementRefs": "Has management info",
+      "technicalRefs": "Technical references",
       "categories": {
         "gateway": "Model access",
         "local": "Local resource",
-        "dockerWebui": "Docker/WebUI deployment",
+        "dockerWebui": "Server WebUI",
         "oplWorkspace": "OPL Workspace",
         "sshHpc": "User SSH/HPC",
         "oplCloudCompute": "OPL Cloud managed compute",

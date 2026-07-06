@@ -1317,7 +1317,7 @@
   },
   "workspacePage": {
     "title": "工作目录",
-    "description": "查看本机项目、任务产物、日志和 OPL 模块实际存放位置。",
+    "description": "确认本机项目和任务产物存放在哪里，以及 App 是否有权限访问。",
     "status": {
       "ready": "工作目录已选择",
       "needsAction": "需要选择工作目录"
@@ -1329,8 +1329,11 @@
     },
     "cards": {
       "permission": "权限模式",
-      "modules": "能力模块",
       "lastCheck": "最近检查"
+    },
+    "technical": {
+      "title": "技术路径",
+      "description": "只有排查问题或联系支持时才需要查看这些路径。"
     },
     "modulesRoot": {
       "title": "OPL 模块目录",
@@ -1346,16 +1349,11 @@
     },
     "modules": {
       "title": "模块路径",
-      "description": "显示 App 当前实际使用的模块路径。更新和修复仍在维护页处理。",
+      "description": "{{ready}} / {{total}} 个模块已就绪。更新和修复仍在维护页处理。",
       "empty": "当前没有上报模块路径。"
     },
-    "maintenance": {
-      "title": "需要修复或更新？",
-      "description": "工作目录页只说明文件和模块在哪里；更新、修复和托管模块变更请去维护页。"
-    },
     "actions": {
-      "openWorkspace": "打开工作目录",
-      "openMaintenance": "打开维护"
+      "openWorkspace": "打开工作目录"
     }
   },
   "localServicesPage": {
@@ -1689,29 +1687,29 @@
     "title": "资源与连接",
     "description": "在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。",
     "docker": {
-      "title": "Docker WebUI 与 OPL Workspace",
-      "description": "这些入口用于服务器、托管工作区或 Docker WebUI 部署。本机浏览器访问仍在访问方式页处理。",
-      "docker": "Docker WebUI",
+      "title": "服务器 WebUI 与 OPL Workspace",
+      "description": "这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。",
+      "docker": "服务器 WebUI",
       "workspace": "OPL Workspace",
-      "runDryRoute": "预检查",
-      "payloadRequired": "需要输入",
-      "payloadRequiredHelp": "此操作需要文件或文件夹引用，应从 App action flow 启动。",
+      "runDryRoute": "部署前检查",
+      "payloadRequired": "需要填写信息",
+      "payloadRequiredHelp": "这个操作需要先选择文件或填写配置。",
       "confirmationRequired": "变更前确认",
-      "actionDryRunSuccess": "Docker WebUI 预检查完成。",
-      "actionDryRunFailed": "Docker WebUI 预检查失败。",
-      "noActions": "暂时没有可用的 Docker WebUI 操作。",
+      "actionDryRunSuccess": "部署前检查完成。",
+      "actionDryRunFailed": "部署前检查失败。",
+      "noActions": "暂时没有可用的服务器 WebUI 操作。",
       "actions": {
-        "settings_install_docker_webui": "安装 Docker WebUI",
-        "settings_configure_webui_api_key": "配置 WebUI API key",
-        "settings_select_webui_seed": "选择 WebUI 镜像种子",
-        "settings_run_webui_startup_maintenance": "运行 WebUI 启动维护",
-        "settings_diagnose_docker_webui": "诊断 Docker WebUI",
-        "settings_open_docker_webui": "打开 Docker WebUI"
+        "settings_install_docker_webui": "安装服务器 WebUI",
+        "settings_configure_webui_api_key": "填写 WebUI 访问密钥",
+        "settings_select_webui_seed": "选择 WebUI 初始镜像",
+        "settings_run_webui_startup_maintenance": "检查 WebUI 启动状态",
+        "settings_diagnose_docker_webui": "检查服务器 WebUI",
+        "settings_open_docker_webui": "打开服务器 WebUI"
       }
     },
     "connections": {
       "title": "云端、工作区和外部资源",
-      "description": "展示 App 状态上报的资源来源；Shell 只显示引用，不复制 provider 或工作区权威。",
+      "description": "展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。",
       "noSources": "当前没有上报资源连接。"
     },
     "statusLabels": {
@@ -1726,12 +1724,13 @@
     },
     "resourceSources": {
       "status": "状态：{{status}}",
-      "environmentRefs": "环境目录",
-      "managementRefs": "OPL Console 上下文",
+      "environmentRefs": "有环境配置",
+      "managementRefs": "有管理信息",
+      "technicalRefs": "技术引用",
       "categories": {
         "gateway": "模型接入",
         "local": "本机资源",
-        "dockerWebui": "Docker/WebUI 部署",
+        "dockerWebui": "服务器 WebUI",
         "oplWorkspace": "OPL Workspace",
         "sshHpc": "自有 SSH/HPC",
         "oplCloudCompute": "OPL Cloud 托管计算",

@@ -6,9 +6,8 @@
 
 import React, { useMemo } from 'react';
 import { Button, Card, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { FolderOpen, FolderSearch, Refresh } from '@icon-park/react';
+import { FolderOpen, Refresh } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
@@ -31,7 +30,6 @@ type WorkspaceSettingsProps = {
 
 const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const paths = oplRecord(appState.paths);
@@ -109,24 +107,13 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
               </Button>
             </Space>
           </div>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-12px'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
             <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
               <Typography.Text className='block text-12px text-t-secondary'>
                 {t('settings.workspacePage.cards.permission')}
               </Typography.Text>
               <Typography.Text className='block font-600 text-t-primary break-words'>
                 {t(`agentMode.${permissionMode}`, { defaultValue: permissionMode })}
-              </Typography.Text>
-            </div>
-            <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.workspacePage.cards.modules')}
-              </Typography.Text>
-              <Typography.Text className='block font-600 text-t-primary break-words'>
-                {t('settings.oplEnvironmentPage.modulesReadyCount', {
-                  ready: readyModules,
-                  total: modules.length,
-                })}
               </Typography.Text>
             </div>
             <div className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'>
@@ -141,112 +128,111 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
         </div>
       </Card>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
-        <Card bordered className='rd-8px' data-testid='opl-workspace-settings-modules-root'>
-          <div className='flex flex-col gap-12px'>
-            <div className='flex items-start justify-between gap-12px'>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.workspacePage.modulesRoot.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-all'>
-                  {modulesRoot
-                    ? t('settings.workspacePage.modulesRoot.current', { path: modulesRoot })
-                    : t('settings.workspacePage.modulesRoot.missing')}
-                </Typography.Text>
-              </div>
-              <Button disabled={!modulesRoot} onClick={() => openFolder(modulesRoot)}>
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </div>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.workspacePage.modulesRoot.description')}
-            </Typography.Text>
-          </div>
-        </Card>
-
-        <Card bordered className='rd-8px' data-testid='opl-workspace-settings-logs'>
-          <div className='flex flex-col gap-12px'>
-            <div className='flex items-start justify-between gap-12px'>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.workspacePage.logs.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-all'>
-                  {logsRoot
-                    ? t('settings.workspacePage.logs.current', { path: logsRoot })
-                    : t('settings.workspacePage.logs.missing')}
-                </Typography.Text>
-              </div>
-              <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
-                {t('common.open', { defaultValue: 'Open' })}
-              </Button>
-            </div>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.workspacePage.logs.description')}
-            </Typography.Text>
-          </div>
-        </Card>
-      </div>
-
-      <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px'>
-          <div className='flex flex-col gap-4px'>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.workspacePage.modules.title')}
-            </Typography.Text>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.workspacePage.modules.description')}
-            </Typography.Text>
-          </div>
-          <div className='flex flex-col divide-y divide-border-1' data-testid='opl-workspace-settings-modules'>
-            {modules.map((module, index) => {
-              const id = moduleId(module) || `module-${index + 1}`;
-              const status = moduleStatus(module);
-              const path = modulePath(module);
-              return (
-                <div key={id} className='flex flex-col gap-6px md:flex-row md:items-center md:justify-between py-12px'>
+      <details className='rd-8px border border-solid border-border-1 bg-fill-1 p-12px'>
+        <summary className='cursor-pointer font-600 text-t-primary'>
+          {t('settings.workspacePage.technical.title')}
+        </summary>
+        <div className='mt-12px flex flex-col gap-14px'>
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.workspacePage.technical.description')}
+          </Typography.Text>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
+            <Card bordered className='rd-8px' data-testid='opl-workspace-settings-modules-root'>
+              <div className='flex flex-col gap-12px'>
+                <div className='flex items-start justify-between gap-12px'>
                   <div className='min-w-0'>
                     <Typography.Text className='block font-600 text-t-primary'>
-                      {moduleDisplayLabel(module)}
+                      {t('settings.workspacePage.modulesRoot.title')}
                     </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
+                    <Typography.Text className='block text-12px text-t-secondary break-all'>
+                      {modulesRoot
+                        ? t('settings.workspacePage.modulesRoot.current', { path: modulesRoot })
+                        : t('settings.workspacePage.modulesRoot.missing')}
                     </Typography.Text>
-                    {path ? (
-                      <Tooltip content={path}>
-                        <Typography.Text className='block text-12px text-t-secondary break-all'>{path}</Typography.Text>
-                      </Tooltip>
-                    ) : null}
                   </div>
-                  <Tag color={isReadyStatus(status) ? 'green' : 'orange'}>{formatStatus(status, t)}</Tag>
+                  <Button disabled={!modulesRoot} onClick={() => openFolder(modulesRoot)}>
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
                 </div>
-              );
-            })}
-          </div>
-          {modules.length === 0 && (
-            <Typography.Text className='text-13px text-t-secondary'>
-              {t('settings.workspacePage.modules.empty')}
-            </Typography.Text>
-          )}
-        </div>
-      </Card>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.workspacePage.modulesRoot.description')}
+                </Typography.Text>
+              </div>
+            </Card>
 
-      <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-          <div className='min-w-0'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.workspacePage.maintenance.title')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('settings.workspacePage.maintenance.description')}
-            </Typography.Text>
+            <Card bordered className='rd-8px' data-testid='opl-workspace-settings-logs'>
+              <div className='flex flex-col gap-12px'>
+                <div className='flex items-start justify-between gap-12px'>
+                  <div className='min-w-0'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.workspacePage.logs.title')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary break-all'>
+                      {logsRoot
+                        ? t('settings.workspacePage.logs.current', { path: logsRoot })
+                        : t('settings.workspacePage.logs.missing')}
+                    </Typography.Text>
+                  </div>
+                  <Button disabled={!logsRoot} onClick={() => openFolder(logsRoot)}>
+                    {t('common.open', { defaultValue: 'Open' })}
+                  </Button>
+                </div>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.workspacePage.logs.description')}
+                </Typography.Text>
+              </div>
+            </Card>
           </div>
-          <Button icon={<FolderSearch theme='outline' />} onClick={() => navigate('/settings/environment')}>
-            {t('settings.workspacePage.actions.openMaintenance')}
-          </Button>
+
+          <Card bordered className='rd-8px'>
+            <div className='flex flex-col gap-12px'>
+              <div className='flex flex-col gap-4px'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.workspacePage.modules.title')}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.workspacePage.modules.description', { ready: readyModules, total: modules.length })}
+                </Typography.Text>
+              </div>
+              <div className='flex flex-col divide-y divide-border-1' data-testid='opl-workspace-settings-modules'>
+                {modules.map((module, index) => {
+                  const id = moduleId(module) || `module-${index + 1}`;
+                  const status = moduleStatus(module);
+                  const path = modulePath(module);
+                  return (
+                    <div
+                      key={id}
+                      className='flex flex-col gap-6px md:flex-row md:items-center md:justify-between py-12px'
+                    >
+                      <div className='min-w-0'>
+                        <Typography.Text className='block font-600 text-t-primary'>
+                          {moduleDisplayLabel(module)}
+                        </Typography.Text>
+                        <Typography.Text className='block text-12px text-t-secondary break-words'>
+                          {modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t)}
+                        </Typography.Text>
+                        {path ? (
+                          <Tooltip content={path}>
+                            <Typography.Text className='block text-12px text-t-secondary break-all'>
+                              {path}
+                            </Typography.Text>
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                      <Tag color={isReadyStatus(status) ? 'green' : 'orange'}>{formatStatus(status, t)}</Tag>
+                    </div>
+                  );
+                })}
+              </div>
+              {modules.length === 0 && (
+                <Typography.Text className='text-13px text-t-secondary'>
+                  {t('settings.workspacePage.modules.empty')}
+                </Typography.Text>
+              )}
+            </div>
+          </Card>
         </div>
-      </Card>
+      </details>
     </div>
   );
 

@@ -115,9 +115,6 @@ export const ResourcesSettingsContent: React.FC = () => {
                           defaultValue: action.label,
                         })}
                       </Typography.Text>
-                      <Typography.Text className='block text-12px text-t-secondary break-words'>
-                        {action.dryRunRoute || action.route || action.actionId}
-                      </Typography.Text>
                     </div>
                     <Space wrap>
                       <Tag color={action.state === 'ready' ? 'green' : 'orange'}>
@@ -221,45 +218,28 @@ const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ so
             )}
           </div>
           {source.managementRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.resourcesPage.resourceSources.managementRefs')}
-              </Typography.Text>
-              {source.managementRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-management-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
+            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
           )}
           {source.environmentRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.resourcesPage.resourceSources.environmentRefs')}
-              </Typography.Text>
-              {source.environmentRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-environment-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
+            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
           )}
-          {source.refs.length > 0 ? (
-            source.refs.map((ref) => (
-              <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
-                {ref}
-              </Typography.Text>
-            ))
-          ) : (
+          {source.refs.length === 0 && source.managementRefs.length === 0 && source.environmentRefs.length === 0 ? (
             <Typography.Text className='text-12px text-t-secondary'>
               {t('settings.resourcesPage.resourceSources.noRefs')}
             </Typography.Text>
+          ) : (
+            <details className='mt-4px'>
+              <summary className='cursor-pointer text-12px text-t-secondary'>
+                {t('settings.resourcesPage.resourceSources.technicalRefs')}
+              </summary>
+              <div className='mt-6px grid grid-cols-1 gap-4px'>
+                {[...source.managementRefs, ...source.environmentRefs, ...source.refs].map((ref) => (
+                  <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
+                    {ref}
+                  </Typography.Text>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       ))}
