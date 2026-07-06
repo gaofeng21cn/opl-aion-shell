@@ -611,12 +611,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             </div>
           </div>
           <div className='flex flex-col gap-12px xl:flex-row'>
-            <div className='min-w-0 flex-1 overflow-x-auto'>
-              <div className='min-w-640px border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
+            <div className='min-w-0 flex-1'>
+              <div className='w-full border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
                 <div
                   className='grid items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] bg-fill-1 px-10px py-8px text-12px text-t-secondary'
                   style={{
-                    gridTemplateColumns: '1.55fr 1.15fr 150px',
+                    gridTemplateColumns: 'minmax(0, 1.4fr) minmax(56px, 0.55fr) minmax(112px, 0.75fr)',
                   }}
                 >
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.package')}</span>
@@ -629,17 +629,17 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     return (
                       <div
                         key={item.key}
-                        className={`grid cursor-pointer items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] px-10px py-9px last:border-b-0 ${
+                        className={`grid cursor-pointer items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] px-8px py-8px last:border-b-0 ${
                           isSelected ? 'bg-[rgb(var(--primary-1))]' : 'bg-[var(--color-bg-1)]'
                         }`}
                         style={{
-                          gridTemplateColumns: '1.55fr 1.15fr 150px',
+                          gridTemplateColumns: 'minmax(0, 1.4fr) minmax(56px, 0.55fr) minmax(112px, 0.75fr)',
                         }}
                         data-testid={`capability-purpose-${item.key}`}
                         onClick={() => setSelectedCapabilityKey(item.key)}
                       >
-                        <div className='flex min-w-0 items-center gap-10px'>
-                          <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-7px bg-fill-2 text-t-secondary'>
+                        <div className='flex min-w-0 items-center gap-8px'>
+                          <span className='flex h-24px w-24px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
                             {capabilityIcon(item)}
                           </span>
                           <div className='min-w-0 flex-1'>
