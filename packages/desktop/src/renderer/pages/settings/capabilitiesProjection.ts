@@ -296,12 +296,6 @@ function capabilityRef(
   };
 }
 
-const DEFAULT_CANDIDATE_DECISION_ACTIONS: CapabilityDecisionAction[] = [
-  'review',
-  'needsChanges',
-  'continueInConversation',
-];
-
 function candidateRefValue(value: unknown): string | null {
   const record = oplRecord(value);
   const report = firstRecord(record.candidate_report, record.report, record.review);
@@ -377,7 +371,7 @@ function capabilityDecisionActions(record: OplAppStateRecord): CapabilityDecisio
   ]
     .map(normalizeDecisionAction)
     .filter((action): action is CapabilityDecisionAction => Boolean(action));
-  return actions.length > 0 ? [...new Set(actions)] : DEFAULT_CANDIDATE_DECISION_ACTIONS;
+  return [...new Set(actions)];
 }
 
 function capabilityCandidateReport(
@@ -458,7 +452,7 @@ function capabilityCandidateReportsFromTask(task: RuntimeTaskItem | undefined): 
     keys
       .flatMap((key) => listValues(task[key]).map((entry) => capabilityCandidateReport(entry, fallback)))
       .filter((ref): ref is CapabilityCandidateReportViewModel => Boolean(ref));
-  const reportFirstRefs = refsFromKeys([
+  return refsFromKeys([
     'workflow_candidate_refs',
     'candidate_workflow_refs',
     'candidate_report_refs',
@@ -469,7 +463,6 @@ function capabilityCandidateReportsFromTask(task: RuntimeTaskItem | undefined): 
     'skill_pack_refs',
     'skill_refs',
   ]);
-  return reportFirstRefs.length > 0 ? reportFirstRefs : refsFromKeys(['workflow_refs']);
 }
 
 function connectorGroupKey(ref: CapabilityRefViewModel): 'oplConnect' | 'oplFabric' | null {
@@ -835,6 +828,7 @@ function buildCapabilityPurpose(
   purpose: Omit<
     CapabilityPurposeViewModel,
     | 'status'
+    | 'primaryAction'
     | 'codexVisibility'
     | 'version'
     | 'source'

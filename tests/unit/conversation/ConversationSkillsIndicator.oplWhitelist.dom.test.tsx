@@ -40,7 +40,7 @@ describe('ConversationSkillsIndicator OPL ordinary whitelist', () => {
             type: 'acp',
             model: {},
             extra: {
-              skills: ['aionui-skills', 'mas', 'cron', 'rca'],
+              skills: ['aionui-skills', 'med-autoscience', 'cron', 'redcube-ai'],
             },
           } as never
         }

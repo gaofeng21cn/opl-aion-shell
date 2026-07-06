@@ -297,27 +297,33 @@ const capabilityCandidateReportRows = (
             {ref.status && <Tag>{ref.status}</Tag>}
           </div>
           <div className='grid grid-cols-1 gap-4px'>
-            <Typography.Text className='text-t-secondary break-words'>
-              {t('settings.capabilitiesPage.candidateReports.purpose')}:{' '}
-              {ref.purpose ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </Typography.Text>
-            <Typography.Text className='text-t-secondary break-words'>
-              {t('settings.capabilitiesPage.refLabels.owner')}:{' '}
-              {ref.owner ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </Typography.Text>
-            <Typography.Text className='text-t-secondary break-words'>
-              {t('settings.capabilitiesPage.refLabels.nextAction')}:{' '}
-              {ref.nextAction ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </Typography.Text>
-            <div className='flex flex-wrap items-center gap-6px'>
-              <Typography.Text className='text-t-secondary'>
-                {t('settings.capabilitiesPage.candidateReports.decision')}:{' '}
-                {ref.decisionStatus ?? t('settings.capabilitiesPage.candidateReports.pendingDecision')}
+            {ref.purpose && (
+              <Typography.Text className='text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.candidateReports.purpose')}: {ref.purpose}
               </Typography.Text>
-              {ref.decisionActions.map((action) => (
-                <Tag key={`${ref.id}-${action}`}>{capabilityDecisionActionLabel(action, t)}</Tag>
-              ))}
-            </div>
+            )}
+            {ref.owner && (
+              <Typography.Text className='text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.refLabels.owner')}: {ref.owner}
+              </Typography.Text>
+            )}
+            {ref.nextAction && (
+              <Typography.Text className='text-t-secondary break-words'>
+                {t('settings.capabilitiesPage.refLabels.nextAction')}: {ref.nextAction}
+              </Typography.Text>
+            )}
+            {(ref.decisionStatus || ref.decisionActions.length > 0) && (
+              <div className='flex flex-wrap items-center gap-6px'>
+                {ref.decisionStatus && (
+                  <Typography.Text className='text-t-secondary'>
+                    {t('settings.capabilitiesPage.candidateReports.decision')}: {ref.decisionStatus}
+                  </Typography.Text>
+                )}
+                {ref.decisionActions.map((action) => (
+                  <Tag key={`${ref.id}-${action}`}>{capabilityDecisionActionLabel(action, t)}</Tag>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ))}

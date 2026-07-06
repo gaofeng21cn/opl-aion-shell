@@ -58,9 +58,9 @@ describe('OPL home assistants', () => {
       expect.arrayContaining(['Med Auto Science', 'Med Auto Grant', 'RedCube AI', 'OPL Meta Agent'])
     );
     expect(Object.fromEntries(resolved.map((item) => [item.id, item.enabled_skills]))).toEqual({
-      'med-autoscience': ['mas'],
-      'med-autogrant': ['mag'],
-      'redcube-ai': ['rca'],
+      'med-autoscience': ['med-autoscience'],
+      'med-autogrant': ['med-autogrant'],
+      'redcube-ai': ['redcube-ai'],
       'opl-bookforge': ['opl-bookforge'],
     });
   });
@@ -89,7 +89,12 @@ describe('OPL home assistants', () => {
       'redcube-ai',
       'opl-bookforge',
     ]);
-    expect(resolved.map((item) => item.enabled_skills)).toEqual([['mas'], ['mag'], ['rca'], ['opl-bookforge']]);
+    expect(resolved.map((item) => item.enabled_skills)).toEqual([
+      ['med-autoscience'],
+      ['med-autogrant'],
+      ['redcube-ai'],
+      ['opl-bookforge'],
+    ]);
   });
 
   it('keeps caller-added assistant skills while forcing the required profile skill', () => {
@@ -101,7 +106,10 @@ describe('OPL home assistants', () => {
       }),
     ]);
 
-    expect(resolved.find((item) => item.id === 'med-autogrant')?.enabled_skills).toEqual(['mag', 'officecli-docx']);
+    expect(resolved.find((item) => item.id === 'med-autogrant')?.enabled_skills).toEqual([
+      'med-autogrant',
+      'officecli-docx',
+    ]);
   });
 
   it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {
@@ -116,15 +124,18 @@ describe('OPL home assistants', () => {
     );
 
     expect(menuItems.map((item) => item.name)).toEqual([
-      'mag',
+      'med-autogrant',
       'officecli-docx',
       'officecli-xlsx',
       'mineru-document-extractor',
     ]);
-    expect(menuItems.find((item) => item.name === 'mag')).toMatchObject({ required: true, locked: true });
+    expect(menuItems.find((item) => item.name === 'med-autogrant')).toMatchObject({ required: true, locked: true });
     expect(menuItems.find((item) => item.name === 'officecli-docx')).toMatchObject({ required: false, locked: false });
     expect(isGuidSkillChecked(menuItems[0], [], [])).toBe(true);
     expect(isGuidSkillChecked(menuItems[1], ['officecli-docx'], [])).toBe(true);
-    expect(mergeRequiredSkills(['mag'], ['officecli-docx', 'mag'])).toEqual(['mag', 'officecli-docx']);
+    expect(mergeRequiredSkills(['med-autogrant'], ['officecli-docx', 'med-autogrant'])).toEqual([
+      'med-autogrant',
+      'officecli-docx',
+    ]);
   });
 });

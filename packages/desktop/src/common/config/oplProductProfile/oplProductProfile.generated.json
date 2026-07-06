@@ -238,7 +238,7 @@
         {
           "shortcut_id": "oma",
           "package_id": "opl-meta-agent",
-          "primary_label": "OMA",
+          "primary_label": "元智能体",
           "package_short_name": "OMA",
           "codex_visible_entry": "opl-meta-agent",
           "required_skill_ids": ["opl-meta-agent"],

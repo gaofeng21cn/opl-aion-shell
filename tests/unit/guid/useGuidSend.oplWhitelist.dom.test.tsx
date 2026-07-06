@@ -93,10 +93,10 @@ function buildDeps(): GuidSendDeps {
       isAvailable: true,
     }),
     resolvePresetRulesAndSkills: vi.fn().mockResolvedValue({}),
-    resolveEnabledSkills: vi.fn().mockReturnValue(['mas', 'aionui-skills', 'cron']),
+    resolveEnabledSkills: vi.fn().mockReturnValue(['med-autoscience', 'aionui-skills', 'cron']),
     resolveDisabledBuiltinSkills: vi.fn().mockReturnValue(['aionui-webui-setup']),
     guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
-    guidEnabledSkills: ['mas', 'aionui-skills', 'cron'],
+    guidEnabledSkills: ['med-autoscience', 'aionui-skills', 'cron'],
     availableMcpServers: [buildMcpServer('unknown-mcp', 'Unknown MCP'), buildMcpServer('cron', 'cron')],
     selectedMcpServerIds: ['unknown-mcp', 'cron'],
     currentEffectiveAgentInfo: {
@@ -134,7 +134,7 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
     const payload = mocks.createConversation.mock.calls[0][0];
     expect(payload.type).toBe('acp');
-    expect(payload.extra.preset_enabled_skills).toEqual(['mas']);
+    expect(payload.extra.preset_enabled_skills).toEqual(['med-autoscience']);
     expect(payload.extra.exclude_auto_inject_skills).toEqual([
       'aionui-skills',
       'aionui-webui-setup',
@@ -148,8 +148,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       executor: 'codex_cli',
       package_id: 'med-autoscience',
       shortcut_id: 'research',
-      codex_visible_entry: 'mas',
-      required_skill_ids: ['mas'],
+      codex_visible_entry: 'med-autoscience',
+      required_skill_ids: ['med-autoscience'],
       source: 'opl_app_home',
     });
     expect(payload.extra.opl_assistant_route).toMatchObject({

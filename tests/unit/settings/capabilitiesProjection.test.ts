@@ -34,7 +34,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     {
       shortcut_id: 'automations',
       package_id: 'opl-meta-agent',
-      primary_label: 'Always-On/Automations',
+      primary_label: 'Meta agent',
       user_configurable: true,
       default_visible: false,
     },

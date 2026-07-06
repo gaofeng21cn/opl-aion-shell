@@ -1787,7 +1787,7 @@
         "description": "Use BookForge for manuscript structure, chapter materialization, and book production assets."
       },
       "automation": {
-        "title": "OPL Meta Agent",
+        "title": "Meta agent",
         "description": "Enable OMA explicitly for agent-building and OPL-family automation work."
       }
     },
@@ -1834,7 +1834,7 @@
     },
     "candidateReports": {
       "title": "Review suggestions",
-      "description": "Review workflow and skill suggestions from their source context. This view does not install, enable, or edit skills.",
+      "description": "Only source-backed workflow or skill suggestions that need review appear here. This view does not install, enable, or edit skills.",
       "purpose": "Suggested use",
       "report": "Source report",
       "decision": "Review state",

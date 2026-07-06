@@ -195,7 +195,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
       {
         shortcut_id: 'oma',
         package_id: 'opl-meta-agent',
-        primary_label: 'OMA',
+        primary_label: 'Meta agent',
         user_configurable: true,
         default_visible: false,
       },
@@ -303,7 +303,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailValues.no': 'No',
         'settings.capabilitiesPage.candidateReports.title': 'Review suggestions',
         'settings.capabilitiesPage.candidateReports.description':
-          'Review workflow and skill suggestions from their source context. This view does not install, enable, or edit skills.',
+          'Only source-backed workflow or skill suggestions that need review appear here. This view does not install, enable, or edit skills.',
         'settings.capabilitiesPage.candidateReports.purpose': 'Suggested use',
         'settings.capabilitiesPage.candidateReports.report': 'Source report',
         'settings.capabilitiesPage.candidateReports.decision': 'Review state',
@@ -367,7 +367,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.actions.uninstall': 'Uninstall',
         'settings.capabilitiesPage.packageManager.actions.hide': 'Hide',
         'settings.capabilitiesPage.packageManager.actions.show': 'Show',
-        'settings.capabilitiesPage.purposes.automation.title': 'OPL Meta Agent',
+        'settings.capabilitiesPage.purposes.automation.title': 'Meta agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
         'settings.capabilitiesPage.entries.externalTools.description': 'Connect external tools and speech input.',
@@ -444,7 +444,7 @@ describe('CapabilitiesSettingsContent', () => {
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText('Research')).toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
-    expect(within(oma).getAllByText('OMA').length).toBeGreaterThan(0);
+    expect(within(oma).getByText('Meta agent')).toBeInTheDocument();
     fireEvent.click(oma);
     const omaHomeSwitch = within(screen.getByTestId('capability-details-oma')).getByTestId(
       'agent-package-home-toggle-details-oma'
@@ -529,12 +529,9 @@ describe('CapabilitiesSettingsContent', () => {
 
     const grant = screen.getByTestId('capability-purpose-mag');
     fireEvent.click(grant);
-    const grantCandidate = within(screen.getByTestId('capability-details-mag')).getByTestId(
-      'capability-candidate-report-mag-grant-workflow'
-    );
-    expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
-    expect(grantCandidate).not.toHaveTextContent('opl://workflow/medautogrant/grant-draft');
-    expect(grantCandidate).toHaveTextContent('Needs review');
+    expect(
+      within(screen.getByTestId('capability-details-mag')).queryByTestId('capability-candidate-report-mag-grant-workflow')
+    ).not.toBeInTheDocument();
 
     const presentations = screen.getByTestId('capability-purpose-rca');
     fireEvent.click(presentations);

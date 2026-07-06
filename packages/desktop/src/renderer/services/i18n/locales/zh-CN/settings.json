@@ -1788,7 +1788,7 @@
         "description": "使用 BookForge 处理书稿结构、章节生成和图书生产资产。"
       },
       "automation": {
-        "title": "OPL Meta Agent",
+        "title": "元智能体",
         "description": "明确启用 OMA，用于智能体构建和 OPL 系列自动化工作。"
       }
     },
@@ -1835,7 +1835,7 @@
     },
     "candidateReports": {
       "title": "待审阅建议",
-      "description": "基于来源上下文审阅工作流和技能建议；这里不会安装、启用或改写技能。",
+      "description": "只显示来源明确、需要你审阅的工作流或技能建议；这里不会安装、启用或改写技能。",
       "purpose": "建议用途",
       "report": "来源报告",
       "decision": "审阅状态",

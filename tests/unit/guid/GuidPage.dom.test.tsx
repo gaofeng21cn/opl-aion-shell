@@ -346,7 +346,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['mas'] }));
+      expect(mocks.useGuidSend).toHaveBeenCalledWith(expect.objectContaining({ guidEnabledSkills: ['med-autoscience'] }));
     });
   });
 
@@ -356,7 +356,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     await waitFor(() => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          guidEnabledSkills: ['mas'],
+          guidEnabledSkills: ['med-autoscience'],
           guidDisabledBuiltinSkills: ['aionui-skills', 'aionui-webui-setup', 'skill-creator', 'cron'],
           availableMcpServers: [],
           selectedMcpServerIds: [],
