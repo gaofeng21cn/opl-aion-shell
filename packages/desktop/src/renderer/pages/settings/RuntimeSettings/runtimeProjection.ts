@@ -288,18 +288,25 @@ function readOwnerBoundary(projection: JsonRecord): string[] {
     .map(([key, value]) => `${key}: ${String(value)}`);
 }
 
+function readActionRouteId(entry: JsonRecord): string | undefined {
+  return asString(entry.action_id) ?? asString(entry.id) ?? asString(entry.action_ref) ?? asString(entry.ref);
+}
+
 function readSafeActionRoutes(value: unknown): RuntimeSafeActionRoute[] {
-  return asRecordArray(value).map((entry, index) => {
-    const id = asString(entry.id) ?? asString(entry.action_id) ?? `action-${index + 1}`;
+  return asRecordArray(value).flatMap((entry) => {
+    const id = readActionRouteId(entry);
+    if (!id) return [];
     const payload = firstRecord(entry.payload_refs_only_json, entry.payload_refs, entry.payload);
-    return {
-      id,
-      label: asString(entry.label) ?? asString(entry.title) ?? id,
-      owner: asString(entry.owner) ?? asString(entry.authority_owner),
-      route: asString(entry.route) ?? asString(entry.command),
-      payloadRefsOnlyJson: payload,
-      dryRunRequired: entry.dry_run_required !== false,
-    };
+    return [
+      {
+        id,
+        label: asString(entry.label) ?? asString(entry.title) ?? id,
+        owner: asString(entry.owner) ?? asString(entry.authority_owner),
+        route: asString(entry.route) ?? asString(entry.command),
+        payloadRefsOnlyJson: payload,
+        dryRunRequired: entry.dry_run_required !== false,
+      },
+    ];
   });
 }
 
@@ -956,17 +963,20 @@ function normalizeAppStateDomainLaneMap(appState: JsonRecord): RuntimeDomainLane
 }
 
 function normalizeAppStateActions(appState: JsonRecord): RuntimeSafeActionRoute[] {
-  return asRecordArray(appState.actions).map((entry, index) => {
-    const id = asString(entry.action_id) ?? asString(entry.id) ?? `action-${index + 1}`;
+  return asRecordArray(appState.actions).flatMap((entry) => {
+    const id = readActionRouteId(entry);
+    if (!id) return [];
     const payload = firstRecord(entry.payload_refs_only_json, entry.payload_refs, entry.payload);
-    return {
-      id,
-      label: asString(entry.label) ?? id,
-      owner: asString(entry.owner) ?? asString(entry.authority_owner),
-      route: asString(entry.delegated_surface) ?? asString(entry.route) ?? asString(entry.command),
-      payloadRefsOnlyJson: payload,
-      dryRunRequired: entry.dry_run_required !== false,
-    };
+    return [
+      {
+        id,
+        label: asString(entry.label) ?? id,
+        owner: asString(entry.owner) ?? asString(entry.authority_owner),
+        route: asString(entry.delegated_surface) ?? asString(entry.route) ?? asString(entry.command),
+        payloadRefsOnlyJson: payload,
+        dryRunRequired: entry.dry_run_required !== false,
+      },
+    ];
   });
 }
 

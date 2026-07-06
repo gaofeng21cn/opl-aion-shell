@@ -57,6 +57,14 @@ let cachedDeveloperModeGithubIdentity: {
   key: string;
   value: DeveloperModeGithubIdentity;
 } | null = null;
+const MANAGED_UPDATE_COMPONENT_IDS = new Set([
+  'installation_carrier',
+  'runtime_substrate',
+  'capability_packages',
+  'companion_tools',
+  'codex_surface',
+  'workflow_profile',
+]);
 const APPLY_ALLOWED_UPDATE_COMPONENT_IDS = new Set(['runtime_substrate', 'capability_packages', 'companion_tools']);
 
 const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
@@ -164,6 +172,9 @@ function assertUpdateComponentId(componentId: string): string {
   const normalized = componentId.trim();
   if (!/^[A-Za-z0-9._:@/-]+$/.test(normalized)) {
     throw new Error('Invalid OPL update component id');
+  }
+  if (!MANAGED_UPDATE_COMPONENT_IDS.has(normalized)) {
+    throw new Error('OPL update component id must be an App canonical component id');
   }
   return normalized;
 }

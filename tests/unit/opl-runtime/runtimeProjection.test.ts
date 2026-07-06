@@ -140,6 +140,36 @@ describe('runtime visualization projection normalization', () => {
     expect(model.refs.map((ref) => ref.ref)).toContain('/Users/example/workspace/med-autoscience');
   });
 
+  it('does not invent executable action ids for display-only safe action refs', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        operator: { status: 'ready' },
+        actions: [
+          {
+            label: 'Display-only action candidate',
+            delegated_surface: 'opl app action execute --action generated-locally',
+          },
+          {
+            action_ref: 'action://canonical-review-preview',
+            label: 'Canonical review preview',
+          },
+        ],
+      },
+    });
+
+    expect(model.safeActionRoutes).toEqual([
+      {
+        id: 'action://canonical-review-preview',
+        label: 'Canonical review preview',
+        owner: undefined,
+        route: undefined,
+        payloadRefsOnlyJson: undefined,
+        dryRunRequired: true,
+      },
+    ]);
+  });
+
   it('prefers workbench task_run_projection_v2 tasks over legacy task_drilldowns', () => {
     const model = normalizeRuntimeProjection({
       app_state: {

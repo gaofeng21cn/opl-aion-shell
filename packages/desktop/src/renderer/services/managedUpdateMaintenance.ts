@@ -432,6 +432,10 @@ function backgroundRefreshSkipReasons(result: IOplRuntimeCommandResult): string[
 }
 
 function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: string): IOplRuntimeCommandResult {
+  const message =
+    kind === 'apply'
+      ? 'OPL Settings can only apply runtime_substrate and capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.'
+      : 'OPL Settings managed update actions require App canonical component ids.';
   return {
     ok: false,
     surface: `update_${kind}`,
@@ -439,8 +443,7 @@ function mutationForbiddenResult(kind: ManagedUpdateMutationKind, componentId: s
     stdout: '',
     parsed: null,
     error: {
-      message:
-        'OPL Settings can only apply runtime_substrate and capability_packages. Carrier, Codex Surface, and workflow profile updates are projection or host/manual routes.',
+      message,
     },
   };
 }
@@ -547,7 +550,11 @@ export async function executeManagedUpdateMutation(
   }
 ): Promise<IOplRuntimeCommandResult | null> {
   const componentId = canonicalManagedUpdateComponentId(input.componentId);
-  if (kind === 'apply' && (!componentId || !USER_APPLY_COMPONENT_IDS.has(componentId))) {
+  if (
+    !componentId ||
+    componentId !== input.componentId ||
+    (kind === 'apply' && !USER_APPLY_COMPONENT_IDS.has(componentId))
+  ) {
     const result = mutationForbiddenResult(kind, input.componentId);
     emit({
       running: false,

@@ -201,6 +201,12 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_substrate;rm -rf /' })).toThrow(
       /Invalid OPL update component id/
     );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_toolchain' })).toThrow(
+      /App canonical component id/
+    );
+    expect(() => __oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'agent_packages' })).toThrow(
+      /App canonical component id/
+    );
     expect(() => __oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'installation_carrier' })).toThrow(
       /OPL update apply is limited to managed kernel components/
     );

@@ -194,6 +194,14 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastFailure).toContain('runtime_substrate');
   });
 
+  it('does not submit legacy component aliases as managed update actions', async () => {
+    const result = await executeManagedUpdateMutation('repair', { componentId: 'agent_packages' });
+
+    expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
+    expect(result?.ok).toBe(false);
+    expect(result?.error?.message).toContain('canonical component ids');
+  });
+
   it('reports workflow profile as manual only when profile merge work is actually pending', async () => {
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
       surface: 'update_plan',

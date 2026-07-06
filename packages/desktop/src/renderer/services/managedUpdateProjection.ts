@@ -223,8 +223,11 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
   const components = MANAGED_UPDATE_COMPONENT_IDS.map((id) => {
     const component = byId.get(id) ?? {};
     const sourceId = firstOplString(component.component_id, component.componentId, component.id);
+    const canonicalSource = sourceId === id;
     const receipt = oplRecord(component.receipt ?? component.receipts);
     const repairAction = findRepairAction(root, id);
+    const repairActionSourceId = firstOplString(repairAction.component_id, repairAction.componentId);
+    const canonicalRepairActionSource = !repairActionSourceId || repairActionSourceId === id;
     const state = firstOplString(component.state, component.status, component.health_status) ?? 'unknown';
     const receiptRef = firstOplString(
       component.receipt_ref,
@@ -316,11 +319,18 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       dirtyCheckout,
       safeToApply:
         rawSafeToApply &&
+        canonicalSource &&
         !mutationBlocked &&
         APPLY_ALLOWED_COMPONENT_IDS.has(id) &&
         !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
-      repairAllowed: rawRepairAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
-      rollbackAllowed: rawRollbackAllowed && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      repairAllowed:
+        rawRepairAllowed &&
+        canonicalSource &&
+        canonicalRepairActionSource &&
+        !mutationBlocked &&
+        !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
+      rollbackAllowed:
+        rawRollbackAllowed && canonicalSource && !mutationBlocked && !MUTATION_FORBIDDEN_COMPONENT_IDS.has(id),
     };
   });
   return {
