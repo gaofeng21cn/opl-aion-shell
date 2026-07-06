@@ -354,7 +354,7 @@ vi.mock('react-i18next', () => ({
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
         'settings.capabilitiesPage.packageManager.tableHeaders.package': 'Capability',
-        'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'What it does',
+        'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'Purpose',
         'settings.capabilitiesPage.packageManager.tableHeaders.status': 'Status',
         'settings.capabilitiesPage.packageManager.tableHeaders.source': 'Source',
         'settings.capabilitiesPage.packageManager.tableHeaders.version': 'Version',
@@ -420,9 +420,9 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByTestId('agent-package-search')).toBeInTheDocument();
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
     expect(screen.getByText('Capability')).toBeInTheDocument();
-    expect(screen.getByText('What it does')).toBeInTheDocument();
+    expect(screen.getByText('Purpose')).toBeInTheDocument();
     expect(screen.getByText('Home shortcut')).toBeInTheDocument();
-    expect(screen.getByText('Action')).toBeInTheDocument();
+    expect(screen.queryByText('Action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-refresh-registry')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
@@ -460,7 +460,7 @@ describe('CapabilitiesSettingsContent', () => {
         })
       )
     );
-    fireEvent.click(within(research).getByTestId('capability-row-details-mas'));
+    fireEvent.click(research);
     let detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OpenScience artifact graph review')).toBeInTheDocument();

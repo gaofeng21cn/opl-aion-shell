@@ -1748,7 +1748,7 @@
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
-    "description": "Choose what each capability does first. Package refs, manifests, and diagnostics stay in advanced details.",
+    "description": "Choose each capability by purpose first. Package refs, manifests, and diagnostics stay in advanced details.",
     "status": {
       "ready": "Ready",
       "update": "Update available",
@@ -1896,7 +1896,7 @@
       "actionQueued": "Action routed to OPL",
       "tableHeaders": {
         "package": "Capability",
-        "purpose": "What it does",
+        "purpose": "Purpose",
         "status": "Status",
         "source": "Source",
         "version": "Version",

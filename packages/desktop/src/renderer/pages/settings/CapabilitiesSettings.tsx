@@ -616,14 +616,13 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 <div
                   className='grid items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] bg-fill-1 px-10px py-8px text-12px text-t-secondary'
                   style={{
-                    gridTemplateColumns: '1.45fr 1fr 120px 180px 160px',
+                    gridTemplateColumns: '1.55fr 1.15fr 130px 220px',
                   }}
                 >
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.package')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.purpose')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.status')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.home')}</span>
-                  <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.actions')}</span>
                 </div>
                 <div className='grid grid-cols-1 gap-0'>
                   {filteredCapabilities.map((item) => {
@@ -645,7 +644,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           isSelected ? 'bg-[rgb(var(--primary-1))]' : 'bg-[var(--color-bg-1)]'
                         }`}
                         style={{
-                          gridTemplateColumns: '1.45fr 1fr 120px 180px 160px',
+                          gridTemplateColumns: '1.55fr 1.15fr 130px 220px',
                         }}
                         data-testid={`capability-purpose-${item.key}`}
                         onClick={() => setSelectedCapabilityKey(item.key)}
@@ -663,12 +662,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                             </Typography.Text>
                           </div>
                         </div>
-                        <div className='min-w-0 flex flex-wrap gap-4px'>
-                          {item.tags.map((tag) => (
-                            <Tag key={`${item.key}-${tag}`} color='arcoblue'>
-                              {tag}
-                            </Tag>
-                          ))}
+                        <div className='min-w-0'>
+                          <Typography.Text className='block truncate text-t-primary'>{item.description}</Typography.Text>
+                          <Typography.Text className='mt-4px block truncate text-12px text-t-secondary'>
+                            {item.tags.join(' / ')}
+                          </Typography.Text>
                         </div>
                         <div className='min-w-0'>
                           <Tag color={capabilityStatusColor(item.status)}>{capabilityStatusLabel(item.status, t)}</Tag>
@@ -704,18 +702,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                               </Button>
                             </Space>
                           )}
-                        </div>
-                        <div className='min-w-0' onClick={(event) => event.stopPropagation()}>
-                          <Space wrap size={4}>
-                            <Button
-                              size='mini'
-                              type={isSelected ? 'primary' : 'secondary'}
-                              onClick={() => runCapabilityPrimaryAction(item)}
-                              data-testid={`capability-row-details-${item.key}`}
-                            >
-                              {capabilityActionLabel(item, t)}
-                            </Button>
-                          </Space>
                         </div>
                       </div>
                     );

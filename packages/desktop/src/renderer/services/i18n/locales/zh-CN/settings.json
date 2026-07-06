@@ -1749,7 +1749,7 @@
   },
   "capabilitiesPage": {
     "title": "智能体与能力",
-    "description": "先看每个能力能做什么；包 ref、manifest 和诊断信息保留在高级详情里。",
+    "description": "先看每个能力的用途；包 ref、manifest 和诊断信息保留在高级详情里。",
     "status": {
       "ready": "已就绪",
       "update": "可更新",
@@ -1897,7 +1897,7 @@
       "actionQueued": "动作已路由到 OPL",
       "tableHeaders": {
         "package": "能力",
-        "purpose": "能做什么",
+        "purpose": "用途",
         "status": "状态",
         "source": "来源",
         "version": "版本",
