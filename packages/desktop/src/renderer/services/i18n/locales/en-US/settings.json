@@ -1874,7 +1874,7 @@
     },
     "packageManager": {
       "title": "Capability directory",
-      "description": "See available capabilities, status, Home visibility, and the next useful action. Updates, sync, and repairs belong in Maintenance.",
+      "description": "See available capabilities, status, and Home visibility first. Suggestions and next steps stay in the detail panel.",
       "catalogTitle": "Capability directory",
       "catalogDescription": "Open a row when you need setup details, Home shortcut controls, or advanced package context.",
       "refreshRegistry": "Refresh registry",
@@ -1902,7 +1902,7 @@
         "version": "Version",
         "codex": "Codex",
         "home": "Home shortcut",
-        "actions": "Next step"
+        "actions": "Action"
       },
       "actions": {
         "update": "Update",

@@ -1875,7 +1875,7 @@
     },
     "packageManager": {
       "title": "能力目录",
-      "description": "先看到可用能力、状态、首页显示和下一步动作。更新、同步和修复归维护页处理。",
+      "description": "先看到可用能力、状态和首页显示；具体建议和下一步放在右侧详情里。",
       "catalogTitle": "能力目录",
       "catalogDescription": "需要设置详情、首页快捷入口或高级包上下文时再打开行详情。",
       "refreshRegistry": "刷新注册表",
@@ -1903,7 +1903,7 @@
         "version": "版本",
         "codex": "Codex",
         "home": "首页快捷方式",
-        "actions": "下一步"
+        "actions": "操作"
       },
       "actions": {
         "update": "更新",

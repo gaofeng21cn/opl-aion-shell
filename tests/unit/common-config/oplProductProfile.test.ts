@@ -323,14 +323,17 @@ describe('OPL generated product profile', () => {
       'grant',
       'ppt',
       'book',
+      'oma',
     ]);
     expect(getOplHomeAgentShortcuts().map((shortcut) => shortcut.package_id)).toEqual([
       'med-autoscience',
       'med-autogrant',
       'redcube-ai',
       'opl-bookforge',
+      'opl-meta-agent',
     ]);
     expect(getOplHomeAgentShortcuts().every((shortcut) => shortcut.user_configurable)).toBe(true);
+    expect(getOplHomeAgentShortcuts().find((shortcut) => shortcut.shortcut_id === 'oma')?.default_visible).toBe(false);
     expect(getOplProfessionalAgentPackages().map((agentPackage) => agentPackage.package_id)).toEqual([
       'med-autoscience',
       'med-autogrant',
@@ -407,7 +410,7 @@ describe('OPL generated product profile', () => {
 
   it('exposes the built-in assistant route receipt policy', () => {
     const packagePolicy = getOplAgentPackageInvocationReceiptPolicy();
-    expect(packagePolicy.required_for_package_shortcuts).toEqual(['research', 'grant', 'ppt', 'book']);
+    expect(packagePolicy.required_for_package_shortcuts).toEqual(['research', 'grant', 'ppt', 'book', 'oma']);
     expect(packagePolicy.route_kind).toBe('agent_package_shortcut');
     expect(packagePolicy.executor).toBe('codex_cli');
     expect(packagePolicy.source).toBe('opl_app_home');

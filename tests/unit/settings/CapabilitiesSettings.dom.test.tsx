@@ -193,9 +193,9 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         default_visible: true,
       },
       {
-        shortcut_id: 'automations',
-        package_id: 'oma',
-        primary_label: 'Always-On/Automations',
+        shortcut_id: 'oma',
+        package_id: 'opl-meta-agent',
+        primary_label: 'OMA',
         user_configurable: true,
         default_visible: false,
       },
@@ -238,7 +238,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
         optional_skill_ids: [],
       },
       {
-        package_id: 'oma',
+        package_id: 'opl-meta-agent',
         display_name: 'OPL Meta Agent',
         short_name: 'OMA',
         codex_visible_entry: 'opl-meta-agent',
@@ -360,7 +360,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.tableHeaders.version': 'Version',
         'settings.capabilitiesPage.packageManager.tableHeaders.codex': 'Codex',
         'settings.capabilitiesPage.packageManager.tableHeaders.home': 'Home shortcut',
-        'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Next step',
+        'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Action',
         'settings.capabilitiesPage.packageManager.actions.update': 'Update',
         'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
         'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
@@ -422,7 +422,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Capability')).toBeInTheDocument();
     expect(screen.getByText('What it does')).toBeInTheDocument();
     expect(screen.getByText('Home shortcut')).toBeInTheDocument();
-    expect(screen.getByText('Next step')).toBeInTheDocument();
+    expect(screen.getByText('Action')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-refresh-registry')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
@@ -443,6 +443,23 @@ describe('CapabilitiesSettingsContent', () => {
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText(/Home visible · Order 1/)).toBeInTheDocument();
+    const oma = screen.getByTestId('capability-purpose-oma');
+    expect(within(oma).getByText('Home hidden')).toBeInTheDocument();
+    const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-oma');
+    expect(omaHomeSwitch).not.toHaveClass('arco-switch-checked');
+    fireEvent.click(omaHomeSwitch);
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith(
+        expect.objectContaining({
+          actionId: 'agent_package_home_shortcut_preferences_set',
+          payloadRefsOnlyJson: expect.objectContaining({
+            package_id: 'opl-meta-agent',
+            shortcut_id: 'oma',
+            visible: true,
+          }),
+        })
+      )
+    );
     fireEvent.click(within(research).getByTestId('capability-row-details-mas'));
     let detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
@@ -604,6 +621,7 @@ describe('CapabilitiesSettingsContent', () => {
       'opl.homeAgentShortcutPreferences.v1',
       JSON.stringify({
         hiddenShortcutIds: ['grant'],
+        visibleShortcutIds: ['oma'],
         orderedShortcutIds: ['book', 'research', 'ppt', 'grant'],
       })
     );
@@ -612,6 +630,7 @@ describe('CapabilitiesSettingsContent', () => {
       'opl-bookforge',
       'med-autoscience',
       'redcube-ai',
+      'opl-meta-agent',
     ]);
   });
 
@@ -634,6 +653,7 @@ describe('CapabilitiesSettingsContent', () => {
                 { package_id: 'med-autoscience', shortcut_id: 'research', visible: true, sort_order: 1 },
                 { package_id: 'med-autogrant', shortcut_id: 'grant', visible: false, sort_order: 2 },
                 { package_id: 'redcube-ai', shortcut_id: 'ppt', visible: true, sort_order: 3 },
+                { package_id: 'opl-meta-agent', shortcut_id: 'oma', visible: true, sort_order: 4 },
               ],
             },
           },
@@ -646,6 +666,7 @@ describe('CapabilitiesSettingsContent', () => {
       'opl-bookforge',
       'med-autoscience',
       'redcube-ai',
+      'opl-meta-agent',
     ]);
   });
 });

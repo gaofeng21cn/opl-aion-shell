@@ -29,6 +29,7 @@ import {
   getOplHomeShortcutPreferences,
   getOplHomeShortcutPreferencesFromAppState,
   getOplOrderedHomeAgentShortcuts,
+  isOplHomeShortcutVisible,
   type OplHomeShortcutPreferences,
   moveOplHomeShortcut,
   setOplHomeShortcutHidden,
@@ -436,10 +437,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       ]),
     [appStateQuery.appState, i18n.language, t]
   );
-  const hiddenShortcutIds = React.useMemo(
-    () => new Set(shortcutPreferences.hiddenShortcutIds),
-    [shortcutPreferences.hiddenShortcutIds]
-  );
   const filteredCapabilities = React.useMemo(() => {
     const query = packageQuery.trim().toLowerCase();
     return purposeCapabilities.filter((item) => {
@@ -470,7 +467,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const selectedShortcutIndex = selectedShortcutId ? (shortcutIndexById.get(selectedShortcutId) ?? -1) : -1;
   const selectedHomeLabel = !selectedShortcut
     ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
-    : hiddenShortcutIds.has(selectedShortcutId)
+    : !isOplHomeShortcutVisible(selectedShortcut, shortcutPreferences)
       ? t('settings.capabilitiesPage.packageManager.homeHidden')
       : t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
           order: String(selectedShortcutIndex + 1),
@@ -521,7 +518,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     await executePackageAction('agent_package_home_shortcut_preferences_set', {
       package_id: shortcut.package_id,
       shortcut_id: shortcut.shortcut_id,
-      visible: !preferences.hiddenShortcutIds.includes(shortcut.shortcut_id),
+      visible: isOplHomeShortcutVisible(shortcut, preferences),
       sort_order:
         preferenceSortOrder >= 0
           ? preferenceSortOrder
@@ -635,7 +632,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     const shortcutIndex = shortcutId ? (shortcutIndexById.get(shortcutId) ?? -1) : -1;
                     const homeLabel = !shortcut
                       ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
-                      : hiddenShortcutIds.has(shortcutId)
+                      : !isOplHomeShortcutVisible(shortcut, shortcutPreferences)
                         ? t('settings.capabilitiesPage.packageManager.homeHidden')
                         : t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
                             order: String(shortcutIndex + 1),
@@ -685,7 +682,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                             <Space wrap size={4} className='mt-4px items-center'>
                               <Switch
                                 size='small'
-                                checked={!hiddenShortcutIds.has(shortcutId)}
+                                checked={isOplHomeShortcutVisible(shortcut, shortcutPreferences)}
                                 onChange={(checked) => updateShortcutHidden(shortcutId, !checked)}
                                 data-testid={`agent-package-home-toggle-${item.key}`}
                               />
@@ -775,7 +772,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Space wrap size={6}>
                       <Switch
                         size='small'
-                        checked={!hiddenShortcutIds.has(selectedShortcutId)}
+                        checked={isOplHomeShortcutVisible(selectedShortcut, shortcutPreferences)}
                         onChange={(checked) => updateShortcutHidden(selectedShortcutId, !checked)}
                         data-testid={`agent-package-home-toggle-details-${selectedCapability.key}`}
                       />

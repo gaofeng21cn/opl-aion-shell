@@ -234,6 +234,20 @@
           "home_entry_policy": "visible_click_to_start",
           "default_visible": true,
           "user_configurable": true
+        },
+        {
+          "shortcut_id": "oma",
+          "package_id": "opl-meta-agent",
+          "primary_label": "OMA",
+          "package_short_name": "OMA",
+          "codex_visible_entry": "opl-meta-agent",
+          "required_skill_ids": ["opl-meta-agent"],
+          "source": "opl_app_home",
+          "executor": "codex_cli",
+          "display_policy": "purpose_first",
+          "home_entry_policy": "visible_click_to_start",
+          "default_visible": false,
+          "user_configurable": true
         }
       ],
       "retired_codex_models_must_not_be_exposed": [
@@ -320,7 +334,7 @@
     },
     "agent_package_invocation_receipt_policy": {
       "scope": "package_shortcut_launch_to_codex_conversation",
-      "required_for_package_shortcuts": ["research", "grant", "ppt", "book"],
+      "required_for_package_shortcuts": ["research", "grant", "ppt", "book", "oma"],
       "route_kind": "agent_package_shortcut",
       "executor": "codex_cli",
       "source": "opl_app_home",
@@ -512,7 +526,7 @@
         "installed_manageable": true,
         "default_home_visible": false,
         "codex_visible_entry": "opl-meta-agent",
-        "home_shortcut_ids": [],
+        "home_shortcut_ids": ["oma"],
         "required_skill_ids": ["opl-meta-agent"],
         "optional_skill_ids": [],
         "required_skill_policy": "checked_locked",
