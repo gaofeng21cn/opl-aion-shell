@@ -1816,6 +1816,8 @@
       "catalogTitle": "包目录",
       "catalogDescription": "在一份紧凑列表里统一管理安装状态和首页显示；只有在需要看细节或修复上下文时才展开。",
       "refreshRegistry": "刷新注册表",
+      "searchPlaceholder": "搜索包名、标签或描述",
+      "allStatuses": "所有状态",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "安装 manifest",
       "hideFromHome": "从首页隐藏",
@@ -1826,8 +1828,20 @@
       "homeHidden": "首页已隐藏",
       "noHomeShortcut": "无首页快捷入口",
       "rowMeta": "{{sourceLabel}}：{{sourceValue}} · {{versionLabel}}：{{versionValue}} · {{homeLabel}}",
+      "packageCount": "显示 {{count}} / {{total}}",
+      "empty": "没有匹配的智能体包。",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
+      "tableHeaders": {
+        "package": "包名",
+        "purpose": "用途 / 标签",
+        "status": "状态",
+        "source": "来源",
+        "version": "版本",
+        "codex": "Codex",
+        "home": "首页快捷方式",
+        "actions": "操作"
+      },
       "actions": {
         "update": "更新",
         "repair": "修复",
@@ -1836,6 +1850,10 @@
         "hide": "隐藏",
         "show": "显示"
       }
+    },
+    "supporting": {
+      "title": "技能、工具与自定义助手",
+      "description": "这些是支撑能力的详细配置，默认折叠；需要排查或调整时再打开。"
     }
   },
   "oplEnvironmentPage": {

@@ -15,8 +15,8 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Button, Card, Input, Message, Space, Tag, Tabs, Typography } from '@arco-design/web-react';
-import { Experiment, FilePpt, FileWord, Robot, Tool } from '@icon-park/react';
+import { Button, Card, Input, Message, Select, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Experiment, FilePpt, FileWord, Refresh, Robot, Search, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -417,14 +417,22 @@ const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | nul
 type CapabilitiesSettingsContentProps = {
   activeTab: CapabilitiesTab;
   onTabChange: (tab: CapabilitiesTab) => void;
+  supportingSurfaceDefaultOpen?: boolean;
 };
 
-export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({ activeTab, onTabChange }) => {
+export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentProps> = ({
+  activeTab,
+  onTabChange,
+  supportingSurfaceDefaultOpen = false,
+}) => {
   const { i18n, t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   const [manifestUrl, setManifestUrl] = useState('');
+  const [packageQuery, setPackageQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<CapabilityStatus | 'all'>('all');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [expandedCapabilityKey, setExpandedCapabilityKey] = useState<string | null>(null);
+  const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
   const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
   const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
   const shortcutByPackageId = React.useMemo(
@@ -453,6 +461,27 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     () => new Set(shortcutPreferences.hiddenShortcutIds),
     [shortcutPreferences.hiddenShortcutIds]
   );
+  const filteredCapabilities = React.useMemo(() => {
+    const query = packageQuery.trim().toLowerCase();
+    return purposeCapabilities.filter((item) => {
+      const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
+      if (!matchesStatus) return false;
+      if (!query) return true;
+      return [
+        item.title,
+        item.description,
+        item.packageId,
+        item.codexVisibleEntry,
+        item.source,
+        item.sourceKind,
+        ...item.tags,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [packageQuery, purposeCapabilities, statusFilter]);
 
   useEffect(() => {
     const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
@@ -512,6 +541,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     void executeShortcutPreferenceAction(shortcutId, nextPreferences);
   };
 
+  const openSupportingSurface = (tab: CapabilitiesTab) => {
+    setSupportingSurfaceOpen(true);
+    onTabChange(tab);
+  };
+
   return (
     <>
       <div className='flex flex-col gap-16px mb-18px'>
@@ -521,8 +555,8 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
-        <Card bordered className='rd-8px' data-testid='agent-package-manager'>
-          <div className='flex flex-col gap-10px'>
+        <Card bordered className='rd-8px' data-testid='agent-package-catalog'>
+          <div className='flex flex-col gap-12px'>
             <div>
               <Typography.Text className='block font-600 text-t-primary'>
                 {t('settings.capabilitiesPage.packageManager.title')}
@@ -531,15 +565,42 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 {t('settings.capabilitiesPage.packageManager.description')}
               </Typography.Text>
             </div>
-            <div className='flex flex-wrap gap-8px'>
+            <div className='flex flex-wrap items-center gap-8px' data-testid='agent-package-manager'>
               <Button
                 size='small'
+                icon={<Refresh theme='outline' />}
                 loading={busyAction === 'refresh_registry'}
                 onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
                 data-testid='agent-package-refresh-registry'
               >
                 {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
               </Button>
+              <Input
+                size='small'
+                className='max-w-300px min-w-220px'
+                value={packageQuery}
+                onChange={setPackageQuery}
+                allowClear
+                prefix={<Search theme='outline' />}
+                placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
+                data-testid='agent-package-search'
+              />
+              <Select
+                size='small'
+                className='w-160px'
+                value={statusFilter}
+                onChange={(value) => setStatusFilter(value as CapabilityStatus | 'all')}
+                data-testid='agent-package-status-filter'
+              >
+                <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allStatuses')}</Select.Option>
+                {(['ready', 'update', 'sync', 'source', 'attention', 'repair', 'missing'] as CapabilityStatus[]).map(
+                  (status) => (
+                    <Select.Option key={status} value={status}>
+                      {capabilityStatusLabel(status, t)}
+                    </Select.Option>
+                  )
+                )}
+              </Select>
               <Input
                 size='small'
                 className='max-w-360px min-w-220px'
@@ -560,18 +621,34 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
               </Button>
             </div>
           </div>
-        </Card>
-        <Card bordered className='rd-8px' data-testid='agent-package-catalog'>
-          <div className='mb-12px'>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.capabilitiesPage.packageManager.catalogTitle')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.catalogDescription')}
+          <div className='mt-14px mb-10px flex flex-wrap items-end justify-between gap-8px'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.packageManager.catalogTitle')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.packageManager.catalogDescription')}
+              </Typography.Text>
+            </div>
+            <Typography.Text className='text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.packageManager.packageCount', {
+                count: filteredCapabilities.length,
+                total: purposeCapabilities.length,
+              })}
             </Typography.Text>
           </div>
-          <div className='grid grid-cols-1 gap-10px'>
-            {purposeCapabilities.map((item) => {
+          <div className='hidden xl:grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_110px_130px_100px_110px_170px_160px] gap-10px border-b border-solid border-[var(--color-border-2)] px-12px pb-8px text-12px text-t-secondary'>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.package')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.purpose')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.status')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.source')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.version')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.codex')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.home')}</span>
+            <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.actions')}</span>
+          </div>
+          <div className='grid grid-cols-1 gap-0 border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
+            {filteredCapabilities.map((item) => {
               const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
               const shortcutId = shortcut?.shortcut_id ?? '';
               const shortcutIndex = shortcutId ? (shortcutIndexById.get(shortcutId) ?? -1) : -1;
@@ -586,10 +663,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
               return (
                 <div
                   key={item.key}
-                  className='rd-8px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)]'
+                  className='border-0 border-b border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)] last:border-b-0'
                   data-testid={`capability-purpose-${item.key}`}
                 >
-                  <div className='grid grid-cols-1 gap-12px p-12px xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(0,1fr)]'>
+                  <div className='grid grid-cols-1 gap-12px p-12px xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1.1fr)_110px_130px_100px_110px_170px_160px] xl:items-center'>
                     <div className='flex min-w-0 items-start gap-12px'>
                       <span className='mt-2px flex h-32px w-32px items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
                         {capabilityIcon(item)}
@@ -604,11 +681,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </div>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
+                      <Typography.Text className='block text-12px text-t-secondary xl:hidden'>
                         {t('settings.capabilitiesPage.detailLabels.purpose')}
                       </Typography.Text>
-                      <Typography.Text className='block text-t-primary break-words'>{item.description}</Typography.Text>
-                      <div className='mt-6px flex flex-wrap gap-6px'>
+                      <div className='flex flex-wrap gap-6px'>
                         {item.tags.map((tag) => (
                           <Tag key={`${item.key}-${tag}`} color='arcoblue'>
                             {tag}
@@ -617,31 +693,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       </div>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.detailLabels.source')}
-                      </Typography.Text>
-                      <Typography.Text className='block text-t-primary break-words'>
-                        {item.source ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                      </Typography.Text>
-                      <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                        {item.sourceKind ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                      </Typography.Text>
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.detailLabels.version')}
-                      </Typography.Text>
-                      <Typography.Text className='block text-t-primary break-words'>
-                        {item.version ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                      </Typography.Text>
-                      <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
-                        {item.lastSync ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                      </Typography.Text>
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.detailsHeader')}
-                      </Typography.Text>
                       <Tag color={capabilityStatusColor(item.status)}>{capabilityStatusLabel(item.status, t)}</Tag>
                       {item.failureReason && (
                         <Typography.Text className='block text-12px text-t-secondary break-words mt-6px'>
@@ -650,29 +701,33 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       )}
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.detailLabels.codexVisibility')}
+                      <Typography.Text className='block text-t-primary break-words'>
+                        {item.source ?? t('settings.capabilitiesPage.detailValues.notReported')}
                       </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary break-words mt-4px'>
+                        {item.sourceKind ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                      </Typography.Text>
+                    </div>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-t-primary break-words'>
+                        {item.version ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                      </Typography.Text>
+                    </div>
+                    <div className='min-w-0'>
                       <Typography.Text className='block text-t-primary break-words'>
                         {capabilityCodexVisibilityLabel(item, t)}
                       </Typography.Text>
                     </div>
                     <div className='min-w-0'>
-                      <Typography.Text className='block text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.detailLabels.defaultHomeVisible')}
-                      </Typography.Text>
                       <Typography.Text className='block text-t-primary break-words'>{homeLabel}</Typography.Text>
                       {shortcut && (
-                        <Space wrap size={6} className='mt-6px'>
-                          <Button
-                            size='mini'
-                            onClick={() => updateShortcutHidden(shortcutId, !hiddenShortcutIds.has(shortcutId))}
+                        <Space wrap size={6} className='mt-6px items-center'>
+                          <Switch
+                            size='small'
+                            checked={!hiddenShortcutIds.has(shortcutId)}
+                            onChange={(checked) => updateShortcutHidden(shortcutId, !checked)}
                             data-testid={`agent-package-home-toggle-${item.key}`}
-                          >
-                            {hiddenShortcutIds.has(shortcutId)
-                              ? t('settings.capabilitiesPage.packageManager.showOnHome')
-                              : t('settings.capabilitiesPage.packageManager.hideFromHome')}
-                          </Button>
+                          />
                           <Button
                             size='mini'
                             disabled={shortcutIndex <= 0}
@@ -691,14 +746,26 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           </Button>
                         </Space>
                       )}
-                      <Space wrap size={6} className='mt-8px'>
-                        <Button
-                          size='mini'
-                          onClick={() => onTabChange('skills')}
-                          data-testid={`capability-purpose-primary-action-${item.key}`}
-                        >
-                          {capabilityActionLabel(item, t)}
-                        </Button>
+                    </div>
+                    <div className='min-w-0'>
+                      <Space wrap size={6}>
+                        {item.packageId &&
+                          PACKAGE_ACTIONS.slice(0, 2).map((action) => (
+                            <Button
+                              key={`${item.key}-${action.key}`}
+                              size='mini'
+                              loading={busyAction === action.actionId}
+                              onClick={() =>
+                                executePackageAction(action.actionId, {
+                                  package_id: item.packageId,
+                                })
+                              }
+                              title={packageActionRef(action.actionId)}
+                              data-testid={`agent-package-inline-action-${item.key}-${action.key}`}
+                            >
+                              {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
+                            </Button>
+                          ))}
                         <Button
                           size='mini'
                           onClick={() => setExpandedCapabilityKey(isExpanded ? null : item.key)}
@@ -817,6 +884,13 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 </div>
               );
             })}
+            {filteredCapabilities.length === 0 && (
+              <div className='p-18px text-center' data-testid='agent-package-empty'>
+                <Typography.Text className='text-t-secondary'>
+                  {t('settings.capabilitiesPage.packageManager.empty')}
+                </Typography.Text>
+              </div>
+            )}
           </div>
         </Card>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
@@ -835,7 +909,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 <Typography.Text className='block text-12px text-t-secondary break-words mt-6px'>
                   {t('settings.capabilitiesPage.entries.externalTools.technical')}
                 </Typography.Text>
-                <Button size='small' className='mt-10px' onClick={() => onTabChange('tools')}>
+                <Button size='small' className='mt-10px' onClick={() => openSupportingSurface('tools')}>
                   {t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
                 </Button>
               </div>
@@ -853,7 +927,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 <Typography.Text className='block text-13px text-t-secondary break-words'>
                   {t('settings.capabilitiesPage.entries.customAssistants.description')}
                 </Typography.Text>
-                <Button size='small' className='mt-10px' onClick={() => onTabChange('skills')}>
+                <Button size='small' className='mt-10px' onClick={() => openSupportingSurface('skills')}>
                   {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
                 </Button>
               </div>
@@ -861,24 +935,46 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Card>
         </div>
       </div>
-      <Tabs
-        activeTab={activeTab}
-        onChange={(key) => {
-          if (isCapabilitiesTab(key)) onTabChange(key);
-        }}
-        type='line'
-        className='flex flex-col flex-1 min-h-0 [&>.arco-tabs-content]:pt-0'
-      >
-        <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
-          <SkillsHubSettings withWrapper={false} />
-        </Tabs.TabPane>
-        <Tabs.TabPane
-          key='tools'
-          title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
-        >
-          <ToolsModalContent />
-        </Tabs.TabPane>
-      </Tabs>
+      <Card bordered className='rd-8px' data-testid='capability-supporting-surfaces'>
+        <div className='flex flex-wrap items-center justify-between gap-10px'>
+          <div>
+            <Typography.Text className='block font-600 text-t-primary'>
+              {t('settings.capabilitiesPage.supporting.title')}
+            </Typography.Text>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.supporting.description')}
+            </Typography.Text>
+          </div>
+          <Space wrap size={8}>
+            <Button size='small' onClick={() => openSupportingSurface('skills')} data-testid='open-skills-support'>
+              {t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}
+            </Button>
+            <Button size='small' onClick={() => openSupportingSurface('tools')} data-testid='open-tools-support'>
+              {t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
+            </Button>
+          </Space>
+        </div>
+        {supportingSurfaceOpen && (
+          <Tabs
+            activeTab={activeTab}
+            onChange={(key) => {
+              if (isCapabilitiesTab(key)) onTabChange(key);
+            }}
+            type='line'
+            className='mt-12px flex flex-col flex-1 min-h-0 [&>.arco-tabs-content]:pt-0'
+          >
+            <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
+              <SkillsHubSettings withWrapper={false} />
+            </Tabs.TabPane>
+            <Tabs.TabPane
+              key='tools'
+              title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
+            >
+              <ToolsModalContent />
+            </Tabs.TabPane>
+          </Tabs>
+        )}
+      </Card>
     </>
   );
 };
@@ -909,7 +1005,11 @@ const CapabilitiesSettings: React.FC = () => {
 
   return (
     <SettingsPageWrapper contentClassName='max-w-1200px'>
-      <CapabilitiesSettingsContent activeTab={activeTab} onTabChange={handleTabChange} />
+      <CapabilitiesSettingsContent
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab'))}
+      />
     </SettingsPageWrapper>
   );
 };

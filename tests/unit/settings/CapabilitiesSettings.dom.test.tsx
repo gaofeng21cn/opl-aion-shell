@@ -333,6 +333,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.catalogDescription':
           'Manage install state and Home visibility from one compact list.',
         'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
+        'settings.capabilitiesPage.packageManager.searchPlaceholder': 'Search package, tag, or description',
+        'settings.capabilitiesPage.packageManager.allStatuses': 'All statuses',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
         'settings.capabilitiesPage.packageManager.hideFromHome': 'Hide from Home',
@@ -343,9 +345,19 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.homeHidden': 'Home hidden',
         'settings.capabilitiesPage.packageManager.noHomeShortcut': 'No Home shortcut',
         'settings.capabilitiesPage.packageManager.rowMeta': `${options?.sourceLabel ?? ''}: ${options?.sourceValue ?? ''} · ${options?.versionLabel ?? ''}: ${options?.versionValue ?? ''} · ${options?.homeLabel ?? ''}`,
+        'settings.capabilitiesPage.packageManager.packageCount': `Showing ${options?.count ?? ''} / ${options?.total ?? ''}`,
+        'settings.capabilitiesPage.packageManager.empty': 'No matching agent packages.',
         'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
+        'settings.capabilitiesPage.packageManager.tableHeaders.package': 'Package',
+        'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'Purpose / tags',
+        'settings.capabilitiesPage.packageManager.tableHeaders.status': 'Status',
+        'settings.capabilitiesPage.packageManager.tableHeaders.source': 'Source',
+        'settings.capabilitiesPage.packageManager.tableHeaders.version': 'Version',
+        'settings.capabilitiesPage.packageManager.tableHeaders.codex': 'Codex',
+        'settings.capabilitiesPage.packageManager.tableHeaders.home': 'Home shortcut',
+        'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Actions',
         'settings.capabilitiesPage.packageManager.actions.update': 'Update',
         'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
         'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
@@ -359,6 +371,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.entries.externalTools.technical': 'Technical detail: MCP is the protocol.',
         'settings.capabilitiesPage.entries.customAssistants.title': 'Custom assistants',
         'settings.capabilitiesPage.entries.customAssistants.description': 'Use the Advanced assistant area.',
+        'settings.capabilitiesPage.supporting.title': 'Skills, tools, and custom assistants',
+        'settings.capabilitiesPage.supporting.description':
+          'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
       };
@@ -381,24 +396,36 @@ describe('CapabilitiesSettingsContent', () => {
 
   it('shows purpose capability groups before skills and tools details', async () => {
     const onTabChange = vi.fn();
-    render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={onTabChange} />);
+    const Harness = () => {
+      const [activeTab, setActiveTab] = React.useState<'skills' | 'tools'>('skills');
+      return (
+        <CapabilitiesSettingsContent
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            onTabChange(tab);
+          }}
+        />
+      );
+    };
+    render(<Harness />);
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Agent packages')).toBeInTheDocument();
     expect(screen.getByText('Package catalog')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-search')).toBeInTheDocument();
+    expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
+    expect(screen.getByText('Package')).toBeInTheDocument();
+    expect(screen.getByText('Home shortcut')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getByText('Med Auto Science')).toBeInTheDocument();
-    expect(screen.getByText('Research')).toBeInTheDocument();
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
-    expect(screen.getByText('Grant Writing')).toBeInTheDocument();
     expect(screen.getAllByText('MAG').length).toBeGreaterThan(0);
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
-    expect(screen.getByText('Presentations')).toBeInTheDocument();
     expect(screen.getAllByText('RCA').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL BookForge')).toBeInTheDocument();
-    expect(screen.getByText('Writing books')).toBeInTheDocument();
     expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
@@ -490,17 +517,17 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
     expect(screen.getAllByText('Skills').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
+    expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
     expect(screen.getAllByText('OPL Meta Agent')).toHaveLength(1);
 
     const externalTools = screen.getByTestId('capability-entry-external-tools');
     fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
+    await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
 
-    fireEvent.click(
-      within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-purpose-primary-action-mas')
-    );
+    fireEvent.click(screen.getByTestId('open-skills-support'));
     expect(onTabChange).toHaveBeenCalledWith('skills');
+    expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
   });
 
   it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {

@@ -1815,6 +1815,8 @@
       "catalogTitle": "Package catalog",
       "catalogDescription": "Manage install state and Home visibility from one compact list. Open a row only when you need package details or repair context.",
       "refreshRegistry": "Refresh registry",
+      "searchPlaceholder": "Search package, tag, or description",
+      "allStatuses": "All statuses",
       "manifestUrlPlaceholder": "Manifest URL",
       "installFromManifest": "Install manifest",
       "hideFromHome": "Hide from Home",
@@ -1825,8 +1827,20 @@
       "homeHidden": "Home hidden",
       "noHomeShortcut": "No Home shortcut",
       "rowMeta": "{{sourceLabel}}: {{sourceValue}} · {{versionLabel}}: {{versionValue}} · {{homeLabel}}",
+      "packageCount": "Showing {{count}} / {{total}}",
+      "empty": "No matching agent packages.",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
+      "tableHeaders": {
+        "package": "Package",
+        "purpose": "Purpose / tags",
+        "status": "Status",
+        "source": "Source",
+        "version": "Version",
+        "codex": "Codex",
+        "home": "Home shortcut",
+        "actions": "Actions"
+      },
       "actions": {
         "update": "Update",
         "repair": "Repair",
@@ -1835,6 +1849,10 @@
         "hide": "Hide",
         "show": "Show"
       }
+    },
+    "supporting": {
+      "title": "Skills, tools, and custom assistants",
+      "description": "Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot."
     }
   },
   "oplEnvironmentPage": {
