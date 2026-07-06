@@ -160,7 +160,14 @@ describe('OPL generated product profile', () => {
       'appearance',
       'advanced',
     ]);
-    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['about', 'update', 'theme', 'workspace', 'local-services']);
+    expect(getOplGuiSettingsSecondaryPageIds()).toEqual([
+      'about',
+      'update',
+      'theme',
+      'workspace',
+      'local-services',
+      'resources',
+    ]);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',
       runtime: 'environment',
