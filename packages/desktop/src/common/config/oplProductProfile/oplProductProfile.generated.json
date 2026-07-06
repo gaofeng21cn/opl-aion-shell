@@ -1189,7 +1189,7 @@
           "ordinary_entry_policy": "secondary_page_under_advanced"
         }
       },
-      "secondary_page_ids": ["about", "update", "theme", "workspace", "local-services"],
+      "secondary_page_ids": ["about", "update", "theme", "workspace", "local-services", "resources"],
       "task_entry_policy": {
         "ordinary_entry_model": "user_task_first_sections_inside_the_seven_OPL_Control_Center_groups",
         "top_level_tab_policy": "do_not_add_new_top_level_tabs_for_model_workspace_updates_web_tools_or_developer_profile",
@@ -1350,6 +1350,13 @@
           "ia_group": "maintenance",
           "slot_id": "local_services",
           "visibility": "secondary_or_deep_link"
+        },
+        {
+          "id": "resources",
+          "path": "/settings/resources",
+          "ia_group": "setup_access",
+          "slot_id": "settings_resources",
+          "visibility": "secondary_or_deep_link"
         }
       ],
       "legacy_route_redirects": {
@@ -1434,6 +1441,10 @@
         },
         "local_services": {
           "component_key": "LocalServicesSettings",
+          "wrapper_policy": "host_provides_wrapper"
+        },
+        "settings_resources": {
+          "component_key": "AccessSettingsContent",
           "wrapper_policy": "host_provides_wrapper"
         }
       },

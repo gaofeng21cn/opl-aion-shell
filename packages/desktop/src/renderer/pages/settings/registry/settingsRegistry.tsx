@@ -40,16 +40,21 @@ const settingsControlPlane = getOplGuiSettingsControlPlane();
 const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
 const ordinaryRoutes = settingsControlPlane?.ordinary_routes ?? [];
-const shellSecondaryPages: OplSettingsControlPlaneSecondaryPage[] = [
-  {
-    id: 'resources',
-    path: '/settings/resources',
-    ia_group: 'setup_access',
-    slot_id: 'settings_resources',
-    visibility: 'deep_link_only',
-  },
-];
-const secondaryPages = [...(settingsControlPlane?.secondary_pages ?? []), ...shellSecondaryPages];
+const contractSecondaryPages = settingsControlPlane?.secondary_pages ?? [];
+const shellSecondaryPages: OplSettingsControlPlaneSecondaryPage[] = contractSecondaryPages.some(
+  (page) => page.id === 'resources'
+)
+  ? []
+  : [
+      {
+        id: 'resources',
+        path: '/settings/resources',
+        ia_group: 'setup_access',
+        slot_id: 'settings_resources',
+        visibility: 'secondary_or_deep_link',
+      },
+    ];
+const secondaryPages = [...contractSecondaryPages, ...shellSecondaryPages];
 const ordinaryRoutesById = new Map(ordinaryRoutes.map((route) => [route.id, route]));
 const secondaryPagesById = new Map(secondaryPages.map((page) => [page.id, page]));
 
