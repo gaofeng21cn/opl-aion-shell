@@ -1008,8 +1008,8 @@
   "oplDeveloperProfileDesc": "按能力显示当前开发者配置；普通用户默认使用稳定包通道，本地 checkout 需要显式选择。",
   "oplFlowContext": "OPL Flow 上下文",
   "oplFlowContextDesc": "App 管理的会话上下文跟随界面语言、尊重用户 AGENTS.md 文件，并记录来源，不改写用户文件。",
-  "oplFlowHeadDownMode": "埋头苦干模式",
-  "oplFlowHeadDownModeDesc": "新建 Codex 会话最前注入：DO NOT send optional commentary",
+  "oplFlowIntelligenceEnhancementMode": "智力增强模式",
+  "oplFlowIntelligenceEnhancementModeDesc": "通过本机 CodexCont 代理延续 reasoning；不向对话注入额外提示，也不发送快捷消息。",
   "oplDeveloperProfileStates": {
     "contributor": "贡献者",
     "maintainer": "维护者",

@@ -1007,8 +1007,8 @@
   "oplDeveloperProfileDesc": "Capability-based developer profile from OPL App state. Standard users stay on the managed GHCR capability packages channel unless they explicitly opt into a checkout source.",
   "oplFlowContext": "OPL Flow Context",
   "oplFlowContextDesc": "App-managed session context follows the UI language, respects user AGENTS.md files, and records its source without editing user files.",
-  "oplFlowHeadDownMode": "Head-down mode",
-  "oplFlowHeadDownModeDesc": "New Codex sessions start with: DO NOT send optional commentary",
+  "oplFlowIntelligenceEnhancementMode": "Intelligence enhancement mode",
+  "oplFlowIntelligenceEnhancementModeDesc": "Use the local CodexCont proxy for reasoning continuation without injecting prompts or sending quick messages.",
   "oplDeveloperProfileStates": {
     "contributor": "Contributor",
     "maintainer": "Maintainer",
