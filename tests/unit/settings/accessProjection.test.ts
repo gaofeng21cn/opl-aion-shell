@@ -61,16 +61,11 @@ describe('buildAccessProjection', () => {
     );
 
     const accountCard = projection.cards.find((card) => card.key === 'account');
-    const modelAccessCard = projection.cards.find((card) => card.key === 'modelAccess');
-
     expect(accountCard).toMatchObject({
       status: 'attention_required',
       tone: 'orange',
+      statusLabel: 'settings.accessPage.cards.account.missing',
       detail: 'settings.accessPage.cards.account.missing',
-    });
-    expect(modelAccessCard).toMatchObject({
-      status: 'ready',
-      detail: 'Model service is reachable.',
     });
     expect(JSON.stringify(projection)).not.toContain('127.0.0.1:7233');
     expect(JSON.stringify(projection)).not.toContain('temporal');
@@ -133,10 +128,7 @@ describe('buildAccessProjection', () => {
       t
     );
 
-    expect(projection.cards.find((card) => card.key === 'modelAccess')).toMatchObject({
-      status: 'ready',
-      tone: 'green',
-    });
+    expect(projection.cards.map((card) => card.key)).toEqual(['model', 'account']);
     expect(projection.resourceSources).toEqual([
       {
         key: 'cloud_remote_access',

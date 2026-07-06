@@ -17,6 +17,7 @@ import {
   getOplGuiSettingsControlPlane,
   getOplGuiSettingsSecondaryPageIds,
   getOplGuiSettingsVisibleTabs,
+  type OplSettingsControlPlane,
   type OplSettingsControlPlaneRoute,
   type OplSettingsControlPlaneSecondaryPage,
 } from '@/common/config/oplProductProfile';
@@ -39,7 +40,16 @@ const settingsControlPlane = getOplGuiSettingsControlPlane();
 const profileTabIds = getOplGuiSettingsVisibleTabs();
 const secondaryPageIds = getOplGuiSettingsSecondaryPageIds();
 const ordinaryRoutes = settingsControlPlane?.ordinary_routes ?? [];
-const secondaryPages = settingsControlPlane?.secondary_pages ?? [];
+const shellSecondaryPages: OplSettingsControlPlaneSecondaryPage[] = [
+  {
+    id: 'resources',
+    path: '/settings/resources',
+    ia_group: 'setup_access',
+    slot_id: 'settings_resources',
+    visibility: 'deep_link_only',
+  },
+];
+const secondaryPages = [...(settingsControlPlane?.secondary_pages ?? []), ...shellSecondaryPages];
 const ordinaryRoutesById = new Map(ordinaryRoutes.map((route) => [route.id, route]));
 const secondaryPagesById = new Map(secondaryPages.map((page) => [page.id, page]));
 
@@ -121,7 +131,8 @@ export const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
 
 export const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
   general: ['overview', 'status', 'next step', 'workspace', 'model', 'maintenance', 'capabilities', 'remote access'],
-  access: ['setup', 'access', 'model', 'account', 'api key', 'workspace', 'web', 'docker', 'remote'],
+  access: ['setup', 'access', 'model', 'account', 'api key', 'web', 'remote'],
+  resources: ['resources', 'connections', 'docker', 'webui', 'workspace', 'cloud', 'hosted', 'external'],
   workspace: ['workspace', 'work directory', 'project folder', 'logs', 'modules root', 'paths', 'permission'],
   'local-services': ['local services', 'health', 'codex', 'temporal', 'background', 'modules', 'capability packs'],
   capabilities: ['capabilities', 'agents', 'skills', 'tools', 'voice', 'mas', 'mag', 'rca', 'oma', 'bookforge'],
@@ -429,7 +440,7 @@ const routeSlotIds = new Map<string, string>();
 for (const route of settingsControlPlane.ordinary_routes) {
   routeSlotIds.set(route.id, route.slot_id);
 }
-for (const page of settingsControlPlane.secondary_pages) {
+for (const page of secondaryPages) {
   routeSlotIds.set(page.id, page.slot_id);
 }
 
@@ -443,6 +454,13 @@ type SettingsRouteComponentKey =
   | 'StorageSettings'
   | 'AppearanceModalContent'
   | 'SystemModalContent';
+
+const SHELL_SLOT_REGISTRY: OplSettingsControlPlane['slot_registry'] = {
+  settings_resources: {
+    component_key: 'AccessSettingsContent',
+    wrapper_policy: 'host_provides_wrapper',
+  },
+};
 
 const ROUTE_COMPONENT_KEYS = new Set<string>([
   'OverviewSettings',
@@ -466,7 +484,7 @@ export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot 
   const slotId = routeSlotIds.get(normalizedRouteId);
   if (!slotId) return null;
 
-  const slotConfig = settingsControlPlane.slot_registry[slotId];
+  const slotConfig = settingsControlPlane.slot_registry[slotId] ?? SHELL_SLOT_REGISTRY[slotId];
   const componentKey = slotConfig?.component_key;
   if (!componentKey || !ROUTE_COMPONENT_KEYS.has(componentKey)) return null;
 
@@ -481,10 +499,7 @@ export function getSettingsRenderSlot(routeId: string): SettingsShellRenderSlot 
 }
 
 export function getSettingsRenderSlots(): SettingsShellRenderSlot[] {
-  return [
-    ...settingsControlPlane.ordinary_routes.map((route) => route.id),
-    ...settingsControlPlane.secondary_pages.map((page) => page.id),
-  ]
+  return [...settingsControlPlane.ordinary_routes.map((route) => route.id), ...secondaryPages.map((page) => page.id)]
     .map((id) => getSettingsRenderSlot(id))
     .filter((slot): slot is SettingsShellRenderSlot => Boolean(slot));
 }
@@ -511,7 +526,7 @@ function routeDefinitionFrom(route: OplSettingsControlPlaneRoute | OplSettingsCo
 
 export function getSettingsRouteDefinitions(): SettingsRouteDefinition[] {
   const seenPaths = new Set<string>();
-  return [...settingsControlPlane.ordinary_routes, ...settingsControlPlane.secondary_pages]
+  return [...settingsControlPlane.ordinary_routes, ...secondaryPages]
     .map(routeDefinitionFrom)
     .filter((definition): definition is SettingsRouteDefinition => {
       if (!definition || seenPaths.has(definition.path)) return false;

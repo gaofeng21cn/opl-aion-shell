@@ -1552,11 +1552,11 @@
   },
   "accessPage": {
     "title": "访问方式",
-    "description": "查看模型访问、后台任务服务和远程入口。",
+    "description": "查看模型访问、Codex CLI 和本机浏览器访问。",
     "cards": {
       "model": {
         "title": "默认模型",
-        "fallback": "未读取到"
+        "fallback": "未在 Codex 配置中找到默认模型"
       },
       "codexCli": {
         "title": "Codex CLI",
@@ -1600,7 +1600,7 @@
     "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
     "modelAccount": {
       "title": "OPL Gateway",
-      "description": "本机当前已通过 OPL Gateway 访问模型服务；只有需要更换访问密钥时才打开配置。",
+      "description": "模型访问已连接；只有需要更换访问密钥时才打开配置。",
       "showConfigButton": "配置访问密钥",
       "apiKeyPlaceholder": "粘贴 OPL Gateway 访问密钥",
       "apiKeyRequired": "请输入 OPL Gateway 访问密钥。",
@@ -1609,8 +1609,8 @@
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
-      "title": "Web 与远程访问",
-      "description": "远程访问用于从浏览器打开这台电脑上的 OPL；端口、账号和密码都在这里管理。",
+      "title": "本机远程访问",
+      "description": "从浏览器打开这台电脑上的 OPL；端口、账号和密码都在这里管理。",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
@@ -1620,6 +1620,7 @@
       "nativeAccount": "账号：admin，可在远程访问设置中修改。",
       "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
       "openNativeSettings": "打开远程访问设置",
+      "openResources": "打开资源与连接",
       "dockerTitle": "进阶部署",
       "dockerDescription": "Docker WebUI / OPL Workspace 用于服务器或托管工作区形态；日常从浏览器访问这台电脑，先使用上方本机远程访问。",
       "status": "状态：{{status}}",
@@ -1682,6 +1683,68 @@
     "actions": {
       "recheck": "重新检查",
       "fix": "修复异常"
+    }
+  },
+  "resourcesPage": {
+    "title": "资源与连接",
+    "description": "在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。",
+    "docker": {
+      "title": "Docker WebUI 与 OPL Workspace",
+      "description": "这些入口用于服务器、托管工作区或 Docker WebUI 部署。本机浏览器访问仍在访问方式页处理。",
+      "docker": "Docker WebUI",
+      "workspace": "OPL Workspace",
+      "runDryRoute": "预检查",
+      "payloadRequired": "需要输入",
+      "payloadRequiredHelp": "此操作需要文件或文件夹引用，应从 App action flow 启动。",
+      "confirmationRequired": "变更前确认",
+      "actionDryRunSuccess": "Docker WebUI 预检查完成。",
+      "actionDryRunFailed": "Docker WebUI 预检查失败。",
+      "noActions": "暂时没有可用的 Docker WebUI 操作。",
+      "actions": {
+        "settings_install_docker_webui": "安装 Docker WebUI",
+        "settings_configure_webui_api_key": "配置 WebUI API key",
+        "settings_select_webui_seed": "选择 WebUI 镜像种子",
+        "settings_run_webui_startup_maintenance": "运行 WebUI 启动维护",
+        "settings_diagnose_docker_webui": "诊断 Docker WebUI",
+        "settings_open_docker_webui": "打开 Docker WebUI"
+      }
+    },
+    "connections": {
+      "title": "云端、工作区和外部资源",
+      "description": "展示 App 状态上报的资源来源；Shell 只显示引用，不复制 provider 或工作区权威。",
+      "noSources": "当前没有上报资源连接。"
+    },
+    "statusLabels": {
+      "action_available": "可操作",
+      "available": "可用",
+      "diagnose_with_doctor": "可诊断",
+      "healthy": "正常",
+      "ok": "正常",
+      "ready": "可用",
+      "refs_only": "仅记录引用",
+      "unknown": "未读取到"
+    },
+    "resourceSources": {
+      "status": "状态：{{status}}",
+      "environmentRefs": "环境目录",
+      "managementRefs": "OPL Console 上下文",
+      "categories": {
+        "gateway": "模型接入",
+        "local": "本机资源",
+        "dockerWebui": "Docker/WebUI 部署",
+        "oplWorkspace": "OPL Workspace",
+        "sshHpc": "自有 SSH/HPC",
+        "oplCloudCompute": "OPL Cloud 托管计算",
+        "managedStorage": "托管存储",
+        "institutionalData": "机构数据源",
+        "fabric": "OPL Fabric",
+        "remote": "远程资源"
+      },
+      "management": {
+        "consoleManaged": "由 OPL Console 管理",
+        "selfManaged": "自管资源"
+      },
+      "noRefs": "未报告资源上下文。"
     }
   },
   "capabilitiesPage": {

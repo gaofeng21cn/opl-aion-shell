@@ -5,19 +5,16 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Card, Input, Message, Modal, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, Earth, Open, Repair, Toolkit, UpdateRotation } from '@icon-park/react';
+import { Button, Card, Input, Message, Modal, Space, Tag, Typography } from '@arco-design/web-react';
+import { CheckOne, Earth, Open, Repair, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
-import {
-  buildAccessProjection,
-  type DockerWebuiAction,
-  type DockerWebuiProjection,
-  type ResourceSourceProjection,
-} from '../accessProjection';
+import { buildAccessProjection } from '../accessProjection';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ResourcesSettingsContent } from './ResourcesSettings';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
@@ -29,18 +26,16 @@ function assertOplCommandOk(result: OplCommandResult): void {
 
 export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [codexApiKey, setCodexApiKey] = useState('');
   const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
   const [remoteSettingsVisible, setRemoteSettingsVisible] = useState(false);
-  const [advancedDeploymentVisible, setAdvancedDeploymentVisible] = useState(false);
   const [configureLoading, setConfigureLoading] = useState(false);
-  const [runningActionId, setRunningActionId] = useState<string | null>(null);
-  const { cards, dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
+  const { cards } = buildAccessProjection(appStateQuery.appState, t);
   const gatewayCard = cards.find((card) => card.key === 'account');
   const readinessCards = cards.filter((card) => card.key !== 'account');
   const hasAccessIssue = cards.some((card) => card.tone === 'orange');
-  const dockerSummaryTags = dockerDeploymentSummaryTags(dockerWebui, t);
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -60,24 +55,6 @@ export const AccessSettingsContent: React.FC = () => {
       Message.error(t('settings.accessPage.modelAccount.configureFailed'));
     } finally {
       setConfigureLoading(false);
-    }
-  };
-
-  const handleDockerAction = async (action: DockerWebuiAction) => {
-    if (action.payloadRequired) return;
-    setRunningActionId(action.actionId);
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: action.actionId,
-        dryRun: true,
-      });
-      assertOplCommandOk(result);
-      Message.success(t('settings.accessPage.remote.actionDryRunSuccess'));
-      await appStateQuery.load('fast', { showRefreshing: true });
-    } catch {
-      Message.error(t('settings.accessPage.remote.actionDryRunFailed'));
-    } finally {
-      setRunningActionId(null);
     }
   };
 
@@ -209,6 +186,15 @@ export const AccessSettingsContent: React.FC = () => {
               <Typography.Text className='block text-13px text-t-secondary break-words'>
                 {t('settings.accessPage.remote.description')}
               </Typography.Text>
+              <Button
+                className='mt-12px'
+                type='secondary'
+                icon={<Open theme='outline' />}
+                data-testid='opl-settings-open-resources-connections'
+                onClick={() => void navigate('/settings/resources')}
+              >
+                {t('settings.accessPage.remote.openResources')}
+              </Button>
             </div>
           </div>
           <div className='grid grid-cols-1 gap-10px'>
@@ -240,110 +226,6 @@ export const AccessSettingsContent: React.FC = () => {
                 {t('settings.accessPage.remote.openNativeSettings')}
               </Button>
             </div>
-            <div className='flex flex-col gap-10px p-12px rd-8px bg-fill-1 min-w-0'>
-              <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
-                <div className='min-w-0 flex flex-col gap-6px'>
-                  <div className='flex flex-wrap items-center gap-8px'>
-                    <Typography.Text className='font-600 text-t-primary'>
-                      {t('settings.accessPage.remote.dockerTitle')}
-                    </Typography.Text>
-                    <Tag color='gray'>
-                      <span className='inline-flex items-center gap-4px'>
-                        <Toolkit theme='outline' size='14' />
-                        {t('settings.accessPage.remote.docker')}
-                      </span>
-                    </Tag>
-                    <Tag color='blue'>
-                      <span className='inline-flex items-center gap-4px'>
-                        <Open theme='outline' size='14' />
-                        {t('settings.accessPage.remote.workspace')}
-                      </span>
-                    </Tag>
-                    {dockerSummaryTags.map((tag) => (
-                      <Tag key={tag.key} color={tag.color}>
-                        {tag.label}
-                      </Tag>
-                    ))}
-                  </div>
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('settings.accessPage.remote.dockerDescription')}
-                  </Typography.Text>
-                </div>
-                <Button
-                  type='secondary'
-                  onClick={() => setAdvancedDeploymentVisible((visible) => !visible)}
-                  data-testid='opl-settings-toggle-advanced-deployment'
-                >
-                  {advancedDeploymentVisible
-                    ? t('settings.accessPage.remote.hideAdvancedDeployment')
-                    : t('settings.accessPage.remote.showAdvancedDeployment')}
-                </Button>
-              </div>
-              {advancedDeploymentVisible && (
-                <div className='flex flex-col gap-10px'>
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
-                    {dockerWebui.actions.map((action) => {
-                      const actionButton = (
-                        <Button
-                          data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
-                          aria-label={`opl-settings-docker-webui-action-${action.actionId}`}
-                          type={action.dangerLevel === 'none' ? 'secondary' : 'primary'}
-                          icon={<Open theme='outline' />}
-                          loading={runningActionId === action.actionId}
-                          disabled={action.payloadRequired}
-                          onClick={() => void handleDockerAction(action)}
-                        >
-                          {action.payloadRequired
-                            ? t('settings.accessPage.remote.payloadRequired')
-                            : t('settings.accessPage.remote.runDryRoute')}
-                        </Button>
-                      );
-                      return (
-                        <div
-                          key={action.actionId}
-                          className='flex flex-col gap-8px p-12px rd-8px bg-fill-2 min-w-0'
-                          data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
-                        >
-                          <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
-                            <div className='min-w-0'>
-                              <Typography.Text className='font-600 text-t-primary break-words'>
-                                {t(`settings.accessPage.remote.actions.${action.actionId}`, {
-                                  defaultValue: action.label,
-                                })}
-                              </Typography.Text>
-                              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                                {action.dryRunRoute || action.route || action.actionId}
-                              </Typography.Text>
-                            </div>
-                            <Space wrap>
-                              <Tag color={action.state === 'ready' ? 'green' : 'orange'}>
-                                {accessStatusLabel(action.state, t)}
-                              </Tag>
-                              {action.confirmationRequired && (
-                                <Tag color='orange'>{t('settings.accessPage.remote.confirmationRequired')}</Tag>
-                              )}
-                            </Space>
-                          </div>
-                          {action.payloadRequired ? (
-                            <Tooltip content={t('settings.accessPage.remote.payloadRequiredHelp')}>
-                              {actionButton}
-                            </Tooltip>
-                          ) : (
-                            actionButton
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {dockerWebui.actions.length === 0 && (
-                    <Typography.Text className='text-13px text-t-secondary'>
-                      {t('settings.accessPage.remote.noActions')}
-                    </Typography.Text>
-                  )}
-                  <ResourceSources sources={resourceSources} />
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </Card>
@@ -365,101 +247,13 @@ function splitAccessDetail(detail: string): string[] {
   return detail.split(' · ').filter((line) => line.trim().length > 0);
 }
 
-function accessStatusLabel(status: string, t: (key: string, options?: Record<string, string>) => string): string {
-  return t(`settings.accessPage.statusLabels.${status}`, { defaultValue: status });
-}
-
-function isQuietDockerStatus(status: string): boolean {
-  return ['action_available', 'available', 'diagnose_with_doctor', 'healthy', 'ok', 'ready'].includes(status);
-}
-
-function dockerDeploymentSummaryTags(
-  dockerWebui: DockerWebuiProjection,
-  t: (key: string, options?: Record<string, string>) => string
-): Array<{ key: string; label: string; color: 'orange' | 'gray' }> {
-  const tags: Array<{ key: string; label: string; color: 'orange' | 'gray' }> = [];
-  [
-    ['status', dockerWebui.status],
-    ['runtime', dockerWebui.runtimeStatus],
-    ['recovery', dockerWebui.recoveryStatus],
-  ].forEach(([key, status]) => {
-    if (!isQuietDockerStatus(status)) {
-      tags.push({ key, label: accessStatusLabel(status, t), color: 'orange' });
-    }
-  });
-  return tags;
-}
-
-const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
-  const { t } = useTranslation();
-  if (sources.length === 0) return null;
+const AccessSettings: React.FC = () => {
+  const { pathname } = useLocation();
   return (
-    <div className='grid grid-cols-1 md:grid-cols-2 gap-10px' data-testid='opl-settings-resource-sources'>
-      {sources.map((source) => (
-        <div key={source.key} className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
-          <div className='flex flex-wrap items-center gap-8px'>
-            <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
-            <Tag color='blue'>
-              {t('settings.accessPage.resourceSources.status', { status: accessStatusLabel(source.status, t) })}
-            </Tag>
-            <Tag color='gray'>{t(`settings.accessPage.resourceSources.categories.${source.category}`)}</Tag>
-            {source.management && (
-              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-                {t(`settings.accessPage.resourceSources.management.${source.management}`)}
-              </Tag>
-            )}
-          </div>
-          {source.managementRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.accessPage.resourceSources.managementRefs')}
-              </Typography.Text>
-              {source.managementRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-management-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
-          {source.environmentRefs.length > 0 && (
-            <div className='grid grid-cols-1 gap-4px'>
-              <Typography.Text className='text-12px font-600 text-t-primary'>
-                {t('settings.accessPage.resourceSources.environmentRefs')}
-              </Typography.Text>
-              {source.environmentRefs.map((ref) => (
-                <Typography.Text
-                  key={`${source.key}-environment-${ref}`}
-                  className='text-12px text-t-secondary break-words'
-                >
-                  {ref}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
-          {source.refs.length > 0 ? (
-            source.refs.map((ref) => (
-              <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
-                {ref}
-              </Typography.Text>
-            ))
-          ) : (
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.accessPage.resourceSources.noRefs')}
-            </Typography.Text>
-          )}
-        </div>
-      ))}
-    </div>
+    <SettingsPageWrapper>
+      {pathname.endsWith('/resources') ? <ResourcesSettingsContent /> : <AccessSettingsContent />}
+    </SettingsPageWrapper>
   );
 };
-
-const AccessSettings: React.FC = () => (
-  <SettingsPageWrapper>
-    <AccessSettingsContent />
-  </SettingsPageWrapper>
-);
 
 export default AccessSettings;

@@ -312,12 +312,12 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
-        'settings.accessPage.description': 'Check model access, background task service, and remote entries.',
+        'settings.accessPage.description': 'Check model access, Codex CLI, and local browser access.',
         'settings.accessPage.cards.codexCli.title': 'Codex CLI',
         'settings.accessPage.cards.codexCli.fallback': 'Codex CLI status is not available yet.',
         'settings.accessPage.cards.codexCli.version': `Installed: ${options?.version}`,
         'settings.accessPage.cards.codexCli.model': `Default model: ${options?.model}`,
-        'settings.accessPage.cards.model.fallback': 'not read',
+        'settings.accessPage.cards.model.fallback': 'No default model was found in Codex config',
         'settings.accessPage.cards.account.title': 'OPL Gateway',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
         'settings.accessPage.cards.account.oplGatewayConfigured': 'OPL Gateway is connected.',
@@ -343,16 +343,16 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Model & Account shows account/API key status.`,
         'settings.accessPage.modelAccount.title': 'OPL Gateway',
         'settings.accessPage.modelAccount.description':
-          'This machine is using OPL Gateway for model access; open configuration only when you need to replace the access key.',
+          'Model access is connected; open configuration only when you need to replace the access key.',
         'settings.accessPage.modelAccount.showConfigButton': 'Configure access key',
         'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Gateway access key',
         'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Gateway access key.',
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
-        'settings.accessPage.remote.title': 'Web & Remote Access',
+        'settings.accessPage.remote.title': 'Local Remote Access',
         'settings.accessPage.remote.description':
-          'Remote access lets you open OPL on this computer from a browser; manage the port, account, and password here.',
+          'Open OPL on this computer from a browser; manage the port, account, and password here.',
         'settings.accessPage.remote.webui': 'WebUI',
         'settings.accessPage.remote.docker': 'Docker WebUI',
         'settings.accessPage.remote.workspace': 'OPL Workspace',
@@ -362,6 +362,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.remote.nativeAccount': 'Account: admin, editable in remote access settings.',
         'settings.accessPage.remote.nativePassword': 'Password: view, copy, or reset it in remote access settings.',
         'settings.accessPage.remote.openNativeSettings': 'Open remote access settings',
+        'settings.accessPage.remote.openResources': 'Open Resources & Connections',
         'settings.accessPage.remote.dockerTitle': 'Advanced deployment',
         'settings.accessPage.remote.dockerDescription':
           'Docker WebUI / OPL Workspace is for server or hosted workspace deployments. To open this computer from a browser, use local remote access first.',
@@ -449,31 +450,31 @@ describe('AccessSettingsContent', () => {
 
     expect(view.getByText('Access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
-    expect(view.getByText('Check model access, background task service, and remote entries.')).toBeTruthy();
+    expect(view.getByText('Check model access, Codex CLI, and local browser access.')).toBeTruthy();
     expect(view.getByText('Codex CLI')).toBeTruthy();
     expect(document.body.textContent).toContain('Installed: 0.125.0');
     expect(document.body.textContent).toContain('Default model: gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
-    expect(document.body.textContent).not.toContain('OPL Gateway is connected.');
+    expect(document.body.textContent).toContain('OPL Gateway is connected.');
     expect(document.body.textContent).not.toContain('Currently using OPL Gateway.');
-    expect(view.getByText('Background Task Service')).toBeTruthy();
-    expect(view.getByText(/local OPL scheduling/)).toBeTruthy();
-    expect(view.getByText('Background task service is available.')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Background Task Service');
+    expect(document.body.textContent).not.toContain('local OPL scheduling');
+    expect(document.body.textContent).not.toContain('Background task service is available.');
     expect(document.body.textContent).not.toContain('Model service is reachable.');
     expect(document.body.textContent).not.toContain('127.0.0.1:7233');
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
     expect(document.body.textContent).not.toContain('Fix issue');
-    expect(view.getByText('Web & Remote Access')).toBeTruthy();
+    expect(view.getByText('Local Remote Access')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-open-resources-connections')).toBeTruthy();
     expect(view.getByText('Local remote access')).toBeTruthy();
     expect(view.getByText('Port: 25808')).toBeTruthy();
     expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
-    expect(view.getByText('Advanced deployment')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
-    expect(view.getByText('Docker WebUI')).toBeTruthy();
-    expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain('Docker WebUI');
+    expect(document.body.textContent).not.toContain('OPL Workspace');
     expect(view.getByText('Remote access')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Status: action_available');
     expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
@@ -484,51 +485,18 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Install Docker WebUI');
     expect(document.body.textContent).not.toContain('Select WebUI image seed');
     expect(document.body.textContent).not.toContain('Diagnose Docker WebUI');
-    expect(view.queryByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeNull();
     expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
-    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
-    expect(view.getByText('Install Docker WebUI')).toBeTruthy();
-    expect(view.getByText('Select WebUI image seed')).toBeTruthy();
-    expect(view.getByText('Diagnose Docker WebUI')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-docker-webui-route-settings_select_webui_seed')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
-    expect(view.getByText('Cloud & Remote Access')).toBeTruthy();
-    expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
-    expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
-    expect(view.getAllByText('OPL Fabric').length).toBeGreaterThan(0);
-    expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
-    expect(document.body.textContent).toContain('opl://gateway/status');
-    expect(document.body.textContent).toContain('opl://gateway/key/gflabtoken');
-    expect(document.body.textContent).toContain('opl://gateway/policy/provider-routing');
-    expect(document.body.textContent).toContain('opl://environment/default');
-    expect(document.body.textContent).toContain('opl://storage/default');
-    expect(document.body.textContent).toContain('opl://fabric/resource-source');
-    expect(document.body.textContent).toContain('Managed by OPL Console');
-    expect(document.body.textContent).toContain('Self-managed resource');
-    expect(document.body.textContent).toContain('OPL Cloud managed compute');
-    expect(document.body.textContent).toContain('User SSH/HPC');
-    expect(document.body.textContent).toContain('OPL Console context');
-    expect(document.body.textContent).toContain('Environment catalog');
-    expect(document.body.textContent).toContain('opl://console/policy/compute');
-    expect(document.body.textContent).toContain('opl://console/quota/compute');
-    expect(document.body.textContent).toContain('opl://console/billing/project');
-    expect(document.body.textContent).toContain('opl://console/permission/workspace');
-    expect(document.body.textContent).toContain('opl://environment-template/python-r-quarto');
-    expect(document.body.textContent).toContain('opl://environment-version/python-r-quarto/2026-07');
-    expect(document.body.textContent).toContain('opl://task-applicability/mas');
-    expect(document.body.textContent).toContain('opl://resource-source/ssh-hpc/lab');
     expect(view.queryByTestId('opl-settings-codex-api-key-input')).toBeNull();
     expect(view.getByTestId('opl-settings-show-gateway-config-button')).toBeTruthy();
-    expect(view.getByText('Permission Mode')).toBeTruthy();
-    expect(view.getByText('Full Auto')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Permission Mode');
+    expect(document.body.textContent).not.toContain('Full Auto');
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
-    const firstReadinessCard = view.getByText('Codex CLI');
-    const remoteControls = view.getByTestId('opl-settings-docker-webui-route-settings_install_docker_webui');
-    expect(firstReadinessCard.compareDocumentPosition(remoteControls)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(view.getByText('Codex CLI').compareDocumentPosition(view.getByText('Local remote access'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {
@@ -539,7 +507,7 @@ describe('AccessSettingsContent', () => {
 
     render(<AccessSettingsContent />);
 
-    expect(document.body.textContent).toContain('Default model: not read');
+    expect(document.body.textContent).toContain('Default model: No default model was found in Codex config');
   });
 
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {
@@ -593,56 +561,5 @@ describe('AccessSettingsContent', () => {
     expect(mocks.configureCodexInvoke).not.toHaveBeenCalled();
     expect(mocks.load).not.toHaveBeenCalled();
     expect(await view.findByText('Enter an OPL Gateway access key.')).toBeTruthy();
-  });
-
-  it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {
-    const view = render(<AccessSettingsContent />);
-
-    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
-
-    const mocks = getMocks();
-    await waitFor(() =>
-      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'settings_install_docker_webui',
-        dryRun: true,
-      })
-    );
-    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
-    expect(await view.findByText('Docker WebUI precheck completed.')).toBeTruthy();
-  });
-
-  it('does not report Docker WebUI action success when the App control-plane bridge returns a structured failure', async () => {
-    const mocks = getMocks();
-    mocks.executeActionInvoke.mockResolvedValueOnce({
-      surface: 'app_action',
-      command: 'opl app action execute --action settings_install_docker_webui --dry-run --json',
-      stdout: '',
-      parsed: null,
-      ok: false,
-      error: {
-        message: 'route failed',
-      },
-    });
-    const view = render(<AccessSettingsContent />);
-
-    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
-
-    await waitFor(() => expect(view.getByText('Docker WebUI precheck failed.')).toBeTruthy());
-    expect(mocks.load).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toContain('Docker WebUI precheck completed.');
-  });
-
-  it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
-    const view = render(<AccessSettingsContent />);
-
-    fireEvent.click(view.getByTestId('opl-settings-toggle-advanced-deployment'));
-    const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
-    expect(seedAction).toHaveAttribute('disabled');
-    expect(seedAction.textContent).toContain('Needs input');
-    fireEvent.click(seedAction);
-
-    expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();
   });
 });

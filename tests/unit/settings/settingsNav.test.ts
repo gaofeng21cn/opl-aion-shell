@@ -242,6 +242,7 @@ describe('settingsNav App-owned tabs', () => {
       'theme',
       'workspace',
       'local-services',
+      'resources',
     ]);
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('runtime');
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('tools');
@@ -277,6 +278,12 @@ describe('settingsNav App-owned tabs', () => {
       id: 'settings_theme',
       routeId: 'theme',
       componentKey: 'AppearanceModalContent',
+      wrapperPolicy: 'host_provides_wrapper',
+    });
+    expect(getSettingsRenderSlot('resources')).toMatchObject({
+      id: 'settings_resources',
+      routeId: 'resources',
+      componentKey: 'AccessSettingsContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
   });

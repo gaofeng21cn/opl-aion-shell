@@ -1551,11 +1551,11 @@
   },
   "accessPage": {
     "title": "Access",
-    "description": "Check model access, background task service, and remote entries.",
+    "description": "Check model access, Codex CLI, and local browser access.",
     "cards": {
       "model": {
         "title": "Default Model",
-        "fallback": "not read"
+        "fallback": "No default model was found in Codex config"
       },
       "codexCli": {
         "title": "Codex CLI",
@@ -1599,7 +1599,7 @@
     "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
     "modelAccount": {
       "title": "OPL Gateway",
-      "description": "This machine is using OPL Gateway for model access; open configuration only when you need to replace the access key.",
+      "description": "Model access is connected; open configuration only when you need to replace the access key.",
       "showConfigButton": "Configure access key",
       "apiKeyPlaceholder": "Paste OPL Gateway access key",
       "apiKeyRequired": "Enter an OPL Gateway access key.",
@@ -1608,8 +1608,8 @@
       "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
-      "title": "Web & Remote Access",
-      "description": "Remote access lets you open OPL on this computer from a browser; manage the port, account, and password here.",
+      "title": "Local Remote Access",
+      "description": "Open OPL on this computer from a browser; manage the port, account, and password here.",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
@@ -1619,6 +1619,7 @@
       "nativeAccount": "Account: admin, editable in remote access settings.",
       "nativePassword": "Password: view, copy, or reset it in remote access settings.",
       "openNativeSettings": "Open remote access settings",
+      "openResources": "Open Resources & Connections",
       "dockerTitle": "Advanced deployment",
       "dockerDescription": "Docker WebUI / OPL Workspace is for server or hosted workspace deployments. To open this computer from a browser, use local remote access first.",
       "status": "Status: {{status}}",
@@ -1681,6 +1682,68 @@
     "actions": {
       "recheck": "Recheck",
       "fix": "Fix issue"
+    }
+  },
+  "resourcesPage": {
+    "title": "Resources & Connections",
+    "description": "Connect server WebUI, OPL Workspace, cloud or hosted workspaces, and external environments here.",
+    "docker": {
+      "title": "Docker WebUI and OPL Workspace",
+      "description": "Use these entries for server, hosted workspace, or Docker WebUI deployments. Local browser access stays on Access.",
+      "docker": "Docker WebUI",
+      "workspace": "OPL Workspace",
+      "runDryRoute": "Precheck",
+      "payloadRequired": "Needs input",
+      "payloadRequiredHelp": "This action needs a file or folder reference and must be started from the App action flow.",
+      "confirmationRequired": "Confirms before changes",
+      "actionDryRunSuccess": "Docker WebUI precheck completed.",
+      "actionDryRunFailed": "Docker WebUI precheck failed.",
+      "noActions": "Docker WebUI actions are not available yet.",
+      "actions": {
+        "settings_install_docker_webui": "Install Docker WebUI",
+        "settings_configure_webui_api_key": "Configure WebUI API key",
+        "settings_select_webui_seed": "Select WebUI image seed",
+        "settings_run_webui_startup_maintenance": "Run WebUI startup maintenance",
+        "settings_diagnose_docker_webui": "Diagnose Docker WebUI",
+        "settings_open_docker_webui": "Open Docker WebUI"
+      }
+    },
+    "connections": {
+      "title": "Cloud, workspace, and external resources",
+      "description": "Shows the resource sources reported by the App state without copying provider or workspace authority into the shell.",
+      "noSources": "No resource connections are currently reported."
+    },
+    "statusLabels": {
+      "action_available": "Available action",
+      "available": "Available",
+      "diagnose_with_doctor": "Diagnostics available",
+      "healthy": "Healthy",
+      "ok": "OK",
+      "ready": "Ready",
+      "refs_only": "Refs only",
+      "unknown": "Not read"
+    },
+    "resourceSources": {
+      "status": "Status: {{status}}",
+      "environmentRefs": "Environment catalog",
+      "managementRefs": "OPL Console context",
+      "categories": {
+        "gateway": "Model access",
+        "local": "Local resource",
+        "dockerWebui": "Docker/WebUI deployment",
+        "oplWorkspace": "OPL Workspace",
+        "sshHpc": "User SSH/HPC",
+        "oplCloudCompute": "OPL Cloud managed compute",
+        "managedStorage": "Managed storage",
+        "institutionalData": "Institutional data source",
+        "fabric": "OPL Fabric",
+        "remote": "Remote resource"
+      },
+      "management": {
+        "consoleManaged": "Managed by OPL Console",
+        "selfManaged": "Self-managed resource"
+      },
+      "noRefs": "No resource context reported."
     }
   },
   "capabilitiesPage": {
