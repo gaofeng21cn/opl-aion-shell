@@ -27,6 +27,7 @@ import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 export const APP_SETTINGS_TOP_LEVEL_TAB_IDS = [
   'general',
   'access',
+  'workspace',
   'capabilities',
   'environment',
   'storage',
@@ -115,6 +116,7 @@ export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
 export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefined> = {
   general: undefined,
   access: undefined,
+  workspace: undefined,
   capabilities: undefined,
   environment: undefined,
   storage: undefined,
@@ -135,7 +137,7 @@ export const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
 };
 
 export const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
-  general: ['overview', 'status', 'next step', 'workspace', 'model', 'maintenance', 'capabilities', 'remote access'],
+  general: ['overview', 'status', 'next step', 'model', 'maintenance', 'capabilities', 'remote access'],
   access: ['setup', 'access', 'model', 'account', 'api key', 'web', 'remote'],
   resources: ['resources', 'connections', 'docker', 'webui', 'workspace', 'cloud', 'hosted', 'external'],
   workspace: ['workspace', 'work directory', 'project folder', 'logs', 'modules root', 'paths', 'permission'],
@@ -175,8 +177,16 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
       route?.ia_group,
       route?.state_source,
       route?.refresh_source,
+      route?.scope,
+      route?.intent,
+      route?.risk,
+      route?.frequency,
       page?.ia_group,
       page?.visibility,
+      page?.scope,
+      page?.intent,
+      page?.risk,
+      page?.frequency,
       ...(OPL_SETTINGS_SEARCH_TERMS[tabId] ?? []),
     ].join(' ')
   );
@@ -204,6 +214,7 @@ export function getSettingsTabIcon(tabId: string, slot: SettingsIconSlot): React
   const siderIcons: Record<string, React.ReactElement> = {
     general: <Dashboard />,
     access: slot === 'siderDesktop' ? <Earth /> : <Communication />,
+    workspace: <FolderOpen />,
     capabilities: <Lightning />,
     environment: <Toolkit />,
     storage: <Toolkit />,

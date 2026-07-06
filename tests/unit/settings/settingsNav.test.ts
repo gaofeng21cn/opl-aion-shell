@@ -5,6 +5,7 @@ import {
   SETTINGS_DEFAULT_ROUTE,
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
+  getSettingsTabSearchText,
 } from '@/renderer/pages/settings/sections/settingsNav';
 import { buildSettingsModalMenuItems } from '@/renderer/pages/settings/registry/settingsRegistry';
 import {
@@ -32,6 +33,22 @@ const { controlPlane } = vi.hoisted(() => ({
         label_key: 'settings.onboarding',
         default_label_en: 'Setup & Access',
         slot_id: 'settings_access',
+      },
+      {
+        id: 'workspace',
+        path: '/settings/workspace',
+        label_key: 'settings.workspace',
+        default_label_en: 'Workspace',
+        default_label_zh: '工作区',
+        icon_token: 'workspace',
+        ia_group: 'overview',
+        slot_id: 'workspace',
+        state_source: 'opl app state --profile fast --json',
+        refresh_source: 'opl app state --profile fast --json',
+        scope: 'selected_workspace',
+        intent: 'configure_and_inspect_paths_permissions_and_artifact_roots',
+        risk: 'read_only_or_reversible_local_path_actions',
+        frequency: 'first_run_and_project_switching',
       },
       {
         id: 'capabilities',
@@ -89,13 +106,6 @@ const { controlPlane } = vi.hoisted(() => ({
         path: '/settings/theme',
         ia_group: 'preferences',
         slot_id: 'settings_theme',
-        visibility: 'secondary_or_deep_link',
-      },
-      {
-        id: 'workspace',
-        path: '/settings/workspace',
-        ia_group: 'overview',
-        slot_id: 'workspace',
         visibility: 'secondary_or_deep_link',
       },
       {
@@ -177,13 +187,14 @@ vi.mock('@/common/config/oplProductProfile', () => ({
   getOplGuiSettingsVisibleTabs: () => [
     'general',
     'access',
+    'workspace',
     'capabilities',
     'environment',
     'storage',
     'appearance',
     'advanced',
   ],
-  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'workspace', 'local-services'],
+  getOplGuiSettingsSecondaryPageIds: () => ['about', 'update', 'theme', 'local-services'],
 }));
 
 const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
@@ -193,6 +204,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(BUILTIN_TAB_IDS).toEqual([
       'general',
       'access',
+      'workspace',
       'capabilities',
       'environment',
       'storage',
@@ -203,6 +215,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getBuiltinSettingsNavItems(true, t).map((item) => item.label)).toEqual([
       'Overview',
       'Setup & Access',
+      'Workspace',
       'Capabilities',
       'Maintenance & Updates',
       'Data & Storage',
@@ -232,6 +245,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).toEqual([
       'general',
       'access',
+      'workspace',
       'capabilities',
       'environment',
       'storage',
@@ -240,7 +254,6 @@ describe('settingsNav App-owned tabs', () => {
       'about',
       'update',
       'theme',
-      'workspace',
       'local-services',
       'resources',
     ]);
@@ -278,6 +291,12 @@ describe('settingsNav App-owned tabs', () => {
       id: 'settings_theme',
       routeId: 'theme',
       componentKey: 'AppearanceModalContent',
+      wrapperPolicy: 'host_provides_wrapper',
+    });
+    expect(getSettingsRenderSlot('workspace')).toMatchObject({
+      id: 'workspace',
+      routeId: 'workspace',
+      componentKey: 'WorkspaceSettings',
       wrapperPolicy: 'host_provides_wrapper',
     });
     expect(getSettingsRenderSlot('resources')).toMatchObject({
@@ -331,6 +350,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(items).toEqual([
       'general',
       'access',
+      'workspace',
       'skills-extension',
       'capabilities',
       'tools-extension',
@@ -367,6 +387,7 @@ describe('settingsNav App-owned tabs', () => {
     expect(navIds).toEqual([
       'general',
       'access',
+      'workspace',
       'capabilities',
       'environment',
       'storage',
@@ -375,5 +396,10 @@ describe('settingsNav App-owned tabs', () => {
       'advanced',
     ]);
     expect(modalIds).toEqual(navIds);
+  });
+
+  it('includes route metadata in Settings search text', () => {
+    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('selected_workspace');
+    expect(getSettingsTabSearchText('workspace', 'Workspace')).toContain('project_switching');
   });
 });

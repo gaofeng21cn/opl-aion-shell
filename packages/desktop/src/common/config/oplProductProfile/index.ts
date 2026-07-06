@@ -285,6 +285,10 @@ export type OplSettingsControlPlaneRoute = {
   slot_id: string;
   state_source: string;
   refresh_source: string;
+  scope?: string;
+  intent?: string;
+  risk?: string;
+  frequency?: string;
 };
 
 export type OplSettingsControlPlaneSecondaryPage = {
@@ -293,6 +297,10 @@ export type OplSettingsControlPlaneSecondaryPage = {
   ia_group: string;
   slot_id: string;
   visibility: string;
+  scope?: string;
+  intent?: string;
+  risk?: string;
+  frequency?: string;
 };
 
 export type OplSettingsControlPlane = {
@@ -1470,7 +1478,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
-  const expectedTabs = ['general', 'access', 'capabilities', 'environment', 'storage', 'appearance', 'advanced'];
+  const expectedTabs = ['general', 'access', 'workspace', 'capabilities', 'environment', 'storage', 'appearance', 'advanced'];
   if (visibleSettingsTabs.join(',') !== expectedTabs.join(',')) {
     throw new Error('Invalid OPL product profile: GUI settings tabs must match OPL App');
   }
@@ -1480,7 +1488,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const secondaryPageIds = settingsIa
     ? readStringArray(settingsIa, 'secondary_page_ids', 'settings.settings_information_architecture')
     : [];
-  if (secondaryPageIds.join(',') !== 'about,update,theme,workspace,local-services,resources') {
+  if (secondaryPageIds.join(',') !== 'about,update,theme,local-services,resources') {
     throw new Error('Invalid OPL product profile: GUI secondary settings pages must match OPL App');
   }
   const environmentItems = readStringArray(settings, 'environment_items', 'settings');
@@ -1988,6 +1996,20 @@ function readString(record: Record<string, unknown>, key: string, label: string)
   return value;
 }
 
+function readOptionalString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function readSettingsRouteMetadata(record: Record<string, unknown>): Partial<OplSettingsControlPlaneRoute> {
+  const metadata: Partial<OplSettingsControlPlaneRoute> = {};
+  for (const key of ['scope', 'intent', 'risk', 'frequency'] as const) {
+    const value = readOptionalString(record, key);
+    if (value) metadata[key] = value;
+  }
+  return metadata;
+}
+
 function readSettingsControlPlaneRoutes(value: unknown, label: string): OplSettingsControlPlaneRoute[] {
   if (!Array.isArray(value)) {
     throw new Error(`Invalid OPL product profile: settings.control_plane.${label} must be an array`);
@@ -2007,6 +2029,7 @@ function readSettingsControlPlaneRoutes(value: unknown, label: string): OplSetti
       slot_id: readString(entry, 'slot_id', `settings.control_plane.${label}[${index}]`),
       state_source: readString(entry, 'state_source', `settings.control_plane.${label}[${index}]`),
       refresh_source: readString(entry, 'refresh_source', `settings.control_plane.${label}[${index}]`),
+      ...readSettingsRouteMetadata(entry),
     };
   });
 }
@@ -2027,6 +2050,7 @@ function readSettingsControlPlaneSecondaryPages(value: unknown): OplSettingsCont
       ia_group: readString(entry, 'ia_group', `settings.control_plane.secondary_pages[${index}]`),
       slot_id: readString(entry, 'slot_id', `settings.control_plane.secondary_pages[${index}]`),
       visibility: readString(entry, 'visibility', `settings.control_plane.secondary_pages[${index}]`),
+      ...readSettingsRouteMetadata(entry),
     };
   });
 }

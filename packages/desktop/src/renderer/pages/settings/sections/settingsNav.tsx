@@ -9,5 +9,6 @@ export {
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
   getSearchableSecondarySettingsModalItems,
+  getSettingsTabSearchText,
 } from '../registry/settingsRegistry';
 export type { BuiltinSettingsTabId, SettingsNavItem, TranslateFn } from '../registry/settingsRegistry';

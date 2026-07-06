@@ -146,6 +146,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
@@ -158,7 +159,6 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Agent')).not.toBeInTheDocument();
     expect(screen.queryByText('Tools')).not.toBeInTheDocument();
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
-    expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
     expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
   });
 
@@ -170,6 +170,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Access')).toBeInTheDocument();
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
@@ -191,8 +192,11 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
   });
 
-  it('surfaces secondary task pages only through Settings search', () => {
+  it('keeps Workspace visible while surfacing secondary resource pages through Settings search', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
+
+    expect(screen.getByText('Workspace')).toBeInTheDocument();
+    expect(screen.queryByText('Resources & Connections')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'workspace' } });
 

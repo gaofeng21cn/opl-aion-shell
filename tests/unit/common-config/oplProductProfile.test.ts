@@ -154,6 +154,7 @@ describe('OPL generated product profile', () => {
     expect(getOplGuiSettingsVisibleTabs()).toEqual([
       'general',
       'access',
+      'workspace',
       'capabilities',
       'environment',
       'storage',
@@ -164,7 +165,6 @@ describe('OPL generated product profile', () => {
       'about',
       'update',
       'theme',
-      'workspace',
       'local-services',
       'resources',
     ]);
@@ -188,6 +188,16 @@ describe('OPL generated product profile', () => {
     expect(controlPlane.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
     expect(controlPlane.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
     expect(controlPlane.extension_anchor_remap['skills-hub']).toBe('capabilities');
+    expect(controlPlane.ordinary_routes.find((route) => route.id === 'workspace')).toMatchObject({
+      path: '/settings/workspace',
+      label_key: 'settings.workspace',
+      icon_token: 'workspace',
+      scope: 'selected_workspace',
+      intent: 'configure_and_inspect_paths_permissions_and_artifact_roots',
+      risk: 'read_only_or_reversible_local_path_actions',
+      frequency: 'first_run_and_project_switching',
+    });
+    expect(controlPlane.secondary_pages.map((page) => page.id)).not.toContain('workspace');
     expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
     expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
