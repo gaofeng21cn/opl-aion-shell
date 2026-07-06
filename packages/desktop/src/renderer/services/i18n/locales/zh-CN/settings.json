@@ -1833,6 +1833,12 @@
       "yes": "是",
       "no": "否"
     },
+    "sourceLabels": {
+      "developer": "本地开发源",
+      "managed": "OPL 托管包",
+      "registry": "注册表安装",
+      "local": "本地安装"
+    },
     "candidateReports": {
       "title": "待审阅建议",
       "description": "只显示来源明确、需要你审阅的工作流或技能建议；这里不会安装、启用或改写技能。",

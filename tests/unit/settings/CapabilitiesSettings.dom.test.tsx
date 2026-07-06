@@ -301,6 +301,10 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailValues.none': 'None',
         'settings.capabilitiesPage.detailValues.yes': 'Yes',
         'settings.capabilitiesPage.detailValues.no': 'No',
+        'settings.capabilitiesPage.sourceLabels.developer': 'Local developer source',
+        'settings.capabilitiesPage.sourceLabels.managed': 'OPL managed package',
+        'settings.capabilitiesPage.sourceLabels.registry': 'Registry install',
+        'settings.capabilitiesPage.sourceLabels.local': 'Local install',
         'settings.capabilitiesPage.candidateReports.title': 'Review suggestions',
         'settings.capabilitiesPage.candidateReports.description':
           'Only source-backed workflow or skill suggestions that need review appear here. This view does not install, enable, or edit skills.',
@@ -423,8 +427,8 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Purpose')).toBeInTheDocument();
     expect(screen.queryByText('Home shortcut')).not.toBeInTheDocument();
     expect(screen.queryByText('Action')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('agent-package-refresh-registry')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-install-manifest')).toBeInTheDocument();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);
@@ -477,13 +481,13 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('Needs changes');
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
+    expect(detailedResearch).toHaveTextContent('Local developer source');
+    expect(detailedResearch).not.toHaveTextContent('Package ID');
+    expect(detailedResearch).not.toHaveTextContent('git_checkout');
+    expect(detailedResearch).not.toHaveTextContent('Not reported');
+    expect(detailedResearch).not.toHaveTextContent('candidate://openscience/artifact-graph');
 
     expect(screen.queryByTestId('capability-advanced-mas')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
-    detailedResearch = screen.getByTestId('capability-details-mas');
-    expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     await waitFor(() =>
       expect(
         within(screen.getByTestId('capability-details-mas')).getByTestId('capability-connector-group-mas-oplConnect')
@@ -494,14 +498,14 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Fabric')).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/connect\/pubmed\/readiness/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/connector\/generic\/readiness/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/fabric\/storage\/readiness/)).toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/connect\/pubmed\/readiness/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/connector\/generic\/readiness/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/fabric\/storage\/readiness/)).not.toBeInTheDocument();
     expect(within(detailedResearch).getByText('Reusable workflows')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Module runtime repair')).toBeInTheDocument();
     expect(
-      within(detailedResearch).getByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)
-    ).toBeInTheDocument();
+      within(detailedResearch).queryByText(/opl:\/\/workflow\/medautoscience\/module-runtime-repair/)
+    ).not.toBeInTheDocument();
     expect(within(detailedResearch).getByText('Environment and resource context')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Gateway')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Environment catalog')).toBeInTheDocument();
@@ -509,23 +513,29 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getByText('Resource sources')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Resource receipts')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Quota / cost')).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/gateway\/status\/gflabtoken/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/environment\/python-r-quarto/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/environment-template\/python-r-quarto/)).toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/gateway\/status\/gflabtoken/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/environment\/python-r-quarto/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/environment-template\/python-r-quarto/)).not.toBeInTheDocument();
     expect(
-      within(detailedResearch).getByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)
-    ).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/task-applicability\/mas/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).toBeInTheDocument();
+      within(detailedResearch).queryByText(/opl:\/\/environment-version\/python-r-quarto\/2026-07/)
+    ).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/task-applicability\/mas/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/storage\/workspace-volume\/medautoscience/)).not.toBeInTheDocument();
     expect(
-      within(detailedResearch).getByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)
-    ).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/receipt:\/\/resource\/latest/)).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/cost-estimate\/mas\/latest/)).toBeInTheDocument();
+      within(detailedResearch).queryByText(/opl:\/\/resource-source\/opl-cloud\/managed-compute/)
+    ).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/receipt:\/\/resource\/latest/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/cost-estimate\/mas\/latest/)).not.toBeInTheDocument();
     expect(within(detailedResearch).getByText('Reproducibility export bundle action')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('export_reproducibility_bundle')).toBeInTheDocument();
-    expect(within(detailedResearch).getByText(/opl:\/\/app-action\/task_action_receipt_preview/)).toBeInTheDocument();
-    expect(within(detailedResearch).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
+    expect(within(detailedResearch).queryByText(/opl:\/\/app-action\/task_action_receipt_preview/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/receipt:\/\/export\/latest/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
+    detailedResearch = screen.getByTestId('capability-details-mas');
+    expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
 
     const grant = screen.getByTestId('capability-purpose-mag');
     fireEvent.click(grant);

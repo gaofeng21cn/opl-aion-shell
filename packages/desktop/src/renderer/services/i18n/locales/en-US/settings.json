@@ -1832,6 +1832,12 @@
       "yes": "Yes",
       "no": "No"
     },
+    "sourceLabels": {
+      "developer": "Local developer source",
+      "managed": "OPL managed package",
+      "registry": "Registry install",
+      "local": "Local install"
+    },
     "candidateReports": {
       "title": "Review suggestions",
       "description": "Only source-backed workflow or skill suggestions that need review appear here. This view does not install, enable, or edit skills.",
