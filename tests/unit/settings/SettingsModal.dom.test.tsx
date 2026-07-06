@@ -116,7 +116,8 @@ vi.mock('react-i18next', () => ({
         'settings.localServices': 'Local Services',
         'settings.storage': 'Storage',
         'settings.capabilities': 'Capabilities',
-        'settings.onboarding': 'Get Started',
+        'settings.onboarding': 'Access',
+        'settings.resources': 'Resources & Connections',
         'settings.preferences': 'Preferences',
         'settings.advanced': 'Advanced',
         'settings.about': 'About',
@@ -144,7 +145,7 @@ describe('SettingsModal OPL App navigation', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
@@ -168,7 +169,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('settings-search-input')).toBeInTheDocument();
     expect(screen.getByTestId('overview-content')).toHaveTextContent('embedded');
     expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('Access')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
     expect(screen.getByText('Storage')).toBeInTheDocument();
@@ -196,7 +197,8 @@ describe('SettingsModal OPL App navigation', () => {
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'workspace' } });
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Get Started')).toBeInTheDocument();
+    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
+    expect(screen.queryByText('Access')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Workspace'));
 
