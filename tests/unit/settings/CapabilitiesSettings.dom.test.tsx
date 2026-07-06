@@ -419,26 +419,26 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Package')).toBeInTheDocument();
     expect(screen.getByText('Home shortcut')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
-    expect(screen.getByText('Med Auto Science')).toBeInTheDocument();
+    expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
-    expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
+    expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);
     expect(screen.getAllByText('MAG').length).toBeGreaterThan(0);
-    expect(screen.getByText('RedCube AI')).toBeInTheDocument();
+    expect(screen.getAllByText('RedCube AI').length).toBeGreaterThan(0);
     expect(screen.getAllByText('RCA').length).toBeGreaterThan(0);
-    expect(screen.getByText('OPL BookForge')).toBeInTheDocument();
+    expect(screen.getAllByText('OPL BookForge').length).toBeGreaterThan(0);
     expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
-    expect(screen.getByText('Developer source')).toBeInTheDocument();
+    expect(screen.getAllByText('Developer source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
-    expect(screen.getByText('Needs repair')).toBeInTheDocument();
+    expect(screen.getAllByText('Needs repair').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Visible in Codex').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Needs sync before Codex sees the latest version').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText(/Home visible · Order 1/)).toBeInTheDocument();
     fireEvent.click(within(research).getByTestId('capability-row-details-mas'));
-    let detailedResearch = screen.getByTestId('capability-purpose-mas');
+    let detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OpenScience artifact graph review')).toBeInTheDocument();
     const openscienceCandidate = within(detailedResearch).getByTestId(
@@ -452,16 +452,16 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
-    detailedResearch = screen.getByTestId('capability-purpose-mas');
+    detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
     expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     await waitFor(() =>
       expect(
-        within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-connector-group-mas-oplConnect')
+        within(screen.getByTestId('capability-details-mas')).getByTestId('capability-connector-group-mas-oplConnect')
       ).toBeInTheDocument()
     );
-    detailedResearch = screen.getByTestId('capability-purpose-mas');
+    detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
@@ -501,7 +501,7 @@ describe('CapabilitiesSettingsContent', () => {
 
     const grant = screen.getByTestId('capability-purpose-mag');
     fireEvent.click(within(grant).getByTestId('capability-row-details-mag'));
-    const grantCandidate = within(screen.getByTestId('capability-purpose-mag')).getByTestId(
+    const grantCandidate = within(screen.getByTestId('capability-details-mag')).getByTestId(
       'capability-candidate-report-mag-grant-workflow'
     );
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
@@ -510,7 +510,7 @@ describe('CapabilitiesSettingsContent', () => {
 
     const presentations = screen.getByTestId('capability-purpose-rca');
     fireEvent.click(within(presentations).getByTestId('capability-row-details-rca'));
-    expect(within(screen.getByTestId('capability-purpose-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
+    expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);

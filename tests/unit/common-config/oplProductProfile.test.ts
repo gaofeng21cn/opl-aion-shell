@@ -210,7 +210,15 @@ describe('OPL generated product profile', () => {
     expect(getOplGuiSettingsControlPlane().state_action_policy.recommended_action_ids.repair).toBe('repair');
     controlPlane.state_action_policy.shell_must_not_own.push('caller-local-policy');
     expect(getOplGuiSettingsControlPlane().state_action_policy.shell_must_not_own).not.toContain('caller-local-policy');
-    expect(getOplRuntimeEnvironmentItems()).toEqual(['codex', 'temporal', 'mas', 'mag', 'rca', 'oma', 'app']);
+    expect(getOplRuntimeEnvironmentItems()).toEqual([
+      'codex',
+      'temporal',
+      'med-autoscience',
+      'med-autogrant',
+      'redcube-ai',
+      'opl-meta-agent',
+      'app',
+    ]);
   });
 
   it('scrubs AionUI Team MCP state from ordinary OPL conversation snapshots', () => {
@@ -331,9 +339,9 @@ describe('OPL generated product profile', () => {
         ])
       )
     ).toMatchObject({
-      'med-autoscience': 'mas',
-      'med-autogrant': 'mag',
-      'redcube-ai': 'rca',
+      'med-autoscience': 'med-autoscience',
+      'med-autogrant': 'med-autogrant',
+      'redcube-ai': 'redcube-ai',
       'opl-bookforge': 'opl-bookforge',
       'opl-meta-agent': 'opl-meta-agent',
     });
@@ -364,13 +372,13 @@ describe('OPL generated product profile', () => {
       'opl-bookforge',
     ]);
     expect(Object.fromEntries(profiles.map((profile) => [profile.assistant_id, profile.required_skills]))).toEqual({
-      'med-autoscience': ['mas'],
-      'med-autogrant': ['mag'],
-      'redcube-ai': ['rca'],
+      'med-autoscience': ['med-autoscience'],
+      'med-autogrant': ['med-autogrant'],
+      'redcube-ai': ['redcube-ai'],
       'opl-bookforge': ['opl-bookforge'],
     });
-    expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['mag']);
-    expect(getOplAssistantSkillProfile('mag')?.required_skills).toEqual(['mag']);
+    expect(getOplAssistantSkillProfile('med-autogrant')?.required_skills).toEqual(['med-autogrant']);
+    expect(getOplAssistantSkillProfile('mag')?.required_skills).toEqual(['med-autogrant']);
     expect(getOplAssistantSkillProfile('obf')?.required_skills).toEqual(['opl-bookforge']);
     expect(getOplAssistantSkillProfile('redcube-ai')?.optional_skills).toEqual(['officecli-pptx', 'ui-ux-pro-max']);
     expect(profiles.every((profile) => !profile.optional_skills.includes('morph-ppt'))).toBe(true);
@@ -387,7 +395,7 @@ describe('OPL generated product profile', () => {
     expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
 
     profiles[0].required_skills.push('caller-local-skill');
-    expect(getOplAssistantSkillProfile('med-autoscience')?.required_skills).toEqual(['mas']);
+    expect(getOplAssistantSkillProfile('med-autoscience')?.required_skills).toEqual(['med-autoscience']);
   });
 
   it('exposes the built-in assistant route receipt policy', () => {
@@ -503,9 +511,9 @@ describe('OPL generated product profile', () => {
     skills.push('caller-local-skill');
 
     expect(getOplDefaultCodexSkills()).toEqual([
-      'mas',
-      'mag',
-      'rca',
+      'med-autoscience',
+      'med-autogrant',
+      'redcube-ai',
       'opl-bookforge',
       'superpowers',
       'cron',
@@ -527,9 +535,9 @@ describe('OPL generated product profile', () => {
     const skillPriority = getOplSkillPriority();
 
     expect(skillPriority).toEqual([
-      'mas',
-      'mag',
-      'rca',
+      'med-autoscience',
+      'med-autogrant',
+      'redcube-ai',
       'opl-bookforge',
       'superpowers',
       'cron',

@@ -1179,9 +1179,9 @@ function readAssistantSkillProfiles(gui: Record<string, unknown>): OplAssistantS
   }
   for (const profile of profiles) {
     const requiredSkillsByAssistant: Record<string, string[]> = {
-      'med-autoscience': ['mas'],
-      'med-autogrant': ['mag'],
-      'redcube-ai': ['rca'],
+      'med-autoscience': ['med-autoscience'],
+      'med-autogrant': ['med-autogrant'],
+      'redcube-ai': ['redcube-ai'],
       'opl-bookforge': ['opl-bookforge'],
     };
     if (profile.required_skills.join(',') !== (requiredSkillsByAssistant[profile.assistant_id] ?? []).join(',')) {
