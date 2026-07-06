@@ -184,8 +184,8 @@
           "package_id": "med-autoscience",
           "primary_label": "科研",
           "package_short_name": "MAS",
-          "codex_visible_entry": "mas",
-          "required_skill_ids": ["mas"],
+          "codex_visible_entry": "med-autoscience",
+          "required_skill_ids": ["med-autoscience"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -198,8 +198,8 @@
           "package_id": "med-autogrant",
           "primary_label": "基金",
           "package_short_name": "MAG",
-          "codex_visible_entry": "mag",
-          "required_skill_ids": ["mag"],
+          "codex_visible_entry": "med-autogrant",
+          "required_skill_ids": ["med-autogrant"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -212,8 +212,8 @@
           "package_id": "redcube-ai",
           "primary_label": "演示",
           "package_short_name": "RCA",
-          "codex_visible_entry": "rca",
-          "required_skill_ids": ["rca"],
+          "codex_visible_entry": "redcube-ai",
+          "required_skill_ids": ["redcube-ai"],
           "source": "opl_app_home",
           "executor": "codex_cli",
           "display_policy": "purpose_first",
@@ -447,9 +447,9 @@
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
         "default_home_visible": true,
-        "codex_visible_entry": "mas",
+        "codex_visible_entry": "med-autoscience",
         "home_shortcut_ids": ["research"],
-        "required_skill_ids": ["mas"],
+        "required_skill_ids": ["med-autoscience"],
         "optional_skill_ids": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -463,9 +463,9 @@
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
         "default_home_visible": true,
-        "codex_visible_entry": "mag",
+        "codex_visible_entry": "med-autogrant",
         "home_shortcut_ids": ["grant"],
-        "required_skill_ids": ["mag"],
+        "required_skill_ids": ["med-autogrant"],
         "optional_skill_ids": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -479,9 +479,9 @@
         "package_kind": "starter_professional_agent_package",
         "installed_manageable": true,
         "default_home_visible": true,
-        "codex_visible_entry": "rca",
+        "codex_visible_entry": "redcube-ai",
         "home_shortcut_ids": ["ppt"],
-        "required_skill_ids": ["rca"],
+        "required_skill_ids": ["redcube-ai"],
         "optional_skill_ids": ["officecli-pptx", "ui-ux-pro-max"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -603,7 +603,7 @@
     "assistant_skill_profiles": [
       {
         "assistant_id": "med-autoscience",
-        "required_skills": ["mas"],
+        "required_skills": ["med-autoscience"],
         "optional_skills": ["mineru-document-extractor", "officecli-docx", "officecli-xlsx"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -611,7 +611,7 @@
       },
       {
         "assistant_id": "med-autogrant",
-        "required_skills": ["mag"],
+        "required_skills": ["med-autogrant"],
         "optional_skills": ["officecli-docx", "officecli-xlsx", "mineru-document-extractor"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -619,7 +619,7 @@
       },
       {
         "assistant_id": "redcube-ai",
-        "required_skills": ["rca"],
+        "required_skills": ["redcube-ai"],
         "optional_skills": ["officecli-pptx", "ui-ux-pro-max"],
         "required_skill_policy": "checked_locked",
         "optional_skill_policy": "unchecked_user_selectable",
@@ -679,9 +679,9 @@
       }
     },
     "default_visible_skills": [
-      "mas",
-      "mag",
-      "rca",
+      "med-autoscience",
+      "med-autogrant",
+      "redcube-ai",
       "opl-bookforge",
       "superpowers",
       "cron",
@@ -698,9 +698,9 @@
       "ui-ux-pro-max"
     ],
     "skill_priority": [
-      "mas",
-      "mag",
-      "rca",
+      "med-autoscience",
+      "med-autogrant",
+      "redcube-ai",
       "opl-bookforge",
       "superpowers",
       "cron",
@@ -987,7 +987,15 @@
       "webui": "access",
       "pet": "appearance"
     },
-    "environment_items": ["codex", "temporal", "mas", "mag", "rca", "oma", "app"],
+    "environment_items": [
+      "codex",
+      "temporal",
+      "med-autoscience",
+      "med-autogrant",
+      "redcube-ai",
+      "opl-meta-agent",
+      "app"
+    ],
     "developer_profile": {
       "label_key": "settings.developerProfile",
       "description_key": "settings.developerProfileDesc",
@@ -1004,7 +1012,7 @@
       ],
       "capabilities": {
         "source_channel": {
-          "standard_default": "agent_latest_package_channel",
+          "standard_default": "agent_rolling_latest_package_channel",
           "developer_opt_in": "github_repo_or_local_checkout",
           "display_policy": "show_package_channel_first_then_checkout_override"
         },
@@ -1019,7 +1027,7 @@
           "display_policy": "show_repo_authority_without_hiding_user_confirmation"
         },
         "agent_automation": {
-          "standard_default": "silent_background_agent_package_updates",
+          "standard_default": "automatic_clean_managed_agent_package_updates",
           "developer_opt_in": "developer_enabled_agent_automation",
           "display_policy": "show_automation_scope_and_confirmation_policy"
         },
@@ -1458,7 +1466,7 @@
     },
     "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
     "tools": ["officecli", "mineru_open_api"],
-    "domain_modules": ["mas", "mag", "rca", "opl-meta-agent", "opl-bookforge"],
+    "domain_modules": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-meta-agent", "opl-bookforge"],
     "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent", "opl-bookforge"],
     "management_authority": {
       "officecli": "app_or_cli_managed",
@@ -1467,9 +1475,9 @@
       "opl-bookforge": "app_or_cli_managed"
     },
     "default_packaged_codex_skill_ids": [
-      "mas",
-      "mag",
-      "rca",
+      "med-autoscience",
+      "med-autogrant",
+      "redcube-ai",
       "opl-bookforge",
       "superpowers",
       "cron",
@@ -1501,24 +1509,24 @@
       "mineru-document-extractor",
       "ui-ux-pro-max"
     ],
-    "domain_plugin_skill_ids": ["mas", "mag", "rca", "opl-bookforge"],
+    "domain_plugin_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "domain_exposure": [
       {
         "domain_id": "med-autoscience",
-        "codex_visible_entry": "mas",
+        "codex_visible_entry": "med-autoscience",
         "preferred_app_distribution": "plugin_packaged_skill",
         "direct_skill_semantics_required": true
       },
       {
         "domain_id": "med-autogrant",
-        "codex_visible_entry": "mag",
+        "codex_visible_entry": "med-autogrant",
         "preferred_app_distribution": "plugin_packaged_skill",
         "direct_skill_semantics_required": true
       },
       {
         "domain_id": "redcube-ai",
-        "codex_visible_entry": "rca",
+        "codex_visible_entry": "redcube-ai",
         "preferred_app_distribution": "plugin_packaged_skill",
         "direct_skill_semantics_required": true
       },
