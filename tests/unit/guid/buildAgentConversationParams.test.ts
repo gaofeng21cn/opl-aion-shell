@@ -88,8 +88,8 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).not.toContain('## OPL App Default Session Rules');
   });
 
-  it('prepends the head-down prompt line when enabled from settings', () => {
-    configService.setLocal('codex.oplFlowHeadDownMode', true);
+  it('does not inject prompt text for the intelligence enhancement setting', () => {
+    configService.setLocal('codex.oplFlowIntelligenceEnhancementMode', true);
 
     const params = buildAgentConversationParams({
       backend: 'codex',
@@ -104,9 +104,8 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'zh-CN',
     });
 
-    expect(params.extra.preset_context).toMatch(
-      /^DO NOT send optional commentary[\s\S]+你正在 One Person Lab App[\s\S]+已有智能体规则。/
-    );
+    expect(params.extra.preset_context).toMatch(/^你正在 One Person Lab App[\s\S]+已有智能体规则。/);
+    expect(params.extra.preset_context).not.toContain('DO NOT send optional commentary');
   });
 
   it('sets max Codex reasoning by default while preserving user overrides', () => {

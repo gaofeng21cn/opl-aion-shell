@@ -478,27 +478,23 @@ describe('OPL generated product profile', () => {
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
       optional_user_modes: {
-        head_down: {
-          id: 'head_down',
-          settings_key: 'codex.oplFlowHeadDownMode',
-          label_key: 'settings.oplFlowHeadDownMode',
-          description_key: 'settings.oplFlowHeadDownModeDesc',
-          prompt_line: 'DO NOT send optional commentary',
-          quick_action_label_key: 'conversation.headDownQuickAction',
-          quick_action_prompt:
-            'Spend time on thinking; you do not need to use the commentary channel to report progress to me.',
-          quick_action_policy: 'send_as_current_conversation_user_message_when_mode_enabled',
-          injection_policy: 'prepend_before_opl_flow_context',
+        intelligence_enhancement: {
+          id: 'intelligence_enhancement',
+          settings_key: 'codex.oplFlowIntelligenceEnhancementMode',
+          label_key: 'settings.oplFlowIntelligenceEnhancementMode',
+          description_key: 'settings.oplFlowIntelligenceEnhancementModeDesc',
+          provider: 'codexcont',
+          local_proxy_base_url: 'http://127.0.0.1:8787/v1',
+          upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy',
+          behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action',
         },
       },
     });
 
     policy.source = 'caller-local-source';
     expect(getOplFlowContextPolicy().source).toBe('one-person-lab-app');
-    (policy.optional_user_modes!.head_down as { prompt_line: string }).prompt_line = 'caller-local-line';
-    expect(getOplFlowContextPolicy().optional_user_modes?.head_down.prompt_line).toBe(
-      'DO NOT send optional commentary'
-    );
+    (policy.optional_user_modes!.intelligence_enhancement as { provider: string }).provider = 'caller-local-provider';
+    expect(getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement.provider).toBe('codexcont');
   });
 
   it('selects the newest frontier Codex model without exposing retired choices', () => {

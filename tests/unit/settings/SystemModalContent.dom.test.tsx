@@ -62,7 +62,7 @@ vi.mock('@/common/config/configService', () => ({
       const defaults: Record<string, unknown> = {
         'system.notificationEnabled': true,
         'system.autoPreviewOfficeFiles': true,
-        'codex.oplFlowHeadDownMode': false,
+        'codex.oplFlowIntelligenceEnhancementMode': false,
       };
       return defaults[key];
     }),
@@ -180,20 +180,26 @@ describe('SystemModalContent OPL App state', () => {
       screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
     ).toBeInTheDocument();
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.oplFlowContextDesc');
-    expect(screen.getByTestId('opl-flow-head-down-mode-row')).toHaveTextContent('settings.oplFlowHeadDownMode');
-    expect(screen.getByTestId('opl-flow-head-down-mode-row')).toHaveTextContent('settings.oplFlowHeadDownModeDesc');
+    expect(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).toHaveTextContent(
+      'settings.oplFlowIntelligenceEnhancementMode'
+    );
+    expect(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).toHaveTextContent(
+      'settings.oplFlowIntelligenceEnhancementModeDesc'
+    );
     expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
     expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();
   });
 
-  it('persists OPL Flow head-down mode from the settings switch', async () => {
+  it('persists OPL Flow intelligence enhancement mode from the settings switch', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
-    fireEvent.click(within(screen.getByTestId('opl-flow-head-down-mode-row')).getByRole('switch'));
+    fireEvent.click(within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch'));
 
-    await waitFor(() => expect(configService.set).toHaveBeenCalledWith('codex.oplFlowHeadDownMode', true));
+    await waitFor(() =>
+      expect(configService.set).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true)
+    );
   });
 
   it('does not expose machine Developer Mode states in the status pill', async () => {

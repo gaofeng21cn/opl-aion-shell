@@ -17,14 +17,12 @@ const {
   resetStateMock,
   emitterEmitMock,
   setSendBoxHandlerMock,
-  headDownModeEnabled,
 } = vi.hoisted(() => ({
   sendMessageInvokeMock: vi.fn(),
   addOrUpdateMessageMock: vi.fn(),
   resetStateMock: vi.fn(),
   emitterEmitMock: vi.fn(),
   setSendBoxHandlerMock: vi.fn(),
-  headDownModeEnabled: { current: false },
 }));
 
 vi.mock('@/common', () => ({
@@ -114,9 +112,6 @@ vi.mock('@/renderer/hooks/chat/useAutoTitle', () => ({
   useAutoTitle: () => ({
     checkAndUpdateTitle: vi.fn(),
   }),
-}));
-vi.mock('@/renderer/hooks/config/useConfig', () => ({
-  useConfig: () => [headDownModeEnabled.current, vi.fn()],
 }));
 vi.mock('@/renderer/hooks/context/ConversationContext', () => ({
   useConversationContextSafe: () => null,
@@ -226,7 +221,6 @@ const makeMessageState = (): UseAcpMessageReturn => ({
 describe('AcpSendBox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    headDownModeEnabled.current = false;
     sendMessageInvokeMock.mockResolvedValue({ msg_id: 'message-id', turn_id: 'turn-id', runtime: 'acp' });
   });
 
@@ -263,25 +257,7 @@ describe('AcpSendBox', () => {
     });
   });
 
-  it('sends the head-down quick prompt directly to the current Codex conversation when enabled', async () => {
-    headDownModeEnabled.current = true;
-
-    render(<AcpSendBox conversation_id='conv-1' backend='codex' messageState={makeMessageState()} />);
-
-    await act(async () => {
-      screen.getByTestId('opl-head-down-send-btn').click();
-    });
-
-    await waitFor(() => {
-      expect(sendMessageInvokeMock).toHaveBeenCalledWith({
-        input: 'Spend time on thinking; you do not need to use the commentary channel to report progress to me.',
-        conversation_id: 'conv-1',
-        files: [],
-      });
-    });
-  });
-
-  it('hides the head-down quick prompt when the mode is disabled', () => {
+  it('does not expose the retired head-down quick prompt button', () => {
     render(<AcpSendBox conversation_id='conv-1' backend='codex' messageState={makeMessageState()} />);
 
     expect(screen.queryByTestId('opl-head-down-send-btn')).not.toBeInTheDocument();
