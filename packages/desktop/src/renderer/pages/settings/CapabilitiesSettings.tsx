@@ -612,30 +612,19 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </div>
           <div className='flex flex-col gap-12px xl:flex-row'>
             <div className='min-w-0 flex-1 overflow-x-auto'>
-              <div className='min-w-860px border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
+              <div className='min-w-640px border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
                 <div
                   className='grid items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] bg-fill-1 px-10px py-8px text-12px text-t-secondary'
                   style={{
-                    gridTemplateColumns: '1.55fr 1.15fr 130px 220px',
+                    gridTemplateColumns: '1.55fr 1.15fr 150px',
                   }}
                 >
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.package')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.purpose')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.status')}</span>
-                  <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.home')}</span>
                 </div>
                 <div className='grid grid-cols-1 gap-0'>
                   {filteredCapabilities.map((item) => {
-                    const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
-                    const shortcutId = shortcut?.shortcut_id ?? '';
-                    const shortcutIndex = shortcutId ? (shortcutIndexById.get(shortcutId) ?? -1) : -1;
-                    const homeLabel = !shortcut
-                      ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
-                      : !isOplHomeShortcutVisible(shortcut, shortcutPreferences)
-                        ? t('settings.capabilitiesPage.packageManager.homeHidden')
-                        : t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
-                            order: String(shortcutIndex + 1),
-                          });
                     const isSelected = selectedCapability?.key === item.key;
                     return (
                       <div
@@ -644,7 +633,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           isSelected ? 'bg-[rgb(var(--primary-1))]' : 'bg-[var(--color-bg-1)]'
                         }`}
                         style={{
-                          gridTemplateColumns: '1.55fr 1.15fr 130px 220px',
+                          gridTemplateColumns: '1.55fr 1.15fr 150px',
                         }}
                         data-testid={`capability-purpose-${item.key}`}
                         onClick={() => setSelectedCapabilityKey(item.key)}
@@ -664,44 +653,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         </div>
                         <div className='min-w-0'>
                           <Typography.Text className='block truncate text-t-primary'>{item.description}</Typography.Text>
-                          <Typography.Text className='mt-4px block truncate text-12px text-t-secondary'>
-                            {item.tags.join(' / ')}
-                          </Typography.Text>
                         </div>
                         <div className='min-w-0'>
                           <Tag color={capabilityStatusColor(item.status)}>{capabilityStatusLabel(item.status, t)}</Tag>
                           <Typography.Text className='mt-4px block truncate text-12px text-t-secondary'>
                             {capabilityCodexVisibilityLabel(item, t)}
                           </Typography.Text>
-                        </div>
-                        <div className='min-w-0' onClick={(event) => event.stopPropagation()}>
-                          <Typography.Text className='block truncate text-t-primary'>{homeLabel}</Typography.Text>
-                          {shortcut && (
-                            <Space wrap size={4} className='mt-4px items-center'>
-                              <Switch
-                                size='small'
-                                checked={isOplHomeShortcutVisible(shortcut, shortcutPreferences)}
-                                onChange={(checked) => updateShortcutHidden(shortcutId, !checked)}
-                                data-testid={`agent-package-home-toggle-${item.key}`}
-                              />
-                              <Button
-                                size='mini'
-                                disabled={shortcutIndex <= 0}
-                                onClick={() => moveShortcut(shortcutId, -1)}
-                                data-testid={`agent-package-home-up-${item.key}`}
-                              >
-                                {t('settings.capabilitiesPage.packageManager.moveUp')}
-                              </Button>
-                              <Button
-                                size='mini'
-                                disabled={shortcutIndex < 0 || shortcutIndex >= orderedShortcuts.length - 1}
-                                onClick={() => moveShortcut(shortcutId, 1)}
-                                data-testid={`agent-package-home-down-${item.key}`}
-                              >
-                                {t('settings.capabilitiesPage.packageManager.moveDown')}
-                              </Button>
-                            </Space>
-                          )}
                         </div>
                       </div>
                     );

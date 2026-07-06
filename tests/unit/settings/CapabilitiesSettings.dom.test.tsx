@@ -421,7 +421,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
     expect(screen.getByText('Capability')).toBeInTheDocument();
     expect(screen.getByText('Purpose')).toBeInTheDocument();
-    expect(screen.getByText('Home shortcut')).toBeInTheDocument();
+    expect(screen.queryByText('Home shortcut')).not.toBeInTheDocument();
     expect(screen.queryByText('Action')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-refresh-registry')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
@@ -442,10 +442,13 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getAllByText('Needs sync before Codex sees the latest version').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
-    expect(within(research).getByText(/Home visible · Order 1/)).toBeInTheDocument();
+    expect(within(research).getByText('Research')).toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
-    expect(within(oma).getByText('Home hidden')).toBeInTheDocument();
-    const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-oma');
+    expect(within(oma).getAllByText('OMA').length).toBeGreaterThan(0);
+    fireEvent.click(oma);
+    const omaHomeSwitch = within(screen.getByTestId('capability-details-oma')).getByTestId(
+      'agent-package-home-toggle-details-oma'
+    );
     expect(omaHomeSwitch).not.toHaveClass('arco-switch-checked');
     fireEvent.click(omaHomeSwitch);
     await waitFor(() =>
@@ -559,7 +562,7 @@ describe('CapabilitiesSettingsContent', () => {
   it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByTestId('agent-package-home-toggle-mas'));
+    fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -574,7 +577,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('agent-package-home-down-mas'));
+    fireEvent.click(screen.getByTestId('agent-package-home-down-details-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
