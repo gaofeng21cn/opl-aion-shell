@@ -43,7 +43,8 @@ type DeveloperCapabilityDisplay = {
   level: string;
 };
 
-const OPL_FLOW_HEAD_DOWN_MODE = getOplFlowContextPolicy().optional_user_modes?.head_down;
+const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE =
+  getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
 
 const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
   'contributor',
@@ -118,7 +119,7 @@ const SystemModalContent: React.FC = () => {
   const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
-  const [oplFlowHeadDownMode, setOplFlowHeadDownMode] = useState(false);
+  const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(false);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -159,8 +160,10 @@ const SystemModalContent: React.FC = () => {
     setCronNotificationEnabled(configService.get('system.cronNotificationEnabled') ?? false);
     setSaveUploadToWorkspace(configService.get('upload.saveToWorkspace') ?? false);
     setAutoPreviewOfficeFiles(configService.get('system.autoPreviewOfficeFiles') ?? true);
-    if (OPL_FLOW_HEAD_DOWN_MODE) {
-      setOplFlowHeadDownMode(configService.get(OPL_FLOW_HEAD_DOWN_MODE.settings_key) ?? false);
+    if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
+      setOplFlowIntelligenceEnhancementMode(
+        configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false
+      );
     }
     const pt = configService.get('acp.promptTimeout');
     if (pt && pt > 0) setPromptTimeout(pt);
@@ -308,12 +311,12 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleOplFlowHeadDownModeChange = useCallback((checked: boolean) => {
-    if (!OPL_FLOW_HEAD_DOWN_MODE) return;
-    setOplFlowHeadDownMode(checked);
-    configService.set(OPL_FLOW_HEAD_DOWN_MODE.settings_key, checked).catch(() => {
-      setOplFlowHeadDownMode(!checked);
-      configService.setLocal(OPL_FLOW_HEAD_DOWN_MODE.settings_key, !checked);
+  const handleOplFlowIntelligenceEnhancementModeChange = useCallback((checked: boolean) => {
+    if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
+    setOplFlowIntelligenceEnhancementMode(checked);
+    configService.set(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, checked).catch(() => {
+      setOplFlowIntelligenceEnhancementMode(!checked);
+      configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, !checked);
     });
   }, []);
 
@@ -603,13 +606,16 @@ const SystemModalContent: React.FC = () => {
                 {oplFlowContextSource && <div className='truncate'>{oplFlowContextSource}</div>}
               </div>
             </PreferenceRow>
-            {OPL_FLOW_HEAD_DOWN_MODE && (
+            {OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE && (
               <PreferenceRow
-                label={t(OPL_FLOW_HEAD_DOWN_MODE.label_key)}
-                description={t(OPL_FLOW_HEAD_DOWN_MODE.description_key)}
-                testId='opl-flow-head-down-mode-row'
+                label={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.label_key)}
+                description={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.description_key)}
+                testId='opl-flow-intelligence-enhancement-mode-row'
               >
-                <Switch checked={oplFlowHeadDownMode} onChange={handleOplFlowHeadDownModeChange} />
+                <Switch
+                  checked={oplFlowIntelligenceEnhancementMode}
+                  onChange={handleOplFlowIntelligenceEnhancementModeChange}
+                />
               </PreferenceRow>
             )}
           </div>

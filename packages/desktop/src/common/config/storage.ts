@@ -90,8 +90,8 @@ export interface IConfigStorageRefer {
   'upload.saveToWorkspace'?: boolean;
   // guid 页面上次选择的 agent 类型 / Last selected agent type on guid page
   'guid.lastSelectedAgent'?: string;
-  // OPL Flow context: prepend "DO NOT send optional commentary" to new Codex sessions
-  'codex.oplFlowHeadDownMode'?: boolean;
+  // OPL Flow context: use CodexCont-backed local reasoning continuation mode
+  'codex.oplFlowIntelligenceEnhancementMode'?: boolean;
   // 关闭窗口时最小化到系统托盘 / Minimize to system tray when closing window
   'system.closeToTray'?: boolean;
   // 任务完成时显示系统通知 / Show system notification when task completes

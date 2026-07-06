@@ -7,7 +7,6 @@ import {
   filterOplOrdinarySkillNames,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
-  getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
   getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
@@ -31,7 +30,6 @@ import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUti
 import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
 import { getSendBoxDraftHook, type FileOrFolderItem } from '@/renderer/hooks/chat/useSendBoxDraft';
 import { createSetUploadFile, useSendBoxFiles } from '@/renderer/hooks/chat/useSendBoxFiles';
-import { useConfig } from '@/renderer/hooks/config/useConfig';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
@@ -57,7 +55,7 @@ import {
   formatOplCodexModelDisplay,
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
-import { Button, Message, Tag } from '@arco-design/web-react';
+import { Message, Tag } from '@arco-design/web-react';
 import { Brain, MagicHat, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -74,11 +72,6 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
-const headDownQuickAction = getOplFlowContextPolicy().optional_user_modes?.head_down;
-const headDownQuickActionPrompt =
-  headDownQuickAction?.quick_action_prompt ??
-  'Spend time on thinking; you do not need to use the commentary channel to report progress to me.';
-const headDownQuickActionLabelKey = headDownQuickAction?.quick_action_label_key ?? 'conversation.headDownQuickAction';
 
 const useSendBoxDraft = (conversation_id: string) => {
   const { data, mutate } = useAcpSendBoxDraft(conversation_id);
@@ -134,8 +127,6 @@ const AcpSendBox: React.FC<{
   const teamPermission = useTeamPermission();
   const showOplCodexModelStatus = backend === 'codex' && isOplCodexCliFixedExecutor();
   const useOplCodexModelDisplay = showOplCodexModelStatus;
-  const [oplFlowHeadDownModeEnabled] = useConfig('codex.oplFlowHeadDownMode');
-  const showHeadDownQuickAction = showOplCodexModelStatus && oplFlowHeadDownModeEnabled === true;
   const oplCodexModelStatusText = getOplModelStatusDisplayText(resolveLocaleKey(i18n.language));
   const modelDisplayLocale = resolveLocaleKey(i18n.language) as OplModelDisplayLocale;
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
@@ -431,21 +422,6 @@ Please check your local CLI tool authentication status`,
 
     await executeCommand({ input: message, files: allFiles });
   };
-
-  const handleHeadDownQuickAction = useCallback(async () => {
-    if (
-      shouldEnqueueConversationCommand({
-        enabled: true,
-        isBusy,
-        hasPendingCommands,
-      })
-    ) {
-      enqueue({ input: headDownQuickActionPrompt, files: [] });
-      return;
-    }
-
-    await executeCommand({ input: headDownQuickActionPrompt, files: [] });
-  }, [enqueue, executeCommand, hasPendingCommands, isBusy]);
 
   const handleEditQueuedCommand = useCallback(
     (item: ConversationCommandQueueItem) => {
@@ -786,22 +762,6 @@ Please check your local CLI tool authentication status`,
         onSlashBuiltinCommand={onSlashBuiltinCommand}
         allowSendWhileLoading
         compactActions={false}
-        sendButtonPrefix={
-          showHeadDownQuickAction ? (
-            <Button
-              size='small'
-              type='secondary'
-              className='whitespace-nowrap'
-              data-testid='opl-head-down-send-btn'
-              title={headDownQuickActionPrompt}
-              onClick={() => {
-                void handleHeadDownQuickAction().catch(() => {});
-              }}
-            >
-              {t(headDownQuickActionLabelKey, { defaultValue: 'Head down' })}
-            </Button>
-          ) : undefined
-        }
       ></SendBox>
       {isMobile && (
         <>
