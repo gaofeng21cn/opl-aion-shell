@@ -1749,7 +1749,7 @@
   },
   "capabilitiesPage": {
     "title": "智能体与能力",
-    "description": "先用目录式列表管理能力包；技能和工具保留为支撑详情。",
+    "description": "先看每个能力能做什么；包 ref、manifest 和诊断信息保留在高级详情里。",
     "status": {
       "ready": "已就绪",
       "update": "可更新",
@@ -1870,14 +1870,14 @@
     "actions": {
       "openDetails": "查看能力",
       "installOrSync": "设置能力",
-      "updateOrSync": "更新或同步",
-      "repair": "查看修复路径"
+      "updateOrSync": "打开维护页",
+      "repair": "打开维护页"
     },
     "packageManager": {
-      "title": "智能体包",
-      "description": "刷新注册表、安装 manifest，并在同一份包目录里管理首页快捷入口。包生命周期变更仍走 App action 路由。",
-      "catalogTitle": "包目录",
-      "catalogDescription": "在一份紧凑列表里统一管理安装状态和首页显示；只有在需要看细节或修复上下文时才展开。",
+      "title": "能力目录",
+      "description": "先看到可用能力、状态、首页显示和下一步动作。更新、同步和修复归维护页处理。",
+      "catalogTitle": "能力目录",
+      "catalogDescription": "需要设置详情、首页快捷入口或高级包上下文时再打开行详情。",
       "refreshRegistry": "刷新注册表",
       "searchPlaceholder": "搜索包名、标签或描述",
       "allStatuses": "所有状态",
@@ -1896,14 +1896,14 @@
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
       "tableHeaders": {
-        "package": "包名",
-        "purpose": "用途 / 标签",
+        "package": "能力",
+        "purpose": "能做什么",
         "status": "状态",
         "source": "来源",
         "version": "版本",
         "codex": "Codex",
         "home": "首页快捷方式",
-        "actions": "操作"
+        "actions": "下一步"
       },
       "actions": {
         "update": "更新",

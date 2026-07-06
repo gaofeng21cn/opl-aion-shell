@@ -18,7 +18,7 @@
 import { Button, Card, Input, Message, Select, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Refresh, Robot, Search, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
@@ -50,20 +50,6 @@ export type CapabilitiesTab = 'skills' | 'tools';
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
 const DEFAULT_AGENT_REGISTRY_URL =
   'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json';
-
-type PackageAction = {
-  key: 'update' | 'repair' | 'rollback' | 'uninstall' | 'hide' | 'show';
-  actionId: string;
-};
-
-const PACKAGE_ACTIONS: PackageAction[] = [
-  { key: 'update', actionId: 'agent_package_update' },
-  { key: 'repair', actionId: 'agent_package_repair' },
-  { key: 'rollback', actionId: 'agent_package_rollback' },
-  { key: 'uninstall', actionId: 'agent_package_uninstall' },
-  { key: 'hide', actionId: 'agent_package_hide' },
-  { key: 'show', actionId: 'agent_package_unhide' },
-];
 
 function capabilityStatusColor(status: CapabilityStatus): 'green' | 'orange' | 'red' | 'gray' | 'arcoblue' {
   if (status === 'ready') return 'green';
@@ -97,17 +83,15 @@ function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
   return <Robot theme='outline' />;
 }
 
-function capabilityActionLabel(item: CapabilityPurposeViewModel, t: (key: string) => string): string {
-  if (item.status === 'missing') return t('settings.capabilitiesPage.actions.installOrSync');
-  if (item.status === 'update' || item.status === 'sync') return t('settings.capabilitiesPage.actions.updateOrSync');
-  if (item.status === 'repair') return t('settings.capabilitiesPage.actions.repair');
-  if (item.status === 'attention' || item.status === 'source')
-    return t('settings.capabilitiesPage.actions.openDetails');
+function capabilityActionLabel(
+  item: CapabilityPurposeViewModel,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  if (item.primaryAction === 'maintenance') {
+    return t('settings.localServicesPage.actions.openMaintenance', { defaultValue: 'Open Maintenance' });
+  }
+  if (item.primaryAction === 'configure') return t('settings.capabilitiesPage.actions.installOrSync');
   return t('settings.capabilitiesPage.actions.openDetails');
-}
-
-function packageActionRef(actionId: string): string {
-  return `opl app action execute --action ${actionId} --json`;
 }
 
 function capabilityDecisionActionLabel(action: CapabilityDecisionAction, t: (key: string) => string): string {
@@ -324,13 +308,6 @@ const capabilityCandidateReportRows = (
               {t('settings.capabilitiesPage.refLabels.nextAction')}:{' '}
               {ref.nextAction ?? t('settings.capabilitiesPage.detailValues.notReported')}
             </Typography.Text>
-            <Typography.Text className='text-t-secondary break-words'>
-              {t('settings.capabilitiesPage.refLabels.ref')}: {ref.ref}
-            </Typography.Text>
-            <Typography.Text className='text-t-secondary break-words'>
-              {t('settings.capabilitiesPage.candidateReports.report')}:{' '}
-              {ref.reportRef ?? t('settings.capabilitiesPage.detailValues.notReported')}
-            </Typography.Text>
             <div className='flex flex-wrap items-center gap-6px'>
               <Typography.Text className='text-t-secondary'>
                 {t('settings.capabilitiesPage.candidateReports.decision')}:{' '}
@@ -426,12 +403,14 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   supportingSurfaceDefaultOpen = false,
 }) => {
   const { i18n, t } = useTranslation();
+  const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [manifestUrl, setManifestUrl] = useState('');
   const [packageQuery, setPackageQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CapabilityStatus | 'all'>('all');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState<string | null>(null);
+  const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
   const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
   const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
   const orderedShortcuts = React.useMemo(() => getOplOrderedHomeAgentShortcuts(), [shortcutPreferences]);
@@ -486,6 +465,16 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     () => filteredCapabilities.find((item) => item.key === selectedCapabilityKey) ?? filteredCapabilities[0] ?? null,
     [filteredCapabilities, selectedCapabilityKey]
   );
+  const selectedShortcut = selectedCapability?.packageId ? shortcutByPackageId.get(selectedCapability.packageId) : null;
+  const selectedShortcutId = selectedShortcut?.shortcut_id ?? '';
+  const selectedShortcutIndex = selectedShortcutId ? (shortcutIndexById.get(selectedShortcutId) ?? -1) : -1;
+  const selectedHomeLabel = !selectedShortcut
+    ? t('settings.capabilitiesPage.packageManager.noHomeShortcut')
+    : hiddenShortcutIds.has(selectedShortcutId)
+      ? t('settings.capabilitiesPage.packageManager.homeHidden')
+      : t('settings.capabilitiesPage.packageManager.homeVisibleWithOrder', {
+          order: String(selectedShortcutIndex + 1),
+        });
 
   useEffect(() => {
     const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
@@ -496,6 +485,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     if (!selectedCapability && selectedCapabilityKey) setSelectedCapabilityKey(null);
     if (!selectedCapabilityKey && filteredCapabilities[0]) setSelectedCapabilityKey(filteredCapabilities[0].key);
   }, [filteredCapabilities, selectedCapability, selectedCapabilityKey]);
+
+  useEffect(() => {
+    setAdvancedDetailsOpen(false);
+  }, [selectedCapability?.key]);
 
   const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
     setBusyAction(actionId);
@@ -555,6 +548,15 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     onTabChange(tab);
   };
 
+  const runCapabilityPrimaryAction = (item: CapabilityPurposeViewModel) => {
+    if (item.primaryAction === 'maintenance') {
+      navigate('/settings/environment');
+      return;
+    }
+    setSelectedCapabilityKey(item.key);
+    if (item.primaryAction === 'configure') setAdvancedDetailsOpen(true);
+  };
+
   return (
     <>
       <div className='flex flex-col gap-16px mb-18px'>
@@ -566,101 +568,63 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         </div>
         <Card bordered className='rd-8px' data-testid='agent-package-catalog'>
           <div className='flex flex-col gap-12px'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.packageManager.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.description')}
-              </Typography.Text>
+            <div className='flex flex-col gap-10px lg:flex-row lg:items-end lg:justify-between'>
+              <div>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.capabilitiesPage.packageManager.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.packageManager.description')}
+                </Typography.Text>
+              </div>
+              <div className='flex flex-wrap items-center gap-8px' data-testid='capability-directory-controls'>
+                <Input
+                  size='small'
+                  className='max-w-300px min-w-220px'
+                  value={packageQuery}
+                  onChange={setPackageQuery}
+                  allowClear
+                  prefix={<Search theme='outline' />}
+                  placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
+                  data-testid='agent-package-search'
+                />
+                <Select
+                  size='small'
+                  className='w-160px'
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value as CapabilityStatus | 'all')}
+                  data-testid='agent-package-status-filter'
+                >
+                  <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allStatuses')}</Select.Option>
+                  {(['ready', 'update', 'sync', 'source', 'attention', 'repair', 'missing'] as CapabilityStatus[]).map(
+                    (status) => (
+                      <Select.Option key={status} value={status}>
+                        {capabilityStatusLabel(status, t)}
+                      </Select.Option>
+                    )
+                  )}
+                </Select>
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.packageManager.packageCount', {
+                    count: filteredCapabilities.length,
+                    total: purposeCapabilities.length,
+                  })}
+                </Typography.Text>
+              </div>
             </div>
-            <div className='flex flex-wrap items-center gap-8px' data-testid='agent-package-manager'>
-              <Button
-                size='small'
-                icon={<Refresh theme='outline' />}
-                loading={busyAction === 'refresh_registry'}
-                onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
-                data-testid='agent-package-refresh-registry'
-              >
-                {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
-              </Button>
-              <Input
-                size='small'
-                className='max-w-300px min-w-220px'
-                value={packageQuery}
-                onChange={setPackageQuery}
-                allowClear
-                prefix={<Search theme='outline' />}
-                placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
-                data-testid='agent-package-search'
-              />
-              <Select
-                size='small'
-                className='w-160px'
-                value={statusFilter}
-                onChange={(value) => setStatusFilter(value as CapabilityStatus | 'all')}
-                data-testid='agent-package-status-filter'
-              >
-                <Select.Option value='all'>{t('settings.capabilitiesPage.packageManager.allStatuses')}</Select.Option>
-                {(['ready', 'update', 'sync', 'source', 'attention', 'repair', 'missing'] as CapabilityStatus[]).map(
-                  (status) => (
-                    <Select.Option key={status} value={status}>
-                      {capabilityStatusLabel(status, t)}
-                    </Select.Option>
-                  )
-                )}
-              </Select>
-              <Input
-                size='small'
-                className='max-w-360px min-w-220px'
-                value={manifestUrl}
-                onChange={setManifestUrl}
-                placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
-                data-testid='agent-package-manifest-url'
-              />
-              <Button
-                size='small'
-                type='primary'
-                loading={busyAction === 'install_from_manifest_url'}
-                disabled={!manifestUrl.trim()}
-                onClick={() => executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })}
-                data-testid='agent-package-install-manifest'
-              >
-                {t('settings.capabilitiesPage.packageManager.installFromManifest')}
-              </Button>
-            </div>
-          </div>
-          <div className='mt-14px mb-10px flex flex-wrap items-end justify-between gap-8px'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.packageManager.catalogTitle')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.catalogDescription')}
-              </Typography.Text>
-            </div>
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.packageCount', {
-                count: filteredCapabilities.length,
-                total: purposeCapabilities.length,
-              })}
-            </Typography.Text>
           </div>
           <div className='flex flex-col gap-12px xl:flex-row'>
             <div className='min-w-0 flex-1 overflow-x-auto'>
-              <div className='min-w-1020px border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
+              <div className='min-w-860px border border-solid border-[var(--color-border-2)] rd-8px overflow-hidden'>
                 <div
                   className='grid items-center gap-8px border-0 border-b border-solid border-[var(--color-border-2)] bg-fill-1 px-10px py-8px text-12px text-t-secondary'
                   style={{
-                    gridTemplateColumns: '1.45fr 1fr 96px 120px 92px 96px 150px 128px',
+                    gridTemplateColumns: '1.45fr 1fr 120px 180px 160px',
                   }}
                 >
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.package')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.purpose')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.status')}</span>
-                  <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.source')}</span>
-                  <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.version')}</span>
-                  <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.codex')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.home')}</span>
                   <span>{t('settings.capabilitiesPage.packageManager.tableHeaders.actions')}</span>
                 </div>
@@ -684,7 +648,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                           isSelected ? 'bg-[rgb(var(--primary-1))]' : 'bg-[var(--color-bg-1)]'
                         }`}
                         style={{
-                          gridTemplateColumns: '1.45fr 1fr 96px 120px 92px 96px 150px 128px',
+                          gridTemplateColumns: '1.45fr 1fr 120px 180px 160px',
                         }}
                         data-testid={`capability-purpose-${item.key}`}
                         onClick={() => setSelectedCapabilityKey(item.key)}
@@ -711,21 +675,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         </div>
                         <div className='min-w-0'>
                           <Tag color={capabilityStatusColor(item.status)}>{capabilityStatusLabel(item.status, t)}</Tag>
-                        </div>
-                        <div className='min-w-0'>
-                          <Typography.Text className='block truncate text-t-primary'>
-                            {item.source ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                          </Typography.Text>
-                          <Typography.Text className='block truncate text-12px text-t-secondary'>
-                            {item.sourceKind ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                          <Typography.Text className='mt-4px block truncate text-12px text-t-secondary'>
+                            {capabilityCodexVisibilityLabel(item, t)}
                           </Typography.Text>
                         </div>
-                        <Typography.Text className='block truncate text-t-primary'>
-                          {item.version ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                        </Typography.Text>
-                        <Typography.Text className='block truncate text-t-primary'>
-                          {capabilityCodexVisibilityLabel(item, t)}
-                        </Typography.Text>
                         <div className='min-w-0' onClick={(event) => event.stopPropagation()}>
                           <Typography.Text className='block truncate text-t-primary'>{homeLabel}</Typography.Text>
                           {shortcut && (
@@ -757,30 +710,13 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         </div>
                         <div className='min-w-0' onClick={(event) => event.stopPropagation()}>
                           <Space wrap size={4}>
-                            {item.packageId &&
-                              PACKAGE_ACTIONS.slice(0, 1).map((action) => (
-                                <Button
-                                  key={`${item.key}-${action.key}`}
-                                  size='mini'
-                                  loading={busyAction === action.actionId}
-                                  onClick={() =>
-                                    executePackageAction(action.actionId, {
-                                      package_id: item.packageId,
-                                    })
-                                  }
-                                  title={packageActionRef(action.actionId)}
-                                  data-testid={`agent-package-inline-action-${item.key}-${action.key}`}
-                                >
-                                  {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
-                                </Button>
-                              ))}
                             <Button
                               size='mini'
                               type={isSelected ? 'primary' : 'secondary'}
-                              onClick={() => setSelectedCapabilityKey(item.key)}
+                              onClick={() => runCapabilityPrimaryAction(item)}
                               data-testid={`capability-row-details-${item.key}`}
                             >
-                              {t('settings.capabilitiesPage.actions.openDetails')}
+                              {capabilityActionLabel(item, t)}
                             </Button>
                           </Space>
                         </div>
@@ -816,116 +752,187 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   </Tag>
                 </div>
                 <div className='grid grid-cols-1 gap-10px'>
-                  {selectedCapability.packageId && (
-                    <div
-                      className='flex flex-col gap-8px'
-                      data-testid={`capability-package-actions-${selectedCapability.key}`}
-                    >
-                      <Space wrap size={6}>
-                        {PACKAGE_ACTIONS.map((action) => (
-                          <Button
-                            key={`${selectedCapability.key}-${action.key}`}
-                            size='mini'
-                            loading={busyAction === action.actionId}
-                            onClick={() =>
-                              executePackageAction(action.actionId, {
-                                package_id: selectedCapability.packageId,
-                              })
-                            }
-                            title={packageActionRef(action.actionId)}
-                            data-testid={`agent-package-action-${selectedCapability.key}-${action.key}`}
-                          >
-                            {t(`settings.capabilitiesPage.packageManager.actions.${action.key}`)}
-                          </Button>
-                        ))}
-                      </Space>
-                    </div>
+                  <Button
+                    type='primary'
+                    onClick={() => runCapabilityPrimaryAction(selectedCapability)}
+                    data-testid={`capability-primary-action-${selectedCapability.key}`}
+                  >
+                    {capabilityActionLabel(selectedCapability, t)}
+                  </Button>
+                  <div className='grid grid-cols-1 gap-4px text-12px'>
+                    <Typography.Text className='text-t-secondary break-words'>
+                      {selectedCapability.description}
+                    </Typography.Text>
+                    <Typography.Text className='text-t-secondary break-words'>
+                      {t('settings.capabilitiesPage.detailLabels.codexVisibility')}:{' '}
+                      {capabilityCodexVisibilityLabel(selectedCapability, t)}
+                    </Typography.Text>
+                    <Typography.Text className='text-t-secondary break-words'>
+                      {t('settings.capabilitiesPage.packageManager.tableHeaders.home')}: {selectedHomeLabel}
+                    </Typography.Text>
+                  </div>
+                  {selectedShortcut && (
+                    <Space wrap size={6}>
+                      <Switch
+                        size='small'
+                        checked={!hiddenShortcutIds.has(selectedShortcutId)}
+                        onChange={(checked) => updateShortcutHidden(selectedShortcutId, !checked)}
+                        data-testid={`agent-package-home-toggle-details-${selectedCapability.key}`}
+                      />
+                      <Button
+                        size='mini'
+                        disabled={selectedShortcutIndex <= 0}
+                        onClick={() => moveShortcut(selectedShortcutId, -1)}
+                        data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
+                      >
+                        {t('settings.capabilitiesPage.packageManager.moveUp')}
+                      </Button>
+                      <Button
+                        size='mini'
+                        disabled={selectedShortcutIndex < 0 || selectedShortcutIndex >= orderedShortcuts.length - 1}
+                        onClick={() => moveShortcut(selectedShortcutId, 1)}
+                        data-testid={`agent-package-home-down-details-${selectedCapability.key}`}
+                      >
+                        {t('settings.capabilitiesPage.packageManager.moveDown')}
+                      </Button>
+                    </Space>
                   )}
                   {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
-                  <div className='grid grid-cols-1 gap-6px text-12px'>
-                    {capabilityDetailRows(selectedCapability, t).map((row) => (
-                      <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
-                        <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
-                        <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+                  <Button
+                    size='small'
+                    onClick={() => setAdvancedDetailsOpen((open) => !open)}
+                    data-testid={`capability-advanced-toggle-${selectedCapability.key}`}
+                  >
+                    {t('settings.advancedSettings')}
+                  </Button>
+                  {advancedDetailsOpen && (
+                    <div
+                      className='grid grid-cols-1 gap-10px'
+                      data-testid={`capability-advanced-${selectedCapability.key}`}
+                    >
+                      <div className='grid grid-cols-1 gap-6px text-12px'>
+                        {capabilityDetailRows(selectedCapability, t).map((row) => (
+                          <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
+                            <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                            <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <div className='grid grid-cols-1 gap-10px'>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-t-secondary mb-4px'>
-                        {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
-                      </Typography.Text>
-                      {selectedCapability.connectorReadinessGroups.length > 0 && (
-                        <>
-                          {capabilityRefGroups(selectedCapability.connectorReadinessGroups, selectedCapability.key, t)}
-                          {capabilityRefRows(
-                            ungroupedCapabilityRefs(
+                      <div className='flex flex-wrap items-center gap-8px' data-testid='agent-package-manager'>
+                        <Button
+                          size='small'
+                          icon={<Refresh theme='outline' />}
+                          loading={busyAction === 'refresh_registry'}
+                          onClick={() =>
+                            executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })
+                          }
+                          data-testid='agent-package-refresh-registry'
+                        >
+                          {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
+                        </Button>
+                        <Input
+                          size='small'
+                          className='max-w-360px min-w-220px'
+                          value={manifestUrl}
+                          onChange={setManifestUrl}
+                          placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
+                          data-testid='agent-package-manifest-url'
+                        />
+                        <Button
+                          size='small'
+                          type='primary'
+                          loading={busyAction === 'install_from_manifest_url'}
+                          disabled={!manifestUrl.trim()}
+                          onClick={() =>
+                            executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
+                          }
+                          data-testid='agent-package-install-manifest'
+                        >
+                          {t('settings.capabilitiesPage.packageManager.installFromManifest')}
+                        </Button>
+                      </div>
+                      <div className='grid grid-cols-1 gap-10px'>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                          </Typography.Text>
+                          {selectedCapability.connectorReadinessGroups.length > 0 && (
+                            <>
+                              {capabilityRefGroups(
+                                selectedCapability.connectorReadinessGroups,
+                                selectedCapability.key,
+                                t
+                              )}
+                              {capabilityRefRows(
+                                ungroupedCapabilityRefs(
+                                  selectedCapability.connectorReadinessRefs,
+                                  selectedCapability.connectorReadinessGroups
+                                ),
+                                selectedCapability.key,
+                                t,
+                                `capability-connector-refs-${selectedCapability.key}`
+                              )}
+                            </>
+                          )}
+                          {selectedCapability.connectorReadinessGroups.length === 0 &&
+                            capabilityRefRows(
                               selectedCapability.connectorReadinessRefs,
-                              selectedCapability.connectorReadinessGroups
-                            ),
-                            selectedCapability.key,
-                            t,
-                            `capability-connector-refs-${selectedCapability.key}`
-                          )}
-                        </>
-                      )}
-                      {selectedCapability.connectorReadinessGroups.length === 0 &&
-                        capabilityRefRows(
-                          selectedCapability.connectorReadinessRefs,
-                          selectedCapability.key,
-                          t,
-                          `capability-connector-refs-${selectedCapability.key}`
-                        )}
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-t-secondary mb-4px'>
-                        {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
-                      </Typography.Text>
-                      {capabilityRefRows(
-                        selectedCapability.workflowRefs,
-                        selectedCapability.key,
-                        t,
-                        `capability-workflow-refs-${selectedCapability.key}`
-                      )}
-                    </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-t-secondary mb-4px'>
-                        {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
-                      </Typography.Text>
-                      {selectedCapability.resourceContextGroups.length > 0 && (
-                        <>
-                          {capabilityRefGroups(
-                            selectedCapability.resourceContextGroups,
-                            selectedCapability.key,
-                            t,
-                            'settings.capabilitiesPage.resourceContextGroups'
-                          )}
+                              selectedCapability.key,
+                              t,
+                              `capability-connector-refs-${selectedCapability.key}`
+                            )}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                          </Typography.Text>
                           {capabilityRefRows(
-                            ungroupedCapabilityRefs(
-                              selectedCapability.resourceContextRefs,
-                              selectedCapability.resourceContextGroups
-                            ),
+                            selectedCapability.workflowRefs,
                             selectedCapability.key,
                             t,
-                            `capability-resource-context-refs-${selectedCapability.key}`
+                            `capability-workflow-refs-${selectedCapability.key}`
                           )}
-                        </>
-                      )}
-                      {selectedCapability.resourceContextGroups.length === 0 &&
-                        capabilityRefRows(
-                          selectedCapability.resourceContextRefs,
-                          selectedCapability.key,
-                          t,
-                          `capability-resource-context-refs-${selectedCapability.key}`
-                        )}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
+                          </Typography.Text>
+                          {selectedCapability.resourceContextGroups.length > 0 && (
+                            <>
+                              {capabilityRefGroups(
+                                selectedCapability.resourceContextGroups,
+                                selectedCapability.key,
+                                t,
+                                'settings.capabilitiesPage.resourceContextGroups'
+                              )}
+                              {capabilityRefRows(
+                                ungroupedCapabilityRefs(
+                                  selectedCapability.resourceContextRefs,
+                                  selectedCapability.resourceContextGroups
+                                ),
+                                selectedCapability.key,
+                                t,
+                                `capability-resource-context-refs-${selectedCapability.key}`
+                              )}
+                            </>
+                          )}
+                          {selectedCapability.resourceContextGroups.length === 0 &&
+                            capabilityRefRows(
+                              selectedCapability.resourceContextRefs,
+                              selectedCapability.key,
+                              t,
+                              `capability-resource-context-refs-${selectedCapability.key}`
+                            )}
+                        </div>
+                        <div className='min-w-0'>
+                          <Typography.Text className='block text-t-secondary mb-4px'>
+                            {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
+                          </Typography.Text>
+                          {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
+                        </div>
+                      </div>
                     </div>
-                    <div className='min-w-0'>
-                      <Typography.Text className='block text-t-secondary mb-4px'>
-                        {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
-                      </Typography.Text>
-                      {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </aside>
             )}
@@ -943,9 +950,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 </Typography.Text>
                 <Typography.Text className='block text-13px text-t-secondary break-words'>
                   {t('settings.capabilitiesPage.entries.externalTools.description')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words mt-6px'>
-                  {t('settings.capabilitiesPage.entries.externalTools.technical')}
                 </Typography.Text>
                 <Button size='small' className='mt-10px' onClick={() => openSupportingSurface('tools')}>
                   {t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}

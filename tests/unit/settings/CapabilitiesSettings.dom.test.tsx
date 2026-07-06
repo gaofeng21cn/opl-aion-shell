@@ -1,6 +1,7 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { CapabilitiesSettingsContent } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
@@ -263,6 +264,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.attention': 'Needs attention',
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
+        'settings.advancedSettings': 'Advanced Settings',
+        'settings.localServicesPage.actions.openMaintenance': 'Open Maintenance',
         'settings.capabilitiesPage.detailsHeader': 'Capability details',
         'settings.capabilitiesPage.codexVisibilitySummary': `Codex visibility: ${options?.value ?? ''}`,
         'settings.capabilitiesPage.codexVisibility.visible': 'Visible in Codex',
@@ -327,9 +330,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.actions.installOrSync': 'Set up capability',
         'settings.capabilitiesPage.actions.updateOrSync': 'Update or sync',
         'settings.capabilitiesPage.actions.repair': 'Review repair path',
-        'settings.capabilitiesPage.packageManager.title': 'Agent packages',
+        'settings.capabilitiesPage.packageManager.title': 'Capability directory',
         'settings.capabilitiesPage.packageManager.description': 'Package lifecycle actions use App action routes.',
-        'settings.capabilitiesPage.packageManager.catalogTitle': 'Package catalog',
+        'settings.capabilitiesPage.packageManager.catalogTitle': 'Capability directory',
         'settings.capabilitiesPage.packageManager.catalogDescription':
           'Manage install state and Home visibility from one compact list.',
         'settings.capabilitiesPage.packageManager.refreshRegistry': 'Refresh registry',
@@ -350,14 +353,14 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
-        'settings.capabilitiesPage.packageManager.tableHeaders.package': 'Package',
-        'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'Purpose / tags',
+        'settings.capabilitiesPage.packageManager.tableHeaders.package': 'Capability',
+        'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'What it does',
         'settings.capabilitiesPage.packageManager.tableHeaders.status': 'Status',
         'settings.capabilitiesPage.packageManager.tableHeaders.source': 'Source',
         'settings.capabilitiesPage.packageManager.tableHeaders.version': 'Version',
         'settings.capabilitiesPage.packageManager.tableHeaders.codex': 'Codex',
         'settings.capabilitiesPage.packageManager.tableHeaders.home': 'Home shortcut',
-        'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Actions',
+        'settings.capabilitiesPage.packageManager.tableHeaders.actions': 'Next step',
         'settings.capabilitiesPage.packageManager.actions.update': 'Update',
         'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
         'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
@@ -381,6 +384,8 @@ vi.mock('react-i18next', () => ({
     },
   }),
 }));
+
+const renderCapabilities = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('CapabilitiesSettingsContent', () => {
   beforeEach(() => {
@@ -408,17 +413,18 @@ describe('CapabilitiesSettingsContent', () => {
         />
       );
     };
-    render(<Harness />);
+    renderCapabilities(<Harness />);
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Agent packages')).toBeInTheDocument();
-    expect(screen.getByText('Package catalog')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
+    expect(screen.getByText('Capability directory')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-search')).toBeInTheDocument();
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
-    expect(screen.getByText('Package')).toBeInTheDocument();
+    expect(screen.getByText('Capability')).toBeInTheDocument();
+    expect(screen.getByText('What it does')).toBeInTheDocument();
     expect(screen.getByText('Home shortcut')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
+    expect(screen.getByText('Next step')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-refresh-registry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);
@@ -445,13 +451,15 @@ describe('CapabilitiesSettingsContent', () => {
       'capability-candidate-report-mas-openscience-artifact-graph'
     );
     expect(openscienceCandidate).toHaveTextContent('Review OpenScience artifact graph before enabling any skill.');
-    expect(openscienceCandidate).toHaveTextContent('candidate://openscience/artifact-graph');
-    expect(openscienceCandidate).toHaveTextContent('report://openscience/artifact-graph');
+    expect(openscienceCandidate).not.toHaveTextContent('candidate://openscience/artifact-graph');
+    expect(openscienceCandidate).not.toHaveTextContent('report://openscience/artifact-graph');
     expect(openscienceCandidate).toHaveTextContent('review_pending');
     expect(openscienceCandidate).toHaveTextContent('Needs changes');
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
 
+    expect(screen.queryByTestId('capability-advanced-mas')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
     expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
@@ -500,21 +508,22 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(detailedResearch).getAllByText(/receipt:\/\/export\/latest/).length).toBeGreaterThan(0);
 
     const grant = screen.getByTestId('capability-purpose-mag');
-    fireEvent.click(within(grant).getByTestId('capability-row-details-mag'));
+    fireEvent.click(grant);
     const grantCandidate = within(screen.getByTestId('capability-details-mag')).getByTestId(
       'capability-candidate-report-mag-grant-workflow'
     );
     expect(grantCandidate).toHaveTextContent('Grant workflow candidate');
-    expect(grantCandidate).toHaveTextContent('opl://workflow/medautogrant/grant-draft');
+    expect(grantCandidate).not.toHaveTextContent('opl://workflow/medautogrant/grant-draft');
     expect(grantCandidate).toHaveTextContent('Needs review');
 
     const presentations = screen.getByTestId('capability-purpose-rca');
-    fireEvent.click(within(presentations).getByTestId('capability-row-details-rca'));
+    fireEvent.click(presentations);
+    expect(within(screen.getByTestId('capability-details-rca')).queryByText('receipt missing')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-rca'));
     expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
     expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
-    expect(screen.getByText('Technical detail: MCP is the protocol.')).toBeInTheDocument();
     expect(screen.getByText('Custom assistants')).toBeInTheDocument();
     expect(screen.getAllByText('Skills').length).toBeGreaterThan(0);
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
@@ -531,7 +540,7 @@ describe('CapabilitiesSettingsContent', () => {
   });
 
   it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
-    render(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
@@ -563,6 +572,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     fireEvent.click(screen.getByTestId('agent-package-refresh-registry'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -586,60 +596,6 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(within(screen.getByTestId('capability-purpose-mas')).getByTestId('capability-row-details-mas'));
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-update'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_update',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-repair'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_repair',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-rollback'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_rollback',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-uninstall'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_uninstall',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-hide'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_hide',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-action-mas-show'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_unhide',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
     await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
   });
 

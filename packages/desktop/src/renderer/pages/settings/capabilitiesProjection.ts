@@ -17,6 +17,8 @@ export type CapabilityStatus = 'ready' | 'update' | 'sync' | 'source' | 'attenti
 
 export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' | 'unknown';
 
+export type CapabilityPrimaryAction = 'view' | 'configure' | 'maintenance';
+
 export type CapabilityPurposeViewModel = {
   key: string;
   title: string;
@@ -33,6 +35,7 @@ export type CapabilityPurposeViewModel = {
   rollbackRef: string | null;
   physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
   status: CapabilityStatus;
+  primaryAction: CapabilityPrimaryAction;
   codexVisibility: CapabilityCodexVisibility;
   version: string | null;
   source: string | null;
@@ -50,6 +53,7 @@ export type CapabilityPurposeViewModel = {
 export type ExtraCapabilityPurposeInput = Omit<
   CapabilityPurposeViewModel,
   | 'status'
+  | 'primaryAction'
   | 'codexVisibility'
   | 'version'
   | 'source'
@@ -610,6 +614,12 @@ function mapCapabilityStatus(
   return 'attention';
 }
 
+function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAction {
+  if (status === 'missing') return 'configure';
+  if (status === 'update' || status === 'sync' || status === 'repair') return 'maintenance';
+  return 'view';
+}
+
 function capabilityCodexVisibility(
   packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined,
@@ -887,6 +897,7 @@ function buildCapabilityPurpose(
     rollbackRef: capabilityRollbackRef(packageState, module),
     physicalSurface: capabilityPhysicalSurface(packageState, module),
     status,
+    primaryAction: capabilityPrimaryAction(status),
     codexVisibility: capabilityCodexVisibility(packageState, module, status),
     version: capabilityVersion(packageState, module),
     source: capabilitySource(packageState, module),

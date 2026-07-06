@@ -1748,7 +1748,7 @@
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
-    "description": "Manage capability packages from a directory-style list first. Skills and tools remain available as supporting details.",
+    "description": "Choose what each capability does first. Package refs, manifests, and diagnostics stay in advanced details.",
     "status": {
       "ready": "Ready",
       "update": "Update available",
@@ -1869,14 +1869,14 @@
     "actions": {
       "openDetails": "Review capability",
       "installOrSync": "Set up capability",
-      "updateOrSync": "Update or sync",
-      "repair": "Review repair path"
+      "updateOrSync": "Open Maintenance",
+      "repair": "Open Maintenance"
     },
     "packageManager": {
-      "title": "Agent packages",
-      "description": "Refresh the registry, install a manifest, and manage Home shortcuts in the same package directory. Package lifecycle mutations stay on App action routes.",
-      "catalogTitle": "Package catalog",
-      "catalogDescription": "Manage install state and Home visibility from one compact list. Open a row only when you need package details or repair context.",
+      "title": "Capability directory",
+      "description": "See available capabilities, status, Home visibility, and the next useful action. Updates, sync, and repairs belong in Maintenance.",
+      "catalogTitle": "Capability directory",
+      "catalogDescription": "Open a row when you need setup details, Home shortcut controls, or advanced package context.",
       "refreshRegistry": "Refresh registry",
       "searchPlaceholder": "Search package, tag, or description",
       "allStatuses": "All statuses",
@@ -1895,14 +1895,14 @@
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
       "tableHeaders": {
-        "package": "Package",
-        "purpose": "Purpose / tags",
+        "package": "Capability",
+        "purpose": "What it does",
         "status": "Status",
         "source": "Source",
         "version": "Version",
         "codex": "Codex",
         "home": "Home shortcut",
-        "actions": "Actions"
+        "actions": "Next step"
       },
       "actions": {
         "update": "Update",

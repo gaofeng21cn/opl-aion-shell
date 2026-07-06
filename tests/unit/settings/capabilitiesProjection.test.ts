@@ -88,6 +88,7 @@ describe('buildCapabilitiesViewModel', () => {
     );
 
     expect(research.status).toBe('source');
+    expect(research.primaryAction).toBe('view');
     expect(research.version).toBe('4d4dead');
     expect(research.title).toBe('Med Auto Science');
     expect(research.description).toBe('Research');
@@ -122,6 +123,7 @@ describe('buildCapabilitiesViewModel', () => {
     );
 
     expect(research.status).toBe('sync');
+    expect(research.primaryAction).toBe('maintenance');
     expect(research.source).toBe('package_projection');
     expect(research.version).toBe('9.9.9');
   });
