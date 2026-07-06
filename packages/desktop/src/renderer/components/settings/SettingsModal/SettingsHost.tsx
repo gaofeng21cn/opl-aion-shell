@@ -9,11 +9,10 @@ import { iconColors } from '@/renderer/styles/colors';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
   buildSettingsModalMenuItems,
-  capabilityDetailTabFor,
   getSearchableSecondarySettingsModalItems,
   getSettingsRenderSlot,
-  normalizeOplSettingsTab,
   normalizeSearchText,
+  resolveSettingsRenderTarget,
   type SettingsModalMenuItem,
 } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
@@ -60,8 +59,10 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   desktopContentHeight,
 }) => {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeOplSettingsTab(defaultTab));
-  const [capabilitiesTab, setCapabilitiesTab] = useState<CapabilitiesTab>(() => capabilityDetailTabFor(defaultTab));
+  const [activeTab, setActiveTab] = useState<SettingTab>(() => resolveSettingsRenderTarget(defaultTab).routeId);
+  const [capabilitiesTab, setCapabilitiesTab] = useState<CapabilitiesTab>(
+    () => resolveSettingsRenderTarget(defaultTab).capabilitiesTab
+  );
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const extensionTabs = useExtensionSettingsTabs();
   const { resolveExtTabName } = useExtI18n();
@@ -90,8 +91,9 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   }, [menuItems, menuSearchQuery, t]);
 
   useEffect(() => {
-    setActiveTab(normalizeOplSettingsTab(defaultTab));
-    setCapabilitiesTab(capabilityDetailTabFor(defaultTab));
+    const target = resolveSettingsRenderTarget(defaultTab);
+    setActiveTab(target.routeId);
+    setCapabilitiesTab(target.capabilitiesTab);
   }, [defaultTab]);
 
   const [mountedExtTabs, setMountedExtTabs] = useState<Set<string>>(new Set());
@@ -114,8 +116,9 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   }, [visible]);
 
   const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(normalizeOplSettingsTab(tab));
-    setCapabilitiesTab(capabilityDetailTabFor(tab));
+    const target = resolveSettingsRenderTarget(tab);
+    setActiveTab(target.routeId);
+    setCapabilitiesTab(target.capabilitiesTab);
   }, []);
 
   const renderExtensionTabs = () => {

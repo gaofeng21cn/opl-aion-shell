@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SettingsModal from '@/renderer/components/settings/SettingsModal';
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
@@ -139,6 +139,10 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('SettingsModal OPL App navigation', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('opens Overview as the ordinary Settings default tab', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
@@ -225,38 +229,52 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
   });
 
-  it('redirects legacy overview, runtime, model, and system tab requests to App-owned pages', () => {
+  it('redirects legacy overview, runtime, model, and system tab requests to App-owned pages', async () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='overview' />);
 
     expect(screen.getByTestId('overview-content')).toBeInTheDocument();
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='runtime' />);
 
-    expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='model' />);
 
-    expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='system' />);
 
-    expect(screen.getByTestId('system-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('system-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='storage' />);
 
-    expect(screen.getByTestId('storage-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('storage-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='workspace' />);
 
-    expect(screen.getByTestId('workspace-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
 
-    expect(screen.getByTestId('local-services-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('local-services-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='resources' />);
 
-    expect(screen.getByTestId('resources-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('resources-content')).toBeInTheDocument();
+    });
   });
 
   it('redirects legacy agent and tools tab requests to purpose-first capability content', () => {
@@ -280,7 +298,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:tools');
   });
 
-  it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', () => {
+  it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', async () => {
     const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='webui' />);
 
     expect(screen.getByTestId('resources-content')).toHaveTextContent('Docker WebUI');
@@ -288,10 +306,14 @@ describe('SettingsModal OPL App navigation', () => {
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='display' />);
 
-    expect(screen.getByTestId('appearance-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('appearance-content')).toBeInTheDocument();
+    });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='pet' />);
 
-    expect(screen.getByTestId('appearance-content')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('appearance-content')).toBeInTheDocument();
+    });
   });
 });

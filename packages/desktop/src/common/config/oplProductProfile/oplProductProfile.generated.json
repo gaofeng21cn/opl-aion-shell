@@ -1741,7 +1741,7 @@
           "wrapper_policy": "host_provides_wrapper"
         },
         "settings_resources": {
-          "component_key": "AccessSettingsContent",
+          "component_key": "ResourcesSettingsContent",
           "wrapper_policy": "host_provides_wrapper"
         }
       },

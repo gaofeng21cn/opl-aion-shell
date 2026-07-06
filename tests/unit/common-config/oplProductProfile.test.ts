@@ -200,7 +200,7 @@ describe('OPL generated product profile', () => {
       intent: 'configure',
     });
     expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
-    expect(controlPlane.slot_registry.settings_resources.component_key).toBe('AccessSettingsContent');
+    expect(controlPlane.slot_registry.settings_resources.component_key).toBe('ResourcesSettingsContent');
     expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
     expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.workspace.component_key).toBe('WorkspaceSettings');

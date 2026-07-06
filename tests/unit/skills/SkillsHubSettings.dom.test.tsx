@@ -8,12 +8,16 @@ import React from 'react';
  * Shallow verification: module import + basic structure.
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+
+const i18nMock = vi.hoisted(() => ({
+  t: (k: string, options?: { defaultValue?: string }) => options?.defaultValue ?? k,
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (k: string, options?: { defaultValue?: string }) => options?.defaultValue ?? k,
+    t: i18nMock.t,
     i18n: { language: 'en' },
   }),
 }));
@@ -27,7 +31,13 @@ vi.mock('@/common', () => ({
     fs: {
       listAvailableSkills: {
         invoke: vi.fn().mockResolvedValue([
-          { name: 'mas', description: 'MAS skill', location: '/builtin/mas', is_custom: false, source: 'builtin' },
+          {
+            name: 'med-autoscience',
+            description: 'MAS skill',
+            location: '/builtin/med-autoscience',
+            is_custom: false,
+            source: 'builtin',
+          },
           {
             name: 'aionui-skills',
             description: 'AionUI implementation helper',
@@ -44,10 +54,7 @@ vi.mock('@/common', () => ({
         }),
       },
       listBuiltinAutoSkills: {
-        invoke: vi.fn().mockResolvedValue([
-          { name: 'aionui-skills', description: 'AionUI implementation helper' },
-          { name: 'mas', description: 'MAS App skill' },
-        ]),
+        invoke: vi.fn().mockResolvedValue([{ name: 'aionui-skills', description: 'AionUI implementation helper' }]),
       },
       importSkillWithSymlink: { invoke: vi.fn().mockResolvedValue(undefined) },
       deleteSkill: { invoke: vi.fn().mockResolvedValue(undefined) },
@@ -61,6 +68,11 @@ vi.mock('@/common', () => ({
 import SkillsHubSettings from '@/renderer/pages/settings/SkillsHubSettings';
 
 describe('SkillsHubSettings', () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
   it('exports a component (smoke)', () => {
     expect(SkillsHubSettings).toBeDefined();
     expect(typeof SkillsHubSettings).toBe('function');
