@@ -7,6 +7,7 @@ import { SWRConfig } from 'swr';
 
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
+  executeActionInvoke: vi.fn(),
   systemInfoInvoke: vi.fn(),
   getStartOnBootStatusInvoke: vi.fn(),
   getGpuStatusInvoke: vi.fn(),
@@ -16,7 +17,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: bridgeMocks.getAppStateInvoke },
-      executeAction: { invoke: vi.fn() },
+      executeAction: { invoke: bridgeMocks.executeActionInvoke },
     },
     application: {
       systemInfo: { invoke: bridgeMocks.systemInfoInvoke },
@@ -147,6 +148,29 @@ describe('SystemModalContent OPL App state', () => {
         },
       },
     });
+    bridgeMocks.executeActionInvoke.mockImplementation(({ actionId }: { actionId: string }) =>
+      Promise.resolve({
+        surface: 'app_action',
+        command: `opl app action execute --action ${actionId} --json`,
+        stdout: '{}',
+        ok: true,
+        parsed: {
+          app_action_execution: {
+            result:
+              actionId === 'intelligence_enhancement_enable'
+                ? {
+                    opl_flow_intelligence_enhancement_action: {
+                      status: 'completed',
+                      status_readback: { enabled: true },
+                    },
+                  }
+                : {
+                    opl_flow_intelligence_enhancement: { enabled: false },
+                  },
+          },
+        },
+      })
+    );
     bridgeMocks.systemInfoInvoke.mockResolvedValue({
       workDir: '/wrong/shell/workdir',
       logDir: '/wrong/shell/logs',
@@ -197,6 +221,12 @@ describe('SystemModalContent OPL App state', () => {
 
     fireEvent.click(within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch'));
 
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_enable',
+        dryRun: false,
+      })
+    );
     await waitFor(() =>
       expect(configService.set).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true)
     );

@@ -67,6 +67,16 @@ function readDeveloperCapabilityDisplay(value: unknown, id: string): DeveloperCa
   return status === 'unknown' && level === 'unknown' ? null : { id, status, level };
 }
 
+function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
+  const parsed = oplRecord(value);
+  const execution = oplRecord(parsed.app_action_execution);
+  const result = oplRecord(execution.result);
+  const directStatus = oplRecord(result.opl_flow_intelligence_enhancement);
+  const actionStatus = oplRecord(oplRecord(result.opl_flow_intelligence_enhancement_action).status_readback);
+  const enabled = typeof directStatus.enabled === 'boolean' ? directStatus.enabled : actionStatus.enabled;
+  return typeof enabled === 'boolean' ? enabled : null;
+}
+
 /**
  * System settings content component
  *
@@ -120,6 +130,7 @@ const SystemModalContent: React.FC = () => {
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
   const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(false);
+  const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -164,6 +175,19 @@ const SystemModalContent: React.FC = () => {
       setOplFlowIntelligenceEnhancementMode(
         configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false
       );
+      ipcBridge.oplRuntime.executeAction
+        .invoke({
+          actionId: OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.status_action_id,
+          dryRun: false,
+        })
+        .then((result) => {
+          if (result.ok === false) return;
+          const enabled = readIntelligenceEnhancementEnabled(result.parsed);
+          if (enabled === null) return;
+          setOplFlowIntelligenceEnhancementMode(enabled);
+          configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
+        })
+        .catch(() => {});
     }
     const pt = configService.get('acp.promptTimeout');
     if (pt && pt > 0) setPromptTimeout(pt);
@@ -311,14 +335,33 @@ const SystemModalContent: React.FC = () => {
     });
   }, []);
 
-  const handleOplFlowIntelligenceEnhancementModeChange = useCallback((checked: boolean) => {
+  const handleOplFlowIntelligenceEnhancementModeChange = useCallback(async (checked: boolean) => {
     if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
+    const previous = oplFlowIntelligenceEnhancementMode;
     setOplFlowIntelligenceEnhancementMode(checked);
-    configService.set(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, checked).catch(() => {
-      setOplFlowIntelligenceEnhancementMode(!checked);
-      configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, !checked);
-    });
-  }, []);
+    setOplFlowIntelligenceEnhancementApplying(true);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: checked
+          ? OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.enable_action_id
+          : OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.disable_action_id,
+        dryRun: false,
+      });
+      if (result.ok === false) {
+        throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+      }
+      const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
+      setOplFlowIntelligenceEnhancementMode(enabled);
+      await configService.set(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
+      void appStateQuery.load('fast', { showRefreshing: true }).catch(() => {});
+    } catch (caughtError) {
+      setOplFlowIntelligenceEnhancementMode(previous);
+      configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, previous);
+      Message.error(caughtError instanceof Error ? caughtError.message : String(caughtError));
+    } finally {
+      setOplFlowIntelligenceEnhancementApplying(false);
+    }
+  }, [appStateQuery.load, oplFlowIntelligenceEnhancementMode]);
 
   const oplFlowContext = oplRecord(appState.opl_flow_context);
   const oplFlowContextDisplay =
@@ -615,6 +658,7 @@ const SystemModalContent: React.FC = () => {
                 <Switch
                   checked={oplFlowIntelligenceEnhancementMode}
                   onChange={handleOplFlowIntelligenceEnhancementModeChange}
+                  loading={oplFlowIntelligenceEnhancementApplying}
                 />
               </PreferenceRow>
             )}

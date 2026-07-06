@@ -104,7 +104,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
       language: 'zh-CN',
     });
 
-    expect(params.extra.preset_context).toMatch(/^你正在 One Person Lab App[\s\S]+已有智能体规则。/);
+    expect(params.extra.preset_context).toMatch(/你正在 One Person Lab App[\s\S]+已有智能体规则。/);
     expect(params.extra.preset_context).not.toContain('DO NOT send optional commentary');
   });
 

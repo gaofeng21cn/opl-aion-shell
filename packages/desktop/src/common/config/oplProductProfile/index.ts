@@ -191,6 +191,12 @@ export type OplFlowContextPolicy = {
       local_proxy_base_url: 'http://127.0.0.1:8787/v1';
       upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy';
       behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action';
+      service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair';
+      status_action_id: 'intelligence_enhancement_status';
+      enable_action_id: 'intelligence_enhancement_enable';
+      disable_action_id: 'intelligence_enhancement_disable';
+      repair_action_id: 'intelligence_enhancement_repair';
+      uninstall_action_id: 'intelligence_enhancement_uninstall';
     };
   };
 };
@@ -1410,7 +1416,13 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     intelligenceEnhancementMode.provider === 'codexcont' &&
     intelligenceEnhancementMode.local_proxy_base_url === 'http://127.0.0.1:8787/v1' &&
     intelligenceEnhancementMode.upstream_policy === 'preserve_current_codex_provider_via_local_responses_proxy' &&
-    intelligenceEnhancementMode.behavior_policy === 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action'
+    intelligenceEnhancementMode.behavior_policy === 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' &&
+    intelligenceEnhancementMode.service_policy === 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' &&
+    intelligenceEnhancementMode.status_action_id === 'intelligence_enhancement_status' &&
+    intelligenceEnhancementMode.enable_action_id === 'intelligence_enhancement_enable' &&
+    intelligenceEnhancementMode.disable_action_id === 'intelligence_enhancement_disable' &&
+    intelligenceEnhancementMode.repair_action_id === 'intelligence_enhancement_repair' &&
+    intelligenceEnhancementMode.uninstall_action_id === 'intelligence_enhancement_uninstall'
       ? {
           id: 'intelligence_enhancement' as const,
           settings_key: 'codex.oplFlowIntelligenceEnhancementMode' as const,
@@ -1420,6 +1432,12 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
           local_proxy_base_url: 'http://127.0.0.1:8787/v1' as const,
           upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy' as const,
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' as const,
+          service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' as const,
+          status_action_id: 'intelligence_enhancement_status' as const,
+          enable_action_id: 'intelligence_enhancement_enable' as const,
+          disable_action_id: 'intelligence_enhancement_disable' as const,
+          repair_action_id: 'intelligence_enhancement_repair' as const,
+          uninstall_action_id: 'intelligence_enhancement_uninstall' as const,
         }
       : null;
   if (optionalUserModes && !parsedIntelligenceEnhancementMode) {
@@ -1519,7 +1537,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     display: 'appearance',
     webui: 'resources',
     pet: 'appearance',
-    about: 'advanced',
   };
   if (JSON.stringify(legacySettingsRouteRedirects) !== JSON.stringify(expectedLegacySettingsRouteRedirects)) {
     throw new Error('Invalid OPL product profile: GUI legacy settings redirects must match OPL App');

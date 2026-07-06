@@ -192,21 +192,21 @@ describe('OPL generated product profile', () => {
       path: '/settings/workspace',
       label_key: 'settings.workspace',
       icon_token: 'workspace',
-      scope: 'selected_workspace',
-      intent: 'configure_and_inspect_paths_permissions_and_artifact_roots',
-      risk: 'read_only_or_reversible_local_path_actions',
-      frequency: 'first_run_and_project_switching',
+      scope: 'workspace',
+      intent: 'configure',
+      risk: 'confirmation_required',
+      frequency: 'first_run_or_project_switch',
     });
     expect(controlPlane.secondary_pages.map((page) => page.id)).not.toContain('workspace');
     expect(controlPlane.ordinary_routes.find((route) => route.id === 'resources')).toMatchObject({
       path: '/settings/resources',
-      label_key: 'settings.resourcesPage.title',
+      label_key: 'settings.resources',
       icon_token: 'resources',
-      scope: 'external_and_hosted_resources',
-      intent: 'inspect_and_precheck_resource_connections',
+      scope: 'resource',
+      intent: 'configure',
     });
     expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
-    expect(controlPlane.slot_registry.settings_resources.component_key).toBe('ResourcesSettingsContent');
+    expect(controlPlane.slot_registry.settings_resources.component_key).toBe('AccessSettingsContent');
     expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
     expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.workspace.component_key).toBe('WorkspaceSettings');
@@ -487,6 +487,12 @@ describe('OPL generated product profile', () => {
           local_proxy_base_url: 'http://127.0.0.1:8787/v1',
           upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy',
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action',
+          service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair',
+          status_action_id: 'intelligence_enhancement_status',
+          enable_action_id: 'intelligence_enhancement_enable',
+          disable_action_id: 'intelligence_enhancement_disable',
+          repair_action_id: 'intelligence_enhancement_repair',
+          uninstall_action_id: 'intelligence_enhancement_uninstall',
         },
       },
     });
