@@ -1955,8 +1955,17 @@
       "openStorage": "Review storage"
     },
     "maintenanceHub": {
-      "title": "OPL System Bridge",
-      "description": "Use one place for Installation carrier updates, OPL Runtime Fabric upkeep, capability packs, storage cleanup, and repair suggestions. Actions still run through their existing managed surfaces.",
+      "title": "Maintenance and updates",
+      "description": "Maintain the app by user actions: app updates, runtime environment, capability sync, and local background services.",
+      "actions": {
+        "repairRuntimeEnvironment": "Repair runtime environment",
+        "syncCapabilityPacks": "Sync capability packs",
+        "checkBackgroundServices": "Check background services"
+      },
+      "linkOuts": {
+        "label": "Other settings:",
+        "advancedDiagnostics": "Runtime status / advanced diagnostics"
+      },
       "makeUsable": {
         "label": "Make OPL usable",
         "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
@@ -1972,26 +1981,22 @@
       },
       "items": {
         "appUpdates": {
-          "title": "Installation carrier",
-          "description": "Check the App carrier update route."
+          "title": "App updates",
+          "description": "Check the App carrier and host update route."
         },
-        "runtimeToolchain": {
-          "title": "OPL Runtime Fabric",
-          "description": "Check Language Runtimes, Package & Env Resolver, Env Cache / Isolated Prefix, and Receipts in the managed OPL Runtime Fabric lane.",
-          "actionHelp": "Runs the existing managed update check. It does not apply OPL Runtime Fabric changes."
+        "runtimeEnvironment": {
+          "title": "Runtime environment",
+          "description": "Repair language runtimes, package and environment resolver, isolated prefix, and receipts.",
+          "actionHelp": "Runs the existing safe maintenance path. It does not overwrite local developer checkouts or delete user data."
         },
-        "capabilityPacks": {
-          "title": "OPL capability packs",
+        "capabilitySurfaceSync": {
+          "title": "Capability packs and Codex Surface sync",
           "description": "Check OPL capability packages and Codex Surface visibility.",
           "actionHelp": "Runs the existing managed update check for capability packages and Codex Surface visibility."
         },
-        "storageCleanup": {
-          "title": "Storage cleanup",
-          "description": "Open storage details, cleanup previews, and proof receipts."
-        },
-        "repairSuggestions": {
-          "title": "Repair suggestions",
-          "description": "Run the existing OPL repair path when required capabilities need attention."
+        "localServicesRepair": {
+          "title": "Local services and repair",
+          "description": "Check local background services such as Codex, workspace, and Temporal."
         }
       }
     },

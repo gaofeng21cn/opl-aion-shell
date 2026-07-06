@@ -6,7 +6,7 @@
 
 import React, { useCallback, useMemo, useRef } from 'react';
 import { Alert, Button, Card, Collapse, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, Copy, FolderSearch, Repair, UpdateRotation } from '@icon-park/react';
+import { Copy, FolderSearch, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -49,9 +49,7 @@ import {
   findRecommendedUpdateAction,
   updateComponentUserAction,
 } from '../RuntimeSettings/environmentProjection';
-import { normalizeRuntimeProjection } from '../RuntimeSettings/runtimeProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
-import type { ArtifactProvenanceDrawer, RuntimeTaskDrilldown, RuntimeTaskRefCard } from '../RuntimeSettings/types';
 import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
@@ -120,328 +118,6 @@ function mutationWillChange(
 function mutationWillNotChange(kind: 'apply' | 'repair' | 'rollback', t: Translate): string {
   if (kind === 'rollback') return t('settings.oplEnvironmentPage.updates.confirmation.willNotRollback');
   return t('settings.oplEnvironmentPage.updates.confirmation.willNotApplyUnsafe');
-}
-
-function taskStatusLabel(task: RuntimeTaskDrilldown): string | undefined {
-  return task.status ?? task.state ?? task.progressLabel;
-}
-
-function TaskRunRefCards({ title, cards }: { title: string; cards: RuntimeTaskRefCard[] }) {
-  if (cards.length === 0) return null;
-  return (
-    <div className='flex flex-col gap-6px min-w-0'>
-      <Typography.Text className='text-12px font-600 text-t-primary'>{title}</Typography.Text>
-      <div className='grid gap-8px md:grid-cols-2'>
-        {cards.map((card) => (
-          <div key={card.id} className='rd-8px border border-border-1 bg-fill-2 p-10px min-w-0'>
-            <Typography.Text className='block text-12px font-600 text-t-primary break-words'>
-              {card.label}
-            </Typography.Text>
-            {(card.value || card.ref) && (
-              <Typography.Text className='block text-12px text-t-secondary break-all'>
-                {card.value ?? card.ref}
-              </Typography.Text>
-            )}
-            {card.value && card.ref && (
-              <Typography.Text className='block text-12px text-t-secondary break-all'>{card.ref}</Typography.Text>
-            )}
-            {card.details.length > 0 && (
-              <div className='mt-6px flex flex-col gap-4px'>
-                {card.details.map((detail) => (
-                  <Typography.Text
-                    key={`${card.id}:${detail.key}:${detail.value}`}
-                    className='block text-11px text-t-tertiary break-words'
-                  >
-                    {detail.key}: {detail.value}
-                  </Typography.Text>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function refDetails(entries: Array<[string, string | undefined]>): RuntimeTaskRefCard['details'] {
-  return entries.flatMap(([key, value]) => (value ? [{ key, value }] : []));
-}
-
-function artifactProvenanceCards(drawer: ArtifactProvenanceDrawer, t: Translate): RuntimeTaskRefCard[] {
-  const cards: RuntimeTaskRefCard[] = [];
-  if (drawer.provenanceProjectionRef || drawer.provenanceIndexRef) {
-    cards.push({
-      id: 'artifact-provenance-projection',
-      label: t('settings.runtimePage.taskRuns.artifactContext.sourceMap'),
-      value: drawer.provenanceProjectionRef,
-      ref: drawer.provenanceIndexRef,
-      kind: drawer.provenanceProjectionKind,
-      details: refDetails([
-        [t('settings.runtimePage.taskRuns.artifactContext.sourceIndex'), drawer.provenanceIndexRef],
-      ]),
-    });
-  }
-  drawer.provenanceBundleRefs.forEach((entry, index) => {
-    cards.push({
-      id: `artifact-provenance-bundle-${entry.artifactId ?? entry.bundleRef ?? index + 1}`,
-      label: entry.artifactId ?? t('settings.runtimePage.taskRuns.artifactContext.sourceBundle'),
-      value: entry.bundleRef,
-      ref: entry.ledgerRecordRef,
-      kind: 'provenance_bundle_ref',
-      details: refDetails([
-        [t('settings.runtimePage.taskRuns.artifactContext.artifact'), entry.artifactRef],
-        [t('settings.runtimePage.taskRuns.artifactContext.ledgerRecord'), entry.ledgerRecordRef],
-        [t('settings.runtimePage.taskRuns.artifactContext.contentHash'), entry.contentHashRef],
-      ]),
-    });
-  });
-  if (drawer.roCrateMetadataRef) {
-    cards.push({
-      id: 'artifact-provenance-ro-crate',
-      label: t('settings.runtimePage.taskRuns.artifactContext.roCrate'),
-      ref: drawer.roCrateMetadataRef,
-      details: [],
-    });
-  }
-  if (drawer.replayStatusRef) {
-    cards.push({
-      id: 'artifact-provenance-replay-status',
-      label: t('settings.runtimePage.taskRuns.artifactContext.replayStatus'),
-      ref: drawer.replayStatusRef,
-      details: [],
-    });
-  }
-  drawer.agentTraceRefs.forEach((entry, index) => {
-    cards.push({
-      id: `artifact-provenance-agent-trace-${entry.traceKind ?? entry.traceRef ?? index + 1}`,
-      label: entry.traceKind ?? t('settings.runtimePage.taskRuns.artifactContext.agentActivity'),
-      ref: entry.traceRef,
-      kind: 'agent_trace_ref',
-      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.access'), entry.access]]),
-    });
-  });
-  drawer.reviewRefs.forEach((entry, index) => {
-    cards.push({
-      id: `artifact-provenance-review-${entry.reviewKind ?? entry.reviewRef ?? index + 1}`,
-      label: entry.reviewKind ?? t('settings.runtimePage.taskRuns.artifactContext.reviewNote'),
-      ref: entry.reviewRef,
-      kind: 'review_ref',
-      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.reviewOwner'), entry.reviewerOwner]]),
-    });
-  });
-  drawer.typedIssues.forEach((entry, index) => {
-    cards.push({
-      id: `artifact-provenance-typed-issue-${entry.issueType ?? entry.ref ?? index + 1}`,
-      label: entry.issueType ?? t('settings.runtimePage.taskRuns.artifactContext.typedIssue'),
-      ref: entry.ref,
-      kind: 'typed_issue',
-      details: refDetails([
-        [t('settings.runtimePage.taskRuns.artifactContext.severity'), entry.severity],
-        [t('settings.runtimePage.taskRuns.artifactContext.owner'), entry.owner],
-      ]),
-    });
-  });
-  if (drawer.drawerRoute || drawer.drawerProjectionRef || drawer.drawerSurfaceKind) {
-    cards.push({
-      id: 'artifact-provenance-drawer',
-      label: t('settings.runtimePage.taskRuns.artifactContext.detailDrawer'),
-      value: drawer.drawerRoute,
-      ref: drawer.drawerProjectionRef,
-      kind: drawer.drawerSurfaceKind,
-      details: [],
-    });
-  }
-  if (drawer.openAction) {
-    cards.push({
-      id: 'artifact-provenance-open-action',
-      label: t('settings.runtimePage.taskRuns.artifactContext.openAction'),
-      value: drawer.openAction.route,
-      ref: drawer.openAction.actionRef,
-      kind: drawer.openAction.requiredMode,
-      details: refDetails([[t('settings.runtimePage.taskRuns.artifactContext.action'), drawer.openAction.actionId]]),
-    });
-  }
-  return cards;
-}
-
-function RuntimeTaskRunProjectionSection({ tasks }: { tasks: RuntimeTaskDrilldown[] }) {
-  const { t } = useTranslation();
-  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
-  const selectedTask = useMemo(
-    () => tasks.find((task) => task.taskId === selectedTaskId) ?? tasks[0],
-    [selectedTaskId, tasks]
-  );
-  const overview = useMemo(
-    () => ({
-      attention: tasks.filter((task) => task.state === 'attention_needed' || task.status === 'attention_needed').length,
-      running: tasks.filter((task) => task.state === 'running' || task.status === 'running').length,
-      waiting: tasks.filter((task) => task.state === 'waiting' || task.status === 'waiting').length,
-      recent: tasks.length,
-    }),
-    [tasks]
-  );
-
-  if (tasks.length === 0) return null;
-
-  return (
-    <>
-      <Typography.Text className='font-600 text-t-primary'>{t('settings.runtimePage.taskRuns.title')}</Typography.Text>
-      <Card bordered className='rd-8px' data-testid='runtime-task-run-projection-v2'>
-        <div className='flex flex-col gap-12px'>
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.runtimePage.taskRuns.description')}
-          </Typography.Text>
-          <div className='grid gap-8px sm:grid-cols-2 lg:grid-cols-4' data-testid='runtime-task-run-overview'>
-            {[
-              ['attention', overview.attention],
-              ['running', overview.running],
-              ['waiting', overview.waiting],
-              ['recent', overview.recent],
-            ].map(([key, value]) => (
-              <div key={key} className='rd-8px border border-border-1 bg-fill-2 p-10px min-w-0'>
-                <Typography.Text className='block text-11px text-t-tertiary'>
-                  {t(`settings.runtimePage.taskRuns.overview.${key}`)}
-                </Typography.Text>
-                <Typography.Text className='block text-18px font-600 text-t-primary'>{value}</Typography.Text>
-              </div>
-            ))}
-          </div>
-          <div className='grid gap-10px md:grid-cols-2'>
-            {tasks.map((task) => (
-              <Button
-                key={task.taskId}
-                className='h-auto text-left rd-8px border border-border-1 bg-fill-2 p-10px'
-                data-testid={`runtime-task-run-row-${task.taskId}`}
-                onClick={() => setSelectedTaskId(task.taskId)}
-              >
-                <span className='flex min-w-0 flex-col items-stretch'>
-                  <span className='block text-14px font-600 text-t-primary break-words'>{task.title}</span>
-                  <span className='mt-4px flex flex-wrap gap-6px text-12px text-t-secondary'>
-                    {taskStatusLabel(task) && <Tag size='small'>{taskStatusLabel(task)}</Tag>}
-                    {task.stage && <span>{task.stage}</span>}
-                    {task.nextOwner && (
-                      <span>{t('settings.runtimePage.taskRuns.nextOwner', { owner: task.nextOwner })}</span>
-                    )}
-                  </span>
-                  {task.nextStep && (
-                    <span className='mt-6px block text-12px text-t-secondary break-words'>{task.nextStep}</span>
-                  )}
-                </span>
-              </Button>
-            ))}
-          </div>
-          {selectedTask && (
-            <div className='rd-8px border border-border-1 p-12px' data-testid='runtime-task-run-detail'>
-              <div className='flex flex-col gap-6px'>
-                <div className='flex flex-wrap items-center gap-8px'>
-                  <Typography.Text className='font-600 text-t-primary'>{selectedTask.title}</Typography.Text>
-                  {taskStatusLabel(selectedTask) && <Tag size='small'>{taskStatusLabel(selectedTask)}</Tag>}
-                  {selectedTask.progressLabel && <Tag size='small'>{selectedTask.progressLabel}</Tag>}
-                </div>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {[
-                    selectedTask.stage ? t('settings.runtimePage.taskRuns.stage', { stage: selectedTask.stage }) : null,
-                    selectedTask.nextStep
-                      ? t('settings.runtimePage.taskRuns.nextStep', { step: selectedTask.nextStep })
-                      : null,
-                    selectedTask.lastProgressAt
-                      ? t('settings.runtimePage.taskRuns.lastProgress', { time: selectedTask.lastProgressAt })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Typography.Text>
-              </div>
-              {selectedTask.conditions.length > 0 && (
-                <div className='mt-12px flex flex-col gap-6px'>
-                  <Typography.Text className='text-12px font-600 text-t-primary'>
-                    {t('settings.runtimePage.taskRuns.conditions')}
-                  </Typography.Text>
-                  <div className='flex flex-col gap-6px'>
-                    {selectedTask.conditions.map((condition) => (
-                      <div key={condition.id} className='text-12px text-t-secondary break-words'>
-                        {[condition.type, condition.status, condition.reason, condition.message]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className='mt-12px flex flex-col gap-12px'>
-                <Collapse
-                  key={selectedTask.taskId}
-                  bordered={false}
-                  defaultActiveKey={[
-                    ...(selectedTask.artifactProvenanceDrawer ? ['artifact-provenance'] : []),
-                    'evidence',
-                    'actions',
-                    'resources',
-                  ]}
-                >
-                  {selectedTask.artifactProvenanceDrawer && (
-                    <Collapse.Item
-                      name='artifact-provenance'
-                      header={t('settings.runtimePage.taskRuns.artifactProvenanceDrawer')}
-                      data-testid='runtime-task-run-detail-artifact-provenance'
-                    >
-                      <TaskRunRefCards
-                        title={t('settings.runtimePage.taskRuns.artifactProvenanceDrawer')}
-                        cards={artifactProvenanceCards(selectedTask.artifactProvenanceDrawer, t)}
-                      />
-                    </Collapse.Item>
-                  )}
-                  <Collapse.Item
-                    name='evidence'
-                    header={t('settings.runtimePage.taskRuns.evidenceCards')}
-                    data-testid='runtime-task-run-detail-evidence'
-                  >
-                    <TaskRunRefCards
-                      title={t('settings.runtimePage.taskRuns.evidenceCards')}
-                      cards={selectedTask.evidenceCards}
-                    />
-                  </Collapse.Item>
-                  <Collapse.Item
-                    name='actions'
-                    header={t('settings.runtimePage.taskRuns.actionCards')}
-                    data-testid='runtime-task-run-detail-actions'
-                  >
-                    <TaskRunRefCards
-                      title={t('settings.runtimePage.taskRuns.actionCards')}
-                      cards={selectedTask.actionCards}
-                    />
-                  </Collapse.Item>
-                  <Collapse.Item
-                    name='resources'
-                    header={t('settings.runtimePage.taskRuns.resourceRefs')}
-                    data-testid='runtime-task-run-detail-resources'
-                  >
-                    <TaskRunRefCards
-                      title={t('settings.runtimePage.taskRuns.resourceRefs')}
-                      cards={selectedTask.resourceRefs}
-                    />
-                  </Collapse.Item>
-                  {selectedTask.diagnosticsRefs.length > 0 && (
-                    <Collapse.Item
-                      name='diagnostics'
-                      header={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
-                      data-testid='runtime-task-run-detail-diagnostics'
-                    >
-                      <TaskRunRefCards
-                        title={t('settings.runtimePage.taskRuns.diagnosticsRefs')}
-                        cards={selectedTask.diagnosticsRefs}
-                      />
-                    </Collapse.Item>
-                  )}
-                </Collapse>
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-    </>
-  );
 }
 
 function rollbackOrReceiptText(component: ManagedUpdateComponent, t: Translate): string {
@@ -1250,18 +926,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   }, [message, t]);
 
   const appState = appStateQuery.appState;
-  const runtimeProjection = useMemo(() => normalizeRuntimeProjection({ app_state: appState }), [appState]);
   const managedUpdatePlane = useMemo(
     () => readManagedUpdatePlane(managedUpdateMaintenance.result?.parsed, appState),
     [appState, managedUpdateMaintenance.result]
   );
-
-  const refreshRuntime = useCallback(() => {
-    void appStateQuery.load('fast', { showRefreshing: true }).then((payload) => {
-      if (payload) messageRef.current.success(t('common.refreshSuccess'));
-      else messageRef.current.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
-    });
-  }, [appStateQuery.load, t]);
 
   const runManagedUpdateRead = useCallback(async (operation: 'status' | 'check' | 'plan', manual = true) => {
     if (manual) setActiveReadOperation(operation);
@@ -1434,6 +1102,18 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     window.location.hash = '#/settings/storage';
   }, []);
 
+  const openWorkspaceSettings = useCallback(() => {
+    window.location.hash = '#/settings/workspace';
+  }, []);
+
+  const openAboutSettings = useCallback(() => {
+    window.location.hash = '#/settings/about';
+  }, []);
+
+  const openAdvancedSettings = useCallback(() => {
+    window.location.hash = '#/settings/advanced';
+  }, []);
+
   const viewModel = useMemo(
     () =>
       buildRuntimeSettingsViewModel({
@@ -1445,12 +1125,11 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         maintenanceHubCheckTarget,
         makeUsableRunning,
         actions: {
-          openStorageSettings,
           openUpdateModal,
           runMaintenanceHubCheck,
           runMakeOplUsable: requestMakeOplUsable,
-          runRepairSuggestions: () =>
-            void runSettingsAppAction('repair', t('settings.oplEnvironmentPage.messages.repairComplete')),
+          runServiceCheck: () =>
+            void runSettingsAppAction('doctor', t('settings.oplEnvironmentPage.messages.doctorComplete')),
         },
         t,
       }),
@@ -1462,7 +1141,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       makeUsableRunning,
       managedUpdateMaintenance,
       managedUpdatePlane,
-      openStorageSettings,
       openUpdateModal,
       requestMakeOplUsable,
       runMaintenanceHubCheck,
@@ -1478,16 +1156,10 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       modulesSourceMode,
       modulesRoot,
       modules,
-      moduleReady,
-      appVersion,
-      guiVersion,
-      releaseRepo,
       healthSummaryItems,
       runtimeCards,
     },
     maintenanceHubItems,
-    maintenanceHubPrimaryAction,
-    releaseChannelLabel,
   } = viewModel;
   const developerSourceActive =
     Boolean(modulesSourceMode && DEVELOPER_SOURCE_MODES.has(modulesSourceMode)) ||
@@ -1525,9 +1197,28 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
 
         <RuntimeHealthSummary items={healthSummaryItems} />
 
-        <RuntimeMaintenanceHub items={maintenanceHubItems} primaryAction={maintenanceHubPrimaryAction} t={t} />
+        <RuntimeMaintenanceHub items={maintenanceHubItems} t={t} />
 
-        <RuntimeTaskRunProjectionSection tasks={runtimeProjection.taskRunProjectionV2.tasks} />
+        <div
+          className='flex flex-wrap items-center gap-8px text-12px text-t-secondary'
+          data-testid='opl-maintenance-link-outs'
+        >
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.oplEnvironmentPage.maintenanceHub.linkOuts.label')}
+          </Typography.Text>
+          <Button size='mini' type='text' onClick={openWorkspaceSettings}>
+            {t('settings.workspace')}
+          </Button>
+          <Button size='mini' type='text' onClick={openStorageSettings}>
+            {t('settings.storage')}
+          </Button>
+          <Button size='mini' type='text' onClick={openAboutSettings}>
+            {t('settings.about')}
+          </Button>
+          <Button size='mini' type='text' onClick={openAdvancedSettings}>
+            {t('settings.oplEnvironmentPage.maintenanceHub.linkOuts.advancedDiagnostics')}
+          </Button>
+        </div>
 
         {(developerSourceActive || dirtyCheckoutActive) && (
           <Alert
@@ -1587,99 +1278,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         </Typography.Text>
         <RuntimeReadinessGrid cards={runtimeCards} t={t} />
 
-        <Card bordered className='rd-8px'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.oplEnvironmentPage.recommendedActions.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('settings.oplEnvironmentPage.recommendedActions.description')}
-              </Typography.Text>
-            </div>
-            <Space wrap>
-              <Button
-                key='runtime-action-doctor'
-                data-testid='opl-runtime-action-doctor'
-                type='primary'
-                icon={<CheckOne theme='outline' />}
-                onClick={() =>
-                  void runSettingsAppAction('doctor', t('settings.oplEnvironmentPage.messages.doctorComplete'))
-                }
-              >
-                {t('settings.oplEnvironmentPage.actions.doctor')}
-              </Button>
-              <Button
-                key='runtime-action-refresh'
-                icon={<UpdateRotation theme='outline' />}
-                loading={appStateQuery.refreshing}
-                onClick={refreshRuntime}
-              >
-                {t('settings.oplEnvironmentPage.actions.refresh')}
-              </Button>
-              <Button
-                key='runtime-action-repair'
-                data-testid='opl-runtime-action-repair'
-                icon={<Repair theme='outline' />}
-                onClick={() =>
-                  void runSettingsAppAction('repair', t('settings.oplEnvironmentPage.messages.repairComplete'))
-                }
-              >
-                {t('settings.oplEnvironmentPage.actions.repair')}
-              </Button>
-            </Space>
-          </div>
-        </Card>
-
-        <Typography.Text className='font-600 text-t-primary'>
-          {t('settings.oplEnvironmentPage.sections.workspace')}
-        </Typography.Text>
-        <Card bordered className='rd-8px'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.oplEnvironmentPage.workspace.rootTitle')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {workspaceRoot
-                  ? t('settings.oplEnvironmentPage.workspace.currentRoot', { path: workspaceRoot })
-                  : t('settings.oplEnvironmentPage.workspace.noRoot')}
-              </Typography.Text>
-            </div>
-            <Button
-              key='runtime-action-workspace'
-              icon={<FolderSearch theme='outline' />}
-              loading={appStateQuery.refreshing}
-              onClick={refreshRuntime}
-            >
-              {t('settings.oplEnvironmentPage.actions.refreshWorkspace')}
-            </Button>
-          </div>
-        </Card>
-
-        <Card bordered className='rd-8px'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between'>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>{t('common.version')}</Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('settings.runtimePage.versionDetail', {
-                  oplVersion: appVersion,
-                  guiVersion,
-                  channel: releaseChannelLabel,
-                })}
-              </Typography.Text>
-              {releaseRepo && (
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {releaseRepo}
-                </Typography.Text>
-              )}
-            </div>
-            <Button icon={<UpdateRotation theme='outline' />} onClick={openUpdateModal}>
-              {t('settings.checkForUpdates')}
-            </Button>
-          </div>
-        </Card>
-
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.agentPackages')}
         </Typography.Text>
@@ -1694,25 +1292,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
           onConfirmAction={confirmManagedUpdateAction}
           t={t}
         />
-
-        <Typography.Text className='font-600 text-t-primary'>
-          {t('settings.oplEnvironmentPage.sections.storage')}
-        </Typography.Text>
-        <Card bordered className='rd-8px'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.oplEnvironmentPage.storageData.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('settings.oplEnvironmentPage.storageData.description')}
-              </Typography.Text>
-            </div>
-            <Button key='runtime-action-storage' icon={<FolderSearch theme='outline' />} onClick={openStorageSettings}>
-              {t('settings.oplEnvironmentPage.storageData.openStorage')}
-            </Button>
-          </div>
-        </Card>
 
         <Typography.Text className='font-600 text-t-primary'>
           {t('settings.oplEnvironmentPage.sections.maintenance')}

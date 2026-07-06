@@ -5,10 +5,10 @@
  */
 
 import React from 'react';
-import { CheckOne, FolderSearch, Repair, UpdateRotation } from '@icon-park/react';
+import { CheckOne, Repair, UpdateRotation } from '@icon-park/react';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 import type { ManagedUpdatePlane } from '@/renderer/services/managedUpdateProjection';
-import type { RuntimeMaintenanceHubItem, RuntimeMaintenanceHubPrimaryAction } from '../sections/RuntimeSettingsPanels';
+import type { RuntimeMaintenanceHubItem } from '../sections/RuntimeSettingsPanels';
 import {
   buildRuntimeEnvironmentProjection,
   componentStatusTone,
@@ -18,11 +18,10 @@ import {
 import { formatStatus, type Translate } from '../sections/runtimeStateView';
 
 export type RuntimeSettingsActions = {
-  openStorageSettings: () => void;
   openUpdateModal: () => void;
   runMaintenanceHubCheck: (target: 'runtimeSubstrate' | 'capabilityPacks') => void;
   runMakeOplUsable: () => void;
-  runRepairSuggestions: () => void;
+  runServiceCheck: () => void;
 };
 
 export type RuntimeSettingsViewModelInput = {
@@ -85,23 +84,23 @@ export function buildRuntimeSettingsViewModel({
       onAction: actions.openUpdateModal,
     },
     {
-      key: 'runtimeToolchain',
-      title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.title'),
+      key: 'runtimeEnvironment',
+      title: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.title'),
       detail: runtimeSubstrateComponent
         ? componentUserSummary(runtimeSubstrateComponent, t)
-        : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.description'),
+        : t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.description'),
       status: formatStatus(runtimeSubstrateComponent?.state ?? 'unknown', t),
       tone: runtimeSubstrateComponent ? componentStatusTone(runtimeSubstrateComponent) : 'orange',
-      icon: <UpdateRotation theme='outline' />,
-      actionLabel: t('settings.oplEnvironmentPage.updates.actions.reviewRuntimeToolchain'),
-      actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeToolchain.actionHelp'),
-      actionLoading: maintenanceHubCheckTarget === 'runtimeSubstrate',
-      actionDisabled: updateReadDisabled,
-      onAction: () => actions.runMaintenanceHubCheck('runtimeSubstrate'),
+      icon: <Repair theme='outline' />,
+      actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'),
+      actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.actionHelp'),
+      actionLoading: makeUsableRunning,
+      actionDisabled: Boolean(activeReadOperation) || Boolean(maintenanceHubCheckTarget),
+      onAction: actions.runMakeOplUsable,
     },
     {
-      key: 'capabilityPacks',
-      title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.title'),
+      key: 'capabilitySurfaceSync',
+      title: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'),
       detail:
         capabilityPackagesComponent || codexSurfaceComponent
           ? [
@@ -110,55 +109,37 @@ export function buildRuntimeSettingsViewModel({
             ]
               .filter((value): value is string => Boolean(value))
               .join(' ')
-          : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.description'),
+          : t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.description'),
       status: t('settings.oplEnvironmentPage.moduleMaintenance.moduleCount', {
         ready: moduleReady,
         total: modules.length,
       }),
       tone: capabilityPacksHealthy ? 'green' : 'orange',
       icon: <Repair theme='outline' />,
-      actionLabel: t('settings.oplEnvironmentPage.updates.actions.reviewCapabilityPacks'),
-      actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilityPacks.actionHelp'),
+      actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'),
+      actionHelp: t('settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.actionHelp'),
       actionLoading: maintenanceHubCheckTarget === 'capabilityPacks',
       actionDisabled: updateReadDisabled,
       onAction: () => actions.runMaintenanceHubCheck('capabilityPacks'),
     },
     {
-      key: 'storageCleanup',
-      title: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.title'),
-      detail: t('settings.oplEnvironmentPage.maintenanceHub.items.storageCleanup.description'),
-      status: t('settings.oplEnvironmentPage.maintenanceHub.status.available'),
-      tone: 'green',
-      icon: <FolderSearch theme='outline' />,
-      actionLabel: t('settings.oplEnvironmentPage.storageData.openStorage'),
-      onAction: actions.openStorageSettings,
-    },
-    {
-      key: 'repairSuggestions',
-      title: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.title'),
-      detail: t('settings.oplEnvironmentPage.maintenanceHub.items.repairSuggestions.description'),
+      key: 'localServicesRepair',
+      title: t('settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'),
+      detail: t('settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.description'),
       status:
         attentionCount === 0
           ? t('settings.oplEnvironmentPage.healthSummary.values.none')
           : t('settings.oplEnvironmentPage.healthSummary.values.count', { count: attentionCount }),
       tone: attentionCount === 0 ? 'green' : 'orange',
       icon: <CheckOne theme='outline' />,
-      actionLabel: t('settings.oplEnvironmentPage.actions.repair'),
-      onAction: actions.runRepairSuggestions,
+      actionLabel: t('settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'),
+      onAction: actions.runServiceCheck,
     },
   ];
-  const maintenanceHubPrimaryAction: RuntimeMaintenanceHubPrimaryAction = {
-    label: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'),
-    help: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.help'),
-    loading: makeUsableRunning,
-    disabled: Boolean(activeReadOperation) || Boolean(maintenanceHubCheckTarget),
-    onAction: actions.runMakeOplUsable,
-  };
 
   return {
     environment,
     maintenanceHubItems,
-    maintenanceHubPrimaryAction,
     releaseChannelLabel: formatReleaseChannel(environment.releaseChannel, t),
   };
 }

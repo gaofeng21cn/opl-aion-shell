@@ -1956,8 +1956,17 @@
       "openStorage": "查看存储"
     },
     "maintenanceHub": {
-      "title": "OPL 系统桥接",
-      "description": "在一个入口查看安装载体更新、OPL Runtime Fabric、能力包、存储清理和修复建议；具体动作仍走各自已有托管面。",
+      "title": "维护与更新",
+      "description": "按你可以采取的维护动作处理 App 更新、运行环境、能力包同步和本机后台服务。",
+      "actions": {
+        "repairRuntimeEnvironment": "修复运行环境",
+        "syncCapabilityPacks": "同步能力包",
+        "checkBackgroundServices": "检查后台服务"
+      },
+      "linkOuts": {
+        "label": "其他设置：",
+        "advancedDiagnostics": "运行状态 / 高级诊断"
+      },
       "makeUsable": {
         "label": "让 OPL 可用",
         "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
@@ -1973,26 +1982,22 @@
       },
       "items": {
         "appUpdates": {
-          "title": "安装载体",
-          "description": "检查 App 安装载体的更新路径。"
+          "title": "应用更新",
+          "description": "检查 App 安装载体和主机更新路径。"
         },
-        "runtimeToolchain": {
-          "title": "OPL Runtime Fabric",
-          "description": "检查托管 OPL Runtime Fabric 通道中的语言运行时、包与环境解析器、环境缓存 / 隔离前缀和回执。",
-          "actionHelp": "运行现有托管更新检查；不会应用 OPL Runtime Fabric 变更。"
+        "runtimeEnvironment": {
+          "title": "运行环境",
+          "description": "修复语言运行时、包与环境解析器、隔离前缀和回执可用性。",
+          "actionHelp": "运行现有安全维护流程；不会覆盖本机开发目录或删除用户数据。"
         },
-        "capabilityPacks": {
-          "title": "OPL 能力包",
+        "capabilitySurfaceSync": {
+          "title": "能力包与 Codex Surface 同步",
           "description": "检查 OPL 能力包和 Codex Surface 可见性。",
           "actionHelp": "通过现有托管更新检查能力包和 Codex Surface 可见性。"
         },
-        "storageCleanup": {
-          "title": "存储清理",
-          "description": "打开存储详情、清理预览和证明回执。"
-        },
-        "repairSuggestions": {
-          "title": "修复建议",
-          "description": "必要能力需要处理时，运行现有 OPL 修复路径。"
+        "localServicesRepair": {
+          "title": "本机服务与修复",
+          "description": "检查 Codex、工作目录、Temporal 等本机后台服务。"
         }
       }
     },

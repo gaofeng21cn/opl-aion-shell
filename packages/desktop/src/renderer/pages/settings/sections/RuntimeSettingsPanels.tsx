@@ -123,7 +123,7 @@ export function RuntimeMaintenanceHub({
             </Button>
           )}
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-12px'>
+        <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-12px'>
           {items.map((item) => (
             <div
               key={`maintenance-hub-${item.key}`}
