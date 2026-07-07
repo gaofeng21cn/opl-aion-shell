@@ -1991,14 +1991,14 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(
       vmSmoke.isNonRetryableFullRuntimeEquivalenceError(
         new Error(
-          'OPL Full runtime domain plugin med-autogrant is missing packaged plugin manifest: /Applications/One Person Lab.app/Contents/Resources/opl-full-runtime/runtime/current/modules/mag/plugins/med-autogrant/.codex-plugin/plugin.json',
-        ),
-      ),
+          'OPL Full runtime domain plugin med-autogrant is missing packaged plugin manifest: /Applications/One Person Lab.app/Contents/Resources/opl-full-runtime/runtime/current/modules/mag/plugins/med-autogrant/.codex-plugin/plugin.json'
+        )
+      )
     ).toBe(true);
     expect(
       vmSmoke.isNonRetryableFullRuntimeEquivalenceError(
-        new Error('OPL first-run initialize did not report a launchable core state'),
-      ),
+        new Error('OPL first-run initialize did not report a launchable core state')
+      )
     ).toBe(false);
   });
 });
