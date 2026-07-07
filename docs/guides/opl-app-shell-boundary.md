@@ -47,6 +47,11 @@ Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visual
 
 App canonical component ids, package ids, and action ids / refs are the only machine-semantic identifiers the shell may submit back to OPL. Shell fallback or compatibility labels may be displayed, but must not mint action ids, mark fallback ids as ready / synced, or make fallback-derived routes executable.
 
+Runtime task display states use Framework/App-owned `primary_state` and
+`automation_state` when present. Legacy `state` / `status` fields may only
+downgrade uncertain data to idle or attention states; they must not upgrade a
+task into running, delivered, package-ready, or terminalized semantics.
+
 `app_state.operator.default_read_surface_policy` is the shell-visible guard for
 the default Runtime page. The normal page must treat
 `current_owner_delta` / `opl_current_owner_delta` as the first-screen payload.
