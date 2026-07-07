@@ -453,6 +453,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const [statusFilter, setStatusFilter] = useState<CapabilityStatus | 'all'>('all');
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState<string | null>(null);
+  const [advancedAddOpen, setAdvancedAddOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
   const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
   const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
@@ -673,9 +674,31 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 >
                   {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
                 </Button>
+                <Button
+                  size='small'
+                  type='primary'
+                  onClick={() => setAdvancedAddOpen((open) => !open)}
+                  data-testid='agent-package-add-capability'
+                >
+                  {t('settings.capabilitiesPage.packageManager.addCapability')}
+                </Button>
+              </div>
+            </div>
+            {advancedAddOpen && (
+              <div
+                className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_auto]'
+                data-testid='agent-package-advanced-add'
+              >
+                <div className='md:col-span-2'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.capabilitiesPage.packageManager.advancedAddTitle')}
+                  </Typography.Text>
+                  <Typography.Text className='block text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.packageManager.advancedAddDescription')}
+                  </Typography.Text>
+                </div>
                 <Input
                   size='small'
-                  className='max-w-280px min-w-200px'
                   value={manifestUrl}
                   onChange={setManifestUrl}
                   placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
@@ -694,7 +717,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   {t('settings.capabilitiesPage.packageManager.installFromManifest')}
                 </Button>
               </div>
-            </div>
+            )}
           </div>
           <div className='flex flex-col gap-12px xl:flex-row'>
             <div className='min-w-0 flex-1'>

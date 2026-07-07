@@ -16,6 +16,13 @@ const bridgeMocks = vi.hoisted(() => ({
   executeUpdaterCacheCleanup: vi.fn(),
 }));
 
+const openDetails = (details: HTMLDetailsElement | null) => {
+  expect(details).toBeTruthy();
+  if (!details) return;
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+};
+
 vi.mock('@/common', () => ({
   ipcBridge: {
     localDataLifecycle: {
@@ -60,13 +67,15 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.sections.updater.description': 'Installer package cache only.',
     'settings.storagePage.sections.conversations.title': 'Conversation artifacts',
     'settings.storagePage.sections.conversations.description': 'Conversation files require proof before cleanup.',
-    'settings.storagePage.sections.runtime.title': 'OPL Runtime Fabric',
-    'settings.storagePage.sections.runtime.description': 'Runtime cleanup must be previewed before it can run.',
+    'settings.storagePage.sections.runtime.title': 'Runtime cache',
+    'settings.storagePage.sections.runtime.description':
+      'Local runtime cache cleanup must be previewed before it can run.',
     'settings.storagePage.sections.logs.title': 'Logs',
     'settings.storagePage.sections.logs.description': 'Log cleanup is separate from conversation artifacts.',
     'settings.storagePage.inventory.bytes': `Bytes: ${values?.bytes ?? ''}`,
     'settings.storagePage.inventory.cleanupMode': `Cleanup proof: ${values?.mode ?? ''}`,
     'settings.storagePage.inventory.rootCount': `Roots: ${values?.count ?? ''}`,
+    'settings.storagePage.inventory.details': 'Storage details',
     'settings.storagePage.inventory.rootDetail': `${values?.exists ?? ''} ${values?.bytes ?? ''}`,
     'settings.storagePage.inventory.exists': 'exists',
     'settings.storagePage.inventory.missing': 'missing',
@@ -78,8 +87,10 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Needs archive proof',
     'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
     'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
-    'settings.storagePage.researchLifecycle.title': 'Research workspace lifecycle',
-    'settings.storagePage.researchLifecycle.detail': 'Read-only lifecycle context from App state.',
+    'settings.storagePage.researchLifecycle.title': 'Work data safety',
+    'settings.storagePage.researchLifecycle.detail':
+      'Read-only cleanup boundaries and source references for workspace data.',
+    'settings.storagePage.researchLifecycle.technicalDetails': 'Advanced storage references',
     'settings.storagePage.researchLifecycle.boundary':
       'Source references only. No SQLite sidecars, workspace tree scans, clinical data body deletes, or generic cleanup authorization.',
     'settings.storagePage.researchLifecycle.states.available': 'Source available',
@@ -216,43 +227,55 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
   });
 
-  it('loads inventory and separates updater cache, user data, runtime substrate, and logs', async () => {
+  it('loads inventory and keeps technical storage paths in details', async () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('/tmp/conversations');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Needs proof first');
-    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('/tmp/runtime');
-    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
+    expect(screen.getByTestId('storage-inventory-runtime_substrate')).not.toHaveTextContent('/tmp/runtime');
+    expect(screen.getByTestId('storage-inventory-logs')).not.toHaveTextContent('/tmp/logs');
     expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
+
+    for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
+      openDetails(screen.getByTestId(`storage-inventory-details-${id}`) as HTMLDetailsElement);
+    }
+
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('/tmp/updater-cache');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('/tmp/conversations');
+    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('/tmp/runtime');
+    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
   });
 
-  it('shows research workspace lifecycle context as read-only App projection data', async () => {
+  it('shows work data safety context as read-only App projection data', async () => {
     render(<StorageSettingsContent />);
 
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
-    expect(lifecycle).toHaveTextContent('Research workspace lifecycle');
-    expect(lifecycle).toHaveTextContent('Lifecycle planes');
+    expect(lifecycle).toHaveTextContent('Work data safety');
+    expect(lifecycle).toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
+    expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
+
+    openDetails(screen.getByTestId('storage-research-lifecycle-details') as HTMLDetailsElement);
+
+    expect(lifecycle).toHaveTextContent('Work data stages');
     expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
-    expect(lifecycle).toHaveTextContent('Large body context');
+    expect(lifecycle).toHaveTextContent('Large file references');
     expect(lifecycle).toHaveTextContent('clinical data bodies and artifact bodies stay outside the App view');
-    expect(lifecycle).toHaveTextContent('Small-file pressure');
-    expect(lifecycle).toHaveTextContent('the App does not scan workspace trees');
-    expect(lifecycle).toHaveTextContent('Runtime compact preview');
+    expect(lifecycle).toHaveTextContent('Many small files');
+    expect(lifecycle).toHaveTextContent('the App does not scan work directories');
+    expect(lifecycle).toHaveTextContent('Runtime cache cleanup preview');
     expect(lifecycle).toHaveTextContent('runtime_compact_dry_run_refs');
-    expect(lifecycle).toHaveTextContent('Completed-project closeout');
+    expect(lifecycle).toHaveTextContent('Completed project archive');
     expect(lifecycle).toHaveTextContent('completed_project_closeout_refs');
-    expect(lifecycle).toHaveTextContent('Generic cleanup boundary');
-    expect(lifecycle).toHaveTextContent(
-      'Generic cleanup without owner, dry-run, or closeout source context is forbidden'
-    );
+    expect(lifecycle).toHaveTextContent('Generic cleanup blocked');
+    expect(lifecycle).toHaveTextContent('Cleanup without owner, preview, or closeout source context is forbidden');
     expect(lifecycle.querySelectorAll('button')).toHaveLength(0);
     expect(lifecycle.textContent).not.toMatch(/sqlite:\/\/|DELETE FROM/i);
   });

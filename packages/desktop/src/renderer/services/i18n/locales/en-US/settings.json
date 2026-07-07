@@ -157,6 +157,16 @@
   "saveUploadToWorkspace": "Save Uploads to Project Folder",
   "autoPreviewOfficeFiles": "Auto Preview New Office Files",
   "autoPreviewOfficeFilesDesc": "Automatically open newly created Word, Excel, and PowerPoint files in the current project. Office temporary lock files are ignored.",
+  "personalPreferencesTitle": "Preferences",
+  "personalPreferencesDesc": "Manage language, notifications, startup, file handling, and common response timing.",
+  "appBehaviorPreferencesTitle": "App behavior",
+  "appBehaviorPreferencesDesc": "These settings affect day-to-day use and do not require Advanced diagnostics.",
+  "timeoutPreferencesTitle": "Response timing",
+  "timeoutPreferencesDesc": "Control request waiting time and idle Agent cleanup.",
+  "appearancePreferencesTitle": "Appearance",
+  "appearancePreferencesDesc": "Adjust theme, font sizes, and interface scale.",
+  "advancedPathsTitle": "Advanced paths",
+  "advancedPathsDesc": "Local paths for troubleshooting or migration. Use Workspace first for ordinary file location changes.",
   "startOnBoot": "Start on Boot",
   "startOnBootDesc": "Launch One Person Lab automatically when you sign in to macOS or Windows.",
   "startOnBootUnsupported": "Available only in packaged macOS and Windows apps.",
@@ -1321,6 +1331,19 @@
       "ready": "Workspace selected",
       "needsAction": "Workspace needs setup"
     },
+    "permission": {
+      "title": "Permission status",
+      "ready": "Permission ready",
+      "needsAction": "Permission needs attention",
+      "unknown": "Permission not read",
+      "detail": "Current execution permission: {{mode}}. If local tasks cannot write files, repair permissions or check Maintenance."
+    },
+    "nextStep": {
+      "title": "Next step",
+      "ready": "The work directory and permissions are available. You can start local tasks.",
+      "missingWorkspace": "Choose a work directory first; new projects and task output will use it by default.",
+      "repairPermission": "Current permissions may limit file writes. Repair permissions or open Maintenance."
+    },
     "root": {
       "title": "Work directory",
       "current": "New projects and local task output are stored under {{path}}.",
@@ -1352,7 +1375,12 @@
       "empty": "No module paths are currently reported."
     },
     "actions": {
-      "openWorkspace": "Open Workspace"
+      "openWorkspace": "Open Workspace",
+      "openLogs": "Open logs",
+      "changeWorkspace": "Change workspace",
+      "recheck": "Recheck",
+      "repairPermissions": "Repair permissions",
+      "openMaintenance": "Open Maintenance"
     }
   },
   "localServicesPage": {
@@ -1447,26 +1475,27 @@
     "description": "Review local data, preview cleanup changes, and keep proof before anything destructive can run.",
     "sections": {
       "updater": {
-        "title": "Updater cache",
-        "description": "Installer package cache only."
+        "title": "Installer package cache",
+        "description": "Cached app installer packages."
       },
       "conversations": {
-        "title": "Conversation artifacts",
+        "title": "Conversation archives",
         "description": "Conversation files require archive and restore proof before cleanup."
       },
       "runtime": {
-        "title": "OPL Runtime Fabric",
-        "description": "Runtime cleanup must be previewed before it can run."
+        "title": "Runtime cache",
+        "description": "Local runtime cache cleanup must be previewed before it can run."
       },
       "logs": {
         "title": "Logs",
-        "description": "Log rotation is separate from conversation artifacts."
+        "description": "App logs are separate from conversation archives."
       }
     },
     "inventory": {
       "bytes": "Bytes: {{bytes}}",
       "cleanupMode": "Cleanup proof: {{mode}}",
-      "rootCount": "Roots: {{count}}",
+      "rootCount": "Locations: {{count}}",
+      "details": "Storage details",
       "rootDetail": "{{exists}} · {{bytes}}",
       "exists": "exists",
       "missing": "missing",
@@ -1482,9 +1511,10 @@
       }
     },
     "researchLifecycle": {
-      "title": "Research workspace lifecycle",
-      "detail": "Read-only lifecycle context from App state for research workspaces.",
-      "boundary": "The App shows source references only. It does not read SQLite sidecars, scan workspace trees, delete clinical data bodies, or authorize generic cleanup.",
+      "title": "Work data safety",
+      "detail": "Read-only cleanup boundaries and source references for workspace data.",
+      "technicalDetails": "Advanced storage references",
+      "boundary": "The App shows source references only. It does not read lower-level databases, scan work directories, delete clinical data bodies, or authorize cleanup without an owner source.",
       "states": {
         "available": "Source available",
         "attention": "Needs review",
@@ -1524,7 +1554,7 @@
       }
     },
     "updater": {
-      "title": "Updater installer package cache",
+      "title": "Installer package cache",
       "detail": "This only targets stale installer package cache, not conversation artifacts, runtime roots, or logs."
     },
     "plans": {
@@ -1662,7 +1692,7 @@
       "categories": {
         "gateway": "Model access",
         "local": "Local resource",
-        "dockerWebui": "Docker/WebUI deployment",
+        "dockerWebui": "Server WebUI deployment",
         "oplWorkspace": "OPL Workspace",
         "sshHpc": "User SSH/HPC",
         "oplCloudCompute": "OPL Cloud managed compute",
@@ -1691,16 +1721,24 @@
       "docker": "Server WebUI",
       "workspace": "OPL Workspace",
       "runDryRoute": "Check before deploy",
+      "openResource": "Open resource",
+      "recheck": "Recheck",
+      "prepareEnvironment": "Prepare environment",
       "payloadRequired": "Needs details",
       "payloadRequiredHelp": "Choose a file or fill in the required configuration before running this action.",
       "confirmationRequired": "Confirms before changes",
+      "technicalDetails": "Advanced details",
+      "technicalState": "Raw status",
+      "technicalActionId": "Action ID",
+      "technicalCommand": "Command",
+      "technicalPreviewCommand": "Preview command",
       "actionDryRunSuccess": "Deployment check completed.",
       "actionDryRunFailed": "Deployment check failed.",
       "noActions": "Server WebUI actions are not available yet.",
       "actions": {
         "settings_install_docker_webui": "Install server WebUI",
         "settings_configure_webui_api_key": "Enter WebUI access key",
-        "settings_select_webui_seed": "Choose initial WebUI image",
+        "settings_select_webui_seed": "Choose initial WebUI template",
         "settings_run_webui_startup_maintenance": "Check WebUI startup",
         "settings_diagnose_docker_webui": "Check server WebUI",
         "settings_open_docker_webui": "Open server WebUI"
@@ -1712,13 +1750,13 @@
       "noSources": "No resource connections are currently reported."
     },
     "statusLabels": {
-      "action_available": "Available action",
+      "action_available": "Ready to run",
       "available": "Available",
-      "diagnose_with_doctor": "Diagnostics available",
+      "diagnose_with_doctor": "Needs check",
       "healthy": "Healthy",
       "ok": "OK",
       "ready": "Ready",
-      "refs_only": "Refs only",
+      "refs_only": "Reference available",
       "unknown": "Not read"
     },
     "resourceSources": {
@@ -1729,13 +1767,13 @@
       "categories": {
         "gateway": "Model access",
         "local": "Local resource",
-        "dockerWebui": "Server WebUI",
+        "dockerWebui": "Server deployment",
         "oplWorkspace": "OPL Workspace",
         "sshHpc": "User SSH/HPC",
         "oplCloudCompute": "OPL Cloud managed compute",
         "managedStorage": "Managed storage",
         "institutionalData": "Institutional data source",
-        "fabric": "OPL Fabric",
+        "fabric": "Managed resource status",
         "remote": "Remote resource"
       },
       "management": {
@@ -1747,7 +1785,7 @@
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
-    "description": "Choose each capability by purpose first. Package refs, manifests, and diagnostics stay in advanced details.",
+    "description": "Choose each capability by purpose first. Install sources and diagnostics stay in advanced details.",
     "status": {
       "ready": "Ready",
       "update": "Update available",
@@ -1882,11 +1920,14 @@
       "description": "The left list shows only capability, purpose, and status. Home shortcuts, ordering, and suggestions stay in the detail panel.",
       "catalogTitle": "Capability directory",
       "catalogDescription": "Open a row when you need setup details, Home shortcut controls, or advanced package context.",
-      "refreshRegistry": "Refresh registry",
+      "refreshRegistry": "Check for new capabilities",
       "searchPlaceholder": "Search capability, purpose, or tag",
       "allStatuses": "All statuses",
       "manifestUrlPlaceholder": "Manifest URL",
-      "installFromManifest": "Install manifest",
+      "installFromManifest": "Install from manifest",
+      "addCapability": "Add capability",
+      "advancedAddTitle": "Advanced add method",
+      "advancedAddDescription": "Use this only when you already have a validated capability manifest URL.",
       "hideFromHome": "Hide from Home",
       "showOnHome": "Show on Home",
       "moveUp": "Move up",
@@ -1943,11 +1984,11 @@
       }
     },
     "sections": {
-      "required": "Required capabilities",
+      "required": "Runtime environment details",
       "workspace": "Work directory",
-      "agentPackages": "Capability packs",
+      "agentPackages": "Capability pack details",
       "storage": "Storage and data",
-      "maintenance": "OPL System Bridge"
+      "maintenance": "Component maintenance details"
     },
     "workspace": {
       "rootTitle": "Work directory",
@@ -2004,6 +2045,10 @@
           "description": "Check local background services such as Codex, workspace, and Temporal."
         }
       }
+    },
+    "advancedDetails": {
+      "title": "Advanced maintenance details",
+      "description": "Component state, module paths, maintenance receipts, and Codex session context are for troubleshooting or manual handling."
     },
     "summary": {
       "nextAction": "Next step: {{action}}",

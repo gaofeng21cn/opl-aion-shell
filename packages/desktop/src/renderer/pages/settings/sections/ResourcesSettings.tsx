@@ -87,10 +87,12 @@ export const ResourcesSettingsContent: React.FC = () => {
 
           <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
             {dockerWebui.actions.map((action) => {
+              const actionLabel = t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
+                defaultValue: action.label,
+              });
               const actionButton = (
                 <Button
                   data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
-                  aria-label={`opl-settings-docker-webui-action-${action.actionId}`}
                   type={action.dangerLevel === 'none' ? 'secondary' : 'primary'}
                   icon={<Open theme='outline' />}
                   loading={runningActionId === action.actionId}
@@ -99,7 +101,7 @@ export const ResourcesSettingsContent: React.FC = () => {
                 >
                   {action.payloadRequired
                     ? t('settings.resourcesPage.docker.payloadRequired')
-                    : t('settings.resourcesPage.docker.runDryRoute')}
+                    : dockerActionCtaLabel(action, t)}
                 </Button>
               );
               return (
@@ -110,11 +112,7 @@ export const ResourcesSettingsContent: React.FC = () => {
                 >
                   <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
                     <div className='min-w-0'>
-                      <Typography.Text className='font-600 text-t-primary break-words'>
-                        {t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
-                          defaultValue: action.label,
-                        })}
-                      </Typography.Text>
+                      <Typography.Text className='font-600 text-t-primary break-words'>{actionLabel}</Typography.Text>
                     </div>
                     <Space wrap>
                       <Tag color={action.state === 'ready' ? 'green' : 'orange'}>
@@ -130,6 +128,7 @@ export const ResourcesSettingsContent: React.FC = () => {
                   ) : (
                     actionButton
                   )}
+                  <DockerActionTechnicalDetails action={action} />
                 </div>
               );
             })}
@@ -175,6 +174,25 @@ function accessStatusLabel(status: string, t: (key: string, options?: Record<str
   return t(`settings.resourcesPage.statusLabels.${status}`, { defaultValue: status });
 }
 
+function dockerActionCtaLabel(
+  action: DockerWebuiAction,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  const normalizedActionId = action.actionId.toLowerCase();
+  if (normalizedActionId.includes('open')) return t('settings.resourcesPage.docker.openResource');
+  if (normalizedActionId.includes('diagnose') || normalizedActionId.includes('startup')) {
+    return t('settings.resourcesPage.docker.recheck');
+  }
+  if (
+    normalizedActionId.includes('install') ||
+    normalizedActionId.includes('configure') ||
+    normalizedActionId.includes('select')
+  ) {
+    return t('settings.resourcesPage.docker.prepareEnvironment');
+  }
+  return t('settings.resourcesPage.docker.runDryRoute');
+}
+
 function isQuietDockerStatus(status: string): boolean {
   return ['action_available', 'available', 'diagnose_with_doctor', 'healthy', 'ok', 'ready'].includes(status);
 }
@@ -192,6 +210,39 @@ function dockerDeploymentSummaryTags(
   );
 }
 
+const DockerActionTechnicalDetails: React.FC<{ action: DockerWebuiAction }> = ({ action }) => {
+  const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  return (
+    <details className='mt-2px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
+      <summary className='cursor-pointer text-12px text-t-secondary'>
+        {t('settings.resourcesPage.docker.technicalDetails')}
+      </summary>
+      {detailsOpen && (
+        <div className='mt-6px grid grid-cols-1 gap-4px text-12px text-t-secondary'>
+          <Typography.Text className='break-words'>
+            {t('settings.resourcesPage.docker.technicalState')}: {action.state}
+          </Typography.Text>
+          <Typography.Text className='break-words'>
+            {t('settings.resourcesPage.docker.technicalActionId')}: {action.actionId}
+          </Typography.Text>
+          {action.route && (
+            <Typography.Text className='break-words'>
+              {t('settings.resourcesPage.docker.technicalCommand')}: {action.route}
+            </Typography.Text>
+          )}
+          {action.dryRunRoute && (
+            <Typography.Text className='break-words'>
+              {t('settings.resourcesPage.docker.technicalPreviewCommand')}: {action.dryRunRoute}
+            </Typography.Text>
+          )}
+        </div>
+      )}
+    </details>
+  );
+};
+
 const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
   const { t } = useTranslation();
   if (sources.length === 0) {
@@ -204,45 +255,57 @@ const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ so
   return (
     <div className='grid grid-cols-1 md:grid-cols-2 gap-10px' data-testid='opl-settings-resource-sources'>
       {sources.map((source) => (
-        <div key={source.key} className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
-          <div className='flex flex-wrap items-center gap-8px'>
-            <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
-            <Tag color='blue'>
-              {t('settings.resourcesPage.resourceSources.status', { status: accessStatusLabel(source.status, t) })}
-            </Tag>
-            <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
-            {source.management && (
-              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-                {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
-              </Tag>
-            )}
-          </div>
-          {source.managementRefs.length > 0 && (
-            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
-          )}
-          {source.environmentRefs.length > 0 && (
-            <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
-          )}
-          {source.refs.length === 0 && source.managementRefs.length === 0 && source.environmentRefs.length === 0 ? (
-            <Typography.Text className='text-12px text-t-secondary'>
-              {t('settings.resourcesPage.resourceSources.noRefs')}
-            </Typography.Text>
-          ) : (
-            <details className='mt-4px'>
-              <summary className='cursor-pointer text-12px text-t-secondary'>
-                {t('settings.resourcesPage.resourceSources.technicalRefs')}
-              </summary>
-              <div className='mt-6px grid grid-cols-1 gap-4px'>
-                {[...source.managementRefs, ...source.environmentRefs, ...source.refs].map((ref) => (
-                  <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
-                    {ref}
-                  </Typography.Text>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
+        <ResourceSourceCard key={source.key} source={source} />
       ))}
+    </div>
+  );
+};
+
+const ResourceSourceCard: React.FC<{ source: ResourceSourceProjection }> = ({ source }) => {
+  const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const refs = [...source.managementRefs, ...source.environmentRefs, ...source.refs];
+
+  return (
+    <div className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
+      <div className='flex flex-wrap items-center gap-8px'>
+        <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
+        <Tag color='blue'>
+          {t('settings.resourcesPage.resourceSources.status', { status: accessStatusLabel(source.status, t) })}
+        </Tag>
+        <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
+        {source.management && (
+          <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+            {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
+          </Tag>
+        )}
+      </div>
+      {source.managementRefs.length > 0 && (
+        <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
+      )}
+      {source.environmentRefs.length > 0 && (
+        <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
+      )}
+      {refs.length === 0 ? (
+        <Typography.Text className='text-12px text-t-secondary'>
+          {t('settings.resourcesPage.resourceSources.noRefs')}
+        </Typography.Text>
+      ) : (
+        <details className='mt-4px' onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
+          <summary className='cursor-pointer text-12px text-t-secondary'>
+            {t('settings.resourcesPage.resourceSources.technicalRefs')}
+          </summary>
+          {detailsOpen && (
+            <div className='mt-6px grid grid-cols-1 gap-4px'>
+              {refs.map((ref) => (
+                <Typography.Text key={`${source.key}-${ref}`} className='text-12px text-t-secondary break-words'>
+                  {ref}
+                </Typography.Text>
+              ))}
+            </div>
+          )}
+        </details>
+      )}
     </div>
   );
 };

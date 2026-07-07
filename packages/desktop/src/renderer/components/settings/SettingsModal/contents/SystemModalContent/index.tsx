@@ -5,17 +5,13 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IGpuStatus, IStartOnBootStatus } from '@/common/adapter/ipcBridge';
 import { getOplDeveloperProfileSettings, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import FeedbackButton from '@/renderer/components/base/FeedbackButton';
-import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { iconColors } from '@/renderer/styles/colors';
-import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
-import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Alert, Button, Collapse, Form, InputNumber, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Form, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
 import { FolderSearch } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,15 +19,6 @@ import { useSettingsViewMode } from '../../settingsViewContext';
 import DevSettings from './DevSettings';
 import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
-import VoiceInputSection from './VoiceInputSection';
-
-type PreferenceItem = {
-  key: string;
-  label: string;
-  component: React.ReactNode;
-  description?: string;
-  testId?: string;
-};
 
 function oplPathString(value: unknown): string | null {
   return oplString(value) ?? oplString(oplRecord(value).selected_path);
@@ -84,7 +71,6 @@ function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
  */
 const SystemModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const isDesktop = isElectronDesktop();
   const [form] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
   const [message, messageContextHolder] = Message.useMessage();
@@ -114,62 +100,10 @@ const SystemModalContent: React.FC = () => {
     .map((axis) => readDeveloperCapabilityDisplay(appDeveloperCapabilities[axis], axis))
     .filter((entry): entry is DeveloperCapabilityDisplay => Boolean(entry));
 
-  const [startOnBoot, setStartOnBoot] = useState<IStartOnBootStatus>({
-    supported: false,
-    enabled: false,
-    isPackaged: false,
-    platform: 'web',
-  });
-  const [closeToTray, setCloseToTray] = useState(false);
-  const [gpuStatus, setGpuStatus] = useState<IGpuStatus | null>(null);
-  const [notificationEnabled, setNotificationEnabled] = useState(true);
-  const [cronNotificationEnabled, setCronNotificationEnabled] = useState(false);
-  const [promptTimeout, setPromptTimeout] = useState<number>(300);
-  const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
-  const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
-  const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
   const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(false);
   const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
 
   useEffect(() => {
-    if (!isDesktop) {
-      return;
-    }
-
-    ipcBridge.application.getStartOnBootStatus
-      .invoke()
-      .then((result) => {
-        if (result.success && result.data) {
-          setStartOnBoot(result.data);
-        }
-      })
-      .catch(() => {});
-
-    ipcBridge.application.getGpuStatus
-      .invoke()
-      .then((result) => {
-        if (result.success && result.data) {
-          setGpuStatus(result.data);
-        }
-      })
-      .catch(() => {});
-  }, [isDesktop]);
-
-  useEffect(() => {
-    setCloseToTray(configService.get('system.closeToTray') ?? false);
-    if (isDesktop) {
-      ipcBridge.systemSettings.getCloseToTray
-        .invoke()
-        .then((enabled) => {
-          setCloseToTray(enabled);
-          configService.setLocal('system.closeToTray', enabled);
-        })
-        .catch(() => {});
-    }
-    setNotificationEnabled(configService.get('system.notificationEnabled') ?? true);
-    setCronNotificationEnabled(configService.get('system.cronNotificationEnabled') ?? false);
-    setSaveUploadToWorkspace(configService.get('upload.saveToWorkspace') ?? false);
-    setAutoPreviewOfficeFiles(configService.get('system.autoPreviewOfficeFiles') ?? true);
     if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
       setOplFlowIntelligenceEnhancementMode(
         configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false
@@ -188,150 +122,6 @@ const SystemModalContent: React.FC = () => {
         })
         .catch(() => {});
     }
-    const pt = configService.get('acp.promptTimeout');
-    if (pt && pt > 0) setPromptTimeout(pt);
-    const ait = configService.get('acp.agentIdleTimeout');
-    if (ait && ait > 0) setAgentIdleTimeout(ait);
-  }, [isDesktop]);
-
-  const handleCloseToTrayChange = useCallback(
-    (checked: boolean) => {
-      const previous = closeToTray;
-      setCloseToTray(checked);
-      configService.setLocal('system.closeToTray', checked);
-
-      if (!isDesktop) {
-        configService.set('system.closeToTray', checked).catch(() => {
-          setCloseToTray(previous);
-          configService.setLocal('system.closeToTray', previous);
-        });
-        return;
-      }
-
-      ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked }).catch(() => {
-        setCloseToTray(previous);
-        configService.setLocal('system.closeToTray', previous);
-      });
-    },
-    [closeToTray, isDesktop]
-  );
-
-  const handleHardwareAccelerationChange = useCallback(
-    (checked: boolean) => {
-      const previous = gpuStatus;
-      const optimistic: IGpuStatus = {
-        userOverride: checked ? 'force-on' : 'force-off',
-        autoDisabled: false,
-        crashCount: 0,
-        lastCrashAt: gpuStatus?.lastCrashAt ?? null,
-      };
-      setGpuStatus(optimistic);
-
-      const apply = () => {
-        ipcBridge.application.setGpuOverride
-          .invoke({ override: checked ? 'force-on' : 'force-off' })
-          .then((result) => {
-            if (result.success && result.data) {
-              setGpuStatus(result.data);
-              ipcBridge.application.restart
-                .invoke()
-                .then((restartResult) => notifyManualRestartRequired(restartResult, t))
-                .catch(() => {});
-            } else {
-              setGpuStatus(previous);
-              Message.error(t('settings.hardwareAccelerationUpdateFailed'));
-            }
-          })
-          .catch(() => {
-            setGpuStatus(previous);
-            Message.error(t('settings.hardwareAccelerationUpdateFailed'));
-          });
-      };
-
-      modal.confirm({
-        title: t('settings.updateConfirm'),
-        content: t('settings.hardwareAccelerationRestartConfirm'),
-        onOk: apply,
-        onCancel: () => setGpuStatus(previous),
-      });
-    },
-    [gpuStatus, modal, t]
-  );
-
-  const handleStartOnBootChange = useCallback(
-    (checked: boolean) => {
-      const previousStatus = startOnBoot;
-      setStartOnBoot((prev) => ({ ...prev, enabled: checked }));
-
-      ipcBridge.application.setStartOnBoot
-        .invoke({ enabled: checked })
-        .then((result) => {
-          if (result.success && result.data) {
-            setStartOnBoot(result.data);
-            return;
-          }
-
-          setStartOnBoot(previousStatus);
-          Message.error(result.msg || t('settings.startOnBootUpdateFailed'));
-        })
-        .catch(() => {
-          setStartOnBoot(previousStatus);
-          Message.error(t('settings.startOnBootUpdateFailed'));
-        });
-    },
-    [startOnBoot, t]
-  );
-
-  const handleNotificationEnabledChange = useCallback((checked: boolean) => {
-    setNotificationEnabled(checked);
-    configService.set('system.notificationEnabled', checked).catch(() => {
-      setNotificationEnabled(!checked);
-      configService.setLocal('system.notificationEnabled', !checked);
-    });
-  }, []);
-
-  const handleCronNotificationEnabledChange = useCallback((checked: boolean) => {
-    setCronNotificationEnabled(checked);
-    configService.set('system.cronNotificationEnabled', checked).catch(() => {
-      setCronNotificationEnabled(!checked);
-      configService.setLocal('system.cronNotificationEnabled', !checked);
-    });
-  }, []);
-
-  const handlePromptTimeoutChange = useCallback((val: number | undefined) => {
-    setPromptTimeout(val as number);
-  }, []);
-
-  const handlePromptTimeoutBlur = useCallback(() => {
-    const clamped = Math.max(30, Math.min(3600, promptTimeout || 300));
-    setPromptTimeout(clamped);
-    configService.set('acp.promptTimeout', clamped).catch(() => {});
-  }, [promptTimeout]);
-
-  const handleAgentIdleTimeoutChange = useCallback((val: number | undefined) => {
-    setAgentIdleTimeout(val as number);
-  }, []);
-
-  const handleAgentIdleTimeoutBlur = useCallback(() => {
-    const clamped = Math.max(1, Math.min(60, agentIdleTimeout || 5));
-    setAgentIdleTimeout(clamped);
-    configService.set('acp.agentIdleTimeout', clamped).catch(() => {});
-  }, [agentIdleTimeout]);
-
-  const handleSaveUploadToWorkspaceChange = useCallback((checked: boolean) => {
-    setSaveUploadToWorkspace(checked);
-    configService.set('upload.saveToWorkspace', checked).catch(() => {
-      setSaveUploadToWorkspace(!checked);
-      configService.setLocal('upload.saveToWorkspace', !checked);
-    });
-  }, []);
-
-  const handleAutoPreviewOfficeFilesChange = useCallback((checked: boolean) => {
-    setAutoPreviewOfficeFiles(checked);
-    configService.set('system.autoPreviewOfficeFiles', checked).catch(() => {
-      setAutoPreviewOfficeFiles(!checked);
-      configService.setLocal('system.autoPreviewOfficeFiles', !checked);
-    });
   }, []);
 
   const handleOplFlowIntelligenceEnhancementModeChange = useCallback(
@@ -395,82 +185,6 @@ const SystemModalContent: React.FC = () => {
     }
   }, [systemInfo.workDir, form]);
 
-  const preferenceItems: PreferenceItem[] = [
-    { key: 'language', label: t('settings.language'), component: <LanguageSwitcher /> },
-    {
-      key: 'startOnBoot',
-      label: t('settings.startOnBoot'),
-      description: startOnBoot.supported ? t('settings.startOnBootDesc') : t('settings.startOnBootUnsupported'),
-      component: (
-        <Switch checked={startOnBoot.enabled} onChange={handleStartOnBootChange} disabled={!startOnBoot.supported} />
-      ),
-    },
-    {
-      key: 'closeToTray',
-      label: t('settings.closeToTray'),
-      component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
-    },
-    ...(isDesktop && gpuStatus
-      ? [
-          {
-            key: 'hardwareAcceleration',
-            label: t('settings.hardwareAcceleration'),
-            description: gpuStatus.autoDisabled
-              ? t('settings.hardwareAccelerationAutoDisabled')
-              : t('settings.hardwareAccelerationDesc'),
-            component: (
-              <Switch
-                checked={gpuStatus.userOverride !== 'force-off' && !gpuStatus.autoDisabled}
-                onChange={handleHardwareAccelerationChange}
-              />
-            ),
-          },
-        ]
-      : []),
-    {
-      key: 'promptTimeout',
-      label: t('settings.promptTimeout'),
-      component: (
-        <InputNumber
-          value={promptTimeout}
-          onChange={handlePromptTimeoutChange}
-          onBlur={handlePromptTimeoutBlur}
-          max={3600}
-          step={30}
-          style={{ width: 120 }}
-          suffix='s'
-        />
-      ),
-    },
-    {
-      key: 'agentIdleTimeout',
-      label: t('settings.agentIdleTimeout'),
-      description: t('settings.agentIdleTimeoutDesc'),
-      component: (
-        <InputNumber
-          value={agentIdleTimeout}
-          onChange={handleAgentIdleTimeoutChange}
-          onBlur={handleAgentIdleTimeoutBlur}
-          max={60}
-          step={5}
-          style={{ width: 120 }}
-          suffix='min'
-        />
-      ),
-    },
-    {
-      key: 'saveUploadToWorkspace',
-      label: t('settings.saveUploadToWorkspace'),
-      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
-    },
-    {
-      key: 'autoPreviewOfficeFiles',
-      label: t('settings.autoPreviewOfficeFiles'),
-      description: t('settings.autoPreviewOfficeFilesDesc'),
-      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
-    },
-  ];
-
   const saveDirConfigValidate = (_values: { workDir: string; logDir: string }): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       modal.confirm({
@@ -522,54 +236,12 @@ const SystemModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-16px'>
           <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <div className='w-full flex flex-col divide-y divide-border-2'>
-              {preferenceItems.map((item) => (
-                <div key={item.key} data-testid={item.testId}>
-                  <PreferenceRow label={item.label} description={item.description}>
-                    {item.component}
-                  </PreferenceRow>
-                </div>
-              ))}
+            <div>
+              <div className='text-14px font-medium text-t-primary leading-22px'>
+                {t('settings.advancedPathsTitle')}
+              </div>
+              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.advancedPathsDesc')}</div>
             </div>
-            {/* Notification settings with collapsible sub-options */}
-            <Collapse
-              bordered={false}
-              activeKey={notificationEnabled ? ['notification'] : []}
-              onChange={(_, keys) => {
-                const shouldExpand = (keys as string[]).includes('notification');
-                if (shouldExpand && !notificationEnabled) {
-                  handleNotificationEnabledChange(true);
-                } else if (!shouldExpand && notificationEnabled) {
-                  handleNotificationEnabledChange(false);
-                }
-              }}
-              className='[&_.arco-collapse-item]:!border-none [&_.arco-collapse-item-header]:!px-0 [&_.arco-collapse-item-header-title]:!flex-1 [&_.arco-collapse-item-content-box]:!px-0 [&_.arco-collapse-item-content-box]:!pb-0'
-            >
-              <Collapse.Item
-                name='notification'
-                showExpandIcon={false}
-                header={
-                  <div className='flex flex-1 items-center justify-between w-full'>
-                    <span className='text-14px text-2 ml-12px'>{t('settings.notification')}</span>
-                    <Switch
-                      checked={notificationEnabled}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={handleNotificationEnabledChange}
-                    />
-                  </div>
-                }
-              >
-                <div className='pl-12px'>
-                  <PreferenceRow label={t('settings.cronNotificationEnabled')}>
-                    <Switch
-                      checked={cronNotificationEnabled}
-                      disabled={!notificationEnabled}
-                      onChange={handleCronNotificationEnabledChange}
-                    />
-                  </PreferenceRow>
-                </div>
-              </Collapse.Item>
-            </Collapse>
             <Form form={form} layout='vertical' className='!mt-32px space-y-16px' onValuesChange={handleValuesChange}>
               <DirInputItem label={t('settings.workDir')} field='workDir' />
               {/* Log directory (read-only, click to open in file manager) */}

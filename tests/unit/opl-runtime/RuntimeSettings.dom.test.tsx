@@ -692,7 +692,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.title'
     );
-    expect(screen.queryByTestId('opl-maintenance-hub-make-usable')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
+    );
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );

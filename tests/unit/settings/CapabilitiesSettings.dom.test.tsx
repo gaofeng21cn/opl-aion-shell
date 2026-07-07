@@ -428,7 +428,10 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.queryByText('Home shortcut')).not.toBeInTheDocument();
     expect(screen.queryByText('Action')).not.toBeInTheDocument();
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-package-install-manifest')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('agent-package-add-capability'));
+    expect(screen.getByTestId('agent-package-advanced-add')).toBeInTheDocument();
+    expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);
@@ -619,6 +622,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
+    fireEvent.click(screen.getByTestId('agent-package-add-capability'));
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });

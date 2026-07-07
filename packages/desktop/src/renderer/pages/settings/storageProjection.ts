@@ -118,16 +118,16 @@ export const RESEARCH_WORKSPACE_LIFECYCLE_REFS: ResearchWorkspaceLifecycleViewMo
   planes: [
     {
       id: 'lifecycle-planes',
-      label: 'Lifecycle planes',
+      label: 'Work data stages',
       state: 'available',
       ref: 'app_state.storage.research_workspace_lifecycle.planes',
-      detail: 'OPL/MAS read-model context for active, retention, archive, and completed-project planes.',
+      detail: 'Source context for active, retention, archive, and completed-project stages.',
     },
   ],
   largeBodyRefs: [
     {
       id: 'large-body-refs',
-      label: 'Large body context',
+      label: 'Large file references',
       state: 'available',
       ref: 'app_state.storage.research_workspace_lifecycle.large_body_refs',
       detail: 'Source references only; clinical data bodies and artifact bodies stay outside the App view.',
@@ -136,25 +136,25 @@ export const RESEARCH_WORKSPACE_LIFECYCLE_REFS: ResearchWorkspaceLifecycleViewMo
   smallFilePressureRefs: [
     {
       id: 'small-file-pressure',
-      label: 'Small-file pressure',
+      label: 'Many small files',
       state: 'attention',
       ref: 'app_state.storage.research_workspace_lifecycle.small_file_pressure_refs',
-      detail: 'App-state pressure context only; the App does not scan workspace trees.',
+      detail: 'Source context only; the App does not scan work directories.',
     },
   ],
   runtimeCompactRefs: [
     {
       id: 'runtime-compact-dry-run',
-      label: 'Runtime compact preview',
+      label: 'Runtime cache cleanup preview',
       state: 'available',
       ref: 'app_state.storage.research_workspace_lifecycle.runtime_compact_dry_run_refs',
-      detail: 'Dry-run source context from OPL Framework; apply remains owner-routed.',
+      detail: 'Preview source context from OPL Framework; apply remains owner-routed.',
     },
   ],
   completedProjectCloseoutRefs: [
     {
       id: 'completed-project-closeout',
-      label: 'Completed-project closeout',
+      label: 'Completed project archive',
       state: 'available',
       ref: 'app_state.storage.research_workspace_lifecycle.completed_project_closeout_refs',
       detail: 'Closeout source context from OPL/MAS for completed research workspaces.',
@@ -162,10 +162,10 @@ export const RESEARCH_WORKSPACE_LIFECYCLE_REFS: ResearchWorkspaceLifecycleViewMo
   ],
   forbiddenGenericCleanupBoundary: {
     id: 'forbidden-generic-cleanup',
-    label: 'Generic cleanup boundary',
+    label: 'Generic cleanup blocked',
     state: 'blocked',
     ref: 'contracts/app-gui-product-contract.json#pages.settings_storage',
-    detail: 'Generic cleanup without owner, dry-run, or closeout source context is forbidden.',
+    detail: 'Cleanup without owner, preview, or closeout source context is forbidden.',
   },
 };
 

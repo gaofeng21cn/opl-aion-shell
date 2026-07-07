@@ -13,6 +13,7 @@ import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { FONT_SIZE_KEYS, FONT_SIZE_SPECS, FONT_SIZE_STEP, type FontSizeKey } from '@/common/config/fontSizes';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
 import { useSettingsViewMode } from '../settingsViewContext';
+import PersonalPreferenceSettings from './SystemModalContent/PersonalPreferenceSettings';
 
 /** Map each configurable font-size region to its row label i18n key. */
 const FONT_SIZE_LABEL_KEY: Record<FontSizeKey, string> = {
@@ -58,8 +59,25 @@ const AppearanceModalContent: React.FC = () => {
       {/* 内容区域 / Content Area */}
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-16px'>
+          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
+            <div className='text-16px font-semibold text-t-primary leading-24px'>
+              {t('settings.personalPreferencesTitle')}
+            </div>
+            <div className='text-13px text-t-secondary mt-4px leading-20px'>
+              {t('settings.personalPreferencesDesc')}
+            </div>
+          </div>
+
+          <PersonalPreferenceSettings />
+
           {/* 主题画廊 / Theme Gallery */}
           <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
+            <div className='mb-12px'>
+              <div className='text-14px font-medium text-t-primary leading-22px'>
+                {t('settings.appearancePreferencesTitle')}
+              </div>
+              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appearancePreferencesDesc')}</div>
+            </div>
             <div className='text-14px text-t-primary leading-22px mb-12px'>{t('settings.theme')}</div>
             <CssThemeSettings />
           </div>

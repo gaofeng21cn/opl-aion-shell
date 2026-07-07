@@ -21,6 +21,14 @@ if (typeof globalThis.document === 'undefined') {
 
 const getMocks = () => resourcesSettingsMocks;
 
+const openDetailsFor = (summary: HTMLElement) => {
+  const details = summary.closest('details') as HTMLDetailsElement | null;
+  expect(details).toBeTruthy();
+  if (!details) return;
+  details.open = true;
+  fireEvent(details, new Event('toggle'));
+};
+
 vi.mock('@arco-design/web-react', () => {
   const message = (text: React.ReactNode) => {
     const element = document.createElement('div');
@@ -232,14 +240,20 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getByText('Choose initial WebUI image')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
-    expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
-    expect(document.body.textContent).toContain('opl://environment/default');
-    expect(document.body.textContent).toContain('opl://storage/default');
     expect(document.body.textContent).toContain('Managed by OPL Console');
     expect(document.body.textContent).toContain('OPL Cloud managed compute');
     expect(document.body.textContent).toContain('Has management info');
     expect(document.body.textContent).toContain('Has environment config');
     expect(document.body.textContent).toContain('Technical references');
+    expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
+    expect(document.body.textContent).not.toContain('opl://environment/default');
+    expect(document.body.textContent).not.toContain('opl://storage/default');
+
+    view.getAllByText('Technical references').forEach((summary) => openDetailsFor(summary));
+
+    expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
+    expect(document.body.textContent).toContain('opl://environment/default');
+    expect(document.body.textContent).toContain('opl://storage/default');
     expect(document.body.textContent).toContain('opl://console/policy/compute');
     expect(document.body.textContent).toContain('opl://console/quota/compute');
     expect(document.body.textContent).toContain('opl://console/billing/project');

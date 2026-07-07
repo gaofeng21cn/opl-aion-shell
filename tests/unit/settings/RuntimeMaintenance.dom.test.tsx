@@ -211,8 +211,11 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.linkOuts.advancedDiagnostics'
     );
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
+    );
 
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'));
+    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
     expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'));

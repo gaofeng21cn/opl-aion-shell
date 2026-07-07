@@ -192,6 +192,10 @@ describe('SystemModalContent OPL App state', () => {
 
     expect(await screen.findByText('/Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('/Users/example/.opl/logs')).toBeInTheDocument();
+    expect(screen.getByText('settings.advancedPathsTitle')).toBeInTheDocument();
+    expect(screen.queryByText('settings.language')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.notification')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.startOnBoot')).not.toBeInTheDocument();
     expect(screen.queryByText('Developer mode from app state')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('settings.developerProfileDesc');
     expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('maintainer');

@@ -86,6 +86,76 @@ const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
   return 'green';
 };
 
+const StorageInventoryCard: React.FC<{ item: StorageInventorySectionViewModel }> = ({ item }) => {
+  const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
+  const meta = SECTION_META[item.id];
+
+  return (
+    <Card bordered className='rd-8px' data-testid={`storage-inventory-${item.id}`}>
+      <div className='flex flex-col gap-10px min-w-0'>
+        <div className='flex items-start justify-between gap-12px'>
+          <div className='min-w-0'>
+            <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
+            <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
+          </div>
+          <Tag color={item.silentDeleteAllowed ? 'green' : 'orange'}>
+            {item.silentDeleteAllowed
+              ? t('settings.storagePage.inventory.silentDeleteAllowed')
+              : t('settings.storagePage.inventory.silentDeleteBlocked')}
+          </Tag>
+        </div>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px'>
+          <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
+          <span>
+            {t('settings.storagePage.inventory.cleanupMode', {
+              mode: t(cleanupModeLabelKey(item.cleanupMode)),
+            })}
+          </span>
+          <span>{t('settings.storagePage.inventory.rootCount', { count: item.rootCount })}</span>
+        </div>
+        {item.section ? (
+          <details
+            className='mt-2px'
+            onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+            data-testid={`storage-inventory-details-${item.id}`}
+          >
+            <summary className='cursor-pointer text-12px text-t-secondary'>
+              {t('settings.storagePage.inventory.details')}
+            </summary>
+            {detailsOpen && (
+              <div className='mt-6px flex flex-col gap-6px'>
+                {item.section.roots.map((root) => (
+                  <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
+                    <span>{root.path}</span>
+                    <span className='text-t-secondary'>
+                      {t('settings.storagePage.inventory.rootDetail', {
+                        exists: root.exists
+                          ? t('settings.storagePage.inventory.exists')
+                          : t('settings.storagePage.inventory.missing'),
+                        bytes: formatStorageBytes(root.bytes),
+                      })}
+                    </span>
+                  </div>
+                ))}
+                {item.section.roots.length === 0 && (
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t('settings.storagePage.inventory.noRoots')}
+                  </Typography.Text>
+                )}
+              </div>
+            )}
+          </details>
+        ) : (
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.storagePage.inventory.notLoaded')}
+          </Typography.Text>
+        )}
+      </div>
+    </Card>
+  );
+};
+
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
   const messageRef = React.useRef(Message);
@@ -99,6 +169,7 @@ export const StorageSettingsContent: React.FC = () => {
   const [updaterPlan, setUpdaterPlan] = React.useState<LocalDataLifecycleUpdaterCachePlan | null>(null);
   const [loading, setLoading] = React.useState<AsyncAction | null>(null);
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
+  const [researchDetailsOpen, setResearchDetailsOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const viewModel = React.useMemo(
     () =>
@@ -325,58 +396,7 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   const renderInventorySection = (item: StorageInventorySectionViewModel) => {
-    const meta = SECTION_META[item.id];
-    return (
-      <Card key={item.id} bordered className='rd-8px' data-testid={`storage-inventory-${item.id}`}>
-        <div className='flex flex-col gap-10px min-w-0'>
-          <div className='flex items-start justify-between gap-12px'>
-            <div className='min-w-0'>
-              <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
-              <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
-            </div>
-            <Tag color={item.silentDeleteAllowed ? 'green' : 'orange'}>
-              {item.silentDeleteAllowed
-                ? t('settings.storagePage.inventory.silentDeleteAllowed')
-                : t('settings.storagePage.inventory.silentDeleteBlocked')}
-            </Tag>
-          </div>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px'>
-            <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
-            <span>
-              {t('settings.storagePage.inventory.cleanupMode', {
-                mode: t(cleanupModeLabelKey(item.cleanupMode)),
-              })}
-            </span>
-            <span>{t('settings.storagePage.inventory.rootCount', { count: item.rootCount })}</span>
-          </div>
-          <div className='flex flex-col gap-6px'>
-            {(item.section?.roots ?? []).map((root) => (
-              <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
-                <span>{root.path}</span>
-                <span className='text-t-secondary'>
-                  {t('settings.storagePage.inventory.rootDetail', {
-                    exists: root.exists
-                      ? t('settings.storagePage.inventory.exists')
-                      : t('settings.storagePage.inventory.missing'),
-                    bytes: formatStorageBytes(root.bytes),
-                  })}
-                </span>
-              </div>
-            ))}
-            {item.section && item.section.roots.length === 0 && (
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.storagePage.inventory.noRoots')}
-              </Typography.Text>
-            )}
-            {!item.section && (
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.storagePage.inventory.notLoaded')}
-              </Typography.Text>
-            )}
-          </div>
-        </div>
-      </Card>
-    );
+    return <StorageInventoryCard key={item.id} item={item} />;
   };
 
   const renderPlanSummary = (
@@ -474,15 +494,27 @@ export const StorageSettingsContent: React.FC = () => {
               {t('settings.storagePage.researchLifecycle.detail')}
             </div>
           </div>
-          <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-            {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-            {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-            {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-            {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-            {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-            {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
-          </div>
+          <details
+            onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
+            data-testid='storage-research-lifecycle-details'
+          >
+            <summary className='cursor-pointer text-12px text-t-secondary'>
+              {t('settings.storagePage.researchLifecycle.technicalDetails')}
+            </summary>
+            {researchDetailsOpen && (
+              <div className='mt-8px flex flex-col gap-12px'>
+                <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                  {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+                  {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+                  {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+                </div>
+              </div>
+            )}
+          </details>
         </div>
       </Card>
 

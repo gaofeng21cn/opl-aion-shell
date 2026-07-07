@@ -8,10 +8,18 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openFolder: vi.fn(),
   load: vi.fn(),
+  showOpen: vi.fn().mockResolvedValue(['/Users/example/New Workspace']),
+  executeAction: vi.fn().mockResolvedValue({ ok: true, parsed: { ok: true } }),
 }));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
+    dialog: {
+      showOpen: { invoke: mocks.showOpen },
+    },
+    oplRuntime: {
+      executeAction: { invoke: mocks.executeAction },
+    },
     shell: {
       openFolderWith: { invoke: mocks.openFolder },
     },
@@ -88,6 +96,15 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.description': 'Review local paths.',
         'settings.workspacePage.status.ready': 'Workspace selected',
         'settings.workspacePage.status.needsAction': 'Workspace needs setup',
+        'settings.workspacePage.permission.title': 'Permission status',
+        'settings.workspacePage.permission.ready': 'Permission ready',
+        'settings.workspacePage.permission.needsAction': 'Permission needs attention',
+        'settings.workspacePage.permission.unknown': 'Permission not read',
+        'settings.workspacePage.permission.detail': `Permission: ${options?.mode}`,
+        'settings.workspacePage.nextStep.title': 'Next step',
+        'settings.workspacePage.nextStep.ready': 'Ready to work.',
+        'settings.workspacePage.nextStep.missingWorkspace': 'Choose workspace.',
+        'settings.workspacePage.nextStep.repairPermission': 'Repair permission.',
         'settings.workspacePage.root.title': 'Work directory',
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
         'settings.workspacePage.root.missing': 'No work root.',
@@ -107,6 +124,11 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.modules.description': `${options?.ready} / ${options?.total} ready in technical paths.`,
         'settings.workspacePage.modules.empty': 'No module paths.',
         'settings.workspacePage.actions.openWorkspace': 'Open Workspace',
+        'settings.workspacePage.actions.openLogs': 'Open logs',
+        'settings.workspacePage.actions.changeWorkspace': 'Change workspace',
+        'settings.workspacePage.actions.recheck': 'Recheck',
+        'settings.workspacePage.actions.repairPermissions': 'Repair permissions',
+        'settings.workspacePage.actions.openMaintenance': 'Open Maintenance',
         'settings.localServicesPage.title': 'Local Services',
         'settings.localServicesPage.description': 'Check local service health.',
         'settings.localServicesPage.cards.codex.title': 'Codex CLI',
@@ -146,6 +168,8 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
+    expect(screen.getByText('Permission status')).toBeInTheDocument();
+    expect(screen.getByText('Next step')).toBeInTheDocument();
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
@@ -154,6 +178,12 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({
       folder_path: '/Users/example/OPL Workspace',
+      tool: 'explorer',
+    });
+
+    fireEvent.click(screen.getAllByText('Open logs')[0]);
+    expect(mocks.openFolder).toHaveBeenCalledWith({
+      folder_path: '/Users/example/Library/Logs/One Person Lab',
       tool: 'explorer',
     });
   });
