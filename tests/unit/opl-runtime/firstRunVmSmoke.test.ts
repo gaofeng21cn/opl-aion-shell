@@ -799,7 +799,9 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(advancedTarget).toMatchObject({ navigation: 'secondary' });
     expect(__test.pageReadinessExpression(advancedTarget)).toContain('const navPresent = true;');
-    expect(__test.pageReadinessExpression(generalTarget)).toContain('.settings-sider__item[data-settings-id="general"]');
+    expect(__test.pageReadinessExpression(generalTarget)).toContain(
+      '.settings-sider__item[data-settings-id="general"]'
+    );
   });
 
   it('parses packaged assistant route smoke and exposes MAS/MAG/RCA targets', () => {
