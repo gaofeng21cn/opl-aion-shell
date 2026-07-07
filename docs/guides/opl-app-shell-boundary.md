@@ -1,15 +1,16 @@
 # OPL App Shell Boundary
 
-`opl-aion-shell` is the replaceable renderer and Electron carrier for One Person Lab App. It implements App-owned contracts; it does not own product strategy, runtime truth, model-selection policy, onboarding truth, domain route authority, release gates, screenshots, or release/user documentation. Those decisions and evidence surfaces are owned by `one-person-lab-app` and the OPL/domain repositories behind its contracts.
+`opl-aion-shell` is the mainline GUI shell implementation carrier for One Person Lab App. It implements App-owned contracts and consumes App/root canonical state; it does not own product strategy, runtime truth, package truth, model-selection policy, onboarding truth, domain route authority, release gates, screenshots, owner receipts, or release/user documentation. Those decisions and evidence surfaces are owned by `one-person-lab-app`, One Person Lab Framework/root, and the OPL/domain repositories behind the App contracts.
 
 Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
 
 Current GUI policy is fixed at the App layer: this repository is the active
-AionUI mainline implementation carrier. Hermes Desktop / `hermes-codex` is the
-only foreground alternative and is developed in its own candidate shell repo.
-AGUI / `agui-codex` is archived technical proof only; do not port it into the
-AionUI mainline, use it as a validation baseline, or continue AGUI polish from
-this repository unless the user explicitly requests AGUI replay.
+AionUI mainline implementation carrier. `opl-native-workbench` is the
+foreground/developer backup candidate and is developed in its own candidate
+shell repo. Hermes Desktop / `hermes-codex` is retained as a prior-candidate
+reference. AGUI / `agui-codex` is archived technical proof only; do not port it
+into the AionUI mainline, use it as a validation baseline, or continue AGUI
+polish from this repository unless the user explicitly requests AGUI replay.
 
 ## Ownership Boundary
 

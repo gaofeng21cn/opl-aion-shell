@@ -2,6 +2,15 @@
 
 Documentation is organized by reader intent, not by document type.
 
+## Public Role
+
+`opl-aion-shell` is the mainline GUI shell implementation carrier for One
+Person Lab App. It renders and tests App-owned GUI contracts and consumes
+App/root canonical state. It does not own One Person Lab App product truth,
+runtime truth, package truth, domain truth, release readiness, or owner
+receipts; those stay with `one-person-lab-app`, One Person Lab Framework/root,
+and the relevant domain repositories.
+
 | Directory                       | For whom                 | What lives here                                                                                                               |
 | ------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | [`guides/`](guides)             | Users & operators        | How to deploy, test, and run the product. Server deployment, WebUI, Hub testing, CDP debugging.                               |
