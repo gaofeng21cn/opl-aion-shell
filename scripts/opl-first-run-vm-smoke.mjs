@@ -3934,6 +3934,7 @@ const SETTINGS_PAGE_SMOKE_TARGETS = [
       ['OPL Developer Profile', 'OPL 开发者配置'],
       ['OPL Flow Context', 'OPL Flow 上下文'],
     ],
+    navigation: 'secondary',
   },
   { id: 'about', hash: '#/settings/about', requiredTextAny: [['One Person Lab']], navigation: 'secondary' },
 ];

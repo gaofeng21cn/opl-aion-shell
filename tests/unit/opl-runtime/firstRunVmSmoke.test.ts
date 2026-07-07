@@ -789,6 +789,19 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(targetHashes).not.toContain('#/settings/webui');
   });
 
+  it('treats Advanced settings as a secondary smoke target', () => {
+    const advancedTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'advanced');
+    const generalTarget = __test.SETTINGS_PAGE_SMOKE_TARGETS.find((target) => target.id === 'general');
+
+    expect(advancedTarget).toBeTruthy();
+    expect(generalTarget).toBeTruthy();
+    if (!advancedTarget || !generalTarget) throw new Error('Expected Settings smoke targets are missing.');
+
+    expect(advancedTarget).toMatchObject({ navigation: 'secondary' });
+    expect(__test.pageReadinessExpression(advancedTarget)).toContain('const navPresent = true;');
+    expect(__test.pageReadinessExpression(generalTarget)).toContain('.settings-sider__item[data-settings-id="general"]');
+  });
+
   it('parses packaged assistant route smoke and exposes MAS/MAG/RCA targets', () => {
     const options = __test.parseArgs([
       '--app',
