@@ -486,9 +486,9 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
-    expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OPL Meta Agent').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
     expect(screen.getAllByText('OPL Flow').length).toBeGreaterThan(0);
     expect(screen.queryByText('med-autoscience')).not.toBeInTheDocument();
     expect(screen.queryByText('opl-meta-agent')).not.toBeInTheDocument();
@@ -905,13 +905,11 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     const section = screen.getByTestId('opl-module-maintenance');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.title');
-    expect(section).toHaveTextContent('MAS');
-    expect(section).toHaveTextContent('MAG');
-    expect(section).toHaveTextContent('RCA');
-    expect(section).toHaveTextContent('OMA');
-    expect(section).not.toHaveTextContent('Med Auto Science');
-    expect(section).not.toHaveTextContent('OPL Meta Agent');
-    expect(section).toHaveTextContent('OBF');
+    expect(section).toHaveTextContent('Med Auto Science');
+    expect(section).toHaveTextContent('Med Auto Grant');
+    expect(section).toHaveTextContent('RedCube AI');
+    expect(section).toHaveTextContent('OPL Meta Agent');
+    expect(section).toHaveTextContent('OPL Book Forge');
     expect(section).toHaveTextContent('bookforge-1.0.0');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.status.manualRequired');
     expect(section).toHaveTextContent('settings.oplEnvironmentPage.moduleMaintenance.manualReasons.dirtyCheckout');
@@ -1486,11 +1484,11 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-primary-summary')).not.toHaveTextContent('2026-07-04T19:00:00Z');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
-    expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
-    expect(screen.getByText('MAG')).toBeInTheDocument();
-    expect(screen.getByText('BookForge')).toBeInTheDocument();
+    expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
+    expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
+    expect(screen.getByText('OPL Book Forge')).toBeInTheDocument();
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
-    expect(screen.getByText('OMA')).toBeInTheDocument();
+    expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
     expect(document.body.textContent).toContain('common.runtime.taskField.agent:');
@@ -1517,7 +1515,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getAllByText('common.runtime.automationStates.pendingTerminalization').length).toBeGreaterThan(0);
     expect(screen.getByText('写作')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.automationStates.pendingTerminalization');
-    expect(screen.getByText('MAS paper mission')).toBeInTheDocument();
+    expect(screen.getByText('Med Auto Science paper mission')).toBeInTheDocument();
     expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
     expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');
