@@ -1348,6 +1348,34 @@ describe('RuntimeSettings app state bridge usage', () => {
                   blocker_ref_count: 0,
                 },
                 {
+                  task_id: 'medautoscience:binding:duplicate:study:dm003',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm003',
+                  project_display_name: 'DM003 paper line',
+                  work_item_display_name: 'Runtime closeout',
+                  study_id: '003-dpcc-primary-care-phenotype-treatment-gap',
+                  title: 'DM003 duplicate binding row',
+                  state: 'attention_needed',
+                  primary_state: 'system_attention_required',
+                  automation_state: 'automation_idle',
+                  active_stage_id: 'domain_route/reconcile-apply',
+                  next_visible_step:
+                    'OPL runtime stage attempt needs operator attention; MAS terminalization is still required before any paper-progress claim.',
+                  next_owner: { owner: 'medautoscience' },
+                  stage: {
+                    stage_id: 'domain_route/reconcile-apply',
+                    label: 'OPL runtime blocked',
+                  },
+                  task_total_usage: {
+                    total_tokens_observed: 0,
+                  },
+                  blocker_ref_count: 1,
+                },
+                {
                   task_id: 'medautoscience:study:004-reviewer-followup',
                   domain_id: 'medautoscience',
                   domain_label: 'Med Auto Science',
@@ -1403,7 +1431,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getByTestId('runtime-primary-summary')).toBeInTheDocument());
     expect(bridgeMocks.getDrilldownInvoke).toHaveBeenCalledWith({ detail: 'summary' });
-    expect(screen.getByText('common.runtime.scopeSelector')).toBeInTheDocument();
+    expect(screen.getAllByText('common.runtime.scopeSelector').length).toBeGreaterThan(0);
     expect(screen.getByTestId('runtime-scope-selector')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.scopeSourceLabel');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('common.runtime.primaryStates.inProgress');
@@ -1412,9 +1440,12 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
     expect(screen.getByText('common.runtime.runtimeGroupsTitle')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.runtimeGroupsSummaryText 3');
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
     expect(screen.getByText('BookForge')).toBeInTheDocument();
-    expect(screen.getByText('Publication evaluation')).toBeInTheDocument();
+    expect(screen.getByText('RedCube AI')).toBeInTheDocument();
+    expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
     expect(document.body.textContent).toContain('common.runtime.agentModule MAS');
     expect(screen.getByText('common.runtime.currentStage Publication repair check')).toBeInTheDocument();
@@ -1425,14 +1456,17 @@ describe('RuntimeSettings app state bridge usage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('common.runtime.nextOwner AI reviewer')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-group-system_attention_required')).toBeInTheDocument();
-    expect(screen.getByText('Runtime closeout')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('Runtime closeout');
     expect(screen.getByText('common.runtime.automationStates.pendingTerminalization')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.currentStage Write')).toBeInTheDocument();
     expect(document.body.textContent).toContain(
-      'common.runtime.nextStep Latest OPL runtime closeout differs from the MAS owner-consumed receipt; read MAS paper-mission/study-progress before any paper-progress claim.'
+      'common.runtime.nextStep common.runtime.automationStates.pendingTerminalization'
     );
     expect(screen.getByText('common.runtime.nextOwner MAS paper mission')).toBeInTheDocument();
+    expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
+    expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
+    expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|stage_attempt|wf_/i);
     expect(defaultViewText).not.toContain('common.runtime.masOwnerConsumptionDrift');
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();

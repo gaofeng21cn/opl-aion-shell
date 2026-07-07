@@ -228,7 +228,7 @@ describe('runtime visualization projection normalization', () => {
                   stage_run_cockpit: {
                     elapsed_seconds: 5400,
                     last_heartbeat_at: '2026-07-01T00:05:00Z',
-                    stage_usage: { total_tokens: 1234 },
+                    stage_usage: { total_tokens_observed: 1234 },
                     task_total_usage: { total_tokens: 4321 },
                     typed_blocker_summary: 'none',
                   },

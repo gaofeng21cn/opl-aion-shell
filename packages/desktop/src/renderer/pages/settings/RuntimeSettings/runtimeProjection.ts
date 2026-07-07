@@ -165,6 +165,7 @@ function normalizeStageUsage(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
   const totalTokens =
     asNumber(value.total_tokens) ??
+    asNumber(value.total_tokens_observed) ??
     asNumber(value.total_token_count) ??
     asNumber(value.token_count) ??
     asNumber(value.tokens);
@@ -769,6 +770,8 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
   const blockerRefsCount = asArray(entry.blocker_refs).length;
   const stageRun = firstRecord(entry.stage_run_cockpit, entry.stage_run_current_owner_delta);
   const stageRunSummary = firstRecord(entry.stage_run_cockpit_summary);
+  const activeStage = firstRecord(entry.stage, entry.active_stage);
+  const nextOwner = firstRecord(entry.next_owner, entry.owner);
   return {
     taskId,
     title: asString(entry.title) ?? taskId,
@@ -790,19 +793,36 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
     automationState: deriveAutomationState(entry),
     automationStateLabel: asString(entry.automation_state_label),
     automationStateReason: asString(entry.automation_state_reason),
-    stage: asString(entry.stage) ?? asString(entry.active_stage_label) ?? asString(entry.active_stage_id),
+    stage:
+      asString(entry.stage) ??
+      asString(entry.active_stage_label) ??
+      asString(activeStage?.label) ??
+      asString(activeStage?.stage_id) ??
+      asString(entry.active_stage_id),
     progressLabel: asString(entry.progress_label) ?? asString(entry.progress_delta_classification),
     nextStep: asString(entry.next_step) ?? asString(entry.next_visible_step) ?? asString(entry.required_next_action),
-    nextOwner: asString(entry.next_owner) ?? asString(entry.owner),
+    nextOwner:
+      asString(entry.next_owner) ?? asString(entry.owner) ?? asString(nextOwner?.owner) ?? asString(nextOwner?.label),
     lastProgressAt: asString(entry.last_progress_at) ?? asString(entry.updated_at),
-    activeStageId: asString(entry.active_stage_id),
+    activeStageId: asString(entry.active_stage_id) ?? asString(activeStage?.stage_id),
     activeRunId: asString(entry.active_run_id),
-    elapsedSeconds: asNumber(stageRun?.elapsed_seconds) ?? asNumber(stageRunSummary?.elapsed_seconds),
-    lastHeartbeatAt: asString(stageRun?.last_heartbeat_at) ?? asString(stageRunSummary?.last_heartbeat_at),
+    elapsedSeconds:
+      asNumber(stageRun?.elapsed_seconds) ??
+      asNumber(stageRunSummary?.elapsed_seconds) ??
+      asNumber(entry.elapsed_seconds),
+    lastHeartbeatAt:
+      asString(stageRun?.last_heartbeat_at) ??
+      asString(stageRunSummary?.last_heartbeat_at) ??
+      asString(entry.last_heartbeat_at),
     runningProofRef: asString(stageRun?.running_proof_ref) ?? asString(stageRunSummary?.running_proof_ref),
-    stageUsage: normalizeStageUsage(stageRun?.stage_usage) ?? normalizeStageUsage(stageRunSummary?.stage_usage),
+    stageUsage:
+      normalizeStageUsage(stageRun?.stage_usage) ??
+      normalizeStageUsage(stageRunSummary?.stage_usage) ??
+      normalizeStageUsage(entry.stage_usage),
     taskTotalUsage:
-      normalizeStageUsage(stageRun?.task_total_usage) ?? normalizeStageUsage(stageRunSummary?.task_total_usage),
+      normalizeStageUsage(stageRun?.task_total_usage) ??
+      normalizeStageUsage(stageRunSummary?.task_total_usage) ??
+      normalizeStageUsage(entry.task_total_usage),
     typedBlockerSummary:
       asString(stageRun?.typed_blocker_summary) ??
       asString(stageRunSummary?.typed_blocker_summary) ??
