@@ -1555,7 +1555,7 @@ const RuntimePage: React.FC = () => {
         >
           <div className='flex flex-col gap-12px min-w-0'>
             <div className='flex flex-wrap items-start gap-16px min-w-0'>
-              <div className='flex items-start gap-10px min-w-0' style={{ flex: '1 1 260px' }}>
+              <div className='flex items-start gap-10px min-w-0' style={{ flex: '1 1 300px' }}>
                 <span
                   aria-hidden='true'
                   style={{
@@ -1569,7 +1569,10 @@ const RuntimePage: React.FC = () => {
                 />
                 <div className='min-w-0 flex-1'>
                   <div className='flex flex-wrap items-center gap-6px'>
-                    <Typography.Text className='font-600 text-t-primary break-words'>
+                    <Typography.Text
+                      className='font-600 text-t-primary'
+                      style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
+                    >
                       {item.projectLabel}
                     </Typography.Text>
                     <Tag
@@ -1607,7 +1610,11 @@ const RuntimePage: React.FC = () => {
               style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
             >
               {actionFields.map((field) => (
-                <Typography.Text key={field.key} className='block text-12px text-t-secondary break-words'>
+                <Typography.Text
+                  key={field.key}
+                  className='block text-12px text-t-secondary'
+                  style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
+                >
                   {field.label}: <span className='text-t-primary'>{field.value}</span>
                 </Typography.Text>
               ))}
