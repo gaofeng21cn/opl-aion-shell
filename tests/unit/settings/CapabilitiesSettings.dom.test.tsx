@@ -8,6 +8,7 @@ import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAss
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
   loadAppState: vi.fn(),
+  modalConfirm: vi.fn((config: { onOk?: () => unknown }) => config.onOk?.()),
 }));
 
 vi.mock('@/common', () => ({
@@ -25,6 +26,10 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
     Message: {
       success: vi.fn(),
       error: vi.fn(),
+    },
+    Modal: {
+      ...actual.Modal,
+      confirm: bridgeMocks.modalConfirm,
     },
   };
 });
@@ -44,6 +49,22 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => ({
     appState: {
+      agent_packages: {
+        status_index: {
+          packages: [
+            {
+              package_id: 'med-autoscience',
+              enabled: true,
+              hidden: false,
+            },
+            {
+              package_id: 'med-autogrant',
+              enabled: false,
+              hidden: true,
+            },
+          ],
+        },
+      },
       modules: {
         items: [
           {
@@ -357,6 +378,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.pendingFrameworkAction':
           'Waiting for Framework action receipt support',
         'settings.capabilitiesPage.packageManager.actionQueued': 'Action routed to OPL',
+        'settings.capabilitiesPage.packageManager.uninstallConfirmTitle': 'Uninstall capability',
+        'settings.capabilitiesPage.packageManager.uninstallConfirmContent': 'Uninstall through App package manager.',
         'settings.capabilitiesPage.packageManager.tableHeaders.package': 'Capability',
         'settings.capabilitiesPage.packageManager.tableHeaders.purpose': 'Purpose',
         'settings.capabilitiesPage.packageManager.tableHeaders.status': 'Status',
@@ -369,8 +392,11 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.actions.repair': 'Repair',
         'settings.capabilitiesPage.packageManager.actions.rollback': 'Rollback',
         'settings.capabilitiesPage.packageManager.actions.uninstall': 'Uninstall',
+        'settings.capabilitiesPage.packageManager.actions.enable': 'Enable',
+        'settings.capabilitiesPage.packageManager.actions.disable': 'Disable',
         'settings.capabilitiesPage.packageManager.actions.hide': 'Hide',
         'settings.capabilitiesPage.packageManager.actions.show': 'Show',
+        'settings.capabilitiesPage.packageManager.actions.unhide': 'Unhide',
         'settings.capabilitiesPage.purposes.automation.title': 'Meta agent',
         'settings.capabilitiesPage.purposes.automation.description': 'Use OMA explicitly.',
         'settings.capabilitiesPage.entries.externalTools.title': 'External tools & voice',
@@ -400,6 +426,7 @@ describe('CapabilitiesSettingsContent', () => {
     });
     bridgeMocks.loadAppState.mockReset();
     bridgeMocks.loadAppState.mockResolvedValue(null);
+    bridgeMocks.modalConfirm.mockClear();
     localStorage.clear();
   });
 
@@ -461,7 +488,7 @@ describe('CapabilitiesSettingsContent', () => {
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith(
         expect.objectContaining({
-          actionId: 'agent_package_home_shortcut_preferences_set',
+          actionId: 'agent_package_preferences_set',
           payloadRefsOnlyJson: expect.objectContaining({
             package_id: 'opl-meta-agent',
             shortcut_id: 'oma',
@@ -584,7 +611,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('research');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_home_shortcut_preferences_set',
+        actionId: 'agent_package_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
           package_id: 'med-autoscience',
@@ -599,7 +626,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_home_shortcut_preferences_set',
+        actionId: 'agent_package_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: {
           package_id: 'med-autoscience',
@@ -636,6 +663,75 @@ describe('CapabilitiesSettingsContent', () => {
     );
 
     await waitFor(() => expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+  });
+
+  it('routes package lifecycle management actions through App action refs', async () => {
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('agent-package-update-mas'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_update',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-repair-mas'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_repair',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-enabled-toggle-mas'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autoscience', exposure_action: 'disable' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-mas'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autoscience', exposure_action: 'hide' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-uninstall-mas'));
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_uninstall',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('capability-purpose-mag'));
+    fireEvent.click(screen.getByTestId('agent-package-enabled-toggle-mag'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autogrant', exposure_action: 'enable' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-mag'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autogrant', exposure_action: 'unhide' },
+      })
+    );
   });
 
   it('uses persisted shortcut preferences when building Home agents', () => {

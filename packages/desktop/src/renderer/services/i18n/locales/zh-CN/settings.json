@@ -1941,6 +1941,8 @@
       "empty": "没有匹配的智能体包。",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
+      "uninstallConfirmTitle": "卸载能力",
+      "uninstallConfirmContent": "此操作会路由到 App 包管理器执行卸载；动作后的回执和恢复指引仍会保留可见。",
       "tableHeaders": {
         "package": "能力",
         "purpose": "用途",
@@ -1956,8 +1958,11 @@
         "repair": "修复",
         "rollback": "回滚",
         "uninstall": "卸载",
+        "enable": "启用",
+        "disable": "停用",
         "hide": "隐藏",
-        "show": "显示"
+        "show": "显示",
+        "unhide": "取消隐藏"
       }
     },
     "supporting": {

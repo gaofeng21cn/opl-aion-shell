@@ -1940,6 +1940,8 @@
       "empty": "No matching agent packages.",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
+      "uninstallConfirmTitle": "Uninstall capability",
+      "uninstallConfirmContent": "This routes uninstall to the App package manager. Receipts and recovery guidance stay visible after the action.",
       "tableHeaders": {
         "package": "Capability",
         "purpose": "Purpose",
@@ -1955,8 +1957,11 @@
         "repair": "Repair",
         "rollback": "Rollback",
         "uninstall": "Uninstall",
+        "enable": "Enable",
+        "disable": "Disable",
         "hide": "Hide",
-        "show": "Show"
+        "show": "Show",
+        "unhide": "Unhide"
       }
     },
     "supporting": {

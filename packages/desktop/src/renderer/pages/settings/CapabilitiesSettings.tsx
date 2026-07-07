@@ -15,7 +15,7 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Button, Card, Input, Message, Select, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Button, Card, Input, Message, Modal, Select, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Refresh, Robot, Search, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -565,6 +565,27 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     }
   };
 
+  const executeLifecycleAction = (
+    item: CapabilityPurposeViewModel,
+    actionId: string,
+    payloadRefsOnlyJson: Record<string, unknown> = {}
+  ): Promise<void> => {
+    if (!item.packageId) return Promise.resolve();
+    return executePackageAction(actionId, { package_id: item.packageId, ...payloadRefsOnlyJson });
+  };
+
+  const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
+    if (!item.packageId) return;
+    Modal.confirm({
+      title: t('settings.capabilitiesPage.packageManager.uninstallConfirmTitle'),
+      content: t('settings.capabilitiesPage.packageManager.uninstallConfirmContent'),
+      okButtonProps: { status: 'danger' },
+      okText: t('settings.capabilitiesPage.packageManager.actions.uninstall'),
+      cancelText: t('common.cancel'),
+      onOk: () => executeLifecycleAction(item, 'agent_package_uninstall'),
+    });
+  };
+
   const executeShortcutPreferenceAction = async (
     shortcutId: string,
     preferences: OplHomeShortcutPreferences
@@ -573,7 +594,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     const shortcut = shortcutOrder.find((entry) => entry.shortcut_id === shortcutId);
     if (!shortcut) return;
     const preferenceSortOrder = preferences.orderedShortcutIds.indexOf(shortcut.shortcut_id);
-    await executePackageAction('agent_package_home_shortcut_preferences_set', {
+    await executePackageAction('agent_package_preferences_set', {
       package_id: shortcut.package_id,
       shortcut_id: shortcut.shortcut_id,
       visible: isOplHomeShortcutVisible(shortcut, preferences),
@@ -810,6 +831,66 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   >
                     {capabilityActionLabel(selectedCapability, t)}
                   </Button>
+                  <Space wrap size={6} data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_update'}
+                      disabled={!selectedCapability.packageId}
+                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
+                      data-testid={`agent-package-update-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.update')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_repair'}
+                      disabled={!selectedCapability.packageId}
+                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
+                      data-testid={`agent-package-repair-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.repair')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_preferences_set'}
+                      disabled={!selectedCapability.packageId}
+                      onClick={() =>
+                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                          exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
+                        })
+                      }
+                      data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
+                    >
+                      {selectedCapability.enabled === false
+                        ? t('settings.capabilitiesPage.packageManager.actions.enable')
+                        : t('settings.capabilitiesPage.packageManager.actions.disable')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_preferences_set'}
+                      disabled={!selectedCapability.packageId}
+                      onClick={() =>
+                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                          exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
+                        })
+                      }
+                      data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
+                    >
+                      {selectedCapability.hidden === true
+                        ? t('settings.capabilitiesPage.packageManager.actions.unhide')
+                        : t('settings.capabilitiesPage.packageManager.actions.hide')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      status='danger'
+                      loading={busyAction === 'agent_package_uninstall'}
+                      disabled={!selectedCapability.packageId}
+                      onClick={() => confirmUninstallPackage(selectedCapability)}
+                      data-testid={`agent-package-uninstall-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
+                    </Button>
+                  </Space>
                   <div className='grid grid-cols-1 gap-4px text-12px'>
                     <Typography.Text className='text-t-secondary break-words'>
                       {selectedCapability.description}

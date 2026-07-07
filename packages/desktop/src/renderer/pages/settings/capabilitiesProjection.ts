@@ -34,6 +34,8 @@ export type CapabilityPurposeViewModel = {
   actionReceiptRef: string | null;
   rollbackRef: string | null;
   physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
+  enabled: boolean | null;
+  hidden: boolean | null;
   status: CapabilityStatus;
   primaryAction: CapabilityPrimaryAction;
   codexVisibility: CapabilityCodexVisibility;
@@ -69,6 +71,8 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'actionReceiptRef'
   | 'rollbackRef'
   | 'physicalSurface'
+  | 'enabled'
+  | 'hidden'
   | 'workflowRefs'
   | 'connectorReadinessRefs'
   | 'connectorReadinessGroups'
@@ -799,6 +803,41 @@ function nullableBool(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
 
+function capabilityPackageEnabled(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): boolean | null {
+  if (!packageState && !module) return null;
+  const preferences = firstRecord(packageState?.preferences, module?.preferences);
+  const disabled =
+    nullableBool(packageState?.disabled) ?? nullableBool(module?.disabled) ?? nullableBool(preferences.disabled);
+  return (
+    nullableBool(packageState?.enabled) ??
+    nullableBool(module?.enabled) ??
+    nullableBool(preferences.enabled) ??
+    (disabled === null ? null : !disabled)
+  );
+}
+
+function capabilityPackageHidden(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): boolean | null {
+  if (!packageState && !module) return null;
+  const preferences = firstRecord(packageState?.preferences, module?.preferences);
+  const visible =
+    nullableBool(packageState?.visible) ??
+    nullableBool(packageState?.user_visible) ??
+    nullableBool(module?.visible) ??
+    nullableBool(preferences.visible);
+  return (
+    nullableBool(packageState?.hidden) ??
+    nullableBool(module?.hidden) ??
+    nullableBool(preferences.hidden) ??
+    (visible === null ? null : !visible)
+  );
+}
+
 function capabilityPhysicalSurface(
   packageState: RuntimePackageStateItem | undefined,
   module: RuntimeModuleItem | undefined
@@ -890,6 +929,8 @@ function buildCapabilityPurpose(
     actionReceiptRef: capabilityActionReceiptRef(packageState, module, task),
     rollbackRef: capabilityRollbackRef(packageState, module),
     physicalSurface: capabilityPhysicalSurface(packageState, module),
+    enabled: capabilityPackageEnabled(packageState, module),
+    hidden: capabilityPackageHidden(packageState, module),
     status,
     primaryAction: capabilityPrimaryAction(status),
     codexVisibility: capabilityCodexVisibility(packageState, module, status),
