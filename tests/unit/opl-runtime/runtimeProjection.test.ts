@@ -328,7 +328,7 @@ describe('runtime visualization projection normalization', () => {
     expect(model.taskDrilldowns.map((task) => task.taskId)).toEqual(['dm002-taskrun']);
   });
 
-  it('derives new primary and automation states from legacy task fields when framework labels are absent', () => {
+  it('uses canonical task states and only downgrades legacy status fallbacks', () => {
     const model = normalizeRuntimeProjection({
       app_state: {
         schema_version: 'opl_app_state.v1',
@@ -339,25 +339,32 @@ describe('runtime visualization projection normalization', () => {
                 task_id: 'legacy-running',
                 title: 'Legacy running task',
                 state: 'running',
-              },
-              {
-                task_id: 'legacy-human-gate',
-                title: 'Legacy human gate',
-                state: 'pending',
-                progress_delta_classification: 'human_gate',
-              },
-              {
-                task_id: 'legacy-platform',
-                title: 'Legacy platform repair',
-                state: 'attention_needed',
-                progress_delta_classification: 'platform_repair',
-                runtime_closeout_observed: true,
-                mas_owner_consumption_matches_runtime_closeout: false,
+                status: 'running',
               },
               {
                 task_id: 'legacy-complete',
                 title: 'Legacy complete',
+                state: 'completed',
                 status: 'completed',
+              },
+              {
+                task_id: 'legacy-error',
+                title: 'Legacy error task',
+                state: 'error',
+              },
+              {
+                task_id: 'canonical-running',
+                title: 'Canonical running task',
+                status: 'completed',
+                primary_state: 'in_progress',
+                automation_state: 'automation_running',
+              },
+              {
+                task_id: 'canonical-complete',
+                title: 'Canonical complete task',
+                state: 'running',
+                primary_state: 'delivered_auto_paused',
+                automation_state: 'automation_idle',
               },
             ],
           },
@@ -368,10 +375,11 @@ describe('runtime visualization projection normalization', () => {
     expect(
       model.taskRunProjectionV2.tasks.map((task) => [task.taskId, task.primaryState, task.automationState])
     ).toEqual([
-      ['legacy-running', 'in_progress', 'automation_running'],
-      ['legacy-human-gate', 'owner_decision_required', 'automation_idle'],
-      ['legacy-platform', 'system_attention_required', 'result_pending_terminalization'],
-      ['legacy-complete', 'delivered_auto_paused', 'automation_idle'],
+      ['legacy-running', 'paused_waiting_for_direction', 'automation_idle'],
+      ['legacy-complete', 'paused_waiting_for_direction', 'automation_idle'],
+      ['legacy-error', 'system_attention_required', 'automation_failed'],
+      ['canonical-running', 'in_progress', 'automation_running'],
+      ['canonical-complete', 'delivered_auto_paused', 'automation_idle'],
     ]);
   });
 

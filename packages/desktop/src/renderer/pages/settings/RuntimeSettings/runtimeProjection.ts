@@ -416,27 +416,15 @@ function derivePrimaryState(entry: JsonRecord): RuntimeTaskPrimaryState {
   const status = asString(entry.status);
   const progress = asString(entry.progress_delta_classification);
   if (
-    ['running', 'in_progress', 'advancing'].includes(state ?? '') ||
-    ['running', 'in_progress', 'advancing'].includes(status ?? '')
-  ) {
-    return 'in_progress';
-  }
-  if (progress === 'human_gate') {
-    return 'owner_decision_required';
-  }
-  if (
     ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
       state ?? ''
     ) ||
     ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
       status ?? ''
     ) ||
-    ['platform_repair', 'typed_blocker', 'stop_loss'].includes(progress ?? '')
+    ['human_gate', 'platform_repair', 'typed_blocker', 'stop_loss'].includes(progress ?? '')
   ) {
     return 'system_attention_required';
-  }
-  if (['completed', 'delivered'].includes(status ?? '') || ['completed', 'delivered'].includes(state ?? '')) {
-    return 'delivered_auto_paused';
   }
   return 'paused_waiting_for_direction';
 }
@@ -446,15 +434,6 @@ function deriveAutomationState(entry: JsonRecord): RuntimeTaskAutomationState {
   if (explicit) return explicit;
   const state = asString(entry.state);
   const status = asString(entry.status);
-  if (
-    ['running', 'in_progress', 'advancing'].includes(state ?? '') ||
-    ['running', 'in_progress', 'advancing'].includes(status ?? '')
-  ) {
-    return 'automation_running';
-  }
-  if (entry.runtime_closeout_observed === true && entry.mas_owner_consumption_matches_runtime_closeout === false) {
-    return 'result_pending_terminalization';
-  }
   if (
     ['blocked', 'blocking', 'failed', 'error', 'attention_needed', 'attention_required', 'missing'].includes(
       state ?? ''
