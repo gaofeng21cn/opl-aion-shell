@@ -901,6 +901,19 @@ function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: Runtime
   );
 }
 
+function displayUsageLabel(
+  value: string | null | undefined,
+  t: (key: string, options?: Record<string, string | number>) => string
+): string {
+  const text = value?.trim();
+  if (!text) return t('common.runtime.telemetryMissing');
+  const lower = text.toLowerCase();
+  if (lower.includes('telemetry_status') || lower.includes('source_ref_count') || lower.includes('usage_ref')) {
+    return t('common.runtime.telemetryMissing');
+  }
+  return text;
+}
+
 function runtimeTaskItem(
   task: RuntimeTaskDrilldown,
   controlStates: RuntimeSnapshot[],
@@ -941,8 +954,8 @@ function runtimeTaskItem(
     stageLabel: task.stage ?? task.activeStageId ?? null,
     elapsedLabel: stageElapsed,
     livenessLabel,
-    stageUsageLabel: task.stageUsage ?? t('common.runtime.telemetryMissing'),
-    totalUsageLabel: task.taskTotalUsage ?? t('common.runtime.telemetryMissing'),
+    stageUsageLabel: displayUsageLabel(task.stageUsage, t),
+    totalUsageLabel: displayUsageLabel(task.taskTotalUsage, t),
     nextStep,
     ownerLabel: task.nextOwner ?? task.typedBlockerOwner ?? null,
     blockerSummary,
@@ -1287,10 +1300,27 @@ const RuntimePage: React.FC = () => {
   const renderTaskItem = useCallback(
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
+      const telemetryMissing = t('common.runtime.telemetryMissing');
       const usageLabel =
-        item.stageUsageLabel === item.totalUsageLabel
-          ? item.stageUsageLabel
-          : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
+        item.stageUsageLabel === telemetryMissing
+          ? telemetryMissing
+          : item.stageUsageLabel === item.totalUsageLabel || item.totalUsageLabel === telemetryMissing
+            ? item.stageUsageLabel
+            : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
+      const detailItems = [
+        t('common.runtime.agentModule', { agent: item.agentLabel }),
+        t('common.runtime.projectTask', { task: item.taskLabel }),
+        item.ownerLabel ? t('common.runtime.nextOwner', { owner: item.ownerLabel }) : null,
+        item.nextStep ? t('common.runtime.nextStep', { step: item.nextStep }) : null,
+      ].filter((detail): detail is string => Boolean(detail));
+      const metricItems = [
+        item.stageLabel ? t('common.runtime.currentStage', { stage: item.stageLabel }) : null,
+        t('common.runtime.stageElapsed', {
+          value: item.elapsedLabel ?? telemetryMissing,
+        }),
+        t('common.runtime.stageUsage', { value: usageLabel }),
+        item.latestActivityAt ? t('common.runtime.lastProgressAt', { time: item.latestActivityAt }) : null,
+      ].filter((detail): detail is string => Boolean(detail));
       return (
         <div
           key={task.taskId}
@@ -1301,15 +1331,8 @@ const RuntimePage: React.FC = () => {
             background: '#fff',
           }}
         >
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: 16,
-              alignItems: 'start',
-            }}
-          >
-            <div style={{ minWidth: 0, display: 'flex', gap: 10 }}>
+          <div className='flex flex-col gap-10px min-w-0'>
+            <div className='flex items-start gap-10px min-w-0'>
               <span
                 aria-hidden='true'
                 style={{
@@ -1326,7 +1349,7 @@ const RuntimePage: React.FC = () => {
                   flexShrink: 0,
                 }}
               />
-              <div style={{ minWidth: 0 }}>
+              <div className='min-w-0 flex-1'>
                 <div className='flex flex-wrap items-center gap-6px'>
                   <Typography.Text className='font-600 text-t-primary break-words'>{item.projectLabel}</Typography.Text>
                   <Tag
@@ -1344,44 +1367,25 @@ const RuntimePage: React.FC = () => {
                     {item.automationLabel}
                   </Tag>
                 </div>
-                <div className='mt-10px flex flex-wrap gap-x-18px gap-y-8px'>
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('common.runtime.agentModule', { agent: item.agentLabel })}
-                  </Typography.Text>
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('common.runtime.projectTask', { task: item.taskLabel })}
-                  </Typography.Text>
-                  {item.ownerLabel && (
-                    <Typography.Text className='text-12px text-t-secondary break-words'>
-                      {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
-                    </Typography.Text>
-                  )}
-                  {item.nextStep && (
-                    <Typography.Text className='text-12px text-t-secondary break-words'>
-                      {t('common.runtime.nextStep', { step: item.nextStep })}
-                    </Typography.Text>
-                  )}
-                </div>
               </div>
             </div>
-            {item.stageLabel && (
-              <Typography.Text className='block text-13px text-t-primary break-words'>
-                {t('common.runtime.currentStage', { stage: item.stageLabel })}
-              </Typography.Text>
-            )}
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.stageElapsed', {
-                value: item.elapsedLabel ?? t('common.runtime.telemetryMissing'),
-              })}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('common.runtime.stageUsage', { value: usageLabel })}
-            </Typography.Text>
-            {item.latestActivityAt && (
-              <Typography.Text className='block text-12px text-t-secondary break-words'>
-                {t('common.runtime.lastProgressAt', { time: item.latestActivityAt })}
-              </Typography.Text>
-            )}
+            <div className='flex flex-wrap gap-x-18px gap-y-8px pl-20px'>
+              {detailItems.map((detail) => (
+                <Typography.Text key={detail} className='text-12px text-t-secondary break-words'>
+                  {detail}
+                </Typography.Text>
+              ))}
+            </div>
+            <div
+              className='grid gap-x-16px gap-y-6px pl-20px'
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
+            >
+              {metricItems.map((detail) => (
+                <Typography.Text key={detail} className='block text-12px text-t-secondary break-words'>
+                  {detail}
+                </Typography.Text>
+              ))}
+            </div>
           </div>
         </div>
       );

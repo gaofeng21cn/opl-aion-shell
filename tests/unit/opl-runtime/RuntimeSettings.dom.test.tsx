@@ -1467,6 +1467,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
     expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
     expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
+    expect(defaultViewText).not.toContain('telemetry_status');
+    expect(defaultViewText).not.toContain('source_ref_count');
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|stage_attempt|wf_/i);
     expect(defaultViewText).not.toContain('common.runtime.masOwnerConsumptionDrift');
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
