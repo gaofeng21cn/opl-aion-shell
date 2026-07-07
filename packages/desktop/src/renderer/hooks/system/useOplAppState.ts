@@ -12,6 +12,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
 const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
 
+export function resetOplAppStateLoadsForTest(): void {
+  inflightAppStateLoads.clear();
+}
+
 export type OplAppStateCache = {
   payload: OplAppStatePayload;
   loadedAt: string | null;

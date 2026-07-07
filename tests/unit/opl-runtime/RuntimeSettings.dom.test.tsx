@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
+import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
 import {
   executeManagedUpdateRead,
   resetManagedUpdateMaintenanceForTest,
@@ -333,6 +334,7 @@ const managedUpdateAutoApplyPlanResult = {
 
 describe('RuntimeSettings app state bridge usage', () => {
   beforeEach(() => {
+    resetOplAppStateLoadsForTest();
     resetManagedUpdateMaintenanceForTest();
     vi.clearAllMocks();
     localStorage.clear();
@@ -1107,7 +1109,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
     const button = screen.getByText('common.refresh').closest('button');
-    expect(button?.className).not.toContain('arco-btn-loading');
+    await waitFor(() => expect(button?.className).not.toContain('arco-btn-loading'));
     expect(button?.getAttribute('aria-busy')).not.toBe('true');
 
     await act(async () => {
