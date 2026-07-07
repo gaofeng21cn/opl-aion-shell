@@ -382,10 +382,10 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(environmentTarget?.hash).toBe('#/settings/environment');
     expect(environmentTarget?.requiredTextAny).toEqual(
       expect.arrayContaining([
-        ['OPL System Bridge', 'OPL 系统桥接'],
-        ['Language Runtimes', '语言运行时'],
-        ['Package & Env Resolver', '包与环境解析器'],
-        ['Env Cache / Isolated Prefix', '环境缓存 / 隔离前缀'],
+        ['Maintenance and updates', '维护与更新'],
+        ['Make OPL usable', '让 OPL 可用'],
+        ['Runtime environment', '运行环境'],
+        ['Capability packs and Codex Surface sync', '能力包与 Codex Surface 同步'],
       ])
     );
     expect(appearanceTarget?.requiredTextAny).toEqual(
