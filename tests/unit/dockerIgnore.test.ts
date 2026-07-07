@@ -24,6 +24,9 @@ describe('Docker WebUI build context', () => {
       'build-artifacts',
       'release-assets',
       'packaged-runtimes',
+      'resources/bundled-bun',
+      'resources/bundled-aioncore',
+      'resources/hub',
       'node_modules',
     ]) {
       expect(entries.has(entry), entry).toBe(true);

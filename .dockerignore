@@ -8,6 +8,9 @@ build
 build-artifacts
 release-assets
 packaged-runtimes
+resources/bundled-bun
+resources/bundled-aioncore
+resources/hub
 .git
 .github
 .codegraph
