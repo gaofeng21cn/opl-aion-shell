@@ -47,9 +47,16 @@ const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
   'ui-ux-pro-max',
 ];
 const FULL_PLUGIN_ONLY_DOMAIN_SKILLS = [
-  ['mas', 'modules/mas', 'mas'],
-  ['mag', 'modules/mag', 'mag'],
-  ['rca', 'modules/rca', 'rca'],
+  ['med-autoscience', 'modules/mas', 'med-autoscience'],
+  ['med-autogrant', 'modules/mag', 'med-autogrant'],
+  ['redcube-ai', 'modules/rca', 'redcube-ai'],
+];
+const NON_RETRYABLE_FULL_RUNTIME_EQUIVALENCE_ERROR_PATTERNS = [
+  'is missing packaged marker',
+  'has an invalid packaged marker',
+  'is missing expected payload path(s)',
+  'is missing packaged plugin manifest',
+  'is missing packaged skill entry',
 ];
 const FULL_RUNTIME_MODULES = [
   ['medautoscience', 'med-autoscience', path.join('modules', 'mas'), ['agent', 'plugins']],
@@ -1408,6 +1415,11 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
   assertFullRuntimeToolCallable('mineru-open-api', ['version']);
 }
 
+function isNonRetryableFullRuntimeEquivalenceError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return NON_RETRYABLE_FULL_RUNTIME_EQUIVALENCE_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
+}
+
 function probeCodexCli(options = {}) {
   const command = options.command || process.env.OPL_CODEX_BIN?.trim() || 'codex';
   const probe = spawnSync(command, ['--version'], {
@@ -2751,6 +2763,12 @@ async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
       };
     } catch (error) {
       lastError = error;
+      if (isNonRetryableFullRuntimeEquivalenceError(error)) {
+        recordFullRuntimeEquivalenceProbe(options.writeSmokeEvent, attempt, 'assert_equivalence', 'non_retryable', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
       await sleep(2_000);
     }
   }
@@ -5514,6 +5532,7 @@ export const __test =
         OPL_CONNECT_MODULES_ARGS,
         OplJsonCommandError,
         oplJsonCommandDiagnostics,
+        isNonRetryableFullRuntimeEquivalenceError,
         writeOplJsonCommandErrorArtifacts,
         captureOplJsonCommandErrorArtifacts,
         resolveOplProbeTimeoutMs,

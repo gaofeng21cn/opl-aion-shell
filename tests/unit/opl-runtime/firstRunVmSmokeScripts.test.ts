@@ -133,9 +133,9 @@ function createFullRuntimeEquivalenceFixture() {
     writeRuntimeModule(runtimeHome, moduleFixture);
   }
   for (const pluginFixture of [
-    { modulePath: path.join('modules', 'mas'), pluginName: 'mas', skillId: 'mas' },
-    { modulePath: path.join('modules', 'mag'), pluginName: 'mag', skillId: 'mag' },
-    { modulePath: path.join('modules', 'rca'), pluginName: 'rca', skillId: 'rca' },
+    { modulePath: path.join('modules', 'mas'), pluginName: 'med-autoscience', skillId: 'med-autoscience' },
+    { modulePath: path.join('modules', 'mag'), pluginName: 'med-autogrant', skillId: 'med-autogrant' },
+    { modulePath: path.join('modules', 'rca'), pluginName: 'redcube-ai', skillId: 'redcube-ai' },
   ]) {
     writeDomainPlugin(runtimeHome, pluginFixture);
   }
@@ -1970,17 +1970,35 @@ describe('OPL first-run VM smoke scripts', () => {
         })
       ).not.toThrow();
 
-      expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'mas', 'SKILL.md'))).toBe(false);
-      fs.rmSync(path.join(fixture.runtimeHome, 'modules', 'mas', 'plugins', 'mas'), { recursive: true, force: true });
+      expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'med-autoscience', 'SKILL.md'))).toBe(false);
+      fs.rmSync(path.join(fixture.runtimeHome, 'modules', 'mas', 'plugins', 'med-autoscience'), {
+        recursive: true,
+        force: true,
+      });
 
       expect(() =>
         vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
           codexHome: fixture.codexHome,
           runtimeHome: fixture.runtimeHome,
         })
-      ).toThrow(/domain plugin mas/);
+      ).toThrow(/domain plugin med-autoscience/);
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
     }
+  });
+
+  it('classifies missing packaged Full runtime payloads as non-retryable equivalence failures', () => {
+    expect(
+      vmSmoke.isNonRetryableFullRuntimeEquivalenceError(
+        new Error(
+          'OPL Full runtime domain plugin med-autogrant is missing packaged plugin manifest: /Applications/One Person Lab.app/Contents/Resources/opl-full-runtime/runtime/current/modules/mag/plugins/med-autogrant/.codex-plugin/plugin.json',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      vmSmoke.isNonRetryableFullRuntimeEquivalenceError(
+        new Error('OPL first-run initialize did not report a launchable core state'),
+      ),
+    ).toBe(false);
   });
 });
