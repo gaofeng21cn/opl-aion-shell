@@ -522,8 +522,10 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(expression).toContain('运行状态摘要');
     expect(expression).toContain('Task Overview');
     expect(expression).toContain('任务概览');
-    expect(expression).toContain('Project List');
-    expect(expression).toContain('项目列表');
+    expect(expression).toContain('In progress');
+    expect(expression).toContain('进行中');
+    expect(expression).toContain('Needs system handling');
+    expect(expression).toContain('需要系统处理');
     expect(expression).toContain('Status Load');
     expect(expression).toContain('状态加载');
     expect(expression).toContain('Loaded at');

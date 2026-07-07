@@ -1070,6 +1070,21 @@ function groupSummaryKey(state: RuntimeTaskPrimaryState): string {
   }
 }
 
+function primaryStateAccent(state: RuntimeTaskPrimaryState): { color: string; background: string } {
+  switch (state) {
+    case 'in_progress':
+      return { color: '#2563eb', background: '#eff6ff' };
+    case 'system_attention_required':
+      return { color: '#f97316', background: '#fff7ed' };
+    case 'owner_decision_required':
+      return { color: '#7c3aed', background: '#f5f3ff' };
+    case 'delivered_auto_paused':
+      return { color: '#059669', background: '#ecfdf5' };
+    case 'paused_waiting_for_direction':
+      return { color: '#64748b', background: '#f1f5f9' };
+  }
+}
+
 function controlStateFallbackForTask(task: RuntimeTaskDrilldown, states: RuntimeSnapshot[]): RuntimeSnapshot | null {
   if (states.length === 0) return null;
   return matchControlState(
@@ -1510,25 +1525,23 @@ const RuntimePage: React.FC = () => {
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
       const telemetryMissing = t('common.runtime.telemetryMissing');
+      const accent = primaryStateAccent(item.primaryState);
       const usageLabel =
         item.stageUsageLabel === telemetryMissing
           ? telemetryMissing
           : item.stageUsageLabel === item.totalUsageLabel || item.totalUsageLabel === telemetryMissing
             ? item.stageUsageLabel
             : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
-      const fieldItems = [
-        { key: 'agent', label: t('common.runtime.taskField.agent'), value: item.agentLabel },
-        { key: 'task', label: t('common.runtime.taskField.task'), value: item.taskLabel },
+      const runFields = [
         { key: 'stage', label: t('common.runtime.taskField.stage'), value: item.stageLabel ?? telemetryMissing },
         { key: 'elapsed', label: t('common.runtime.taskField.elapsed'), value: item.elapsedLabel ?? telemetryMissing },
         { key: 'usage', label: t('common.runtime.taskField.usage'), value: usageLabel },
+      ];
+      const actionFields = [
+        { key: 'agent', label: t('common.runtime.taskField.agent'), value: item.agentLabel },
+        { key: 'task', label: t('common.runtime.taskField.task'), value: item.taskLabel },
         { key: 'owner', label: t('common.runtime.taskField.owner'), value: item.ownerLabel ?? telemetryMissing },
         { key: 'next', label: t('common.runtime.taskField.next'), value: item.nextStep ?? telemetryMissing },
-        {
-          key: 'recent',
-          label: t('common.runtime.taskField.recent'),
-          value: formatClockTime(item.latestActivityAt) ?? telemetryMissing,
-        },
       ];
       return (
         <div
@@ -1540,50 +1553,46 @@ const RuntimePage: React.FC = () => {
             background: '#fff',
           }}
         >
-          <div className='flex flex-col gap-10px min-w-0'>
-            <div className='flex items-start gap-10px min-w-0'>
-              <span
-                aria-hidden='true'
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 999,
-                  background:
-                    item.primaryState === 'in_progress'
-                      ? '#2563eb'
-                      : item.primaryState === 'system_attention_required'
-                        ? '#f97316'
-                        : '#10b981',
-                  marginTop: 6,
-                  flexShrink: 0,
-                }}
-              />
-              <div className='min-w-0 flex-1'>
-                <div className='flex flex-wrap items-center gap-6px'>
-                  <Typography.Text className='font-600 text-t-primary break-words'>{item.projectLabel}</Typography.Text>
-                  <Tag
-                    color={
-                      item.primaryState === 'in_progress'
-                        ? 'blue'
-                        : item.primaryState === 'system_attention_required'
-                          ? 'orange'
-                          : 'green'
-                    }
-                  >
-                    {item.primaryLabel}
-                  </Tag>
-                  <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
-                    {item.automationLabel}
-                  </Tag>
+          <div className='flex flex-col gap-12px min-w-0'>
+            <div className='flex flex-wrap items-start gap-16px min-w-0'>
+              <div className='flex items-start gap-10px min-w-0' style={{ flex: '1 1 260px' }}>
+                <span
+                  aria-hidden='true'
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 999,
+                    background: accent.color,
+                    marginTop: 6,
+                    flexShrink: 0,
+                  }}
+                />
+                <div className='min-w-0 flex-1'>
+                  <div className='flex flex-wrap items-center gap-6px'>
+                    <Typography.Text className='font-600 text-t-primary break-words'>
+                      {item.projectLabel}
+                    </Typography.Text>
+                    <Tag
+                      color={
+                        item.primaryState === 'in_progress'
+                          ? 'blue'
+                          : item.primaryState === 'system_attention_required'
+                            ? 'orange'
+                            : item.primaryState === 'owner_decision_required'
+                              ? 'purple'
+                              : 'green'
+                      }
+                    >
+                      {item.primaryLabel}
+                    </Tag>
+                    <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
+                      {item.automationLabel}
+                    </Tag>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div
-              className='grid gap-x-16px gap-y-10px pl-20px'
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}
-            >
-              {fieldItems.map((field) => (
-                <div key={field.key} className='min-w-0'>
+              {runFields.map((field) => (
+                <div key={field.key} className='min-w-0' style={{ flex: '1 1 110px' }}>
                   <Typography.Text className='block text-11px text-t-secondary break-words'>
                     {field.label}
                   </Typography.Text>
@@ -1591,6 +1600,16 @@ const RuntimePage: React.FC = () => {
                     {field.value}
                   </Typography.Text>
                 </div>
+              ))}
+            </div>
+            <div
+              className='grid gap-x-16px gap-y-8px pl-20px'
+              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
+            >
+              {actionFields.map((field) => (
+                <Typography.Text key={field.key} className='block text-12px text-t-secondary break-words'>
+                  {field.label}: <span className='text-t-primary'>{field.value}</span>
+                </Typography.Text>
               ))}
             </div>
           </div>
@@ -1709,43 +1728,65 @@ const RuntimePage: React.FC = () => {
 
             <div className='grid grid-cols-1 xl:grid-cols-3 gap-16px items-start'>
               <div className='xl:col-span-2 flex flex-col gap-16px min-w-0'>
-                <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                  <div className='flex flex-col gap-12px'>
-                    <Typography.Text className='font-600 text-t-primary'>
-                      {t('common.runtime.runtimeGroupsTitle')}
-                    </Typography.Text>
-                    <Typography.Text className='text-13px text-t-secondary'>
-                      {t('common.runtime.runtimeGroupsSummaryText', {
-                        count: overview.visibleTaskCount,
-                      })}
-                    </Typography.Text>
-                    {overview.sections.some((section) => section.tasks.length > 0) ? (
-                      <div className='flex flex-col gap-12px'>
-                        {overview.sections
-                          .filter((section) => section.tasks.length > 0)
-                          .map((section) => (
-                            <div
-                              key={section.state}
-                              className='flex flex-col gap-8px'
-                              data-testid={`runtime-group-${section.state}`}
+                {overview.sections.some((section) => section.tasks.length > 0) ? (
+                  overview.sections
+                    .filter((section) => section.tasks.length > 0)
+                    .map((section) => {
+                      const accent = primaryStateAccent(section.state);
+                      const icon =
+                        section.state === 'in_progress' ? (
+                          <Play theme='filled' />
+                        ) : section.state === 'system_attention_required' ? (
+                          <Attention theme='outline' />
+                        ) : section.state === 'owner_decision_required' ? (
+                          <People theme='outline' />
+                        ) : (
+                          <Robot theme='outline' />
+                        );
+                      return (
+                        <Card
+                          key={section.state}
+                          bordered
+                          className='rd-8px'
+                          data-testid={`runtime-group-${section.state}`}
+                          bodyStyle={{ padding: 0 }}
+                          style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
+                        >
+                          <div className='flex items-start gap-10px px-18px py-14px'>
+                            <span
+                              aria-hidden='true'
+                              className='flex items-center justify-center'
+                              style={{
+                                width: 26,
+                                height: 26,
+                                borderRadius: 13,
+                                color: accent.color,
+                                background: accent.background,
+                                flexShrink: 0,
+                              }}
                             >
-                              <div className='flex flex-col gap-2px'>
-                                <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
-                                <Typography.Text className='text-12px text-t-secondary'>
-                                  {section.summary}
-                                </Typography.Text>
-                              </div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                {section.tasks.map(renderTaskItem)}
-                              </div>
+                              {icon}
+                            </span>
+                            <div className='min-w-0'>
+                              <Typography.Text className='block font-600 text-t-primary break-words'>
+                                {section.title} ({section.tasks.length})
+                              </Typography.Text>
+                              <Typography.Text className='block mt-2px text-12px text-t-secondary break-words'>
+                                {section.summary}
+                              </Typography.Text>
                             </div>
-                          ))}
-                      </div>
-                    ) : (
-                      <Alert type='info' content={t('common.runtime.noTasksInScope')} />
-                    )}
-                  </div>
-                </Card>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {section.tasks.map(renderTaskItem)}
+                          </div>
+                        </Card>
+                      );
+                    })
+                ) : (
+                  <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
+                    <Alert type='info' content={t('common.runtime.noTasksInScope')} />
+                  </Card>
+                )}
               </div>
 
               <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>

@@ -1485,8 +1485,6 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(screen.getByTestId('runtime-primary-summary')).not.toHaveTextContent('2026-07-04T19:00:00Z');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
-    expect(screen.getByText('common.runtime.runtimeGroupsTitle')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.runtimeGroupsSummaryText 4');
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
     expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getByText('MAG')).toBeInTheDocument();
@@ -1495,8 +1493,8 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByText('OMA')).toBeInTheDocument();
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
-    expect(screen.getAllByText('common.runtime.taskField.agent').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('common.runtime.taskField.task').length).toBeGreaterThan(0);
+    expect(document.body.textContent).toContain('common.runtime.taskField.agent:');
+    expect(document.body.textContent).toContain('common.runtime.taskField.task:');
     expect(screen.getAllByText('common.runtime.taskField.stage').length).toBeGreaterThan(0);
     expect(screen.getByText('Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('1h');
@@ -1510,6 +1508,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     const inProgressGroup = screen.getByTestId('runtime-group-in_progress');
     const systemGroup = screen.getByTestId('runtime-group-system_attention_required');
     const pausedGroup = screen.getByTestId('runtime-group-paused_waiting_for_direction');
+    expect(inProgressGroup).toHaveTextContent('common.runtime.groupSummaries.inProgress 2');
+    expect(systemGroup).toHaveTextContent('common.runtime.groupSummaries.systemAttention 1');
+    expect(pausedGroup).toHaveTextContent('common.runtime.groupSummaries.pausedWaiting 1');
     expect(inProgressGroup.compareDocumentPosition(systemGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(systemGroup.compareDocumentPosition(pausedGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.body.textContent).toContain('Runtime closeout');
@@ -1659,7 +1660,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getAllByText('DM002 publication evaluation').length).toBeGreaterThan(0));
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
-      'common.runtime.taskField.nextFinish reviewer evaluation against current inputs'
+      'common.runtime.taskField.next: Finish reviewer evaluation against current inputs'
     );
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).not.toMatch(
       /Temporal|provider|current_control_state|attempt/i
