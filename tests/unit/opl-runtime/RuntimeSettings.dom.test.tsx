@@ -1514,7 +1514,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(systemGroup.compareDocumentPosition(pausedGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.body.textContent).toContain('Runtime closeout');
     expect(screen.getAllByText('common.runtime.automationStates.pendingTerminalization').length).toBeGreaterThan(0);
-    expect(screen.getByText('Write')).toBeInTheDocument();
+    expect(screen.getByText('写作')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.automationStates.pendingTerminalization');
     expect(screen.getByText('MAS paper mission')).toBeInTheDocument();
     expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();

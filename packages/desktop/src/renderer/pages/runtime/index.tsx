@@ -547,7 +547,13 @@ const RUNTIME_STAGE_DISPLAY_LABELS: Record<string, { en: string; zh: string }> =
     en: 'Submission package follow-up',
     zh: '投稿包后续处理',
   },
+  write: {
+    en: 'Write',
+    zh: '写作',
+  },
 };
+
+const RUNTIME_TITLE_ACRONYMS = new Set(['ai', 'cvd', 'dm', 'dpcc', 'mas', 'mag', 'oma', 'opl', 'us']);
 
 const MODULE_ATTENTION_STATES = new Set([
   'dirty',
@@ -659,6 +665,7 @@ function titleCaseRuntimeTitle(value: string | null | undefined): string | null 
       const lower = word.toLowerCase();
       const mapped = OPL_RUNTIME_LABELS[lower];
       if (mapped) return mapped;
+      if (RUNTIME_TITLE_ACRONYMS.has(lower)) return lower.toUpperCase();
       if (/^dm\d+$/i.test(word)) return word.toUpperCase();
       if (/^\d+$/.test(word)) return word;
       return `${lower[0]?.toUpperCase() ?? ''}${lower.slice(1)}`;
