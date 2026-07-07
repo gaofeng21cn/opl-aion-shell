@@ -3,8 +3,15 @@ import {
   normalizeLegacyRuntimeVisualizationProjection,
   normalizeRuntimeProjection,
 } from '@/renderer/pages/settings/RuntimeSettings/runtimeProjection';
+import enUSCommon from '@/renderer/services/i18n/locales/en-US/common.json';
+import zhCNCommon from '@/renderer/services/i18n/locales/zh-CN/common.json';
 
 describe('runtime visualization projection normalization', () => {
+  it('keeps missing usage copy human-readable in supported locales', () => {
+    expect(enUSCommon['runtime.telemetryMissing']).toBe('Usage not recorded');
+    expect(zhCNCommon['runtime.telemetryMissing']).toBe('用量未记录');
+  });
+
   it('normalizes OPL app state as the summary-first runtime model', () => {
     const model = normalizeRuntimeProjection({
       app_state: {
