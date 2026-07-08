@@ -203,6 +203,7 @@
   "runtime.taskDetails.evidence": "Evidence",
   "runtime.taskDetails.actions": "Actions",
   "runtime.taskDetails.resources": "Resources",
+  "runtime.taskDetails.diagnostics": "Diagnostics",
   "runtime.taskDetails.noItems": "No items reported for this task.",
   "runtime.taskOverviewSummaryText": "{{running}} tasks running, {{active}} projects/tasks active, {{queued}} queued or waiting, and {{attention}} need attention.",
   "runtime.runningTaskCount": "{{count}}",

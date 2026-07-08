@@ -222,6 +222,18 @@ function compactDrilldown(drilldown: RuntimeSnapshot): RuntimeSnapshot {
       domain_lane_map: {
         lanes: recordList(record(record(drilldown.runtime_workbench).domain_lane_map).lanes).slice(0, 8),
       },
+      work_item_projection_v1: {
+        ...pickRecordFields(record(record(drilldown.runtime_workbench).work_item_projection_v1), [
+          'surface_kind',
+          'schema_version',
+          'source_ref',
+          'derived_from',
+          'refs_only',
+          'summary',
+          'authority_boundary',
+        ]),
+        items: recordList(record(record(drilldown.runtime_workbench).work_item_projection_v1).items).slice(0, 12),
+      },
       task_drilldowns: recordList(record(drilldown.runtime_workbench).task_drilldowns).slice(0, 12),
     },
     visual_ref_groups: {
@@ -1754,6 +1766,7 @@ const RuntimePage: React.FC = () => {
         { key: 'evidence', title: t('common.runtime.taskDetails.evidence'), cards: item.task.evidenceCards },
         { key: 'actions', title: t('common.runtime.taskDetails.actions'), cards: item.task.actionCards },
         { key: 'resources', title: t('common.runtime.taskDetails.resources'), cards: item.task.resourceRefs },
+        { key: 'diagnostics', title: t('common.runtime.taskDetails.diagnostics'), cards: item.task.diagnosticsRefs },
       ];
       return (
         <div

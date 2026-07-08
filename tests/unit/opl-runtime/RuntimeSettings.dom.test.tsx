@@ -1610,6 +1610,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(dm002Details).toHaveTextContent('Preview reviewer handoff');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.resources');
     expect(dm002Details).toHaveTextContent('Fabric resource');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.diagnostics');
     expect(dm002Details).not.toHaveTextContent('paper_autonomy/repair-recheck');
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
@@ -1686,6 +1687,162 @@ describe('RuntimeSettings app state bridge usage', () => {
         'studies/003-dpcc-primary-care-phenotype-treatment-gap/artifacts/controller_decisions/latest.json'
       )
     ).toBeInTheDocument();
+  });
+
+  it('prefers canonical WorkItemProjection items over legacy task drilldowns on the Runtime page', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      ...appStateResult,
+      parsed: {
+        app_state: {
+          ...appStateResult.parsed.app_state,
+          operator: {
+            status: 'ready',
+            workbench: {
+              work_item_projection_v1: {
+                surface_kind: 'opl_work_item_projection',
+                schema_version: 'work-item-projection.v1',
+                items: [
+                  {
+                    item_id: 'dm002-canonical',
+                    title: 'Canonical DM002 task',
+                    work_item: {
+                      work_item_id: 'dm002',
+                      label: 'Canonical publication evaluation',
+                      study_id: '002-dm-china-us-mortality-attribution',
+                      project_label: 'DM002 canonical paper line',
+                    },
+                    agent: {
+                      agent_id: 'medautoscience',
+                      label: 'Med Auto Science',
+                      owner: 'medautoscience',
+                    },
+                    stage: {
+                      stage_id: 'canonical-stage',
+                      display_label: 'Canonical write stage',
+                      execution_run_label: 'Canonical run',
+                    },
+                    attempt: {
+                      attempt_id: 'sat_canonical',
+                      attempt_ref: 'attempt://canonical',
+                      attempt_ids_ref: 'attempts://canonical',
+                      attempt_count: 1,
+                      active_run_id: 'run_canonical',
+                      elapsed_seconds: 120,
+                      last_heartbeat_at: '2026-07-01T00:02:00Z',
+                      stage_usage: { total_tokens: 42 },
+                      task_total_usage: { total_tokens: 80 },
+                      refs_only: true,
+                    },
+                    action: {
+                      action_kind: 'agent_action',
+                      title: 'Canonical next action',
+                      summary: 'Canonical reviewer next action',
+                      owner: 'Med Auto Science',
+                      action_ref: 'action://canonical',
+                    },
+                    evidence: {
+                      refs_only: true,
+                      cards: [
+                        {
+                          card_id: 'canonical-evidence',
+                          title: 'Canonical evidence refs',
+                          summary: 'Canonical refs available',
+                          ref: 'evidence://canonical',
+                        },
+                      ],
+                    },
+                    status: {
+                      primary_state: 'in_progress',
+                      primary_state_label: 'common.runtime.primaryStates.inProgress',
+                      automation_state: 'automation_running',
+                      automation_state_label: 'common.runtime.automationStates.running',
+                    },
+                    conditions: [
+                      {
+                        type: 'Running',
+                        status: 'True',
+                        reason: 'agent_action',
+                        message: 'Work item is being advanced.',
+                        owner: 'medautoscience',
+                      },
+                    ],
+                  },
+                ],
+              },
+              task_drilldowns: [
+                {
+                  task_id: 'dm002-canonical',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm002',
+                  project_display_name: 'Legacy DM002 paper line',
+                  work_item_display_name: 'Legacy publication evaluation',
+                  title: 'Legacy DM002 task',
+                  state: 'running',
+                  primary_state: 'in_progress',
+                  automation_state: 'automation_running',
+                  active_stage_id: 'paper_autonomy/legacy-stage',
+                  active_stage_label: 'Legacy stage',
+                  next_visible_step: 'Legacy next action',
+                  next_owner: 'Legacy owner',
+                  last_progress_at: '2026-07-01T00:00:00Z',
+                  stage_attempt_ids: ['sat_legacy'],
+                  active_path: [
+                    {
+                      node_id: 'stage-intake',
+                      label: 'Intake',
+                      state: 'completed',
+                    },
+                  ],
+                  stage_run_cockpit: {
+                    elapsed_seconds: 120,
+                    last_heartbeat_at: '2026-07-01T00:02:00Z',
+                    stage_usage: { total_tokens: 11 },
+                    task_total_usage: { total_tokens: 22 },
+                  },
+                  evidence_cards: [
+                    {
+                      card_id: 'legacy-evidence',
+                      title: 'Legacy evidence refs',
+                      summary: 'Legacy refs available',
+                      ref: 'evidence://legacy',
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    render(<RuntimePage />);
+
+    await waitFor(() => expect(screen.getByText('Canonical publication evaluation')).toBeInTheDocument());
+    expect(document.body.textContent).toContain('DM002 canonical paper line');
+    expect(document.body.textContent).toContain('Canonical write stage');
+    expect(document.body.textContent).toContain('Canonical reviewer next action');
+    expect(document.body.textContent).not.toContain('Legacy publication evaluation');
+    expect(document.body.textContent).not.toContain('Legacy next action');
+
+    const taskRow = screen
+      .getAllByTestId('runtime-task-row')
+      .find((row) => row.textContent?.includes('Canonical publication evaluation'));
+    if (!taskRow) throw new Error('Canonical task row should be visible');
+    fireEvent.click(within(taskRow).getByText('common.runtime.taskDetails.open'));
+
+    const detail = await screen.findByTestId('runtime-task-detail-dm002-canonical');
+    expect(detail).toHaveTextContent('Canonical evidence refs');
+    expect(detail).toHaveTextContent('evidence://canonical');
+    expect(detail).toHaveTextContent('42 tokens / 80 tokens');
+    expect(detail).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-07-01T00:02:00Z');
+    expect(detail).toHaveTextContent('common.runtime.taskDetails.diagnostics');
+    expect(detail).toHaveTextContent('attempt://canonical');
+    expect(detail).not.toHaveTextContent('Legacy evidence refs');
+    expect(detail).not.toHaveTextContent('11 tokens / 22 tokens');
+    expect(detail).not.toHaveTextContent('paper_autonomy/legacy-stage');
   });
 
   it('renders action preview and receipt summaries without moving diagnostics into the default task view', async () => {

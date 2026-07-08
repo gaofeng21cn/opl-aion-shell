@@ -197,6 +197,7 @@
   "runtime.taskDetails.evidence": "证据",
   "runtime.taskDetails.actions": "动作",
   "runtime.taskDetails.resources": "资源",
+  "runtime.taskDetails.diagnostics": "诊断",
   "runtime.taskDetails.noItems": "此任务暂无该类信息。",
   "runtime.taskOverviewSummaryText": "{{running}} 个任务正在运行，{{active}} 个项目/任务处于活跃状态，{{queued}} 个在排队或等待，{{attention}} 个需要关注。",
   "runtime.runningTaskCount": "{{count}} 个",

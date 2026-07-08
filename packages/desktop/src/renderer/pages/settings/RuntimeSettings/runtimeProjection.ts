@@ -409,6 +409,10 @@ function readTaskDrilldowns(workbench: JsonRecord): RuntimeTaskDrilldown[] {
   return asRecordArray(workbench.task_drilldowns).map((entry, index) => readTaskRunRecord(entry, index));
 }
 
+function readWorkItemProjection(workbench: JsonRecord, taskRunProjection?: JsonRecord): JsonRecord | undefined {
+  return firstRecord(workbench.work_item_projection_v1, taskRunProjection?.work_item_projection_v1);
+}
+
 function derivePrimaryState(entry: JsonRecord): RuntimeTaskPrimaryState {
   const explicit = normalizePrimaryState(entry.primary_state);
   if (explicit) return explicit;
@@ -857,8 +861,141 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
   };
 }
 
+function readWorkItemProjectionRecord(
+  entry: JsonRecord,
+  index: number,
+  legacyTask: RuntimeTaskDrilldown | undefined
+): RuntimeTaskDrilldown {
+  const workItem = firstRecord(entry.work_item) ?? {};
+  const agent = firstRecord(entry.agent) ?? {};
+  const stage = firstRecord(entry.stage) ?? {};
+  const attempt = firstRecord(entry.attempt) ?? {};
+  const action = firstRecord(entry.action) ?? {};
+  const evidence = firstRecord(entry.evidence) ?? {};
+  const status = firstRecord(entry.status) ?? {};
+  const taskId = asString(entry.item_id) ?? legacyTask?.taskId ?? `work-item-${index + 1}`;
+  const title = asString(entry.title) ?? asString(workItem.label) ?? legacyTask?.title ?? taskId;
+  const activeStageId = asString(stage.stage_id) ?? legacyTask?.activeStageId;
+  const activeStageLabel = asString(stage.display_label) ?? legacyTask?.stage;
+  const attemptId = asString(attempt.attempt_id);
+  const actionSummary = asString(action.summary) ?? asString(action.title);
+  const actionRef = asString(action.action_ref) ?? asString(action.ref);
+  const actionCardInput = {
+    card_id: `${taskId}:canonical-action`,
+    title: asString(action.title) ?? 'Next action',
+    summary: actionSummary,
+    ref: actionRef,
+    kind: asString(action.action_kind),
+    owner: asString(action.owner),
+    open_action: {
+      action_id: asString(action.action_id) ?? actionRef,
+      action_ref: actionRef,
+      route: asString(action.route),
+      required_mode: action.dry_run_required === true ? 'dry_run' : undefined,
+    },
+  };
+  const evidenceCards = readRefCards(evidence.cards, 'evidence', 'Evidence');
+  const actionCards = readRefCards([actionCardInput], 'action', 'Action');
+  return {
+    taskId,
+    title,
+    domainId: asString(agent.agent_id) ?? legacyTask?.domainId,
+    domainLabel: asString(agent.label) ?? legacyTask?.domainLabel,
+    agentDisplayName: asString(agent.label) ?? legacyTask?.agentDisplayName,
+    workspaceId: legacyTask?.workspaceId,
+    workspaceLabel: legacyTask?.workspaceLabel,
+    projectId: asString(workItem.work_item_id) ?? asString(workItem.study_id) ?? legacyTask?.projectId,
+    projectDisplayName: asString(workItem.project_label) ?? legacyTask?.projectDisplayName,
+    studyId: asString(workItem.study_id) ?? legacyTask?.studyId,
+    workItemDisplayName: asString(workItem.label) ?? legacyTask?.workItemDisplayName,
+    executionRunLabel: asString(stage.execution_run_label) ?? legacyTask?.executionRunLabel,
+    state: legacyTask?.state,
+    status: asString(status.primary_state_label) ?? legacyTask?.status,
+    primaryState: normalizePrimaryState(status.primary_state) ?? legacyTask?.primaryState ?? derivePrimaryState(entry),
+    primaryStateLabel: asString(status.primary_state_label) ?? legacyTask?.primaryStateLabel,
+    primaryStateReason: legacyTask?.primaryStateReason,
+    automationState:
+      normalizeAutomationState(status.automation_state) ?? legacyTask?.automationState ?? deriveAutomationState(entry),
+    automationStateLabel: asString(status.automation_state_label) ?? legacyTask?.automationStateLabel,
+    automationStateReason: legacyTask?.automationStateReason,
+    stage: activeStageLabel ?? activeStageId,
+    progressLabel: legacyTask?.progressLabel,
+    nextStep: actionSummary ?? legacyTask?.nextStep,
+    nextOwner: asString(action.owner) ?? legacyTask?.nextOwner,
+    lastProgressAt: legacyTask?.lastProgressAt,
+    activeStageId,
+    activeRunId: legacyTask?.activeRunId ?? asString(attempt.active_run_id),
+    elapsedSeconds: asNumber(attempt.elapsed_seconds) ?? legacyTask?.elapsedSeconds,
+    lastHeartbeatAt: asString(attempt.last_heartbeat_at) ?? legacyTask?.lastHeartbeatAt,
+    runningProofRef: legacyTask?.runningProofRef,
+    stageUsage: normalizeStageUsage(attempt.stage_usage) ?? legacyTask?.stageUsage,
+    taskTotalUsage: normalizeStageUsage(attempt.task_total_usage) ?? legacyTask?.taskTotalUsage,
+    typedBlockerSummary: legacyTask?.typedBlockerSummary,
+    typedBlockerOwner: legacyTask?.typedBlockerOwner,
+    typedBlockerResolutionRef: legacyTask?.typedBlockerResolutionRef,
+    runtimeCloseoutObserved: legacyTask?.runtimeCloseoutObserved,
+    runtimeCloseoutRef: legacyTask?.runtimeCloseoutRef,
+    masOwnerConsumptionStatus: legacyTask?.masOwnerConsumptionStatus,
+    masOwnerConsumptionRef: legacyTask?.masOwnerConsumptionRef,
+    masOwnerConsumedStageAttemptId: legacyTask?.masOwnerConsumedStageAttemptId,
+    masOwnerConsumedCloseoutRef: legacyTask?.masOwnerConsumedCloseoutRef,
+    masOwnerConsumptionMatchesRuntimeCloseout: legacyTask?.masOwnerConsumptionMatchesRuntimeCloseout,
+    stageAttemptIds: legacyTask?.stageAttemptIds ?? (attemptId ? [attemptId] : []),
+    paperRouteLensRefCount: legacyTask?.paperRouteLensRefCount ?? 0,
+    safeActionRefCount: actionCards.length || legacyTask?.safeActionRefCount || 0,
+    blockerRefCount: legacyTask?.blockerRefCount ?? 0,
+    activePath: legacyTask?.activePath.length
+      ? legacyTask.activePath
+      : activeStageId
+        ? [{ id: activeStageId, label: activeStageLabel ?? activeStageId, state: 'current' }]
+        : [],
+    conditions: readTaskConditions(entry),
+    evidenceCards: evidenceCards.length > 0 ? evidenceCards : (legacyTask?.evidenceCards ?? []),
+    actionCards: actionCards.length > 0 ? actionCards : (legacyTask?.actionCards ?? []),
+    resourceRefs: legacyTask?.resourceRefs ?? [],
+    diagnosticsRefs: [
+      ...(legacyTask?.diagnosticsRefs ?? []),
+      ...readSingleRefCard(attempt.attempt_ref, `${taskId}:attempt`, 'Attempt', { value: attemptId }),
+      ...readSingleRefCard(attempt.attempt_ids_ref, `${taskId}:attempt-ids`, 'Attempt refs'),
+    ],
+    artifactProvenanceDrawer: legacyTask?.artifactProvenanceDrawer,
+  };
+}
+
+function taskRunSummaryFromTasks(tasks: RuntimeTaskDrilldown[]): RuntimeTaskRunProjectionV2['summary'] {
+  return {
+    running: tasks.filter((task) => task.primaryState === 'in_progress').length,
+    waiting: tasks.filter((task) =>
+      ['paused_waiting_for_direction', 'owner_decision_required'].includes(task.primaryState ?? '')
+    ).length,
+    attention: tasks.filter((task) =>
+      ['owner_decision_required', 'system_attention_required'].includes(task.primaryState ?? '')
+    ).length,
+    completed: tasks.filter((task) => task.primaryState === 'delivered_auto_paused').length,
+    failed: tasks.filter((task) => task.automationState === 'automation_failed').length,
+    available: tasks.length,
+  };
+}
+
 function readTaskRunProjectionV2(workbench: JsonRecord): RuntimeTaskRunProjectionV2 {
   const projection = firstRecord(workbench.task_run_projection_v2);
+  const workItemProjection = readWorkItemProjection(workbench, projection);
+  const workItemItems = asRecordArray(workItemProjection?.items);
+  if (workItemItems.length > 0) {
+    const projectionTasks = asRecordArray(projection?.tasks).map((entry, index) => readTaskRunRecord(entry, index));
+    const drilldownTasks = readTaskDrilldowns(workbench);
+    const legacyById = new Map([...projectionTasks, ...drilldownTasks].map((task) => [task.taskId, task] as const));
+    const tasks = workItemItems.map((entry, index) =>
+      readWorkItemProjectionRecord(entry, index, legacyById.get(asString(entry.item_id) ?? ''))
+    );
+    return {
+      projectionKind:
+        asString(workItemProjection.surface_kind) ?? asString(projection?.projection_kind) ?? 'work_item_projection_v1',
+      schemaVersion: asNumber(projection?.schema_version),
+      summary: taskRunSummaryFromTasks(tasks),
+      tasks,
+    };
+  }
   if (projection) {
     const summary = firstRecord(projection.summary) ?? {};
     return {
@@ -878,14 +1015,7 @@ function readTaskRunProjectionV2(workbench: JsonRecord): RuntimeTaskRunProjectio
   }
   const tasks = readTaskDrilldowns(workbench);
   return {
-    summary: {
-      running: tasks.filter((task) => task.state === 'running').length,
-      waiting: tasks.filter((task) => task.state === 'waiting').length,
-      attention: tasks.filter((task) => task.state === 'attention_needed').length,
-      completed: tasks.filter((task) => task.state === 'completed').length,
-      failed: tasks.filter((task) => task.state === 'failed').length,
-      available: tasks.length,
-    },
+    summary: taskRunSummaryFromTasks(tasks),
     tasks,
   };
 }

@@ -396,6 +396,7 @@ export type I18nKey =
   | 'common.runtime.taskDetails.currentAttempt'
   | 'common.runtime.taskDetails.currentAttemptValue'
   | 'common.runtime.taskDetails.currentStage'
+  | 'common.runtime.taskDetails.diagnostics'
   | 'common.runtime.taskDetails.duration'
   | 'common.runtime.taskDetails.evidence'
   | 'common.runtime.taskDetails.heartbeat'
