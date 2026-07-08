@@ -92,9 +92,8 @@ tests/e2e/
 │   ├── extensions.ts   # Extension snapshot helpers
 │   ├── assistantSettings.ts # Assistant CRUD helpers
 │   └── screenshots.ts  # Manual screenshot helper
-├── specs/
-│   ├── app-launch.e2e.ts
-│   └── ...             # ~30+ test files
+├── features/           # Feature-scoped E2E tests
+├── specs/              # Legacy / engineering-scoped E2E tests
 ├── results/            # Test artifacts (gitignored)
 ├── report/             # HTML report (gitignored)
 └── screenshots/        # Manual screenshots (gitignored)
@@ -220,21 +219,6 @@ Variables set automatically during test launch:
 Team E2E scripts were retired after the App-owned product profile disabled
 ordinary AionUI Team mode. The active guard is the focused unit coverage around
 `TEAM_MODE_ENABLED=false` plus App-root active-shell validation.
-
-### Examples
-
-```bash
-# Run all E2E locally (dev mode, requires build first)
-bunx electron-vite build && bun run test:e2e
-
-# Run specific test file
-npx playwright test --config playwright.config.ts tests/e2e/specs/app-launch.e2e.ts
-
-# Run in packaged mode (CI-like)
-E2E_PACKAGED=1 bun run test:e2e
-```
-
----
 
 ## Troubleshooting
 
