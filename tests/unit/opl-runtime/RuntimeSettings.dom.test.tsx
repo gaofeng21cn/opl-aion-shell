@@ -1551,6 +1551,19 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain('投稿包后续处理');
     expect(document.body.textContent).toContain('同步项目状态/复核运行结果');
     expect(document.body.textContent).toContain('用量未记录');
+    expect(screen.getByTestId('runtime-saved-views')).toHaveTextContent('common.runtime.savedViews');
+    expect(screen.getByTestId('runtime-saved-view-all')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-saved-view-automation_running')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-saved-view-owner_decision')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-saved-view-system_attention')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-saved-view-mas_papers')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('runtime-saved-view-system_attention'));
+    await waitFor(() => expect(screen.queryByTestId('runtime-group-in_progress')).not.toBeInTheDocument());
+    expect(screen.getByTestId('runtime-group-system_attention_required')).toHaveTextContent(
+      'common.runtime.groupSummaries.systemAttention 1'
+    );
+    fireEvent.click(screen.getByTestId('runtime-saved-view-all'));
+    await waitFor(() => expect(screen.getByTestId('runtime-group-in_progress')).toBeInTheDocument());
     const inProgressGroup = screen.getByTestId('runtime-group-in_progress');
     const systemGroup = screen.getByTestId('runtime-group-system_attention_required');
     const pausedGroup = screen.getByTestId('runtime-group-paused_waiting_for_direction');

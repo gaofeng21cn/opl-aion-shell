@@ -508,6 +508,16 @@ type RuntimeOverviewSection = {
   tasks: RuntimeOverviewTaskItem[];
 };
 
+type RuntimeSavedViewId = 'all' | 'automation_running' | 'owner_decision' | 'system_attention' | 'mas_papers';
+
+const RUNTIME_SAVED_VIEW_IDS: RuntimeSavedViewId[] = [
+  'all',
+  'automation_running',
+  'owner_decision',
+  'system_attention',
+  'mas_papers',
+];
+
 const PRIMARY_STATE_ORDER: RuntimeTaskPrimaryState[] = [
   'in_progress',
   'system_attention_required',
@@ -1227,6 +1237,18 @@ function scopeMatchesTask(task: RuntimeTaskDrilldown, scope: RuntimeScopeOption 
   return matches(task.taskId, task.title, task.workItemDisplayName, task.executionRunLabel);
 }
 
+function savedViewMatchesTask(task: RuntimeTaskDrilldown, savedView: RuntimeSavedViewId): boolean {
+  if (savedView === 'all') return true;
+  const primaryState = primaryStateForTask(task);
+  const automationState = automationStateForTask(task);
+  if (savedView === 'automation_running') return automationState === 'automation_running';
+  if (savedView === 'owner_decision') return primaryState === 'owner_decision_required';
+  if (savedView === 'system_attention') return primaryState === 'system_attention_required';
+  const agent = humanLabelKey(task.domainId ?? task.domainLabel ?? task.agentDisplayName);
+  const hasProject = Boolean(task.projectId ?? task.projectDisplayName ?? task.studyId);
+  return savedView === 'mas_papers' && hasProject && (agent === 'medautoscience' || agent === 'mas');
+}
+
 function primaryStateForTask(task: RuntimeTaskDrilldown): RuntimeTaskPrimaryState {
   return task.primaryState ?? 'paused_waiting_for_direction';
 }
@@ -1358,6 +1380,7 @@ function runtimeTaskItem(
 function buildOverviewSections(
   tasks: RuntimeTaskDrilldown[],
   scope: RuntimeScopeOption | null,
+  savedView: RuntimeSavedViewId,
   controlStates: RuntimeSnapshot[],
   t: (key: string, options?: Record<string, string | number>) => string,
   language: string | null | undefined
@@ -1368,7 +1391,9 @@ function buildOverviewSections(
   counts: Record<RuntimeTaskPrimaryState, number>;
   visibleTaskCount: number;
 } {
-  const filtered = tasks.filter((task) => scopeMatchesTask(task, scope) && !isModuleRuntimeTask(task));
+  const filtered = tasks.filter(
+    (task) => scopeMatchesTask(task, scope) && savedViewMatchesTask(task, savedView) && !isModuleRuntimeTask(task)
+  );
   const items = dedupeTaskItems(filtered.map((task) => runtimeTaskItem(task, controlStates, t, language)));
   const byState = new Map<RuntimeTaskPrimaryState, RuntimeOverviewTaskItem[]>();
   PRIMARY_STATE_ORDER.forEach((state) => byState.set(state, []));
@@ -1460,6 +1485,7 @@ const RuntimePage: React.FC = () => {
   const requestSeq = useRef({ summary: 0, full: 0 });
   const runningRefreshInFlight = useRef(false);
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
+  const [selectedSavedViewId, setSelectedSavedViewId] = useState<RuntimeSavedViewId>('all');
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const runtimeLanguage = i18n.resolvedLanguage ?? i18n.language;
 
@@ -1577,8 +1603,15 @@ const RuntimePage: React.FC = () => {
   }, [selectedScope, t]);
   const overview = useMemo(
     () =>
-      buildOverviewSections(runtimeModel.taskRunProjectionV2.tasks, selectedScope, controlStates, t, runtimeLanguage),
-    [controlStates, runtimeLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
+      buildOverviewSections(
+        runtimeModel.taskRunProjectionV2.tasks,
+        selectedScope,
+        selectedSavedViewId,
+        controlStates,
+        t,
+        runtimeLanguage
+      ),
+    [controlStates, runtimeLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedSavedViewId, selectedScope, t]
   );
   const moduleStatusItems = useMemo(
     () =>
@@ -2048,6 +2081,24 @@ const RuntimePage: React.FC = () => {
               {t('common.runtime.settings')}
             </Button>
           </div>
+        </div>
+
+        <div
+          data-testid='runtime-saved-views'
+          className='flex flex-wrap items-center gap-8px rounded-8px border border-border-1 bg-white px-14px py-10px'
+        >
+          <Typography.Text className='text-13px text-t-secondary'>{t('common.runtime.savedViews')}</Typography.Text>
+          {RUNTIME_SAVED_VIEW_IDS.map((viewId) => (
+            <Button
+              key={viewId}
+              size='small'
+              type={selectedSavedViewId === viewId ? 'primary' : 'secondary'}
+              data-testid={`runtime-saved-view-${viewId}`}
+              onClick={() => setSelectedSavedViewId(viewId)}
+            >
+              {t(`common.runtime.savedView.${viewId}`)}
+            </Button>
+          ))}
         </div>
 
         {displayDrilldown ? (
