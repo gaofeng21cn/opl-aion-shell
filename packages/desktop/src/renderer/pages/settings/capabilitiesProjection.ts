@@ -33,6 +33,8 @@ export type CapabilityPurposeViewModel = {
   packageLockRef: string | null;
   actionReceiptRef: string | null;
   rollbackRef: string | null;
+  manifestUrl: string | null;
+  registryUrl: string | null;
   physicalSurface: CapabilityPhysicalSurfaceViewModel | null;
   enabled: boolean | null;
   hidden: boolean | null;
@@ -70,6 +72,8 @@ export type ExtraCapabilityPurposeInput = Omit<
   | 'packageLockRef'
   | 'actionReceiptRef'
   | 'rollbackRef'
+  | 'manifestUrl'
+  | 'registryUrl'
   | 'physicalSurface'
   | 'enabled'
   | 'hidden'
@@ -575,19 +579,24 @@ function mapCapabilityStatus(
   const exposureStatus = normalizeStatusToken(
     firstString(exposure.status, packageState?.exposure_status, module?.exposure_status)
   );
+  const developerCheckout = isDeveloperCheckout(packageState, module);
   if (!packageState && !module) return 'missing';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
+  if (
+    developerCheckout &&
+    (status === 'dirty' ||
+      git.dirty === true ||
+      ['behind', 'diverged', 'ahead'].includes(syncStatus ?? '') ||
+      ['update', 'install', 'reinstall'].includes(action ?? '') ||
+      ['updateavailable', 'staged'].includes(status ?? ''))
+  ) {
+    return 'source';
+  }
   if (
     ['update', 'install', 'reinstall'].includes(action ?? '') ||
     ['updateavailable', 'staged'].includes(status ?? '')
   ) {
     return 'update';
-  }
-  if (
-    isDeveloperCheckout(packageState, module) &&
-    (status === 'dirty' || git.dirty === true || ['behind', 'diverged', 'ahead'].includes(syncStatus ?? ''))
-  ) {
-    return 'source';
   }
   if (
     ['needssync', 'stale', 'syncrequired'].includes(exposureStatus ?? '') &&
@@ -613,7 +622,7 @@ function mapCapabilityStatus(
 
 function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAction {
   if (status === 'missing') return 'configure';
-  if (status === 'update' || status === 'sync' || status === 'repair') return 'maintenance';
+  if (status === 'update' || status === 'sync' || status === 'source' || status === 'repair') return 'maintenance';
   return 'view';
 }
 
@@ -730,6 +739,8 @@ function capabilitySourceKind(
     packageState?.source_type,
     module?.source_kind,
     module?.source_type,
+    sourcePolicy.effective_install_update_source,
+    sourcePolicy.configured_by,
     sourcePolicy.kind,
     sourcePolicy.source,
     sourcePolicy.mode
@@ -796,6 +807,38 @@ function capabilityRollbackRef(
     refValue(module.rollback_receipt_ref) ??
     refValue(rollback) ??
     firstString(rollback.ref, rollback.receipt_id)
+  );
+}
+
+function capabilityManifestUrl(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const registryEntry = firstRecord(packageState?.registry_entry, module?.registry_entry);
+  return firstString(
+    packageState?.manifest_url,
+    packageState?.manifestUrl,
+    module?.manifest_url,
+    module?.manifestUrl,
+    registryEntry.manifest_url,
+    registryEntry.manifestUrl
+  );
+}
+
+function capabilityRegistryUrl(
+  packageState: RuntimePackageStateItem | undefined,
+  module: RuntimeModuleItem | undefined
+): string | null {
+  if (!packageState && !module) return null;
+  const registryEntry = firstRecord(packageState?.registry_entry, module?.registry_entry);
+  return firstString(
+    packageState?.registry_url,
+    packageState?.registryUrl,
+    module?.registry_url,
+    module?.registryUrl,
+    registryEntry.registry_url,
+    registryEntry.registryUrl
   );
 }
 
@@ -882,6 +925,8 @@ function buildCapabilityPurpose(
     | 'packageLockRef'
     | 'actionReceiptRef'
     | 'rollbackRef'
+    | 'manifestUrl'
+    | 'registryUrl'
     | 'physicalSurface'
     | 'workflowRefs'
     | 'connectorReadinessRefs'
@@ -928,6 +973,8 @@ function buildCapabilityPurpose(
     packageLockRef: capabilityPackageLockRef(packageState, module),
     actionReceiptRef: capabilityActionReceiptRef(packageState, module, task),
     rollbackRef: capabilityRollbackRef(packageState, module),
+    manifestUrl: capabilityManifestUrl(packageState, module),
+    registryUrl: capabilityRegistryUrl(packageState, module),
     physicalSurface: capabilityPhysicalSurface(packageState, module),
     enabled: capabilityPackageEnabled(packageState, module),
     hidden: capabilityPackageHidden(packageState, module),

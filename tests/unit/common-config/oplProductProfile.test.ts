@@ -311,7 +311,7 @@ describe('OPL generated product profile', () => {
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL BookForge',
+      'OPL Book Forge',
     ]);
     expect(assistants.map((assistant) => assistant.short_name)).toEqual(['MAS', 'MAG', 'RCA', 'OBF']);
     expect(assistants.map((assistant) => assistant.home_purpose_label)).toEqual(['科研', '基金', '演示', '写书']);

@@ -61,6 +61,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               package_id: 'med-autogrant',
               enabled: false,
               hidden: true,
+              manifest_url: 'https://example.test/mag.json',
+              package_lock_ref: 'opl://agent-package-lock/mag/0.1.0',
             },
           ],
         },
@@ -98,7 +100,17 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           },
           { module_id: 'medautogrant', status: 'update_available', exposure_status: 'needs_sync' },
           { module_id: 'redcube', status: 'failed_with_repair', failure_reason: 'receipt missing' },
-          { module_id: 'oplbookforge', status: 'ready', codex_visible: true, recommended_action: 'update' },
+          {
+            module_id: 'oplbookforge',
+            status: 'ready',
+            codex_visible: true,
+            recommended_action: 'update',
+            source_policy: {
+              effective_install_update_source: 'git_checkout',
+              configured_by: 'developer_mode',
+            },
+            git: { sync_status: 'behind', dirty: false },
+          },
           { module_id: 'oplmetaagent', status: 'ready', recommended_action: 'update' },
         ],
       },
@@ -251,7 +263,7 @@ vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
       },
       {
         package_id: 'opl-bookforge',
-        display_name: 'OPL BookForge',
+        display_name: 'OPL Book Forge',
         short_name: 'OBF',
         codex_visible_entry: 'opl-bookforge',
         default_home_visible: true,
@@ -466,7 +478,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getAllByText('MAG').length).toBeGreaterThan(0);
     expect(screen.getAllByText('RedCube AI').length).toBeGreaterThan(0);
     expect(screen.getAllByText('RCA').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OPL BookForge').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
     expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
@@ -478,6 +490,10 @@ describe('CapabilitiesSettingsContent', () => {
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText('Research')).toBeInTheDocument();
+    const bookforge = screen.getByTestId('capability-purpose-obf');
+    expect(within(bookforge).getByText('Developer source')).toBeInTheDocument();
+    fireEvent.click(bookforge);
+    expect(screen.getByTestId('agent-package-update-obf')).toBeDisabled();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByText('Meta agent')).toBeInTheDocument();
     fireEvent.click(oma);
@@ -642,7 +658,7 @@ describe('CapabilitiesSettingsContent', () => {
         actionId: 'refresh_registry',
         dryRun: false,
         payloadRefsOnlyJson: {
-          registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json',
+          registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
         },
       })
     );
@@ -666,53 +682,30 @@ describe('CapabilitiesSettingsContent', () => {
   it('routes package lifecycle management actions through App action refs', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 
-    fireEvent.click(screen.getByTestId('agent-package-update-mas'));
+    expect(screen.getByTestId('agent-package-update-mas')).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('capability-purpose-mag'));
+    fireEvent.click(screen.getByTestId('agent-package-update-mag'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_update',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+        payloadRefsOnlyJson: {
+          package_id: 'med-autogrant',
+          manifest_url: 'https://example.test/mag.json',
+        },
       })
     );
 
-    fireEvent.click(screen.getByTestId('agent-package-repair-mas'));
+    fireEvent.click(screen.getByTestId('agent-package-repair-mag'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_repair',
         dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
+        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
       })
     );
 
-    fireEvent.click(screen.getByTestId('agent-package-enabled-toggle-mas'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_preferences_set',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience', exposure_action: 'disable' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-hidden-toggle-mas'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_preferences_set',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience', exposure_action: 'hide' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('agent-package-uninstall-mas'));
-    expect(bridgeMocks.modalConfirm).toHaveBeenCalled();
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'agent_package_uninstall',
-        dryRun: false,
-        payloadRefsOnlyJson: { package_id: 'med-autoscience' },
-      })
-    );
-
-    fireEvent.click(screen.getByTestId('capability-purpose-mag'));
     fireEvent.click(screen.getByTestId('agent-package-enabled-toggle-mag'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
@@ -728,6 +721,16 @@ describe('CapabilitiesSettingsContent', () => {
         actionId: 'agent_package_preferences_set',
         dryRun: false,
         payloadRefsOnlyJson: { package_id: 'med-autogrant', exposure_action: 'unhide' },
+      })
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-uninstall-mag'));
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_uninstall',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'med-autogrant' },
       })
     );
   });

@@ -49,7 +49,7 @@ describe('OPL home assistants', () => {
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL BookForge',
+      'OPL Book Forge',
     ]);
     expect(resolved[0]?.description_i18n['zh-CN']).toContain('科研任务');
     expect(resolved.map((item) => item.id)).not.toEqual(expect.arrayContaining(['cowork', 'mds']));
@@ -81,7 +81,7 @@ describe('OPL home assistants', () => {
       'Med Auto Science',
       'Med Auto Grant',
       'RedCube AI',
-      'OPL BookForge',
+      'OPL Book Forge',
     ]);
     expect(filterOplFoundryAssistants(resolved).map((item) => item.id)).toEqual([
       'med-autoscience',

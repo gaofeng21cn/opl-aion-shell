@@ -503,7 +503,7 @@
       },
       {
         "package_id": "opl-bookforge",
-        "display_name": "OPL BookForge",
+        "display_name": "OPL Book Forge",
         "short_name": "OBF",
         "role": "book_authoring_agent",
         "package_kind": "starter_professional_agent_package",
@@ -594,7 +594,7 @@
       },
       {
         "id": "opl-bookforge",
-        "display_name": "OPL BookForge",
+        "display_name": "OPL Book Forge",
         "short_name": "OBF",
         "home_purpose_label": "写书",
         "home_entry_display_policy": "purpose_first",
@@ -791,7 +791,7 @@
       "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
       "- 基金、标书、申请书：使用 MAG。",
       "- PPT、演示、视觉交付物：使用 RCA。",
-      "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL BookForge。",
+      "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL Book Forge。",
       "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
       "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
     ],
@@ -812,7 +812,7 @@
         "- 科研、研究、论文、课题、数据分析、审稿、返修、投稿、投稿包、研究进度：使用 MAS。",
         "- 基金、标书、申请书：使用 MAG。",
         "- PPT、演示、视觉交付物：使用 RCA。",
-        "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL BookForge。",
+        "- 写书、书稿、章节、插图、表格、排版、导出交接：使用 OPL Book Forge。",
         "- 通用 One Person Lab 使用、工程协作或 OPL Agent 开发：保持 Codex/OPL 默认入口。",
         "- 用户明确指定 Foundry Agent 或路线时，以用户指定为准；不要要求用户输入 @MAS/@MAG/@RCA。"
       ],
@@ -834,7 +834,7 @@
         "- Use RCA for PPT, presentations, and visual deliverables.",
         "- For general One Person Lab usage, engineering collaboration, or OPL Agent development, keep the default Codex/OPL entry.",
         "- If the user explicitly names a Foundry Agent or route, follow that request. Do not require the user to type @MAS/@MAG/@RCA.",
-        "- Book writing, manuscripts, chapters, figures, tables, layout, and export handoff: use OPL BookForge."
+        "- Book writing, manuscripts, chapters, figures, tables, layout, and export handoff: use OPL Book Forge."
       ]
     }
   },

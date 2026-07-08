@@ -62,7 +62,7 @@ export type CapabilitiesTab = 'skills' | 'tools';
 
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
 const DEFAULT_AGENT_REGISTRY_URL =
-  'https://raw.githubusercontent.com/gaofeng21cn/opl-agent-registry/main/registry.json';
+  'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json';
 
 function capabilityStatusColor(status: CapabilityStatus): 'green' | 'orange' | 'red' | 'gray' | 'arcoblue' {
   if (status === 'ready') return 'green';
@@ -139,6 +139,15 @@ function capabilitySourceLabel(
   return raw;
 }
 
+function isCapabilityDeveloperSource(item: CapabilityPurposeViewModel): boolean {
+  const sourceTokens = [item.sourceKind, item.source]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.replace(/[^a-z0-9]/gi, '').toLowerCase());
+  return sourceTokens.some((token) =>
+    ['envoverride', 'gitcheckout', 'developercheckout', 'developermode'].includes(token)
+  );
+}
+
 function capabilityUserDetailRows(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
@@ -180,6 +189,7 @@ function capabilityDiagnosticRows(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): CapabilityDetailRow[] {
+  const sourceKind = capabilitySourceLabel(item, t);
   return [
     {
       key: 'packageId',
@@ -212,7 +222,7 @@ function capabilityDiagnosticRows(
     {
       key: 'sourceKind',
       label: t('settings.capabilitiesPage.detailLabels.sourceKind'),
-      value: item.sourceKind,
+      value: sourceKind,
     },
     {
       key: 'packageLockRef',
@@ -563,7 +573,15 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     payloadRefsOnlyJson: Record<string, unknown> = {}
   ): Promise<void> => {
     if (!item.packageId) return Promise.resolve();
-    return executePackageAction(actionId, { package_id: item.packageId, ...payloadRefsOnlyJson });
+    const packageSelection =
+      actionId === 'agent_package_update'
+        ? {
+            package_id: item.packageId,
+            ...(item.manifestUrl ? { manifest_url: item.manifestUrl } : {}),
+            ...(!item.manifestUrl && item.registryUrl ? { registry_url: item.registryUrl } : {}),
+          }
+        : { package_id: item.packageId };
+    return executePackageAction(actionId, { ...packageSelection, ...payloadRefsOnlyJson });
   };
 
   const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
@@ -623,6 +641,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     }
     setSelectedCapabilityKey(item.key);
     if (item.primaryAction === 'configure') setAdvancedDetailsOpen(true);
+  };
+
+  const packageLifecycleDisabled = (item: CapabilityPurposeViewModel, actionId: string) => {
+    if (!item.packageId || isCapabilityDeveloperSource(item)) return true;
+    if (actionId === 'agent_package_update') return !item.manifestUrl && !item.registryUrl;
+    return !item.packageLockRef;
   };
 
   return (
@@ -831,7 +855,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       <Button
                         size='mini'
                         loading={busyAction === 'agent_package_update'}
-                        disabled={!selectedCapability.packageId}
+                        disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_update')}
                         onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
                         data-testid={`agent-package-update-${selectedCapability.key}`}
                       >
@@ -840,7 +864,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       <Button
                         size='mini'
                         loading={busyAction === 'agent_package_repair'}
-                        disabled={!selectedCapability.packageId}
+                        disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_repair')}
                         onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
                         data-testid={`agent-package-repair-${selectedCapability.key}`}
                       >
@@ -880,7 +904,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                         size='mini'
                         status='danger'
                         loading={busyAction === 'agent_package_uninstall'}
-                        disabled={!selectedCapability.packageId}
+                        disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')}
                         onClick={() => confirmUninstallPackage(selectedCapability)}
                         data-testid={`agent-package-uninstall-${selectedCapability.key}`}
                       >
