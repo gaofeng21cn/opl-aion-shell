@@ -35,16 +35,17 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       ({
         'settings.personalPreferencesTitle': 'Preferences',
-        'settings.personalPreferencesDesc': 'Manage app behavior.',
-        'settings.appearancePreferencesTitle': 'Appearance',
-        'settings.appearancePreferencesDesc': 'Adjust theme, font sizes, and interface scale.',
+        'settings.personalPreferencesDesc': 'Set interface behavior, display fonts, and theme appearance.',
+        'settings.appearancePreferencesTitle': 'Display and fonts',
+        'settings.appearancePreferencesDesc': 'Set chat, Markdown, code text size, and interface scale.',
+        'settings.theme': 'Theme appearance',
         'settings.fontSizeChat': 'Chat font size',
         'settings.fontSizeMarkdown': 'Markdown font size',
         'settings.fontSizeCode': 'Code font size',
         'settings.fontSizeStepperReset': 'Reset',
         'settings.scale': 'Scale',
-        'settings.advancedThemeListTitle': 'Advanced theme list',
-        'settings.advancedThemeListDesc': 'Themes stay collapsed until needed.',
+        'settings.advancedThemeListTitle': 'Advanced themes',
+        'settings.advancedThemeListDesc': 'Theme presets stay collapsed until needed.',
       })[key] ?? key,
   }),
 }));
@@ -55,13 +56,14 @@ describe('AppearanceModalContent', () => {
 
     expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByTestId('personal-preference-settings')).toHaveTextContent('Application behavior controls');
-    expect(screen.getByText('Appearance')).toBeInTheDocument();
+    expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByText('Chat font size')).toBeInTheDocument();
     expect(screen.getByText('Markdown font size')).toBeInTheDocument();
     expect(screen.getByText('Code font size')).toBeInTheDocument();
     expect(screen.getByText('Scale')).toBeInTheDocument();
 
-    const themeDetails = screen.getByText('Advanced theme list').closest('details');
+    expect(screen.getByTestId('preferences-theme-section')).toHaveTextContent('Theme appearance');
+    const themeDetails = screen.getByText('Advanced themes').closest('details');
     expect(themeDetails).toBeTruthy();
     expect(themeDetails).not.toHaveAttribute('open');
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
