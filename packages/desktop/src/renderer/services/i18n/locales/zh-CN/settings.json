@@ -165,6 +165,8 @@
   "timeoutPreferencesDesc": "控制请求等待和 Agent 空闲释放时间。",
   "appearancePreferencesTitle": "外观",
   "appearancePreferencesDesc": "调整主题、字体大小和界面缩放。",
+  "advancedThemeListTitle": "高级主题列表",
+  "advancedThemeListDesc": "预设主题和自定义 CSS 默认收起；需要切换或编辑时再打开。",
   "advancedPathsTitle": "高级路径",
   "advancedPathsDesc": "用于排查或迁移的本机路径。普通文件位置请优先使用工作目录页面。",
   "startOnBoot": "开机启动",
@@ -1511,6 +1513,22 @@
         "needsReview": "需要查看详情"
       }
     },
+    "overview": {
+      "total": "本地数据总量",
+      "categories": "数据类别",
+      "safe": "可直接处理",
+      "needsProof": "需要证明"
+    },
+    "cleanupFlow": {
+      "title": "安全清理流程",
+      "detail": "清理始终按预览、确认、执行推进；破坏性动作会在前置证明存在后才启用。",
+      "step1": "1. 预览",
+      "preview": "先生成 dry-run 计划或归档证明，再改变文件。",
+      "step2": "2. 确认",
+      "confirm": "执行前查看具体回执或预览摘要。",
+      "step3": "3. 执行",
+      "execute": "只执行已确认的计划，并保留回执可见。"
+    },
     "researchLifecycle": {
       "title": "工作数据安全",
       "detail": "只读展示工作数据的清理边界和来源引用。",
@@ -1934,6 +1952,7 @@
       "addCapability": "添加能力",
       "advancedAddTitle": "高级添加方式",
       "advancedAddDescription": "只有已经拿到经过验证的能力 manifest URL 时才需要使用。",
+      "moreActions": "更多包操作",
       "hideFromHome": "从首页隐藏",
       "showOnHome": "显示到首页",
       "moveUp": "上移",

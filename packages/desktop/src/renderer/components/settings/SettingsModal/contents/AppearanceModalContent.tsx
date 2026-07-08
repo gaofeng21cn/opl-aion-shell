@@ -58,8 +58,8 @@ const AppearanceModalContent: React.FC = () => {
     <div className='flex flex-col h-full w-full'>
       {/* 内容区域 / Content Area */}
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
-        <div className='space-y-16px'>
-          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
+        <div className='space-y-14px'>
+          <div className='px-4px py-2px'>
             <div className='text-16px font-semibold text-t-primary leading-24px'>
               {t('settings.personalPreferencesTitle')}
             </div>
@@ -68,22 +68,21 @@ const AppearanceModalContent: React.FC = () => {
             </div>
           </div>
 
-          <PersonalPreferenceSettings />
+          <div
+            className='space-y-12px [&>div]:!bg-[var(--color-bg-1)] [&>div]:!rd-8px [&>div]:border [&>div]:border-solid [&>div]:border-[var(--color-border-2)]'
+            data-testid='appearance-behavior-layer'
+          >
+            <PersonalPreferenceSettings />
+          </div>
 
           {/* 主题画廊 / Theme Gallery */}
-          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
+          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)] rd-8px'>
             <div className='mb-12px'>
               <div className='text-14px font-medium text-t-primary leading-22px'>
                 {t('settings.appearancePreferencesTitle')}
               </div>
               <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appearancePreferencesDesc')}</div>
             </div>
-            <div className='text-14px text-t-primary leading-22px mb-12px'>{t('settings.theme')}</div>
-            <CssThemeSettings />
-          </div>
-
-          {/* 字体大小 / Font sizes */}
-          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
             <div className='w-full flex flex-col divide-y divide-border-2'>
               {FONT_SIZE_KEYS.map((key) => (
                 <PreferenceRow key={key} label={t(FONT_SIZE_LABEL_KEY[key])}>
@@ -98,16 +97,19 @@ const AppearanceModalContent: React.FC = () => {
                   />
                 </PreferenceRow>
               ))}
-            </div>
-          </div>
-
-          {/* 缩放控制 / Scale Control */}
-          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px'>
-            <div className='w-full flex flex-col divide-y divide-border-2'>
               <PreferenceRow label={t('settings.scale')}>
                 <ScaleControl />
               </PreferenceRow>
             </div>
+            <details className='mt-12px border-0 border-t border-solid border-[var(--color-border-2)] pt-12px'>
+              <summary className='cursor-pointer text-14px text-t-primary leading-22px'>
+                {t('settings.advancedThemeListTitle')}
+              </summary>
+              <div className='mt-12px'>
+                <div className='text-12px text-t-tertiary mb-12px'>{t('settings.advancedThemeListDesc')}</div>
+                <CssThemeSettings />
+              </div>
+            </details>
           </div>
         </div>
       </AionScrollArea>

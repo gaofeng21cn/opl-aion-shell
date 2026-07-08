@@ -365,6 +365,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.allStatuses': 'All statuses',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
+        'settings.capabilitiesPage.packageManager.moreActions': 'More package actions',
         'settings.capabilitiesPage.packageManager.hideFromHome': 'Hide from Home',
         'settings.capabilitiesPage.packageManager.showOnHome': 'Show on Home',
         'settings.capabilitiesPage.packageManager.moveUp': 'Move up',
@@ -511,19 +512,22 @@ describe('CapabilitiesSettingsContent', () => {
     expect(openscienceCandidate).toHaveTextContent('Needs changes');
     expect(openscienceCandidate).toHaveTextContent('Continue in conversation');
     expect(openscienceCandidate).not.toHaveTextContent('must not render');
-    expect(detailedResearch).toHaveTextContent('Local developer source');
+    expect(detailedResearch).not.toHaveTextContent('Local developer source');
     expect(detailedResearch).not.toHaveTextContent('Package ID');
     expect(detailedResearch).not.toHaveTextContent('git_checkout');
     expect(detailedResearch).not.toHaveTextContent('Not reported');
     expect(detailedResearch).not.toHaveTextContent('candidate://openscience/artifact-graph');
+    expect(detailedResearch).not.toHaveTextContent('receipt://export/latest');
 
     expect(screen.queryByTestId('capability-advanced-mas')).not.toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        within(screen.getByTestId('capability-details-mas')).getByTestId('capability-connector-group-mas-oplConnect')
-      ).toBeInTheDocument()
-    );
+    expect(within(detailedResearch).queryByTestId('capability-connector-group-mas-oplConnect')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     detailedResearch = screen.getByTestId('capability-details-mas');
+    expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).getAllByText('Local developer source').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).queryByText('git_checkout')).not.toBeInTheDocument();
+    expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
+    expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplConnect')).toBeInTheDocument();
     expect(within(detailedResearch).getByTestId('capability-connector-group-mas-oplFabric')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OPL Connect')).toBeInTheDocument();
@@ -565,13 +569,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(
       within(detailedResearch).queryByText(/opl:\/\/app-action\/task_action_receipt_preview/)
     ).not.toBeInTheDocument();
-    expect(within(detailedResearch).queryByText(/receipt:\/\/export\/latest/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
-    detailedResearch = screen.getByTestId('capability-details-mas');
-    expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).getAllByText('git_checkout').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
+    expect(within(detailedResearch).getByText(/receipt:\/\/export\/latest/)).toBeInTheDocument();
 
     const grant = screen.getByTestId('capability-purpose-mag');
     fireEvent.click(grant);

@@ -165,6 +165,8 @@
   "timeoutPreferencesDesc": "Control request waiting time and idle Agent cleanup.",
   "appearancePreferencesTitle": "Appearance",
   "appearancePreferencesDesc": "Adjust theme, font sizes, and interface scale.",
+  "advancedThemeListTitle": "Advanced theme list",
+  "advancedThemeListDesc": "Preset and custom CSS themes stay collapsed until you need to switch or edit them.",
   "advancedPathsTitle": "Advanced paths",
   "advancedPathsDesc": "Local paths for troubleshooting or migration. Use Workspace first for ordinary file location changes.",
   "startOnBoot": "Start on Boot",
@@ -1510,6 +1512,22 @@
         "needsReview": "Needs review"
       }
     },
+    "overview": {
+      "total": "Total stored data",
+      "categories": "Data categories",
+      "safe": "Safe now",
+      "needsProof": "Need proof"
+    },
+    "cleanupFlow": {
+      "title": "Safe cleanup flow",
+      "detail": "Cleanup always moves through preview, confirmation, and execution. Destructive actions stay disabled until the earlier proof exists.",
+      "step1": "1. Preview",
+      "preview": "Create a dry-run plan or archive proof before changing files.",
+      "step2": "2. Confirm",
+      "confirm": "Review the exact receipt or preview summary before running cleanup.",
+      "step3": "3. Execute",
+      "execute": "Run only the confirmed plan, then keep the receipt visible."
+    },
     "researchLifecycle": {
       "title": "Work data safety",
       "detail": "Read-only cleanup boundaries and source references for workspace data.",
@@ -1933,6 +1951,7 @@
       "addCapability": "Add capability",
       "advancedAddTitle": "Advanced add method",
       "advancedAddDescription": "Use this only when you already have a validated capability manifest URL.",
+      "moreActions": "More package actions",
       "hideFromHome": "Hide from Home",
       "showOnHome": "Show on Home",
       "moveUp": "Move up",

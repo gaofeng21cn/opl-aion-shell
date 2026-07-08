@@ -15,7 +15,19 @@
  * with a ?tab= query parameter to select the appropriate tab.
  */
 
-import { Button, Card, Input, Message, Modal, Select, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
+import {
+  Button,
+  Card,
+  Input,
+  Message,
+  Modal,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Tabs,
+  Typography,
+} from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Refresh, Robot, Search, Tool } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -255,26 +267,6 @@ function capabilityDiagnosticRows(
       key: 'physicalSurfaceConfigPath',
       label: t('settings.capabilitiesPage.detailLabels.physicalSurfaceConfigPath'),
       value: item.physicalSurface?.codexConfigPath,
-    },
-    {
-      key: 'version',
-      label: t('settings.capabilitiesPage.detailLabels.version'),
-      value: item.version,
-    },
-    {
-      key: 'source',
-      label: t('settings.capabilitiesPage.detailLabels.source'),
-      value: item.source,
-    },
-    {
-      key: 'lastSync',
-      label: t('settings.capabilitiesPage.detailLabels.lastSync'),
-      value: item.lastSync,
-    },
-    {
-      key: 'failureReason',
-      label: t('settings.capabilitiesPage.detailLabels.failureReason'),
-      value: item.failureReason,
     },
   ].filter((row): row is CapabilityDetailRow => Boolean(row && hasTextValue(row.value)));
 }
@@ -831,66 +823,71 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   >
                     {capabilityActionLabel(selectedCapability, t)}
                   </Button>
-                  <Space wrap size={6} data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_update'}
-                      disabled={!selectedCapability.packageId}
-                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
-                      data-testid={`agent-package-update-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.update')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_repair'}
-                      disabled={!selectedCapability.packageId}
-                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
-                      data-testid={`agent-package-repair-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.repair')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={!selectedCapability.packageId}
-                      onClick={() =>
-                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                          exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
-                        })
-                      }
-                      data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.enabled === false
-                        ? t('settings.capabilitiesPage.packageManager.actions.enable')
-                        : t('settings.capabilitiesPage.packageManager.actions.disable')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      loading={busyAction === 'agent_package_preferences_set'}
-                      disabled={!selectedCapability.packageId}
-                      onClick={() =>
-                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                          exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
-                        })
-                      }
-                      data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.hidden === true
-                        ? t('settings.capabilitiesPage.packageManager.actions.unhide')
-                        : t('settings.capabilitiesPage.packageManager.actions.hide')}
-                    </Button>
-                    <Button
-                      size='mini'
-                      status='danger'
-                      loading={busyAction === 'agent_package_uninstall'}
-                      disabled={!selectedCapability.packageId}
-                      onClick={() => confirmUninstallPackage(selectedCapability)}
-                      data-testid={`agent-package-uninstall-${selectedCapability.key}`}
-                    >
-                      {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
-                    </Button>
-                  </Space>
+                  <details data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
+                    <summary className='cursor-pointer text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.packageManager.moreActions')}
+                    </summary>
+                    <Space wrap size={6} className='mt-8px'>
+                      <Button
+                        size='mini'
+                        loading={busyAction === 'agent_package_update'}
+                        disabled={!selectedCapability.packageId}
+                        onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
+                        data-testid={`agent-package-update-${selectedCapability.key}`}
+                      >
+                        {t('settings.capabilitiesPage.packageManager.actions.update')}
+                      </Button>
+                      <Button
+                        size='mini'
+                        loading={busyAction === 'agent_package_repair'}
+                        disabled={!selectedCapability.packageId}
+                        onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
+                        data-testid={`agent-package-repair-${selectedCapability.key}`}
+                      >
+                        {t('settings.capabilitiesPage.packageManager.actions.repair')}
+                      </Button>
+                      <Button
+                        size='mini'
+                        loading={busyAction === 'agent_package_preferences_set'}
+                        disabled={!selectedCapability.packageId}
+                        onClick={() =>
+                          void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                            exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
+                          })
+                        }
+                        data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
+                      >
+                        {selectedCapability.enabled === false
+                          ? t('settings.capabilitiesPage.packageManager.actions.enable')
+                          : t('settings.capabilitiesPage.packageManager.actions.disable')}
+                      </Button>
+                      <Button
+                        size='mini'
+                        loading={busyAction === 'agent_package_preferences_set'}
+                        disabled={!selectedCapability.packageId}
+                        onClick={() =>
+                          void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                            exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
+                          })
+                        }
+                        data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
+                      >
+                        {selectedCapability.hidden === true
+                          ? t('settings.capabilitiesPage.packageManager.actions.unhide')
+                          : t('settings.capabilitiesPage.packageManager.actions.hide')}
+                      </Button>
+                      <Button
+                        size='mini'
+                        status='danger'
+                        loading={busyAction === 'agent_package_uninstall'}
+                        disabled={!selectedCapability.packageId}
+                        onClick={() => confirmUninstallPackage(selectedCapability)}
+                        data-testid={`agent-package-uninstall-${selectedCapability.key}`}
+                      >
+                        {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
+                      </Button>
+                    </Space>
+                  </details>
                   <div className='grid grid-cols-1 gap-4px text-12px'>
                     <Typography.Text className='text-t-secondary break-words'>
                       {selectedCapability.description}
@@ -902,14 +899,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     <Typography.Text className='text-t-secondary break-words'>
                       {t('settings.capabilitiesPage.packageManager.tableHeaders.home')}: {selectedHomeLabel}
                     </Typography.Text>
-                    {selectedUserDetailRows.map((row) => (
-                      <Typography.Text
-                        key={`${selectedCapability.key}-${row.key}`}
-                        className='text-t-secondary break-words'
-                      >
-                        {row.label}: {row.value}
-                      </Typography.Text>
-                    ))}
                   </div>
                   {selectedShortcut && (
                     <Space wrap size={6}>
@@ -938,67 +927,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                     </Space>
                   )}
                   {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
-                  {selectedHasSupportingContext && (
-                    <div
-                      className='grid grid-cols-1 gap-10px'
-                      data-testid={`capability-support-context-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.connectorReadinessRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
-                          </Typography.Text>
-                          {capabilityRefGroups(selectedCapability.connectorReadinessGroups, selectedCapability.key, t)}
-                          {capabilityRefRows(
-                            selectedUngroupedConnectorRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-connector-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.workflowRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
-                          </Typography.Text>
-                          {capabilityRefRows(
-                            selectedCapability.workflowRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-workflow-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.resourceContextRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
-                          </Typography.Text>
-                          {capabilityRefGroups(
-                            selectedCapability.resourceContextGroups,
-                            selectedCapability.key,
-                            t,
-                            'settings.capabilitiesPage.resourceContextGroups'
-                          )}
-                          {capabilityRefRows(
-                            selectedUngroupedResourceRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-resource-context-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.exportBundleAction && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='block text-t-secondary mb-4px'>
-                            {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
-                          </Typography.Text>
-                          {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
-                        </div>
-                      )}
-                    </div>
-                  )}
                   <Button
                     size='small'
                     onClick={() => setAdvancedDetailsOpen((open) => !open)}
@@ -1011,6 +939,81 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                       className='grid grid-cols-1 gap-10px'
                       data-testid={`capability-advanced-${selectedCapability.key}`}
                     >
+                      {selectedUserDetailRows.length > 0 && (
+                        <div className='grid grid-cols-1 gap-6px text-12px'>
+                          {selectedUserDetailRows.map((row) => (
+                            <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
+                              <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                              <Typography.Text className='text-t-primary break-words'>{row.value}</Typography.Text>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedHasSupportingContext && (
+                        <div
+                          className='grid grid-cols-1 gap-10px'
+                          data-testid={`capability-support-context-${selectedCapability.key}`}
+                        >
+                          {selectedCapability.connectorReadinessRefs.length > 0 && (
+                            <div className='min-w-0'>
+                              <Typography.Text className='block text-t-secondary mb-4px'>
+                                {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                              </Typography.Text>
+                              {capabilityRefGroups(
+                                selectedCapability.connectorReadinessGroups,
+                                selectedCapability.key,
+                                t
+                              )}
+                              {capabilityRefRows(
+                                selectedUngroupedConnectorRefs,
+                                selectedCapability.key,
+                                t,
+                                `capability-connector-refs-${selectedCapability.key}`
+                              )}
+                            </div>
+                          )}
+                          {selectedCapability.workflowRefs.length > 0 && (
+                            <div className='min-w-0'>
+                              <Typography.Text className='block text-t-secondary mb-4px'>
+                                {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                              </Typography.Text>
+                              {capabilityRefRows(
+                                selectedCapability.workflowRefs,
+                                selectedCapability.key,
+                                t,
+                                `capability-workflow-refs-${selectedCapability.key}`
+                              )}
+                            </div>
+                          )}
+                          {selectedCapability.resourceContextRefs.length > 0 && (
+                            <div className='min-w-0'>
+                              <Typography.Text className='block text-t-secondary mb-4px'>
+                                {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
+                              </Typography.Text>
+                              {capabilityRefGroups(
+                                selectedCapability.resourceContextGroups,
+                                selectedCapability.key,
+                                t,
+                                'settings.capabilitiesPage.resourceContextGroups'
+                              )}
+                              {capabilityRefRows(
+                                selectedUngroupedResourceRefs,
+                                selectedCapability.key,
+                                t,
+                                `capability-resource-context-refs-${selectedCapability.key}`
+                              )}
+                            </div>
+                          )}
+                          {selectedCapability.exportBundleAction && (
+                            <div className='min-w-0'>
+                              <Typography.Text className='block text-t-secondary mb-4px'>
+                                {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
+                              </Typography.Text>
+                              {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className='grid grid-cols-1 gap-6px text-12px'>
                         {selectedDiagnosticRows.map((row) => (
                           <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>

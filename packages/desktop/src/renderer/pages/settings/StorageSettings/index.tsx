@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Alert, Button, Card, Message, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
 import { CheckOne, Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -158,7 +158,6 @@ const StorageInventoryCard: React.FC<{ item: StorageInventorySectionViewModel }>
 
 export const StorageSettingsContent: React.FC = () => {
   const { t } = useTranslation();
-  const messageRef = React.useRef(Message);
   const [inventory, setInventory] = React.useState<LocalDataLifecycleInventory | null>(null);
   const [lastReceipt, setLastReceipt] = React.useState<LocalDataLifecycleReceipt | null>(null);
   const [conversationProofReceipt, setConversationProofReceipt] = React.useState<LocalDataLifecycleReceipt | null>(
@@ -183,6 +182,10 @@ export const StorageSettingsContent: React.FC = () => {
       }),
     [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
+  const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
+  const safeSectionCount = viewModel.sections.filter((section) => section.silentDeleteAllowed).length;
+  const proofRequiredSectionCount = viewModel.sections.length - safeSectionCount;
+  const previewReady = Boolean(runtimePlan || logsPlan || updaterPlan || conversationProofReceipt);
 
   const runAction = React.useCallback(
     async <Result,>(action: AsyncAction, task: () => Promise<Result>, onSuccess: (result: Result) => void) => {
@@ -191,11 +194,9 @@ export const StorageSettingsContent: React.FC = () => {
       try {
         const result = await task();
         onSuccess(result);
-        messageRef.current.success(t('settings.storagePage.messages.actionComplete'));
       } catch (actionError) {
         const message = actionError instanceof Error ? actionError.message : String(actionError);
         setError(message);
-        messageRef.current.error(t('settings.storagePage.messages.actionFailed'));
       } finally {
         setLoading(null);
       }
@@ -453,36 +454,110 @@ export const StorageSettingsContent: React.FC = () => {
 
       {error && <Alert type='error' content={error} />}
 
-      {pendingDangerAction && (
-        <Alert
-          type='warning'
-          title={t('settings.updateConfirm')}
-          data-testid='storage-action-confirmation'
-          content={
-            <div className='flex flex-col gap-8px'>
-              <span className='break-words'>{dangerActionSummary()}</span>
-              <Space wrap size='small'>
-                <Button htmlType='button' size='small' onClick={cancelDangerAction}>
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  htmlType='button'
-                  size='small'
-                  type='primary'
-                  status='danger'
-                  loading={loading === pendingDangerAction}
-                  onClick={confirmDangerAction}
-                  data-testid='storage-action-confirm'
-                >
-                  {dangerActionLabel()}
-                </Button>
-              </Space>
-            </div>
-          }
-        />
-      )}
+      <Card bordered className='rd-8px' data-testid='storage-overview'>
+        <div className='grid grid-cols-2 gap-12px md:grid-cols-4'>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.storagePage.overview.total')}
+            </Typography.Text>
+            <Typography.Text className='block text-20px font-600 text-t-primary'>
+              {formatStorageBytes(totalBytes)}
+            </Typography.Text>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.storagePage.overview.categories')}
+            </Typography.Text>
+            <Typography.Text className='block text-20px font-600 text-t-primary'>
+              {viewModel.sections.length}
+            </Typography.Text>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.storagePage.overview.safe')}
+            </Typography.Text>
+            <Typography.Text className='block text-20px font-600 text-t-primary'>{safeSectionCount}</Typography.Text>
+          </div>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.storagePage.overview.needsProof')}
+            </Typography.Text>
+            <Typography.Text className='block text-20px font-600 text-t-primary'>
+              {proofRequiredSectionCount}
+            </Typography.Text>
+          </div>
+        </div>
+      </Card>
 
       <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{viewModel.sections.map(renderInventorySection)}</div>
+
+      <Card bordered className='rd-8px' data-testid='storage-cleanup-flow'>
+        <div className='flex flex-col gap-12px'>
+          <div>
+            <Typography.Text className='font-600 text-t-primary'>
+              {t('settings.storagePage.cleanupFlow.title')}
+            </Typography.Text>
+            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.cleanupFlow.detail')}</div>
+          </div>
+          <div className='grid grid-cols-1 gap-8px md:grid-cols-3'>
+            <div className='rd-8px bg-fill-1 p-10px'>
+              <Tag color={previewReady ? 'green' : 'gray'}>{t('settings.storagePage.cleanupFlow.step1')}</Tag>
+              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
+                {t('settings.storagePage.cleanupFlow.preview')}
+              </Typography.Text>
+            </div>
+            <div className='rd-8px bg-fill-1 p-10px'>
+              <Tag color={pendingDangerAction ? 'orange' : 'gray'}>{t('settings.storagePage.cleanupFlow.step2')}</Tag>
+              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
+                {t('settings.storagePage.cleanupFlow.confirm')}
+              </Typography.Text>
+            </div>
+            <div className='rd-8px bg-fill-1 p-10px'>
+              <Tag color={lastReceipt ? 'green' : 'gray'}>{t('settings.storagePage.cleanupFlow.step3')}</Tag>
+              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
+                {t('settings.storagePage.cleanupFlow.execute')}
+              </Typography.Text>
+            </div>
+          </div>
+          {pendingDangerAction && (
+            <Alert
+              type='warning'
+              title={t('settings.updateConfirm')}
+              data-testid='storage-action-confirmation'
+              content={
+                <div className='flex flex-col gap-8px'>
+                  <span className='break-words'>{dangerActionSummary()}</span>
+                  <Space wrap size='small'>
+                    <Button htmlType='button' size='small' onClick={cancelDangerAction}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button
+                      htmlType='button'
+                      size='small'
+                      type='primary'
+                      status='danger'
+                      loading={loading === pendingDangerAction}
+                      onClick={confirmDangerAction}
+                      data-testid='storage-action-confirm'
+                    >
+                      {dangerActionLabel()}
+                    </Button>
+                  </Space>
+                </div>
+              }
+            />
+          )}
+          {lastReceipt && (
+            <Alert
+              type='success'
+              content={t('settings.storagePage.receipt', {
+                operation: lastReceipt.schema,
+                receipt: viewModel.lastReceipt.receiptPath ?? '',
+              })}
+            />
+          )}
+        </div>
+      </Card>
 
       <Card bordered className='rd-8px' data-testid='storage-research-lifecycle'>
         <div className='flex flex-col gap-14px'>
@@ -692,16 +767,6 @@ export const StorageSettingsContent: React.FC = () => {
           </Space>
         </div>
       </Card>
-
-      {lastReceipt && (
-        <Alert
-          type='success'
-          content={t('settings.storagePage.receipt', {
-            operation: lastReceipt.schema,
-            receipt: viewModel.lastReceipt.receiptPath ?? '',
-          })}
-        />
-      )}
     </div>
   );
 };

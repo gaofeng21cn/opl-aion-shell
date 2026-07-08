@@ -87,6 +87,18 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.inventory.cleanupModes.needsArchiveProof': 'Needs archive proof',
     'settings.storagePage.inventory.cleanupModes.needsPreview': 'Needs preview first',
     'settings.storagePage.inventory.cleanupModes.needsReview': 'Needs review',
+    'settings.storagePage.overview.total': 'Total stored data',
+    'settings.storagePage.overview.categories': 'Data categories',
+    'settings.storagePage.overview.safe': 'Safe now',
+    'settings.storagePage.overview.needsProof': 'Need proof',
+    'settings.storagePage.cleanupFlow.title': 'Safe cleanup flow',
+    'settings.storagePage.cleanupFlow.detail': 'Cleanup uses preview, confirmation, and execution.',
+    'settings.storagePage.cleanupFlow.step1': '1. Preview',
+    'settings.storagePage.cleanupFlow.preview': 'Create a dry-run plan or archive proof.',
+    'settings.storagePage.cleanupFlow.step2': '2. Confirm',
+    'settings.storagePage.cleanupFlow.confirm': 'Review the exact receipt or preview summary.',
+    'settings.storagePage.cleanupFlow.step3': '3. Execute',
+    'settings.storagePage.cleanupFlow.execute': 'Run only the confirmed plan.',
     'settings.storagePage.researchLifecycle.title': 'Work data safety',
     'settings.storagePage.researchLifecycle.detail':
       'Read-only cleanup boundaries and source references for workspace data.',
@@ -233,6 +245,12 @@ describe('StorageSettingsContent', () => {
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total stored data');
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
+    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Data categories');
+    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('1. Preview');
+    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('2. Confirm');
+    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('3. Execute');
     expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
