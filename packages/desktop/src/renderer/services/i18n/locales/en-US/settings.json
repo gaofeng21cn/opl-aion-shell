@@ -1327,21 +1327,21 @@
     "title": "Workspace",
     "description": "Check where local projects and task artifacts are stored, and whether the App can access them.",
     "status": {
-      "ready": "Workspace selected",
-      "needsAction": "Workspace needs setup"
+      "ready": "Available",
+      "needsAction": "Needs setup"
     },
     "permission": {
-      "title": "Permission status",
+      "title": "Writes are allowed",
       "ready": "Permission ready",
       "needsAction": "Permission needs attention",
-      "unknown": "Permission not read",
+      "unknown": "Not reported",
       "detail": "Current execution permission: {{mode}}. If local tasks cannot write files, repair permissions or check Maintenance."
     },
     "output": {
-      "title": "Task output"
+      "title": "Folder exists"
     },
     "nextStep": {
-      "title": "Next step",
+      "title": "Recommended next step",
       "ready": "The work directory and permissions are available. You can start local tasks.",
       "missingWorkspace": "Choose a work directory first; new projects and task output will use it by default.",
       "repairPermission": "Current permissions may limit file writes. Repair permissions or open Maintenance."
@@ -1352,7 +1352,7 @@
       "missing": "Choose a work directory before starting local tasks."
     },
     "cards": {
-      "permission": "Permission mode",
+      "permission": "App can access it",
       "lastCheck": "Last check"
     },
     "technical": {
@@ -1738,13 +1738,14 @@
       "description": "Use these entries for server or hosted workspace deployments. Local browser access stays on Access.",
       "docker": "Server WebUI",
       "workspace": "OPL Workspace",
-      "runDryRoute": "Check before deploy",
+      "runDryRoute": "Continue setup",
       "openResource": "Open resource",
       "recheck": "Recheck",
       "prepareEnvironment": "Prepare environment",
       "payloadRequired": "Needs details",
       "payloadRequiredHelp": "Choose a file or fill in the required configuration before running this action.",
       "confirmationRequired": "Confirms before changes",
+      "moreActions": "More actions",
       "technicalDetails": "Advanced details",
       "technicalState": "Raw status",
       "technicalActionId": "Action ID",

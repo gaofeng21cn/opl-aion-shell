@@ -30,11 +30,21 @@ type WorkspaceSettingsProps = {
   withWrapper?: boolean;
 };
 
+type WorkspaceFactState = 'ready' | 'needsAction' | 'unknown';
+
 const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
 const WORKSPACE_PERMISSION_ATTENTION_MODES = new Set(['read-only', 'plan']);
+const UNAVAILABLE_WORKSPACE_HEALTH = new Set(['blocking', 'missing', 'unavailable']);
+const AVAILABLE_WORKSPACE_HEALTH = new Set(['available', 'healthy', 'ok', 'ready']);
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
+}
+
+function workspaceFactTone(state: WorkspaceFactState): 'green' | 'gray' | 'orange' {
+  if (state === 'ready') return 'green';
+  if (state === 'unknown') return 'gray';
+  return 'orange';
 }
 
 const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = true }) => {
@@ -44,6 +54,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const paths = oplRecord(appState.paths);
+  const workspaceRootRecord = oplRecord(paths.workspace_root);
   const core = oplRecord(appState.core);
   const executor = oplRecord(core.executor);
   const codex = oplRecord(core.codex);
@@ -57,6 +68,9 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     oplString(modulesSourcePayload.modules_root) ?? oplString(modulesPayload.modules_root) ?? familyWorkspaceRoot;
   const modulesSourceMode = oplString(modulesSourcePayload.mode) ?? oplString(modulesPayload.source);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'unknown';
+  const workspaceRootHealth = oplString(workspaceRootRecord.health_status) ?? oplString(workspaceRootRecord.status);
+  const workspaceExistsFlag =
+    workspaceRootRecord.exists === true ? true : workspaceRootRecord.exists === false ? false : null;
 
   const modules = useMemo(
     () => moduleRecords(modulesPayload.items ?? modulesPayload.modules).map(normalizeModule),
@@ -73,7 +87,21 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   };
 
   const readyModules = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
-  const workspaceReady = Boolean(workspaceRoot);
+  const workspaceExistsState: WorkspaceFactState =
+    !workspaceRoot || workspaceExistsFlag === false || workspaceRootHealth === 'missing'
+      ? 'needsAction'
+      : workspaceExistsFlag === true
+        ? 'ready'
+        : 'unknown';
+  const workspaceAccessState: WorkspaceFactState =
+    !workspaceRoot || Boolean(workspaceRootHealth && UNAVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth))
+      ? 'needsAction'
+      : workspaceExistsFlag === true ||
+          Boolean(workspaceRootHealth && AVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth))
+        ? 'ready'
+        : 'unknown';
+  const workspaceReady =
+    Boolean(workspaceRoot) && workspaceExistsState !== 'needsAction' && workspaceAccessState !== 'needsAction';
   const permissionState = !workspaceRoot
     ? 'unknown'
     : permissionMode === 'unknown'
@@ -84,9 +112,57 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const permissionLabel = t(`agentMode.${permissionMode}`, { defaultValue: permissionMode });
   const nextStepKey = !workspaceRoot
     ? 'missingWorkspace'
-    : permissionState === 'needsAction'
-      ? 'repairPermission'
-      : 'ready';
+    : workspaceExistsState === 'needsAction' || workspaceAccessState === 'needsAction'
+      ? 'missingWorkspace'
+      : permissionState === 'needsAction'
+        ? 'repairPermission'
+        : 'ready';
+  const workspaceFacts: Array<{
+    key: 'exists' | 'access' | 'permission';
+    title: string;
+    detail: string;
+    state: WorkspaceFactState;
+    status: string;
+  }> = [
+    {
+      key: 'exists',
+      title: t('settings.workspacePage.output.title'),
+      detail: workspaceRoot
+        ? t('settings.workspacePage.root.current', { path: workspaceRoot })
+        : t('settings.workspacePage.root.missing'),
+      state: workspaceExistsState,
+      status:
+        workspaceExistsState === 'ready'
+          ? t('settings.workspacePage.status.ready')
+          : workspaceExistsState === 'needsAction'
+            ? t('settings.workspacePage.status.needsAction')
+            : t('settings.workspacePage.permission.unknown'),
+    },
+    {
+      key: 'access',
+      title: t('settings.workspacePage.cards.permission'),
+      detail:
+        workspaceAccessState === 'ready'
+          ? t('settings.workspacePage.nextStep.ready')
+          : workspaceAccessState === 'needsAction'
+            ? t('settings.workspacePage.nextStep.missingWorkspace')
+            : t('settings.workspacePage.description'),
+      state: workspaceAccessState,
+      status:
+        workspaceAccessState === 'ready'
+          ? t('settings.workspacePage.status.ready')
+          : workspaceAccessState === 'needsAction'
+            ? t('settings.workspacePage.status.needsAction')
+            : t('settings.workspacePage.permission.unknown'),
+    },
+    {
+      key: 'permission',
+      title: t('settings.workspacePage.permission.title'),
+      detail: t('settings.workspacePage.permission.detail', { mode: permissionLabel }),
+      state: permissionState,
+      status: t(`settings.workspacePage.permission.${permissionState}`),
+    },
+  ];
 
   const chooseWorkspaceRoot = useCallback(async () => {
     setWorkspaceAction('choose');
@@ -184,35 +260,30 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                 </Tag>
               </Space>
             </div>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
-              <div
-                className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'
-                data-testid='opl-workspace-settings-permission'
-              >
-                <div className='flex items-center gap-8px'>
-                  <span className='w-24px h-24px flex items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                    <CheckOne theme='outline' />
-                  </span>
-                  <Typography.Text className='font-600 text-t-primary'>
-                    {t('settings.workspacePage.permission.title')}
-                  </Typography.Text>
-                  <Tag color={permissionState === 'ready' ? 'green' : 'orange'}>
-                    {t(`settings.workspacePage.permission.${permissionState}`)}
-                  </Tag>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-10px' data-testid='opl-workspace-settings-facts'>
+              {workspaceFacts.map((fact) => (
+                <div
+                  key={fact.key}
+                  className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'
+                  data-testid={`opl-workspace-settings-fact-${fact.key}`}
+                >
+                  <div className='flex items-center gap-8px'>
+                    <span className='w-24px h-24px flex items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
+                      <CheckOne theme='outline' />
+                    </span>
+                    <Typography.Text className='font-600 text-t-primary'>{fact.title}</Typography.Text>
+                    <Tag color={workspaceFactTone(fact.state)}>{fact.status}</Tag>
+                  </div>
+                  <Typography.Text className='text-12px text-t-secondary break-words'>{fact.detail}</Typography.Text>
                 </div>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t('settings.workspacePage.permission.detail', { mode: permissionLabel })}
-                </Typography.Text>
-              </div>
-              <div className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.workspacePage.output.title')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t(`settings.workspacePage.nextStep.${nextStepKey}`)}
-                </Typography.Text>
-              </div>
+              ))}
             </div>
+            <Typography.Text
+              className='text-13px text-t-secondary break-words'
+              data-testid='opl-workspace-settings-next-step'
+            >
+              {t(`settings.workspacePage.nextStep.${nextStepKey}`)}
+            </Typography.Text>
             <Space wrap>
               <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
                 {t('settings.workspacePage.actions.openWorkspace')}

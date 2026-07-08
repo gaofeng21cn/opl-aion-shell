@@ -34,6 +34,9 @@ export const ResourcesSettingsContent: React.FC = () => {
   const dockerSummaryTags = dockerDeploymentSummaryTags(dockerWebui, t);
   const workspaceSources = resourceSources.filter((source) => source.category === 'oplWorkspace');
   const cloudExternalSources = resourceSources.filter((source) => source.category !== 'oplWorkspace');
+  const primaryDockerAction =
+    dockerWebui.actions.find((action) => !action.payloadRequired) ?? dockerWebui.actions[0] ?? null;
+  const secondaryDockerActions = dockerWebui.actions.filter((action) => action !== primaryDockerAction);
 
   const handleDockerAction = async (action: DockerWebuiAction) => {
     if (action.payloadRequired) return;
@@ -87,63 +90,42 @@ export const ResourcesSettingsContent: React.FC = () => {
             </div>
           </div>
 
-          <div className='flex flex-col divide-y divide-border-1'>
-            {dockerWebui.actions.map((action) => {
-              const actionLabel = t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
-                defaultValue: action.label,
-              });
-              const actionButton = (
-                <Button
-                  data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
-                  type={action.dangerLevel === 'none' ? 'secondary' : 'primary'}
-                  icon={<Open theme='outline' />}
-                  loading={runningActionId === action.actionId}
-                  disabled={action.payloadRequired}
-                  onClick={() => void handleDockerAction(action)}
-                >
-                  {action.payloadRequired
-                    ? t('settings.resourcesPage.docker.payloadRequired')
-                    : dockerActionCtaLabel(action, t)}
-                </Button>
-              );
-              return (
-                <div
-                  key={action.actionId}
-                  className='py-12px min-w-0'
-                  data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
-                >
-                  <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
-                    <div className='min-w-0 flex flex-col gap-6px'>
-                      <div className='flex flex-wrap items-center gap-8px'>
-                        <Typography.Text className='font-600 text-t-primary break-words'>{actionLabel}</Typography.Text>
-                        <Tag color={action.payloadRequired ? 'orange' : action.state === 'ready' ? 'green' : 'orange'}>
-                          {dockerActionStatusLabel(action, t)}
-                        </Tag>
-                        {action.confirmationRequired && (
-                          <Tag color='gray'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>
-                        )}
-                      </div>
-                      <DockerActionTechnicalDetails action={action} />
-                    </div>
-                    <div className='shrink-0'>
-                      {action.payloadRequired ? (
-                        <Tooltip content={t('settings.resourcesPage.docker.payloadRequiredHelp')}>
-                          {actionButton}
-                        </Tooltip>
-                      ) : (
-                        actionButton
-                      )}
-                    </div>
-                  </div>
+          {primaryDockerAction ? (
+            <div
+              className='border border-solid border-border-1 rd-8px bg-fill-1 p-12px min-w-0'
+              data-testid='opl-settings-docker-webui-primary-action'
+            >
+              <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
+                <div className='min-w-0 flex flex-col gap-6px'>
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t('settings.workspacePage.nextStep.title')}
+                  </Typography.Text>
+                  <DockerActionTitle action={primaryDockerAction} />
                 </div>
-              );
-            })}
-          </div>
-
-          {dockerWebui.actions.length === 0 && (
+                <div className='shrink-0'>
+                  <DockerActionButton
+                    action={primaryDockerAction}
+                    loading={runningActionId === primaryDockerAction.actionId}
+                    primary
+                    onAction={handleDockerAction}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
             <Typography.Text className='text-13px text-t-secondary'>
               {t('settings.resourcesPage.docker.noActions')}
             </Typography.Text>
+          )}
+
+          {dockerWebui.actions.length > 0 && (
+            <DockerMoreActions
+              actions={[primaryDockerAction, ...secondaryDockerActions].filter((action): action is DockerWebuiAction =>
+                Boolean(action)
+              )}
+              runningActionId={runningActionId}
+              onAction={handleDockerAction}
+            />
           )}
         </div>
       </Card>
@@ -231,6 +213,98 @@ function dockerActionStatusLabel(
   if (action.payloadRequired) return t('settings.resourcesPage.statusLabels.needs_input');
   return accessStatusLabel(action.state, t);
 }
+
+const DockerActionTitle: React.FC<{ action: DockerWebuiAction }> = ({ action }) => {
+  const { t } = useTranslation();
+  const actionLabel = t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
+    defaultValue: action.label,
+  });
+
+  return (
+    <div className='flex flex-wrap items-center gap-8px'>
+      <Typography.Text className='font-600 text-t-primary break-words'>{actionLabel}</Typography.Text>
+      <Tag color={action.payloadRequired ? 'orange' : action.state === 'ready' ? 'green' : 'orange'}>
+        {dockerActionStatusLabel(action, t)}
+      </Tag>
+      {action.confirmationRequired && <Tag color='gray'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>}
+    </div>
+  );
+};
+
+const DockerActionButton: React.FC<{
+  action: DockerWebuiAction;
+  loading: boolean;
+  onAction: (action: DockerWebuiAction) => void;
+  primary?: boolean;
+  size?: 'mini' | 'small';
+}> = ({ action, loading, onAction, primary = false, size }) => {
+  const { t } = useTranslation();
+  const actionButton = (
+    <Button
+      data-testid={`opl-settings-docker-webui-action-${action.actionId}`}
+      type={primary ? 'primary' : 'secondary'}
+      size={size}
+      icon={<Open theme='outline' />}
+      loading={loading}
+      disabled={action.payloadRequired}
+      onClick={() => void onAction(action)}
+    >
+      {action.payloadRequired ? t('settings.resourcesPage.docker.payloadRequired') : dockerActionCtaLabel(action, t)}
+    </Button>
+  );
+
+  return action.payloadRequired ? (
+    <Tooltip content={t('settings.resourcesPage.docker.payloadRequiredHelp')}>{actionButton}</Tooltip>
+  ) : (
+    actionButton
+  );
+};
+
+const DockerMoreActions: React.FC<{
+  actions: DockerWebuiAction[];
+  runningActionId: string | null;
+  onAction: (action: DockerWebuiAction) => void;
+}> = ({ actions, runningActionId, onAction }) => {
+  const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  return (
+    <details
+      data-testid='opl-settings-docker-webui-more-actions'
+      onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+    >
+      <summary className='cursor-pointer text-12px text-t-secondary'>
+        {t('settings.resourcesPage.docker.moreActions')}
+      </summary>
+      {detailsOpen && (
+        <div className='mt-10px flex flex-col divide-y divide-border-1'>
+          {actions.map((action) => (
+            <div
+              key={action.actionId}
+              className='py-12px min-w-0'
+              data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
+            >
+              <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
+                <div className='min-w-0 flex flex-col gap-6px'>
+                  <DockerActionTitle action={action} />
+                  <DockerActionTechnicalDetails action={action} />
+                </div>
+                <div className='shrink-0'>
+                  <DockerActionButton
+                    action={action}
+                    loading={runningActionId === action.actionId}
+                    size='small'
+                    onAction={onAction}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
+  );
+};
 
 function isQuietDockerStatus(status: string): boolean {
   return ['action_available', 'available', 'diagnose_with_doctor', 'healthy', 'ok', 'ready'].includes(status);

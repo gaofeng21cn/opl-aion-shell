@@ -53,6 +53,11 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
       },
       paths: {
         workspace_root_path: '/Users/example/OPL Workspace',
+        workspace_root: {
+          selected_path: '/Users/example/OPL Workspace',
+          exists: true,
+          health_status: 'ready',
+        },
         logs_dir: '/Users/example/Library/Logs/One Person Lab',
         family_workspace_root: {
           selected_path: '/Users/example/workspace',
@@ -94,22 +99,22 @@ vi.mock('react-i18next', () => ({
         'common.refresh': 'Refresh',
         'settings.workspacePage.title': 'Workspace',
         'settings.workspacePage.description': 'Review local paths.',
-        'settings.workspacePage.status.ready': 'Workspace selected',
-        'settings.workspacePage.status.needsAction': 'Workspace needs setup',
-        'settings.workspacePage.permission.title': 'Permission status',
+        'settings.workspacePage.status.ready': 'Available',
+        'settings.workspacePage.status.needsAction': 'Needs setup',
+        'settings.workspacePage.permission.title': 'Writes are allowed',
         'settings.workspacePage.permission.ready': 'Permission ready',
         'settings.workspacePage.permission.needsAction': 'Permission needs attention',
-        'settings.workspacePage.permission.unknown': 'Permission not read',
+        'settings.workspacePage.permission.unknown': 'Not reported',
         'settings.workspacePage.permission.detail': `Permission: ${options?.mode}`,
-        'settings.workspacePage.output.title': 'Task output',
-        'settings.workspacePage.nextStep.title': 'Next step',
+        'settings.workspacePage.output.title': 'Folder exists',
+        'settings.workspacePage.nextStep.title': 'Recommended next step',
         'settings.workspacePage.nextStep.ready': 'Ready to work.',
         'settings.workspacePage.nextStep.missingWorkspace': 'Choose workspace.',
         'settings.workspacePage.nextStep.repairPermission': 'Repair permission.',
         'settings.workspacePage.root.title': 'Work directory',
         'settings.workspacePage.root.current': `Work root: ${options?.path}`,
         'settings.workspacePage.root.missing': 'No work root.',
-        'settings.workspacePage.cards.permission': 'Permission mode',
+        'settings.workspacePage.cards.permission': 'App can access it',
         'settings.workspacePage.cards.lastCheck': 'Last check',
         'settings.workspacePage.technical.title': 'Technical paths',
         'settings.workspacePage.technical.description': 'Support-only paths.',
@@ -168,11 +173,14 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     render(<WorkspaceSettings withWrapper={false} />);
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
-    expect(screen.getByText('Permission status')).toBeInTheDocument();
-    expect(screen.queryByText('Next step')).not.toBeInTheDocument();
-    expect(screen.getByText('Task output')).toBeInTheDocument();
-    expect(screen.getByText('Ready to work.')).toBeInTheDocument();
+    expect(screen.getAllByText('Work root: /Users/example/OPL Workspace').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Folder exists')).toBeInTheDocument();
+    expect(screen.getByText('App can access it')).toBeInTheDocument();
+    expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
+    expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText('Permission: Full Access').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Recommended next step')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Ready to work.').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();

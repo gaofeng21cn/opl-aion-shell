@@ -2852,6 +2852,7 @@ export type I18nKey =
   | 'settings.resourcesPage.docker.confirmationRequired'
   | 'settings.resourcesPage.docker.description'
   | 'settings.resourcesPage.docker.docker'
+  | 'settings.resourcesPage.docker.moreActions'
   | 'settings.resourcesPage.docker.noActions'
   | 'settings.resourcesPage.docker.openResource'
   | 'settings.resourcesPage.docker.payloadRequired'
