@@ -1544,7 +1544,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain('common.runtime.taskField.next');
     expect(screen.getByText('Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('1h');
-    expect(document.body.textContent).toContain('128 tokens / 512 tokens');
+    expect(document.body.textContent).toContain('common.runtime.usageStageAndTotal 128 tokens 512 tokens');
     expect(screen.getByText('Finish reviewer evaluation against current inputs')).toBeInTheDocument();
     expect(document.body.textContent).toContain('AI reviewer');
     expect(document.body.textContent).toContain('DM005 paper line');
@@ -1573,13 +1573,15 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(inProgressGroup.compareDocumentPosition(systemGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(systemGroup.compareDocumentPosition(pausedGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.body.textContent).toContain('Runtime closeout');
-    expect(screen.getAllByText('common.runtime.automationStates.pendingTerminalization').length).toBeGreaterThan(0);
     expect(screen.getByText('写作')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.automationStates.pendingTerminalization');
     expect(document.body.textContent).toContain('Med Auto Science paper mission');
     expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
-    expect(defaultViewText).toContain('common.runtime.scopeSourceLabel');
+    expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');
+    expect(defaultViewText).not.toContain('common.runtime.scopeInferredHint');
+    expect(defaultViewText).not.toContain('common.runtime.metricHints.');
+    expect(defaultViewText).not.toContain('common.runtime.moduleDirty');
+    expect(defaultViewText).not.toContain('bookforge-1.0.0');
     expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
     expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
     expect(defaultViewText).not.toContain('telemetry missing');
@@ -1596,6 +1598,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(defaultViewText).not.toContain('source_ref_count');
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|stage_attempt|wf_/i);
     expect(defaultViewText).not.toContain('common.runtime.masOwnerConsumptionDrift');
+    expect(defaultViewText).not.toContain('common.runtime.automationStates.pendingTerminalization');
     const dm002Row = screen
       .getAllByTestId('runtime-task-row')
       .find((row) => row.textContent?.includes('DM002 paper line'));
@@ -1613,7 +1616,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.currentAttempt');
     expect(dm002Details).toHaveTextContent('1 1');
     expect(dm002Details).toHaveTextContent('1h');
-    expect(dm002Details).toHaveTextContent('128 tokens / 512 tokens');
+    expect(dm002Details).toHaveTextContent('common.runtime.usageStageAndTotal 128 tokens 512 tokens');
     expect(dm002Details).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-06-02T00:01:12.853Z');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.timeline');
     expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.evidence');
@@ -1632,6 +1635,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
     expect(document.body.textContent).toContain('common.runtime.scopeDiagnostics');
     expect(document.body.textContent).toContain('common.runtime.scopeSourceLabel');
+    expect(document.body.textContent).toContain('common.runtime.moduleDirty');
     expect(document.body.textContent).toContain('common.runtime.masOwnerConsumptionDrift');
   });
 
@@ -1849,12 +1853,12 @@ describe('RuntimeSettings app state bridge usage', () => {
     const detail = await screen.findByTestId('runtime-task-detail-dm002-canonical');
     expect(detail).toHaveTextContent('Canonical evidence refs');
     expect(detail).toHaveTextContent('evidence://canonical');
-    expect(detail).toHaveTextContent('42 tokens / 80 tokens');
+    expect(detail).toHaveTextContent('common.runtime.usageStageAndTotal 42 tokens 80 tokens');
     expect(detail).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-07-01T00:02:00Z');
     expect(detail).toHaveTextContent('common.runtime.taskDetails.diagnostics');
     expect(detail).toHaveTextContent('attempt://canonical');
     expect(detail).not.toHaveTextContent('Legacy evidence refs');
-    expect(detail).not.toHaveTextContent('11 tokens / 22 tokens');
+    expect(detail).not.toHaveTextContent('common.runtime.usageStageAndTotal 11 tokens 22 tokens');
     expect(detail).not.toHaveTextContent('paper_autonomy/legacy-stage');
   });
 
