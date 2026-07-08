@@ -39,13 +39,12 @@ const PreferenceRow: React.FC<{
 );
 
 /**
- * 外观设置内容组件 / Appearance settings content component
+ * 偏好设置内容组件 / Preferences content component
  *
- * 提供外观相关的配置选项，包括主题画廊和字体缩放
- * Provides appearance-related configuration options including theme gallery and font scale
+ * 提供普通偏好配置，包括界面行为、显示字体和主题外观
+ * Provides ordinary preferences including interface behavior, display fonts, and theme appearance
  *
  * @features
- * - 统一主题画廊（浅色、深色及装饰主题）/ Unified theme gallery (light, dark, decorative)
  * - 缩放比例控制 / Zoom scale control
  */
 const AppearanceModalContent: React.FC = () => {
@@ -75,8 +74,10 @@ const AppearanceModalContent: React.FC = () => {
             <PersonalPreferenceSettings />
           </div>
 
-          {/* 主题画廊 / Theme Gallery */}
-          <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)] rd-8px'>
+          <div
+            className='px-16px md:px-24px lg:px-28px py-14px md:py-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)] rd-8px'
+            data-testid='preferences-display-section'
+          >
             <div className='mb-12px'>
               <div className='text-14px font-medium text-t-primary leading-22px'>
                 {t('settings.appearancePreferencesTitle')}
@@ -100,6 +101,16 @@ const AppearanceModalContent: React.FC = () => {
               <PreferenceRow label={t('settings.scale')}>
                 <ScaleControl />
               </PreferenceRow>
+            </div>
+          </div>
+
+          <div
+            className='px-16px md:px-24px lg:px-28px py-14px md:py-16px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-1)] rd-8px'
+            data-testid='preferences-theme-section'
+          >
+            <div>
+              <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.theme')}</div>
+              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.advancedThemeListDesc')}</div>
             </div>
             <details className='mt-12px border-0 border-t border-solid border-[var(--color-border-2)] pt-12px'>
               <summary className='cursor-pointer text-14px text-t-primary leading-22px'>
