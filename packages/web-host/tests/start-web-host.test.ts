@@ -60,8 +60,4 @@ describe('startWebHost', () => {
     vi.doUnmock('../src/backend-launcher.js');
     vi.doUnmock('../src/static-server.js');
   });
-
-  test.todo('Backend port conflict: throws and does not leak resources');
-  test.todo('Static-server port conflict: cleans up backend before throwing');
-  test.todo('Stop cleanup: stops static-server then backend in sequence');
 });
