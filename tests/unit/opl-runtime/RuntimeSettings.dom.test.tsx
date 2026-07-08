@@ -1217,10 +1217,10 @@ describe('RuntimeSettings app state bridge usage', () => {
                 scope_source: 'inferred',
                 inferred_scope_hint: 'dm-cvd-mortality-risk',
                 current_scope: {
-                  kind: 'all_projects',
-                  id: 'all-projects',
-                  value: 'all_projects',
-                  label: 'All projects',
+                  kind: 'agent',
+                  id: 'agent:medautoscience',
+                  value: 'agent:medautoscience',
+                  label: 'MAS',
                 },
                 scope_options: [
                   {
@@ -1232,7 +1232,7 @@ describe('RuntimeSettings app state bridge usage', () => {
                   {
                     kind: 'agent',
                     id: 'agent:medautoscience',
-                    value: 'medautoscience',
+                    value: 'agent:medautoscience',
                     label: 'MAS',
                   },
                   {
@@ -1604,10 +1604,6 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
     expect(screen.getByText('common.runtime.taskListTitle')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('common.runtime.moduleField.module');
-    expect(document.body.textContent).toContain('common.runtime.moduleField.health');
-    expect(document.body.textContent).toContain('common.runtime.moduleField.workload');
-    expect(document.body.textContent).toContain('common.runtime.moduleField.lastActivity');
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
     expect(screen.getByText('OPL Book Forge')).toBeInTheDocument();
@@ -1616,10 +1612,16 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
       'common.runtime.moduleWorkloadText 2 6'
     );
+    expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
+      'common.runtime.projectStates.needsAttention'
+    );
+    expect(screen.getByTestId('runtime-module-status-medautogrant')).toHaveTextContent(
+      'common.runtime.projectStates.ready'
+    );
+    expect(screen.getAllByTestId('runtime-task-row').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
     expect(document.body.textContent).toContain('common.runtime.taskField.projectPaper');
-    expect(document.body.textContent).toContain('common.runtime.taskField.agent');
     expect(screen.getAllByText('common.runtime.taskField.stage').length).toBeGreaterThan(0);
     expect(document.body.textContent).toContain('common.runtime.taskField.next');
     expect(screen.getByText('Publication repair check')).toBeInTheDocument();
@@ -1629,7 +1631,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(document.body.textContent).toContain('AI reviewer');
     expect(document.body.textContent).toContain('DM005 paper line');
     expect(document.body.textContent).toContain('投稿包后续处理');
-    expect(document.body.textContent).toContain('同步项目状态/复核运行结果');
+    expect(document.body.textContent).not.toContain('同步项目状态/复核运行结果');
     expect(document.body.textContent).toContain('用量未记录');
     expect(screen.getByTestId('runtime-saved-views')).toHaveTextContent('common.runtime.savedViews');
     expect(screen.getByTestId('runtime-saved-view-all')).toBeInTheDocument();

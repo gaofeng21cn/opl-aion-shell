@@ -12,6 +12,126 @@ describe('runtime visualization projection normalization', () => {
     expect(zhCNCommon['runtime.telemetryMissing']).toBe('用量未记录');
   });
 
+  it('keeps unreported zero usage out of task token labels', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        operator: {
+          workbench: {
+            task_run_projection_v2: {
+              projection_kind: 'task_run_projection_v2',
+              schema_version: 2,
+              tasks: [
+                {
+                  task_id: 'dm-history',
+                  title: 'Historical study',
+                  domain_id: 'medautoscience',
+                  workspace_scope_id: 'workspace:history',
+                  workspace_label: '历史论文',
+                  primary_state: 'paused_waiting_for_direction',
+                  automation_state: 'automation_idle',
+                  stage_run_cockpit: {
+                    stage_usage: {
+                      cost_status: 'observed_or_unreported',
+                      total_tokens_observed: 0,
+                    },
+                    task_total_usage: {
+                      telemetry_status: 'missing',
+                      total_tokens_observed: 0,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
+      taskId: 'dm-history',
+      workspaceId: 'workspace:history',
+      workspaceLabel: '历史论文',
+      stageUsage: undefined,
+      taskTotalUsage: undefined,
+    });
+  });
+
+  it('keeps canonical work item project scope separate from the paper identity', () => {
+    const model = normalizeRuntimeProjection({
+      app_state: {
+        schema_version: 'opl_app_state.v1',
+        operator: {
+          workbench: {
+            runtime_scope: {
+              scope_options: [
+                {
+                  scope_kind: 'all_projects',
+                  scope_id: 'all_projects',
+                  label: '全部项目',
+                },
+                {
+                  scope_kind: 'agent',
+                  scope_id: 'agent:medautoscience',
+                  label: 'Med Auto Science',
+                },
+                {
+                  scope_kind: 'project',
+                  scope_id: 'project:medautoscience:dm-binding',
+                  label: '糖尿病',
+                },
+              ],
+              current_scope: {
+                scope_kind: 'all_projects',
+                scope_id: 'all_projects',
+                label: '全部项目',
+              },
+            },
+            work_item_projection_v1: {
+              surface_kind: 'opl_work_item_projection',
+              schema_version: 'work-item-projection.v1',
+              items: [
+                {
+                  item_id: 'medautoscience:binding:dm-binding:study:002-dm-paper',
+                  title: '002-dm-paper',
+                  work_item: {
+                    work_item_id: '002-dm-paper',
+                    label: '002-dm-paper',
+                    kind: 'study',
+                    study_id: '002-dm-paper',
+                    project_label: '糖尿病',
+                    project_scope_id: 'project:medautoscience:dm-binding',
+                    workspace_binding_id: 'dm-binding',
+                    workspace_label: '糖尿病',
+                  },
+                  agent: {
+                    agent_id: 'medautoscience',
+                    label: 'Med Auto Science',
+                  },
+                  status: {
+                    primary_state: 'delivered_auto_paused',
+                    automation_state: 'automation_idle',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    expect(model.scope.options.map((option) => option.label)).toEqual(['全部项目', 'Med Auto Science', '糖尿病']);
+    expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
+      taskId: 'medautoscience:binding:dm-binding:study:002-dm-paper',
+      projectScopeId: 'project:medautoscience:dm-binding',
+      projectDisplayName: '糖尿病',
+      workspaceId: 'workspace:dm-binding',
+      workspaceLabel: '糖尿病',
+      projectId: '002-dm-paper',
+      studyId: '002-dm-paper',
+    });
+  });
+
   it('normalizes OPL app state as the summary-first runtime model', () => {
     const model = normalizeRuntimeProjection({
       app_state: {
@@ -184,13 +304,13 @@ describe('runtime visualization projection normalization', () => {
         operator: {
           status: 'ready',
           workbench: {
-            runtime_scope: {
-              scope_source: 'inferred',
-              inferred_scope_hint: 'dm-cvd-mortality-risk',
-              current_scope: {
-                kind: 'workspace',
-                id: 'workspace:dm-cvd-mortality-risk',
-                value: 'dm-cvd-mortality-risk',
+              runtime_scope: {
+                scope_source: 'inferred',
+                inferred_scope_hint: 'dm-cvd-mortality-risk',
+                current_scope: {
+                kind: 'project',
+                id: 'project:medautoscience:dm-cvd-mortality-risk',
+                value: 'DM CVD Mortality Risk',
                 label: 'DM CVD Mortality Risk',
               },
               scope_options: [
@@ -201,17 +321,16 @@ describe('runtime visualization projection normalization', () => {
                   label: 'All projects',
                 },
                 {
-                  kind: 'workspace',
-                  id: 'workspace:dm-cvd-mortality-risk',
-                  value: 'dm-cvd-mortality-risk',
-                  label: 'DM CVD Mortality Risk',
-                  workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
+                  kind: 'agent',
+                  id: 'agent:medautoscience',
+                  value: 'agent:medautoscience',
+                  label: 'Med Auto Science',
                 },
                 {
-                  kind: 'workspace',
-                  id: 'workspace:dm-paper-mission-milestone-autopush-20260626',
-                  value: 'dm-paper-mission-milestone-autopush-20260626',
-                  label: 'dm-paper-mission-milestone-autopush-20260626',
+                  kind: 'project',
+                  id: 'project:medautoscience:dm-cvd-mortality-risk',
+                  value: 'DM CVD Mortality Risk',
+                  label: 'DM CVD Mortality Risk',
                   workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
                 },
               ],
@@ -228,6 +347,7 @@ describe('runtime visualization projection normalization', () => {
                   agent_display_name: 'MAS',
                   workspace_id: 'dm-cvd-mortality-risk',
                   workspace_label: 'DM CVD Mortality Risk',
+                  project_scope_id: 'project:medautoscience:dm-cvd-mortality-risk',
                   project_id: 'dm002',
                   project_display_name: 'DM002 paper line',
                   work_item_display_name: 'Publication evaluation',
@@ -291,17 +411,18 @@ describe('runtime visualization projection normalization', () => {
       source: 'inferred',
       inferredHint: 'dm-cvd-mortality-risk',
       current: {
-        kind: 'workspace',
+        kind: 'project',
         label: 'DM CVD Mortality Risk',
       },
     });
-    expect(model.scope.options.filter((option) => option.kind === 'workspace')).toHaveLength(1);
+    expect(model.scope.options.filter((option) => option.kind === 'project')).toHaveLength(1);
     expect(model.taskRunProjectionV2.tasks).toHaveLength(1);
     expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
       taskId: 'dm002-taskrun',
       title: 'DM002 TaskRun',
       agentDisplayName: 'MAS',
       workspaceLabel: 'DM CVD Mortality Risk',
+      projectScopeId: 'project:medautoscience:dm-cvd-mortality-risk',
       projectDisplayName: 'DM002 paper line',
       workItemDisplayName: 'Publication evaluation',
       primaryState: 'in_progress',

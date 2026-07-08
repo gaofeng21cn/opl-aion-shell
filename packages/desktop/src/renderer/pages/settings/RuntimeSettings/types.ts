@@ -94,6 +94,7 @@ export type RuntimeTaskDrilldown = {
   agentDisplayName?: string;
   workspaceId?: string;
   workspaceLabel?: string;
+  projectScopeId?: string;
   projectId?: string;
   projectDisplayName?: string;
   studyId?: string;

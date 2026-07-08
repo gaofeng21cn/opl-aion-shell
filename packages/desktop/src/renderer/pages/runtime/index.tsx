@@ -35,7 +35,21 @@ import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/
 type RuntimeSnapshot = Record<string, unknown>;
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
 const TASK_ROW_GRID_TEMPLATE =
-  'minmax(132px, 1.35fr) minmax(82px, 0.7fr) minmax(86px, 0.75fr) minmax(120px, 1fr) minmax(52px, 0.45fr) minmax(82px, 0.65fr) minmax(64px, 0.5fr)';
+  'minmax(220px, 1.35fr) minmax(112px, 0.62fr) minmax(164px, 0.9fr) minmax(128px, 0.62fr)';
+const TWO_LINE_CLAMP_STYLE: React.CSSProperties = {
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 2,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
+};
+const ONE_LINE_CLAMP_STYLE: React.CSSProperties = {
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 1,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
+};
 
 function isRecord(value: unknown): value is RuntimeSnapshot {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -506,11 +520,6 @@ type RuntimeModuleVisual = {
   background: string;
 };
 
-type RuntimeTaskStatusDisplay = {
-  label: string;
-  color: 'blue' | 'green' | 'orange' | 'purple';
-};
-
 type RuntimeTaskStageMapItem = {
   key: string;
   label: string;
@@ -613,6 +622,10 @@ const RUNTIME_STAGE_DISPLAY_LABELS: Record<string, { en: string; zh: string }> =
     en: 'Write',
     zh: '写作',
   },
+  papercleanroomrebuildrequired: {
+    en: 'Wait for paper rebuild decision',
+    zh: '等待重新整理论文',
+  },
 };
 
 const RUNTIME_TITLE_ACRONYMS = new Set(['ai', 'cvd', 'dm', 'dpcc', 'mas', 'mag', 'oma', 'opl', 'us']);
@@ -656,7 +669,7 @@ function pathLeaf(value: string | null | undefined): string | null {
 }
 
 function workspaceScopeValue(option: RuntimeScopeOption): string | null {
-  return pathLeaf(option.workspacePath) ?? option.value ?? option.label ?? option.id;
+  return option.value ?? option.label ?? pathLeaf(option.workspacePath) ?? option.id;
 }
 
 function humanizeScopeOptionLabel(
@@ -672,8 +685,8 @@ function humanizeScopeOptionLabel(
   if (option.kind === 'workspace') {
     return t('common.runtime.scopeOption.project', {
       label:
-        titleCaseRuntimeTitle(pathLeaf(option.workspacePath)) ??
         titleCaseRuntimeTitle(option.label) ??
+        titleCaseRuntimeTitle(pathLeaf(option.workspacePath)) ??
         titleCaseRuntimeTitle(option.value) ??
         option.label,
     });
@@ -816,6 +829,8 @@ function titleCaseRuntimeTitle(value: string | null | undefined): string | null 
 }
 
 function humanizeProjectLabel(task: RuntimeTaskDrilldown): string {
+  const workItemName = titleCaseRuntimeTitle(task.workItemDisplayName);
+  if (task.studyId && workItemName) return workItemName;
   const projectName = titleCaseRuntimeTitle(task.projectDisplayName);
   if (projectName && !isRawRuntimeTitle(task.projectDisplayName)) return projectName;
   const titleName = titleCaseRuntimeTitle(task.title);
@@ -827,6 +842,23 @@ function humanizeProjectLabel(task: RuntimeTaskDrilldown): string {
     titleCaseRuntimeTitle(task.studyId) ??
     task.taskId
   );
+}
+
+function humanizeProjectContextLabel(task: RuntimeTaskDrilldown): string | null {
+  return (
+    titleCaseRuntimeTitle(task.projectDisplayName) ??
+    titleCaseRuntimeTitle(task.workspaceLabel) ??
+    null
+  );
+}
+
+function normalizedDisplayLabel(value: string | null | undefined): string | null {
+  const text = value?.trim().replace(/\s+/g, ' ').toLowerCase();
+  return text && text.length > 0 ? text : null;
+}
+
+function shouldShowTaskLabel(projectLabel: string, taskLabel: string): boolean {
+  return normalizedDisplayLabel(projectLabel) !== normalizedDisplayLabel(taskLabel);
 }
 
 function firstStringField(source: RuntimeSnapshot, keys: string[]): string | null {
@@ -1087,13 +1119,20 @@ function normalizeScopeToken(value: string | null | undefined): string | null {
   return value && value.trim().length > 0 ? value.trim().toLowerCase() : null;
 }
 
+function normalizeRuntimeActorScopeToken(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  const unprefixed = text.replace(/^agent:/i, '');
+  return humanLabelKey(runtimeLabelFor(unprefixed)) ?? humanLabelKey(unprefixed);
+}
+
 function scopeDisplayOptions(
   options: RuntimeScopeOption[],
   t: (key: string, options?: Record<string, string | number>) => string
 ): RuntimeScopeOption[] {
   const seen = new Set<string>();
   const displayOptions = options.flatMap((option) => {
-    if (!['all_projects', 'agent', 'workspace'].includes(option.kind)) return [];
+    if (!['all_projects', 'agent', 'project'].includes(option.kind)) return [];
     const label = humanizeScopeOptionLabel(option, t);
     const value = option.kind === 'workspace' ? (workspaceScopeValue(option) ?? option.value) : option.value;
     const key =
@@ -1265,14 +1304,6 @@ function combinedUsageLabel(
   return telemetryMissing;
 }
 
-function taskStatusDisplay(item: RuntimeOverviewTaskItem): RuntimeTaskStatusDisplay {
-  if (item.automationState === 'automation_running') return { label: item.automationLabel, color: 'green' };
-  if (item.primaryState === 'system_attention_required') return { label: item.primaryLabel, color: 'orange' };
-  if (item.primaryState === 'owner_decision_required') return { label: item.primaryLabel, color: 'purple' };
-  if (item.primaryState === 'in_progress') return { label: item.primaryLabel, color: 'blue' };
-  return { label: item.primaryLabel, color: 'green' };
-}
-
 function stagePathLabels(task: RuntimeTaskDrilldown, language: string | null | undefined, states: string[]): string[] {
   return task.activePath
     .filter((node) => states.includes((node.state ?? '').toLowerCase()))
@@ -1387,7 +1418,7 @@ function isRawRuntimeNextStep(value: string): boolean {
   const normalized = value.toLowerCase();
   return (
     value.length > 110 ||
-    /stage[_ -]?attempt|workflow|current_control_state|owner-consumed|runtime closeout|paper-progress claim|receipt|readback|terminalization|operator attention/.test(
+    /stage[_ -]?attempt|workflow|current_control_state|owner-consumed|runtime closeout|paper-progress claim|receipt|readback|terminalization|operator attention|domain_route|reconcile/.test(
       normalized
     ) ||
     normalized.includes('opl runtime')
@@ -1407,9 +1438,10 @@ function humanizeNextStep(
       ? t('common.runtime.primaryStates.systemAttentionRequired')
       : null;
   }
+  const rawRuntimeStep = isRawRuntimeNextStep(raw);
   const stageStep = knownRuntimeStageLabel(raw, language);
-  if (stageStep) return stageStep;
-  if (!isRawRuntimeNextStep(raw)) return raw;
+  if (stageStep && !(rawRuntimeStep && /domain_route|reconcile/.test(raw.toLowerCase()))) return stageStep;
+  if (!rawRuntimeStep) return raw;
   if (automationState === 'result_pending_terminalization') {
     return t('common.runtime.primaryStates.systemAttentionRequired');
   }
@@ -1429,13 +1461,32 @@ function scopeMatchesTask(task: RuntimeTaskDrilldown, scope: RuntimeScopeOption 
   const matches = (...values: Array<string | undefined>) =>
     values.map(normalizeScopeToken).some((value) => value === scopeValue);
   if (scope.kind === 'agent') {
-    return matches(task.domainId, task.domainLabel, task.agentDisplayName);
+    const actorScopeValue = normalizeRuntimeActorScopeToken(scope.value ?? scope.label);
+    if (!actorScopeValue) return true;
+    return [task.domainId, task.domainLabel, task.agentDisplayName]
+      .map(normalizeRuntimeActorScopeToken)
+      .some((value) => value === actorScopeValue);
   }
   if (scope.kind === 'workspace') {
-    return matches(task.workspaceId, task.workspaceLabel);
+    const scopeCandidates = new Set([
+      scope.value,
+      scope.label,
+      scope.id,
+      scope.workspacePath,
+      pathLeaf(scope.workspacePath),
+    ].map(normalizeScopeToken));
+    return [task.workspaceId, task.workspaceLabel]
+      .map(normalizeScopeToken)
+      .some((value) => value && scopeCandidates.has(value));
   }
   if (scope.kind === 'project') {
-    return matches(task.projectId, task.projectDisplayName, task.studyId);
+    return matches(
+      task.projectScopeId,
+      task.projectId,
+      task.projectDisplayName,
+      task.workspaceId,
+      task.workspaceLabel
+    );
   }
   return matches(task.taskId, task.title, task.workItemDisplayName, task.executionRunLabel);
 }
@@ -1527,7 +1578,7 @@ function runtimeTaskItem(
   const automationState = automationStateForTask(task);
   const deliveredAutoPaused = isDeliveredPaperAutoPausedTask(task);
   const masOwnerPaused = isMasOwnerTypedBlockerPausedTask(task);
-  const noActiveStage = deliveredAutoPaused || masOwnerPaused;
+  const noActiveStage = primaryState !== 'in_progress' && automationState !== 'automation_running';
   const controlState = controlStateFallbackForTask(task, controlStates);
   const providerRun = record(controlState?.provider_run);
   const lastHeartbeatAt = task.lastHeartbeatAt ?? stringValue(providerRun.last_heartbeat_at);
@@ -2095,8 +2146,10 @@ const RuntimePage: React.FC = () => {
       const telemetryMissing = t('common.runtime.telemetryMissing');
       const accent = primaryStateAccent(item.primaryState);
       const usageLabel = combinedUsageLabel(item, telemetryMissing, t);
-      const statusDisplay = taskStatusDisplay(item);
       const expanded = expandedTaskId === task.taskId;
+      const showTaskLabel = shouldShowTaskLabel(item.projectLabel, item.taskLabel);
+      const projectContextLabel = humanizeProjectContextLabel(task);
+      const showProjectContext = projectContextLabel && shouldShowTaskLabel(item.projectLabel, projectContextLabel);
       return (
         <React.Fragment key={task.taskId}>
           <div
@@ -2125,37 +2178,45 @@ const RuntimePage: React.FC = () => {
                 }}
               />
               <div className='min-w-0 flex-1'>
-                <Typography.Text className='block font-600 text-t-primary break-words'>
+                <Typography.Text className='block font-600 text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
                   {item.projectLabel}
                 </Typography.Text>
-                <Typography.Text className='block mt-3px text-12px text-t-secondary break-words'>
-                  {item.taskLabel}
-                </Typography.Text>
+                <div className='mt-5px flex flex-wrap items-center gap-6px min-w-0'>
+                  <Tag size='small' color='blue'>
+                    {item.agentLabel}
+                  </Tag>
+                  {showProjectContext && <Tag size='small'>{projectContextLabel}</Tag>}
+                  {showTaskLabel && (
+                    <Typography.Text className='text-12px text-t-secondary' style={ONE_LINE_CLAMP_STYLE}>
+                      {item.taskLabel}
+                    </Typography.Text>
+                  )}
+                  <Button size='mini' type='text' onClick={() => setExpandedTaskId(expanded ? null : task.taskId)}>
+                    {expanded ? t('common.runtime.taskDetails.close') : t('common.runtime.taskDetails.open')}
+                  </Button>
+                </div>
               </div>
             </div>
-            <Typography.Text className='block text-13px text-t-primary break-words'>{item.agentLabel}</Typography.Text>
-            <Typography.Text className='block text-13px text-t-primary break-words'>
+            <Typography.Text className='block text-13px text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
               {item.stageLabel ?? telemetryMissing}
             </Typography.Text>
             <div className='min-w-0'>
-              <Typography.Text className='block text-13px text-t-primary break-words'>
+              <Typography.Text className='block text-13px text-t-primary' style={TWO_LINE_CLAMP_STYLE}>
                 {item.nextStep ?? telemetryMissing}
               </Typography.Text>
               {item.ownerLabel && (
-                <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                <Typography.Text className='block mt-4px text-12px text-t-secondary' style={ONE_LINE_CLAMP_STYLE}>
                   {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
                 </Typography.Text>
               )}
             </div>
-            <Typography.Text className='block text-13px text-t-primary break-words'>
-              {item.elapsedLabel ?? telemetryMissing}
-            </Typography.Text>
-            <Typography.Text className='block text-13px text-t-primary break-words'>{usageLabel}</Typography.Text>
-            <div className='flex flex-col gap-6px items-start'>
-              <Tag color={statusDisplay.color}>{statusDisplay.label}</Tag>
-              <Button size='mini' type='text' onClick={() => setExpandedTaskId(expanded ? null : task.taskId)}>
-                {expanded ? t('common.runtime.taskDetails.close') : t('common.runtime.taskDetails.open')}
-              </Button>
+            <div className='min-w-0'>
+              <Typography.Text className='block text-13px text-t-primary' style={ONE_LINE_CLAMP_STYLE}>
+                {item.elapsedLabel ?? telemetryMissing}
+              </Typography.Text>
+              <Typography.Text className='block mt-4px text-12px text-t-secondary' style={TWO_LINE_CLAMP_STYLE}>
+                {usageLabel}
+              </Typography.Text>
             </div>
           </div>
           {expanded && renderTaskDetails(item, usageLabel)}
@@ -2180,14 +2241,11 @@ const RuntimePage: React.FC = () => {
       >
         {[
           t('common.runtime.taskField.projectPaper'),
-          t('common.runtime.taskField.agent'),
           t('common.runtime.taskField.stage'),
           t('common.runtime.taskField.next'),
-          t('common.runtime.taskField.elapsed'),
-          t('common.runtime.taskField.usage'),
-          t('common.status'),
+          `${t('common.runtime.taskField.elapsed')} / ${t('common.runtime.taskField.usage')}`,
         ].map((label) => (
-          <Typography.Text key={label} className='font-600 text-t-secondary break-words'>
+          <Typography.Text key={label} className='font-600 text-t-secondary' style={ONE_LINE_CLAMP_STYLE}>
             {label}
           </Typography.Text>
         ))}
@@ -2435,77 +2493,58 @@ const RuntimePage: React.FC = () => {
                         attention: attentionModuleCount,
                       })}
                     </Typography.Text>
-                    <div style={{ overflowX: 'auto' }}>
-                      <div
-                        className='grid gap-10px pb-8px text-12px text-t-secondary'
-                        style={{ gridTemplateColumns: 'minmax(150px, 1.1fr) 84px 82px 96px', minWidth: 430 }}
-                      >
-                        {[
-                          t('common.runtime.moduleField.module'),
-                          t('common.runtime.moduleField.health'),
-                          t('common.runtime.moduleField.workload'),
-                          t('common.runtime.moduleField.lastActivity'),
-                        ].map((label) => (
-                          <Typography.Text key={label} className='font-600 text-t-secondary break-words'>
-                            {label}
-                          </Typography.Text>
-                        ))}
-                      </div>
-                      <div className='flex flex-col'>
-                        {moduleStatusItems.map((item) => {
-                          const visual = moduleVisualFor(item);
-                          return (
-                            <div
-                              key={item.id}
-                              data-testid={`runtime-module-status-${item.id}`}
-                              className='grid gap-10px py-12px'
+                    <div className='flex flex-col divide-y divide-border-1'>
+                      {moduleStatusItems.map((item) => {
+                        const visual = moduleVisualFor(item);
+                        return (
+                          <div
+                            key={item.id}
+                            data-testid={`runtime-module-status-${item.id}`}
+                            className='flex items-start gap-12px py-12px min-w-0'
+                          >
+                            <span
+                              aria-hidden='true'
+                              className='flex items-center justify-center'
                               style={{
-                                borderTop: '1px solid #e5e7eb',
-                                gridTemplateColumns: 'minmax(190px, 1.1fr) 84px 82px 96px',
-                                minWidth: 470,
+                                width: 36,
+                                height: 36,
+                                borderRadius: 8,
+                                color: visual.color,
+                                background: visual.background,
+                                flexShrink: 0,
                               }}
                             >
-                              <div className='min-w-0 flex items-start gap-10px'>
-                                <span
-                                  aria-hidden='true'
-                                  className='flex items-center justify-center'
-                                  style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 8,
-                                    color: visual.color,
-                                    background: visual.background,
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {visual.icon}
-                                </span>
-                                <div className='min-w-0'>
-                                  <Typography.Text className='block font-600 text-t-primary break-words'>
-                                    {item.title}
-                                  </Typography.Text>
-                                </div>
-                              </div>
-                              <div>
+                              {visual.icon}
+                            </span>
+                            <div className='min-w-0 flex-1'>
+                              <div className='flex items-start justify-between gap-10px min-w-0'>
+                                <Typography.Text className='block font-600 text-t-primary' style={ONE_LINE_CLAMP_STYLE}>
+                                  {item.title}
+                                </Typography.Text>
                                 {item.statusLabel && (
-                                  <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
+                                  <Tag
+                                    color={item.needsAttention ? 'orange' : 'green'}
+                                    style={{ flexShrink: 0, whiteSpace: 'normal' }}
+                                  >
+                                    {item.statusLabel}
+                                  </Tag>
                                 )}
                               </div>
-                              <Typography.Text className='text-13px text-t-primary break-words'>
+                              <Typography.Text className='block mt-6px text-12px text-t-secondary'>
                                 {t('common.runtime.moduleWorkloadText', {
                                   automation: item.automationRunningCount,
                                   total: item.activeTaskCount,
                                 })}
                               </Typography.Text>
-                              <Typography.Text className='text-13px text-t-secondary break-words'>
+                              <Typography.Text className='block mt-2px text-12px text-t-secondary'>
                                 {item.latestActivityAt
                                   ? formatRecentActivityHint(item.latestActivityAt, t)
                                   : t('common.runtime.noRecentActivity')}
                               </Typography.Text>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </Card>

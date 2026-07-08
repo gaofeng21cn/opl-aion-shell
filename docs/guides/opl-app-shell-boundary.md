@@ -52,6 +52,18 @@ Runtime task display states use Framework/App-owned `primary_state` and
 downgrade uncertain data to idle or attention states; they must not upgrade a
 task into running, delivered, package-ready, or terminalized semantics.
 
+Runtime scope controls are a user-facing filter, not a runtime-diagnostics
+index. The default selector should show only all projects, agent, and project
+scopes. Workspace binding ids, single work-item/task scopes, autopush names,
+stage-attempt ids, workflow ids, and provider refs belong in task detail or
+advanced diagnostics. A project scope represents the registered domain project
+workspace, while the task list shows one work item per paper or deliverable.
+
+Token usage is evidence-backed telemetry. When Framework reports missing,
+unreported, or zero-without-observed-count usage, the renderer must display
+"Usage not recorded" / "用量未记录" rather than `0 tokens`. Only observed
+stage or task totals may be rendered as token counts.
+
 `app_state.operator.default_read_surface_policy` is the shell-visible guard for
 the default Runtime page. The normal page must treat
 `current_owner_delta` / `opl_current_owner_delta` as the first-screen payload.

@@ -163,15 +163,36 @@ function normalizeStageUsage(value: unknown): string | undefined {
   const scalar = asString(value) ?? asNumber(value)?.toString();
   if (scalar) return scalar;
   if (!isRecord(value)) return undefined;
+  const telemetryStatus = asString(value.telemetry_status);
+  const usageStatus =
+    asString(value.cost_status) ??
+    asString(value.usage_status) ??
+    asString(firstRecord(value.cost_summary)?.cost_status);
+  const unreportedZeroStatus =
+    usageStatus?.toLowerCase().includes('unreported') || usageStatus?.toLowerCase().startsWith('not_measured');
+  const tokenObservedCount =
+    asNumber(value.token_observed_count) ??
+    asNumber(value.observed_token_count) ??
+    asNumber(value.token_usage_observed_count);
   const totalTokens =
     asNumber(value.total_tokens) ??
     asNumber(value.total_tokens_observed) ??
     asNumber(value.total_token_count) ??
     asNumber(value.token_count) ??
     asNumber(value.tokens);
-  if (totalTokens !== undefined) return `${totalTokens} tokens`;
   const inputTokens = asNumber(value.input_tokens) ?? asNumber(value.prompt_tokens);
   const outputTokens = asNumber(value.output_tokens) ?? asNumber(value.completion_tokens);
+  if (totalTokens !== undefined) {
+    if (
+      totalTokens === 0 &&
+      inputTokens === undefined &&
+      outputTokens === undefined &&
+      (unreportedZeroStatus || telemetryStatus === 'missing' || (tokenObservedCount ?? 0) === 0)
+    ) {
+      return undefined;
+    }
+    return `${totalTokens} tokens`;
+  }
   if (inputTokens !== undefined || outputTokens !== undefined) {
     return [
       inputTokens !== undefined ? `in ${inputTokens}` : null,
@@ -461,7 +482,7 @@ function readScopeOption(entry: JsonRecord, index: number): RuntimeScopeOption {
     asString(entry.id) ??
     `${kind}-${index + 1}`;
   return {
-    id: asString(entry.id) ?? `${kind}:${value}`,
+    id: asString(entry.id) ?? asString(entry.scope_id) ?? `${kind}:${value}`,
     kind,
     label: asString(entry.label) ?? asString(entry.display_label) ?? asString(entry.title) ?? value,
     value,
@@ -764,8 +785,9 @@ function readTaskRunRecord(entry: JsonRecord, index: number): RuntimeTaskDrilldo
     domainId: asString(entry.domain_id),
     domainLabel: asString(entry.domain_label),
     agentDisplayName: asString(entry.agent_display_name) ?? asString(entry.domain_label) ?? asString(entry.domain_id),
-    workspaceId: asString(entry.workspace_id),
+    workspaceId: asString(entry.workspace_id) ?? asString(entry.workspace_scope_id),
     workspaceLabel: asString(entry.workspace_label),
+    projectScopeId: asString(entry.project_scope_id),
     projectId: asString(entry.project_id) ?? asString(entry.study_id),
     projectDisplayName: asString(entry.project_display_name) ?? asString(entry.study_id),
     studyId: asString(entry.study_id),
@@ -883,6 +905,10 @@ function readWorkItemProjectionRecord(
   const attemptId = asString(attempt.attempt_id);
   const actionSummary = asString(action.summary) ?? asString(action.title);
   const actionRef = asString(action.action_ref) ?? asString(action.ref);
+  const scope = firstRecord(entry.scope) ?? {};
+  const workspaceBindingId = asString(workItem.workspace_binding_id);
+  const workspaceLabel = asString(workItem.workspace_label) ?? legacyTask?.workspaceLabel;
+  const projectScopeId = asString(workItem.project_scope_id) ?? asString(scope.project_scope_id);
   const actionCardInput = {
     card_id: `${taskId}:canonical-action`,
     title: asString(action.title) ?? 'Next action',
@@ -905,10 +931,11 @@ function readWorkItemProjectionRecord(
     domainId: asString(agent.agent_id) ?? legacyTask?.domainId,
     domainLabel: asString(agent.label) ?? legacyTask?.domainLabel,
     agentDisplayName: asString(agent.label) ?? legacyTask?.agentDisplayName,
-    workspaceId: legacyTask?.workspaceId,
-    workspaceLabel: legacyTask?.workspaceLabel,
+    workspaceId: legacyTask?.workspaceId ?? (workspaceBindingId ? `workspace:${workspaceBindingId}` : undefined),
+    workspaceLabel,
+    projectScopeId: projectScopeId ?? legacyTask?.projectScopeId,
     projectId: asString(workItem.work_item_id) ?? asString(workItem.study_id) ?? legacyTask?.projectId,
-    projectDisplayName: asString(workItem.project_label) ?? legacyTask?.projectDisplayName,
+    projectDisplayName: asString(workItem.project_label) ?? workspaceLabel ?? legacyTask?.projectDisplayName,
     studyId: asString(workItem.study_id) ?? legacyTask?.studyId,
     workItemDisplayName: asString(workItem.label) ?? legacyTask?.workItemDisplayName,
     executionRunLabel: asString(stage.execution_run_label) ?? legacyTask?.executionRunLabel,
