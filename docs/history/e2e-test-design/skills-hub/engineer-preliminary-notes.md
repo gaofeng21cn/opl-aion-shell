@@ -234,7 +234,7 @@ export const BTN_DELETE_SKILL = '[data-testid^="btn-delete-"]';
 4. **testid 充足性** — 对照"三、3.2"节检查遗漏项
 5. **替代方案** — 不可测项是否有 bridge 断言或单测兜底
 
-Review 意见追加到 `tests/e2e/docs/skills-hub/discussion-log.zh.md`,通过 SendMessage 通知 skills-analyst-2。
+Review 意见追加到 `docs/history/e2e-test-design/skills-hub/discussion-log.zh.md`,通过 SendMessage 通知 skills-analyst-2。
 
 ---
 
