@@ -476,6 +476,19 @@ type RuntimeOverviewTaskItem = {
   currentnessTag: string | null;
 };
 
+type RuntimeTaskStageMapItem = {
+  key: string;
+  label: string;
+  value: string;
+  color?: string;
+};
+
+type RuntimeTaskDetailRow = {
+  key: string;
+  label: string;
+  value: string;
+};
+
 type RuntimeOverviewSection = {
   state: RuntimeTaskPrimaryState;
   title: string;
@@ -1027,6 +1040,124 @@ function dedupeTaskItems(items: RuntimeOverviewTaskItem[]): RuntimeOverviewTaskI
   return Array.from(byKey.values());
 }
 
+function combinedUsageLabel(item: RuntimeOverviewTaskItem, telemetryMissing: string): string {
+  if (item.stageUsageLabel === telemetryMissing) return telemetryMissing;
+  if (item.stageUsageLabel === item.totalUsageLabel || item.totalUsageLabel === telemetryMissing) {
+    return item.stageUsageLabel;
+  }
+  return `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
+}
+
+function stagePathLabels(task: RuntimeTaskDrilldown, language: string | null | undefined, states: string[]): string[] {
+  return task.activePath
+    .filter((node) => states.includes((node.state ?? '').toLowerCase()))
+    .map((node) => runtimeStageLabel(node.label ?? node.stageId ?? node.id, language))
+    .filter((value): value is string => Boolean(value));
+}
+
+function taskStageMap(
+  item: RuntimeOverviewTaskItem,
+  t: (key: string, options?: Record<string, string | number>) => string,
+  language: string | null | undefined
+): RuntimeTaskStageMapItem[] {
+  const empty = t('common.runtime.values.empty');
+  const completedPath = stagePathLabels(item.task, language, ['done', 'completed', 'accepted', 'closed']);
+  const completed =
+    completedPath.at(-1) ??
+    (item.task.runtimeCloseoutObserved || item.primaryState === 'delivered_auto_paused' ? item.primaryLabel : empty);
+  const userWait = item.primaryState === 'owner_decision_required' ? (item.ownerLabel ?? item.primaryLabel) : empty;
+  const systemWait =
+    item.primaryState === 'system_attention_required' ||
+    item.automationState === 'automation_failed' ||
+    item.automationState === 'result_pending_terminalization'
+      ? item.primaryLabel
+      : empty;
+  return [
+    {
+      key: 'completed',
+      label: t('common.runtime.taskDetails.stage.completed'),
+      value: completed,
+      color: completed === empty ? undefined : 'green',
+    },
+    {
+      key: 'current',
+      label: t('common.runtime.taskDetails.stage.current'),
+      value: item.stageLabel ?? empty,
+      color: 'blue',
+    },
+    {
+      key: 'next',
+      label: t('common.runtime.taskDetails.stage.next'),
+      value: item.nextStep ?? item.automationLabel,
+      color: 'cyan',
+    },
+    {
+      key: 'waiting-user',
+      label: t('common.runtime.taskDetails.stage.waitingUser'),
+      value: userWait,
+      color: userWait === empty ? undefined : 'purple',
+    },
+    {
+      key: 'system-handling',
+      label: t('common.runtime.taskDetails.stage.systemHandling'),
+      value: systemWait,
+      color: systemWait === empty ? undefined : 'orange',
+    },
+  ];
+}
+
+function taskDetailRows(
+  item: RuntimeOverviewTaskItem,
+  usageLabel: string,
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeTaskDetailRow[] {
+  const empty = t('common.runtime.values.empty');
+  const telemetryMissing = t('common.runtime.telemetryMissing');
+  const attemptCount = item.task.stageAttemptIds.length;
+  const attemptValue = attemptCount > 0 ? String(attemptCount) : empty;
+  const currentAttempt =
+    attemptCount > 0
+      ? t('common.runtime.taskDetails.currentAttemptValue', { current: attemptCount, count: attemptCount })
+      : empty;
+  return [
+    {
+      key: 'stage',
+      label: t('common.runtime.taskDetails.currentStage'),
+      value: item.stageLabel ?? telemetryMissing,
+    },
+    {
+      key: 'attempt-count',
+      label: t('common.runtime.taskDetails.attemptCount'),
+      value: attemptValue,
+    },
+    {
+      key: 'current-attempt',
+      label: t('common.runtime.taskDetails.currentAttempt'),
+      value: currentAttempt,
+    },
+    {
+      key: 'next',
+      label: t('common.runtime.taskDetails.nextAction'),
+      value: item.nextStep ?? telemetryMissing,
+    },
+    {
+      key: 'duration',
+      label: t('common.runtime.taskDetails.duration'),
+      value: item.elapsedLabel ?? telemetryMissing,
+    },
+    {
+      key: 'usage',
+      label: t('common.runtime.taskDetails.usage'),
+      value: usageLabel,
+    },
+    {
+      key: 'heartbeat',
+      label: t('common.runtime.taskDetails.heartbeat'),
+      value: item.livenessLabel,
+    },
+  ];
+}
+
 function isRawRuntimeNextStep(value: string): boolean {
   const normalized = value.toLowerCase();
   return (
@@ -1317,6 +1448,8 @@ const RuntimePage: React.FC = () => {
   const requestSeq = useRef({ summary: 0, full: 0 });
   const runningRefreshInFlight = useRef(false);
   const [selectedScopeId, setSelectedScopeId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const runtimeLanguage = i18n.resolvedLanguage ?? i18n.language;
 
   useEffect(() => {
     messageRef.current = message;
@@ -1432,14 +1565,8 @@ const RuntimePage: React.FC = () => {
   }, [selectedScope, t]);
   const overview = useMemo(
     () =>
-      buildOverviewSections(
-        runtimeModel.taskRunProjectionV2.tasks,
-        selectedScope,
-        controlStates,
-        t,
-        i18n.resolvedLanguage ?? i18n.language
-      ),
-    [controlStates, i18n.language, i18n.resolvedLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
+      buildOverviewSections(runtimeModel.taskRunProjectionV2.tasks, selectedScope, controlStates, t, runtimeLanguage),
+    [controlStates, runtimeLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
   );
   const moduleStatusItems = useMemo(
     () =>
@@ -1563,93 +1690,233 @@ const RuntimePage: React.FC = () => {
     }
   }, []);
 
+  const renderTaskRefCards = useCallback(
+    (cards: RuntimeTaskDrilldown['evidenceCards']) =>
+      cards.length > 0 ? (
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+          {cards.map((card) => (
+            <div key={card.id} className='rounded-6px border border-border-1 px-12px py-10px min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary break-words'>{card.label}</Typography.Text>
+              {card.value && (
+                <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                  {card.value}
+                </Typography.Text>
+              )}
+              {card.ref && (
+                <Typography.Text className='block mt-4px text-12px text-t-secondary break-all'>
+                  {card.ref}
+                </Typography.Text>
+              )}
+              {card.details.length > 0 && (
+                <div className='mt-8px flex flex-col gap-3px'>
+                  {card.details.map((detail) => (
+                    <Typography.Text
+                      key={`${card.id}-${detail.key}`}
+                      className='block text-12px text-t-secondary break-words'
+                    >
+                      {detail.key}: {detail.value}
+                    </Typography.Text>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Alert type='info' content={t('common.runtime.taskDetails.noItems')} />
+      ),
+    [t]
+  );
+
+  const renderTaskDetails = useCallback(
+    (item: RuntimeOverviewTaskItem, usageLabel: string) => {
+      const stageMap = taskStageMap(item, t, runtimeLanguage);
+      const rows = taskDetailRows(item, usageLabel, t);
+      const timelineRows = [
+        item.latestActivityAt
+          ? {
+              key: 'last-progress',
+              label: t('common.runtime.lastProgressAt', { time: item.latestActivityAt }),
+            }
+          : null,
+        {
+          key: 'heartbeat',
+          label: item.livenessLabel,
+        },
+        item.blockerSummary
+          ? {
+              key: 'blocker',
+              label: t('common.runtime.blockerSummaryLine', { summary: item.blockerSummary }),
+            }
+          : null,
+      ].filter((row): row is { key: string; label: string } => Boolean(row));
+      const sections = [
+        { key: 'evidence', title: t('common.runtime.taskDetails.evidence'), cards: item.task.evidenceCards },
+        { key: 'actions', title: t('common.runtime.taskDetails.actions'), cards: item.task.actionCards },
+        { key: 'resources', title: t('common.runtime.taskDetails.resources'), cards: item.task.resourceRefs },
+      ];
+      return (
+        <div
+          data-testid={`runtime-task-detail-${item.task.taskId}`}
+          className='px-18px py-16px'
+          style={{ borderTop: '1px solid #e5e7eb', background: '#f8fafc', minWidth: 920 }}
+        >
+          <div className='flex flex-col gap-16px'>
+            <div className='flex flex-col gap-4px'>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('common.runtime.taskDetails.title', { task: item.projectLabel })}
+              </Typography.Text>
+              <Typography.Text className='text-13px text-t-secondary break-words'>{item.taskLabel}</Typography.Text>
+            </div>
+
+            <div className='flex flex-col gap-10px'>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('common.runtime.taskDetails.stageMap')}
+              </Typography.Text>
+              <div className='grid grid-cols-1 md:grid-cols-5 gap-8px'>
+                {stageMap.map((stage) => (
+                  <div key={stage.key} className='rounded-6px border border-border-1 bg-white px-10px py-8px min-w-0'>
+                    <Typography.Text className='block text-12px text-t-secondary break-words'>
+                      {stage.label}
+                    </Typography.Text>
+                    <Tag color={stage.color} className='mt-6px'>
+                      {stage.value}
+                    </Tag>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+              {rows.map((row) => (
+                <div key={row.key} className='rounded-6px border border-border-1 bg-white px-10px py-8px min-w-0'>
+                  <Typography.Text className='block text-12px text-t-secondary break-words'>
+                    {row.label}
+                  </Typography.Text>
+                  <Typography.Text className='block mt-4px text-13px text-t-primary break-words'>
+                    {row.value}
+                  </Typography.Text>
+                </div>
+              ))}
+            </div>
+
+            <div className='flex flex-col gap-8px'>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('common.runtime.taskDetails.timeline')}
+              </Typography.Text>
+              <div className='flex flex-col divide-y divide-border-1 rounded-6px border border-border-1 bg-white'>
+                {timelineRows.map((row) => (
+                  <Typography.Text
+                    key={row.key}
+                    className='block px-10px py-8px text-13px text-t-secondary break-words'
+                  >
+                    {row.label}
+                  </Typography.Text>
+                ))}
+              </div>
+            </div>
+
+            {sections.map((section) => (
+              <div key={section.key} className='flex flex-col gap-8px'>
+                <Typography.Text className='font-600 text-t-primary'>{section.title}</Typography.Text>
+                {renderTaskRefCards(section.cards)}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    },
+    [renderTaskRefCards, runtimeLanguage, t]
+  );
+
   const renderTaskItem = useCallback(
     (item: RuntimeOverviewTaskItem) => {
       const { task } = item;
       const telemetryMissing = t('common.runtime.telemetryMissing');
       const accent = primaryStateAccent(item.primaryState);
-      const usageLabel =
-        item.stageUsageLabel === telemetryMissing
-          ? telemetryMissing
-          : item.stageUsageLabel === item.totalUsageLabel || item.totalUsageLabel === telemetryMissing
-            ? item.stageUsageLabel
-            : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
+      const usageLabel = combinedUsageLabel(item, telemetryMissing);
+      const expanded = expandedTaskId === task.taskId;
       return (
-        <div
-          key={task.taskId}
-          data-testid='runtime-task-row'
-          style={{
-            borderTop: '1px solid #e5e7eb',
-            display: 'grid',
-            gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
-            gap: 16,
-            minWidth: 920,
-            alignItems: 'start',
-            padding: '14px 18px',
-            background: '#fff',
-          }}
-        >
-          <div className='flex items-start gap-10px min-w-0'>
-            <span
-              aria-hidden='true'
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 999,
-                background: accent.color,
-                marginTop: 6,
-                flexShrink: 0,
-              }}
-            />
-            <div className='min-w-0 flex-1'>
-              <Typography.Text className='block font-600 text-t-primary break-words'>
-                {item.projectLabel}
+        <React.Fragment key={task.taskId}>
+          <div
+            data-testid='runtime-task-row'
+            style={{
+              borderTop: '1px solid #e5e7eb',
+              display: 'grid',
+              gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
+              gap: 16,
+              minWidth: 920,
+              alignItems: 'start',
+              padding: '14px 18px',
+              background: '#fff',
+            }}
+          >
+            <div className='flex items-start gap-10px min-w-0'>
+              <span
+                aria-hidden='true'
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 999,
+                  background: accent.color,
+                  marginTop: 6,
+                  flexShrink: 0,
+                }}
+              />
+              <div className='min-w-0 flex-1'>
+                <Typography.Text className='block font-600 text-t-primary break-words'>
+                  {item.projectLabel}
+                </Typography.Text>
+                <Typography.Text className='block mt-3px text-12px text-t-secondary break-words'>
+                  {item.taskLabel}
+                </Typography.Text>
+              </div>
+            </div>
+            <Typography.Text className='block text-13px text-t-primary break-words'>{item.agentLabel}</Typography.Text>
+            <Typography.Text className='block text-13px text-t-primary break-words'>
+              {item.stageLabel ?? telemetryMissing}
+            </Typography.Text>
+            <div className='min-w-0'>
+              <Typography.Text className='block text-13px text-t-primary break-words'>
+                {item.nextStep ?? telemetryMissing}
               </Typography.Text>
-              <Typography.Text className='block mt-3px text-12px text-t-secondary break-words'>
-                {item.taskLabel}
-              </Typography.Text>
+              {item.ownerLabel && (
+                <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                  {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
+                </Typography.Text>
+              )}
+            </div>
+            <Typography.Text className='block text-13px text-t-primary break-words'>
+              {item.elapsedLabel ?? telemetryMissing}
+            </Typography.Text>
+            <Typography.Text className='block text-13px text-t-primary break-words'>{usageLabel}</Typography.Text>
+            <div className='flex flex-col gap-6px items-start'>
+              <Tag
+                color={
+                  item.primaryState === 'in_progress'
+                    ? 'blue'
+                    : item.primaryState === 'system_attention_required'
+                      ? 'orange'
+                      : item.primaryState === 'owner_decision_required'
+                        ? 'purple'
+                        : 'green'
+                }
+              >
+                {item.primaryLabel}
+              </Tag>
+              <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
+                {item.automationLabel}
+              </Tag>
+              <Button size='mini' type='text' onClick={() => setExpandedTaskId(expanded ? null : task.taskId)}>
+                {expanded ? t('common.runtime.taskDetails.close') : t('common.runtime.taskDetails.open')}
+              </Button>
             </div>
           </div>
-          <Typography.Text className='block text-13px text-t-primary break-words'>{item.agentLabel}</Typography.Text>
-          <Typography.Text className='block text-13px text-t-primary break-words'>
-            {item.stageLabel ?? telemetryMissing}
-          </Typography.Text>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-13px text-t-primary break-words'>
-              {item.nextStep ?? telemetryMissing}
-            </Typography.Text>
-            {item.ownerLabel && (
-              <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
-                {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
-              </Typography.Text>
-            )}
-          </div>
-          <Typography.Text className='block text-13px text-t-primary break-words'>
-            {item.elapsedLabel ?? telemetryMissing}
-          </Typography.Text>
-          <Typography.Text className='block text-13px text-t-primary break-words'>{usageLabel}</Typography.Text>
-          <div className='flex flex-col gap-6px items-start'>
-            <Tag
-              color={
-                item.primaryState === 'in_progress'
-                  ? 'blue'
-                  : item.primaryState === 'system_attention_required'
-                    ? 'orange'
-                    : item.primaryState === 'owner_decision_required'
-                      ? 'purple'
-                      : 'green'
-              }
-            >
-              {item.primaryLabel}
-            </Tag>
-            <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
-              {item.automationLabel}
-            </Tag>
-          </div>
-        </div>
+          {expanded && renderTaskDetails(item, usageLabel)}
+        </React.Fragment>
       );
     },
-    [t]
+    [expandedTaskId, renderTaskDetails, t]
   );
 
   const renderTaskTableHeader = useCallback(

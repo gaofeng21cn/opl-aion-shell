@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import RuntimePage from '@/renderer/pages/runtime';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import { resetOplAppStateLoadsForTest } from '@/renderer/hooks/system/useOplAppState';
@@ -1313,12 +1313,48 @@ describe('RuntimeSettings app state bridge usage', () => {
                   next_owner: 'AI reviewer',
                   last_progress_at: '2026-06-02T00:01:12.853Z',
                   stage_attempt_ids: ['sat_dm002'],
+                  active_path: [
+                    {
+                      node_id: 'stage-intake',
+                      label: 'Intake',
+                      state: 'completed',
+                    },
+                    {
+                      node_id: 'stage-review',
+                      label: 'Publication repair check',
+                      state: 'current',
+                    },
+                  ],
                   stage_run_cockpit: {
                     elapsed_seconds: 5400,
                     last_heartbeat_at: '2026-06-02T00:01:12.853Z',
                     stage_usage: { total_tokens: 128 },
                     task_total_usage: { total_tokens: 512 },
                   },
+                  evidence_cards: [
+                    {
+                      card_id: 'dm002-evidence',
+                      title: 'Publication evidence packet',
+                      summary: 'Reviewer evidence is ready',
+                      ref: 'artifact://dm002-publication-evidence',
+                    },
+                  ],
+                  action_cards: [
+                    {
+                      card_id: 'dm002-action',
+                      title: 'Preview reviewer handoff',
+                      summary: 'Dry-run action is available',
+                      ref: 'action://dm002-preview-reviewer-handoff',
+                    },
+                  ],
+                  resource_cards: [
+                    {
+                      card_id: 'dm002-resource',
+                      title: 'Fabric resource',
+                      summary: 'Resource status is available',
+                      ref: 'resource://dm002-fabric-status',
+                    },
+                  ],
                   blocker_ref_count: 0,
                   artifact_provenance_summary: 'publication eval packet from current App state',
                   reviewer_receipt_summary: 'review receipt accepted by reviewer lane',
@@ -1538,11 +1574,43 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(defaultViewText).not.toMatch(/\b(medautoscience|medautogrant|redcube|oplmetaagent|oplbookforge)\b/);
     expect(defaultViewText).not.toContain('submission_milestone_candidate::followthrough::followthrough-01');
     expect(defaultViewText).not.toContain('domain_route/reconcile-apply');
+    expect(defaultViewText).not.toContain('Publication evidence packet');
+    expect(defaultViewText).not.toContain('artifact://dm002-publication-evidence');
+    expect(defaultViewText).not.toContain('Preview reviewer handoff');
+    expect(defaultViewText).not.toContain('resource://dm002-fabric-status');
     expect(defaultViewText).not.toContain('2026-07-04T19:00:00Z');
     expect(defaultViewText).not.toContain('telemetry_status');
     expect(defaultViewText).not.toContain('source_ref_count');
     expect(defaultViewText).not.toMatch(/Temporal|provider|projection|投影|引用|stage_attempt|wf_/i);
     expect(defaultViewText).not.toContain('common.runtime.masOwnerConsumptionDrift');
+    const dm002Row = screen
+      .getAllByTestId('runtime-task-row')
+      .find((row) => row.textContent?.includes('DM002 paper line'));
+    if (!dm002Row) throw new Error('DM002 task row should be visible');
+    fireEvent.click(within(dm002Row).getByText('common.runtime.taskDetails.open'));
+    const dm002Details = await screen.findByTestId('runtime-task-detail-dm002-publication-eval');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.stageMap');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.stage.completed');
+    expect(dm002Details).toHaveTextContent('Intake');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.stage.current');
+    expect(dm002Details).toHaveTextContent('Publication repair check');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.stage.next');
+    expect(dm002Details).toHaveTextContent('Finish reviewer evaluation against current inputs');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.attemptCount');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.currentAttempt');
+    expect(dm002Details).toHaveTextContent('1 1');
+    expect(dm002Details).toHaveTextContent('1h');
+    expect(dm002Details).toHaveTextContent('128 tokens / 512 tokens');
+    expect(dm002Details).toHaveTextContent('common.runtime.runningProofHeartbeat 2026-06-02T00:01:12.853Z');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.timeline');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.evidence');
+    expect(dm002Details).toHaveTextContent('Publication evidence packet');
+    expect(dm002Details).toHaveTextContent('artifact://dm002-publication-evidence');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.actions');
+    expect(dm002Details).toHaveTextContent('Preview reviewer handoff');
+    expect(dm002Details).toHaveTextContent('common.runtime.taskDetails.resources');
+    expect(dm002Details).toHaveTextContent('Fabric resource');
+    expect(dm002Details).not.toHaveTextContent('paper_autonomy/repair-recheck');
     expect(screen.queryByText('common.runtime.maintenanceAttentionSummaryText 4')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('common.runtime.advancedRuntimeDetails'));
     await waitFor(() =>
