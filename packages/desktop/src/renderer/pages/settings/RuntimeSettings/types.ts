@@ -221,6 +221,9 @@ export type RuntimeScopeOption = {
   kind: RuntimeScopeOptionKind;
   label: string;
   value?: string;
+  workspacePath?: string;
+  workspaceBindingId?: string;
+  projectId?: string;
 };
 
 export type RuntimeScopeProjection = {

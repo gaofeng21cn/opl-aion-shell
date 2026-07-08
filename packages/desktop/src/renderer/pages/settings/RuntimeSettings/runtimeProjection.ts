@@ -465,13 +465,16 @@ function readScopeOption(entry: JsonRecord, index: number): RuntimeScopeOption {
     kind,
     label: asString(entry.label) ?? asString(entry.display_label) ?? asString(entry.title) ?? value,
     value,
+    workspacePath: asString(entry.workspace_path) ?? asString(entry.workspacePath),
+    workspaceBindingId: asString(entry.workspace_binding_id) ?? asString(entry.workspaceBindingId),
+    projectId: asString(entry.project_id) ?? asString(entry.projectId),
   };
 }
 
 function uniqueScopeOptions(options: RuntimeScopeOption[]): RuntimeScopeOption[] {
   const seen = new Set<string>();
   return options.filter((option) => {
-    const key = `${option.kind}:${option.value ?? option.id}`;
+    const key = `${option.kind}:${option.kind === 'workspace' ? (option.workspacePath ?? option.value ?? option.id) : (option.value ?? option.id)}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;

@@ -205,6 +205,14 @@ describe('runtime visualization projection normalization', () => {
                   id: 'workspace:dm-cvd-mortality-risk',
                   value: 'dm-cvd-mortality-risk',
                   label: 'DM CVD Mortality Risk',
+                  workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
+                },
+                {
+                  kind: 'workspace',
+                  id: 'workspace:dm-paper-mission-milestone-autopush-20260626',
+                  value: 'dm-paper-mission-milestone-autopush-20260626',
+                  label: 'dm-paper-mission-milestone-autopush-20260626',
+                  workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
                 },
               ],
             },
@@ -287,6 +295,7 @@ describe('runtime visualization projection normalization', () => {
         label: 'DM CVD Mortality Risk',
       },
     });
+    expect(model.scope.options.filter((option) => option.kind === 'workspace')).toHaveLength(1);
     expect(model.taskRunProjectionV2.tasks).toHaveLength(1);
     expect(model.taskRunProjectionV2.tasks[0]).toMatchObject({
       taskId: 'dm002-taskrun',

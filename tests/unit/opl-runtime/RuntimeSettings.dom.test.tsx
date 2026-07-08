@@ -62,6 +62,9 @@ vi.mock('react-i18next', () => ({
         'settings.runtimePage.taskRuns.artifactContext.roCrate': 'RO-Crate metadata',
         'settings.runtimePage.taskRuns.artifactContext.openAction': 'Open detail action',
         'common.runtime.telemetryMissing': '用量未记录',
+        'common.runtime.noCurrentStage': '暂无当前阶段',
+        'common.runtime.waitingSubmissionInfo': '等待补齐投稿信息',
+        'common.runtime.waitingNextDirection': '等待明确是否继续推进',
         'common.unit.second_short': 's',
         'common.unit.minute_short': 'm',
         'common.unit.hour_short': 'h',
@@ -1213,16 +1216,36 @@ describe('RuntimeSettings app state bridge usage', () => {
                     label: 'All projects',
                   },
                   {
+                    kind: 'agent',
+                    id: 'agent:medautoscience',
+                    value: 'medautoscience',
+                    label: 'MAS',
+                  },
+                  {
                     kind: 'workspace',
                     id: 'workspace:dm-cvd-mortality-risk',
                     value: 'dm-cvd-mortality-risk',
                     label: 'DM CVD Mortality Risk',
+                    workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
+                  },
+                  {
+                    kind: 'workspace',
+                    id: 'workspace:dm-paper-mission-milestone-autopush-20260626',
+                    value: 'dm-paper-mission-milestone-autopush-20260626',
+                    label: 'dm-paper-mission-milestone-autopush-20260626',
+                    workspace_path: '/Users/example/workspace/Yang/DM-CVD-Mortality-Risk',
                   },
                   {
                     kind: 'project',
                     id: 'project:dm002',
                     value: 'dm002',
                     label: 'DM002 paper line',
+                  },
+                  {
+                    kind: 'task',
+                    id: 'task:dm002-publication-eval',
+                    value: 'dm002-publication-eval',
+                    label: 'Publication evaluation',
                   },
                 ],
               },
@@ -1456,6 +1479,49 @@ describe('RuntimeSettings app state bridge usage', () => {
                   blocker_ref_count: 1,
                 },
                 {
+                  task_id: 'medautoscience:binding:duplicate:study:dm001',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm001',
+                  project_display_name: 'DM001 paper line',
+                  work_item_display_name: 'Runtime owner blocker',
+                  study_id: '001-dm-cvd-mortality-risk',
+                  title: 'DM001 typed owner blocker',
+                  state: 'attention_needed',
+                  primary_state: 'system_attention_required',
+                  automation_state: 'automation_idle',
+                  active_stage_id: 'domain_route/reconcile-apply',
+                  typed_blocker_summary: 'mas_owner_answer_typed_blocker_observed',
+                  next_visible_step:
+                    'OPL runtime stage attempt needs operator attention; MAS terminalization is still required before any paper-progress claim.',
+                  next_owner: 'medautoscience',
+                  blocker_ref_count: 0,
+                },
+                {
+                  task_id: 'medautoscience:study:006-runtime-sync-repair',
+                  domain_id: 'medautoscience',
+                  domain_label: 'Med Auto Science',
+                  agent_display_name: 'MAS',
+                  workspace_id: 'dm-cvd-mortality-risk',
+                  workspace_label: 'DM CVD Mortality Risk',
+                  project_id: 'dm006',
+                  project_display_name: 'DM006 paper line',
+                  work_item_display_name: 'Runtime sync repair',
+                  study_id: '006-runtime-sync-repair',
+                  title: 'DM006 runtime sync repair',
+                  state: 'attention_needed',
+                  primary_state: 'system_attention_required',
+                  automation_state: 'automation_failed',
+                  active_stage_id: 'domain_route/reconcile-apply',
+                  next_visible_step:
+                    'OPL runtime stage attempt needs operator attention; MAS terminalization is still required before any paper-progress claim.',
+                  next_owner: { owner: 'opl_framework' },
+                  blocker_ref_count: 1,
+                },
+                {
                   task_id: 'medautoscience:study:004-reviewer-followup',
                   domain_id: 'medautoscience',
                   domain_label: 'Med Auto Science',
@@ -1534,7 +1600,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
-      'common.runtime.moduleWorkloadText 2 4'
+      'common.runtime.moduleWorkloadText 2 6'
     );
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
@@ -1556,7 +1622,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-saved-view-automation_running')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-saved-view-owner_decision')).toBeInTheDocument();
     expect(screen.getByTestId('runtime-saved-view-system_attention')).toBeInTheDocument();
-    expect(screen.getByTestId('runtime-saved-view-mas_papers')).toBeInTheDocument();
+    expect(screen.queryByTestId('runtime-saved-view-mas_papers')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('runtime-saved-view-system_attention'));
     await waitFor(() => expect(screen.queryByTestId('runtime-group-in_progress')).not.toBeInTheDocument());
     expect(screen.getByTestId('runtime-group-system_attention_required')).toHaveTextContent(
@@ -1569,12 +1635,16 @@ describe('RuntimeSettings app state bridge usage', () => {
     const pausedGroup = screen.getByTestId('runtime-group-paused_waiting_for_direction');
     expect(inProgressGroup).toHaveTextContent('common.runtime.groupSummaries.inProgress 2');
     expect(systemGroup).toHaveTextContent('common.runtime.groupSummaries.systemAttention 1');
-    expect(pausedGroup).toHaveTextContent('common.runtime.groupSummaries.pausedWaiting 1');
+    expect(pausedGroup).toHaveTextContent('common.runtime.groupSummaries.pausedWaiting 2');
     expect(inProgressGroup.compareDocumentPosition(systemGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(systemGroup.compareDocumentPosition(pausedGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.body.textContent).toContain('Runtime closeout');
-    expect(screen.getByText('写作')).toBeInTheDocument();
-    expect(document.body.textContent).toContain('Med Auto Science paper mission');
+    expect(screen.queryByText('写作')).not.toBeInTheDocument();
+    expect(document.body.textContent).toContain('暂无当前阶段');
+    expect(document.body.textContent).toContain('等待补齐投稿信息');
+    expect(document.body.textContent).toContain('等待明确是否继续推进');
+    expect(document.body.textContent).not.toContain('Med Auto Science paper mission');
+    expect(document.body.textContent).not.toContain('dm-paper-mission-milestone-autopush-20260626');
     expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
     expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');

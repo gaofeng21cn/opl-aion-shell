@@ -35,7 +35,7 @@ import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/
 type RuntimeSnapshot = Record<string, unknown>;
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
 const TASK_ROW_GRID_TEMPLATE =
-  'minmax(190px, 1.4fr) minmax(118px, 0.75fr) minmax(120px, 0.8fr) minmax(160px, 1fr) minmax(78px, 0.45fr) minmax(112px, 0.65fr) minmax(104px, 0.55fr)';
+  'minmax(132px, 1.35fr) minmax(82px, 0.7fr) minmax(86px, 0.75fr) minmax(120px, 1fr) minmax(52px, 0.45fr) minmax(82px, 0.65fr) minmax(64px, 0.5fr)';
 
 function isRecord(value: unknown): value is RuntimeSnapshot {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -531,14 +531,13 @@ type RuntimeOverviewSection = {
   tasks: RuntimeOverviewTaskItem[];
 };
 
-type RuntimeSavedViewId = 'all' | 'automation_running' | 'owner_decision' | 'system_attention' | 'mas_papers';
+type RuntimeSavedViewId = 'all' | 'automation_running' | 'owner_decision' | 'system_attention';
 
 const RUNTIME_SAVED_VIEW_IDS: RuntimeSavedViewId[] = [
   'all',
   'automation_running',
   'owner_decision',
   'system_attention',
-  'mas_papers',
 ];
 
 const PRIMARY_STATE_ORDER: RuntimeTaskPrimaryState[] = [
@@ -646,6 +645,42 @@ function humanizeRuntimeActor(value: string | null | undefined): string | null {
   const prefix = runtimeLabelFor(parts[0]);
   if (prefix && parts.length > 1) return [prefix, ...parts.slice(1)].join(' ');
   return text;
+}
+
+function pathLeaf(value: string | null | undefined): string | null {
+  const parts = value
+    ?.trim()
+    .split(/[\\/]+/)
+    .filter(Boolean);
+  return parts?.at(-1) ?? null;
+}
+
+function workspaceScopeValue(option: RuntimeScopeOption): string | null {
+  return pathLeaf(option.workspacePath) ?? option.value ?? option.label ?? option.id;
+}
+
+function humanizeScopeOptionLabel(
+  option: RuntimeScopeOption,
+  t: (key: string, options?: Record<string, string | number>) => string
+): string {
+  if (option.kind === 'all_projects') return t('common.runtime.scopeSource.default_global');
+  if (option.kind === 'agent') {
+    return t('common.runtime.scopeOption.agent', {
+      label: runtimeLabelFor(option.label) ?? runtimeLabelFor(option.value) ?? option.label,
+    });
+  }
+  if (option.kind === 'workspace') {
+    return t('common.runtime.scopeOption.project', {
+      label:
+        titleCaseRuntimeTitle(pathLeaf(option.workspacePath)) ??
+        titleCaseRuntimeTitle(option.label) ??
+        titleCaseRuntimeTitle(option.value) ??
+        option.label,
+    });
+  }
+  return t('common.runtime.scopeOption.project', {
+    label: titleCaseRuntimeTitle(option.label) ?? titleCaseRuntimeTitle(option.value) ?? option.label,
+  });
 }
 
 function humanizeModuleTitle(
@@ -1052,6 +1087,35 @@ function normalizeScopeToken(value: string | null | undefined): string | null {
   return value && value.trim().length > 0 ? value.trim().toLowerCase() : null;
 }
 
+function scopeDisplayOptions(
+  options: RuntimeScopeOption[],
+  t: (key: string, options?: Record<string, string | number>) => string
+): RuntimeScopeOption[] {
+  const seen = new Set<string>();
+  const displayOptions = options.flatMap((option) => {
+    if (!['all_projects', 'agent', 'workspace'].includes(option.kind)) return [];
+    const label = humanizeScopeOptionLabel(option, t);
+    const value = option.kind === 'workspace' ? (workspaceScopeValue(option) ?? option.value) : option.value;
+    const key =
+      option.kind === 'all_projects'
+        ? option.kind
+        : `${option.kind}:${option.kind === 'workspace' ? (option.workspacePath ?? value ?? option.id) : (humanLabelKey(label) ?? option.id)}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ ...option, label, value }];
+  });
+  if (displayOptions.some((option) => option.kind === 'all_projects')) return displayOptions;
+  return [
+    {
+      id: 'all-projects',
+      kind: 'all_projects',
+      label: t('common.runtime.scopeSource.default_global'),
+      value: 'all_projects',
+    },
+    ...displayOptions,
+  ];
+}
+
 function isModuleRuntimeTask(task: RuntimeTaskDrilldown): boolean {
   const hasProject = Boolean(
     normalizeScopeToken(task.projectId) ??
@@ -1076,9 +1140,9 @@ function taskDedupeKey(task: RuntimeTaskDrilldown): string {
 function itemStateRank(item: RuntimeOverviewTaskItem): number {
   const primaryRank: Record<RuntimeTaskPrimaryState, number> = {
     in_progress: 80,
+    delivered_auto_paused: 95,
     system_attention_required: 60,
     owner_decision_required: 50,
-    delivered_auto_paused: 40,
     paused_waiting_for_direction: 30,
   };
   const automationRank: Record<RuntimeTaskAutomationState, number> = {
@@ -1088,6 +1152,63 @@ function itemStateRank(item: RuntimeOverviewTaskItem): number {
     automation_idle: 0,
   };
   return primaryRank[item.primaryState] + automationRank[item.automationState];
+}
+
+function isMasPaperTask(task: RuntimeTaskDrilldown): boolean {
+  const agent = humanLabelKey(task.domainId ?? task.domainLabel ?? task.agentDisplayName);
+  const hasPaperIdentity = Boolean(task.studyId ?? task.projectId ?? task.projectDisplayName);
+  return hasPaperIdentity && (agent === 'medautoscience' || agent === 'mas');
+}
+
+function taskTextForClassification(task: RuntimeTaskDrilldown): string {
+  return [
+    task.activeStageId,
+    task.stage,
+    task.title,
+    task.workItemDisplayName,
+    task.nextStep,
+    task.runtimeCloseoutRef,
+    task.masOwnerConsumedCloseoutRef,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' ')
+    .toLowerCase();
+}
+
+function isSubmissionMilestoneFollowthrough(task: RuntimeTaskDrilldown): boolean {
+  const text = taskTextForClassification(task);
+  return (
+    text.includes('submission_milestone_candidate') ||
+    text.includes('submission milestone') ||
+    text.includes('submission package') ||
+    text.includes('followthrough')
+  );
+}
+
+function isDeliveredPaperAutoPausedTask(task: RuntimeTaskDrilldown): boolean {
+  if (!isMasPaperTask(task)) return false;
+  if (task.primaryState === 'delivered_auto_paused') return true;
+  if (task.masOwnerConsumptionStatus !== 'owner_consumed_route_checkpoint') return false;
+  const status = normalizeScopeToken(task.status);
+  const state = normalizeScopeToken(task.state);
+  return Boolean(
+    task.runtimeCloseoutObserved ||
+    task.masOwnerConsumedCloseoutRef ||
+    isSubmissionMilestoneFollowthrough(task) ||
+    status === 'completed' ||
+    state === 'completed'
+  );
+}
+
+function isMasOwnerTypedBlockerPausedTask(task: RuntimeTaskDrilldown): boolean {
+  if (!isMasPaperTask(task)) return false;
+  if (task.automationState === 'automation_running' || task.automationState === 'result_pending_terminalization') {
+    return false;
+  }
+  return (
+    humanLabelKey(task.activeStageId ?? task.stage) === 'domainroutereconcileapply' &&
+    humanLabelKey(task.typedBlockerSummary) === 'masowneranswertypedblockerobserved'
+  );
 }
 
 function latestActivityTime(item: RuntimeOverviewTaskItem): number {
@@ -1319,23 +1440,26 @@ function scopeMatchesTask(task: RuntimeTaskDrilldown, scope: RuntimeScopeOption 
   return matches(task.taskId, task.title, task.workItemDisplayName, task.executionRunLabel);
 }
 
-function savedViewMatchesTask(task: RuntimeTaskDrilldown, savedView: RuntimeSavedViewId): boolean {
+function savedViewMatchesItem(
+  item: Pick<RuntimeOverviewTaskItem, 'primaryState' | 'automationState'>,
+  savedView: RuntimeSavedViewId
+): boolean {
   if (savedView === 'all') return true;
-  const primaryState = primaryStateForTask(task);
-  const automationState = automationStateForTask(task);
-  if (savedView === 'automation_running') return automationState === 'automation_running';
-  if (savedView === 'owner_decision') return primaryState === 'owner_decision_required';
-  if (savedView === 'system_attention') return primaryState === 'system_attention_required';
-  const agent = humanLabelKey(task.domainId ?? task.domainLabel ?? task.agentDisplayName);
-  const hasProject = Boolean(task.projectId ?? task.projectDisplayName ?? task.studyId);
-  return savedView === 'mas_papers' && hasProject && (agent === 'medautoscience' || agent === 'mas');
+  if (savedView === 'automation_running') return item.automationState === 'automation_running';
+  if (savedView === 'owner_decision') return item.primaryState === 'owner_decision_required';
+  if (savedView === 'system_attention') return item.primaryState === 'system_attention_required';
+  return false;
 }
 
 function primaryStateForTask(task: RuntimeTaskDrilldown): RuntimeTaskPrimaryState {
+  if (isDeliveredPaperAutoPausedTask(task)) return 'delivered_auto_paused';
+  if (isMasOwnerTypedBlockerPausedTask(task)) return 'paused_waiting_for_direction';
   return task.primaryState ?? 'paused_waiting_for_direction';
 }
 
 function automationStateForTask(task: RuntimeTaskDrilldown): RuntimeTaskAutomationState {
+  if (isDeliveredPaperAutoPausedTask(task)) return 'automation_idle';
+  if (isMasOwnerTypedBlockerPausedTask(task)) return 'automation_idle';
   return task.automationState ?? 'automation_idle';
 }
 
@@ -1401,6 +1525,9 @@ function runtimeTaskItem(
 ): RuntimeOverviewTaskItem {
   const primaryState = primaryStateForTask(task);
   const automationState = automationStateForTask(task);
+  const deliveredAutoPaused = isDeliveredPaperAutoPausedTask(task);
+  const masOwnerPaused = isMasOwnerTypedBlockerPausedTask(task);
+  const noActiveStage = deliveredAutoPaused || masOwnerPaused;
   const controlState = controlStateFallbackForTask(task, controlStates);
   const providerRun = record(controlState?.provider_run);
   const lastHeartbeatAt = task.lastHeartbeatAt ?? stringValue(providerRun.last_heartbeat_at);
@@ -1421,19 +1548,23 @@ function runtimeTaskItem(
           })
         : t('common.runtime.telemetryMissing');
   const blockerSummary = task.typedBlockerSummary ?? stringValue(controlState?.blocker_reason) ?? null;
-  const nextStep = humanizeNextStep(
-    task.nextStep ?? task.typedBlockerResolutionRef,
-    primaryState,
-    automationState,
-    t,
-    language
-  );
+  const nextStep = deliveredAutoPaused
+    ? t('common.runtime.waitingSubmissionInfo')
+    : masOwnerPaused
+      ? t('common.runtime.waitingNextDirection')
+      : humanizeNextStep(task.nextStep ?? task.typedBlockerResolutionRef, primaryState, automationState, t, language);
   return {
     task,
     primaryState,
     automationState,
-    primaryLabel: task.primaryStateLabel ?? t(PRIMARY_STATE_LABEL_KEYS[primaryState]),
-    automationLabel: task.automationStateLabel ?? t(AUTOMATION_STATE_LABEL_KEYS[automationState]),
+    primaryLabel:
+      task.primaryState === primaryState && task.primaryStateLabel
+        ? task.primaryStateLabel
+        : t(PRIMARY_STATE_LABEL_KEYS[primaryState]),
+    automationLabel:
+      task.automationState === automationState && task.automationStateLabel
+        ? task.automationStateLabel
+        : t(AUTOMATION_STATE_LABEL_KEYS[automationState]),
     agentLabel:
       humanizeRuntimeActor(task.agentDisplayName) ??
       humanizeRuntimeActor(task.domainLabel) ??
@@ -1441,13 +1572,15 @@ function runtimeTaskItem(
       t('common.runtime.unknownDomain'),
     projectLabel: humanizeProjectLabel(task),
     taskLabel: titleCaseRuntimeTitle(task.workItemDisplayName) ?? titleCaseRuntimeTitle(task.title) ?? task.taskId,
-    stageLabel: humanizeRuntimeStage(task.stage, task.activeStageId, language),
+    stageLabel: noActiveStage
+      ? t('common.runtime.noCurrentStage')
+      : humanizeRuntimeStage(task.stage, task.activeStageId, language),
     elapsedLabel: stageElapsed,
     livenessLabel,
     stageUsageLabel: displayUsageLabel(task.stageUsage, t),
     totalUsageLabel: displayUsageLabel(task.taskTotalUsage, t),
     nextStep,
-    ownerLabel: humanizeRuntimeActor(task.nextOwner ?? task.typedBlockerOwner),
+    ownerLabel: noActiveStage ? null : humanizeRuntimeActor(task.nextOwner ?? task.typedBlockerOwner),
     blockerSummary,
     latestActivityAt: task.lastProgressAt ?? lastHeartbeatAt ?? completedAt ?? null,
     currentnessTag:
@@ -1473,10 +1606,10 @@ function buildOverviewSections(
   counts: Record<RuntimeTaskPrimaryState, number>;
   visibleTaskCount: number;
 } {
-  const filtered = tasks.filter(
-    (task) => scopeMatchesTask(task, scope) && savedViewMatchesTask(task, savedView) && !isModuleRuntimeTask(task)
+  const scopedTasks = tasks.filter((task) => scopeMatchesTask(task, scope) && !isModuleRuntimeTask(task));
+  const items = dedupeTaskItems(scopedTasks.map((task) => runtimeTaskItem(task, controlStates, t, language))).filter(
+    (item) => savedViewMatchesItem(item, savedView)
   );
-  const items = dedupeTaskItems(filtered.map((task) => runtimeTaskItem(task, controlStates, t, language)));
   const byState = new Map<RuntimeTaskPrimaryState, RuntimeOverviewTaskItem[]>();
   PRIMARY_STATE_ORDER.forEach((state) => byState.set(state, []));
   items.forEach((item) => {
@@ -1673,10 +1806,11 @@ const RuntimePage: React.FC = () => {
     [lanes]
   );
   const runtimeScope = runtimeModel.scope;
+  const displayScopeOptions = useMemo(() => scopeDisplayOptions(runtimeScope.options, t), [runtimeScope.options, t]);
   const selectedScope =
-    runtimeScope.options.find((option) => option.id === selectedScopeId) ??
-    runtimeScope.current ??
-    runtimeScope.options[0] ??
+    displayScopeOptions.find((option) => option.id === selectedScopeId) ??
+    displayScopeOptions.find((option) => option.id === runtimeScope.current?.id) ??
+    displayScopeOptions[0] ??
     null;
   const scopeLabel = useMemo(() => {
     if (!selectedScope) return t('common.runtime.scopeSource.default_global');
@@ -1776,12 +1910,15 @@ const RuntimePage: React.FC = () => {
   ];
 
   useEffect(() => {
-    const currentScopeId = runtimeScope.current?.id ?? runtimeScope.options[0]?.id ?? null;
+    const currentScopeId =
+      displayScopeOptions.find((option) => option.id === runtimeScope.current?.id)?.id ??
+      displayScopeOptions[0]?.id ??
+      null;
     setSelectedScopeId((previous) => {
       if (!previous) return currentScopeId;
-      return runtimeScope.options.some((option) => option.id === previous) ? previous : currentScopeId;
+      return displayScopeOptions.some((option) => option.id === previous) ? previous : currentScopeId;
     });
-  }, [runtimeScope.current, runtimeScope.options]);
+  }, [displayScopeOptions, runtimeScope.current]);
 
   useEffect(() => {
     if (overview.automationRunningCount <= 0) return undefined;
@@ -1882,7 +2019,7 @@ const RuntimePage: React.FC = () => {
         <div
           data-testid={`runtime-task-detail-${item.task.taskId}`}
           className='px-18px py-16px'
-          style={{ borderTop: '1px solid #e5e7eb', background: '#f8fafc', minWidth: 920 }}
+          style={{ borderTop: '1px solid #e5e7eb', background: '#f8fafc', minWidth: 0 }}
         >
           <div className='flex flex-col gap-16px'>
             <div className='flex flex-col gap-4px'>
@@ -1968,8 +2105,8 @@ const RuntimePage: React.FC = () => {
               borderTop: '1px solid #e5e7eb',
               display: 'grid',
               gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
-              gap: 16,
-              minWidth: 920,
+              gap: 12,
+              minWidth: 0,
               alignItems: 'start',
               padding: '14px 18px',
               background: '#fff',
@@ -2036,8 +2173,8 @@ const RuntimePage: React.FC = () => {
           borderTop: '1px solid #e5e7eb',
           display: 'grid',
           gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
-          gap: 16,
-          minWidth: 920,
+          gap: 12,
+          minWidth: 0,
           background: '#f8fafc',
         }}
       >
@@ -2076,7 +2213,7 @@ const RuntimePage: React.FC = () => {
               <Robot theme='outline' />
             );
           return (
-            <div key={section.state} data-testid={`runtime-group-${section.state}`} style={{ minWidth: 920 }}>
+            <div key={section.state} data-testid={`runtime-group-${section.state}`} style={{ minWidth: 0 }}>
               <div className='flex items-start gap-10px px-18px py-14px' style={{ background: accent.background }}>
                 <span
                   aria-hidden='true'
@@ -2128,8 +2265,8 @@ const RuntimePage: React.FC = () => {
               data-testid='runtime-scope-selector'
               value={selectedScope?.id}
               onChange={(value) => setSelectedScopeId(String(value))}
-              options={runtimeScope.options.map((option) => ({
-                label: option.kind === 'all_projects' ? t('common.runtime.scopeSource.default_global') : option.label,
+              options={displayScopeOptions.map((option) => ({
+                label: option.label,
                 value: option.id,
               }))}
             />
