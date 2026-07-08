@@ -363,7 +363,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.remote.nativePassword': 'Password: view, copy, or reset it in remote access settings.',
         'settings.accessPage.remote.openNativeSettings': 'Open remote access settings',
         'settings.accessPage.remote.openResources': 'View Resources & Connections',
-        'settings.accessPage.remote.dockerTitle': 'Servers and hosted workspaces',
+        'settings.accessPage.remote.dockerTitle': 'Other resource entry points',
         'settings.accessPage.remote.dockerDescription':
           'Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.',
         'settings.accessPage.remote.actions.settings_install_docker_webui': 'Install Docker WebUI',
@@ -473,8 +473,12 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
-    expect(document.body.textContent).not.toContain('Docker WebUI');
+    expect(document.body.textContent).not.toContain('Install Docker WebUI');
     expect(document.body.textContent).toContain('OPL Workspace');
+    expect(document.body.textContent).toContain('Other resource entry points');
+    expect(document.body.textContent).toContain(
+      'Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.'
+    );
     expect(view.getByText('Remote access')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Status: action_available');
     expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');

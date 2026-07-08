@@ -1312,9 +1312,25 @@
         "title": "能力",
         "description": "查看 MAS、MAG、RCA、OMA 以及技能和工具。"
       },
+      "resources": {
+        "title": "资源与连接",
+        "description": "管理服务器 WebUI、OPL Workspace、云端和外部环境。"
+      },
       "remote": {
         "title": "Web / 远程访问",
-        "description": "打开 WebUI、Docker 和远程访问配置入口。"
+        "description": "查看这台电脑的浏览器访问端口、账号和密码。"
+      },
+      "maintenance": {
+        "title": "维护",
+        "description": "检查、更新、修复本机服务和能力包。"
+      },
+      "storage": {
+        "title": "存储",
+        "description": "查看本地数据占用、归档和清理入口。"
+      },
+      "preferences": {
+        "title": "偏好",
+        "description": "调整界面行为、显示方式和主题外观。"
       }
     },
     "developerSource": {
@@ -1667,8 +1683,8 @@
       "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
       "openNativeSettings": "打开远程访问设置",
       "openResources": "查看资源与连接",
-      "dockerTitle": "服务器与托管工作区",
-      "dockerDescription": "服务器 WebUI、OPL Workspace、云端或外部环境统一放在资源与连接里。",
+      "dockerTitle": "其他资源入口",
+      "dockerDescription": "服务器 WebUI、OPL Workspace、云端或外部环境统一在资源与连接中管理。",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",
