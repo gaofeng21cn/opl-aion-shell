@@ -1311,9 +1311,25 @@
         "title": "Capabilities",
         "description": "Open MAS, MAG, RCA, OMA, plus skills and tools."
       },
+      "resources": {
+        "title": "Resources & Connections",
+        "description": "Manage Server WebUI, OPL Workspace, cloud, and external environments."
+      },
       "remote": {
         "title": "Web / Remote Access",
-        "description": "Open WebUI, Docker, and remote access configuration."
+        "description": "View the browser access port, account, and password for this computer."
+      },
+      "maintenance": {
+        "title": "Maintenance",
+        "description": "Check, update, and repair local services and capability packs."
+      },
+      "storage": {
+        "title": "Storage",
+        "description": "Review local data usage, archive, and cleanup entry points."
+      },
+      "preferences": {
+        "title": "Preferences",
+        "description": "Adjust interface behavior, display, and theme appearance."
       }
     },
     "developerSource": {
@@ -1666,7 +1682,7 @@
       "nativePassword": "Password: view, copy, or reset it in remote access settings.",
       "openNativeSettings": "Open remote access settings",
       "openResources": "View Resources & Connections",
-      "dockerTitle": "Servers and hosted workspaces",
+      "dockerTitle": "Other resource entry points",
       "dockerDescription": "Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",

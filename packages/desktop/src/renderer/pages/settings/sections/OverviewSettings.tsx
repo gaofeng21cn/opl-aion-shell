@@ -6,7 +6,7 @@
 
 import React from 'react';
 import { Alert, Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
-import { CheckOne, Earth, FolderOpen, Lightning, Toolkit } from '@icon-park/react';
+import { CheckOne, Earth, FolderOpen, Lightning, LinkCloud, SwitchThemes, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
@@ -105,11 +105,39 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       route: '/settings/capabilities',
     },
     {
+      key: 'resources',
+      title: t('settings.overviewPage.quickEntries.resources.title'),
+      value: t('settings.overviewPage.quickEntries.resources.description'),
+      icon: <LinkCloud theme='outline' />,
+      route: '/settings/resources',
+    },
+    {
       key: 'remote',
       title: t('settings.overviewPage.quickEntries.remote.title'),
       value: t('settings.overviewPage.quickEntries.remote.description'),
       icon: <Earth theme='outline' />,
       route: '/settings/access#web-remote',
+    },
+    {
+      key: 'maintenance',
+      title: t('settings.overviewPage.quickEntries.maintenance.title'),
+      value: t('settings.overviewPage.quickEntries.maintenance.description'),
+      icon: <Toolkit theme='outline' />,
+      route: '/settings/environment',
+    },
+    {
+      key: 'storage',
+      title: t('settings.overviewPage.quickEntries.storage.title'),
+      value: t('settings.overviewPage.quickEntries.storage.description'),
+      icon: <FolderOpen theme='outline' />,
+      route: '/settings/storage',
+    },
+    {
+      key: 'preferences',
+      title: t('settings.overviewPage.quickEntries.preferences.title'),
+      value: t('settings.overviewPage.quickEntries.preferences.description'),
+      icon: <SwitchThemes theme='outline' />,
+      route: '/settings/appearance',
     },
   ];
 
@@ -206,7 +234,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         </div>
       </Card>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>
+      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-14px'>
         {quickEntries.map((card) => (
           <Card key={card.key} bordered className='rd-8px'>
             <div className='flex items-start justify-between gap-14px'>
@@ -226,15 +254,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           </Card>
         ))}
       </div>
-
-      <Space wrap>
-        <Button type='primary' onClick={() => navigate('/runtime')}>
-          {t('settings.overviewPage.actions.openRuntimeStatus')}
-        </Button>
-        <Button onClick={() => navigate('/settings/environment')}>
-          {t('settings.overviewPage.actions.openRuntimeSettings')}
-        </Button>
-      </Space>
     </div>
   );
 

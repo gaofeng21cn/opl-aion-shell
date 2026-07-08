@@ -71,8 +71,21 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.quickEntries.capabilities.title': 'Capabilities',
         'settings.overviewPage.quickEntries.capabilities.description':
           'Open MAS, MAG, RCA, OMA, plus skills and tools.',
+        'settings.overviewPage.quickEntries.resources.title': 'Resources & Connections',
+        'settings.overviewPage.quickEntries.resources.description':
+          'Manage Server WebUI, OPL Workspace, cloud, and external environments.',
         'settings.overviewPage.quickEntries.remote.title': 'Web / Remote Access',
-        'settings.overviewPage.quickEntries.remote.description': 'Open WebUI, Docker, and remote access configuration.',
+        'settings.overviewPage.quickEntries.remote.description':
+          'View the browser access port, account, and password for this computer.',
+        'settings.overviewPage.quickEntries.maintenance.title': 'Maintenance',
+        'settings.overviewPage.quickEntries.maintenance.description':
+          'Check, update, and repair local services and capability packs.',
+        'settings.overviewPage.quickEntries.storage.title': 'Storage',
+        'settings.overviewPage.quickEntries.storage.description':
+          'Review local data usage, archive, and cleanup entry points.',
+        'settings.overviewPage.quickEntries.preferences.title': 'Preferences',
+        'settings.overviewPage.quickEntries.preferences.description':
+          'Adjust interface behavior, display, and theme appearance.',
         'settings.overviewPage.maintenanceTitle': 'Maintenance details',
         'settings.overviewPage.maintenanceDescription': 'Runtime health and maintenance actions.',
         'settings.overviewPage.actions.openRuntimeStatus': 'Open Runtime Status',
@@ -102,7 +115,11 @@ describe('OverviewSettings', () => {
     expect(screen.getByText('Model Access')).toBeInTheDocument();
     expect(screen.getByText('Local Services')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
+    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();
+    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Storage')).toBeInTheDocument();
+    expect(screen.getByText('Preferences')).toBeInTheDocument();
     expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Usable with attention');
     expect(screen.getByTestId('settings-overview-developer-source-alert')).toHaveTextContent(
       'Developer source needs manual handling'
@@ -111,9 +128,8 @@ describe('OverviewSettings', () => {
       'Automatic package updates will skip dirty checkouts.'
     );
     expect(screen.getByText('3 / 4 ready')).toBeInTheDocument();
-    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
-    expect(screen.queryByText('Theme')).not.toBeInTheDocument();
+    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
   });
 
   it('routes task entries to existing Settings route ids and section anchors', () => {
@@ -126,6 +142,11 @@ describe('OverviewSettings', () => {
     expect(remoteEntry).not.toBeNull();
     fireEvent.click(within(remoteEntry as HTMLElement).getByText('Open'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/access#web-remote');
+
+    const storageEntry = screen.getByText('Storage').closest('.arco-card');
+    expect(storageEntry).not.toBeNull();
+    fireEvent.click(within(storageEntry as HTMLElement).getByText('Open'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/storage');
 
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({

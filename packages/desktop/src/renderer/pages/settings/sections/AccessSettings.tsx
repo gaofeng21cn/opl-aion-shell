@@ -187,55 +187,54 @@ export const AccessSettingsContent: React.FC = () => {
               {t('settings.accessPage.remote.description')}
             </Typography.Text>
           </div>
-          <div className='grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-12px'>
-            <div className='flex flex-col gap-10px p-12px rd-8px bg-fill-1 min-w-0'>
-              <div className='flex flex-wrap items-center gap-8px'>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.accessPage.remote.nativeTitle')}
-                </Typography.Text>
-                <Tag color='blue'>{t('settings.accessPage.remote.webui')}</Tag>
-                <Tag color='blue'>{t('settings.accessPage.remote.remoteAccess')}</Tag>
-              </div>
-              <div className='grid grid-cols-1 gap-4px'>
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.accessPage.remote.nativePort')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.accessPage.remote.nativeAccount')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.accessPage.remote.nativePassword')}
-                </Typography.Text>
-              </div>
-              <Button
-                className='self-start'
-                data-testid='opl-settings-open-native-remote-settings'
-                type='secondary'
-                icon={<Open theme='outline' />}
-                onClick={() => setRemoteSettingsVisible(true)}
-              >
-                {t('settings.accessPage.remote.openNativeSettings')}
-              </Button>
+          <div className='flex flex-col gap-10px p-12px rd-8px bg-fill-1 min-w-0'>
+            <div className='flex flex-wrap items-center gap-8px'>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('settings.accessPage.remote.nativeTitle')}
+              </Typography.Text>
+              <Tag color='blue'>{t('settings.accessPage.remote.webui')}</Tag>
+              <Tag color='blue'>{t('settings.accessPage.remote.remoteAccess')}</Tag>
             </div>
-            <div className='flex flex-col gap-10px p-12px rd-8px border border-solid border-border-1 min-w-0'>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.accessPage.remote.dockerTitle')}
-                </Typography.Text>
-                <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
-                  {t('settings.accessPage.remote.dockerDescription')}
-                </Typography.Text>
-              </div>
-              <Button
-                className='self-start'
-                type='secondary'
-                icon={<Open theme='outline' />}
-                data-testid='opl-settings-open-resources-connections'
-                onClick={() => void navigate('/settings/resources')}
-              >
-                {t('settings.accessPage.remote.openResources')}
-              </Button>
+            <div className='grid grid-cols-1 gap-4px'>
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.accessPage.remote.nativePort')}
+              </Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.accessPage.remote.nativeAccount')}
+              </Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary'>
+                {t('settings.accessPage.remote.nativePassword')}
+              </Typography.Text>
             </div>
+            <Button
+              className='self-start'
+              data-testid='opl-settings-open-native-remote-settings'
+              type='secondary'
+              icon={<Open theme='outline' />}
+              onClick={() => setRemoteSettingsVisible(true)}
+            >
+              {t('settings.accessPage.remote.openNativeSettings')}
+            </Button>
+          </div>
+
+          <div className='flex flex-col gap-8px md:flex-row md:items-center md:justify-between p-12px rd-8px border border-solid border-border-1 min-w-0'>
+            <div className='min-w-0'>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.accessPage.remote.dockerTitle')}
+              </Typography.Text>
+              <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                {t('settings.accessPage.remote.dockerDescription')}
+              </Typography.Text>
+            </div>
+            <Button
+              className='self-start md:self-center shrink-0'
+              type='secondary'
+              icon={<Open theme='outline' />}
+              data-testid='opl-settings-open-resources-connections'
+              onClick={() => void navigate('/settings/resources')}
+            >
+              {t('settings.accessPage.remote.openResources')}
+            </Button>
           </div>
         </div>
       </Card>
