@@ -1846,7 +1846,7 @@
       "sourceKind": "Source kind",
       "packageLockRef": "Package lock receipt",
       "actionReceiptRef": "Action receipt",
-      "rollbackRef": "Rollback receipt",
+      "rollbackRef": "Recovery reference",
       "physicalSurfaceStatus": "Installed Codex surface",
       "physicalSurfaceReloadRequired": "Codex reload required",
       "physicalSurfacePluginId": "Installed plugin",

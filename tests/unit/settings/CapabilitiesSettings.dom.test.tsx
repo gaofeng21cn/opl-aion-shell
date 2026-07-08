@@ -302,7 +302,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.detailLabels.sourceKind': 'Source kind',
         'settings.capabilitiesPage.detailLabels.packageLockRef': 'Package lock receipt',
         'settings.capabilitiesPage.detailLabels.actionReceiptRef': 'Action receipt',
-        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Rollback receipt',
+        'settings.capabilitiesPage.detailLabels.rollbackRef': 'Recovery reference',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceStatus': 'Installed Codex surface',
         'settings.capabilitiesPage.detailLabels.physicalSurfaceReloadRequired': 'Codex reload required',
         'settings.capabilitiesPage.detailLabels.physicalSurfacePluginId': 'Installed plugin',

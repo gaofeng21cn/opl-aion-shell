@@ -1847,7 +1847,7 @@
       "sourceKind": "来源类型",
       "packageLockRef": "包锁定回执",
       "actionReceiptRef": "动作回执",
-      "rollbackRef": "回滚回执",
+      "rollbackRef": "恢复引用",
       "physicalSurfaceStatus": "已安装 Codex surface",
       "physicalSurfaceReloadRequired": "需要重载 Codex",
       "physicalSurfacePluginId": "已安装插件",
