@@ -175,14 +175,25 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.resourcesPage.title': '资源与连接',
         'settings.resourcesPage.description': '在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。',
+        'settings.workspacePage.nextStep.title': '推荐下一步',
         'settings.resourcesPage.docker.title': '服务器 WebUI 与 OPL Workspace',
         'settings.resourcesPage.docker.description':
           '这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。',
         'settings.resourcesPage.docker.docker': '服务器 WebUI',
         'settings.resourcesPage.docker.workspace': 'OPL Workspace',
-        'settings.resourcesPage.docker.runDryRoute': '部署前检查',
+        'settings.resourcesPage.docker.runDryRoute': '继续设置',
+        'settings.resourcesPage.docker.openResource': '打开资源',
+        'settings.resourcesPage.docker.recheck': '重新检查',
+        'settings.resourcesPage.docker.prepareEnvironment': '准备部署',
         'settings.resourcesPage.docker.payloadRequired': '需要填写信息',
+        'settings.resourcesPage.docker.payloadRequiredHelp': '这个操作需要先选择文件或填写配置。',
         'settings.resourcesPage.docker.confirmationRequired': '变更前确认',
+        'settings.resourcesPage.docker.moreActions': '更多操作',
+        'settings.resourcesPage.docker.technicalDetails': '高级详情',
+        'settings.resourcesPage.docker.technicalState': '原始状态',
+        'settings.resourcesPage.docker.technicalActionId': '动作 ID',
+        'settings.resourcesPage.docker.technicalCommand': '命令',
+        'settings.resourcesPage.docker.technicalPreviewCommand': '预检查命令',
         'settings.resourcesPage.docker.actionDryRunSuccess': '部署前检查完成。',
         'settings.resourcesPage.docker.actionDryRunFailed': '部署前检查失败。',
         'settings.resourcesPage.docker.actions.settings_install_docker_webui': '安装服务器 WebUI',
@@ -239,8 +250,10 @@ describe('ResourcesSettingsContent', () => {
     expect(view.getAllByText('服务器 WebUI').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getByText('云端与外部环境')).toBeTruthy();
+    expect(view.getByText('推荐下一步')).toBeTruthy();
     expect(view.getByText('安装服务器 WebUI')).toBeTruthy();
-    expect(view.getByText('选择 WebUI 初始模板')).toBeTruthy();
+    expect(view.queryByText('选择 WebUI 初始模板')).toBeNull();
+    expect(view.getByText('更多操作')).toBeTruthy();
     expect(view.getByTestId('opl-settings-workspace-resource-sources')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
@@ -255,6 +268,11 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).not.toContain('opl://environment/default');
     expect(document.body.textContent).not.toContain('opl://storage/default');
+
+    openDetailsFor(view.getByText('更多操作'));
+    expect(view.getByText('选择 WebUI 初始模板')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('opl app action execute --action');
+    expect(document.body.textContent).not.toContain('dry-run');
 
     view.getAllByText('技术引用').forEach((summary) => openDetailsFor(summary));
 
@@ -308,6 +326,7 @@ describe('ResourcesSettingsContent', () => {
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
     const view = render(<ResourcesSettingsContent />);
 
+    openDetailsFor(view.getByText('更多操作'));
     const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
     expect(seedAction).toHaveAttribute('disabled');
     expect(seedAction.textContent).toContain('需要填写信息');

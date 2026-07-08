@@ -1344,21 +1344,21 @@
     "title": "工作目录",
     "description": "确认本机项目和任务产物存放在哪里，以及 App 是否有权限访问。",
     "status": {
-      "ready": "工作目录已选择",
-      "needsAction": "需要选择工作目录"
+      "ready": "可用",
+      "needsAction": "需要处理"
     },
     "permission": {
-      "title": "权限状态",
+      "title": "可以写入",
       "ready": "权限可用",
       "needsAction": "需要处理权限",
-      "unknown": "未读取到权限",
+      "unknown": "未上报",
       "detail": "当前执行权限：{{mode}}。如果本机任务无法写入文件，请先修复权限或打开维护页检查。"
     },
     "output": {
-      "title": "任务产物"
+      "title": "目录存在"
     },
     "nextStep": {
-      "title": "下一步",
+      "title": "推荐下一步",
       "ready": "工作目录和权限已可用，可以直接开始本机任务。",
       "missingWorkspace": "先选择工作目录，之后新项目和任务产物会默认放在这里。",
       "repairPermission": "当前权限可能限制文件写入，建议先修复权限或打开维护页检查。"
@@ -1369,7 +1369,7 @@
       "missing": "开始本机任务前，请先选择工作目录。"
     },
     "cards": {
-      "permission": "权限模式",
+      "permission": "App 可访问",
       "lastCheck": "最近检查"
     },
     "technical": {
@@ -1755,13 +1755,14 @@
       "description": "这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。",
       "docker": "服务器 WebUI",
       "workspace": "OPL Workspace",
-      "runDryRoute": "部署前检查",
+      "runDryRoute": "继续设置",
       "openResource": "打开资源",
       "recheck": "重新检查",
       "prepareEnvironment": "准备部署",
       "payloadRequired": "需要填写信息",
       "payloadRequiredHelp": "这个操作需要先选择文件或填写配置。",
       "confirmationRequired": "变更前确认",
+      "moreActions": "更多操作",
       "technicalDetails": "高级详情",
       "technicalState": "原始状态",
       "technicalActionId": "动作 ID",
