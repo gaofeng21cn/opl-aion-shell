@@ -22,6 +22,8 @@ import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/
 
 type RuntimeSnapshot = Record<string, unknown>;
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
+const TASK_ROW_GRID_TEMPLATE =
+  'minmax(190px, 1.4fr) minmax(118px, 0.75fr) minmax(120px, 0.8fr) minmax(160px, 1fr) minmax(78px, 0.45fr) minmax(112px, 0.65fr) minmax(104px, 0.55fr)';
 
 function isRecord(value: unknown): value is RuntimeSnapshot {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -442,6 +444,9 @@ type RuntimeModuleStatusItem = {
   statusRaw: string | null;
   statusLabel: string | null;
   detail: string | null;
+  activeTaskCount: number;
+  automationRunningCount: number;
+  latestActivityAt: string | null;
   needsAttention: boolean;
 };
 
@@ -737,15 +742,40 @@ function translateMappedValue(
 
 function parseModuleStatusItems(
   appState: RuntimeSnapshot,
+  taskItems: RuntimeOverviewTaskItem[],
   t: (key: string, options?: Record<string, string | number>) => string
 ): RuntimeModuleStatusItem[] {
   const moduleItems = new Map<string, RuntimeModuleStatusItem>();
+  const taskStats = new Map<
+    string,
+    { activeTaskCount: number; automationRunningCount: number; latestActivityAt: string | null }
+  >();
+  taskItems.forEach((item) => {
+    const key = humanLabelKey(item.agentLabel);
+    if (!key) return;
+    const current = taskStats.get(key) ?? { activeTaskCount: 0, automationRunningCount: 0, latestActivityAt: null };
+    current.activeTaskCount += 1;
+    if (item.automationState === 'automation_running') {
+      current.automationRunningCount += 1;
+    }
+    if ((item.latestActivityAt ?? '') > (current.latestActivityAt ?? '')) {
+      current.latestActivityAt = item.latestActivityAt;
+    }
+    taskStats.set(key, current);
+  });
+  const statsFor = (title: string) =>
+    taskStats.get(humanLabelKey(title) ?? '') ?? {
+      activeTaskCount: 0,
+      automationRunningCount: 0,
+      latestActivityAt: null,
+    };
   oplRecordList(oplRecord(appState.modules).items).forEach((item, index) => {
     const status = oplString(item.status);
     const moduleId = oplString(item.module_id);
     const title = humanizeModuleTitle(moduleId, oplString(item.display_name), `module-${index + 1}`);
     const dirty = oplRecord(item.git).dirty === true;
     const id = moduleId ?? title;
+    const stats = statsFor(title);
     moduleItems.set(id, {
       id,
       title,
@@ -754,6 +784,9 @@ function parseModuleStatusItems(
         ? t('common.runtime.projectStates.needsAttention')
         : (translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? status),
       detail: dirty ? t('common.runtime.moduleDirty') : (oplString(item.version) ?? null),
+      activeTaskCount: stats.activeTaskCount,
+      automationRunningCount: stats.automationRunningCount,
+      latestActivityAt: stats.latestActivityAt,
       needsAttention: dirty || (status ? MODULE_ATTENTION_STATES.has(status) : false),
     });
   });
@@ -770,12 +803,16 @@ function parseModuleStatusItems(
     const status = oplString(task.state) ?? oplString(task.status) ?? existing?.statusRaw ?? null;
     const needsAttention = status ? MODULE_ATTENTION_STATES.has(status) : (existing?.needsAttention ?? false);
     const title = existing?.title ?? humanizeModuleTitle(id, oplString(task.title), id);
+    const stats = statsFor(title);
     moduleItems.set(id, {
       id,
       title,
       statusRaw: status,
       statusLabel: translateMappedValue(status, PROJECT_STATE_KEYS, t) ?? existing?.statusLabel ?? status,
       detail: needsAttention ? t('common.runtime.moduleDirty') : (existing?.detail ?? null),
+      activeTaskCount: stats.activeTaskCount,
+      automationRunningCount: stats.automationRunningCount,
+      latestActivityAt: stats.latestActivityAt,
       needsAttention,
     });
   });
@@ -1377,10 +1414,6 @@ const RuntimePage: React.FC = () => {
   const actions = useMemo(() => collectSafeActions(actionDrilldown ?? {}), [actionDrilldown]);
   const summary = useMemo(() => summaryEntries(displayDrilldown ?? {}, t), [displayDrilldown, t]);
   const lanes = useMemo(() => workbenchDomainLanes(userTaskDrilldown ?? {}), [userTaskDrilldown]);
-  const moduleStatusItems = useMemo(
-    () => parseModuleStatusItems(appStateQuery.appState, t),
-    [appStateQuery.appState, t]
-  );
   const controlStates = useMemo(() => currentControlStateRecords(displayDrilldown ?? {}), [displayDrilldown]);
   const maintenanceAttentionCount = useMemo(
     () => lanes.reduce((total, lane) => total + (numberValue(lane.blocked_task_count) ?? 0), 0),
@@ -1407,6 +1440,15 @@ const RuntimePage: React.FC = () => {
         i18n.resolvedLanguage ?? i18n.language
       ),
     [controlStates, i18n.language, i18n.resolvedLanguage, runtimeModel.taskRunProjectionV2.tasks, selectedScope, t]
+  );
+  const moduleStatusItems = useMemo(
+    () =>
+      parseModuleStatusItems(
+        appStateQuery.appState,
+        overview.sections.flatMap((section) => section.tasks),
+        t
+      ),
+    [appStateQuery.appState, overview.sections, t]
   );
   const refs = useMemo(() => evidenceRefs(displayDrilldown ?? {}), [displayDrilldown]);
   const advancedTaskRefs = useMemo(
@@ -1459,12 +1501,12 @@ const RuntimePage: React.FC = () => {
       hint: t('common.runtime.metricHints.automation'),
     },
     {
-      key: 'system_attention',
-      label: t('common.runtime.primaryStates.systemAttentionRequired'),
-      value: overview.counts.system_attention_required,
-      color: '#c2410c',
-      icon: <Attention theme='outline' />,
-      hint: t('common.runtime.metricHints.systemAttention'),
+      key: 'delivered_auto_paused',
+      label: t('common.runtime.primaryStates.deliveredAutoPaused'),
+      value: overview.counts.delivered_auto_paused,
+      color: '#059669',
+      icon: <Heartbeat theme='outline' />,
+      hint: t('common.runtime.metricHints.deliveredAutoPaused'),
     },
     {
       key: 'owner_decision',
@@ -1475,12 +1517,12 @@ const RuntimePage: React.FC = () => {
       hint: t('common.runtime.metricHints.ownerDecision'),
     },
     {
-      key: 'latest_activity',
-      label: t('common.runtime.latestActivityAt', { time: '' }).replace('：', '').trim(),
-      value: formatClockTime(overview.latestActivityAt) ?? '-',
-      color: '#374151',
-      icon: <Heartbeat theme='outline' />,
-      hint: formatRecentActivityHint(overview.latestActivityAt, t),
+      key: 'system_attention',
+      label: t('common.runtime.primaryStates.systemAttentionRequired'),
+      value: overview.counts.system_attention_required,
+      color: '#c2410c',
+      icon: <Attention theme='outline' />,
+      hint: t('common.runtime.metricHints.systemAttention'),
     },
   ];
 
@@ -1532,93 +1574,77 @@ const RuntimePage: React.FC = () => {
           : item.stageUsageLabel === item.totalUsageLabel || item.totalUsageLabel === telemetryMissing
             ? item.stageUsageLabel
             : `${item.stageUsageLabel} / ${item.totalUsageLabel}`;
-      const runFields = [
-        { key: 'stage', label: t('common.runtime.taskField.stage'), value: item.stageLabel ?? telemetryMissing },
-        { key: 'elapsed', label: t('common.runtime.taskField.elapsed'), value: item.elapsedLabel ?? telemetryMissing },
-        { key: 'usage', label: t('common.runtime.taskField.usage'), value: usageLabel },
-      ];
-      const actionFields = [
-        { key: 'agent', label: t('common.runtime.taskField.agent'), value: item.agentLabel },
-        { key: 'task', label: t('common.runtime.taskField.task'), value: item.taskLabel },
-        { key: 'owner', label: t('common.runtime.taskField.owner'), value: item.ownerLabel ?? telemetryMissing },
-        { key: 'next', label: t('common.runtime.taskField.next'), value: item.nextStep ?? telemetryMissing },
-      ];
       return (
         <div
           key={task.taskId}
           data-testid='runtime-task-row'
           style={{
             borderTop: '1px solid #e5e7eb',
-            padding: '16px 18px',
+            display: 'grid',
+            gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
+            gap: 16,
+            minWidth: 920,
+            alignItems: 'start',
+            padding: '14px 18px',
             background: '#fff',
           }}
         >
-          <div className='flex flex-col gap-12px min-w-0'>
-            <div className='flex flex-wrap items-start gap-16px min-w-0'>
-              <div className='flex items-start gap-10px min-w-0' style={{ flex: '1 1 300px' }}>
-                <span
-                  aria-hidden='true'
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 999,
-                    background: accent.color,
-                    marginTop: 6,
-                    flexShrink: 0,
-                  }}
-                />
-                <div className='min-w-0 flex-1'>
-                  <div className='flex flex-wrap items-center gap-6px'>
-                    <Typography.Text
-                      className='font-600 text-t-primary'
-                      style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
-                    >
-                      {item.projectLabel}
-                    </Typography.Text>
-                    <Tag
-                      color={
-                        item.primaryState === 'in_progress'
-                          ? 'blue'
-                          : item.primaryState === 'system_attention_required'
-                            ? 'orange'
-                            : item.primaryState === 'owner_decision_required'
-                              ? 'purple'
-                              : 'green'
-                      }
-                    >
-                      {item.primaryLabel}
-                    </Tag>
-                    <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
-                      {item.automationLabel}
-                    </Tag>
-                  </div>
-                </div>
-              </div>
-              {runFields.map((field) => (
-                <div key={field.key} className='min-w-0' style={{ flex: '1 1 110px' }}>
-                  <Typography.Text className='block text-11px text-t-secondary break-words'>
-                    {field.label}
-                  </Typography.Text>
-                  <Typography.Text className='block mt-2px text-13px text-t-primary break-words'>
-                    {field.value}
-                  </Typography.Text>
-                </div>
-              ))}
+          <div className='flex items-start gap-10px min-w-0'>
+            <span
+              aria-hidden='true'
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 999,
+                background: accent.color,
+                marginTop: 6,
+                flexShrink: 0,
+              }}
+            />
+            <div className='min-w-0 flex-1'>
+              <Typography.Text className='block font-600 text-t-primary break-words'>
+                {item.projectLabel}
+              </Typography.Text>
+              <Typography.Text className='block mt-3px text-12px text-t-secondary break-words'>
+                {item.taskLabel}
+              </Typography.Text>
             </div>
-            <div
-              className='grid gap-x-16px gap-y-8px pl-20px'
-              style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}
+          </div>
+          <Typography.Text className='block text-13px text-t-primary break-words'>{item.agentLabel}</Typography.Text>
+          <Typography.Text className='block text-13px text-t-primary break-words'>
+            {item.stageLabel ?? telemetryMissing}
+          </Typography.Text>
+          <div className='min-w-0'>
+            <Typography.Text className='block text-13px text-t-primary break-words'>
+              {item.nextStep ?? telemetryMissing}
+            </Typography.Text>
+            {item.ownerLabel && (
+              <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                {t('common.runtime.nextOwner', { owner: item.ownerLabel })}
+              </Typography.Text>
+            )}
+          </div>
+          <Typography.Text className='block text-13px text-t-primary break-words'>
+            {item.elapsedLabel ?? telemetryMissing}
+          </Typography.Text>
+          <Typography.Text className='block text-13px text-t-primary break-words'>{usageLabel}</Typography.Text>
+          <div className='flex flex-col gap-6px items-start'>
+            <Tag
+              color={
+                item.primaryState === 'in_progress'
+                  ? 'blue'
+                  : item.primaryState === 'system_attention_required'
+                    ? 'orange'
+                    : item.primaryState === 'owner_decision_required'
+                      ? 'purple'
+                      : 'green'
+              }
             >
-              {actionFields.map((field) => (
-                <Typography.Text
-                  key={field.key}
-                  className='block text-12px text-t-secondary'
-                  style={{ wordBreak: 'normal', overflowWrap: 'normal' }}
-                >
-                  {field.label}: <span className='text-t-primary'>{field.value}</span>
-                </Typography.Text>
-              ))}
-            </div>
+              {item.primaryLabel}
+            </Tag>
+            <Tag color={item.automationState === 'automation_running' ? 'green' : undefined}>
+              {item.automationLabel}
+            </Tag>
           </div>
         </div>
       );
@@ -1626,10 +1652,90 @@ const RuntimePage: React.FC = () => {
     [t]
   );
 
+  const renderTaskTableHeader = useCallback(
+    () => (
+      <div
+        className='px-18px py-10px text-12px text-t-secondary'
+        style={{
+          borderTop: '1px solid #e5e7eb',
+          display: 'grid',
+          gridTemplateColumns: TASK_ROW_GRID_TEMPLATE,
+          gap: 16,
+          minWidth: 920,
+          background: '#f8fafc',
+        }}
+      >
+        {[
+          t('common.runtime.taskField.projectPaper'),
+          t('common.runtime.taskField.agent'),
+          t('common.runtime.taskField.stage'),
+          t('common.runtime.taskField.next'),
+          t('common.runtime.taskField.elapsed'),
+          t('common.runtime.taskField.usage'),
+          t('common.status'),
+        ].map((label) => (
+          <Typography.Text key={label} className='font-600 text-t-secondary break-words'>
+            {label}
+          </Typography.Text>
+        ))}
+      </div>
+    ),
+    [t]
+  );
+
+  const renderTaskGroups = useCallback(
+    () =>
+      overview.sections
+        .filter((section) => section.tasks.length > 0)
+        .map((section) => {
+          const accent = primaryStateAccent(section.state);
+          const icon =
+            section.state === 'in_progress' ? (
+              <Play theme='filled' />
+            ) : section.state === 'system_attention_required' ? (
+              <Attention theme='outline' />
+            ) : section.state === 'owner_decision_required' ? (
+              <People theme='outline' />
+            ) : (
+              <Robot theme='outline' />
+            );
+          return (
+            <div key={section.state} data-testid={`runtime-group-${section.state}`} style={{ minWidth: 920 }}>
+              <div className='flex items-start gap-10px px-18px py-14px' style={{ background: accent.background }}>
+                <span
+                  aria-hidden='true'
+                  className='flex items-center justify-center'
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    color: accent.color,
+                    background: '#fff',
+                    flexShrink: 0,
+                  }}
+                >
+                  {icon}
+                </span>
+                <div className='min-w-0'>
+                  <Typography.Text className='block font-600 text-t-primary break-words'>
+                    {section.title} ({section.tasks.length})
+                  </Typography.Text>
+                  <Typography.Text className='block mt-2px text-12px text-t-secondary break-words'>
+                    {section.summary}
+                  </Typography.Text>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>{section.tasks.map(renderTaskItem)}</div>
+            </div>
+          );
+        }),
+    [overview.sections, renderTaskItem]
+  );
+
   return (
-    <div className='w-full h-full overflow-auto box-border' style={{ background: '#f6f8fb', padding: '28px 40px' }}>
+    <div className='w-full h-full overflow-auto box-border' style={{ background: '#f6f8fb', padding: '24px 32px' }}>
       {contextHolder}
-      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ maxWidth: 1360, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div className='flex flex-col gap-12px xl:flex-row xl:items-end xl:justify-between'>
           <div>
             <Typography.Title heading={4} className='mb-6px'>
@@ -1667,18 +1773,36 @@ const RuntimePage: React.FC = () => {
         {displayDrilldown ? (
           <>
             <div className='rounded-8px border border-border-1 bg-white px-16px py-12px shadow-sm'>
-              <div className='flex flex-col gap-8px md:flex-row md:items-center md:justify-between'>
-                <div className='min-w-0'>
+              <div className='flex flex-col gap-10px lg:flex-row lg:items-center lg:justify-between'>
+                <div
+                  className='grid gap-x-16px gap-y-6px min-w-0'
+                  style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', flex: 1 }}
+                >
                   <Typography.Text className='text-13px text-t-secondary break-words'>
                     {lastLoadedAt
                       ? t('common.runtime.loadedAt', { time: lastLoadedAt })
-                      : t('common.runtime.refreshing')}{' '}
-                    ·{' '}
+                      : t('common.runtime.refreshing')}
+                  </Typography.Text>
+                  <Typography.Text className='text-13px text-t-secondary break-words'>
                     {t('common.runtime.overviewSummaryText', {
                       scope: scopeLabel,
                       tasks: overview.visibleTaskCount,
                       automation: overview.automationRunningCount,
                     })}
+                  </Typography.Text>
+                  <Typography.Text className='text-13px text-t-secondary break-words'>
+                    {t('common.runtime.scopeSourceLabel', {
+                      source: t(`common.runtime.scopeSource.${runtimeScope.source}`),
+                    })}
+                    {runtimeScope.inferredHint
+                      ? ` · ${t('common.runtime.scopeInferredHint', { hint: runtimeScope.inferredHint })}`
+                      : ''}
+                  </Typography.Text>
+                  <Typography.Text className='text-13px text-t-secondary break-words'>
+                    {formatRecentActivityHint(overview.latestActivityAt, t)}
+                    {formatClockTime(overview.latestActivityAt)
+                      ? ` · ${formatClockTime(overview.latestActivityAt)}`
+                      : ''}
                   </Typography.Text>
                 </div>
                 <Tag color={loading ? 'orange' : 'green'} style={{ flexShrink: 0 }}>
@@ -1735,95 +1859,39 @@ const RuntimePage: React.FC = () => {
 
             <div className='grid grid-cols-1 xl:grid-cols-3 gap-16px items-start'>
               <div className='xl:col-span-2 flex flex-col gap-16px min-w-0'>
-                {overview.sections.some((section) => section.tasks.length > 0) ? (
-                  overview.sections
-                    .filter((section) => section.tasks.length > 0)
-                    .map((section) => {
-                      const accent = primaryStateAccent(section.state);
-                      const icon =
-                        section.state === 'in_progress' ? (
-                          <Play theme='filled' />
-                        ) : section.state === 'system_attention_required' ? (
-                          <Attention theme='outline' />
-                        ) : section.state === 'owner_decision_required' ? (
-                          <People theme='outline' />
-                        ) : (
-                          <Robot theme='outline' />
-                        );
-                      return (
-                        <Card
-                          key={section.state}
-                          bordered
-                          className='rd-8px'
-                          data-testid={`runtime-group-${section.state}`}
-                          bodyStyle={{ padding: 0 }}
-                          style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
-                        >
-                          <div className='flex items-start gap-10px px-18px py-14px'>
-                            <span
-                              aria-hidden='true'
-                              className='flex items-center justify-center'
-                              style={{
-                                width: 26,
-                                height: 26,
-                                borderRadius: 13,
-                                color: accent.color,
-                                background: accent.background,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {icon}
-                            </span>
-                            <div className='min-w-0'>
-                              <Typography.Text className='block font-600 text-t-primary break-words'>
-                                {section.title} ({section.tasks.length})
-                              </Typography.Text>
-                              <Typography.Text className='block mt-2px text-12px text-t-secondary break-words'>
-                                {section.summary}
-                              </Typography.Text>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            {section.tasks.map(renderTaskItem)}
-                          </div>
-                        </Card>
-                      );
-                    })
-                ) : (
-                  <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                    <Alert type='info' content={t('common.runtime.noTasksInScope')} />
-                  </Card>
-                )}
-              </div>
-
-              <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-                <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
-                  <div className='flex flex-col gap-12px'>
+                <Card
+                  bordered
+                  className='rd-8px'
+                  bodyStyle={{ padding: 0 }}
+                  style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}
+                >
+                  <div className='flex flex-col gap-4px px-18px py-16px'>
                     <Typography.Text className='font-600 text-t-primary'>
-                      {t('common.runtime.scopeSelector')}
+                      {t('common.runtime.taskListTitle')}
                     </Typography.Text>
-                    <Select
-                      data-testid='runtime-side-scope-selector'
-                      value={selectedScope?.id}
-                      onChange={(value) => setSelectedScopeId(String(value))}
-                      options={runtimeScope.options.map((option) => ({
-                        label:
-                          option.kind === 'all_projects'
-                            ? t('common.runtime.scopeSource.default_global')
-                            : option.label,
-                        value: option.id,
-                      }))}
-                    />
                     <Typography.Text className='text-13px text-t-secondary break-words'>
-                      {t('common.runtime.overviewSummaryText', {
-                        scope: scopeLabel,
-                        tasks: overview.visibleTaskCount,
+                      {t('common.runtime.taskListSummaryText', {
+                        count: overview.visibleTaskCount,
                         automation: overview.automationRunningCount,
                       })}
                     </Typography.Text>
                   </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    {overview.sections.some((section) => section.tasks.length > 0) ? (
+                      <>
+                        {renderTaskTableHeader()}
+                        {renderTaskGroups()}
+                      </>
+                    ) : (
+                      <div className='px-18px py-16px' style={{ borderTop: '1px solid #e5e7eb' }}>
+                        <Alert type='info' content={t('common.runtime.noTasksInScope')} />
+                      </div>
+                    )}
+                  </div>
                 </Card>
+              </div>
 
+              <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
                 <Card bordered className='rd-8px' style={{ boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)' }}>
                   <div className='flex flex-col gap-12px'>
                     <Typography.Text className='font-600 text-t-primary'>
@@ -1835,18 +1903,35 @@ const RuntimePage: React.FC = () => {
                         attention: attentionModuleCount,
                       })}
                     </Typography.Text>
-                    <div className='flex flex-col gap-8px'>
-                      {moduleStatusItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className='rounded-6px border px-10px py-8px'
-                          style={{
-                            borderColor: item.needsAttention ? '#fed7aa' : '#bbf7d0',
-                            background: item.needsAttention ? '#fff7ed' : '#f0fdf4',
-                          }}
-                        >
-                          <div className='flex items-start justify-between gap-10px'>
-                            <div className='min-w-0 flex items-center gap-8px'>
+                    <div style={{ overflowX: 'auto' }}>
+                      <div
+                        className='grid gap-10px pb-8px text-12px text-t-secondary'
+                        style={{ gridTemplateColumns: 'minmax(150px, 1.1fr) 84px 82px 96px', minWidth: 430 }}
+                      >
+                        {[
+                          t('common.runtime.moduleField.module'),
+                          t('common.runtime.moduleField.health'),
+                          t('common.runtime.moduleField.workload'),
+                          t('common.runtime.moduleField.lastActivity'),
+                        ].map((label) => (
+                          <Typography.Text key={label} className='font-600 text-t-secondary break-words'>
+                            {label}
+                          </Typography.Text>
+                        ))}
+                      </div>
+                      <div className='flex flex-col'>
+                        {moduleStatusItems.map((item) => (
+                          <div
+                            key={item.id}
+                            data-testid={`runtime-module-status-${item.id}`}
+                            className='grid gap-10px py-10px'
+                            style={{
+                              borderTop: '1px solid #e5e7eb',
+                              gridTemplateColumns: 'minmax(150px, 1.1fr) 84px 82px 96px',
+                              minWidth: 430,
+                            }}
+                          >
+                            <div className='min-w-0 flex items-start gap-8px'>
                               <span
                                 aria-hidden='true'
                                 style={{
@@ -1855,23 +1940,39 @@ const RuntimePage: React.FC = () => {
                                   borderRadius: 999,
                                   background: item.needsAttention ? '#f97316' : '#22c55e',
                                   flexShrink: 0,
+                                  marginTop: 5,
                                 }}
                               />
-                              <Typography.Text className='font-600 text-t-primary break-words'>
-                                {item.title}
-                              </Typography.Text>
+                              <div className='min-w-0'>
+                                <Typography.Text className='block font-600 text-t-primary break-words'>
+                                  {item.title}
+                                </Typography.Text>
+                                {item.detail && (
+                                  <Typography.Text className='block mt-3px text-12px text-t-secondary break-words'>
+                                    {item.detail}
+                                  </Typography.Text>
+                                )}
+                              </div>
                             </div>
-                            {item.statusLabel && (
-                              <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
-                            )}
-                          </div>
-                          {item.detail && (
-                            <Typography.Text className='block mt-6px text-12px text-t-secondary break-words'>
-                              {item.detail}
+                            <div>
+                              {item.statusLabel && (
+                                <Tag color={item.needsAttention ? 'orange' : 'green'}>{item.statusLabel}</Tag>
+                              )}
+                            </div>
+                            <Typography.Text className='text-13px text-t-primary break-words'>
+                              {t('common.runtime.moduleWorkloadText', {
+                                automation: item.automationRunningCount,
+                                total: item.activeTaskCount,
+                              })}
                             </Typography.Text>
-                          )}
-                        </div>
-                      ))}
+                            <Typography.Text className='text-13px text-t-secondary break-words'>
+                              {item.latestActivityAt
+                                ? formatRecentActivityHint(item.latestActivityAt, t)
+                                : t('common.runtime.noRecentActivity')}
+                            </Typography.Text>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </Card>

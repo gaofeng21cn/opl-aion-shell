@@ -1481,24 +1481,36 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent(
       'common.runtime.primaryStates.systemAttentionRequired'
     );
+    expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent(
+      'common.runtime.primaryStates.deliveredAutoPaused'
+    );
     expect(screen.getByTestId('runtime-primary-summary')).not.toHaveTextContent('2026-07-04T19:00:00Z');
     expect(screen.getByTestId('runtime-primary-summary')).toHaveTextContent('1');
+    expect(screen.getByText('common.runtime.taskListTitle')).toBeInTheDocument();
     expect(screen.getByText('common.runtime.moduleStatus')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('common.runtime.moduleField.module');
+    expect(document.body.textContent).toContain('common.runtime.moduleField.health');
+    expect(document.body.textContent).toContain('common.runtime.moduleField.workload');
+    expect(document.body.textContent).toContain('common.runtime.moduleField.lastActivity');
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
     expect(screen.getByText('Med Auto Grant')).toBeInTheDocument();
     expect(screen.getByText('OPL Book Forge')).toBeInTheDocument();
     expect(screen.getByText('RedCube AI')).toBeInTheDocument();
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
+    expect(screen.getByTestId('runtime-module-status-medautoscience')).toHaveTextContent(
+      'common.runtime.moduleWorkloadText 2 4'
+    );
     expect(document.body.textContent).toContain('Publication evaluation');
     expect(document.body.textContent).toContain('DM002 paper line');
-    expect(document.body.textContent).toContain('common.runtime.taskField.agent:');
-    expect(document.body.textContent).toContain('common.runtime.taskField.task:');
+    expect(document.body.textContent).toContain('common.runtime.taskField.projectPaper');
+    expect(document.body.textContent).toContain('common.runtime.taskField.agent');
     expect(screen.getAllByText('common.runtime.taskField.stage').length).toBeGreaterThan(0);
+    expect(document.body.textContent).toContain('common.runtime.taskField.next');
     expect(screen.getByText('Publication repair check')).toBeInTheDocument();
     expect(document.body.textContent).toContain('1h');
     expect(document.body.textContent).toContain('128 tokens / 512 tokens');
     expect(screen.getByText('Finish reviewer evaluation against current inputs')).toBeInTheDocument();
-    expect(screen.getByText('AI reviewer')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('AI reviewer');
     expect(document.body.textContent).toContain('DM005 paper line');
     expect(document.body.textContent).toContain('投稿包后续处理');
     expect(document.body.textContent).toContain('同步项目状态/复核运行结果');
@@ -1515,10 +1527,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getAllByText('common.runtime.automationStates.pendingTerminalization').length).toBeGreaterThan(0);
     expect(screen.getByText('写作')).toBeInTheDocument();
     expect(document.body.textContent).toContain('common.runtime.automationStates.pendingTerminalization');
-    expect(screen.getByText('Med Auto Science paper mission')).toBeInTheDocument();
+    expect(document.body.textContent).toContain('Med Auto Science paper mission');
     expect(screen.queryByText('DM003 duplicate binding row')).not.toBeInTheDocument();
     const defaultViewText = document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0] ?? '';
-    expect(defaultViewText).not.toContain('common.runtime.scopeSourceLabel');
+    expect(defaultViewText).toContain('common.runtime.scopeSourceLabel');
     expect(defaultViewText).not.toContain('Latest OPL runtime closeout differs from the MAS owner-consumed receipt');
     expect(defaultViewText).not.toContain('OPL runtime stage attempt needs operator attention; MAS terminalization');
     expect(defaultViewText).not.toContain('telemetry missing');
@@ -1658,7 +1670,7 @@ describe('RuntimeSettings app state bridge usage', () => {
 
     await waitFor(() => expect(screen.getAllByText('DM002 publication evaluation').length).toBeGreaterThan(0));
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).toContain(
-      'common.runtime.taskField.next: Finish reviewer evaluation against current inputs'
+      'Finish reviewer evaluation against current inputs'
     );
     expect(document.body.textContent?.split('common.runtime.advancedRuntimeDetails')[0]).not.toMatch(
       /Temporal|provider|current_control_state|attempt/i
