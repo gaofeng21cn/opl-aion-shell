@@ -14,15 +14,14 @@
 
 import { test, expect } from '../../../fixtures';
 import {
-  resolveAionrsPreconditions,
-  cleanupE2EAionrsConversations,
+  registerAionrsSuiteHooks,
   createAionrsConversationViaBridge,
   sendAionrsMessage,
   getAionrsMessages,
   waitForAionrsReply,
   getAionrsConversationDB,
   createTempWorkspace,
-  type AionrsTestModels,
+  type AionrsPreconditions,
 } from '../../../helpers';
 import { takeScreenshot } from '../../../helpers/screenshots';
 import * as fs from 'fs/promises';
@@ -31,36 +30,10 @@ import * as path from 'path';
 test.describe('Aionrs Chat - Edge Cases (P2)', () => {
   test.setTimeout(240_000); // 4 minutes for edge case tests
 
-  let preconditions: { binary: string | null; models: AionrsTestModels | null };
+  let preconditions: AionrsPreconditions = { binary: null, models: null };
 
-  test.beforeAll(async ({ page }) => {
-    preconditions = await resolveAionrsPreconditions(page);
-    if (!preconditions.binary || !preconditions.models) {
-      test.skip(true, 'No aionrs-compatible provider found, skipping E2E tests');
-    }
-  });
-
-  test.afterEach(async ({ page }) => {
-    // Cleanup order:
-    // 1. Press ESC 5 times to close any open dialogs
-    for (let i = 0; i < 5; i++) {
-      await page.keyboard.press('Escape');
-    }
-
-    // 2. Delete E2E conversations from DB (cascades to messages)
-    await cleanupE2EAionrsConversations(page);
-
-    // 3. Clear sessionStorage
-    await page.evaluate(() => {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && (key.startsWith('aionrs_initial_message_') || key.startsWith('aionrs_initial_processed_'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
-    });
+  registerAionrsSuiteHooks(test, (resolvedPreconditions) => {
+    preconditions = resolvedPreconditions;
   });
 
   // ============================================================================
