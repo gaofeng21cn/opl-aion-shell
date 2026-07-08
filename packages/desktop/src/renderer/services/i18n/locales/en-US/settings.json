@@ -190,6 +190,7 @@
   "system": "System",
   "about": "About",
   "onboarding": "Access",
+  "resources": "Resources & Connections",
   "maintenance": "Maintenance",
   "preferences": "Preferences",
   "aboutMaintenanceMoved": "Updates and maintenance now live under Maintenance; this page keeps version and project links only.",
@@ -1264,8 +1265,8 @@
   "groupRuntime": "Local Runtime",
   "groupAdvanced": "Advanced",
   "overviewPage": {
-    "title": "One Person Lab",
-    "description": "Start from the workspace, permissions, and key task entries, then open the area that needs attention.",
+    "title": "Overview",
+    "description": "Confirm whether this computer is usable, what needs attention, and where to go next.",
     "codexTitle": "Codex CLI",
     "codexDescription": "The default and only visible home agent backend.",
     "workspaceTitle": "Workspace Root",
@@ -1297,12 +1298,8 @@
     },
     "quickEntries": {
       "modelAccount": {
-        "title": "Model & Account",
-        "description": "Review the current model, account/API key, and model access status."
-      },
-      "maintenance": {
-        "title": "Maintenance",
-        "description": "Handle updates, repair actions, and managed maintenance."
+        "title": "Model Access",
+        "description": "Confirm whether OPL Gateway and Codex CLI are usable."
       },
       "localServices": {
         "title": "Local Services",
@@ -1337,6 +1334,9 @@
       "needsAction": "Permission needs attention",
       "unknown": "Permission not read",
       "detail": "Current execution permission: {{mode}}. If local tasks cannot write files, repair permissions or check Maintenance."
+    },
+    "output": {
+      "title": "Task output"
     },
     "nextStep": {
       "title": "Next step",
@@ -1636,20 +1636,20 @@
       "configureFailed": "Could not save OPL Gateway access key."
     },
     "remote": {
-      "title": "Local Remote Access",
+      "title": "Browser access to this computer",
       "description": "Open OPL on this computer from a browser; manage the port, account, and password here.",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
       "remoteAccess": "Remote access",
-      "nativeTitle": "Local remote access",
+      "nativeTitle": "Connection details",
       "nativePort": "Port: 25808",
       "nativeAccount": "Account: admin, editable in remote access settings.",
       "nativePassword": "Password: view, copy, or reset it in remote access settings.",
       "openNativeSettings": "Open remote access settings",
-      "openResources": "Open Resources & Connections",
-      "dockerTitle": "Advanced deployment",
-      "dockerDescription": "Docker WebUI / OPL Workspace is for server or hosted workspace deployments. To open this computer from a browser, use local remote access first.",
+      "openResources": "View Resources & Connections",
+      "dockerTitle": "Servers and hosted workspaces",
+      "dockerDescription": "Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.",
       "status": "Status: {{status}}",
       "runtimeStatus": "Runtime proxy: {{status}}",
       "recoveryStatus": "Recovery: {{status}}",

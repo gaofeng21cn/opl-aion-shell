@@ -60,17 +60,39 @@ export const AccessSettingsContent: React.FC = () => {
 
   return (
     <div className='flex flex-col gap-16px'>
-      <div>
-        <Typography.Title heading={4} className='mb-6px'>
-          {t('settings.accessPage.title')}
-        </Typography.Title>
-        <Typography.Text className='text-t-secondary'>{t('settings.accessPage.description')}</Typography.Text>
+      <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
+        <div className='min-w-0'>
+          <Typography.Title heading={4} className='mb-6px'>
+            {t('settings.accessPage.title')}
+          </Typography.Title>
+          <Typography.Text className='text-t-secondary'>{t('settings.accessPage.description')}</Typography.Text>
+        </div>
+        <Space wrap>
+          <Button
+            type='primary'
+            icon={<UpdateRotation theme='outline' />}
+            loading={appStateQuery.refreshing}
+            onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
+          >
+            {t('settings.accessPage.actions.recheck')}
+          </Button>
+          {hasAccessIssue && (
+            <Button
+              icon={<Repair theme='outline' />}
+              onClick={() => {
+                window.location.hash = '#/settings/environment';
+              }}
+            >
+              {t('settings.accessPage.actions.fix')}
+            </Button>
+          )}
+        </Space>
       </div>
 
-      <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-          <div className='min-w-0'>
-            <div className='flex items-center gap-8px mb-8px'>
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-14px'>
+        <Card bordered className='rd-8px'>
+          <div className='flex flex-col gap-10px min-w-0'>
+            <div className='flex flex-wrap items-center gap-8px'>
               <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
                 <CheckOne theme='outline' />
               </span>
@@ -128,30 +150,8 @@ export const AccessSettingsContent: React.FC = () => {
               </div>
             )}
           </div>
-          <Space wrap>
-            <Button
-              type='primary'
-              icon={<UpdateRotation theme='outline' />}
-              loading={appStateQuery.refreshing}
-              onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
-            >
-              {t('settings.accessPage.actions.recheck')}
-            </Button>
-            {hasAccessIssue && (
-              <Button
-                icon={<Repair theme='outline' />}
-                onClick={() => {
-                  window.location.hash = '#/settings/environment';
-                }}
-              >
-                {t('settings.accessPage.actions.fix')}
-              </Button>
-            )}
-          </Space>
-        </div>
-      </Card>
+        </Card>
 
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-14px'>
         {readinessCards.map((card) => (
           <Card key={card.key} bordered className='rd-8px'>
             <div className='flex flex-col gap-8px min-w-0'>
@@ -171,34 +171,24 @@ export const AccessSettingsContent: React.FC = () => {
           </Card>
         ))}
       </div>
+
       <Card bordered className='rd-8px' id='web-remote'>
         <div className='flex flex-col gap-12px'>
-          <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-            <div className='min-w-0'>
-              <div className='flex items-center gap-8px mb-8px'>
-                <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                  <Earth theme='outline' />
-                </span>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.accessPage.remote.title')}
-                </Typography.Text>
-              </div>
-              <Typography.Text className='block text-13px text-t-secondary break-words'>
-                {t('settings.accessPage.remote.description')}
+          <div className='flex flex-col gap-4px'>
+            <div className='flex items-center gap-8px'>
+              <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                <Earth theme='outline' />
+              </span>
+              <Typography.Text className='font-600 text-t-primary'>
+                {t('settings.accessPage.remote.title')}
               </Typography.Text>
-              <Button
-                className='mt-12px'
-                type='secondary'
-                icon={<Open theme='outline' />}
-                data-testid='opl-settings-open-resources-connections'
-                onClick={() => void navigate('/settings/resources')}
-              >
-                {t('settings.accessPage.remote.openResources')}
-              </Button>
             </div>
+            <Typography.Text className='block text-13px text-t-secondary break-words'>
+              {t('settings.accessPage.remote.description')}
+            </Typography.Text>
           </div>
-          <div className='grid grid-cols-1 gap-10px'>
-            <div className='flex flex-col gap-8px p-12px rd-8px bg-fill-1 min-w-0'>
+          <div className='grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-12px'>
+            <div className='flex flex-col gap-10px p-12px rd-8px bg-fill-1 min-w-0'>
               <div className='flex flex-wrap items-center gap-8px'>
                 <Typography.Text className='font-600 text-t-primary'>
                   {t('settings.accessPage.remote.nativeTitle')}
@@ -218,12 +208,32 @@ export const AccessSettingsContent: React.FC = () => {
                 </Typography.Text>
               </div>
               <Button
+                className='self-start'
                 data-testid='opl-settings-open-native-remote-settings'
                 type='secondary'
                 icon={<Open theme='outline' />}
                 onClick={() => setRemoteSettingsVisible(true)}
               >
                 {t('settings.accessPage.remote.openNativeSettings')}
+              </Button>
+            </div>
+            <div className='flex flex-col gap-10px p-12px rd-8px border border-solid border-border-1 min-w-0'>
+              <div className='min-w-0'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.accessPage.remote.dockerTitle')}
+                </Typography.Text>
+                <Typography.Text className='block mt-4px text-12px text-t-secondary break-words'>
+                  {t('settings.accessPage.remote.dockerDescription')}
+                </Typography.Text>
+              </div>
+              <Button
+                className='self-start'
+                type='secondary'
+                icon={<Open theme='outline' />}
+                data-testid='opl-settings-open-resources-connections'
+                onClick={() => void navigate('/settings/resources')}
+              >
+                {t('settings.accessPage.remote.openResources')}
               </Button>
             </div>
           </div>

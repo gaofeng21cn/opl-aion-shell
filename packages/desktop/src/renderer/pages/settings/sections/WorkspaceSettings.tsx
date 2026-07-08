@@ -6,7 +6,7 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { Button, Card, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
-import { CheckOne, FolderOpen, Refresh, Repair } from '@icon-park/react';
+import { CheckOne, FolderOpen, Refresh } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
@@ -184,6 +184,35 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                 </Tag>
               </Space>
             </div>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+              <div
+                className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'
+                data-testid='opl-workspace-settings-permission'
+              >
+                <div className='flex items-center gap-8px'>
+                  <span className='w-24px h-24px flex items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
+                    <CheckOne theme='outline' />
+                  </span>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('settings.workspacePage.permission.title')}
+                  </Typography.Text>
+                  <Tag color={permissionState === 'ready' ? 'green' : 'orange'}>
+                    {t(`settings.workspacePage.permission.${permissionState}`)}
+                  </Tag>
+                </div>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.workspacePage.permission.detail', { mode: permissionLabel })}
+                </Typography.Text>
+              </div>
+              <div className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.workspacePage.output.title')}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t(`settings.workspacePage.nextStep.${nextStepKey}`)}
+                </Typography.Text>
+              </div>
+            </div>
             <Space wrap>
               <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
                 {t('settings.workspacePage.actions.openWorkspace')}
@@ -195,59 +224,18 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
               >
                 {t('settings.workspacePage.actions.changeWorkspace')}
               </Button>
+              {permissionState === 'needsAction' && (
+                <Button loading={workspaceAction === 'repair'} onClick={repairWorkspacePermissions}>
+                  {t('settings.workspacePage.actions.repairPermissions')}
+                </Button>
+              )}
+              {(permissionState === 'needsAction' || (permissionState === 'unknown' && workspaceRoot)) && (
+                <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
+              )}
               <Button onClick={refresh}>{t('settings.workspacePage.actions.recheck')}</Button>
             </Space>
           </div>
         </Card>
-
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-          <Card bordered className='rd-8px' data-testid='opl-workspace-settings-permission'>
-            <div className='flex flex-col gap-8px min-w-0'>
-              <div className='flex items-center gap-8px'>
-                <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                  <CheckOne theme='outline' />
-                </span>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.workspacePage.permission.title')}
-                </Typography.Text>
-              </div>
-              <Tag color={permissionState === 'ready' ? 'green' : 'orange'} className='self-start'>
-                {t(`settings.workspacePage.permission.${permissionState}`)}
-              </Tag>
-              <Typography.Text className='text-12px text-t-secondary break-words'>
-                {t('settings.workspacePage.permission.detail', { mode: permissionLabel })}
-              </Typography.Text>
-            </div>
-          </Card>
-
-          <Card bordered className='rd-8px' data-testid='opl-workspace-settings-next-step'>
-            <div className='flex flex-col gap-8px min-w-0'>
-              <div className='flex items-center gap-8px'>
-                <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                  <Repair theme='outline' />
-                </span>
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.workspacePage.nextStep.title')}
-                </Typography.Text>
-              </div>
-              <Typography.Text className='text-12px text-t-secondary break-words'>
-                {t(`settings.workspacePage.nextStep.${nextStepKey}`)}
-              </Typography.Text>
-              {(permissionState === 'needsAction' || (permissionState === 'unknown' && workspaceRoot)) && (
-                <Space wrap size='small'>
-                  {permissionState === 'needsAction' && (
-                    <Button size='small' loading={workspaceAction === 'repair'} onClick={repairWorkspacePermissions}>
-                      {t('settings.workspacePage.actions.repairPermissions')}
-                    </Button>
-                  )}
-                  <Button size='small' onClick={openMaintenance}>
-                    {t('settings.workspacePage.actions.openMaintenance')}
-                  </Button>
-                </Space>
-              )}
-            </div>
-          </Card>
-        </div>
 
         <details className='rd-8px border border-solid border-border-1 bg-fill-1 p-12px'>
           <summary className='cursor-pointer font-600 text-t-primary'>

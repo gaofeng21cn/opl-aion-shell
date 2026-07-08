@@ -50,9 +50,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
-        'settings.overviewPage.title': 'One Person Lab',
+        'settings.overviewPage.title': 'Overview',
         'settings.overviewPage.description':
-          'Start from the workspace, permissions, and key task entries, then open the area that needs attention.',
+          'Confirm whether this computer is usable, what needs attention, and where to go next.',
         'settings.overviewPage.workspace.title': 'Workspace',
         'settings.overviewPage.workspace.currentPath': `Current path: ${options?.path}`,
         'settings.overviewPage.workspace.notConfigured': 'No workspace root has been selected yet.',
@@ -62,12 +62,9 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.workspace.permissionStatus': `Permission: ${options?.mode}`,
         'settings.overviewPage.workspace.status.ready': 'Workspace selected',
         'settings.overviewPage.workspace.status.needsAction': 'Workspace needs setup',
-        'settings.overviewPage.quickEntries.modelAccount.title': 'Model & Account',
+        'settings.overviewPage.quickEntries.modelAccount.title': 'Model Access',
         'settings.overviewPage.quickEntries.modelAccount.description':
-          'Review the current model, account/API key, and model access status.',
-        'settings.overviewPage.quickEntries.maintenance.title': 'Maintenance',
-        'settings.overviewPage.quickEntries.maintenance.description':
-          'Handle updates, repair actions, and managed maintenance.',
+          'Confirm whether OPL Gateway and Codex CLI are usable.',
         'settings.overviewPage.quickEntries.localServices.title': 'Local Services',
         'settings.overviewPage.quickEntries.localServices.description':
           'Check Codex, background services, and capability pack health.',
@@ -102,8 +99,7 @@ describe('OverviewSettings', () => {
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText(/Current path: \/Users\/example\/OPL Workspace/)).toBeInTheDocument();
-    expect(screen.getByText('Model & Account')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Model Access')).toBeInTheDocument();
     expect(screen.getByText('Local Services')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();

@@ -101,6 +101,7 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.permission.needsAction': 'Permission needs attention',
         'settings.workspacePage.permission.unknown': 'Permission not read',
         'settings.workspacePage.permission.detail': `Permission: ${options?.mode}`,
+        'settings.workspacePage.output.title': 'Task output',
         'settings.workspacePage.nextStep.title': 'Next step',
         'settings.workspacePage.nextStep.ready': 'Ready to work.',
         'settings.workspacePage.nextStep.missingWorkspace': 'Choose workspace.',
@@ -169,7 +170,9 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText('Work root: /Users/example/OPL Workspace')).toBeInTheDocument();
     expect(screen.getByText('Permission status')).toBeInTheDocument();
-    expect(screen.getByText('Next step')).toBeInTheDocument();
+    expect(screen.queryByText('Next step')).not.toBeInTheDocument();
+    expect(screen.getByText('Task output')).toBeInTheDocument();
+    expect(screen.getByText('Ready to work.')).toBeInTheDocument();
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();

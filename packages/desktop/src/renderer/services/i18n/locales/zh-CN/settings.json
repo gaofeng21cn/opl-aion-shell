@@ -190,6 +190,7 @@
   "system": "系统",
   "about": "关于",
   "onboarding": "访问方式",
+  "resources": "资源与连接",
   "maintenance": "维护",
   "preferences": "偏好",
   "aboutMaintenanceMoved": "更新与维护已移到“维护”页；本页只保留版本和项目链接。",
@@ -1265,8 +1266,8 @@
   "groupRuntime": "本机运行",
   "groupAdvanced": "高级",
   "overviewPage": {
-    "title": "One Person Lab",
-    "description": "先看工作目录、权限和关键任务入口，再进入需要处理的区域。",
+    "title": "概览",
+    "description": "确认本机是否可用、需要处理什么，以及常用设置入口。",
     "codexTitle": "Codex CLI",
     "codexDescription": "首页默认且唯一可见的执行入口。",
     "workspaceTitle": "工作目录",
@@ -1298,12 +1299,8 @@
     },
     "quickEntries": {
       "modelAccount": {
-        "title": "模型与账号",
-        "description": "查看当前模型、账号/API key 和模型访问状态。"
-      },
-      "maintenance": {
-        "title": "维护",
-        "description": "处理更新、修复动作和托管维护。"
+        "title": "模型访问",
+        "description": "确认 OPL Gateway 和 Codex CLI 是否可用。"
       },
       "localServices": {
         "title": "本机服务",
@@ -1338,6 +1335,9 @@
       "needsAction": "需要处理权限",
       "unknown": "未读取到权限",
       "detail": "当前执行权限：{{mode}}。如果本机任务无法写入文件，请先修复权限或打开维护页检查。"
+    },
+    "output": {
+      "title": "任务产物"
     },
     "nextStep": {
       "title": "下一步",
@@ -1637,20 +1637,20 @@
       "configureFailed": "无法保存 OPL Gateway 访问密钥。"
     },
     "remote": {
-      "title": "本机远程访问",
+      "title": "浏览器访问这台电脑",
       "description": "从浏览器打开这台电脑上的 OPL；端口、账号和密码都在这里管理。",
       "webui": "WebUI",
       "docker": "Docker WebUI",
       "workspace": "OPL Workspace",
       "remoteAccess": "远程访问",
-      "nativeTitle": "本机远程访问",
+      "nativeTitle": "连接信息",
       "nativePort": "端口：25808",
       "nativeAccount": "账号：admin，可在远程访问设置中修改。",
       "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
       "openNativeSettings": "打开远程访问设置",
-      "openResources": "打开资源与连接",
-      "dockerTitle": "进阶部署",
-      "dockerDescription": "Docker WebUI / OPL Workspace 用于服务器或托管工作区形态；日常从浏览器访问这台电脑，先使用上方本机远程访问。",
+      "openResources": "查看资源与连接",
+      "dockerTitle": "服务器与托管工作区",
+      "dockerDescription": "服务器 WebUI、OPL Workspace、云端或外部环境统一放在资源与连接里。",
       "status": "状态：{{status}}",
       "runtimeStatus": "运行代理：{{status}}",
       "recoveryStatus": "恢复：{{status}}",

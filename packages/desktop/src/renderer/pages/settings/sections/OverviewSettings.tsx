@@ -91,13 +91,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       route: '/settings/access',
     },
     {
-      key: 'maintenance',
-      title: t('settings.overviewPage.quickEntries.maintenance.title'),
-      value: t('settings.overviewPage.quickEntries.maintenance.description'),
-      icon: <Toolkit theme='outline' />,
-      route: '/settings/environment',
-    },
-    {
       key: 'localServices',
       title: t('settings.overviewPage.quickEntries.localServices.title'),
       value: t('settings.overviewPage.quickEntries.localServices.description'),
@@ -234,27 +227,14 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         ))}
       </div>
 
-      <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px'>
-          <Typography.Text className='font-600 text-t-primary'>
-            {t('settings.overviewPage.maintenanceTitle')}
-          </Typography.Text>
-          <Typography.Text className='text-t-secondary'>
-            {t('settings.overviewPage.maintenanceDescription')}
-          </Typography.Text>
-          <Space wrap>
-            <Button type='primary' onClick={() => navigate('/runtime')}>
-              {t('settings.overviewPage.actions.openRuntimeStatus')}
-            </Button>
-            <Button onClick={() => navigate('/settings/environment')}>
-              {t('settings.overviewPage.actions.openRuntimeSettings')}
-            </Button>
-            <Button onClick={() => navigate('/settings/capabilities')}>
-              {t('settings.overviewPage.actions.openFoundryAgents')}
-            </Button>
-          </Space>
-        </div>
-      </Card>
+      <Space wrap>
+        <Button type='primary' onClick={() => navigate('/runtime')}>
+          {t('settings.overviewPage.actions.openRuntimeStatus')}
+        </Button>
+        <Button onClick={() => navigate('/settings/environment')}>
+          {t('settings.overviewPage.actions.openRuntimeSettings')}
+        </Button>
+      </Space>
     </div>
   );
 

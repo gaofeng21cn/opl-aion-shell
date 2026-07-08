@@ -350,22 +350,22 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.configureSuccess': 'OPL Gateway access key saved.',
         'settings.accessPage.modelAccount.configureFailed': 'Could not save OPL Gateway access key.',
-        'settings.accessPage.remote.title': 'Local Remote Access',
+        'settings.accessPage.remote.title': 'Browser access to this computer',
         'settings.accessPage.remote.description':
           'Open OPL on this computer from a browser; manage the port, account, and password here.',
         'settings.accessPage.remote.webui': 'WebUI',
         'settings.accessPage.remote.docker': 'Docker WebUI',
         'settings.accessPage.remote.workspace': 'OPL Workspace',
         'settings.accessPage.remote.remoteAccess': 'Remote access',
-        'settings.accessPage.remote.nativeTitle': 'Local remote access',
+        'settings.accessPage.remote.nativeTitle': 'Connection details',
         'settings.accessPage.remote.nativePort': 'Port: 25808',
         'settings.accessPage.remote.nativeAccount': 'Account: admin, editable in remote access settings.',
         'settings.accessPage.remote.nativePassword': 'Password: view, copy, or reset it in remote access settings.',
         'settings.accessPage.remote.openNativeSettings': 'Open remote access settings',
-        'settings.accessPage.remote.openResources': 'Open Resources & Connections',
-        'settings.accessPage.remote.dockerTitle': 'Advanced deployment',
+        'settings.accessPage.remote.openResources': 'View Resources & Connections',
+        'settings.accessPage.remote.dockerTitle': 'Servers and hosted workspaces',
         'settings.accessPage.remote.dockerDescription':
-          'Docker WebUI / OPL Workspace is for server or hosted workspace deployments. To open this computer from a browser, use local remote access first.',
+          'Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.',
         'settings.accessPage.remote.actions.settings_install_docker_webui': 'Install Docker WebUI',
         'settings.accessPage.remote.actions.settings_select_webui_seed': 'Select WebUI image seed',
         'settings.accessPage.remote.actions.settings_diagnose_docker_webui': 'Diagnose Docker WebUI',
@@ -465,16 +465,16 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('temporal · ready');
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
     expect(document.body.textContent).not.toContain('Fix issue');
-    expect(view.getByText('Local Remote Access')).toBeTruthy();
+    expect(view.getByText('Browser access to this computer')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-resources-connections')).toBeTruthy();
-    expect(view.getByText('Local remote access')).toBeTruthy();
+    expect(view.getByText('Connection details')).toBeTruthy();
     expect(view.getByText('Port: 25808')).toBeTruthy();
     expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
     expect(view.getByText('WebUI')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Docker WebUI');
-    expect(document.body.textContent).not.toContain('OPL Workspace');
+    expect(document.body.textContent).toContain('OPL Workspace');
     expect(view.getByText('Remote access')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Status: action_available');
     expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
@@ -494,7 +494,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
 
-    expect(view.getByText('Codex CLI').compareDocumentPosition(view.getByText('Local remote access'))).toBe(
+    expect(view.getByText('Codex CLI').compareDocumentPosition(view.getByText('Connection details'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
   });
