@@ -5,7 +5,7 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Card, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Button, Card, Message, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { LinkCloud, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -32,6 +32,8 @@ export const ResourcesSettingsContent: React.FC = () => {
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const { dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
   const dockerSummaryTags = dockerDeploymentSummaryTags(dockerWebui, t);
+  const workspaceSources = resourceSources.filter((source) => source.category === 'oplWorkspace');
+  const cloudExternalSources = resourceSources.filter((source) => source.category !== 'oplWorkspace');
 
   const handleDockerAction = async (action: DockerWebuiAction) => {
     if (action.payloadRequired) return;
@@ -85,7 +87,7 @@ export const ResourcesSettingsContent: React.FC = () => {
             </div>
           </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-10px'>
+          <div className='flex flex-col divide-y divide-border-1'>
             {dockerWebui.actions.map((action) => {
               const actionLabel = t(`settings.resourcesPage.docker.actions.${action.actionId}`, {
                 defaultValue: action.label,
@@ -107,28 +109,32 @@ export const ResourcesSettingsContent: React.FC = () => {
               return (
                 <div
                   key={action.actionId}
-                  className='flex flex-col gap-8px p-12px rd-8px bg-fill-1 min-w-0'
+                  className='py-12px min-w-0'
                   data-testid={`opl-settings-docker-webui-route-${action.actionId}`}
                 >
-                  <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
-                    <div className='min-w-0'>
-                      <Typography.Text className='font-600 text-t-primary break-words'>{actionLabel}</Typography.Text>
+                  <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
+                    <div className='min-w-0 flex flex-col gap-6px'>
+                      <div className='flex flex-wrap items-center gap-8px'>
+                        <Typography.Text className='font-600 text-t-primary break-words'>{actionLabel}</Typography.Text>
+                        <Tag color={action.payloadRequired ? 'orange' : action.state === 'ready' ? 'green' : 'orange'}>
+                          {dockerActionStatusLabel(action, t)}
+                        </Tag>
+                        {action.confirmationRequired && (
+                          <Tag color='gray'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>
+                        )}
+                      </div>
+                      <DockerActionTechnicalDetails action={action} />
                     </div>
-                    <Space wrap>
-                      <Tag color={action.state === 'ready' ? 'green' : 'orange'}>
-                        {accessStatusLabel(action.state, t)}
-                      </Tag>
-                      {action.confirmationRequired && (
-                        <Tag color='orange'>{t('settings.resourcesPage.docker.confirmationRequired')}</Tag>
+                    <div className='shrink-0'>
+                      {action.payloadRequired ? (
+                        <Tooltip content={t('settings.resourcesPage.docker.payloadRequiredHelp')}>
+                          {actionButton}
+                        </Tooltip>
+                      ) : (
+                        actionButton
                       )}
-                    </Space>
+                    </div>
                   </div>
-                  {action.payloadRequired ? (
-                    <Tooltip content={t('settings.resourcesPage.docker.payloadRequiredHelp')}>{actionButton}</Tooltip>
-                  ) : (
-                    actionButton
-                  )}
-                  <DockerActionTechnicalDetails action={action} />
                 </div>
               );
             })}
@@ -143,7 +149,28 @@ export const ResourcesSettingsContent: React.FC = () => {
       </Card>
 
       <Card bordered className='rd-8px'>
-        <div className='flex flex-col gap-12px'>
+        <div className='flex flex-col gap-14px'>
+          <div className='flex items-center gap-8px'>
+            <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+              <LinkCloud theme='outline' />
+            </span>
+            <Typography.Text className='font-600 text-t-primary'>
+              {t('settings.resourcesPage.connections.workspaceTitle')}
+            </Typography.Text>
+          </div>
+          <Typography.Text className='text-13px text-t-secondary'>
+            {t('settings.resourcesPage.connections.workspaceDescription')}
+          </Typography.Text>
+          <ResourceSources
+            sources={workspaceSources}
+            emptyKey='settings.resourcesPage.connections.noWorkspaceSources'
+            testId='opl-settings-workspace-resource-sources'
+          />
+        </div>
+      </Card>
+
+      <Card bordered className='rd-8px'>
+        <div className='flex flex-col gap-14px'>
           <div className='flex items-center gap-8px'>
             <span className='w-28px h-28px flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
               <LinkCloud theme='outline' />
@@ -155,7 +182,11 @@ export const ResourcesSettingsContent: React.FC = () => {
           <Typography.Text className='text-13px text-t-secondary'>
             {t('settings.resourcesPage.connections.description')}
           </Typography.Text>
-          <ResourceSources sources={resourceSources} />
+          <ResourceSources
+            sources={cloudExternalSources}
+            emptyKey='settings.resourcesPage.connections.noSources'
+            testId='opl-settings-resource-sources'
+          />
         </div>
       </Card>
     </div>
@@ -191,6 +222,14 @@ function dockerActionCtaLabel(
     return t('settings.resourcesPage.docker.prepareEnvironment');
   }
   return t('settings.resourcesPage.docker.runDryRoute');
+}
+
+function dockerActionStatusLabel(
+  action: DockerWebuiAction,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  if (action.payloadRequired) return t('settings.resourcesPage.statusLabels.needs_input');
+  return accessStatusLabel(action.state, t);
 }
 
 function isQuietDockerStatus(status: string): boolean {
@@ -243,49 +282,55 @@ const DockerActionTechnicalDetails: React.FC<{ action: DockerWebuiAction }> = ({
   );
 };
 
-const ResourceSources: React.FC<{ sources: ResourceSourceProjection[] }> = ({ sources }) => {
+const ResourceSources: React.FC<{ sources: ResourceSourceProjection[]; emptyKey: string; testId: string }> = ({
+  sources,
+  emptyKey,
+  testId,
+}) => {
   const { t } = useTranslation();
   if (sources.length === 0) {
-    return (
-      <Typography.Text className='text-13px text-t-secondary'>
-        {t('settings.resourcesPage.connections.noSources')}
-      </Typography.Text>
-    );
+    return <Typography.Text className='text-13px text-t-secondary'>{t(emptyKey)}</Typography.Text>;
   }
   return (
-    <div className='grid grid-cols-1 md:grid-cols-2 gap-10px' data-testid='opl-settings-resource-sources'>
+    <div className='flex flex-col divide-y divide-border-1' data-testid={testId}>
       {sources.map((source) => (
-        <ResourceSourceCard key={source.key} source={source} />
+        <ResourceSourceRow key={source.key} source={source} />
       ))}
     </div>
   );
 };
 
-const ResourceSourceCard: React.FC<{ source: ResourceSourceProjection }> = ({ source }) => {
+const ResourceSourceRow: React.FC<{ source: ResourceSourceProjection }> = ({ source }) => {
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const refs = [...source.managementRefs, ...source.environmentRefs, ...source.refs];
 
   return (
-    <div className='flex flex-col gap-6px p-12px rd-8px bg-fill-1 min-w-0'>
-      <div className='flex flex-wrap items-center gap-8px'>
-        <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
-        <Tag color='blue'>
-          {t('settings.resourcesPage.resourceSources.status', { status: accessStatusLabel(source.status, t) })}
-        </Tag>
-        <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
-        {source.management && (
-          <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
-            {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
-          </Tag>
-        )}
+    <div className='py-12px min-w-0'>
+      <div className='flex flex-col gap-8px md:flex-row md:items-start md:justify-between'>
+        <div className='min-w-0 flex flex-col gap-6px'>
+          <div className='flex flex-wrap items-center gap-8px'>
+            <Typography.Text className='font-600 text-t-primary break-words'>{source.title}</Typography.Text>
+            <Tag color={source.status === 'ready' || source.status === 'available' ? 'green' : 'orange'}>
+              {accessStatusLabel(source.status, t)}
+            </Tag>
+          </div>
+          <div className='flex flex-wrap gap-6px'>
+            <Tag color='gray'>{t(`settings.resourcesPage.resourceSources.categories.${source.category}`)}</Tag>
+            {source.management && (
+              <Tag color={source.management === 'consoleManaged' ? 'arcoblue' : 'gray'}>
+                {t(`settings.resourcesPage.resourceSources.management.${source.management}`)}
+              </Tag>
+            )}
+            {source.managementRefs.length > 0 && (
+              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
+            )}
+            {source.environmentRefs.length > 0 && (
+              <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
+            )}
+          </div>
+        </div>
       </div>
-      {source.managementRefs.length > 0 && (
-        <Tag color='gray'>{t('settings.resourcesPage.resourceSources.managementRefs')}</Tag>
-      )}
-      {source.environmentRefs.length > 0 && (
-        <Tag color='gray'>{t('settings.resourcesPage.resourceSources.environmentRefs')}</Tag>
-      )}
       {refs.length === 0 ? (
         <Typography.Text className='text-12px text-t-secondary'>
           {t('settings.resourcesPage.resourceSources.noRefs')}

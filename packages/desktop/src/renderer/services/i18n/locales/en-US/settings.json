@@ -1745,22 +1745,27 @@
       }
     },
     "connections": {
-      "title": "Cloud, workspace, and external resources",
+      "title": "Cloud and external environments",
       "description": "Shows cloud, workspace, and external environments tasks can use. Technical references stay collapsed.",
-      "noSources": "No resource connections are currently reported."
+      "workspaceTitle": "OPL Workspace",
+      "workspaceDescription": "Confirm the workspace, environment, and storage entry points tasks can use. Low-level references stay collapsed.",
+      "noWorkspaceSources": "No OPL Workspace connection is currently reported.",
+      "noSources": "No cloud or external environment connection is currently reported."
     },
     "statusLabels": {
-      "action_available": "Ready to run",
+      "action_available": "Available",
       "available": "Available",
+      "attention_required": "Needs check",
       "diagnose_with_doctor": "Needs check",
       "healthy": "Healthy",
+      "needs_input": "Needs information",
+      "not_configured": "Not configured",
       "ok": "OK",
-      "ready": "Ready",
-      "refs_only": "Reference available",
-      "unknown": "Not read"
+      "ready": "Available",
+      "refs_only": "Available",
+      "unknown": "Needs check"
     },
     "resourceSources": {
-      "status": "Status: {{status}}",
       "environmentRefs": "Has environment config",
       "managementRefs": "Has management info",
       "technicalRefs": "Technical references",
@@ -2016,6 +2021,10 @@
       "linkOuts": {
         "label": "Other settings:",
         "advancedDiagnostics": "Runtime status / advanced diagnostics"
+      },
+      "results": {
+        "title": "Recent results",
+        "noAction": "No maintenance action has run in this window."
       },
       "makeUsable": {
         "label": "Make OPL usable",
@@ -2334,10 +2343,10 @@
       "description": "Read-only App-managed OPL Flow metadata for new Codex CLI sessions. It follows the UI language, respects user AGENTS.md files, and records the OPL App product profile as source."
     },
     "developerSource": {
-      "title": "Developer Profile affects automatic maintenance",
-      "impact": "A local source mode is active. Managed maintenance will still check status, but it will not overwrite developer checkouts automatically.",
-      "dirtyImpact": "A local checkout has uncommitted changes. Managed maintenance will skip automatic update actions for that checkout until you save, commit, or clean it.",
-      "nextStep": "Use the module diagnostics below to identify the checkout, handle it in that repository, then run the check again."
+      "title": "Local development folders are protected",
+      "impact": "Automatic maintenance will still check status, but it will not overwrite local development folders.",
+      "dirtyImpact": "A local development folder has uncommitted changes. Automatic maintenance will skip related updates until you handle those changes.",
+      "nextStep": "Open Advanced maintenance details when you need the exact folder."
     }
   },
   "appearancePage": {

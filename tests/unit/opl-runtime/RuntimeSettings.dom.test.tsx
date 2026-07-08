@@ -720,6 +720,20 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'
     );
+    expect(screen.getByTestId('opl-maintenance-recent-results')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.results.title'
+    );
+    expect(screen.getByTestId('opl-maintenance-recent-results')).toHaveTextContent(
+      'settings.oplEnvironmentPage.updates.background.lastRunAt'
+    );
+    [
+      'opl-maintenance-hub-appUpdates',
+      'opl-maintenance-hub-runtimeEnvironment',
+      'opl-maintenance-hub-capabilitySurfaceSync',
+      'opl-maintenance-hub-localServicesRepair',
+    ].forEach((testId) => {
+      expect(within(screen.getByTestId(testId)).getAllByRole('button')).toHaveLength(1);
+    });
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.repair'
     );

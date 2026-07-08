@@ -50,7 +50,7 @@ import {
   updateComponentUserAction,
 } from '../RuntimeSettings/environmentProjection';
 import { buildRuntimeSettingsViewModel } from '../RuntimeSettings/runtimeSettingsViewModel';
-import { RuntimeHealthSummary, RuntimeMaintenanceHub, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
+import { RuntimeHealthSummary, RuntimeReadinessGrid } from './RuntimeSettingsPanels';
 
 const MODULE_MAINTENANCE_COMPONENT_IDS = new Set(['capability_packages', 'codex_surface']);
 const DEVELOPER_SOURCE_MODES = new Set([
@@ -1197,17 +1197,123 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
 
         <RuntimeHealthSummary items={healthSummaryItems} />
 
-        <RuntimeMaintenanceHub
-          items={maintenanceHubItems}
-          primaryAction={{
-            label: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'),
-            help: t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.help'),
-            loading: makeUsableRunning,
-            disabled: Boolean(activeReadOperation),
-            onAction: requestMakeOplUsable,
-          }}
-          t={t}
-        />
+        <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
+          <div className='flex flex-col gap-14px'>
+            <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
+              <div className='min-w-0'>
+                <Typography.Text className='block font-600 text-t-primary'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.description')}
+                </Typography.Text>
+              </div>
+              <Button
+                type='primary'
+                data-testid='opl-maintenance-hub-make-usable'
+                title={t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.help')}
+                loading={makeUsableRunning}
+                disabled={Boolean(activeReadOperation)}
+                onClick={requestMakeOplUsable}
+              >
+                {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label')}
+              </Button>
+            </div>
+
+            <div className='grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-14px'>
+              <div className='flex flex-col divide-y divide-border-1'>
+                {maintenanceHubItems.map((item) => (
+                  <div
+                    key={`maintenance-hub-${item.key}`}
+                    className='py-12px min-w-0'
+                    data-testid={`opl-maintenance-hub-${item.key}`}
+                  >
+                    <div className='flex flex-col gap-10px md:flex-row md:items-center md:justify-between'>
+                      <div className='min-w-0 flex items-start gap-10px'>
+                        <span className='w-28px h-28px shrink-0 flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
+                          {item.icon}
+                        </span>
+                        <div className='min-w-0 flex flex-col gap-5px'>
+                          <div className='flex flex-wrap items-center gap-8px'>
+                            <Typography.Text className='font-600 text-t-primary break-words'>
+                              {item.title}
+                            </Typography.Text>
+                            <Tag color={item.tone}>{item.status}</Tag>
+                          </div>
+                          <Typography.Text className='text-12px text-t-secondary break-words'>
+                            {item.detail}
+                          </Typography.Text>
+                        </div>
+                      </div>
+                      <Button
+                        className='md:shrink-0'
+                        title={item.actionHelp}
+                        loading={item.actionLoading}
+                        disabled={item.actionDisabled}
+                        onClick={item.onAction}
+                      >
+                        {item.actionLabel}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className='rd-8px bg-fill-1 p-12px min-w-0 flex flex-col gap-8px'
+                data-testid='opl-maintenance-recent-results'
+              >
+                <Typography.Text className='font-600 text-t-primary'>
+                  {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
+                    value: managedUpdateMaintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                  })}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
+                    value: managedUpdateMaintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
+                  })}
+                </Typography.Text>
+                <Typography.Text className='text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
+                    value:
+                      managedUpdateMaintenance.lastFailure ??
+                      t('settings.oplEnvironmentPage.updates.background.noFailure'),
+                  })}
+                </Typography.Text>
+                {managedUpdateMaintenance.executionStatus !== 'idle' && (
+                  <Typography.Text className='text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.updates.executionStatus', {
+                      status: managedUpdateMaintenance.executionStatus,
+                    })}
+                  </Typography.Text>
+                )}
+                {managedUpdateMaintenance.lastAction ? (
+                  <Typography.Text className='text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.updates.background.lastAction', {
+                      action: managedUpdateMaintenance.lastAction.kind,
+                      componentId: managedUpdateMaintenance.lastAction.componentId,
+                      status: managedUpdateMaintenance.lastAction.status,
+                    })}
+                  </Typography.Text>
+                ) : (
+                  <Typography.Text className='text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.maintenanceHub.results.noAction')}
+                  </Typography.Text>
+                )}
+                {managedUpdateMaintenance.reloadGuidance && (
+                  <Typography.Text className='text-12px text-t-secondary break-words'>
+                    {t('settings.oplEnvironmentPage.updates.background.reloadGuidance', {
+                      guidance: managedUpdateMaintenance.reloadGuidance,
+                    })}
+                  </Typography.Text>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
 
         <div
           className='flex flex-wrap items-center gap-8px text-12px text-t-secondary'

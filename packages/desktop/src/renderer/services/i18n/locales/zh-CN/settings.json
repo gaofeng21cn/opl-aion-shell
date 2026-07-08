@@ -1746,22 +1746,27 @@
       }
     },
     "connections": {
-      "title": "云端、工作区和外部资源",
+      "title": "云端与外部环境",
       "description": "展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。",
-      "noSources": "当前没有上报资源连接。"
+      "workspaceTitle": "OPL Workspace",
+      "workspaceDescription": "确认任务使用的工作区、环境和存储入口；底层引用默认收起。",
+      "noWorkspaceSources": "当前没有上报 OPL Workspace 连接。",
+      "noSources": "当前没有上报云端或外部环境连接。"
     },
     "statusLabels": {
-      "action_available": "可操作",
+      "action_available": "可用",
       "available": "可用",
-      "diagnose_with_doctor": "可诊断",
+      "attention_required": "需要检查",
+      "diagnose_with_doctor": "需要检查",
       "healthy": "正常",
+      "needs_input": "需要填写信息",
+      "not_configured": "未配置",
       "ok": "正常",
       "ready": "可用",
-      "refs_only": "仅记录引用",
-      "unknown": "未读取到"
+      "refs_only": "可用",
+      "unknown": "需要检查"
     },
     "resourceSources": {
-      "status": "状态：{{status}}",
       "environmentRefs": "有环境配置",
       "managementRefs": "有管理信息",
       "technicalRefs": "技术引用",
@@ -2017,6 +2022,10 @@
       "linkOuts": {
         "label": "其他设置：",
         "advancedDiagnostics": "运行状态 / 高级诊断"
+      },
+      "results": {
+        "title": "最近结果",
+        "noAction": "此窗口内尚未运行维护操作。"
       },
       "makeUsable": {
         "label": "让 OPL 可用",
@@ -2335,10 +2344,10 @@
       "description": "新建 Codex CLI 会话使用的 App 管理 OPL Flow 元数据。它跟随界面语言、尊重用户 AGENTS.md 文件，并记录 OPL App 产品规则作为来源。"
     },
     "developerSource": {
-      "title": "Developer Profile 会影响自动维护",
-      "impact": "当前启用了本机来源模式。托管维护仍会检查状态，但不会自动覆盖开发 checkout。",
-      "dirtyImpact": "本机 checkout 有未提交改动。托管维护会跳过该 checkout 的自动更新动作，直到你保存、提交或清理它。",
-      "nextStep": "在下方模块诊断中找到对应 checkout，在该仓库处理后再重新检查。"
+      "title": "本机开发目录受保护",
+      "impact": "自动维护会继续检查状态，但不会覆盖本机开发目录。",
+      "dirtyImpact": "检测到本机开发目录有未提交改动；自动维护会跳过相关更新，直到你处理这些改动。",
+      "nextStep": "需要查看具体目录时，打开下方高级维护详情。"
     }
   },
   "appearancePage": {

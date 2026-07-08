@@ -173,39 +173,41 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
-        'settings.resourcesPage.title': 'Resources & Connections',
-        'settings.resourcesPage.description':
-          'Connect server WebUI, OPL Workspace, cloud or hosted workspaces, and external environments here.',
-        'settings.resourcesPage.docker.title': 'Server WebUI and OPL Workspace',
+        'settings.resourcesPage.title': '资源与连接',
+        'settings.resourcesPage.description': '在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。',
+        'settings.resourcesPage.docker.title': '服务器 WebUI 与 OPL Workspace',
         'settings.resourcesPage.docker.description':
-          'Use these entries for server or hosted workspace deployments. Local browser access stays on Access.',
-        'settings.resourcesPage.docker.docker': 'Server WebUI',
+          '这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。',
+        'settings.resourcesPage.docker.docker': '服务器 WebUI',
         'settings.resourcesPage.docker.workspace': 'OPL Workspace',
-        'settings.resourcesPage.docker.runDryRoute': 'Check before deploy',
-        'settings.resourcesPage.docker.payloadRequired': 'Needs details',
-        'settings.resourcesPage.docker.confirmationRequired': 'Confirms before changes',
-        'settings.resourcesPage.docker.actionDryRunSuccess': 'Deployment check completed.',
-        'settings.resourcesPage.docker.actionDryRunFailed': 'Deployment check failed.',
-        'settings.resourcesPage.docker.actions.settings_install_docker_webui': 'Install server WebUI',
-        'settings.resourcesPage.docker.actions.settings_select_webui_seed': 'Choose initial WebUI image',
-        'settings.resourcesPage.connections.title': 'Cloud, workspace, and external resources',
+        'settings.resourcesPage.docker.runDryRoute': '部署前检查',
+        'settings.resourcesPage.docker.payloadRequired': '需要填写信息',
+        'settings.resourcesPage.docker.confirmationRequired': '变更前确认',
+        'settings.resourcesPage.docker.actionDryRunSuccess': '部署前检查完成。',
+        'settings.resourcesPage.docker.actionDryRunFailed': '部署前检查失败。',
+        'settings.resourcesPage.docker.actions.settings_install_docker_webui': '安装服务器 WebUI',
+        'settings.resourcesPage.docker.actions.settings_select_webui_seed': '选择 WebUI 初始模板',
+        'settings.resourcesPage.connections.title': '云端与外部环境',
         'settings.resourcesPage.connections.description':
-          'Shows cloud, workspace, and external environments tasks can use. Technical references stay collapsed.',
-        'settings.resourcesPage.statusLabels.action_available': 'Available action',
-        'settings.resourcesPage.statusLabels.available': 'Available',
-        'settings.resourcesPage.statusLabels.ready': 'Ready',
-        'settings.resourcesPage.resourceSources.status': `Resource status: ${options?.status}`,
-        'settings.resourcesPage.resourceSources.environmentRefs': 'Has environment config',
-        'settings.resourcesPage.resourceSources.managementRefs': 'Has management info',
-        'settings.resourcesPage.resourceSources.technicalRefs': 'Technical references',
-        'settings.resourcesPage.resourceSources.categories.remote': 'Remote resource',
+          '展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。',
+        'settings.resourcesPage.connections.workspaceTitle': 'OPL Workspace',
+        'settings.resourcesPage.connections.workspaceDescription':
+          '确认任务使用的工作区、环境和存储入口；底层引用默认收起。',
+        'settings.resourcesPage.statusLabels.action_available': '可用',
+        'settings.resourcesPage.statusLabels.available': '可用',
+        'settings.resourcesPage.statusLabels.needs_input': '需要填写信息',
+        'settings.resourcesPage.statusLabels.ready': '可用',
+        'settings.resourcesPage.resourceSources.environmentRefs': '有环境配置',
+        'settings.resourcesPage.resourceSources.managementRefs': '有管理信息',
+        'settings.resourcesPage.resourceSources.technicalRefs': '技术引用',
+        'settings.resourcesPage.resourceSources.categories.remote': '远程资源',
         'settings.resourcesPage.resourceSources.categories.oplWorkspace': 'OPL Workspace',
-        'settings.resourcesPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud managed compute',
-        'settings.resourcesPage.resourceSources.management.consoleManaged': 'Managed by OPL Console',
-        'settings.resourcesPage.resourceSources.noRefs': 'No resource context reported.',
-        'settings.accessPage.resourceSources.cloudRemoteAccess': 'Cloud & Remote Access',
+        'settings.resourcesPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud 托管计算',
+        'settings.resourcesPage.resourceSources.management.consoleManaged': '由 OPL Console 管理',
+        'settings.resourcesPage.resourceSources.noRefs': '未报告资源上下文。',
+        'settings.accessPage.resourceSources.cloudRemoteAccess': '云端与远程访问',
         'settings.accessPage.resourceSources.oplWorkspace': 'OPL Workspace',
-        'settings.accessPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud managed compute',
+        'settings.accessPage.resourceSources.categories.oplCloudCompute': 'OPL Cloud 托管计算',
       };
       return labels[key] ?? options?.status ?? options?.defaultValue ?? key;
     },
@@ -229,27 +231,32 @@ describe('ResourcesSettingsContent', () => {
     document.body.innerHTML = '';
   });
 
-  it('renders Docker WebUI, OPL Workspace, cloud, and external resource connections outside Access', () => {
+  it('renders action-oriented resource groups without exposing raw control-plane details by default', () => {
     const view = render(<ResourcesSettingsContent />);
 
-    expect(view.getByText('Resources & Connections')).toBeTruthy();
-    expect(view.getByText('Server WebUI and OPL Workspace')).toBeTruthy();
-    expect(view.getAllByText('Server WebUI').length).toBeGreaterThan(0);
+    expect(view.getByText('资源与连接')).toBeTruthy();
+    expect(view.getByText('服务器 WebUI 与 OPL Workspace')).toBeTruthy();
+    expect(view.getAllByText('服务器 WebUI').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
-    expect(view.getByText('Install server WebUI')).toBeTruthy();
-    expect(view.getByText('Choose initial WebUI image')).toBeTruthy();
+    expect(view.getByText('云端与外部环境')).toBeTruthy();
+    expect(view.getByText('安装服务器 WebUI')).toBeTruthy();
+    expect(view.getByText('选择 WebUI 初始模板')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-workspace-resource-sources')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
-    expect(document.body.textContent).toContain('Managed by OPL Console');
-    expect(document.body.textContent).toContain('OPL Cloud managed compute');
-    expect(document.body.textContent).toContain('Has management info');
-    expect(document.body.textContent).toContain('Has environment config');
-    expect(document.body.textContent).toContain('Technical references');
+    expect(document.body.textContent).not.toContain('dry-run');
+    expect(document.body.textContent).not.toContain('payload');
+    expect(document.body.textContent).not.toContain('attention_needed');
+    expect(document.body.textContent).toContain('由 OPL Console 管理');
+    expect(document.body.textContent).toContain('OPL Cloud 托管计算');
+    expect(document.body.textContent).toContain('有管理信息');
+    expect(document.body.textContent).toContain('有环境配置');
+    expect(document.body.textContent).toContain('技术引用');
     expect(document.body.textContent).not.toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).not.toContain('opl://environment/default');
     expect(document.body.textContent).not.toContain('opl://storage/default');
 
-    view.getAllByText('Technical references').forEach((summary) => openDetailsFor(summary));
+    view.getAllByText('技术引用').forEach((summary) => openDetailsFor(summary));
 
     expect(document.body.textContent).toContain('opl://resource-source/cloud-remote-access');
     expect(document.body.textContent).toContain('opl://environment/default');
@@ -274,7 +281,7 @@ describe('ResourcesSettingsContent', () => {
       })
     );
     await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
-    expect(await view.findByText('Deployment check completed.')).toBeTruthy();
+    expect(await view.findByText('部署前检查完成。')).toBeTruthy();
   });
 
   it('does not report Docker WebUI action success when the App control-plane bridge returns a structured failure', async () => {
@@ -293,9 +300,9 @@ describe('ResourcesSettingsContent', () => {
 
     fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
 
-    await waitFor(() => expect(view.getByText('Deployment check failed.')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('部署前检查失败。')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toContain('Deployment check completed.');
+    expect(document.body.textContent).not.toContain('部署前检查完成。');
   });
 
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {
@@ -303,7 +310,7 @@ describe('ResourcesSettingsContent', () => {
 
     const seedAction = view.getByTestId('opl-settings-docker-webui-action-settings_select_webui_seed');
     expect(seedAction).toHaveAttribute('disabled');
-    expect(seedAction.textContent).toContain('Needs details');
+    expect(seedAction.textContent).toContain('需要填写信息');
     fireEvent.click(seedAction);
 
     expect(getMocks().executeActionInvoke).not.toHaveBeenCalled();
