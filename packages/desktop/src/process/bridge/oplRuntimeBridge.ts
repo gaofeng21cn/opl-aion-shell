@@ -25,6 +25,7 @@ type RuntimeCommandSpec = {
   surface: IOplRuntimeCommandResult['surface'];
   stdin?: string;
   redactedCommand?: string;
+  timeoutMs?: number;
 };
 
 type OplDeveloperSupervisorEnabled = 'auto' | 'on' | 'off';
@@ -48,6 +49,7 @@ type OplCliEntrypoints = {
 const MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
+const OPL_MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
@@ -275,15 +277,27 @@ function buildReconcileModulesCommand(): RuntimeCommandSpec {
 }
 
 function buildUpdateStatusCommand(): RuntimeCommandSpec {
-  return { surface: 'update_status', args: ['update', 'status', '--json'] };
+  return {
+    surface: 'update_status',
+    args: ['update', 'status', '--json'],
+    timeoutMs: OPL_MANAGED_UPDATE_READ_TIMEOUT_MS,
+  };
 }
 
 function buildUpdateCheckCommand(): RuntimeCommandSpec {
-  return { surface: 'update_check', args: ['update', 'check', '--json'] };
+  return {
+    surface: 'update_check',
+    args: ['update', 'check', '--json'],
+    timeoutMs: OPL_MANAGED_UPDATE_READ_TIMEOUT_MS,
+  };
 }
 
 function buildUpdatePlanCommand(): RuntimeCommandSpec {
-  return { surface: 'update_plan', args: ['update', 'plan', '--json'] };
+  return {
+    surface: 'update_plan',
+    args: ['update', 'plan', '--json'],
+    timeoutMs: OPL_MANAGED_UPDATE_READ_TIMEOUT_MS,
+  };
 }
 
 function buildUpdateApplyCommand(request: IOplUpdateComponentRequest): RuntimeCommandSpec {
@@ -1105,6 +1119,7 @@ function buildOplSpawnCommand(
   surface: IOplRuntimeCommandResult['surface'];
   env: NodeJS.ProcessEnv;
   stdin?: string;
+  timeoutMs?: number;
 } {
   const resolved = resolveOplCli(spec, env);
   if (resolved) {
@@ -1113,6 +1128,7 @@ function buildOplSpawnCommand(
       command: resolved.command,
       args: [...resolved.argsPrefix, ...spec.args],
       stdin: spec.stdin,
+      timeoutMs: spec.timeoutMs,
       env: resolved.env,
       redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
     };
@@ -1122,6 +1138,7 @@ function buildOplSpawnCommand(
     command: 'opl',
     args: spec.args,
     stdin: spec.stdin,
+    timeoutMs: spec.timeoutMs,
     env,
     redactedCommand: spec.redactedCommand ?? ['opl', ...spec.args].join(' '),
   };

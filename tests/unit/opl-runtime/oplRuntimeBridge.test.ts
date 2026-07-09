@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { __oplRuntimeBridgeTest } from '@/process/bridge/oplRuntimeBridge';
 
 const tmpRoots: string[] = [];
+const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 
 function makeTempRoot(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
@@ -171,14 +172,17 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(__oplRuntimeBridgeTest.buildUpdateStatusCommand()).toEqual({
       surface: 'update_status',
       args: ['update', 'status', '--json'],
+      timeoutMs: MANAGED_UPDATE_READ_TIMEOUT_MS,
     });
     expect(__oplRuntimeBridgeTest.buildUpdateCheckCommand()).toEqual({
       surface: 'update_check',
       args: ['update', 'check', '--json'],
+      timeoutMs: MANAGED_UPDATE_READ_TIMEOUT_MS,
     });
     expect(__oplRuntimeBridgeTest.buildUpdatePlanCommand()).toEqual({
       surface: 'update_plan',
       args: ['update', 'plan', '--json'],
+      timeoutMs: MANAGED_UPDATE_READ_TIMEOUT_MS,
     });
     expect(__oplRuntimeBridgeTest.buildUpdateApplyCommand({ componentId: 'runtime_substrate' })).toEqual({
       surface: 'update_apply',
@@ -475,6 +479,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(updateCommand.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
     expect(updateCommand.args.slice(-3)).toEqual(['update', 'status', '--json']);
     expect(updateCommand.args).not.toContain(path.join(runtimeHome, 'opl', 'dist', 'entrypoints', 'cli.js'));
+    expect(updateCommand.timeoutMs).toBe(MANAGED_UPDATE_READ_TIMEOUT_MS);
     expect(updateCommand.redactedCommand).toBe('opl update status --json');
 
     const appStateCommand = __oplRuntimeBridgeTest.buildOplSpawnCommand(
@@ -489,6 +494,7 @@ describe('OPL runtime bridge command whitelist', () => {
       'fast',
       '--json',
     ]);
+    expect(appStateCommand.timeoutMs).toBeUndefined();
   });
 
   it('prefers the explicit local framework checkout when Developer Mode auto-matches the developer identity', () => {
