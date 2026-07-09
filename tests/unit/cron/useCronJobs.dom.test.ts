@@ -33,6 +33,7 @@ vi.mock('@/common', () => ({
     },
     conversation: {
       listByCronJob: { invoke: vi.fn() },
+      update: { invoke: vi.fn() },
       listChanged: { on: vi.fn() },
     },
   },
@@ -80,6 +81,8 @@ describe('useCronJobs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    vi.mocked(ipcBridge.conversation.listByCronJob.invoke).mockResolvedValue([]);
+    vi.mocked(ipcBridge.conversation.update.invoke).mockResolvedValue(true);
     Intl.DateTimeFormat = vi.fn(
       () =>
         ({
@@ -560,6 +563,59 @@ describe('useCronJobsMap', () => {
 
     await waitFor(() => expect(result.current.hasUnread('conv-1')).toBe(true));
     expect(result.current.getJobStatus('conv-1')).toBe('unread');
+  });
+
+  it('renames the latest new-conversation run when a scheduled task executes', async () => {
+    let onJobUpdatedHandler: ((job: ICronJob) => void) | null = null;
+    const initialJob = mockJob({
+      id: 'job-1',
+      name: 'Daily report',
+      metadata: { conversation_id: 'conv-1', created_at_ms: 1000 },
+      target: {
+        execution_mode: 'new_conversation',
+        payload: { kind: 'message', text: 'report' },
+      },
+      state: { ...mockJob().state, last_run_at_ms: 1000 },
+    } as Partial<ICronJob>);
+    vi.mocked(ipcBridge.cron.listJobs.invoke).mockResolvedValue([initialJob]);
+    vi.mocked(ipcBridge.cron.onJobCreated.on).mockReturnValue(() => {});
+    vi.mocked(ipcBridge.cron.onJobUpdated.on).mockImplementation((handler) => {
+      onJobUpdatedHandler = handler;
+      return () => {};
+    });
+    vi.mocked(ipcBridge.cron.onJobRemoved.on).mockReturnValue(() => {});
+    vi.mocked(ipcBridge.conversation.listByCronJob.invoke).mockResolvedValue([
+      {
+        ...mockConversation('conv-run'),
+        name: 'Daily report',
+        created_at: Date.UTC(2026, 6, 1, 12, 0, 0),
+        modified_at: Date.UTC(2026, 6, 1, 12, 0, 0),
+      } as TChatConversation,
+    ]);
+
+    const { result } = renderHook(() => useCronJobsMap());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    onJobUpdatedHandler!(
+      mockJob({
+        id: 'job-1',
+        name: 'Daily report',
+        metadata: { conversation_id: 'conv-1', created_at_ms: 1000 },
+        target: {
+          execution_mode: 'new_conversation',
+          payload: { kind: 'message', text: 'report' },
+        },
+        state: { ...mockJob().state, last_run_at_ms: Date.UTC(2026, 6, 1, 12, 0, 0) },
+      } as Partial<ICronJob>)
+    );
+
+    await waitFor(() =>
+      expect(ipcBridge.conversation.update.invoke).toHaveBeenCalledWith({
+        id: 'conv-run',
+        updates: { name: 'Daily report 01-07-26' },
+      })
+    );
   });
 
   it('does not mark as unread if active conversation', async () => {

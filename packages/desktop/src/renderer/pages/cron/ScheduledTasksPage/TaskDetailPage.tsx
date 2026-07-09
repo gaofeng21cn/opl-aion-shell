@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Message, Switch, Popconfirm, Spin, Empty } from '@arco-design/web-react';
+import { Button, Message, Switch, Popconfirm, Spin, Empty, Checkbox, Modal } from '@arco-design/web-react';
 import { Left, Delete, Write, Attention, Robot } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import type { ICronJob } from '@/common/adapter/ipcBridge';
@@ -16,12 +16,13 @@ import { useConversationAgents } from '@renderer/pages/conversation/hooks/useCon
 import CronStatusTag from './CronStatusTag';
 import CreateTaskDialog from './CreateTaskDialog';
 import { getJobAgentMeta } from './jobAgentMeta';
-import { formatSchedule, formatNextRun } from '@renderer/pages/cron/cronUtils';
+import { formatCronRunConversationTitle, formatSchedule, formatNextRun } from '@renderer/pages/cron/cronUtils';
 import { useCronJobConversations } from '@renderer/pages/cron/useCronJobs';
 import { repairCronJobTimeZone } from '@renderer/pages/cron/repairCronJobTimeZone';
 import { getActivityTime } from '@/renderer/utils/chat/timeline';
 import { mutate } from 'swr';
 import { getConversationRuntimeWorkspaceErrorMessage } from '@renderer/pages/conversation/utils/conversationCreateError';
+import { emitter } from '@/renderer/utils/emitter';
 
 const TaskDetailPage: React.FC = () => {
   const { t } = useTranslation();
@@ -31,11 +32,25 @@ const TaskDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [editDialogVisible, setEditDialogVisible] = useState(false);
   const [runningNow, setRunningNow] = useState(false);
+  const [historyBatchMode, setHistoryBatchMode] = useState(false);
+  const [selectedConversationIds, setSelectedConversationIds] = useState<Set<string>>(() => new Set());
 
   const isNewConversationMode = job?.target.execution_mode === 'new_conversation';
   const isManualOnly = job?.schedule.kind === 'cron' && !job.schedule.expr;
-  const { conversations } = useCronJobConversations(job_id);
+  const { conversations, refetch: refetchConversations } = useCronJobConversations(job_id);
   const { cliAgents } = useConversationAgents();
+
+  useEffect(() => {
+    setSelectedConversationIds((prev) => {
+      const currentIds = new Set(conversations.map((conversation) => conversation.id));
+      const next = new Set([...prev].filter((id) => currentIds.has(id)));
+      const changed = next.size !== prev.size || [...next].some((id) => !prev.has(id));
+      return changed ? next : prev;
+    });
+    if (conversations.length === 0) {
+      setHistoryBatchMode(false);
+    }
+  }, [conversations]);
 
   const fetchJob = useCallback(async () => {
     if (!job_id) return;
@@ -113,6 +128,20 @@ const TaskDetailPage: React.FC = () => {
         }
 
         if (latestConversation) {
+          if (isNewConversationMode) {
+            const nextName = formatCronRunConversationTitle(job.name, latestConversation.created_at || Date.now());
+            if (latestConversation.name !== nextName) {
+              await ipcBridge.conversation.update.invoke({
+                id: result.conversation_id,
+                updates: { name: nextName },
+              });
+              latestConversation = {
+                ...latestConversation,
+                name: nextName,
+              };
+            }
+          }
+
           const latestExtra = (latestConversation.extra ?? {}) as Record<string, unknown> & {
             cron_job_id?: string;
             cronJobId?: string;
@@ -142,7 +171,83 @@ const TaskDetailPage: React.FC = () => {
     } finally {
       setRunningNow(false);
     }
-  }, [job, t, navigate]);
+  }, [isNewConversationMode, job, navigate, t]);
+
+  const allHistorySelected =
+    conversations.length > 0 && conversations.every((conversation) => selectedConversationIds.has(conversation.id));
+
+  const toggleConversationSelected = useCallback((conversationId: string) => {
+    setSelectedConversationIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(conversationId)) {
+        next.delete(conversationId);
+      } else {
+        next.add(conversationId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllHistory = useCallback(() => {
+    setSelectedConversationIds((prev) => {
+      if (conversations.length > 0 && conversations.every((conversation) => prev.has(conversation.id))) {
+        return new Set();
+      }
+      return new Set(conversations.map((conversation) => conversation.id));
+    });
+  }, [conversations]);
+
+  const handleCancelHistoryBatchMode = useCallback(() => {
+    setHistoryBatchMode(false);
+    setSelectedConversationIds(new Set());
+  }, []);
+
+  const removeHistoryConversation = useCallback(async (conversationId: string): Promise<boolean> => {
+    const success = await ipcBridge.conversation.remove.invoke({ id: conversationId });
+    if (success) {
+      emitter.emit('conversation.deleted', conversationId);
+    }
+    return success;
+  }, []);
+
+  const handleBatchDeleteHistory = useCallback(() => {
+    if (selectedConversationIds.size === 0) {
+      Message.warning(t('conversation.history.batchNoSelection'));
+      return;
+    }
+
+    Modal.confirm({
+      title: t('conversation.history.batchDelete'),
+      content: t('conversation.history.batchDeleteConfirm', { count: selectedConversationIds.size }),
+      okText: t('conversation.history.confirmDelete'),
+      cancelText: t('conversation.history.cancelDelete'),
+      okButtonProps: { status: 'warning' },
+      onOk: async () => {
+        const selectedIds = Array.from(selectedConversationIds);
+        try {
+          const results = await Promise.all(selectedIds.map(removeHistoryConversation));
+          const successCount = results.filter(Boolean).length;
+          emitter.emit('chat.history.refresh');
+          await refetchConversations();
+          if (successCount > 0) {
+            Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
+          } else {
+            Message.error(t('conversation.history.deleteFailed'));
+          }
+        } catch (error) {
+          console.error('[TaskDetailPage] Failed to batch delete conversations:', error);
+          Message.error(t('conversation.history.deleteFailed'));
+        } finally {
+          setSelectedConversationIds(new Set());
+          setHistoryBatchMode(false);
+          await fetchJob();
+        }
+      },
+      style: { borderRadius: '12px' },
+      alignCenter: true,
+      getPopupContainer: () => document.body,
+    });
+  }, [fetchJob, refetchConversations, removeHistoryConversation, selectedConversationIds, t]);
 
   const handleDelete = useCallback(async () => {
     if (!job) return;
@@ -252,17 +357,74 @@ const TaskDetailPage: React.FC = () => {
         <div className='grid w-full min-w-0 grid-cols-1 gap-28px md:grid-cols-[minmax(0,1fr)_280px] md:items-start md:gap-32px'>
           <div data-testid='task-detail-history-column' className='flex min-w-0 flex-col gap-28px'>
             <section className='flex flex-col gap-12px'>
-              <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('cron.detail.history')}</h2>
+              <div className='flex min-w-0 items-center justify-between gap-12px'>
+                <h2 className='m-0 text-13px font-medium text-t-secondary'>{t('cron.detail.history')}</h2>
+                {conversations.length > 0 && (
+                  <div className='flex shrink-0 items-center gap-8px'>
+                    {historyBatchMode ? (
+                      <>
+                        <Button
+                          size='mini'
+                          type='text'
+                          className='!h-24px !px-8px !text-12px'
+                          onClick={handleCancelHistoryBatchMode}
+                        >
+                          {t('conversation.history.cancelDelete')}
+                        </Button>
+                        <Button
+                          size='mini'
+                          status='warning'
+                          className='!h-24px !px-8px !text-12px'
+                          disabled={selectedConversationIds.size === 0}
+                          onClick={handleBatchDeleteHistory}
+                        >
+                          {t('conversation.history.batchDelete')}
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size='mini'
+                        type='text'
+                        className='!h-24px !px-8px !text-12px'
+                        onClick={() => setHistoryBatchMode(true)}
+                      >
+                        {t('conversation.history.batchManage')}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {conversations.length > 0 ? (
                 <div className='flex flex-col'>
+                  {historyBatchMode && (
+                    <div className='flex items-center justify-between gap-12px py-8px text-12px text-t-secondary'>
+                      <Checkbox checked={allHistorySelected} onChange={handleSelectAllHistory}>
+                        {t('conversation.history.selectAll')}
+                      </Checkbox>
+                      <span>{t('conversation.history.selectedCount', { count: selectedConversationIds.size })}</span>
+                    </div>
+                  )}
                   <div className='h-1px w-full bg-[var(--color-border-2)]' />
                   {conversations.map((conv, index) => (
                     <React.Fragment key={conv.id}>
                       <div
                         className='flex cursor-pointer items-center justify-between gap-14px py-15px transition-colors hover:text-t-primary'
-                        onClick={() => navigate(`/conversation/${conv.id}`)}
+                        onClick={() => {
+                          if (historyBatchMode) {
+                            toggleConversationSelected(conv.id);
+                            return;
+                          }
+                          navigate(`/conversation/${conv.id}`);
+                        }}
                       >
+                        {historyBatchMode && (
+                          <Checkbox
+                            checked={selectedConversationIds.has(conv.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={() => toggleConversationSelected(conv.id)}
+                          />
+                        )}
                         <span className='min-w-0 flex-1 truncate text-14px text-t-primary'>{conv.name || conv.id}</span>
                         <span className='shrink-0 text-13px text-t-secondary'>
                           {formatNextRun(getActivityTime(conv))}
