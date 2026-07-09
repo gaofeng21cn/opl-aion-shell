@@ -2,7 +2,6 @@
  * E2E test helpers for aionrs (Aion CLI) conversations.
  */
 import type { Page } from '@playwright/test';
-import type * as fixtures from '../fixtures';
 import { invokeBridge } from './bridge';
 import { goToGuid } from './navigation';
 import fs from 'fs';
@@ -30,49 +29,6 @@ export type TProviderWithModel = {
 export interface AionrsTestModels {
   modelA: TProviderWithModel;
   modelB: TProviderWithModel | null;
-}
-
-export interface AionrsPreconditions {
-  binary: string | null;
-  models: AionrsTestModels | null;
-}
-
-type AionrsSuiteTest = typeof fixtures.test;
-
-export function registerAionrsSuiteHooks(
-  test: AionrsSuiteTest,
-  setPreconditions: (preconditions: AionrsPreconditions) => void
-): void {
-  test.beforeAll(async ({ page }) => {
-    const preconditions = await resolveAionrsPreconditions(page);
-    setPreconditions(preconditions);
-    if (!preconditions.binary || !preconditions.models) {
-      test.skip(true, 'No aionrs-compatible provider found, skipping E2E tests');
-    }
-  });
-
-  test.afterEach(async ({ page }) => {
-    await cleanupAionrsSuiteState(page);
-  });
-}
-
-export async function cleanupAionrsSuiteState(page: Page): Promise<void> {
-  for (let i = 0; i < 5; i++) {
-    await page.keyboard.press('Escape');
-  }
-
-  await cleanupE2EAionrsConversations(page);
-
-  await page.evaluate(() => {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      if (key && (key.startsWith('aionrs_initial_message_') || key.startsWith('aionrs_initial_processed_'))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach((key) => sessionStorage.removeItem(key));
-  });
 }
 
 /**
@@ -161,7 +117,10 @@ export async function getAionrsTestModels(page: Page): Promise<AionrsTestModels 
  * @param page Playwright page
  * @returns Object with binary path and models, or null values if not available
  */
-export async function resolveAionrsPreconditions(page: Page): Promise<AionrsPreconditions> {
+export async function resolveAionrsPreconditions(page: Page): Promise<{
+  binary: string | null;
+  models: AionrsTestModels | null;
+}> {
   const binary = resolveAionrsBinary();
   const models = await getAionrsTestModels(page);
   return { binary, models };

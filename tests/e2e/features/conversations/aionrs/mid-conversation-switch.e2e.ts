@@ -17,24 +17,48 @@
 
 import { test, expect } from '../../../fixtures';
 import {
-  registerAionrsSuiteHooks,
+  resolveAionrsPreconditions,
+  cleanupE2EAionrsConversations,
   createAionrsConversationViaBridge,
   sendAionrsMessage,
   waitForAionrsReply,
   getAionrsConversationDB,
   getAionrsMessages,
   createTempWorkspace,
-  type AionrsPreconditions,
+  type AionrsTestModels,
 } from '../../../helpers';
 import { takeScreenshot } from '../../../helpers/screenshots';
 
 test.describe('Aionrs Chat - Mid-Conversation Switch (P1)', () => {
   test.setTimeout(180000); // 3 minutes (longer for multi-round tests)
 
-  let preconditions: AionrsPreconditions = { binary: null, models: null };
+  let preconditions: { binary: string | null; models: AionrsTestModels | null };
 
-  registerAionrsSuiteHooks(test, (resolvedPreconditions) => {
-    preconditions = resolvedPreconditions;
+  test.beforeAll(async ({ page }) => {
+    preconditions = await resolveAionrsPreconditions(page);
+    if (!preconditions.binary || !preconditions.models) {
+      test.skip(true, 'No aionrs-compatible provider found, skipping E2E tests');
+    }
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Cleanup order: ESC × 5 → DB → sessionStorage
+    for (let i = 0; i < 5; i++) {
+      await page.keyboard.press('Escape');
+    }
+
+    await cleanupE2EAionrsConversations(page);
+
+    await page.evaluate(() => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('aionrs_initial_message_') || key.startsWith('aionrs_initial_processed_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => sessionStorage.removeItem(key));
+    });
   });
 
   // ============================================================================
