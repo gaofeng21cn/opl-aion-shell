@@ -94,6 +94,20 @@ The generated product profile under `packages/desktop/src/common/config/oplProdu
 
 The `/guid` home path treats MAS, MAG, and RCA as App-owned purpose assistants over the fixed Codex executor. Their `assistant_skill_profiles` decide the domain skill behavior: the matching skill (`mas`, `mag`, or `rca`) is selected and locked by default, optional companion skills are shown only for that assistant, and AionUI-internal skills stay out of the home skill menu. Built-in assistant sends also persist the App route receipt (`route_kind=builtin_capability`, `executor=codex_cli`, assistant id/short name, and `source=opl_app_home`) so the selected purpose is visible after the conversation is created.
 
+## Upstream Intake Policy
+
+AionUI upstream releases are implementation input, not App product authority. Each
+intake must record accepted, rejected, and redirected surfaces in
+`docs/history/` before a large upstream delta is absorbed. Upstream defaults for
+assistants, Settings, model selection, updater behavior, Team surfaces, or
+diagnostics may be copied only after the App or Framework owner surface has
+accepted the corresponding product, runtime, release, or evidence boundary.
+
+When an upstream feature overlaps a retired OPL surface, the default decision is
+retire/watch, not resurrection. Implementation lanes must report final diffs and
+validation back to the main session; a release note, tag, focused test, or local
+commit does not by itself prove App-ready or release-ready status.
+
 ## Local Hygiene
 
 Local CodeGraph indexes and packaged runtime payloads are development/build artifacts. They are ignored in this repository and must not be committed from shell lanes.
