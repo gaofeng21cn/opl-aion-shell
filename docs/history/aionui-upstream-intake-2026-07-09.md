@@ -2,7 +2,7 @@
 
 Owner: `opl-aion-shell`
 Purpose: `upstream_intake_record`
-State: `absorption_candidate`
+State: `absorbed_record`
 Machine boundary: Human-readable intake record. Use GitHub release refs, upstream git refs, source files, App-owned contracts, and repo-native tests for merge or release decisions.
 
 ## Intake Scope
@@ -30,7 +30,7 @@ Absorb by topic lane only:
 - `redirect`: upstream product/runtime ideas that require an App or Framework owner decision before shell implementation.
 - `reject/watch`: upstream governance, public docs, Team-default, or product defaults that do not belong to the OPL App mainline.
 
-Implementation lanes remain pending absorption. The main session must update final evidence after it inspects their diffs, reruns the selected validation, and decides whether to absorb or reject each lane.
+Main-session absorption completed for the accepted implementation lanes on `opl-aion-shell` `main`. This intake did not fast-forward or directly merge upstream. It cherry-picked only scoped adaptation commits, kept the OPL App ordinary surface in charge, and left release/installer readiness outside this closeout.
 
 ## Evaluation Table
 
@@ -45,20 +45,24 @@ Implementation lanes remain pending absorption. The main session must update fin
 | macOS update install readiness；Windows NSIS failure/self-lock hardening；auto-update diagnostics；dated frontend logs；backend startup dirs；corrupted DB rebuild confirmation | 提升安装/更新失败可诊断性和启动恢复可控性 | App release promotion、updater policy、public release docs 属于 App/root release authority；shell 可实现 failure reporting，但不能单独声明 release-ready | 中高 | 接受 shell-local resilience fixes；release gate 和 user-facing release claim redirect 到 App/root | accept/adapt | Installer smoke scripts；update unit tests；startup recovery tests；App release-boundary validation 由 main session 追补 |
 | Feedback report 附带 core diagnostics，新增 route context / feedback diagnostics PRD | 支持问题报告带上更多上下文，降低复现成本 | diagnostics 可能包含本地路径、runtime refs、domain refs 或 owner evidence；暴露边界必须由 App/root policy 决定 | 中 | 作为候选吸收，但先加最小 redaction / route allowlist；不要把 diagnostics 变成 product truth | redirect | feedback submit tests；privacy/redaction review；App diagnostics exposure policy readback |
 | OpenAI SDK `apiKey` 参数修正、throttle timer leak cleanup、image alt text、empty avatar、assistant badge tone | 修复真实 API key 轮换失效、资源泄漏和可访问性/视觉一致性问题 | API credential policy 仍由 OPL/App 配置边界决定；但 `api_key` -> `apiKey` 属于上游 bugfix，不改变产品 authority | 低 | 直接移植或确认当前 OPL 已等价修复 | accept | API client unit test；affected renderer tests；no credential/log leak review |
-| es-ES / fa-IR 完整 locale，既有 locale gap 修补，i18n config 扩展 | 扩大语言覆盖并补齐设置、cron、update 等文案 | 大量翻译 payload 增加维护面；OPL-specific 文案仍需本仓 i18n key 和 App product wording，不可直接用 upstream 文案替代 App-owned copy | 中 | 接受 locale registry 和缺口修补；OPL 文案逐项校对 | accept/adapt | `bun run i18n:types`；`node scripts/check-i18n.js`；locale diff review |
+| es-ES / fa-IR 完整 locale，既有 locale gap 修补，i18n config 扩展 | 上游扩大语言覆盖并补齐设置、cron、update 等文案 | OPL 当前用户面只维护中文和英文；新增非中英 locale 会扩大翻译维护面，并让 OPL-specific 文案长期漂移 | 中 | 不吸收新增 `es-ES` / `fa-IR` locale；只吸收中英 key 修补、硬编码文案 i18n 化、语言列表由现有中英配置生成 | reject non-zh/en; accept zh/en fixes | `bun run i18n:types`；`node scripts/check-i18n.js`；确认 supported languages 仍为 `zh-CN` / `en-US` |
 | Upstream PR template、readme 多语种更新、WeChat QR、upstream Superpowers spec 删除、upstream governance docs | 改善上游社区治理和公开分发材料 | OPL shell 的 contributor/process、public docs 和 App release/user docs 不由 upstream governance 定义 | 低 | 不吸收为 OPL truth；只在明确需要时手动参考 | reject/watch | No implementation validation unless explicitly adopted |
 
-## Absorption Packet Placeholders
+## Absorption Result
 
-Main session should fill these after lane inspection:
+Main-session accepted only scoped capability adaptations:
 
-| Topic | Expected final evidence from main session | Current draft state |
+| Topic | Main commit | Decision | Evidence |
 | --- | --- | --- |
-| Assistant / Settings / `/guid` product surfaces | Absorbed commit SHA or rejection note; App product profile / active-shell validation output; renderer focused test output | implementation lane pending absorption |
-| Runtime lease / ACP runtime option handling | Absorbed commit SHA or redirect decision; Framework/App runtime readback; ACP focused test output | implementation lane pending absorption |
-| Installer / updater / startup recovery | Absorbed commit SHA or rejection note; installer smoke or focused unit output; App release-boundary note if policy changed | implementation lane pending absorption |
-| i18n and low-risk bugfixes | Absorbed commit SHA or rejection note; i18n type/check output; focused unit output | implementation lane pending absorption |
-| This docs/contract lane | Commit SHA; Markdown path/title self-check; `git diff --check`; final absorption decision | candidate for main-session absorption |
+| Low-risk stability and diagnostics | `7c02fd4e5` | accepted | OpenAI SDK `apiKey`, throttle cleanup, markdown alt text, dated logs, feedback/log diagnostics, startup directory prep, corrupt DB recovery classification, web-host backend directory prep |
+| Runtime / cron / ACP request dedupe | `f24d3fa5b` | accepted/adapted | ACP config/model option request dedupe, cron run title formatting, scheduled task history batch delete/refetch; no Team default or runtime-truth expansion |
+| `/guid` slash commands and assistant polish | `ea4b5a107` | accepted with OPL filter | `/guid` slash menu uses OPL-allowed skills and builtin `/open`; no Official Assistants, Team default, or shell-local purpose authority |
+| Settings / i18n refinements | `bb35cff74` | accepted/adapted | Settings tab navigate context, image-model config link, WeCom callback i18n, known i18n key fixes, language UI generated from existing Chinese/English config only |
+| Installer lane | none | no-op/defer | Worktree had no diff and no commits beyond `main`; future installer/version/aioncore changes remain L4 and require installer or equivalent release-path evidence |
+| Upstream non-zh/en locale payload | none | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only |
+| Docs/boundary record | `3ea74dc47` plus this follow-up update | accepted | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof |
+
+This closeout does not claim latest upstream parity, installer readiness, release readiness, installed App readiness, production runtime readiness, or owner acceptance. Those require separate owner evidence.
 
 ## Evidence Commands Run For This Draft
 
@@ -74,6 +78,19 @@ gh api repos/iOfficeAI/AionUi/compare/v2.1.27...v2.1.31 --jq '{status:.status,ah
 
 `gh release view v2.1.29` returned `release not found`; this is expected for the release surface because the tag exists and the v2.1.30 release note rolls it up.
 
+## Main-Session Verification
+
+```bash
+bun run i18n:types
+node scripts/check-i18n.js
+git diff --check
+bunx vitest run tests/unit/bootstrap/backendStartupFailure.test.ts tests/unit/providers/OpenAIRotatingClient.test.ts tests/unit/renderer/hooks/useThrottle.dom.test.ts tests/unit/renderer/markdownImageAlt.dom.test.tsx tests/unit/feedback/feedbackBridge.test.ts tests/unit/process/configureConsoleLog.test.ts tests/unit/sentry.test.ts tests/unit/bootstrap/configureConsoleLog.test.ts tests/unit/cron/cronUtils.test.ts tests/unit/chat/guidSlashCommands.test.ts tests/unit/renderer/useSlashCommandController.test.ts tests/unit/settings/settingsNav.test.ts --reporter dot
+env VITEST_INCLUDE_DOM=1 bunx vitest run tests/unit/renderer/useAcpMessage.dom.test.ts tests/unit/renderer/useAcpModelInfo.dom.test.ts tests/unit/cron/useCronJobs.dom.test.ts tests/unit/cron/TaskDetailPage.dom.test.tsx tests/unit/guid/AssistantSelectionArea.dom.test.tsx tests/unit/guid/GuidInputCard.dom.test.tsx tests/unit/settings/SettingsModal.dom.test.tsx tests/unit/settings/SystemModalContent.dom.test.tsx tests/unit/settings/UpdateModal.dom.test.tsx --project dom --reporter dot
+cd packages/web-host && bunx vitest run src/backend-launcher.test.ts --reporter dot
+```
+
+Results on `main`: i18n generation/check passed with existing warning-only unknown literal keys; non-DOM focused suite passed `10` files / `51` tests; DOM focused suite passed `9` files / `75` tests with existing `act(...)`, localStorage, and `NaN` style warnings; web-host backend launcher suite passed `1` file / `30` tests with the existing `MaxListenersExceededWarning`.
+
 ## Stop Condition
 
-This lane stops at `candidate_ready_for_absorption` after the docs diff is committed and the lane-level Markdown/diff checks pass. It does not assert that implementation worker lanes are complete or absorbed.
+This record stops at scoped upstream-intake absorption. It does not assert whole-upstream merge, release readiness, App binary readiness, or installed runtime readiness.

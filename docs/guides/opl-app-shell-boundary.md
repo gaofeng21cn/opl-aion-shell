@@ -92,6 +92,8 @@ normalized tool call should receive the same output text.
 
 The generated product profile under `packages/desktop/src/common/config/oplProductProfile/` is App-owned input copied into the shell. Shell code may consume that profile for defaults such as visible settings tabs, home assistants, Codex model policy, and session context. It must not redefine those defaults from upstream AionUI UI state.
 
+The ordinary language surface is Chinese and English unless the App-owned product profile changes that policy. Upstream locale payloads for additional languages are implementation material only; do not add them to `supportedLanguages`, static locale imports, login language choices, or settings language choices as part of upstream intake without an App owner decision.
+
 The `/guid` home path treats MAS, MAG, and RCA as App-owned purpose assistants over the fixed Codex executor. Their `assistant_skill_profiles` decide the domain skill behavior: the matching skill (`mas`, `mag`, or `rca`) is selected and locked by default, optional companion skills are shown only for that assistant, and AionUI-internal skills stay out of the home skill menu. Built-in assistant sends also persist the App route receipt (`route_kind=builtin_capability`, `executor=codex_cli`, assistant id/short name, and `source=opl_app_home`) so the selected purpose is visible after the conversation is created.
 
 ## Upstream Intake Policy
