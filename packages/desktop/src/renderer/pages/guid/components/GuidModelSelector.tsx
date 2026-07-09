@@ -5,12 +5,15 @@
  */
 
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
+import { ipcBridge } from '@/common';
 import {
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
+  getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
+import { configService } from '@/common/config/configService';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
@@ -23,12 +26,29 @@ import {
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
-import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
+import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
 import { Brain, Check, Down, Plus } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useProvidersQuery } from '@/renderer/hooks/agent/useModelProviderList';
+import { useConfig } from '@/renderer/hooks/config/useConfig';
+
+const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
+
+function oplRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
+  const parsed = oplRecord(value);
+  const execution = oplRecord(parsed.app_action_execution);
+  const result = oplRecord(execution.result);
+  const directStatus = oplRecord(result.opl_flow_intelligence_enhancement);
+  const actionStatus = oplRecord(oplRecord(result.opl_flow_intelligence_enhancement_action).status_readback);
+  const enabled = typeof directStatus.enabled === 'boolean' ? directStatus.enabled : actionStatus.enabled;
+  return typeof enabled === 'boolean' ? enabled : null;
+}
 
 type GuidModelSelectorProps = {
   // Gemini model state
@@ -60,6 +80,10 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [intelligenceEnhancementMode, setIntelligenceEnhancementMode] = useConfig(
+    'codex.oplFlowIntelligenceEnhancementMode'
+  );
+  const [isSettingIntelligenceEnhancementMode, setIsSettingIntelligenceEnhancementMode] = React.useState(false);
   const modelSettingsRoute = resolveLegacySettingsRoute('model');
   const defaultModelLabel = t('common.defaultModel');
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
@@ -69,10 +93,55 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const codexDisplayOptions = getOplCodexModelDisplayOptions();
   const codexAutoLabel =
     localeKey === 'en-US' ? codexDisplayOptions.auto_option.label_en : codexDisplayOptions.auto_option.label_zh;
+  const intelligenceEnhancementTitle = t(
+    OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
+    {
+      defaultValue: localeKey === 'en-US' ? 'Intelligence enhancement mode' : '智力增强模式',
+    }
+  )
+    .replace(/\s+mode$/i, '')
+    .replace(/模式$/, '');
+  const intelligenceEnhancementOnLabel =
+    localeKey === 'en-US'
+      ? t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: 'Enable' })
+      : t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: '启用' }).replace(
+          /^启用$/,
+          '开启'
+        );
+  const intelligenceEnhancementOffLabel =
+    localeKey === 'en-US'
+      ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
+      : t('common.close', { defaultValue: '关闭' });
+  const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? true;
   const restoreCodexAutoSelection = () => {
     setSelectedAcpModel(null);
     setSelectedReasoningEffort?.(null);
   };
+  const handleIntelligenceEnhancementSelect = React.useCallback(
+    async (enabled: boolean) => {
+      const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
+      if (!mode || enabled === intelligenceEnhancementEnabled || isSettingIntelligenceEnhancementMode) return;
+      const previous = intelligenceEnhancementEnabled;
+      setIsSettingIntelligenceEnhancementMode(true);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: enabled ? mode.enable_action_id : mode.disable_action_id,
+          dryRun: false,
+        });
+        if (result.ok === false) {
+          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+        }
+        const readbackEnabled = readIntelligenceEnhancementEnabled(result.parsed) ?? enabled;
+        await setIntelligenceEnhancementMode(readbackEnabled);
+      } catch (error) {
+        configService.setLocal(mode.settings_key, previous);
+        Message.error(error instanceof Error ? error.message : String(error));
+      } finally {
+        setIsSettingIntelligenceEnhancementMode(false);
+      }
+    },
+    [intelligenceEnhancementEnabled, isSettingIntelligenceEnhancementMode, setIntelligenceEnhancementMode]
+  );
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -257,30 +326,34 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         reasoningEffort: effectiveReasoningEffort,
         localeKey,
       });
+      const effectiveModelId = selectedAcpModel ?? currentAcpCachedModelInfo.current_model_id;
+      const effectiveModel = currentAcpCachedModelInfo.available_models.find((model) => model.id === effectiveModelId);
+      const modelSubmenuTitle =
+        useOplCodexModelDisplay && effectiveModelId
+          ? formatOplCodexModelDisplay({
+              id: effectiveModelId,
+              label: effectiveModel?.label ?? currentAcpCachedModelInfo.current_model_label,
+              reasoningEffort: effectiveReasoningEffort,
+              localeKey,
+            }).modelLabel
+          : t('common.model', { defaultValue: 'Model' });
       const reasoningMenuItems =
         useOplCodexModelDisplay && setSelectedReasoningEffort
-          ? [
-              <Menu.Item key='__reasoning_header' disabled className='pointer-events-none'>
-                <span className='text-12px text-t-secondary'>
-                  {localeKey === 'en-US' ? t('agent.thoughtLevel.label', { defaultValue: 'Reasoning' }) : '推理'}
-                </span>
-              </Menu.Item>,
-              ...codexDisplayOptions.user_reasoning_effort_options.map((effort) => {
-                const selected = effectiveReasoningEffort === effort;
-                return (
-                  <Menu.Item
-                    key={`reasoning:${effort}`}
-                    className={selected ? '!bg-2' : ''}
-                    onClick={() => setSelectedReasoningEffort(effort === defaultCodexReasoningEffort ? null : effort)}
-                  >
-                    <div className='flex items-center justify-between gap-16px w-full'>
-                      <span>{formatOplCodexReasoningMenuLabel(effort, localeKey)}</span>
-                      {selected && <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />}
-                    </div>
-                  </Menu.Item>
-                );
-              }),
-            ]
+          ? codexDisplayOptions.user_reasoning_effort_options.map((effort) => {
+              const selected = effectiveReasoningEffort === effort;
+              return (
+                <Menu.Item
+                  key={`reasoning:${effort}`}
+                  className={selected ? '!bg-2' : ''}
+                  onClick={() => setSelectedReasoningEffort(effort === defaultCodexReasoningEffort ? null : effort)}
+                >
+                  <div className='flex items-center justify-between gap-16px w-full'>
+                    <span>{formatOplCodexReasoningMenuLabel(effort, localeKey)}</span>
+                    {selected && <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />}
+                  </div>
+                </Menu.Item>
+              );
+            })
           : null;
       return (
         <Dropdown
@@ -317,9 +390,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
               {reasoningMenuItems}
               <Menu.SubMenu
                 key='__models'
-                title={
-                  <span className='text-12px text-t-secondary'>{t('common.model', { defaultValue: 'Model' })}</span>
-                }
+                title={<span className='text-12px text-t-secondary'>{modelSubmenuTitle}</span>}
               >
                 {currentAcpCachedModelInfo.available_models.map((model) => {
                   // 获取模型健康状态
@@ -374,6 +445,39 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                   );
                 })}
               </Menu.SubMenu>
+              {useOplCodexModelDisplay && OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE && (
+                <Menu.SubMenu
+                  key='__intelligence_enhancement'
+                  title={<span className='text-12px text-t-secondary'>{intelligenceEnhancementTitle}</span>}
+                >
+                  <Menu.Item
+                    key='intelligence_enhancement:on'
+                    className={intelligenceEnhancementEnabled ? '!bg-2' : ''}
+                    disabled={isSettingIntelligenceEnhancementMode}
+                    onClick={() => handleIntelligenceEnhancementSelect(true)}
+                  >
+                    <div className='flex items-center justify-between gap-16px w-full'>
+                      <span>{intelligenceEnhancementOnLabel}</span>
+                      {intelligenceEnhancementEnabled && (
+                        <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+                      )}
+                    </div>
+                  </Menu.Item>
+                  <Menu.Item
+                    key='intelligence_enhancement:off'
+                    className={!intelligenceEnhancementEnabled ? '!bg-2' : ''}
+                    disabled={isSettingIntelligenceEnhancementMode}
+                    onClick={() => handleIntelligenceEnhancementSelect(false)}
+                  >
+                    <div className='flex items-center justify-between gap-16px w-full'>
+                      <span>{intelligenceEnhancementOffLabel}</span>
+                      {!intelligenceEnhancementEnabled && (
+                        <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+                      )}
+                    </div>
+                  </Menu.Item>
+                </Menu.SubMenu>
+              )}
             </Menu>
           }
         >

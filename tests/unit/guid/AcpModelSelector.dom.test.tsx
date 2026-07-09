@@ -15,9 +15,16 @@ const mocks = vi.hoisted(() => ({
   conversationUpdate: vi.fn(),
   writeRendererLog: vi.fn(),
   responseStreamOn: vi.fn(),
+  executeAction: vi.fn(),
   agentsData: [] as unknown[],
   acpModelInfo: null as AcpModelInfo | null,
   mutateModelInfo: vi.fn(),
+  clientConfigGet: vi.fn(),
+  clientConfigSet: vi.fn(),
+  clientConfigSetLocal: vi.fn(),
+  clientConfigSubscribe: vi.fn(),
+  clientConfigStore: {} as Record<string, unknown>,
+  clientConfigSubscribers: new Set<() => void>(),
 }));
 
 vi.mock('@/common', () => ({
@@ -35,6 +42,9 @@ vi.mock('@/common', () => ({
     application: {
       writeRendererLog: { invoke: mocks.writeRendererLog },
     },
+    oplRuntime: {
+      executeAction: { invoke: mocks.executeAction },
+    },
   },
 }));
 
@@ -48,6 +58,15 @@ vi.mock('@arco-design/web-react', async (importOriginal) => {
     },
   };
 });
+
+vi.mock('@/common/config/configService', () => ({
+  configService: {
+    get: mocks.clientConfigGet,
+    set: mocks.clientConfigSet,
+    setLocal: mocks.clientConfigSetLocal,
+    subscribe: mocks.clientConfigSubscribe,
+  },
+}));
 
 vi.mock('swr', () => ({
   default: (key: unknown) => {
@@ -114,7 +133,28 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.conversationUpdate.mockReset();
     mocks.writeRendererLog.mockReset();
     mocks.responseStreamOn.mockReset();
+    mocks.executeAction.mockReset();
     mocks.mutateModelInfo.mockReset();
+    mocks.clientConfigGet.mockReset();
+    mocks.clientConfigSet.mockReset();
+    mocks.clientConfigSetLocal.mockReset();
+    mocks.clientConfigSubscribe.mockReset();
+    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': false };
+    mocks.clientConfigSubscribers = new Set();
+    mocks.clientConfigGet.mockImplementation((key: string) => mocks.clientConfigStore[key]);
+    mocks.clientConfigSet.mockImplementation((key: string, value: unknown) => {
+      mocks.clientConfigStore[key] = value;
+      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
+      return Promise.resolve();
+    });
+    mocks.clientConfigSetLocal.mockImplementation((key: string, value: unknown) => {
+      mocks.clientConfigStore[key] = value;
+      for (const subscriber of mocks.clientConfigSubscribers) subscriber();
+    });
+    mocks.clientConfigSubscribe.mockImplementation((_key: string, subscriber: () => void) => {
+      mocks.clientConfigSubscribers.add(subscriber);
+      return () => mocks.clientConfigSubscribers.delete(subscriber);
+    });
     mocks.getModel.mockRejectedValue(new Error('session not ready'));
     mocks.setModel.mockResolvedValue(undefined);
     mocks.getConfigOptions.mockResolvedValue({
@@ -153,6 +193,18 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.conversationUpdate.mockResolvedValue(true);
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
+    mocks.executeAction.mockResolvedValue({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_flow_intelligence_enhancement_action: {
+              status_readback: { enabled: true },
+            },
+          },
+        },
+      },
+    });
     mocks.acpModelInfo = {
       current_model_id: 'gpt-5.5',
       current_model_label: 'GPT-5.5（超高）',
@@ -198,14 +250,15 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
       '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
     );
-    expect(screen.getByText('推理')).toBeInTheDocument();
+    expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
-    expect(screen.getByText('模型')).toBeInTheDocument();
+    expect(screen.queryByText('模型')).not.toBeInTheDocument();
+    expect(screen.getByText('GPT-5.5').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.getByText('智力增强').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
 
-    expect(screen.getByText('模型').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(mocks.setModel).not.toHaveBeenCalled();
   });
 
@@ -218,7 +271,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     await userEvent.click(autoButton);
 
-    expect(screen.getByText('模型').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.getByText('GPT-5.5').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
@@ -232,7 +285,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     await userEvent.click(autoButton);
 
-    expect(await screen.findByText('推理')).toBeInTheDocument();
+    expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(await screen.findByRole('menuitem', { name: '低' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: '高' }));
@@ -243,6 +296,22 @@ describe('AcpModelSelector Codex model switching', () => {
         option_id: 'reasoning_effort',
         value: 'high',
       });
+    });
+  });
+
+  it('runs the OPL Flow intelligence enhancement action from the submenu', async () => {
+    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ }));
+    fireEvent.mouseEnter(screen.getByText('智力增强'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: '开启' }));
+
+    await waitFor(() => {
+      expect(mocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_enable',
+        dryRun: false,
+      });
+      expect(mocks.clientConfigSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true);
     });
   });
 
