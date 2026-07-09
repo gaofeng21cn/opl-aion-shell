@@ -26,7 +26,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { startWebHost, type WebAutoLoginCredentials } from '@aionui/web-host';
 import { openBrowserUrl, shouldAutoOpenBrowser } from '../packages/web-cli/src/browser.js';
-import { ensureAdminPassword } from '../packages/web-cli/src/ensureAdminPassword.js';
+import { ensureAdminPassword, provisionConfiguredAdmin } from '../packages/web-cli/src/ensureAdminPassword.js';
+import { configureGatewayApiKey, resolveDeploymentAuth } from '../packages/web-cli/src/deploymentAuth.js';
 
 // Aligned with packages/desktop/src/common/config/constants.ts WEBUI_DEFAULT_PORT.
 const DEFAULT_PORT = (() => {
@@ -232,12 +233,14 @@ async function main(): Promise<void> {
   const projectsDir = resolveProjectsDir(workDir);
   const imageManifestPath = resolveImageManifestPath();
   const imageSeedDir = resolveImageSeedDir();
+  const deploymentAuth = resolveDeploymentAuth();
 
   console.log('[webui] work dir   :', workDir);
   console.log('[webui] OPL home   :', oplRuntimeDataDir);
   console.log('[webui] projects   :', projectsDir);
   console.log('[webui] static dir :', staticDir);
   console.log('[webui] backend bin:', backendBin);
+  console.log('[webui] auth mode  :', deploymentAuth.mode);
   console.log(`[webui] launching  : port=${port} allowRemote=${allowRemote}`);
 
   let autoLoginCredentials: WebAutoLoginCredentials | null = null;
@@ -278,9 +281,12 @@ async function main(): Promise<void> {
       kind: 'ownBackend',
       resolveBackend: () => backendBin,
     },
-    webAutoLogin: {
-      getCredentials: () => autoLoginCredentials ?? autoLoginCredentialsReady,
-    },
+    webAutoLogin:
+      deploymentAuth.mode === 'local_auto'
+        ? {
+            getCredentials: () => autoLoginCredentials ?? autoLoginCredentialsReady,
+          }
+        : undefined,
   });
 
   console.log('');
@@ -288,23 +294,42 @@ async function main(): Promise<void> {
   console.log(`  Local  : ${handle.localUrl}`);
   if (handle.networkUrl) console.log(`  Network: ${handle.networkUrl}`);
 
-  // Standalone WebUI mirrors Docker behavior: browsers get a session cookie
-  // automatically, without asking new users to type a generated password.
-  try {
-    autoLoginCredentials = await ensureAdminPassword(
-      { backendPort: handle.backendPort, resetCommand: 'bun run resetpass', resetExisting: true },
+  const authDeps = {
+    fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
+    log: (msg: string) => console.log(msg),
+    warn: (msg: string) => console.warn(msg),
+    sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+    now: () => Date.now(),
+  };
+
+  if (deploymentAuth.mode === 'password') {
+    await provisionConfiguredAdmin(
       {
-        fetch: (...args) => fetch(...args),
-        log: (msg) => console.log(msg),
-        warn: (msg) => console.warn(msg),
-        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-        now: () => Date.now(),
-      }
+        backendPort: handle.backendPort,
+        username: deploymentAuth.username,
+        password: deploymentAuth.password ?? '',
+      },
+      authDeps
     );
-  } catch (err) {
-    console.warn('[webui] could not query admin credentials:', err);
-  } finally {
-    resolveAutoLoginCredentials(autoLoginCredentials);
+    if (deploymentAuth.gatewayApiKey) {
+      await configureGatewayApiKey(
+        { localUrl: handle.localUrl, apiKey: deploymentAuth.gatewayApiKey },
+        { fetch: (input, init) => fetch(input, init), log: (msg) => console.log(msg) }
+      );
+    }
+  } else {
+    // Standalone WebUI mirrors Docker behavior: browsers get a session cookie
+    // automatically, without asking new users to type a generated password.
+    try {
+      autoLoginCredentials = await ensureAdminPassword(
+        { backendPort: handle.backendPort, resetCommand: 'bun run resetpass', resetExisting: true },
+        authDeps
+      );
+    } catch (err) {
+      console.warn('[webui] could not query admin credentials:', err);
+    } finally {
+      resolveAutoLoginCredentials(autoLoginCredentials);
+    }
   }
 
   if (autoOpenBrowser) {

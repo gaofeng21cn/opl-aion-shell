@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ensureAdminPassword,
+  provisionConfiguredAdmin,
   type EnsureAdminPasswordDeps,
 } from '../../../packages/web-cli/src/ensureAdminPassword.js';
 
@@ -262,5 +263,57 @@ describe('ensureAdminPassword', () => {
     await ensureAdminPassword({ backendPort: 25808, resetCommand: 'bun run resetpass' }, deps);
 
     expect(warns.some((w) => w.includes('bun run resetpass'))).toBe(true);
+  });
+
+  it('provisions configured cloud credentials without logging the configured password', async () => {
+    const { deps, calls, logs } = makeDeps({
+      handlers: [
+        () => mockResponse(200, { needs_setup: false }),
+        () => mockResponse(200, { data: { new_password: 'TemporaryBootPassword' } }),
+        () => mockResponse(200, { data: { username: 'admin' } }),
+        () =>
+          new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'content-type': 'application/json', 'set-cookie': 'sid=abc123; Path=/; HttpOnly' },
+          }),
+        () => mockResponse(200, { data: { username: 'opl' } }),
+        () => mockResponse(200, {}),
+      ],
+    });
+
+    await provisionConfiguredAdmin({ backendPort: 25808, username: 'opl', password: 'ConfiguredPassword123' }, deps);
+
+    expect(calls.map((call) => call.url)).toEqual([
+      'http://127.0.0.1:25808/api/auth/status',
+      'http://127.0.0.1:25808/api/webui/reset-password',
+      'http://127.0.0.1:25808/api/auth/internal/users/system',
+      'http://127.0.0.1:25808/login',
+      'http://127.0.0.1:25808/api/webui/change-username',
+      'http://127.0.0.1:25808/api/webui/change-password',
+    ]);
+    expect(calls[3].init?.body).toBe(
+      JSON.stringify({ username: 'admin', password: 'TemporaryBootPassword', remember: true })
+    );
+    expect(calls[4].init?.headers).toMatchObject({ cookie: 'sid=abc123' });
+    expect(calls[4].init?.body).toBe(JSON.stringify({ new_username: 'opl' }));
+    expect(calls[5].init?.headers).toMatchObject({ cookie: 'sid=abc123' });
+    expect(calls[5].init?.body).toBe(JSON.stringify({ new_password: 'ConfiguredPassword123' }));
+    expect(logs).toEqual(['[aionui-web] WebUI password login configured for username "opl".']);
+    expect(JSON.stringify(logs)).not.toContain('ConfiguredPassword123');
+  });
+
+  it('fails configured cloud provisioning when login returns no session cookie', async () => {
+    const { deps } = makeDeps({
+      handlers: [
+        () => mockResponse(200, { needs_setup: false }),
+        () => mockResponse(200, { data: { new_password: 'TemporaryBootPassword' } }),
+        () => mockResponse(200, { data: { username: 'admin' } }),
+        () => mockResponse(200, { ok: true }),
+      ],
+    });
+
+    await expect(
+      provisionConfiguredAdmin({ backendPort: 25808, username: 'opl', password: 'ConfiguredPassword123' }, deps)
+    ).rejects.toThrow('/login returned no session cookie');
   });
 });

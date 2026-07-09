@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openBrowserUrl, shouldAutoOpenBrowser } from './browser.js';
-import { ensureAdminPassword } from './ensureAdminPassword.js';
+import { ensureAdminPassword, provisionConfiguredAdmin } from './ensureAdminPassword.js';
+import { configureGatewayApiKey, resolveDeploymentAuth } from './deploymentAuth.js';
 import type { WebAutoLoginCredentials } from '@aionui/web-host';
 
 // tarball layout:
@@ -191,8 +192,14 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   console.log(`[aionui-web] launching  : port=${port} allowRemote=${allowRemote}`);
 
   const backendAvailable = fs.existsSync(backendBin);
+  const deploymentAuth = resolveDeploymentAuth();
+  console.log(`[aionui-web] auth mode  : ${deploymentAuth.mode}`);
 
   if (!backendAvailable) {
+    if (deploymentAuth.mode === 'password') {
+      console.error('[aionui-web] backend binary is required when WebUI password auth is configured.');
+      process.exit(1);
+    }
     // Graceful degradation: serve the SPA shell without spawning backend.
     // API calls from the browser will 502/ECONNREFUSED — frontend is expected
     // to surface this to the user (e.g. "backend missing" banner).
@@ -259,9 +266,12 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
         kind: 'ownBackend',
         resolveBackend: () => backendBin,
       },
-      webAutoLogin: {
-        getCredentials: () => autoLoginCredentials ?? autoLoginCredentialsReady,
-      },
+      webAutoLogin:
+        deploymentAuth.mode === 'local_auto'
+          ? {
+              getCredentials: () => autoLoginCredentials ?? autoLoginCredentialsReady,
+            }
+          : undefined,
     });
 
     currentHandle = handle;
@@ -271,23 +281,42 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
     console.log(`  Local  : ${handle.localUrl}`);
     if (handle.networkUrl) console.log(`  Network: ${handle.networkUrl}`);
 
-    // Standalone Docker/WebUI bootstrap: ensure this launch owns a valid
-    // startup credential, then let web-host turn the browser's first auth probe
-    // into a backend session cookie. Users should not need to type an admin
-    // username or password just to open the Docker WebUI.
-    try {
-      autoLoginCredentials = await ensureAdminPassword(
-        { backendPort: handle.backendPort, resetCommand: RESET_COMMAND, resetExisting: true },
+    const authDeps = {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init),
+      log: (msg: string) => console.log(msg),
+      warn: (msg: string) => console.warn(msg),
+      sleep: (ms: number) => delay(ms),
+      now: () => Date.now(),
+    };
+
+    if (deploymentAuth.mode === 'password') {
+      await provisionConfiguredAdmin(
         {
-          fetch: (input, init) => fetch(input, init),
-          log: (msg) => console.log(msg),
-          warn: (msg) => console.warn(msg),
-          sleep: (ms) => delay(ms),
-          now: () => Date.now(),
-        }
+          backendPort: handle.backendPort,
+          username: deploymentAuth.username,
+          password: deploymentAuth.password ?? '',
+        },
+        authDeps
       );
-    } finally {
-      resolveAutoLoginCredentials(autoLoginCredentials);
+      if (deploymentAuth.gatewayApiKey) {
+        await configureGatewayApiKey(
+          { localUrl: handle.localUrl, apiKey: deploymentAuth.gatewayApiKey },
+          { fetch: (input, init) => fetch(input, init), log: (msg) => console.log(msg) }
+        );
+      }
+    } else {
+      // Standalone Docker/WebUI bootstrap: ensure this launch owns a valid
+      // startup credential, then let web-host turn the browser's first auth probe
+      // into a backend session cookie. Users should not need to type an admin
+      // username or password just to open the Docker WebUI.
+      try {
+        autoLoginCredentials = await ensureAdminPassword(
+          { backendPort: handle.backendPort, resetCommand: RESET_COMMAND, resetExisting: true },
+          authDeps
+        );
+      } finally {
+        resolveAutoLoginCredentials(autoLoginCredentials);
+      }
     }
 
     if (autoOpenBrowser) {
@@ -446,7 +475,9 @@ Options for resetpass:
 
 Environment variables:
   AIONUI_PORT, AIONUI_ALLOW_REMOTE, AIONUI_DATA_DIR, AIONUI_LOG_DIR,
-  AIONUI_BACKEND_BIN, AIONUI_OPEN_BROWSER
+  AIONUI_BACKEND_BIN, AIONUI_OPEN_BROWSER,
+  OPL_WEBUI_DEPLOYMENT_MODE, OPL_WEBUI_AUTH_MODE, OPL_WEBUI_USERNAME,
+  OPL_WEBUI_PASSWORD_FILE, OPL_GATEWAY_API_KEY_FILE
 `);
     return;
   }

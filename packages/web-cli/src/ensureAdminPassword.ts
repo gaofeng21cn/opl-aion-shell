@@ -61,6 +61,15 @@ type SystemUserResponse = {
   data?: { username?: string } | null;
 };
 
+export type ProvisionConfiguredAdminOptions = {
+  /** 127.0.0.1 port where aioncore listens (from WebHostHandle.backendPort). */
+  backendPort: number;
+  username: string;
+  password: string;
+  statusTimeoutMs?: number;
+  statusPollIntervalMs?: number;
+};
+
 async function waitForStatus(
   deps: EnsureAdminPasswordDeps,
   url: string,
@@ -93,6 +102,37 @@ async function fetchAdminUsername(deps: EnsureAdminPasswordDeps, backendPort: nu
   } catch {
     return 'admin';
   }
+}
+
+function setCookiesFrom(headers: Headers): string[] {
+  const withGetSetCookie = headers as Headers & { getSetCookie?: () => string[] };
+  const setCookies = withGetSetCookie.getSetCookie?.();
+  if (setCookies && setCookies.length > 0) return setCookies;
+  const cookie = headers.get('set-cookie');
+  return cookie ? [cookie] : [];
+}
+
+function cookieHeaderFromSetCookies(setCookies: string[]): string {
+  return setCookies
+    .map((cookie) => cookie.split(';', 1)[0])
+    .filter(Boolean)
+    .join('; ');
+}
+
+async function postJson(
+  deps: EnsureAdminPasswordDeps,
+  url: string,
+  body: unknown,
+  cookieHeader?: string
+): Promise<Response> {
+  return deps.fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(cookieHeader ? { cookie: cookieHeader } : {}),
+    },
+    body: JSON.stringify(body),
+  });
 }
 
 /**
@@ -153,4 +193,68 @@ export async function ensureAdminPassword(
     );
     return null;
   }
+}
+
+/**
+ * Cloud/server bootstrap: set the backend's admin username/password from
+ * external Docker secrets, without enabling browser auto-login or printing the
+ * configured password. Throws on failure so remote deployments fail closed.
+ */
+export async function provisionConfiguredAdmin(
+  opts: ProvisionConfiguredAdminOptions,
+  deps: EnsureAdminPasswordDeps
+): Promise<void> {
+  const timeoutMs = opts.statusTimeoutMs ?? 15_000;
+  const intervalMs = opts.statusPollIntervalMs ?? 500;
+  const base = `http://127.0.0.1:${opts.backendPort}`;
+
+  await waitForStatus(deps, `${base}/api/auth/status`, timeoutMs, intervalMs);
+
+  const resetRes = await deps.fetch(`${base}/api/webui/reset-password`, { method: 'POST' });
+  if (!resetRes.ok) {
+    throw new Error(`/api/webui/reset-password returned ${resetRes.status}`);
+  }
+  const resetPayload = (await resetRes.json()) as ResetPasswordResponse;
+  const temporaryPassword = resetPayload.data?.new_password ?? resetPayload.new_password;
+  if (!temporaryPassword) {
+    throw new Error('/api/webui/reset-password returned no new_password');
+  }
+
+  const currentUsername = await fetchAdminUsername(deps, opts.backendPort);
+  const loginRes = await postJson(deps, `${base}/login`, {
+    username: currentUsername,
+    password: temporaryPassword,
+    remember: true,
+  });
+  if (!loginRes.ok) {
+    throw new Error(`/login returned ${loginRes.status}`);
+  }
+  const cookieHeader = cookieHeaderFromSetCookies(setCookiesFrom(loginRes.headers));
+  if (!cookieHeader) {
+    throw new Error('/login returned no session cookie');
+  }
+
+  if (currentUsername !== opts.username) {
+    const usernameRes = await postJson(
+      deps,
+      `${base}/api/webui/change-username`,
+      { new_username: opts.username },
+      cookieHeader
+    );
+    if (!usernameRes.ok) {
+      throw new Error(`/api/webui/change-username returned ${usernameRes.status}`);
+    }
+  }
+
+  const passwordRes = await postJson(
+    deps,
+    `${base}/api/webui/change-password`,
+    { new_password: opts.password },
+    cookieHeader
+  );
+  if (!passwordRes.ok) {
+    throw new Error(`/api/webui/change-password returned ${passwordRes.status}`);
+  }
+
+  deps.log(`[aionui-web] WebUI password login configured for username "${opts.username}".`);
 }

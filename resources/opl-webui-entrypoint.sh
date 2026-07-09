@@ -25,6 +25,33 @@ fail() {
   exit 1
 }
 
+env_value() {
+  eval "printf '%s' \"\${$1:-}\""
+}
+
+lower_value() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+validate_secret_file() {
+  var_name="$1"
+  file="$(env_value "${var_name}")"
+  [ -n "${file}" ] || return 1
+  [ -r "${file}" ] || fail "${var_name} is not readable: ${file}"
+  [ -s "${file}" ] || fail "${var_name} is empty: ${file}"
+  return 0
+}
+
+has_secret() {
+  value_name="$1"
+  file_name="$2"
+  if validate_secret_file "${file_name}"; then
+    return 0
+  fi
+  value="$(env_value "${value_name}")"
+  [ -n "${value}" ]
+}
+
 ensure_writable_dir() {
   dir="$1"
   label="$2"
@@ -33,6 +60,47 @@ ensure_writable_dir() {
   : > "${probe}" || fail "${label} is not writable: ${dir}"
   rm -f "${probe}" || fail "cannot remove ${label} write probe: ${probe}"
 }
+
+deployment_mode="$(lower_value "$(env_value OPL_WEBUI_DEPLOYMENT_MODE)")"
+auth_mode="$(lower_value "$(env_value OPL_WEBUI_AUTH_MODE)")"
+requires_password_auth=0
+has_webui_password=0
+has_gateway_api_key=0
+
+case "${deployment_mode}" in
+  "" | local | local_auto | local-auto | auto) ;;
+  cloud | server | remote) requires_password_auth=1 ;;
+  *) fail "unsupported OPL_WEBUI_DEPLOYMENT_MODE: ${deployment_mode}" ;;
+esac
+
+case "${auth_mode}" in
+  "" | local_auto | local-auto | auto) ;;
+  password | required) requires_password_auth=1 ;;
+  *) fail "unsupported OPL_WEBUI_AUTH_MODE: ${auth_mode}" ;;
+esac
+
+if has_secret OPL_WEBUI_PASSWORD OPL_WEBUI_PASSWORD_FILE; then
+  has_webui_password=1
+  requires_password_auth=1
+fi
+
+if has_secret OPL_GATEWAY_API_KEY OPL_GATEWAY_API_KEY_FILE; then
+  has_gateway_api_key=1
+  requires_password_auth=1
+fi
+
+if [ "${requires_password_auth}" = "1" ] && [ "${has_webui_password}" != "1" ]; then
+  fail "cloud WebUI deployment requires OPL_WEBUI_PASSWORD_FILE or OPL_WEBUI_PASSWORD; OPL Gateway API key does not replace the WebUI login password"
+fi
+
+if [ "${requires_password_auth}" = "1" ]; then
+  : "${OPL_WEBUI_USERNAME:=opl}"
+  export OPL_WEBUI_USERNAME
+  log "WebUI password auth configured for username ${OPL_WEBUI_USERNAME}"
+  if [ "${has_gateway_api_key}" = "1" ]; then
+    log "OPL Gateway API key secret detected"
+  fi
+fi
 
 ensure_writable_dir "${AIONUI_DATA_DIR}" "AIONUI_DATA_DIR"
 ensure_writable_dir "${OPL_DATA_DIR}" "OPL_DATA_DIR"

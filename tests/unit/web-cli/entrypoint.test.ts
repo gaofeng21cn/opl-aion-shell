@@ -81,7 +81,13 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
 `
     );
     fs.chmodSync(path.join(fakeBin, 'opl'), 0o755);
-    fs.writeFileSync(webBin, `#!/usr/bin/env sh\nprintf '%s\\n' "$*" > "${tmp}/webui-args"\n`);
+    fs.writeFileSync(
+      webBin,
+      `#!/usr/bin/env sh
+printf '%s\\n' "$*" > "${tmp}/webui-args"
+printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
+`
+    );
     fs.chmodSync(webBin, 0o755);
     return { dataDir, projectsDir, manifestPath, seedDir, webBin, fakeBin };
   }
@@ -184,5 +190,61 @@ printf '%s\\n' "$*" >> "${tmp}/maintenance-args"
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('seed metadata strategy must be payload-capable');
     expect(fs.existsSync(path.join(tmp, 'webui-args'))).toBe(false);
+  });
+
+  it('fails closed when a Gateway API key is provided without a WebUI password', () => {
+    const fixture = writeFixture();
+
+    const result = spawnSync('sh', [entrypointPath, 'start'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+        AIONUI_DATA_DIR: fixture.dataDir,
+        OPL_DATA_DIR: fixture.dataDir,
+        OPL_PROJECTS_DIR: fixture.projectsDir,
+        OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+        OPL_IMAGE_SEED_DIR: fixture.seedDir,
+        AIONUI_WEB_BIN: fixture.webBin,
+        OPL_GATEWAY_API_KEY: 'sk-test-secret',
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('cloud WebUI deployment requires OPL_WEBUI_PASSWORD_FILE or OPL_WEBUI_PASSWORD');
+    expect(result.stderr).not.toContain('sk-test-secret');
+    expect(fs.existsSync(path.join(tmp, 'webui-args'))).toBe(false);
+  });
+
+  it('accepts cloud password and Gateway API key secrets without printing secret values', () => {
+    const fixture = writeFixture();
+    const passwordFile = path.join(tmp, 'webui-password');
+    const gatewayKeyFile = path.join(tmp, 'gateway-api-key');
+    fs.writeFileSync(passwordFile, 'ConfiguredPassword123\n');
+    fs.writeFileSync(gatewayKeyFile, 'sk-test-secret\n');
+
+    const result = spawnSync('sh', [entrypointPath, 'start'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+        AIONUI_DATA_DIR: fixture.dataDir,
+        OPL_DATA_DIR: fixture.dataDir,
+        OPL_PROJECTS_DIR: fixture.projectsDir,
+        OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+        OPL_IMAGE_SEED_DIR: fixture.seedDir,
+        AIONUI_WEB_BIN: fixture.webBin,
+        OPL_WEBUI_DEPLOYMENT_MODE: 'cloud',
+        OPL_WEBUI_PASSWORD_FILE: passwordFile,
+        OPL_GATEWAY_API_KEY_FILE: gatewayKeyFile,
+      },
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain('WebUI password auth configured for username opl');
+    expect(result.stderr).toContain('OPL Gateway API key secret detected');
+    expect(result.stderr).not.toContain('ConfiguredPassword123');
+    expect(result.stderr).not.toContain('sk-test-secret');
+    expect(fs.readFileSync(path.join(tmp, 'webui-username'), 'utf8').trim()).toBe('opl');
   });
 });
