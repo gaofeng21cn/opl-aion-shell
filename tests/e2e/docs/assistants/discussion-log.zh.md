@@ -513,7 +513,7 @@ assistant-designer-2
 
 ### 输出文档结构
 
-**文件**：`docs/history/e2e-test-design/assistants/test-cases.zh.md`（约 23K，38 个用例）
+**文件**：`tests/e2e/docs/assistants/test-cases.zh.md`（约 23K，38 个用例）
 
 **用例分布**：
 

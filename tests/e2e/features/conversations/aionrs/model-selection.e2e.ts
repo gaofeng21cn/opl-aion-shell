@@ -65,7 +65,7 @@ test.describe('Aionrs Chat - Model Selection (P0 + P1)', () => {
 
   test.skip('TC-A-04: should use second model selected on guid page', async ({ page }) => {
     // SKIP: Pending aionrs binary investigation - modelB switch causes silent hang on subsequent messages
-    // See docs/history/e2e-test-design/chat-aionrs/implementation-mapping.zh.md "Known Issues" section
+    // See tests/e2e/docs/chat-aionrs/implementation-mapping.zh.md "Known Issues" section
     // Symptom: Same root cause as TC-A-08/09 - runtime model switching leads to binary hang
     // Next: Product team investigation of aionrs binary runtime state handling
 
@@ -129,7 +129,7 @@ test.describe('Aionrs Chat - Model Selection (P0 + P1)', () => {
 
   test.skip('TC-A-07: should switch model mid-conversation and update DB', async ({ page }) => {
     // SKIP: Pending aionrs binary investigation - modelB switch causes silent hang on subsequent messages
-    // See docs/history/e2e-test-design/chat-aionrs/implementation-mapping.zh.md "Known Issues" section
+    // See tests/e2e/docs/chat-aionrs/implementation-mapping.zh.md "Known Issues" section
     // Symptom: Same root cause as TC-A-08/09 - runtime model switching leads to binary hang
     // Next: Product team investigation of aionrs binary runtime state handling
 
