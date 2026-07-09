@@ -305,6 +305,7 @@ const BackendStartupFailureDialog: React.FC<{ failure: BackendStartupFailureInfo
 
   const isIncompatibleRuntime = failure.reason === 'backend_incompatible_runtime';
   const isPackageArchitectureMismatch = failure.reason === 'backend_package_architecture_mismatch';
+  const isRecoverableDatabaseCorruption = failure.reason === 'backend_recoverable_database_corruption';
   const title = t('common.backendStartup.incompatibleRuntime.title');
   const description = isIncompatibleRuntime
     ? t('common.backendStartup.incompatibleRuntime.description')
@@ -314,13 +315,20 @@ const BackendStartupFailureDialog: React.FC<{ failure: BackendStartupFailureInfo
           deviceArch: failure.deviceArch ?? 'arm64',
           expectedArch: failure.expectedDownloadArch ?? 'arm64',
         })
-      : getBackendStartupInstallationDescription(t);
+      : isRecoverableDatabaseCorruption
+        ? t('common.backendStartup.recoverableDatabaseCorruption.description')
+        : getBackendStartupInstallationDescription(t);
   const requiredVersions = failure.requiredVersions?.map((version) => `GLIBC_${version}`).join(', ');
 
   if (!isIncompatibleRuntime && !isPackageArchitectureMismatch) {
     return (
       <div className='min-h-screen bg-bg-1'>
-        <InstallationIntegrityModalHost description={description} />
+        <InstallationIntegrityModalHost
+          description={description}
+          diagnosticsKind={
+            isRecoverableDatabaseCorruption ? 'recoverable_database_corruption' : 'incomplete_installation'
+          }
+        />
       </div>
     );
   }
@@ -365,6 +373,7 @@ const shouldShowBackendStartupFailureDialog =
   backendStartupFailure?.reason === 'backend_incompatible_runtime' ||
   backendStartupFailure?.reason === 'backend_incomplete_installation' ||
   backendStartupFailure?.reason === 'backend_package_architecture_mismatch' ||
+  backendStartupFailure?.reason === 'backend_recoverable_database_corruption' ||
   backendStartupFailure?.reason === 'backend_startup_failed';
 if (backendStartupFailure && shouldShowBackendStartupFailureDialog) {
   root.render(

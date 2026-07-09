@@ -14,6 +14,10 @@ vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 
+vi.mock('node:fs', () => ({
+  mkdirSync: vi.fn(),
+}));
+
 vi.mock('node:net', () => ({
   createServer: vi.fn(),
   connect: vi.fn(),
@@ -24,6 +28,7 @@ vi.mock('./agent-process-registry.js', () => ({
 }));
 
 import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
 import { buildSpawnArgs, buildSpawnEnv, findAvailablePort, BackendLifecycleManager } from './backend-launcher.js';
@@ -297,11 +302,18 @@ describe('BackendLifecycleManager.start (success path)', () => {
     expect(mgr.port).toBe(55555);
     expect(createServer).not.toHaveBeenCalled();
     expect(fetchSpy).toHaveBeenCalledWith('http://127.0.0.1:55555/health');
+    expect(mkdirSync).toHaveBeenCalledWith('/db/path', { recursive: true });
+    expect(mkdirSync).toHaveBeenCalledWith('/log/dir', { recursive: true });
+    expect(mkdirSync).toHaveBeenCalledWith('/c', { recursive: true });
+    expect(mkdirSync).toHaveBeenCalledWith('/w', { recursive: true });
+    expect(mkdirSync).toHaveBeenCalledWith('/l', { recursive: true });
     expect(vi.mocked(spawn).mock.calls[0][1]).toEqual([
       '--port',
       '0',
       '--data-dir',
       '/db/path',
+      '--parent-pid',
+      String(process.pid),
       '--log-level',
       'info',
       '--app-version',
@@ -354,6 +366,8 @@ describe('BackendLifecycleManager.start (success path)', () => {
         '0',
         '--data-dir',
         '/db/path',
+        '--parent-pid',
+        String(process.pid),
         '--log-level',
         'info',
         '--app-version',

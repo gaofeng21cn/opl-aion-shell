@@ -105,6 +105,13 @@
       "sendDiagnostics": "Send diagnostics",
       "runtimeComponentDescription": "This installation is missing required bundled runtime components, so {{resource}} cannot start. Reinstall the latest AionUi package. If it still happens after reinstalling, check whether security or antivirus software quarantined AionUi components."
     },
+    "recoverableDatabaseCorruption": {
+      "title": "Local data is corrupted",
+      "description": "AionUi detected that the local database is corrupted and cannot continue startup. After confirmation, AionUi will back up the old database and create a new local database to continue startup. Historical local data will not be shown for now, and the old database will be kept as a backup.",
+      "confirmRebuild": "Back up old DB and rebuild new DB",
+      "diagnosticsHint": "Sending diagnostics will not modify the local database.",
+      "rebuildFailed": "Failed to back up old DB and rebuild new DB"
+    },
     "packageArchitectureMismatch": {
       "title": "AionUi package architecture mismatch",
       "description": "This AionUi package is for {{packageArch}}, but this Mac is {{deviceArch}}. You may have downloaded the wrong package. Please download and install the {{expectedArch}} package."

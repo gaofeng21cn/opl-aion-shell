@@ -105,6 +105,13 @@
       "sendDiagnostics": "发送诊断报告",
       "runtimeComponentDescription": "当前安装缺少必要的内置运行组件，{{resource}} 无法启动。请重新安装最新版 AionUi；如果重新安装后仍然出现，请检查系统安全软件或杀毒软件是否隔离了 AionUi 组件。"
     },
+    "recoverableDatabaseCorruption": {
+      "title": "本地数据已损坏",
+      "description": "检测到本地数据库损坏，AionUi 无法继续启动。确认后将备份旧数据库，并创建新的本地数据库继续启动。历史本地数据暂时不会显示，旧数据库会保留为备份。",
+      "confirmRebuild": "备份旧库并重建新库",
+      "diagnosticsHint": "发送诊断报告不会修改本地数据库。",
+      "rebuildFailed": "备份旧库并重建新库失败"
+    },
     "packageArchitectureMismatch": {
       "title": "AionUi 安装包架构不匹配",
       "description": "当前 AionUi 安装包是 {{packageArch}}，但这台 Mac 是 {{deviceArch}}。你可能下载了错误的安装包，请重新下载并安装 {{expectedArch}} 版本。"

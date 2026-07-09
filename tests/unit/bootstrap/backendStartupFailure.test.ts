@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { classifyBackendStartupFailure } from '@/process/startup/backendStartupFailure';
 import { detectStartupArchitectureMismatch } from '@/process/startup/architectureCompatibility';
-import { getDownloadLatestModalActionProps } from '@/renderer/components/layout/InstallationIntegrityDialog';
+import {
+  getDownloadLatestModalActionProps,
+  getInstallationIntegrityModalActions,
+} from '@/renderer/components/layout/InstallationIntegrityDialog';
 
 describe('classifyBackendStartupFailure', () => {
   it('classifies missing GLIBC symbols as an incompatible backend runtime', () => {
@@ -218,6 +221,17 @@ describe('getDownloadLatestModalActionProps', () => {
           display: 'none',
         },
       },
+    });
+  });
+});
+
+describe('getInstallationIntegrityModalActions', () => {
+  it('uses a rebuild action instead of download for recoverable database corruption', () => {
+    const t = (key: string) => key;
+
+    expect(getInstallationIntegrityModalActions(t, { diagnosticsKind: 'recoverable_database_corruption' })).toMatchObject({
+      downloadText: undefined,
+      recoverText: 'common.backendStartup.recoverableDatabaseCorruption.confirmRebuild',
     });
   });
 });

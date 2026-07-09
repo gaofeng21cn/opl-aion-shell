@@ -22,7 +22,13 @@ export {
   startBackend,
   stopBackend,
 } from './backend-launcher.js';
-export type { BackendDirConfig, BackendLaunchOptions, BackendHandle, BackendStartOptions } from './backend-launcher.js';
+export type {
+  BackendDirConfig,
+  BackendLaunchFlags,
+  BackendLaunchOptions,
+  BackendHandle,
+  BackendStartOptions,
+} from './backend-launcher.js';
 
 /**
  * Start WebHost (main entry point).
