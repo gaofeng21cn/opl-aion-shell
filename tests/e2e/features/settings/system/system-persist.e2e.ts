@@ -7,7 +7,8 @@
  */
 
 import { test, expect } from '../../../fixtures';
-import { goToSettings, waitForSettle } from '../../../helpers/navigation';
+import { goToSettings, waitForSettle, waitForClassChange } from '../../../helpers/navigation';
+import { ARCO_SWITCH } from '../../../helpers/selectors';
 
 async function reloadAndGoToSystem(page: import('@playwright/test').Page) {
   await page.reload();
@@ -47,6 +48,37 @@ test.describe('System Settings Persistence', () => {
     await expect(restoreOption).toBeVisible();
     await restoreOption.click();
     await waitForSettle(page);
+  });
+
+  // TC-PERSIST-02: closeToTray switch persists across reload
+  // Known issue: systemSettings.setCloseToTray writes via HTTP but reload reads from
+  // configService cache which may not reflect the update. Skipped until cache consistency is fixed.
+  test.skip('TC-PERSIST-02: closeToTray toggle persists after reload', async ({ page }) => {
+    const closeToTraySwitch = page.locator(`.divide-y ${ARCO_SWITCH}`).nth(1);
+    await expect(closeToTraySwitch).toBeVisible();
+    const wasChecked = await closeToTraySwitch.evaluate((el) => el.classList.contains('arco-switch-checked'));
+
+    await closeToTraySwitch.click();
+    await waitForClassChange(closeToTraySwitch);
+    expect(await closeToTraySwitch.evaluate((el) => el.classList.contains('arco-switch-checked'))).toBe(!wasChecked);
+
+    await reloadAndGoToSystem(page);
+
+    const reloadedSwitch = page.locator(`.divide-y ${ARCO_SWITCH}`).nth(1);
+    await expect(reloadedSwitch).toBeVisible();
+    await page.waitForFunction(
+      (expected: boolean) => {
+        const el = document.querySelectorAll('.divide-y .arco-switch')[1];
+        return el?.classList.contains('arco-switch-checked') === expected;
+      },
+      !wasChecked,
+      { timeout: 15_000 }
+    );
+    expect(await reloadedSwitch.evaluate((el) => el.classList.contains('arco-switch-checked'))).toBe(!wasChecked);
+
+    // Restore
+    await reloadedSwitch.click();
+    await waitForClassChange(reloadedSwitch);
   });
 
   // TC-PERSIST-03: promptTimeout InputNumber persists across reload
@@ -100,4 +132,42 @@ test.describe('System Settings Persistence', () => {
     await waitForSettle(page, 500);
   });
 
+  // Known issue: same configService cache consistency problem as TC-PERSIST-02.
+  test.skip('TC-PERSIST-04: notification toggle persists after reload', async ({ page }) => {
+    const collapseHeader = page.locator('.arco-collapse-item-header');
+    await expect(collapseHeader).toBeVisible();
+    const notifSwitch = collapseHeader.locator(ARCO_SWITCH);
+    await expect(notifSwitch).toBeVisible();
+    const wasChecked = await notifSwitch.evaluate((el) => el.classList.contains('arco-switch-checked'));
+
+    await notifSwitch.click();
+    await waitForClassChange(notifSwitch);
+    expect(await notifSwitch.evaluate((el) => el.classList.contains('arco-switch-checked'))).toBe(!wasChecked);
+
+    await reloadAndGoToSystem(page);
+
+    const reloadedNotifSwitch = page.locator('.arco-collapse-item-header').locator(ARCO_SWITCH);
+    await expect(reloadedNotifSwitch).toBeVisible();
+    await page.waitForFunction(
+      (expected: boolean) => {
+        const el = document.querySelector('.arco-collapse-item-header .arco-switch');
+        return el?.classList.contains('arco-switch-checked') === expected;
+      },
+      !wasChecked,
+      { timeout: 15_000 }
+    );
+    expect(await reloadedNotifSwitch.evaluate((el) => el.classList.contains('arco-switch-checked'))).toBe(!wasChecked);
+
+    // Verify Collapse expand/collapse matches the switch state
+    const collapseContent = page.locator('.arco-collapse-item-content');
+    if (!wasChecked) {
+      await expect(collapseContent).toBeVisible();
+    } else {
+      await expect(collapseContent).not.toBeVisible();
+    }
+
+    // Restore
+    await reloadedNotifSwitch.click();
+    await waitForClassChange(reloadedNotifSwitch);
+  });
 });
