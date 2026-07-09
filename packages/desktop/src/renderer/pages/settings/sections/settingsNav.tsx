@@ -10,5 +10,6 @@ export {
   getBuiltinSettingsNavItems,
   getSearchableSecondarySettingsModalItems,
   getSettingsTabSearchText,
+  resolveLegacySettingsRoute,
 } from '../registry/settingsRegistry';
 export type { BuiltinSettingsTabId, SettingsNavItem, TranslateFn } from '../registry/settingsRegistry';

@@ -14,6 +14,11 @@ export const SUPPORTED_LANGUAGES = i18nConfig.supportedLanguages;
 export const DEFAULT_LANGUAGE = i18nConfig.fallbackLanguage;
 export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
 
+export const LANGUAGE_LABELS: Record<string, string> = {
+  'zh-CN': '简体中文',
+  'en-US': 'English',
+};
+
 /**
  * Normalize a language code to a supported BCP 47 tag.
  * e.g. 'zh' -> 'zh-CN', 'en_GB' -> 'en-US'

@@ -24,6 +24,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ExtensionSettingsTabContent from './contents/ExtensionSettingsTabContent';
 import SettingsShellAdapterSlot from './SettingsShellAdapterSlot';
+import { SettingsTabNavigateProvider } from './settingsViewContext';
 import type { CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 import type { SettingTab } from './index';
 
@@ -208,26 +209,28 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   const renderSlot = getSettingsRenderSlot(activeTab);
 
   return (
-    <div
-      className={classNames('overflow-hidden gap-0', isMobile ? 'flex flex-col min-h-0' : 'flex mt-20px')}
-      style={{ height: isMobile ? mobileContentHeight : `${desktopContentHeight}px` }}
-      data-testid='settings-host'
-    >
-      {isMobile ? mobileMenu : desktopMenu}
-
-      <AionScrollArea
-        className={classNames('flex-1 min-h-0', isMobile ? 'overflow-y-auto' : 'flex flex-col pl-24px gap-16px')}
+    <SettingsTabNavigateProvider value={handleTabChange}>
+      <div
+        className={classNames('overflow-hidden gap-0', isMobile ? 'flex flex-col min-h-0' : 'flex mt-20px')}
+        style={{ height: isMobile ? mobileContentHeight : `${desktopContentHeight}px` }}
+        data-testid='settings-host'
       >
-        {!extensionTabMap.has(activeTab) && (
-          <SettingsShellAdapterSlot
-            slot={renderSlot}
-            capabilitiesTab={capabilitiesTab}
-            onCapabilitiesTabChange={setCapabilitiesTab}
-          />
-        )}
-        {renderExtensionTabs()}
-      </AionScrollArea>
-    </div>
+        {isMobile ? mobileMenu : desktopMenu}
+
+        <AionScrollArea
+          className={classNames('flex-1 min-h-0', isMobile ? 'overflow-y-auto' : 'flex flex-col pl-24px gap-16px')}
+        >
+          {!extensionTabMap.has(activeTab) && (
+            <SettingsShellAdapterSlot
+              slot={renderSlot}
+              capabilitiesTab={capabilitiesTab}
+              onCapabilitiesTabChange={setCapabilitiesTab}
+            />
+          )}
+          {renderExtensionTabs()}
+        </AionScrollArea>
+      </div>
+    </SettingsTabNavigateProvider>
   );
 };
 

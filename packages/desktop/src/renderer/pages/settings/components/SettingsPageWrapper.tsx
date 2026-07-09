@@ -3,7 +3,10 @@ import React, { useMemo, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
-import { SettingsViewModeProvider } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
+import {
+  SettingsTabNavigateProvider,
+  SettingsViewModeProvider,
+} from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +16,7 @@ import {
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
   getSearchableSecondarySettingsModalItems,
+  resolveLegacySettingsRoute,
 } from '../sections/settingsNav';
 import { iconColors } from '@/renderer/styles/colors';
 import { normalizeSearchText } from '../registry/settingsRegistry';
@@ -100,36 +104,45 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   const contentClass = classNames('settings-page-content mx-auto w-full md:max-w-1024px', contentClassName);
 
+  const navigateToSettingsTab = React.useCallback(
+    (tabId: string) => {
+      void navigate(resolveLegacySettingsRoute(tabId), { replace: true });
+    },
+    [navigate]
+  );
+
   return (
     <SettingsViewModeProvider value='page'>
-      <div className={containerClass}>
-        {isMobile && (
-          <div className='settings-mobile-top-nav'>
-            {mobileMenuItems.map((item) => {
-              const active = pathname.includes(`/settings/${item.path}`);
-              return (
-                <Button
-                  key={item.path}
-                  htmlType='button'
-                  className={classNames('settings-mobile-top-nav__item', {
-                    'settings-mobile-top-nav__item--active': active,
-                  })}
-                  onClick={() => {
-                    void navigate(`/settings/${item.path}`, { replace: true });
-                  }}
-                >
-                  <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
-                  <span className='settings-mobile-top-nav__label'>{item.label}</span>
-                </Button>
-              );
-            })}
+      <SettingsTabNavigateProvider value={navigateToSettingsTab}>
+        <div className={containerClass}>
+          {isMobile && (
+            <div className='settings-mobile-top-nav'>
+              {mobileMenuItems.map((item) => {
+                const active = pathname.includes(`/settings/${item.path}`);
+                return (
+                  <Button
+                    key={item.path}
+                    htmlType='button'
+                    className={classNames('settings-mobile-top-nav__item', {
+                      'settings-mobile-top-nav__item--active': active,
+                    })}
+                    onClick={() => {
+                      void navigate(`/settings/${item.path}`, { replace: true });
+                    }}
+                  >
+                    <span className='settings-mobile-top-nav__icon'>{item.icon}</span>
+                    <span className='settings-mobile-top-nav__label'>{item.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+          <div className={contentClass}>
+            {routeSearch}
+            {children}
           </div>
-        )}
-        <div className={contentClass}>
-          {routeSearch}
-          {children}
         </div>
-      </div>
+      </SettingsTabNavigateProvider>
     </SettingsViewModeProvider>
   );
 };

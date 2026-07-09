@@ -5,6 +5,7 @@ import { changeLanguage } from '@/renderer/services/i18n';
 import { useNavigate } from 'react-router-dom';
 import AppLoader from '@renderer/components/layout/AppLoader';
 import { useAuth } from '../../hooks/context/AuthContext';
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '@/common/config/i18n';
 import './LoginPage.css';
 
 type MessageState = {
@@ -111,10 +112,7 @@ const LoginPage: React.FC = () => {
   );
 
   const supportedLanguages = useMemo<{ code: string; label: string }[]>(
-    () => [
-      { code: 'zh-CN', label: '简体中文' },
-      { code: 'en-US', label: 'English' },
-    ],
+    () => SUPPORTED_LANGUAGES.map((code) => ({ code, label: LANGUAGE_LABELS[code] ?? code })),
     []
   );
 
