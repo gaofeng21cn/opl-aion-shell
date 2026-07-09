@@ -105,11 +105,11 @@ describe('GuidModelSelector Codex display', () => {
         current_model={undefined}
         setCurrentModel={vi.fn()}
         currentAcpCachedModelInfo={{
-          current_model_id: 'gpt-5.5',
-          current_model_label: 'GPT-5.5（超高）',
+          current_model_id: 'gpt-5.6-sol',
+          current_model_label: 'GPT-5.6-Sol',
           available_models: [
-            { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
-            { id: 'gpt-5.4', label: 'gpt-5.4' },
+            { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { id: 'gpt-5.5', label: 'GPT-5.5' },
           ],
         }}
         selectedAcpModel={null}
@@ -120,7 +120,7 @@ describe('GuidModelSelector Codex display', () => {
     );
 
     const selector = screen.getByTestId('guid-model-selector');
-    expect(selector).toHaveTextContent('自动（推荐） · 5.5 超高');
+    expect(selector).toHaveTextContent('自动（推荐） · 5.6 Sol 极高');
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(selector);
@@ -132,18 +132,19 @@ describe('GuidModelSelector Codex display', () => {
     });
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();
-    expect(screen.getByText('当前 GPT-5.5 · 推理超高 · 跟随最新最强')).toBeInTheDocument();
+    expect(screen.getByText('当前 5.6 Sol · 推理极高 · 跟随最新最强')).toBeInTheDocument();
     expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '低' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '中' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
-    expect(screen.getByText('GPT-5.5').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(screen.getByText('智力增强').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
-    expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
-    expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
+    expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
+    expect(screen.queryByText('gpt-5.5')).not.toBeInTheDocument();
     expect(screen.queryByText('gpt-5.3-codex')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('menuitem', { name: '高' }));

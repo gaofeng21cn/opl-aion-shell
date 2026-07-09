@@ -132,12 +132,13 @@ describe('AcpModelSelector Codex model switching', () => {
         id: 'reasoning_effort',
         category: 'thought_level',
         option_type: 'select',
-        current_value: 'xhigh',
+        current_value: 'ultra',
         options: [
           { value: 'low', label: 'Low' },
           { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
-          { value: 'xhigh', label: 'Ultra' },
+          { value: 'xhigh', label: 'Extra high' },
+          { value: 'ultra', label: 'Ultra' },
         ],
       },
     ];
@@ -174,12 +175,13 @@ describe('AcpModelSelector Codex model switching', () => {
           id: 'reasoning_effort',
           category: 'thought_level',
           option_type: 'select',
-          current_value: 'xhigh',
+          current_value: 'ultra',
           options: [
             { value: 'low', label: 'Low' },
             { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
-            { value: 'xhigh', label: 'Ultra' },
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
           ],
         },
       ],
@@ -196,7 +198,8 @@ describe('AcpModelSelector Codex model switching', () => {
             { value: 'low', label: 'Low' },
             { value: 'medium', label: 'Medium' },
             { value: 'high', label: 'High' },
-            { value: 'xhigh', label: 'Ultra' },
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
           ],
         },
       ],
@@ -208,11 +211,11 @@ describe('AcpModelSelector Codex model switching', () => {
       Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
     );
     mocks.acpModelInfo = {
-      current_model_id: 'gpt-5.5',
-      current_model_label: 'GPT-5.5（超高）',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
       available_models: [
-        { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
-        { id: 'gpt-5.4', label: 'GPT-5.4' },
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
       ],
     };
     mocks.mutateModelInfo.mockImplementation((updater: unknown) => {
@@ -232,8 +235,8 @@ describe('AcpModelSelector Codex model switching', () => {
             current_model_id: 'gpt-5.2-codex',
             current_model_label: 'gpt-5.2-codex',
             available_models: [
-              { id: 'gpt-5.5', label: 'GPT-5.5（超高）' },
-              { id: 'gpt-5.4', label: 'GPT-5.4' },
+              { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+              { id: 'gpt-5.5', label: 'GPT-5.5' },
               { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1 mini' },
             ],
           },
@@ -245,21 +248,22 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 极高/ });
 
     await userEvent.click(autoButton);
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
-      '当前 GPT-5.5 · 推理超高 · 跟随最新最强'
+      '当前 5.6 Sol · 推理极高 · 跟随最新最强'
     );
     expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
-    expect(screen.getByText('GPT-5.5').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
     expect(screen.getByText('智力增强').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
-    expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
+    expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
 
     expect(mocks.setModel).not.toHaveBeenCalled();
   });
@@ -269,14 +273,62 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 极高/ });
 
     await userEvent.click(autoButton);
 
-    expect(screen.getByText('GPT-5.5').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
-    expect(screen.queryByText('GPT-5.4')).not.toBeInTheDocument();
-    expect(screen.queryByText('gpt-5.4')).not.toBeInTheDocument();
+    expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
+    expect(screen.queryByText('GPT-5.5')).not.toBeInTheDocument();
+    expect(screen.queryByText('gpt-5.5')).not.toBeInTheDocument();
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
+  });
+
+  it('restores Auto to the first available App model when Sol is unavailable', async () => {
+    mocks.acpModelInfo = {
+      current_model_id: 'gpt-5.6-terra',
+      current_model_label: 'GPT-5.6-Terra',
+      available_models: [
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+      ],
+    };
+    mocks.configOptions = [
+      {
+        id: 'reasoning_effort',
+        category: 'thought_level',
+        option_type: 'select',
+        current_value: 'high',
+        options: [
+          { value: 'high', label: 'High' },
+          { value: 'xhigh', label: 'Extra high' },
+          { value: 'ultra', label: 'Ultra' },
+        ],
+      },
+    ];
+    mocks.setModel.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.5',
+        current_model_label: 'GPT-5.5',
+        available_models: mocks.acpModelInfo.available_models,
+      },
+    });
+
+    render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
+
+    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Terra 高/ }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: /自动（推荐）/ }));
+
+    await waitFor(() => {
+      expect(mocks.setModel).toHaveBeenCalledWith({
+        conversation_id: 'codex-conversation',
+        model_id: 'gpt-5.5',
+      });
+      expect(mocks.setConfigOption).toHaveBeenCalledWith({
+        conversation_id: 'codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'ultra',
+      });
+    });
   });
 
   it('refreshes OPL Flow intelligence enhancement status when opening the selector menu', async () => {
@@ -285,7 +337,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 极高/ }));
 
     await waitFor(() => {
       expect(mocks.executeAction).toHaveBeenCalledWith({
@@ -299,7 +351,7 @@ describe('AcpModelSelector Codex model switching', () => {
   it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 极高/ });
     expect(screen.queryByTestId('opl-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(autoButton);
@@ -321,7 +373,7 @@ describe('AcpModelSelector Codex model switching', () => {
   it('runs the OPL Flow intelligence enhancement action from the submenu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.5 超高/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 极高/ }));
     await waitFor(() => {
       expect(mocks.executeAction).toHaveBeenCalledWith({
         actionId: 'intelligence_enhancement_status',
@@ -340,7 +392,7 @@ describe('AcpModelSelector Codex model switching', () => {
     });
   });
 
-  it('restores Codex auto reasoning to xhigh when users click Auto again', async () => {
+  it('restores Codex auto reasoning to ultra when users click Auto again', async () => {
     mocks.configOptions = [
       {
         id: 'reasoning_effort',
@@ -351,14 +403,15 @@ describe('AcpModelSelector Codex model switching', () => {
           { value: 'low', label: 'Low' },
           { value: 'medium', label: 'Medium' },
           { value: 'high', label: 'High' },
-          { value: 'xhigh', label: 'Ultra' },
+          { value: 'xhigh', label: 'Extra high' },
+          { value: 'ultra', label: 'Ultra' },
         ],
       },
     ];
 
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.5 高/ });
+    const autoButton = await screen.findByRole('button', { name: /自动（推荐） · 5\.6 Sol 高/ });
     await userEvent.click(autoButton);
     fireEvent.click(await screen.findByRole('menuitem', { name: /自动（推荐）/ }));
 
@@ -366,7 +419,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'xhigh',
+        value: 'ultra',
       });
     });
   });

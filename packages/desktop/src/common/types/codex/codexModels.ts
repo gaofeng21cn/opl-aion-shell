@@ -7,10 +7,11 @@
 /**
  * Codex model defaults are App product policy.
  * The shell observes Codex capability lists from ACP, filters retired entries,
- * and resolves automatic selection to the newest usable frontier model.
+ * and exposes only the App allowlist in its product-defined order.
  */
 import {
   getOplCodexFrontierModelPreferenceOrder,
+  getOplCodexModelDisplayOptions,
   getOplDefaultCodexModel,
   getOplDefaultCodexModelDisplayLabel,
   getOplDefaultCodexReasoningEffort,
@@ -25,53 +26,42 @@ export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFF
   : DEFAULT_CODEX_MODEL_ID;
 export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
 const CODEX_FRONTIER_MODEL_PREFERENCE_ORDER = getOplCodexFrontierModelPreferenceOrder();
+const CODEX_FRONTIER_MODEL_PREFERENCE_INDEX = new Map(
+  CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.map((id, index) => [id, index])
+);
+const CODEX_MODEL_DISPLAY_LABELS = new Map(
+  getOplCodexModelDisplayOptions().visible_models.map((model) => [model.id, model.label_en])
+);
 const RETIRED_CODEX_MODEL_IDS = new Set(getOplRetiredCodexModels());
 
 export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; description: string }> =
   CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.filter((id) => !RETIRED_CODEX_MODEL_IDS.has(id)).map((id) => ({
     id,
-    label: id === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : id,
+    label: CODEX_MODEL_DISPLAY_LABELS.get(id) ?? id,
     description: 'One Person Lab App Codex frontier model',
   }));
 
 type CodexModelOption = { id: string; label?: string | null };
 
-const CODEX_FRONTIER_MODEL_PATTERN = /^gpt-(\d+(?:\.\d+)*)(?:-codex)?$/;
-
-function parseCodexFrontierVersion(modelId: string): number[] | null {
-  const match = modelId.trim().match(CODEX_FRONTIER_MODEL_PATTERN);
-  if (!match) return null;
-  return match[1].split('.').map((part) => Number.parseInt(part, 10));
-}
-
-function compareVersionParts(left: number[], right: number[]): number {
-  const length = Math.max(left.length, right.length);
-  for (let index = 0; index < length; index += 1) {
-    const diff = (left[index] ?? 0) - (right[index] ?? 0);
-    if (diff !== 0) return diff;
-  }
-  return 0;
-}
-
 export function selectDefaultCodexModelId(
   availableModels: CodexModelOption[] | undefined | null,
   appDefaultModelId = DEFAULT_CODEX_MODEL_ID
 ): string {
-  let selected: string | null = null;
-  let selectedVersion: number[] | null = null;
+  const normalizedAppDefaultModelId = appDefaultModelId.trim();
+  let selected: { id: string; preference: number } | null = null;
 
   for (const model of availableModels ?? []) {
     const id = model.id.trim();
     if (RETIRED_CODEX_MODEL_IDS.has(id)) continue;
-    const version = parseCodexFrontierVersion(id);
-    if (!version) continue;
-    if (!selectedVersion || compareVersionParts(version, selectedVersion) > 0) {
-      selected = id;
-      selectedVersion = version;
+    const preference = CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(id);
+    if (preference === undefined) continue;
+    if (id === normalizedAppDefaultModelId) return id;
+    if (!selected || preference < selected.preference) {
+      selected = { id, preference };
     }
   }
 
-  return selected ?? appDefaultModelId;
+  return selected?.id ?? normalizedAppDefaultModelId;
 }
 
 function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefined | null): Array<{
@@ -79,23 +69,23 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
   label: string;
 }> {
   const seen = new Set<string>();
-  const options: Array<{ id: string; label: string; version: number[] }> = [];
+  const options: Array<{ id: string; label: string; preference: number }> = [];
 
   for (const model of availableModels ?? []) {
     const id = model.id.trim();
     if (!id || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) continue;
-    const version = parseCodexFrontierVersion(id);
-    if (!version) continue;
+    const preference = CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(id);
+    if (preference === undefined) continue;
     seen.add(id);
     options.push({
       id,
       label: model.label?.trim() || id,
-      version,
+      preference,
     });
   }
 
   return options
-    .toSorted((left, right) => compareVersionParts(right.version, left.version))
+    .toSorted((left, right) => left.preference - right.preference)
     .map(({ id, label }) => ({
       id,
       label,

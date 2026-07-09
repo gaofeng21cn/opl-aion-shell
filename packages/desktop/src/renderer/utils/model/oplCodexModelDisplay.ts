@@ -30,7 +30,8 @@ const FALLBACK_REASONING_LABELS: Record<string, { zh: string; en: string }> = {
   low: { zh: '推理低', en: 'Low reasoning' },
   medium: { zh: '推理中', en: 'Medium reasoning' },
   high: { zh: '推理高', en: 'High reasoning' },
-  xhigh: { zh: '推理超高', en: 'Ultra reasoning' },
+  xhigh: { zh: '推理超高', en: 'Extra high reasoning' },
+  ultra: { zh: '推理极高', en: 'Ultra reasoning' },
 };
 
 function resolveLocaleKey(localeKey: OplModelDisplayLocale): OplModelDisplayLocale {

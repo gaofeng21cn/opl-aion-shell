@@ -73,14 +73,14 @@ function buildDeps(): GuidSendDeps {
     selectedMode: 'default',
     selectedAcpModel: null,
     currentAcpCachedModelInfo: {
-      current_model_id: 'gpt-5.5',
-      current_model_label: 'GPT-5.5（超高）',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
       available_models: [],
     },
     current_model: {
-      id: 'gpt-5.5',
-      name: 'GPT-5.5',
-      use_model: 'gpt-5.5',
+      id: 'gpt-5.6-sol',
+      name: 'GPT-5.6-Sol',
+      use_model: 'gpt-5.6-sol',
       provider: 'gflab',
       base_url: 'https://gflabtoken.cn/v1',
       api_key: 'test',
@@ -134,6 +134,8 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     expect(mocks.createConversation).toHaveBeenCalledTimes(1);
     const payload = mocks.createConversation.mock.calls[0][0];
     expect(payload.type).toBe('acp');
+    expect(payload.model.use_model).toBe('gpt-5.6-sol');
+    expect(payload.extra.current_model_id).toBe('gpt-5.6-sol');
     expect(payload.extra.preset_enabled_skills).toEqual(['med-autoscience']);
     expect(payload.extra.exclude_auto_inject_skills).toEqual([
       'aionui-skills',
@@ -159,6 +161,6 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       assistant_short_name: 'MAS',
       source: 'opl_app_home',
     });
-    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'ultra' });
   });
 });

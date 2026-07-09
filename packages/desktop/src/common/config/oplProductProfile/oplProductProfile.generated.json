@@ -26,8 +26,8 @@
     "provider": "gflab",
     "base_url": "https://gflabtoken.cn/v1",
     "executor": "codex_cli",
-    "model": "gpt-5.5",
-    "reasoning_effort": "xhigh",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "ultra",
     "applies_after": "codex_openai_api_key_configured",
     "authority": "app_session_default_only"
   },
@@ -48,15 +48,15 @@
       "codex_model_list_visible": true,
       "codex_model_policy": "codex_cli_latest_strongest_model_selector_visible",
       "codex_model_auto_option_visible": true,
-      "codex_default_model": "gpt-5.5",
-      "codex_default_reasoning_effort": "xhigh",
+      "codex_default_model": "gpt-5.6-sol",
+      "codex_default_reasoning_effort": "ultra",
       "codex_default_permission_mode": "full-access",
       "permission_mode_selector_visible": false,
       "conversation_backend_selector_visible": false,
       "conversation_model_selector_visible": true,
       "conversation_permission_mode_selector_visible": false,
-      "codex_home_model_status_label": "GPT-5.5",
-      "codex_home_model_status_label_en": "GPT-5.5",
+      "codex_home_model_status_label": "5.6 Sol",
+      "codex_home_model_status_label_en": "5.6 Sol",
       "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
@@ -78,12 +78,20 @@
       "codex_auto_model_selection": {
         "strategy": "codex_cli_auto_latest_available_frontier",
         "model_list_source": "codex_cli_handshake_available_models",
-        "frontier_model_preference_order_role": "fallback_when_codex_cli_model_list_unavailable",
+        "frontier_model_preference_order_role": "exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter",
         "user_can_override_model": true,
         "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
         "selection_persists_into_conversation": true,
-        "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4"]
+        "frontier_model_preference_order": [
+          "gpt-5.6-sol",
+          "gpt-5.5",
+          "gpt-5.6-terra",
+          "gpt-5.6-luna",
+          "gpt-5.4",
+          "gpt-5.4-mini",
+          "gpt-5.3-codex-spark"
+        ]
       },
       "codex_model_display_options": {
         "display_policy": "friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus",
@@ -95,7 +103,7 @@
         "reasoning_menu_title_en": "Reasoning",
         "reasoning_effort_override_surface": "model_selector_primary_menu",
         "reasoning_effort_options_source": "acp_codex_config_options_enum",
-        "default_reasoning_effort": "xhigh",
+        "default_reasoning_effort": "ultra",
         "auto_option_current_resolution_visible": true,
         "model_menu_policy": "current_model_secondary_submenu",
         "intelligence_enhancement_menu_policy": "default_on_secondary_submenu_with_enable_disable_actions",
@@ -104,12 +112,12 @@
           "id": "__auto",
           "label_zh": "自动（推荐）",
           "label_en": "Auto (recommended)",
-          "description_zh": "当前 GPT-5.5 · 推理超高 · 跟随最新最强",
-          "description_en": "Current GPT-5.5 · Ultra reasoning · follows latest strongest",
-          "resolved_model": "gpt-5.5",
-          "resolved_model_label_zh": "GPT-5.5",
-          "resolved_model_label_en": "GPT-5.5",
-          "resolved_reasoning_effort": "xhigh",
+          "description_zh": "当前 5.6 Sol · 推理极高 · 跟随最新最强",
+          "description_en": "Current 5.6 Sol · Ultra reasoning · follows latest strongest",
+          "resolved_model": "gpt-5.6-sol",
+          "resolved_model_label_zh": "5.6 Sol",
+          "resolved_model_label_en": "5.6 Sol",
+          "resolved_reasoning_effort": "ultra",
           "follows_latest_strongest": true
         },
         "fixed_model_description_zh": "固定此模型",
@@ -129,20 +137,49 @@
           },
           "xhigh": {
             "zh": "推理超高",
+            "en": "Extra high reasoning"
+          },
+          "ultra": {
+            "zh": "推理极高",
             "en": "Ultra reasoning"
           }
         },
-        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh"],
+        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh", "ultra"],
         "visible_models": [
           {
+            "id": "gpt-5.6-sol",
+            "label_zh": "5.6 Sol",
+            "label_en": "5.6 Sol"
+          },
+          {
             "id": "gpt-5.5",
-            "label_zh": "GPT-5.5",
-            "label_en": "GPT-5.5"
+            "label_zh": "5.5",
+            "label_en": "5.5"
+          },
+          {
+            "id": "gpt-5.6-terra",
+            "label_zh": "5.6 Terra",
+            "label_en": "5.6 Terra"
+          },
+          {
+            "id": "gpt-5.6-luna",
+            "label_zh": "5.6 Luna",
+            "label_en": "5.6 Luna"
           },
           {
             "id": "gpt-5.4",
-            "label_zh": "GPT-5.4",
-            "label_en": "GPT-5.4"
+            "label_zh": "5.4",
+            "label_en": "5.4"
+          },
+          {
+            "id": "gpt-5.4-mini",
+            "label_zh": "5.4 Mini",
+            "label_en": "5.4 Mini"
+          },
+          {
+            "id": "gpt-5.3-codex-spark",
+            "label_zh": "5.3 Codex Spark",
+            "label_en": "5.3 Codex Spark"
           }
         ]
       },
@@ -671,9 +708,9 @@
     ]
   },
   "codex": {
-    "default_model": "gpt-5.5",
+    "default_model": "gpt-5.6-sol",
     "default_model_description": "System Codex default model when configured",
-    "default_reasoning_effort": "xhigh",
+    "default_reasoning_effort": "ultra",
     "opl_flow_context": {
       "flow_id": "opl-flow",
       "source": "one-person-lab-app",

@@ -510,11 +510,16 @@ describe('useAcpModelInfo', () => {
       expect(result.current.canSwitch).toBe(true);
     });
     expect(result.current.model_info).toEqual({
-      current_model_id: 'gpt-5.5',
-      current_model_label: 'GPT-5.5',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
-        { id: 'gpt-5.5', label: 'GPT-5.5' },
-        { id: 'gpt-5.4', label: 'gpt-5.4' },
+        { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+        { id: 'gpt-5.5', label: '5.5' },
+        { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+        { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.4', label: '5.4' },
+        { id: 'gpt-5.4-mini', label: '5.4 Mini' },
+        { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
       ],
     });
   });
@@ -529,7 +534,7 @@ describe('useAcpModelInfo', () => {
           current_value: 'xhigh',
           options: [
             { value: 'high', label: 'High' },
-            { value: 'xhigh', label: 'Ultra' },
+            { value: 'xhigh', label: 'Extra high' },
           ],
         },
       ],
@@ -544,7 +549,7 @@ describe('useAcpModelInfo', () => {
           current_value: 'high',
           options: [
             { value: 'high', label: 'High' },
-            { value: 'xhigh', label: 'Ultra' },
+            { value: 'xhigh', label: 'Extra high' },
           ],
         },
       ],

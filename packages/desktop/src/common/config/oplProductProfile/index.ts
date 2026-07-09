@@ -7,7 +7,7 @@
 import generatedProfile from './oplProductProfile.generated.json';
 import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
 
-export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ultra';
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
 export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
 export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
@@ -396,7 +396,7 @@ type AppProductProfile = {
       codex_auto_model_selection: {
         strategy: 'codex_cli_auto_latest_available_frontier';
         model_list_source?: 'codex_cli_handshake_available_models';
-        frontier_model_preference_order_role?: 'fallback_when_codex_cli_model_list_unavailable';
+        frontier_model_preference_order_role?: 'exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter';
         user_can_override_model: boolean;
         user_can_override_reasoning_effort?: boolean;
         user_can_restore_auto: boolean;
@@ -473,7 +473,7 @@ type AppProductProfile = {
   };
 };
 
-const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh']);
+const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'ultra']);
 const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[] = [
   'source_channel',
   'workspace_trust',
@@ -688,14 +688,19 @@ function readCodexModelDisplayOptions(
 
   const reasoningLabels = isRecord(value.reasoning_labels) ? value.reasoning_labels : null;
   const xhighReasoningLabel = isRecord(reasoningLabels?.xhigh) ? reasoningLabels.xhigh : null;
+  const ultraReasoningLabel = isRecord(reasoningLabels?.ultra) ? reasoningLabels.ultra : null;
   const highReasoningLabel = isRecord(reasoningLabels?.high) ? reasoningLabels.high : null;
   if (
     highReasoningLabel?.zh !== '推理高' ||
     highReasoningLabel.en !== 'High reasoning' ||
     xhighReasoningLabel?.zh !== '推理超高' ||
-    xhighReasoningLabel.en !== 'Ultra reasoning'
+    xhighReasoningLabel.en !== 'Extra high reasoning' ||
+    ultraReasoningLabel?.zh !== '推理极高' ||
+    ultraReasoningLabel.en !== 'Ultra reasoning'
   ) {
-    throw new Error('Invalid OPL product profile: Codex model display options must label high and xhigh reasoning');
+    throw new Error(
+      'Invalid OPL product profile: Codex model display options must label high, xhigh, and ultra reasoning'
+    );
   }
   const userReasoningEffortOptions = Array.isArray(value.user_reasoning_effort_options)
     ? value.user_reasoning_effort_options.map((entry, index) =>
@@ -796,7 +801,8 @@ function readCodexModelDisplayOptions(
         })
       ),
       high: { zh: '推理高', en: 'High reasoning' },
-      xhigh: { zh: '推理超高', en: 'Ultra reasoning' },
+      xhigh: { zh: '推理超高', en: 'Extra high reasoning' },
+      ultra: { zh: '推理极高', en: 'Ultra reasoning' },
     } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
     user_reasoning_effort_options: userReasoningEffortOptions,
     visible_models: visibleModels,
@@ -1664,17 +1670,21 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     typeof guiHome.codex_home_model_status_label === 'string' ? guiHome.codex_home_model_status_label.trim() : '';
   const homeModelStatusLabelEn =
     typeof guiHome.codex_home_model_status_label_en === 'string' ? guiHome.codex_home_model_status_label_en.trim() : '';
-  if (homeModelStatusLabel !== 'GPT-5.5' || homeModelStatusLabelEn !== 'GPT-5.5') {
-    throw new Error(
-      'Invalid OPL product profile: GUI home Codex model status label must be GPT-5.5 without repeated reasoning'
-    );
+  if (
+    !homeModelStatusLabel ||
+    !homeModelStatusLabelEn ||
+    /推理|reasoning/i.test(homeModelStatusLabel) ||
+    /推理|reasoning/i.test(homeModelStatusLabelEn)
+  ) {
+    throw new Error('Invalid OPL product profile: GUI home Codex model status label must omit repeated reasoning');
   }
   const autoModelSelection = guiHome.codex_auto_model_selection;
   if (
     !isRecord(autoModelSelection) ||
     autoModelSelection.strategy !== 'codex_cli_auto_latest_available_frontier' ||
     autoModelSelection.model_list_source !== 'codex_cli_handshake_available_models' ||
-    autoModelSelection.frontier_model_preference_order_role !== 'fallback_when_codex_cli_model_list_unavailable' ||
+    autoModelSelection.frontier_model_preference_order_role !==
+      'exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter' ||
     autoModelSelection.user_can_override_model !== true ||
     autoModelSelection.user_can_restore_auto !== true ||
     autoModelSelection.selection_persists_into_conversation !== true
@@ -1692,6 +1702,12 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     codexModel,
     frontierModelPreferenceOrder
   );
+  if (
+    homeModelStatusLabel !== codexModelDisplayOptions.auto_option.resolved_model_label_zh ||
+    homeModelStatusLabelEn !== codexModelDisplayOptions.auto_option.resolved_model_label_en
+  ) {
+    throw new Error('Invalid OPL product profile: GUI home Codex model status label must match the App default model');
+  }
   const homePurposeEntries = readHomePurposeEntries(guiHome);
   const homeAgentShortcuts = readHomeAgentShortcuts(guiHome);
   const retiredCodexModels = readStringArray(guiHome, 'retired_codex_models_must_not_be_exposed', 'gui.home');
@@ -1856,7 +1872,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         codex_auto_model_selection: {
           strategy: 'codex_cli_auto_latest_available_frontier',
           model_list_source: 'codex_cli_handshake_available_models',
-          frontier_model_preference_order_role: 'fallback_when_codex_cli_model_list_unavailable',
+          frontier_model_preference_order_role:
+            'exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter',
           user_can_override_model: true,
           ...(autoModelSelection.user_can_override_reasoning_effort === true
             ? { user_can_override_reasoning_effort: true }

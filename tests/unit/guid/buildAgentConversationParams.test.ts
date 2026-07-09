@@ -6,7 +6,7 @@ const model = {
   id: 'codex',
   platform: 'openai',
   name: 'Codex',
-  use_model: 'gpt-5.5',
+  use_model: 'gpt-5.6-sol',
 };
 
 describe('buildAgentConversationParams OPL flow context', () => {
@@ -109,14 +109,15 @@ describe('buildAgentConversationParams OPL flow context', () => {
   });
 
   it('sets max Codex reasoning by default while preserving user overrides', () => {
-    expect(
-      buildAgentConversationParams({
-        backend: 'codex',
-        name: 'Default reasoning',
-        workspace: '/Users/example/workspace',
-        model,
-      }).extra.pending_config_options
-    ).toEqual({ reasoning_effort: 'xhigh' });
+    const defaultParams = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Default reasoning',
+      workspace: '/Users/example/workspace',
+      model,
+    });
+
+    expect(defaultParams.model?.use_model).toBe('gpt-5.6-sol');
+    expect(defaultParams.extra.pending_config_options).toEqual({ reasoning_effort: 'ultra' });
 
     expect(
       buildAgentConversationParams({

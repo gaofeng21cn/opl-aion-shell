@@ -185,8 +185,10 @@ const AcpModelSelector: React.FC<{
   );
   const handleAutoSelect = useCallback(() => {
     if (!model_info || isSettingReasoning) return;
+    const resolvedModelId = getOplCodexModelDisplayOptions().auto_option.resolved_model;
     const defaultModelId =
-      getOplCodexModelDisplayOptions().auto_option.resolved_model || model_info.available_models[0]?.id;
+      model_info.available_models.find((model) => model.id === resolvedModelId)?.id ??
+      model_info.available_models[0]?.id;
     const tasks: Array<Promise<unknown>> = [];
     if (defaultModelId && defaultModelId !== model_info.current_model_id) {
       selectModel(defaultModelId);

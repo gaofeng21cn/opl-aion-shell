@@ -188,7 +188,7 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
       current_model_id: 'gpt-5.4',
       current_model_label: 'GPT-5.4',
       available_models: [
-        { id: 'gpt-5.5', label: 'GPT-5.5' },
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
         { id: 'gpt-5.4', label: 'GPT-5.4' },
       ],
     },
@@ -200,7 +200,8 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
       currentValue: 'high',
       options: [
         { value: 'high', label: 'High' },
-        { value: 'xhigh', label: 'Ultra' },
+        { value: 'xhigh', label: 'Extra high' },
+        { value: 'ultra', label: 'Ultra' },
       ],
     },
     setStatus: { state: 'idle' },
@@ -308,7 +309,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-mode-selector')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: GPT-5.5');
+    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: 5.6 Sol');
   });
 
   it('keeps the permission mode selector for non-Codex ACP conversations', () => {
@@ -377,8 +378,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
     fireEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
 
-    expect(acpModelInfoMocks.selectModel).toHaveBeenCalledWith('gpt-5.5');
-    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'xhigh'));
+    expect(acpModelInfoMocks.selectModel).toHaveBeenCalledWith('gpt-5.6-sol');
+    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'ultra'));
   });
 
   it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {
