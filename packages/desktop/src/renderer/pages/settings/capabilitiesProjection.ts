@@ -546,6 +546,7 @@ function isDeveloperCheckout(
   module: RuntimeModuleItem | undefined
 ): boolean {
   const sourcePolicy = firstRecord(packageState?.source_policy, module?.source_policy);
+  const git = firstRecord(packageState?.git, module?.git);
   const effectiveSource = normalizeStatusToken(
     firstString(
       sourcePolicy.effective_install_update_source,
@@ -562,7 +563,20 @@ function isDeveloperCheckout(
   const configuredBy = normalizeStatusToken(
     firstString(sourcePolicy.configured_by, packageState?.configured_by, module?.configured_by)
   );
-  return effectiveSource === 'gitcheckout' || configuredBy === 'developermode';
+  const installOrigin = normalizeStatusToken(
+    firstString(
+      packageState?.install_origin,
+      module?.install_origin,
+      packageState?.checkout_origin,
+      module?.checkout_origin
+    )
+  );
+  return (
+    effectiveSource === 'gitcheckout' ||
+    configuredBy === 'developermode' ||
+    ['managedroot', 'siblingworkspace', 'envoverride'].includes(installOrigin ?? '') ||
+    (!packageState && Object.keys(git).length > 0)
+  );
 }
 
 function mapCapabilityStatus(

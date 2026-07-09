@@ -2872,6 +2872,7 @@ export type I18nKey =
   | 'settings.resourcesPage.docker.payloadRequired'
   | 'settings.resourcesPage.docker.payloadRequiredHelp'
   | 'settings.resourcesPage.docker.prepareEnvironment'
+  | 'settings.resourcesPage.docker.primaryActionTitle'
   | 'settings.resourcesPage.docker.recheck'
   | 'settings.resourcesPage.docker.runDryRoute'
   | 'settings.resourcesPage.docker.technicalActionId'

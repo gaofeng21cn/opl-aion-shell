@@ -1751,12 +1751,13 @@
   },
   "resourcesPage": {
     "title": "Resources & Connections",
-    "description": "Connect server WebUI, OPL Workspace, cloud or hosted workspaces, and external environments here.",
+    "description": "Manage browser WebUI, OPL Workspace, cloud or hosted workspaces, and external environment connections.",
     "docker": {
-      "title": "Server WebUI and OPL Workspace",
-      "description": "Use these entries for server or hosted workspace deployments. Local browser access stays on Access.",
-      "docker": "Server WebUI",
+      "title": "WebUI and OPL Workspace",
+      "description": "The desktop App already includes the local workbench. This area shows browser WebUI, server or hosted workspace open, check, and maintenance entries.",
+      "docker": "WebUI",
       "workspace": "OPL Workspace",
+      "primaryActionTitle": "Available action",
       "runDryRoute": "Continue setup",
       "openResource": "Open resource",
       "recheck": "Recheck",
@@ -1772,14 +1773,14 @@
       "technicalPreviewCommand": "Preview command",
       "actionDryRunSuccess": "Deployment check completed.",
       "actionDryRunFailed": "Deployment check failed.",
-      "noActions": "Server WebUI actions are not available yet.",
+      "noActions": "WebUI actions are not available yet.",
       "actions": {
-        "settings_install_docker_webui": "Install server WebUI",
-        "settings_configure_webui_api_key": "Enter WebUI access key",
-        "settings_select_webui_seed": "Choose initial WebUI template",
-        "settings_run_webui_startup_maintenance": "Check WebUI startup",
-        "settings_diagnose_docker_webui": "Check server WebUI",
-        "settings_open_docker_webui": "Open server WebUI"
+        "settings_install_docker_webui": "Prepare server or hosted WebUI",
+        "settings_configure_webui_api_key": "Configure WebUI model access",
+        "settings_select_webui_seed": "Choose WebUI image or template",
+        "settings_run_webui_startup_maintenance": "Repair WebUI startup materials",
+        "settings_diagnose_docker_webui": "Check WebUI status",
+        "settings_open_docker_webui": "Open WebUI"
       }
     },
     "connections": {

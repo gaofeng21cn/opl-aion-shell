@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   buildAccessProjection,
+  normalizeAccessStatus,
   type DockerWebuiAction,
   type DockerWebuiProjection,
   type ResourceSourceProjection,
@@ -34,8 +35,7 @@ export const ResourcesSettingsContent: React.FC = () => {
   const dockerSummaryTags = dockerDeploymentSummaryTags(dockerWebui, t);
   const workspaceSources = resourceSources.filter((source) => source.category === 'oplWorkspace');
   const cloudExternalSources = resourceSources.filter((source) => source.category !== 'oplWorkspace');
-  const primaryDockerAction =
-    dockerWebui.actions.find((action) => !action.payloadRequired) ?? dockerWebui.actions[0] ?? null;
+  const primaryDockerAction = preferredDockerAction(dockerWebui.actions);
   const secondaryDockerActions = dockerWebui.actions.filter((action) => action !== primaryDockerAction);
 
   const handleDockerAction = async (action: DockerWebuiAction) => {
@@ -98,7 +98,7 @@ export const ResourcesSettingsContent: React.FC = () => {
               <div className='flex flex-col gap-10px md:flex-row md:items-start md:justify-between'>
                 <div className='min-w-0 flex flex-col gap-6px'>
                   <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.workspacePage.nextStep.title')}
+                    {t('settings.resourcesPage.docker.primaryActionTitle')}
                   </Typography.Text>
                   <DockerActionTitle action={primaryDockerAction} />
                 </div>
@@ -118,11 +118,9 @@ export const ResourcesSettingsContent: React.FC = () => {
             </Typography.Text>
           )}
 
-          {dockerWebui.actions.length > 0 && (
+          {secondaryDockerActions.length > 0 && (
             <DockerMoreActions
-              actions={[primaryDockerAction, ...secondaryDockerActions].filter((action): action is DockerWebuiAction =>
-                Boolean(action)
-              )}
+              actions={secondaryDockerActions}
               runningActionId={runningActionId}
               onAction={handleDockerAction}
             />
@@ -206,12 +204,29 @@ function dockerActionCtaLabel(
   return t('settings.resourcesPage.docker.runDryRoute');
 }
 
+function dockerActionPriority(action: DockerWebuiAction): number {
+  const normalizedActionId = action.actionId.toLowerCase();
+  if (action.payloadRequired) return 50;
+  if (normalizedActionId.includes('open')) return 0;
+  if (normalizedActionId.includes('diagnose')) return 1;
+  if (normalizedActionId.includes('startup')) return 2;
+  if (normalizedActionId.includes('configure')) return 10;
+  if (normalizedActionId.includes('install')) return 20;
+  return 30;
+}
+
+function preferredDockerAction(actions: DockerWebuiAction[]): DockerWebuiAction | null {
+  const runnable = actions.filter((action) => !action.payloadRequired);
+  if (runnable.length === 0) return actions[0] ?? null;
+  return [...runnable].sort((left, right) => dockerActionPriority(left) - dockerActionPriority(right))[0] ?? null;
+}
+
 function dockerActionStatusLabel(
   action: DockerWebuiAction,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
   if (action.payloadRequired) return t('settings.resourcesPage.statusLabels.needs_input');
-  return accessStatusLabel(action.state, t);
+  return accessStatusLabel(normalizeAccessStatus(action.state, 'unknown'), t);
 }
 
 const DockerActionTitle: React.FC<{ action: DockerWebuiAction }> = ({ action }) => {

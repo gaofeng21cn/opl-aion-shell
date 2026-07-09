@@ -94,6 +94,35 @@ describe('buildCapabilitiesViewModel', () => {
     expect(research.description).toBe('Research');
   });
 
+  it('treats legacy managed-root git update hints as source maintenance, not package updates', () => {
+    const capabilities = buildCapabilitiesViewModel(
+      {
+        modules: {
+          items: [
+            {
+              module_id: 'oplmetaagent',
+              installed: true,
+              install_origin: 'managed_root',
+              health_status: 'ready',
+              recommended_action: 'update',
+              git: {
+                dirty: false,
+                sync_status: 'behind',
+                short_sha: '712b006',
+              },
+            },
+          ],
+        },
+      },
+      'en-US'
+    );
+    const oma = capabilities.find((capability) => capability.packageId === 'opl-meta-agent');
+
+    expect(oma?.status).toBe('source');
+    expect(oma?.primaryAction).toBe('maintenance');
+    expect(oma?.version).toBe('712b006');
+  });
+
   it('prefers package-native projection when app_state exposes opl_agent_package_status', () => {
     const [research] = buildCapabilitiesViewModel(
       {

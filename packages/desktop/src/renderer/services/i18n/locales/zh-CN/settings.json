@@ -1752,12 +1752,13 @@
   },
   "resourcesPage": {
     "title": "资源与连接",
-    "description": "在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。",
+    "description": "管理浏览器 WebUI、OPL Workspace、云端/托管工作区和外部环境连接。",
     "docker": {
-      "title": "服务器 WebUI 与 OPL Workspace",
-      "description": "这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。",
-      "docker": "服务器 WebUI",
+      "title": "WebUI 与 OPL Workspace",
+      "description": "桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。",
+      "docker": "WebUI",
       "workspace": "OPL Workspace",
+      "primaryActionTitle": "可用操作",
       "runDryRoute": "继续设置",
       "openResource": "打开资源",
       "recheck": "重新检查",
@@ -1773,14 +1774,14 @@
       "technicalPreviewCommand": "预检查命令",
       "actionDryRunSuccess": "部署前检查完成。",
       "actionDryRunFailed": "部署前检查失败。",
-      "noActions": "暂时没有可用的服务器 WebUI 操作。",
+      "noActions": "暂时没有可用的 WebUI 操作。",
       "actions": {
-        "settings_install_docker_webui": "安装服务器 WebUI",
-        "settings_configure_webui_api_key": "填写 WebUI 访问密钥",
-        "settings_select_webui_seed": "选择 WebUI 初始模板",
-        "settings_run_webui_startup_maintenance": "检查 WebUI 启动状态",
-        "settings_diagnose_docker_webui": "检查服务器 WebUI",
-        "settings_open_docker_webui": "打开服务器 WebUI"
+        "settings_install_docker_webui": "准备服务器/托管 WebUI",
+        "settings_configure_webui_api_key": "配置 WebUI 模型访问",
+        "settings_select_webui_seed": "选择 WebUI 镜像或模板",
+        "settings_run_webui_startup_maintenance": "修复 WebUI 启动材料",
+        "settings_diagnose_docker_webui": "检查 WebUI 状态",
+        "settings_open_docker_webui": "打开 WebUI"
       }
     },
     "connections": {

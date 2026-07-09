@@ -129,6 +129,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 danger_level: 'medium',
               },
               {
+                action_id: 'settings_configure_webui_api_key',
+                label: 'Configure WebUI API key',
+                state: 'attention_needed',
+                route: 'opl app action execute --action settings_configure_webui_api_key',
+                dry_run_route: 'opl app action execute --action settings_configure_webui_api_key --dry-run',
+                payload_required: false,
+                confirmation_required: true,
+                danger_level: 'medium',
+              },
+              {
                 action_id: 'settings_select_webui_seed',
                 label: 'Select WebUI image seed',
                 state: 'ready',
@@ -137,6 +147,26 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                 payload_required: true,
                 confirmation_required: true,
                 danger_level: 'medium',
+              },
+              {
+                action_id: 'settings_diagnose_docker_webui',
+                label: 'Diagnose Docker WebUI',
+                state: 'ready',
+                route: 'opl app action execute --action settings_diagnose_docker_webui',
+                dry_run_route: 'opl app action execute --action settings_diagnose_docker_webui --dry-run',
+                payload_required: false,
+                confirmation_required: false,
+                danger_level: 'none',
+              },
+              {
+                action_id: 'settings_open_docker_webui',
+                label: 'Open Docker WebUI',
+                state: 'ready',
+                route: 'opl app action execute --action settings_open_docker_webui',
+                dry_run_route: 'opl app action execute --action settings_open_docker_webui --dry-run',
+                payload_required: false,
+                confirmation_required: false,
+                danger_level: 'none',
               },
             ],
           },
@@ -174,13 +204,13 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, string>) => {
       const labels: Record<string, string> = {
         'settings.resourcesPage.title': '资源与连接',
-        'settings.resourcesPage.description': '在这里连接服务器 WebUI、OPL Workspace、云端/托管工作区和外部环境。',
-        'settings.workspacePage.nextStep.title': '推荐下一步',
-        'settings.resourcesPage.docker.title': '服务器 WebUI 与 OPL Workspace',
+        'settings.resourcesPage.description': '管理浏览器 WebUI、OPL Workspace、云端/托管工作区和外部环境连接。',
+        'settings.resourcesPage.docker.title': 'WebUI 与 OPL Workspace',
         'settings.resourcesPage.docker.description':
-          '这些入口用于服务器或托管工作区部署。本机浏览器访问仍在访问方式页处理。',
-        'settings.resourcesPage.docker.docker': '服务器 WebUI',
+          '桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。',
+        'settings.resourcesPage.docker.docker': 'WebUI',
         'settings.resourcesPage.docker.workspace': 'OPL Workspace',
+        'settings.resourcesPage.docker.primaryActionTitle': '可用操作',
         'settings.resourcesPage.docker.runDryRoute': '继续设置',
         'settings.resourcesPage.docker.openResource': '打开资源',
         'settings.resourcesPage.docker.recheck': '重新检查',
@@ -196,8 +226,11 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.docker.technicalPreviewCommand': '预检查命令',
         'settings.resourcesPage.docker.actionDryRunSuccess': '部署前检查完成。',
         'settings.resourcesPage.docker.actionDryRunFailed': '部署前检查失败。',
-        'settings.resourcesPage.docker.actions.settings_install_docker_webui': '安装服务器 WebUI',
-        'settings.resourcesPage.docker.actions.settings_select_webui_seed': '选择 WebUI 初始模板',
+        'settings.resourcesPage.docker.actions.settings_install_docker_webui': '准备服务器/托管 WebUI',
+        'settings.resourcesPage.docker.actions.settings_configure_webui_api_key': '配置 WebUI 模型访问',
+        'settings.resourcesPage.docker.actions.settings_select_webui_seed': '选择 WebUI 镜像或模板',
+        'settings.resourcesPage.docker.actions.settings_diagnose_docker_webui': '检查 WebUI 状态',
+        'settings.resourcesPage.docker.actions.settings_open_docker_webui': '打开 WebUI',
         'settings.resourcesPage.connections.title': '云端与外部环境',
         'settings.resourcesPage.connections.description':
           '展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。',
@@ -206,6 +239,7 @@ vi.mock('react-i18next', () => ({
           '确认任务使用的工作区、环境和存储入口；底层引用默认收起。',
         'settings.resourcesPage.statusLabels.action_available': '可用',
         'settings.resourcesPage.statusLabels.available': '可用',
+        'settings.resourcesPage.statusLabels.attention_required': '需要检查',
         'settings.resourcesPage.statusLabels.needs_input': '需要填写信息',
         'settings.resourcesPage.statusLabels.ready': '可用',
         'settings.resourcesPage.resourceSources.environmentRefs': '有环境配置',
@@ -246,13 +280,15 @@ describe('ResourcesSettingsContent', () => {
     const view = render(<ResourcesSettingsContent />);
 
     expect(view.getByText('资源与连接')).toBeTruthy();
-    expect(view.getByText('服务器 WebUI 与 OPL Workspace')).toBeTruthy();
-    expect(view.getAllByText('服务器 WebUI').length).toBeGreaterThan(0);
+    expect(view.getByText('WebUI 与 OPL Workspace')).toBeTruthy();
+    expect(view.getAllByText('WebUI').length).toBeGreaterThan(0);
     expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
     expect(view.getByText('云端与外部环境')).toBeTruthy();
-    expect(view.getByText('推荐下一步')).toBeTruthy();
-    expect(view.getByText('安装服务器 WebUI')).toBeTruthy();
-    expect(view.queryByText('选择 WebUI 初始模板')).toBeNull();
+    expect(view.getByText('可用操作')).toBeTruthy();
+    expect(view.getByText('打开 WebUI')).toBeTruthy();
+    expect(view.queryByText('准备服务器/托管 WebUI')).toBeNull();
+    expect(view.queryByText('配置 WebUI 模型访问')).toBeNull();
+    expect(view.queryByText('选择 WebUI 镜像或模板')).toBeNull();
     expect(view.getByText('更多操作')).toBeTruthy();
     expect(view.getByTestId('opl-settings-workspace-resource-sources')).toBeTruthy();
     expect(view.getByTestId('opl-settings-resource-sources')).toBeTruthy();
@@ -270,9 +306,13 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('opl://storage/default');
 
     openDetailsFor(view.getByText('更多操作'));
-    expect(view.getByText('选择 WebUI 初始模板')).toBeTruthy();
+    expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
+    expect(view.getByText('配置 WebUI 模型访问')).toBeTruthy();
+    expect(view.getByText('需要检查')).toBeTruthy();
+    expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
     expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).not.toContain('dry-run');
+    expect(document.body.textContent).not.toContain('attention_needed');
 
     view.getAllByText('技术引用').forEach((summary) => openDetailsFor(summary));
 
@@ -289,12 +329,12 @@ describe('ResourcesSettingsContent', () => {
   it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {
     const view = render(<ResourcesSettingsContent />);
 
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_open_docker_webui'));
 
     const mocks = getMocks();
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'settings_install_docker_webui',
+        actionId: 'settings_open_docker_webui',
         dryRun: true,
       })
     );
@@ -316,7 +356,7 @@ describe('ResourcesSettingsContent', () => {
     });
     const view = render(<ResourcesSettingsContent />);
 
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_install_docker_webui'));
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_open_docker_webui'));
 
     await waitFor(() => expect(view.getByText('部署前检查失败。')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
