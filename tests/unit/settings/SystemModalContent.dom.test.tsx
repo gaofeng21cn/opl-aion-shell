@@ -75,6 +75,14 @@ vi.mock('@/common/config/configService', () => ({
 describe('SystemModalContent OPL App state', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(configService.get).mockImplementation((key: string) => {
+      const defaults: Record<string, unknown> = {
+        'system.notificationEnabled': true,
+        'system.autoPreviewOfficeFiles': true,
+        'codex.oplFlowIntelligenceEnhancementMode': false,
+      };
+      return defaults[key];
+    });
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
@@ -234,6 +242,92 @@ describe('SystemModalContent OPL App state', () => {
     await waitFor(() =>
       expect(configService.set).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true)
     );
+  });
+
+  it('defaults OPL Flow intelligence enhancement mode on when the config key is unset', async () => {
+    let resolveStatus: ((value: unknown) => void) | null = null;
+    vi.mocked(configService.get).mockImplementation((key: string) => {
+      const defaults: Record<string, unknown> = {
+        'system.notificationEnabled': true,
+        'system.autoPreviewOfficeFiles': true,
+      };
+      return defaults[key];
+    });
+    bridgeMocks.executeActionInvoke.mockImplementation(({ actionId }: { actionId: string }) => {
+      if (actionId === 'intelligence_enhancement_status') {
+        return new Promise((resolve) => {
+          resolveStatus = resolve;
+        });
+      }
+      return Promise.resolve({
+        surface: 'app_action',
+        command: `opl app action execute --action ${actionId} --json`,
+        stdout: '{}',
+        ok: true,
+        parsed: {
+          app_action_execution: {
+            result: {
+              opl_flow_intelligence_enhancement_action: {
+                status: 'completed',
+                status_readback: { enabled: true },
+              },
+            },
+          },
+        },
+      });
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+
+    expect(
+      within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch')
+    ).toHaveAttribute('aria-checked', 'true');
+
+    resolveStatus?.({
+      surface: 'app_action',
+      command: 'opl app action execute --action intelligence_enhancement_status --json',
+      stdout: '{}',
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_flow_intelligence_enhancement: { enabled: true },
+          },
+        },
+      },
+    });
+  });
+
+  it('does not override an explicit false intelligence enhancement preference from status readback', async () => {
+    bridgeMocks.executeActionInvoke.mockResolvedValue({
+      surface: 'app_action',
+      command: 'opl app action execute --action intelligence_enhancement_status --json',
+      stdout: '{}',
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_flow_intelligence_enhancement: { enabled: true },
+          },
+        },
+      },
+    });
+
+    renderWithFreshSWR();
+
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_status',
+        dryRun: false,
+      })
+    );
+
+    expect(
+      within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch')
+    ).toHaveAttribute('aria-checked', 'false');
+    expect(configService.setLocal).not.toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true);
   });
 
   it('does not expose machine Developer Mode states in the status pill', async () => {

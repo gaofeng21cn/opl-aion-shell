@@ -57,7 +57,7 @@
       "conversation_permission_mode_selector_visible": false,
       "codex_home_model_status_label": "GPT-5.5",
       "codex_home_model_status_label_en": "GPT-5.5",
-      "codex_precise_model_display_policy": "friendly_model_primary_reasoning_configurable_in_model_menu",
+      "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
         "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
@@ -86,18 +86,20 @@
         "frontier_model_preference_order": ["gpt-5.5", "gpt-5.4"]
       },
       "codex_model_display_options": {
-        "display_policy": "friendly_model_name_primary_reasoning_configurable_in_model_menu",
+        "display_policy": "friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus",
         "button_label_policy": "auto_or_fixed_model_compact_label_with_selected_reasoning_effort",
         "raw_model_id_visible_in_ordinary_ui": false,
         "reasoning_effort_visible_for_every_option": false,
         "reasoning_effort_menu_visible": true,
         "reasoning_menu_title_zh": "推理",
         "reasoning_menu_title_en": "Reasoning",
-        "reasoning_effort_override_surface": "model_configuration_menu",
+        "reasoning_effort_override_surface": "model_selector_primary_menu",
         "reasoning_effort_options_source": "acp_codex_config_options_enum",
         "default_reasoning_effort": "xhigh",
         "auto_option_current_resolution_visible": true,
-        "model_menu_policy": "last_submenu_collapsed_by_default",
+        "model_menu_policy": "current_model_secondary_submenu",
+        "intelligence_enhancement_menu_policy": "default_on_secondary_submenu_with_enable_disable_actions",
+        "intelligence_enhancement_default_enabled": true,
         "auto_option": {
           "id": "__auto",
           "label_zh": "自动（推荐）",
@@ -290,7 +292,7 @@
       "permission_mode_selector_visible": false,
       "provider_selector_visible": false,
       "model_status_surface": "gui.home.codex_home_model_status_label",
-      "technical_details_policy": "friendly_model_primary_reasoning_configurable_in_model_menu"
+      "technical_details_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus"
     },
     "right_context_inspector": {
       "placement": "right",
@@ -729,6 +731,7 @@
           "required_opl_package_preflight_actions": ["status", "enable", "repair"],
           "required_opl_package_install_command": "python3 scripts/install_local_plugin.py --no-profile",
           "profile_mutation_policy": "semantic_merge_packet_only_no_silent_overwrite",
+          "default_enabled": true,
           "status_action_id": "intelligence_enhancement_status",
           "enable_action_id": "intelligence_enhancement_enable",
           "disable_action_id": "intelligence_enhancement_disable",
@@ -1776,7 +1779,7 @@
         ],
         "default_model_ref": "contracts/app-product-profile.json#codex.default_model",
         "default_reasoning_effort_ref": "contracts/app-product-profile.json#codex.default_reasoning_effort",
-        "ordinary_surface": "home_and_conversation_model_configuration_menu",
+        "ordinary_surface": "home_and_conversation_model_selector_primary_reasoning_with_secondary_model_and_intelligence_menus",
         "settings_surface": "settings_access.opl_gateway",
         "adapter_policy": "Aion/Hermes/shell render App-derived model and reasoning policy only",
         "shell_must_not_own": [

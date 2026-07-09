@@ -192,6 +192,7 @@ export type OplFlowContextPolicy = {
       upstream_policy: 'preserve_current_codex_provider_via_local_responses_proxy';
       behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action';
       service_policy: 'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair';
+      default_enabled: true;
       status_action_id: 'intelligence_enhancement_status';
       enable_action_id: 'intelligence_enhancement_enable';
       disable_action_id: 'intelligence_enhancement_disable';
@@ -213,18 +214,20 @@ export type OplCodexModelDisplayModel = {
 };
 
 export type OplCodexModelDisplayOptions = {
-  display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu';
+  display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus';
   button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort';
   raw_model_id_visible_in_ordinary_ui: false;
   reasoning_effort_visible_for_every_option: false;
   reasoning_effort_menu_visible: true;
   reasoning_menu_title_zh: string;
   reasoning_menu_title_en: string;
-  reasoning_effort_override_surface: 'model_configuration_menu';
+  reasoning_effort_override_surface: 'model_selector_primary_menu';
   reasoning_effort_options_source: 'acp_codex_config_options_enum';
   default_reasoning_effort: OplCodexReasoningEffort;
   auto_option_current_resolution_visible: true;
-  model_menu_policy: 'last_submenu_collapsed_by_default';
+  model_menu_policy: 'current_model_secondary_submenu';
+  intelligence_enhancement_menu_policy: 'default_on_secondary_submenu_with_enable_disable_actions';
+  intelligence_enhancement_default_enabled: true;
   auto_option: {
     id: '__auto';
     label_zh: string;
@@ -389,7 +392,7 @@ type AppProductProfile = {
       conversation_permission_mode_selector_visible: false;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
-      codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu';
+      codex_precise_model_display_policy: 'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus';
       codex_auto_model_selection: {
         strategy: 'codex_cli_auto_latest_available_frontier';
         model_list_source?: 'codex_cli_handshake_available_models';
@@ -637,17 +640,19 @@ function readCodexModelDisplayOptions(
     throw new Error('Invalid OPL product profile: gui.home.codex_model_display_options must be declared');
   }
   if (
-    value.display_policy !== 'friendly_model_name_primary_reasoning_configurable_in_model_menu' ||
+    value.display_policy !== 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus' ||
     value.button_label_policy !== 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort' ||
     value.raw_model_id_visible_in_ordinary_ui !== false ||
     value.reasoning_effort_visible_for_every_option !== false ||
     value.reasoning_effort_menu_visible !== true ||
     value.reasoning_menu_title_zh !== '推理' ||
     value.reasoning_menu_title_en !== 'Reasoning' ||
-    value.reasoning_effort_override_surface !== 'model_configuration_menu' ||
+    value.reasoning_effort_override_surface !== 'model_selector_primary_menu' ||
     value.reasoning_effort_options_source !== 'acp_codex_config_options_enum' ||
     value.auto_option_current_resolution_visible !== true ||
-    value.model_menu_policy !== 'last_submenu_collapsed_by_default' ||
+    value.model_menu_policy !== 'current_model_secondary_submenu' ||
+    value.intelligence_enhancement_menu_policy !== 'default_on_secondary_submenu_with_enable_disable_actions' ||
+    value.intelligence_enhancement_default_enabled !== true ||
     value.fixed_model_description_zh !== '固定此模型' ||
     value.fixed_model_description_en !== 'Use this model'
   ) {
@@ -752,18 +757,20 @@ function readCodexModelDisplayOptions(
   }
 
   return {
-    display_policy: 'friendly_model_name_primary_reasoning_configurable_in_model_menu',
+    display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
     button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort',
     raw_model_id_visible_in_ordinary_ui: false,
     reasoning_effort_visible_for_every_option: false,
     reasoning_effort_menu_visible: true,
     reasoning_menu_title_zh: '推理',
     reasoning_menu_title_en: 'Reasoning',
-    reasoning_effort_override_surface: 'model_configuration_menu',
+    reasoning_effort_override_surface: 'model_selector_primary_menu',
     reasoning_effort_options_source: 'acp_codex_config_options_enum',
     default_reasoning_effort: displayDefaultReasoningEffort,
     auto_option_current_resolution_visible: true,
-    model_menu_policy: 'last_submenu_collapsed_by_default',
+    model_menu_policy: 'current_model_secondary_submenu',
+    intelligence_enhancement_menu_policy: 'default_on_secondary_submenu_with_enable_disable_actions',
+    intelligence_enhancement_default_enabled: true,
     auto_option: {
       id: '__auto',
       label_zh: '自动（推荐）',
@@ -1420,6 +1427,7 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
       'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' &&
     intelligenceEnhancementMode.service_policy ===
       'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' &&
+    intelligenceEnhancementMode.default_enabled === true &&
     intelligenceEnhancementMode.status_action_id === 'intelligence_enhancement_status' &&
     intelligenceEnhancementMode.enable_action_id === 'intelligence_enhancement_enable' &&
     intelligenceEnhancementMode.disable_action_id === 'intelligence_enhancement_disable' &&
@@ -1436,6 +1444,7 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
           behavior_policy: 'local_proxy_reasoning_continuation_no_prompt_injection_no_quick_action' as const,
           service_policy:
             'opl_flow_managed_persistent_service_macos_launch_agent_linux_systemd_user_docker_startup_repair' as const,
+          default_enabled: true as const,
           status_action_id: 'intelligence_enhancement_status' as const,
           enable_action_id: 'intelligence_enhancement_enable' as const,
           disable_action_id: 'intelligence_enhancement_disable' as const,
@@ -1639,7 +1648,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.conversation_backend_selector_visible !== false ||
     guiHome.conversation_model_selector_visible !== true ||
     guiHome.conversation_permission_mode_selector_visible !== false ||
-    guiHome.codex_precise_model_display_policy !== 'friendly_model_primary_reasoning_configurable_in_model_menu'
+    guiHome.codex_precise_model_display_policy !==
+      'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus'
   ) {
     throw new Error('Invalid OPL product profile: GUI home contract must expose App-owned model selection');
   }
@@ -1841,7 +1851,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         conversation_permission_mode_selector_visible: false,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
-        codex_precise_model_display_policy: 'friendly_model_primary_reasoning_configurable_in_model_menu',
+        codex_precise_model_display_policy:
+          'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus',
         codex_auto_model_selection: {
           strategy: 'codex_cli_auto_latest_available_frontier',
           model_list_source: 'codex_cli_handshake_available_models',

@@ -2,14 +2,18 @@ import { ipcBridge } from '@/common';
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
+import { configService } from '@/common/config/configService';
 import {
   filterOplOrdinaryMcpStatuses,
   filterOplOrdinarySkillNames,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
+  getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
   getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
+  shouldShowOplCodexModelAutoOption,
+  type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
 import { parseError, resolveLocaleKey, uuid } from '@/common/utils';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
@@ -53,6 +57,7 @@ import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
+  formatOplCodexReasoningMenuLabel,
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
@@ -72,6 +77,35 @@ const useAcpSendBoxDraft = getSendBoxDraftHook('acp', {
 
 const EMPTY_AT_PATH: Array<string | FileOrFolderItem> = [];
 const EMPTY_UPLOAD_FILES: string[] = [];
+const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
+
+const configErrorMessageKey = (error: unknown) => {
+  if (error instanceof Error) {
+    if (error.message.includes('command_ack')) return 'agent.config.commandAck';
+    if (error.message.includes('confirmation_timeout')) return 'agent.config.timeout';
+    if (error.message.includes('config_update_in_progress')) return 'agent.config.busy';
+  }
+  return 'agent.config.failed';
+};
+
+function oplRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
+  const parsed = oplRecord(value);
+  const execution = oplRecord(parsed.app_action_execution);
+  const result = oplRecord(execution.result);
+  const directStatus = oplRecord(result.opl_flow_intelligence_enhancement);
+  const actionStatus = oplRecord(oplRecord(result.opl_flow_intelligence_enhancement_action).status_readback);
+  const enabled = typeof directStatus.enabled === 'boolean' ? directStatus.enabled : actionStatus.enabled;
+  return typeof enabled === 'boolean' ? enabled : null;
+}
+
+function readIntelligenceEnhancementPreference(): boolean {
+  if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return false;
+  return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? true;
+}
 
 const useSendBoxDraft = (conversation_id: string) => {
   const { data, mutate } = useAcpSendBoxDraft(conversation_id);
@@ -130,10 +164,6 @@ const AcpSendBox: React.FC<{
   const oplCodexModelStatusText = getOplModelStatusDisplayText(resolveLocaleKey(i18n.language));
   const modelDisplayLocale = resolveLocaleKey(i18n.language) as OplModelDisplayLocale;
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
-  const codexAutoLabel =
-    modelDisplayLocale === 'en-US'
-      ? getOplCodexModelDisplayOptions().auto_option.label_en
-      : getOplCodexModelDisplayOptions().auto_option.label_zh;
   const showModeSelector =
     backend === 'codex' && isOplCodexCliFixedExecutor() ? shouldShowOplConversationPermissionModeSelector() : true;
   const isLeaderInTeam = teamPermission && conversation_id === teamPermission.leaderConversationId;
@@ -165,6 +195,9 @@ const AcpSendBox: React.FC<{
     model_info,
     canSwitch: canSwitchModel,
     selectModel,
+    thoughtLevel,
+    setStatus,
+    setConfigOption,
   } = useAcpModelInfo({
     conversation_id,
     backend,
@@ -174,6 +207,18 @@ const AcpSendBox: React.FC<{
     onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
   });
   const availableAgentModes = useAgentModesForBackend(backend);
+  const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(
+    readIntelligenceEnhancementPreference
+  );
+  const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
+
+  useEffect(() => {
+    if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
+    setOplFlowIntelligenceEnhancementMode(readIntelligenceEnhancementPreference());
+    return configService.subscribe(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, (value) => {
+      setOplFlowIntelligenceEnhancementMode(value === false ? false : true);
+    });
+  }, []);
 
   // Mirror AgentModeSelector's getMode sync so the sheet shows the live mode label.
   useEffect(() => {
@@ -211,6 +256,71 @@ const AcpSendBox: React.FC<{
       }
     },
     [backend, conversation_id, currentMode, isLeaderInTeam, prepareRuntimeSync, t, teamPermission]
+  );
+
+  const currentCodexReasoningEffort =
+    (thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort;
+  const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
+  const showCodexAutoOption =
+    backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
+
+  const handleSheetReasoningSelect = useCallback(
+    (value: string) => {
+      if (!thoughtLevel || value === thoughtLevel.currentValue || isSettingReasoning) return;
+      void setConfigOption(thoughtLevel.id, value)
+        .then(() => Message.success(t('agent.thoughtLevel.switchSuccess')))
+        .catch((error) => Message.error(t(configErrorMessageKey(error))));
+    },
+    [isSettingReasoning, setConfigOption, thoughtLevel, t]
+  );
+
+  const handleSheetAutoSelect = useCallback(() => {
+    if (!model_info || isSettingReasoning) return;
+    const defaultModelId =
+      getOplCodexModelDisplayOptions().auto_option.resolved_model || model_info.available_models[0]?.id;
+    const tasks: Array<Promise<unknown>> = [];
+    if (defaultModelId && defaultModelId !== model_info.current_model_id) {
+      selectModel(defaultModelId);
+    }
+    if (thoughtLevel && defaultCodexReasoningEffort && thoughtLevel.currentValue !== defaultCodexReasoningEffort) {
+      tasks.push(setConfigOption(thoughtLevel.id, defaultCodexReasoningEffort));
+    }
+    if (tasks.length) {
+      void Promise.all(tasks)
+        .then(() => Message.success(t('agent.model.switchSuccess')))
+        .catch((error) => Message.error(t(configErrorMessageKey(error))));
+    }
+  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectModel, setConfigOption, thoughtLevel, t]);
+
+  const handleSheetIntelligenceEnhancementSelect = useCallback(
+    async (key: string) => {
+      const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
+      if (!mode || oplFlowIntelligenceEnhancementApplying) return;
+      const checked = key === 'enable';
+      if (checked === oplFlowIntelligenceEnhancementMode) return;
+      const previous = oplFlowIntelligenceEnhancementMode;
+      setOplFlowIntelligenceEnhancementMode(checked);
+      setOplFlowIntelligenceEnhancementApplying(true);
+      try {
+        const result = await ipcBridge.oplRuntime.executeAction.invoke({
+          actionId: checked ? mode.enable_action_id : mode.disable_action_id,
+          dryRun: false,
+        });
+        if (result.ok === false) {
+          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+        }
+        const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
+        setOplFlowIntelligenceEnhancementMode(enabled);
+        await configService.set(mode.settings_key, enabled);
+      } catch (caughtError) {
+        setOplFlowIntelligenceEnhancementMode(previous);
+        configService.setLocal(mode.settings_key, previous);
+        Message.error(caughtError instanceof Error ? caughtError.message : String(caughtError));
+      } finally {
+        setOplFlowIntelligenceEnhancementApplying(false);
+      }
+    },
+    [oplFlowIntelligenceEnhancementApplying, oplFlowIntelligenceEnhancementMode]
   );
 
   // In team mode, warmup the agent then fetch slash commands
@@ -466,7 +576,7 @@ Please check your local CLI tool authentication status`,
         ? buildOplCodexAutoModelOption({
             currentModelId: model_info.current_model_id,
             currentModelLabel: model_info.current_model_label,
-            reasoningEffort: defaultCodexReasoningEffort,
+            reasoningEffort: currentCodexReasoningEffort,
             localeKey: modelDisplayLocale,
           })
         : null;
@@ -476,7 +586,7 @@ Please check your local CLI tool authentication status`,
             ? formatOplCodexModelDisplay({
                 id: model.id,
                 label: model.label,
-                reasoningEffort: defaultCodexReasoningEffort,
+                reasoningEffort: currentCodexReasoningEffort,
                 localeKey: modelDisplayLocale,
               })
             : null;
@@ -488,31 +598,80 @@ Please check your local CLI tool authentication status`,
           };
         })
       : [];
-    const modelOptions: MobileActionSheetOption[] =
-      autoModelOption && canSwitchModel
-        ? [
-            {
-              key: '__auto',
-              label: autoModelOption.label,
-              description: autoModelOption.description,
-              active: true,
-            },
-            ...fixedModelOptions,
-          ]
-        : fixedModelOptions;
+    const reasoningOptions: MobileActionSheetOption[] = thoughtLevel
+      ? thoughtLevel.options.map((option) => ({
+          key: option.value,
+          label: formatOplCodexReasoningMenuLabel(option.value, modelDisplayLocale),
+          description: option.description,
+          active: option.value === thoughtLevel.currentValue,
+        }))
+      : [];
 
     const currentModelLabel =
       useOplCodexModelDisplay && autoModelOption
-        ? `${codexAutoLabel} · ${autoModelOption.modelLabel} · ${autoModelOption.reasoningLabel}`
+        ? autoModelOption.modelLabel
         : model_info?.current_model_label || model_info?.current_model_id || t('conversation.welcome.useCliModel');
+    const currentReasoningLabel =
+      currentCodexReasoningEffort === null || currentCodexReasoningEffort === undefined
+        ? undefined
+        : formatOplCodexReasoningMenuLabel(currentCodexReasoningEffort, modelDisplayLocale);
     const currentModeLabel =
       modeOptions.find((opt) => opt.active)?.label ?? t('agentMode.default', { defaultValue: 'Default' });
+    const intelligenceEnhancementLabel = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE
+      ? t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.label_key, {
+          defaultValue: modelDisplayLocale === 'en-US' ? 'Intelligence enhancement mode' : '智力增强模式',
+        })
+          .replace(/\s+mode$/i, '')
+          .replace(/模式$/, '')
+      : '';
+    const intelligenceEnhancementOnLabel =
+      modelDisplayLocale === 'en-US'
+        ? t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: 'Enable' })
+        : t('settings.capabilitiesPage.packageManager.actions.enable', { defaultValue: '启用' }).replace(
+            /^启用$/,
+            '开启'
+          );
+    const intelligenceEnhancementOffLabel =
+      modelDisplayLocale === 'en-US'
+        ? t('settings.capabilitiesPage.packageManager.actions.disable', { defaultValue: 'Disable' })
+        : t('common.close', { defaultValue: '关闭' });
 
     const entries: MobileActionSheetEntry[] = [];
 
-    // Model entry: only when the agent exposes a switchable list. Otherwise
-    // (Codex with no list, no info) skip — exposing a no-op row would be noise.
-    if (modelOptions.length > 0) {
+    if (showCodexAutoOption && autoModelOption && canSwitchModel && thoughtLevel) {
+      entries.push({
+        key: 'auto',
+        icon: <MagicHat theme='outline' size='16' />,
+        label: autoModelOption.label,
+        description: autoModelOption.description,
+        disabled: isSettingReasoning,
+        onClick: handleSheetAutoSelect,
+      });
+    }
+
+    if (reasoningOptions.length > 0) {
+      entries.push({
+        key: 'reasoning',
+        icon: <Brain theme='outline' size='16' />,
+        label:
+          modelDisplayLocale === 'en-US'
+            ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
+            : getOplCodexModelDisplayOptions().reasoning_menu_title_zh,
+        meta: currentReasoningLabel,
+        disabled: isSettingReasoning,
+        submenu: {
+          title:
+            modelDisplayLocale === 'en-US'
+              ? getOplCodexModelDisplayOptions().reasoning_menu_title_en
+              : getOplCodexModelDisplayOptions().reasoning_menu_title_zh,
+          options: reasoningOptions,
+          onSelect: handleSheetReasoningSelect,
+        },
+      });
+    }
+
+    // Model entry: fixed model selection only. Auto stays as its own entry.
+    if (fixedModelOptions.length > 0) {
       entries.push({
         key: 'model',
         icon: <Brain theme='outline' size='16' />,
@@ -520,11 +679,36 @@ Please check your local CLI tool authentication status`,
         meta: currentModelLabel,
         submenu: {
           title: t('common.model', { defaultValue: 'Model' }),
-          options: modelOptions,
+          options: fixedModelOptions,
           onSelect: (id) => {
-            if (id === '__auto') return;
             selectModel(id);
           },
+        },
+      });
+    }
+
+    if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
+      entries.push({
+        key: 'intelligence-enhancement',
+        icon: <MagicHat theme='outline' size='16' />,
+        label: intelligenceEnhancementLabel,
+        meta: oplFlowIntelligenceEnhancementMode ? intelligenceEnhancementOnLabel : intelligenceEnhancementOffLabel,
+        disabled: oplFlowIntelligenceEnhancementApplying,
+        submenu: {
+          title: intelligenceEnhancementLabel,
+          options: [
+            {
+              key: 'enable',
+              label: intelligenceEnhancementOnLabel,
+              active: oplFlowIntelligenceEnhancementMode,
+            },
+            {
+              key: 'disable',
+              label: intelligenceEnhancementOffLabel,
+              active: !oplFlowIntelligenceEnhancementMode,
+            },
+          ],
+          onSelect: (key) => void handleSheetIntelligenceEnhancementSelect(key),
         },
       });
     }
@@ -602,15 +786,26 @@ Please check your local CLI tool authentication status`,
     availableAgentModes,
     canSwitchModel,
     currentMode,
+    currentCodexReasoningEffort,
     handleSheetModeChange,
+    handleSheetAutoSelect,
+    handleSheetIntelligenceEnhancementSelect,
+    handleSheetReasoningSelect,
     isMobile,
+    isSettingReasoning,
     loadedMcpStatuses,
     loadedSkills,
+    modelDisplayLocale,
     model_info,
+    oplFlowIntelligenceEnhancementApplying,
+    oplFlowIntelligenceEnhancementMode,
     selectModel,
     setContent,
     showModeSelector,
+    showCodexAutoOption,
     t,
+    thoughtLevel,
+    useOplCodexModelDisplay,
   ]);
 
   useAddEventListener('acp.selected.file', setAtPath);

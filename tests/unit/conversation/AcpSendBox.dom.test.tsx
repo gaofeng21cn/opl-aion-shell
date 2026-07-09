@@ -1,10 +1,19 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 
 let isMobileLayout = false;
+let intelligencePreference: boolean | undefined;
+
+const acpModelInfoMocks = vi.hoisted(() => ({
+  selectModel: vi.fn(),
+  setConfigOption: vi.fn(),
+  executeAction: vi.fn(),
+  configSet: vi.fn(),
+  configSetLocal: vi.fn(),
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -21,10 +30,38 @@ vi.mock('@/common', () => ({
       setMode: { invoke: vi.fn().mockResolvedValue(undefined) },
       getModel: { invoke: vi.fn().mockResolvedValue(null) },
       setModel: { invoke: vi.fn().mockResolvedValue(undefined) },
+      getConfigOptions: { invoke: vi.fn().mockResolvedValue({ config_options: [] }) },
+      setConfigOption: { invoke: vi.fn().mockResolvedValue({ confirmation: 'observed', config_options: [] }) },
       responseStream: { on: vi.fn(() => vi.fn()) },
+    },
+    oplRuntime: {
+      executeAction: { invoke: acpModelInfoMocks.executeAction },
     },
   },
 }));
+
+vi.mock('@/common/config/configService', () => ({
+  configService: {
+    get: vi.fn((key: string) => {
+      if (key === 'codex.oplFlowIntelligenceEnhancementMode') return intelligencePreference;
+      return undefined;
+    }),
+    set: acpModelInfoMocks.configSet,
+    setLocal: acpModelInfoMocks.configSetLocal,
+    subscribe: vi.fn(() => vi.fn()),
+  },
+}));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  return {
+    ...actual,
+    Message: {
+      success: vi.fn(),
+      error: vi.fn(),
+    },
+  };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -38,13 +75,41 @@ vi.mock('@/renderer/components/agent/AgentModeSelector', () => ({
 }));
 
 vi.mock('@/renderer/components/chat/MobileActionSheet', () => ({
-  default: ({ open, entries }: { open: boolean; entries: Array<{ key: string; label: string; meta?: string }> }) =>
+  default: ({
+    open,
+    entries,
+  }: {
+    open: boolean;
+    entries: Array<{
+      key: string;
+      label: React.ReactNode;
+      meta?: React.ReactNode;
+      submenu?: {
+        options: Array<{ key: string; label: React.ReactNode; active?: boolean }>;
+        onSelect: (key: string) => void;
+      };
+      onClick?: () => void;
+    }>;
+  }) =>
     open ? (
       <div data-testid='mobile-action-sheet'>
         {entries.map((entry) => (
-          <div key={entry.key} data-testid={`mobile-action-sheet-${entry.key}`}>
-            {entry.label}
-            {entry.meta ? ` ${entry.meta}` : ''}
+          <div key={entry.key}>
+            <button type='button' data-testid={`mobile-action-sheet-${entry.key}`} onClick={entry.onClick}>
+              {entry.label}
+              {entry.meta ? ` ${entry.meta}` : ''}
+            </button>
+            {entry.submenu?.options.map((option) => (
+              <button
+                key={`${entry.key}:${option.key}`}
+                type='button'
+                data-testid={`mobile-action-sheet-option-${entry.key}-${option.key}`}
+                data-active={option.active ? 'true' : 'false'}
+                onClick={() => entry.submenu?.onSelect(option.key)}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         ))}
       </div>
@@ -115,6 +180,32 @@ vi.mock('@/renderer/hooks/chat/useSendBoxFiles', () => ({
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: isMobileLayout }),
+}));
+
+vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
+  useAcpModelInfo: () => ({
+    model_info: {
+      current_model_id: 'gpt-5.4',
+      current_model_label: 'GPT-5.4',
+      available_models: [
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+        { id: 'gpt-5.4', label: 'GPT-5.4' },
+      ],
+    },
+    canSwitch: true,
+    selectModel: acpModelInfoMocks.selectModel,
+    thoughtLevel: {
+      id: 'reasoning_effort',
+      category: 'thought_level',
+      currentValue: 'high',
+      options: [
+        { value: 'high', label: 'High' },
+        { value: 'xhigh', label: 'Ultra' },
+      ],
+    },
+    setStatus: { state: 'idle' },
+    setConfigOption: acpModelInfoMocks.setConfigOption,
+  }),
 }));
 
 vi.mock('@/renderer/hooks/file/useOpenFileSelector', () => ({
@@ -191,7 +282,23 @@ const messageState = (): UseAcpMessageReturn =>
 
 describe('AcpSendBox OPL fixed Codex mode surface', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     isMobileLayout = false;
+    intelligencePreference = undefined;
+    acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
+    acpModelInfoMocks.executeAction.mockResolvedValue({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: {
+            opl_flow_intelligence_enhancement_action: {
+              status_readback: { enabled: true },
+            },
+          },
+        },
+      },
+    });
+    acpModelInfoMocks.configSet.mockResolvedValue(undefined);
   });
 
   it('hides the permission mode selector for ordinary Codex conversations', () => {
@@ -218,6 +325,54 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('mobile-action-sheet')).toBeInTheDocument();
     expect(screen.queryByTestId('mobile-action-sheet-permission')).not.toBeInTheDocument();
+  });
+
+  it('shows App model menu semantics in the mobile ACP action sheet', () => {
+    isMobileLayout = true;
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    expect(screen.getByTestId('mobile-action-sheet-auto')).toHaveTextContent('Auto (recommended)');
+    expect(screen.getByTestId('mobile-action-sheet-reasoning')).toHaveTextContent('Reasoning');
+    expect(screen.getByTestId('mobile-action-sheet-model')).toHaveTextContent('Model');
+    expect(screen.getByTestId('mobile-action-sheet-intelligence-enhancement')).toHaveTextContent(
+      'Intelligence enhancement'
+    );
+    expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
+  });
+
+  it('restores Auto as latest strongest model plus max reasoning from the mobile action sheet', async () => {
+    isMobileLayout = true;
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
+
+    expect(acpModelInfoMocks.selectModel).toHaveBeenCalledWith('gpt-5.5');
+    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'xhigh'));
+  });
+
+  it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {
+    isMobileLayout = true;
+    intelligencePreference = false;
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+    fireEvent.click(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-enable'));
+
+    await waitFor(() =>
+      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_enable',
+        dryRun: false,
+      })
+    );
+    await waitFor(() =>
+      expect(acpModelInfoMocks.configSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true)
+    );
   });
 
   it('keeps a visible elapsed-time thinking indicator while an ACP request is pending', () => {

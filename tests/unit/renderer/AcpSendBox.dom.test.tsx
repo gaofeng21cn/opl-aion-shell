@@ -81,6 +81,9 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
     model_info: null,
     canSwitch: false,
     selectModel: vi.fn(),
+    thoughtLevel: null,
+    setStatus: { state: 'idle' },
+    setConfigOption: vi.fn(),
   }),
 }));
 vi.mock('@/renderer/hooks/agent/useAgentModesForBackend', () => ({

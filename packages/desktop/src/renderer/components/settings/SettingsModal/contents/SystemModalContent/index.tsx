@@ -31,6 +31,10 @@ type DeveloperCapabilityDisplay = {
 };
 
 const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
+const readOplFlowIntelligenceEnhancementPreference = (): boolean => {
+  if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return false;
+  return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? true;
+};
 
 const USER_VISIBLE_DEVELOPER_PROFILE_STATES = new Set([
   'contributor',
@@ -100,14 +104,15 @@ const SystemModalContent: React.FC = () => {
     .map((axis) => readDeveloperCapabilityDisplay(appDeveloperCapabilities[axis], axis))
     .filter((entry): entry is DeveloperCapabilityDisplay => Boolean(entry));
 
-  const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(false);
+  const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(
+    readOplFlowIntelligenceEnhancementPreference
+  );
   const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
 
   useEffect(() => {
     if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
-      setOplFlowIntelligenceEnhancementMode(
-        configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? false
-      );
+      const storedPreference = configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key);
+      setOplFlowIntelligenceEnhancementMode(readOplFlowIntelligenceEnhancementPreference());
       ipcBridge.oplRuntime.executeAction
         .invoke({
           actionId: OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.status_action_id,
@@ -117,6 +122,7 @@ const SystemModalContent: React.FC = () => {
           if (result.ok === false) return;
           const enabled = readIntelligenceEnhancementEnabled(result.parsed);
           if (enabled === null) return;
+          if (storedPreference === false) return;
           setOplFlowIntelligenceEnhancementMode(enabled);
           configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
         })
