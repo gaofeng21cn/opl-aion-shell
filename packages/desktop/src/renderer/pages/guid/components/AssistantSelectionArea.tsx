@@ -42,6 +42,13 @@ const resolveAssistantCandidateIds = (assistantId: string): string[] => {
   return Array.from(new Set([assistantId, `builtin-${stripped}`, stripped]));
 };
 
+export function resolveAssistantCardColumnCount(width: number): number {
+  if (width >= 720) return 4;
+  if (width >= 600) return 3;
+  if (width >= 460) return 2;
+  return 1;
+}
+
 const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   is_presetAgent,
   selectedAgentKey,
@@ -185,11 +192,17 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
 
   const scrollWrapRef = useRef<HTMLDivElement>(null);
   const [isScrollable, setIsScrollable] = useState(false);
+  const [assistantColumnCount, setAssistantColumnCount] = useState(() =>
+    resolveAssistantCardColumnCount(typeof window === 'undefined' ? 720 : window.innerWidth)
+  );
 
   useEffect(() => {
     const el = scrollWrapRef.current;
     if (!el) return;
-    const measure = () => setIsScrollable(el.scrollHeight > el.clientHeight + 1);
+    const measure = () => {
+      setIsScrollable(el.scrollHeight > el.clientHeight + 1);
+      setAssistantColumnCount(resolveAssistantCardColumnCount(el.clientWidth || window.innerWidth));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -243,7 +256,10 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
         ref={scrollWrapRef}
         className={`${styles.assistantCardScrollWrap} ${isScrollable ? styles.assistantCardScrollWrapScrollable : ''}`}
       >
-        <div className={styles.assistantCardGrid}>
+        <div
+          className={styles.assistantCardGrid}
+          style={{ gridTemplateColumns: `repeat(${assistantColumnCount}, minmax(0, 1fr))` }}
+        >
           {foundryAssistants.map((assistant) => {
             const description =
               assistant.description_i18n?.[localeKey] ||

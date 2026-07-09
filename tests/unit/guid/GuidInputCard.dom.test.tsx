@@ -26,7 +26,7 @@ vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
   default: () => <div data-testid='workspace-footnote' />,
 }));
 
-function renderCard() {
+function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
   return render(
     <GuidInputCard
       input=''
@@ -48,6 +48,7 @@ function renderCard() {
       files={[]}
       onRemoveFile={vi.fn()}
       actionRow={<div data-testid='action-row' />}
+      slashCommandMenu={options.slashCommandMenu}
       workspaceDir=''
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
@@ -66,5 +67,11 @@ describe('GuidInputCard compact home composer', () => {
     expect(screen.getByTestId('workspace-footnote')).toBeInTheDocument();
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
+  });
+
+  it('renders the slash command menu below the composer when provided', () => {
+    renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
+
+    expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
   });
 });

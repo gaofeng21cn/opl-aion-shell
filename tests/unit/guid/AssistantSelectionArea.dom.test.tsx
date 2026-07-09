@@ -3,7 +3,9 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import type { AvailableAgent } from '@/renderer/pages/guid/types';
-import AssistantSelectionArea from '@/renderer/pages/guid/components/AssistantSelectionArea';
+import AssistantSelectionArea, {
+  resolveAssistantCardColumnCount,
+} from '@/renderer/pages/guid/components/AssistantSelectionArea';
 
 const assistant = (input: Partial<Assistant> & Pick<Assistant, 'id' | 'name'>): Assistant => ({
   source: 'builtin',
@@ -156,6 +158,13 @@ const assistants: Assistant[] = [
 ];
 
 describe('AssistantSelectionArea', () => {
+  it('maps narrow widths to fewer OPL assistant card columns', () => {
+    expect(resolveAssistantCardColumnCount(800)).toBe(4);
+    expect(resolveAssistantCardColumnCount(680)).toBe(3);
+    expect(resolveAssistantCardColumnCount(520)).toBe(2);
+    expect(resolveAssistantCardColumnCount(390)).toBe(1);
+  });
+
   it('keeps purpose cards visible after selecting a built-in assistant', () => {
     const selectedAgentInfo: AvailableAgent = {
       id: 'mas',

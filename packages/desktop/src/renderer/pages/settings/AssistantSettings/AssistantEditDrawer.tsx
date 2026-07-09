@@ -6,6 +6,7 @@ import type { AssistantListItem, BuiltinAutoSkill, SkillInfo } from './types';
 import type { AvailableBackend } from '@/renderer/hooks/assistant';
 import EmojiPicker from '@/renderer/components/chat/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
+import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { Avatar, Button, Checkbox, Collapse, Drawer, Input, Select, Tag, Typography } from '@arco-design/web-react';
 import { Close, Delete, Info, Plus, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
@@ -177,6 +178,30 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
     : isRuleEditable && promptViewMode === 'edit'
       ? '260px'
       : '220px';
+  const renderAgentOption = (option: AvailableBackend) => {
+    const logo = resolveAgentLogo({
+      backend: option.id,
+      isExtension: option.isExtension,
+    });
+    return (
+      <span className='flex items-center gap-8px min-w-0'>
+        <Avatar
+          size={20}
+          shape='square'
+          className='shrink-0'
+          style={{ backgroundColor: logo ? 'transparent' : 'var(--color-fill-2)' }}
+        >
+          {logo ? <img src={logo} alt='' className='h-full w-full object-contain' /> : <Robot theme='outline' size={14} />}
+        </Avatar>
+        <span className='truncate'>{option.name}</span>
+        {option.isExtension && (
+          <Tag size='small' color='arcoblue'>
+            ext
+          </Tag>
+        )}
+      </span>
+    );
+  };
 
   return (
     <Drawer
@@ -340,7 +365,12 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
 
           {/* Main Agent selector */}
           <div className='flex-shrink-0'>
-            <Typography.Text bold>{t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}</Typography.Text>
+            <Typography.Text bold>
+              <span className='inline-flex items-center gap-6px'>
+                <Robot theme='outline' size={14} />
+                {t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}
+              </span>
+            </Typography.Text>
             <Select
               className='mt-10px w-full rounded-4px'
               value={editAgent}
@@ -349,14 +379,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
             >
               {agentOptions.map((opt) => (
                 <Select.Option key={opt.id} value={opt.id}>
-                  <span className='flex items-center gap-6px'>
-                    {opt.name}
-                    {opt.isExtension && (
-                      <Tag size='small' color='arcoblue'>
-                        ext
-                      </Tag>
-                    )}
-                  </span>
+                  {renderAgentOption(opt)}
                 </Select.Option>
               ))}
             </Select>
