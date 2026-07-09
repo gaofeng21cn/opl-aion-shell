@@ -142,6 +142,22 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     },
     [intelligenceEnhancementEnabled, isSettingIntelligenceEnhancementMode, setIntelligenceEnhancementMode]
   );
+  const refreshIntelligenceEnhancementStatus = React.useCallback(async () => {
+    const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
+    if (!mode || !useOplCodexModelDisplay) return;
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: mode.status_action_id,
+        dryRun: false,
+      });
+      if (result.ok === false) return;
+      const enabled = readIntelligenceEnhancementEnabled(result.parsed);
+      if (enabled === null) return;
+      configService.setLocal(mode.settings_key, enabled);
+    } catch {
+      // The menu can still use the cached preference when runtime status is unavailable.
+    }
+  }, [useOplCodexModelDisplay]);
 
   // 获取模型配置数据（包含健康状态）
   const { data: modelConfig } = useProvidersQuery();
@@ -358,6 +374,9 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       return (
         <Dropdown
           trigger='click'
+          onVisibleChange={(visible) => {
+            if (visible) void refreshIntelligenceEnhancementStatus();
+          }}
           droplist={
             <Menu
               mode='pop'

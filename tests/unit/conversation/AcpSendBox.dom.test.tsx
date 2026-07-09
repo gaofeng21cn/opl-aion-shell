@@ -280,24 +280,26 @@ const messageState = (): UseAcpMessageReturn =>
     fetchSlashCommands: vi.fn(),
   }) as unknown as UseAcpMessageReturn;
 
+const intelligenceStatusResult = (enabled: boolean) => ({
+  ok: true,
+  parsed: {
+    app_action_execution: {
+      result: {
+        opl_flow_intelligence_enhancement: { enabled },
+      },
+    },
+  },
+});
+
 describe('AcpSendBox OPL fixed Codex mode surface', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isMobileLayout = false;
     intelligencePreference = undefined;
     acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
-    acpModelInfoMocks.executeAction.mockResolvedValue({
-      ok: true,
-      parsed: {
-        app_action_execution: {
-          result: {
-            opl_flow_intelligence_enhancement_action: {
-              status_readback: { enabled: true },
-            },
-          },
-        },
-      },
-    });
+    acpModelInfoMocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
+      Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
+    );
     acpModelInfoMocks.configSet.mockResolvedValue(undefined);
   });
 
@@ -343,6 +345,30 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
   });
 
+  it('refreshes intelligence enhancement status when opening the mobile action sheet', async () => {
+    isMobileLayout = true;
+    intelligencePreference = true;
+    acpModelInfoMocks.executeAction.mockResolvedValueOnce(intelligenceStatusResult(false));
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    await waitFor(() => {
+      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_status',
+        dryRun: false,
+      });
+      expect(acpModelInfoMocks.configSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-disable')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
+  });
+
   it('restores Auto as latest strongest model plus max reasoning from the mobile action sheet', async () => {
     isMobileLayout = true;
 
@@ -362,6 +388,12 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
 
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
+    await waitFor(() =>
+      expect(acpModelInfoMocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_status',
+        dryRun: false,
+      })
+    );
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-intelligence-enhancement-enable'));
 
     await waitFor(() =>

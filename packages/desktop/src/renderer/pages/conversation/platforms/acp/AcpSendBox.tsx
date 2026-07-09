@@ -211,6 +211,23 @@ const AcpSendBox: React.FC<{
     readIntelligenceEnhancementPreference
   );
   const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
+  const refreshOplFlowIntelligenceEnhancementStatus = useCallback(async () => {
+    const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;
+    if (!mode || !useOplCodexModelDisplay) return;
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: mode.status_action_id,
+        dryRun: false,
+      });
+      if (result.ok === false) return;
+      const enabled = readIntelligenceEnhancementEnabled(result.parsed);
+      if (enabled === null) return;
+      setOplFlowIntelligenceEnhancementMode(enabled);
+      configService.setLocal(mode.settings_key, enabled);
+    } catch {
+      // The sheet can still use the cached preference when runtime status is unavailable.
+    }
+  }, [useOplCodexModelDisplay]);
 
   useEffect(() => {
     if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
@@ -219,6 +236,11 @@ const AcpSendBox: React.FC<{
       setOplFlowIntelligenceEnhancementMode(value === false ? false : true);
     });
   }, []);
+
+  useEffect(() => {
+    if (!isMobile || !isMobileSheetOpen) return;
+    void refreshOplFlowIntelligenceEnhancementStatus();
+  }, [isMobile, isMobileSheetOpen, refreshOplFlowIntelligenceEnhancementStatus]);
 
   // Mirror AgentModeSelector's getMode sync so the sheet shows the live mode label.
   useEffect(() => {

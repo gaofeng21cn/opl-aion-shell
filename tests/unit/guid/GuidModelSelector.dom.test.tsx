@@ -53,6 +53,17 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => mocks.navigate,
 }));
 
+const intelligenceStatusResult = (enabled: boolean) => ({
+  ok: true,
+  parsed: {
+    app_action_execution: {
+      result: {
+        opl_flow_intelligence_enhancement: { enabled },
+      },
+    },
+  },
+});
+
 describe('GuidModelSelector Codex display', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
@@ -77,18 +88,9 @@ describe('GuidModelSelector Codex display', () => {
       mocks.clientConfigSubscribers.add(subscriber);
       return () => mocks.clientConfigSubscribers.delete(subscriber);
     });
-    mocks.executeAction.mockResolvedValue({
-      ok: true,
-      parsed: {
-        app_action_execution: {
-          result: {
-            opl_flow_intelligence_enhancement_action: {
-              status_readback: { enabled: true },
-            },
-          },
-        },
-      },
-    });
+    mocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
+      Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
+    );
   });
 
   it('keeps model and reasoning controls in one menu without repeating reasoning on ordinary Home', async () => {
@@ -122,6 +124,12 @@ describe('GuidModelSelector Codex display', () => {
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(selector);
+    await waitFor(() => {
+      expect(mocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_status',
+        dryRun: false,
+      });
+    });
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();
     expect(screen.getByText('当前 GPT-5.5 · 推理超高 · 跟随最新最强')).toBeInTheDocument();
@@ -151,6 +159,42 @@ describe('GuidModelSelector Codex display', () => {
         dryRun: false,
       });
       expect(mocks.clientConfigSet).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', true);
+    });
+  });
+
+  it('refreshes OPL Flow intelligence enhancement status when opening the Home selector menu', async () => {
+    const setSelectedAcpModel = vi.fn();
+    const setSelectedReasoningEffort = vi.fn();
+    mocks.clientConfigStore = { 'codex.oplFlowIntelligenceEnhancementMode': true };
+    mocks.executeAction.mockResolvedValueOnce(intelligenceStatusResult(false));
+
+    render(
+      <GuidModelSelector
+        backend='codex'
+        isGeminiMode={false}
+        modelList={[]}
+        current_model={undefined}
+        setCurrentModel={vi.fn()}
+        currentAcpCachedModelInfo={{
+          current_model_id: 'gpt-5.5',
+          current_model_label: 'GPT-5.5（超高）',
+          available_models: [{ id: 'gpt-5.5', label: 'GPT-5.5（超高）' }],
+        }}
+        selectedAcpModel={null}
+        setSelectedAcpModel={setSelectedAcpModel}
+        selectedReasoningEffort={null}
+        setSelectedReasoningEffort={setSelectedReasoningEffort}
+      />
+    );
+
+    await userEvent.click(screen.getByTestId('guid-model-selector'));
+
+    await waitFor(() => {
+      expect(mocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'intelligence_enhancement_status',
+        dryRun: false,
+      });
+      expect(mocks.clientConfigSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
     });
   });
 
