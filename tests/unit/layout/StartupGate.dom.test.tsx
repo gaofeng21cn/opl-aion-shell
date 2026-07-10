@@ -106,6 +106,41 @@ const existingCodexAccessResult = {
   },
 };
 
+const readyInitializeResult = {
+  surface: 'system_initialize',
+  command: 'opl system initialize --events --json',
+  stdout: '{}',
+  parsed: {
+    system_initialize: {
+      setup_flow: {
+        phase: 'ready_to_finalize',
+        ready_to_launch: true,
+        progress: {
+          ready_required_count: 3,
+          total_required_count: 3,
+          ready_full_readiness_count: 0,
+          total_full_readiness_count: 0,
+          ready_optional_count: 0,
+          total_optional_count: 0,
+        },
+        blocking_items: [],
+        maintenance_items: [],
+      },
+      checklist: ['workspace_root', 'codex', 'codex_config'].map((itemId) => ({
+        item_id: itemId,
+        label: itemId,
+        status: 'ready',
+        required: true,
+        blocking: false,
+        readiness_layer: 'core_launch',
+        severity: 'info',
+        next_visible_step: 'Continue.',
+        detail_summary: 'Ready',
+      })),
+    },
+  },
+};
+
 describe('StartupGate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -187,5 +222,19 @@ describe('StartupGate', () => {
     render(<StartupGate />);
 
     await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/first-run'));
+  });
+
+  it('recovers completed setup from initialize when fast app state exceeds the output limit', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      ...readyAppStateResult,
+      ok: false,
+      error: { message: 'OPL runtime command output exceeded 5242880 bytes' },
+    });
+    bridgeMocks.getInitializeInvoke.mockResolvedValueOnce(readyInitializeResult);
+
+    render(<StartupGate />);
+
+    await waitFor(() => expect(screen.getByTestId('navigate-target')).toHaveTextContent('/guid'));
+    expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1);
   });
 });

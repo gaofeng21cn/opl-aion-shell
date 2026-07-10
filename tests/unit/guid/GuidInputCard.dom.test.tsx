@@ -3,6 +3,26 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import GuidInputCard from '@/renderer/pages/guid/components/GuidInputCard';
 
+const arcoCaptures = vi.hoisted(() => ({
+  autoSize: [] as unknown[],
+}));
+
+vi.mock('@arco-design/web-react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@arco-design/web-react')>();
+  const { createElement } = await import('react');
+  const TextArea = actual.Input.TextArea;
+  return {
+    ...actual,
+    Input: {
+      ...actual.Input,
+      TextArea: (props: React.ComponentProps<typeof TextArea>) => {
+        arcoCaptures.autoSize.push(props.autoSize);
+        return createElement(TextArea, props);
+      },
+    },
+  };
+});
+
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: false }),
 }));
@@ -28,8 +48,8 @@ vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
   ),
 }));
 
-function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
-  return render(
+function createCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
+  return (
     <GuidInputCard
       input=''
       onInputChange={vi.fn()}
@@ -58,7 +78,23 @@ function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
   );
 }
 
+function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
+  return render(createCard(options));
+}
+
 describe('GuidInputCard compact home composer', () => {
+  it('keeps the Arco TextArea autoSize config stable across parent renders', () => {
+    arcoCaptures.autoSize.length = 0;
+    const view = renderCard();
+    const initialAutoSize = arcoCaptures.autoSize.at(-1);
+
+    view.rerender(createCard());
+
+    expect(initialAutoSize).toEqual({ minRows: 2, maxRows: 20 });
+    expect(arcoCaptures.autoSize.at(-1)).toBe(initialAutoSize);
+    expect(screen.getByTestId('guid-input')).toBeInTheDocument();
+  });
+
   it('renders only the composer controls and leaves runtime activity off Home', () => {
     renderCard();
 

@@ -16,7 +16,7 @@ import React, { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
-import { isCoreLaunchReadyFromAppState } from '@/renderer/pages/FirstRun/initializeModel';
+import { isCoreLaunchReadyFromAppState, readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
 import AppLoader, { type AppLoaderStep } from './AppLoader';
 
 type StartupCheckPhase = 'startupState' | 'routeDecision';
@@ -45,12 +45,22 @@ const StartupGate: React.FC = () => {
 
     const checkSystemReady = async () => {
       try {
-        const result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+        let result = null;
+        try {
+          result = await ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' });
+        } catch (err) {
+          console.error('[StartupGate] App state check threw:', err);
+        }
         if (cancelled) return;
 
         if (!result || result.ok === false) {
           console.error('[StartupGate] App state check failed:', result);
-          setNeedsFirstRun(true); // 出错时进入配置页面
+          const initializeResult = await ipcBridge.oplRuntime.getInitialize.invoke();
+          if (cancelled) return;
+
+          setPhase('routeDecision');
+          const initialize = initializeResult?.ok === false ? null : readInitializePayload(initializeResult?.parsed);
+          setNeedsFirstRun(initialize?.setup_flow.ready_to_launch !== true);
           return;
         }
 

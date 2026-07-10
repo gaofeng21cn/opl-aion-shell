@@ -13,6 +13,9 @@ import React from 'react';
 import styles from '../index.module.css';
 import GuidWorkspaceFootnote from './GuidWorkspaceFootnote';
 
+const MOBILE_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 8 };
+const DESKTOP_TEXTAREA_AUTO_SIZE = { minRows: 2, maxRows: 20 };
+
 type GuidInputCardProps = {
   // Input state
   input: string;
@@ -82,7 +85,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const { compositionHandlers, isComposing } = useCompositionInput();
-  const textareaAutoSize = isMobile ? { minRows: 2, maxRows: 8 } : { minRows: 2, maxRows: 20 };
+  const textareaAutoSize = isMobile ? MOBILE_TEXTAREA_AUTO_SIZE : DESKTOP_TEXTAREA_AUTO_SIZE;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isComposing.current) return;
