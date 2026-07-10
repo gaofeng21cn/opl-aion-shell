@@ -308,11 +308,11 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     acpModelInfoMocks.configSet.mockResolvedValue(undefined);
   });
 
-  it('hides the permission mode selector for ordinary Codex conversations', () => {
+  it('shows the permission mode selector for ordinary Codex conversations', () => {
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
-    expect(screen.queryByTestId('agent-mode-selector')).not.toBeInTheDocument();
+    expect(screen.getByTestId('agent-mode-selector')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
@@ -323,7 +323,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
-  it('hides the mobile permission action for ordinary Codex conversations', () => {
+  it('shows the mobile permission action for ordinary Codex conversations', () => {
     isMobileLayout = true;
 
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
@@ -331,7 +331,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
 
     expect(screen.getByTestId('mobile-action-sheet')).toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-action-sheet-permission')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
   });
 
   it('shows App model menu semantics in the mobile ACP action sheet', () => {

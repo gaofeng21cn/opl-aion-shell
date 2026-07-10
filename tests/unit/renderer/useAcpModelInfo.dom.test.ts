@@ -603,7 +603,7 @@ describe('useAcpModelInfo', () => {
     expect(result.current.canSwitch).toBe(false);
   });
 
-  it('filters and orders active Codex model info while preserving the current allowlisted model', async () => {
+  it('orders active Codex model info while preserving current and future models', async () => {
     configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.4' } });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
@@ -633,6 +633,7 @@ describe('useAcpModelInfo', () => {
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
           { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
+          { id: 'gpt-6', label: 'GPT-6' },
         ],
       });
     });
@@ -675,7 +676,7 @@ describe('useAcpModelInfo', () => {
     });
   });
 
-  it('filters and orders Codex acp_model_info stream receipts', async () => {
+  it('orders Codex acp_model_info stream receipts while retaining future models', async () => {
     configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.4' } });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
@@ -725,6 +726,7 @@ describe('useAcpModelInfo', () => {
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
           { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
+          { id: 'gpt-6', label: 'GPT-6' },
         ],
       });
     });
@@ -775,7 +777,7 @@ describe('useAcpModelInfo', () => {
     });
   });
 
-  it('filters and orders Codex setModel receipts', async () => {
+  it('orders Codex setModel receipts while retaining future models', async () => {
     configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-sol' } });
     const initialInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.6-sol',
@@ -819,6 +821,7 @@ describe('useAcpModelInfo', () => {
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
           { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
+          { id: 'gpt-6', label: 'GPT-6' },
         ],
       });
     });
