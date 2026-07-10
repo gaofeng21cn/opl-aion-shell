@@ -56,4 +56,28 @@ describe('HomeStarters', () => {
     await userEvent.click(screen.getByTestId('home-starter-med-autogrant'));
     expect(onSelect).toHaveBeenCalledWith('med-autogrant');
   });
+
+  it('keeps an active capability visible and clears it from the same starter without selecting another', async () => {
+    const onSelect = vi.fn();
+    const onClear = vi.fn();
+    render(
+      <HomeStarters
+        assistants={['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent'].map(
+          assistant
+        )}
+        localeKey='en-US'
+        activeCapabilityId='opl-meta-agent'
+        onSelect={onSelect}
+        onClear={onClear}
+      />
+    );
+
+    expect(screen.getAllByTestId(/^home-starter-/)).toHaveLength(4);
+    const activeStarter = screen.getByTestId('home-starter-opl-meta-agent');
+    expect(activeStarter).toHaveAttribute('aria-pressed', 'true');
+
+    await userEvent.click(activeStarter);
+    expect(onClear).toHaveBeenCalledOnce();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

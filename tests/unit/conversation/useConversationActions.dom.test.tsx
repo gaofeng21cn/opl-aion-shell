@@ -6,6 +6,9 @@ import { useConversationActions } from '@/renderer/pages/conversation/GroupedHis
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   update: vi.fn(),
+  reset: vi.fn(),
+  emit: vi.fn(),
+  modalConfirm: vi.fn(),
   messageError: vi.fn(),
 }));
 
@@ -14,7 +17,7 @@ vi.mock('@/common', () => ({
     conversation: {
       update: { invoke: mocks.update },
       remove: { invoke: vi.fn() },
-      reset: { invoke: vi.fn() },
+      reset: { invoke: mocks.reset },
     },
   },
 }));
@@ -24,12 +27,12 @@ vi.mock('@/renderer/pages/conversation/utils/conversationCache', () => ({
 }));
 
 vi.mock('@/renderer/utils/emitter', () => ({
-  emitter: { emit: vi.fn() },
+  emitter: { emit: mocks.emit },
 }));
 
 vi.mock('@arco-design/web-react', () => ({
   Message: { success: vi.fn(), error: mocks.messageError, warning: vi.fn() },
-  Modal: { confirm: vi.fn() },
+  Modal: { confirm: mocks.modalConfirm },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -65,6 +68,9 @@ describe('conversation archive actions', () => {
   beforeEach(() => {
     mocks.navigate.mockClear();
     mocks.update.mockReset();
+    mocks.reset.mockReset();
+    mocks.emit.mockClear();
+    mocks.modalConfirm.mockClear();
     mocks.messageError.mockClear();
   });
 
@@ -103,5 +109,17 @@ describe('conversation archive actions', () => {
 
     await waitFor(() => expect(mocks.messageError).toHaveBeenCalledWith('conversation.history.archiveFailed'));
     expect(mocks.navigate).not.toHaveBeenCalled();
+  });
+
+  it('notifies the mounted transcript after resetting a conversation', async () => {
+    mocks.reset.mockResolvedValue(undefined);
+    const { result } = renderActions();
+
+    act(() => result.current.handleReset('conv-1'));
+    const confirmation = mocks.modalConfirm.mock.calls[0]?.[0] as { onOk: () => Promise<void> };
+    await act(() => confirmation.onOk());
+
+    expect(mocks.reset).toHaveBeenCalledWith({ id: 'conv-1' });
+    expect(mocks.emit).toHaveBeenCalledWith('conversation.reset', 'conv-1');
   });
 });

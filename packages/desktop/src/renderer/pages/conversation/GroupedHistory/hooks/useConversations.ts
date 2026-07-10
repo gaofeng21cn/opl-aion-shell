@@ -11,11 +11,12 @@ import { isConversationArchived } from '../utils/groupingHelpers';
 import {
   dispatchWorkspaceExpansionChange,
   readExpandedWorkspaces,
+  ARCHIVED_WORKSPACE_EXPANSION_STORAGE_KEY,
   WORKSPACE_EXPANSION_STORAGE_KEY,
 } from './useWorkspaceExpansionState';
 
 export const useConversations = (archived = false) => {
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => readExpandedWorkspaces());
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => readExpandedWorkspaces(archived));
   const { id } = useParams();
   const {
     conversations,
@@ -64,13 +65,16 @@ export const useConversations = (archived = false) => {
   // Persist expansion state
   useEffect(() => {
     try {
-      localStorage.setItem(WORKSPACE_EXPANSION_STORAGE_KEY, JSON.stringify(expandedWorkspaces));
+      localStorage.setItem(
+        archived ? ARCHIVED_WORKSPACE_EXPANSION_STORAGE_KEY : WORKSPACE_EXPANSION_STORAGE_KEY,
+        JSON.stringify(expandedWorkspaces)
+      );
     } catch {
       // ignore
     }
 
-    dispatchWorkspaceExpansionChange(expandedWorkspaces);
-  }, [expandedWorkspaces]);
+    dispatchWorkspaceExpansionChange(expandedWorkspaces, archived);
+  }, [archived, expandedWorkspaces]);
 
   const { pinnedConversations, timelineSections } = archived ? archivedHistory : groupedHistory;
   const visibleConversations = conversations.filter(

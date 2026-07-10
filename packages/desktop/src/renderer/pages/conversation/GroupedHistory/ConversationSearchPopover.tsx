@@ -196,15 +196,24 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
       }
 
       try {
-        const result = await ipcBridge.database.searchConversationMessages.invoke({
+        let loadedPage = pageToLoad;
+        let result = await ipcBridge.database.searchConversationMessages.invoke({
           keyword: debouncedKeyword,
-          page: pageToLoad,
+          page: loadedPage,
           page_size: PAGE_SIZE,
         });
-
-        const activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
+        let activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
+        while (activeItems.length === 0 && result.has_more) {
+          loadedPage += 1;
+          result = await ipcBridge.database.searchConversationMessages.invoke({
+            keyword: debouncedKeyword,
+            page: loadedPage,
+            page_size: PAGE_SIZE,
+          });
+          activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
+        }
         setItems((prev) => (append ? [...prev, ...activeItems] : activeItems));
-        setPage(pageToLoad);
+        setPage(loadedPage);
         setHasMore(result.has_more);
       } catch (error) {
         console.error('[ConversationSearchPopover] Search failed:', error);

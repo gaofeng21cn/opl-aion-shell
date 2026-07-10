@@ -16,6 +16,7 @@ import {
   useMessageLstCache,
   useMessageList,
 } from '@/renderer/pages/conversation/Messages/hooks';
+import { emitter } from '@/renderer/utils/emitter';
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -113,6 +114,11 @@ function useMessageHarness() {
     addOrUpdateMessage: useAddOrUpdateMessage(),
     messages: useMessageList(),
   };
+}
+
+function useMessageCacheHarness() {
+  useMessageLstCache(CONVERSATION_ID);
+  return useMessageList();
 }
 
 async function flushMessageQueue(): Promise<void> {
@@ -232,5 +238,37 @@ describe('message merging', () => {
       page_size: 10000,
       content_mode: 'compact',
     });
+  });
+
+  it('replaces the mounted transcript with reset database state', async () => {
+    const invoke = vi.mocked(ipcBridge.database.getConversationMessages.invoke);
+    invoke.mockReset();
+    invoke.mockResolvedValueOnce({
+      items: [createTextMessage('old', 'Old transcript')],
+      total: 1,
+      has_more: false,
+    });
+
+    const { result } = renderHook(() => useMessageCacheHarness(), {
+      wrapper: CacheWrapper,
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toHaveLength(1);
+
+    invoke.mockResolvedValueOnce({ items: [], total: 0, has_more: false });
+    act(() => {
+      (emitter as unknown as { emit: (event: 'conversation.reset', conversationId: string) => void }).emit(
+        'conversation.reset',
+        CONVERSATION_ID
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toEqual([]);
   });
 });

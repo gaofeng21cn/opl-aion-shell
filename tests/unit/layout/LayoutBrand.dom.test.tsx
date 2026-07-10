@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Layout from '@/renderer/components/layout/Layout';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -63,5 +64,27 @@ describe('Layout App branding', () => {
     fireEvent.mouseUp(window);
 
     expect(screen.getByTestId('app-navigation-rail')).toHaveAttribute('data-sider-width', '340');
+  });
+
+  it('keeps a real narrow navigation rail when desktop sidebar content is collapsed', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200, writable: true });
+    const ToggleRail = () => {
+      const layout = useLayoutContext();
+      return <button onClick={() => layout?.setSiderCollapsed(true)}>Collapse rail</button>;
+    };
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<Layout sider={<div />} />}>
+            <Route path='/' element={<ToggleRail />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse rail' }));
+
+    expect(screen.getByTestId('app-navigation-rail').closest('aside')).toHaveStyle({ width: '64px' });
   });
 });

@@ -455,6 +455,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   });
 
   it('selects an active capability from a Home starter without exposing an agent selector', async () => {
+    mocks.isPresetAgent.value = false;
     render(<GuidPage />);
     mocks.setSelectedAgentKey.mockClear();
 
@@ -462,6 +463,24 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mas');
     expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
+  });
+
+  it('clears the active capability without clearing the draft, attachments, or workspace', async () => {
+    mocks.guidInput.input = 'Keep this draft';
+    mocks.guidInput.files = ['/workspace/evidence.pdf'];
+    mocks.guidInput.dir = '/workspace';
+    render(<GuidPage />);
+    const inputCalls = mocks.setInput.mock.calls.length;
+    const fileCalls = mocks.setFiles.mock.calls.length;
+    const dirCalls = mocks.setDir.mock.calls.length;
+    mocks.setSelectedAgentKey.mockClear();
+
+    await userEvent.click(screen.getByTestId('home-starter-mas'));
+
+    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('codex');
+    expect(mocks.setInput).toHaveBeenCalledTimes(inputCalls);
+    expect(mocks.setFiles).toHaveBeenCalledTimes(fileCalls);
+    expect(mocks.setDir).toHaveBeenCalledTimes(dirCalls);
   });
 
   it('applies a capability selected from the ordinary Capabilities route', () => {

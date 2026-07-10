@@ -7,7 +7,7 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import { canonicalizeOplProfessionalAgentId } from '@/common/config/oplProductProfile';
 import { Button } from '@arco-design/web-react';
-import { Right } from '@icon-park/react';
+import { CloseSmall, Right } from '@icon-park/react';
 import React from 'react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -18,18 +18,30 @@ type HomeStartersProps = {
   localeKey: string;
   activeCapabilityId?: string;
   onSelect: (assistantId: string) => void;
+  onClear?: () => void;
 };
 
 const MAX_HOME_STARTERS = 4;
 
-const HomeStarters: React.FC<HomeStartersProps> = ({ assistants, localeKey, activeCapabilityId, onSelect }) => {
+const HomeStarters: React.FC<HomeStartersProps> = ({
+  assistants,
+  localeKey,
+  activeCapabilityId,
+  onSelect,
+  onClear,
+}) => {
   const { t } = useTranslation();
   const starters = useMemo(() => {
     const allowedIds = new Set(getOplHomePurposeAssistantIds());
-    return assistants
-      .filter((assistant) => allowedIds.has(canonicalizeOplProfessionalAgentId(assistant.id)))
-      .slice(0, MAX_HOME_STARTERS);
-  }, [assistants]);
+    const available = assistants.filter((assistant) =>
+      allowedIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
+    );
+    if (!activeCapabilityId) return available.slice(0, MAX_HOME_STARTERS);
+    const active = available.find((assistant) => assistant.id === activeCapabilityId);
+    return active
+      ? [active, ...available.filter((assistant) => assistant !== active)].slice(0, MAX_HOME_STARTERS)
+      : available.slice(0, MAX_HOME_STARTERS);
+  }, [activeCapabilityId, assistants]);
 
   if (starters.length === 0) return null;
 
@@ -46,11 +58,16 @@ const HomeStarters: React.FC<HomeStartersProps> = ({ assistants, localeKey, acti
               className={`!h-36px !w-full !justify-start !px-8px !rd-6px !text-13px ${
                 active ? '!bg-fill-2 !text-t-primary' : '!bg-transparent !text-t-secondary hover:!bg-fill-2'
               }`}
-              onClick={() => onSelect(assistant.id)}
+              onClick={() => (active && onClear ? onClear() : onSelect(assistant.id))}
+              aria-pressed={active}
               data-testid={`home-starter-${assistant.id}`}
             >
               <span className='min-w-0 flex-1 truncate text-left'>{label}</span>
-              <Right theme='outline' size='12' fill='currentColor' className='shrink-0 text-t-tertiary' />
+              {active ? (
+                <CloseSmall theme='outline' size='14' fill='currentColor' className='shrink-0 text-t-tertiary' />
+              ) : (
+                <Right theme='outline' size='12' fill='currentColor' className='shrink-0 text-t-tertiary' />
+              )}
             </Button>
           );
         })}

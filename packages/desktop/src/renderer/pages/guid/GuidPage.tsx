@@ -772,6 +772,10 @@ const GuidPage: React.FC = () => {
               handleSelectAssistant(`custom:${assistantId}`);
               guidInput.handleTextareaFocus();
             }}
+            onClear={() => {
+              handleSelectAssistant(agentSelection.defaultAgentKey);
+              guidInput.handleTextareaFocus();
+            }}
           />
 
           <GuidInputCard

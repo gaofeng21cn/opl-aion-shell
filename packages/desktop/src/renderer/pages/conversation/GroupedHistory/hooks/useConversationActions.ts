@@ -278,6 +278,7 @@ export const useConversationActions = ({
         onOk: async () => {
           try {
             await ipcBridge.conversation.reset.invoke({ id: conversation_id });
+            emitter.emit('conversation.reset', conversation_id);
             emitter.emit('chat.history.refresh');
             Message.success(t('conversation.history.resetSuccess'));
           } catch (error) {

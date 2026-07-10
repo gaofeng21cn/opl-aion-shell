@@ -1,0 +1,96 @@
+import React from 'react';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { IMessageSearchItem } from '@/common/types/team/database';
+import ConversationSearchPopover from '@/renderer/pages/conversation/GroupedHistory/ConversationSearchPopover';
+import { useWorkspaceExpansionState } from '@/renderer/pages/conversation/GroupedHistory/hooks/useWorkspaceExpansionState';
+
+const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  search: vi.fn(),
+}));
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    database: {
+      searchConversationMessages: { invoke: mocks.search },
+    },
+  },
+}));
+
+vi.mock('@/renderer/hooks/agent/usePresetAssistantInfo', () => ({
+  usePresetAssistantInfo: () => ({ info: null }),
+}));
+
+vi.mock('@/renderer/utils/model/agentLogo', () => ({
+  getAgentLogo: () => null,
+}));
+
+vi.mock('@/renderer/utils/ui/focus', () => ({
+  blockMobileInputFocus: vi.fn(),
+  blurActiveElement: vi.fn(),
+}));
+
+vi.mock('@/renderer/components/base/AionModal', () => ({
+  default: ({ visible, children }: React.PropsWithChildren<{ visible: boolean }>) =>
+    visible ? <div role='dialog'>{children}</div> : null,
+}));
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mocks.navigate,
+}));
+
+const searchItem = (id: string, archived: boolean): IMessageSearchItem =>
+  ({
+    message_id: `message-${id}`,
+    preview_text: `${id} preview`,
+    message_created_at: 1,
+    conversation: {
+      id,
+      name: `${id} conversation`,
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: { archived },
+    },
+  }) as IMessageSearchItem;
+
+describe('conversation history interactions', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    mocks.navigate.mockClear();
+    mocks.search.mockReset();
+  });
+
+  it('continues active search past an archived-only backend page', async () => {
+    mocks.search
+      .mockResolvedValueOnce({ items: [searchItem('archived', true)], has_more: true })
+      .mockResolvedValueOnce({ items: [searchItem('active', false)], has_more: false });
+
+    render(
+      <ConversationSearchPopover renderTrigger={({ onClick }) => <button onClick={onClick}>Open search</button>} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open search' }));
+    fireEvent.change(screen.getByPlaceholderText('conversation.historySearch.placeholder'), {
+      target: { value: 'result' },
+    });
+
+    await waitFor(() => expect(mocks.search).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('active conversation')).toBeInTheDocument();
+    expect(screen.queryByText('conversation.historySearch.empty')).not.toBeInTheDocument();
+  });
+
+  it('keeps active and archived workspace expansion in separate storage scopes', () => {
+    localStorage.setItem('aionui_workspace_expansion', JSON.stringify(['/active']));
+    localStorage.setItem('aionui_workspace_expansion_archived', JSON.stringify(['/archived']));
+
+    const useScopedExpansion = useWorkspaceExpansionState as (archived?: boolean) => string[];
+    const { result } = renderHook(() => useScopedExpansion(true));
+
+    expect(result.current).toEqual(['/archived']);
+  });
+});
