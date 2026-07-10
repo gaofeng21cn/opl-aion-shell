@@ -230,15 +230,30 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
             return false;
           if (!(element.textContent?.trim().length ?? 0)) return false;
           if (['hidden', 'clip', 'auto', 'scroll'].includes(style.overflowX)) return false;
-          const range = document.createRange();
-          range.selectNodeContents(element);
-          const textRect = range.getBoundingClientRect();
-          return (
-            textRect.left < rect.left - 1 ||
-            textRect.right > rect.right + 1 ||
-            rect.left < -1 ||
-            rect.right > window.innerWidth + 1
-          );
+          const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+          let node = walker.nextNode();
+          while (node) {
+            const parent = node.parentElement;
+            const text = node.textContent?.trim();
+            if (parent && text) {
+              const parentStyle = window.getComputedStyle(parent);
+              if (parentStyle.display !== 'none' && parentStyle.visibility !== 'hidden') {
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                for (const textRect of range.getClientRects()) {
+                  if (
+                    textRect.width > 0 &&
+                    textRect.height > 0 &&
+                    (textRect.left < rect.left - 1 || textRect.right > rect.right + 1)
+                  ) {
+                    return true;
+                  }
+                }
+              }
+            }
+            node = walker.nextNode();
+          }
+          return rect.left < -1 || rect.right > window.innerWidth + 1;
         })
         .slice(0, 8)
         .map((element) => ({
