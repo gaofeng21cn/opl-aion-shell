@@ -5,7 +5,9 @@
  */
 
 import type { TChatConversation } from '@/common/config/storage';
+import { configService } from '@/common/config/configService';
 import AionModal from '@/renderer/components/base/AionModal';
+import ProjectContextSection from '@/renderer/components/layout/Sider/ProjectContextSection';
 import DirectorySelectionModal from '@/renderer/components/settings/DirectorySelectionModal';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCronJobsMap } from '@/renderer/pages/cron';
@@ -17,6 +19,7 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getProjectContextRefs } from '@/renderer/utils/workspace/projectContext';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
@@ -267,6 +270,18 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     }
     return groups;
   }, [timelineSections]);
+
+  const startProjectConversation = useCallback(
+    (workspace: string) => {
+      void navigate('/guid', {
+        state: {
+          workspace,
+          projectContextRefs: getProjectContextRefs(configService.get('workspace.projectContextInputs'), workspace),
+        },
+      });
+    },
+    [navigate]
+  );
 
   // Conversations section: keep timeline grouping (today/yesterday/...) but only show non-workspace conversations.
   const conversationOnlySections = useMemo(
@@ -597,13 +612,13 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                 )}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  void navigate('/guid', { state: { workspace: group.workspace } });
+                                  startProjectConversation(group.workspace);
                                 }}
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' || e.key === ' ') {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    void navigate('/guid', { state: { workspace: group.workspace } });
+                                    startProjectConversation(group.workspace);
                                   }
                                 }}
                               >
@@ -633,6 +648,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                       }
                     >
                       <div className={classNames('flex flex-col min-w-0', { 'mt-1px': !collapsed })}>
+                        {!archived && !collapsed && <ProjectContextSection workspace={group.workspace} />}
                         {group.conversations.map((conversation) => renderConversation(conversation, true))}
                       </div>
                     </WorkspaceCollapse>

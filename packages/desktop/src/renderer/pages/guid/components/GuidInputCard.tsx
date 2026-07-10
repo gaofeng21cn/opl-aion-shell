@@ -5,6 +5,7 @@
  */
 
 import FilePreview from '@/renderer/components/media/FilePreview';
+import type { ProjectContextRef } from '@/common/config/configKeys';
 import UploadProgressBar from '@/renderer/components/media/UploadProgressBar';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
@@ -53,6 +54,8 @@ type GuidInputCardProps = {
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
   activeCapabilityLabel?: string;
+  projectContextRefs?: ProjectContextRef[];
+  onRemoveProjectContextRef?: (path: string) => void;
   fileContextEnabled?: boolean;
 };
 
@@ -82,6 +85,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
   activeCapabilityLabel,
+  projectContextRefs,
+  onRemoveProjectContextRef,
   fileContextEnabled = true,
 }) => {
   const layout = useLayoutContext();
@@ -129,6 +134,16 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'none',
         }}
       >
+        <GuidWorkspaceFootnote
+          workspaceDir={workspaceDir}
+          onSelectWorkspace={onSelectWorkspace}
+          onClearWorkspace={onClearWorkspace}
+          accessDisabled={workspaceAccessDisabled}
+          accessDisabledReason={workspaceAccessDisabledReason}
+          activeCapabilityLabel={activeCapabilityLabel}
+          projectContextRefs={projectContextRefs}
+          onRemoveProjectContextRef={onRemoveProjectContextRef}
+        />
         <Input.TextArea
           autoSize={textareaAutoSize}
           placeholder={placeholder}
@@ -162,14 +177,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           <div className='absolute left-0 right-0 top-[calc(100%+4px)] z-70'>{slashCommandMenu}</div>
         )}
       </div>
-      <GuidWorkspaceFootnote
-        workspaceDir={workspaceDir}
-        onSelectWorkspace={onSelectWorkspace}
-        onClearWorkspace={onClearWorkspace}
-        accessDisabled={workspaceAccessDisabled}
-        accessDisabledReason={workspaceAccessDisabledReason}
-        activeCapabilityLabel={activeCapabilityLabel}
-      />
     </div>
   );
 };

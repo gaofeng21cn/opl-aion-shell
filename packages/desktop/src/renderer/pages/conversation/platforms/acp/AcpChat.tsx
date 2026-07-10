@@ -28,6 +28,8 @@ const AcpChat: React.FC<{
   backend: string;
   session_mode?: string;
   agent_name?: string;
+  branch?: string;
+  activeCapabilityLabel?: string;
   cron_job_id?: string;
   hideSendBox?: boolean;
   emptySlot?: React.ReactNode;
@@ -40,6 +42,8 @@ const AcpChat: React.FC<{
   backend,
   session_mode,
   agent_name,
+  branch,
+  activeCapabilityLabel,
   cron_job_id,
   hideSendBox,
   emptySlot,
@@ -78,6 +82,8 @@ const AcpChat: React.FC<{
               session_mode={session_mode}
               agent_name={agent_name}
               workspacePath={workspace}
+              branch={branch}
+              activeCapabilityLabel={activeCapabilityLabel}
               messageState={messageState}
             ></AcpSendBox>
           )}

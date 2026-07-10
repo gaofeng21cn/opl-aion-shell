@@ -583,8 +583,9 @@
 .workspaceFootnote {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 6px 6px 10px 14px;
+  padding: 0 0 10px 7px;
   background: transparent;
 }
 
@@ -599,6 +600,34 @@
   content: '·';
   margin-right: 8px;
   color: var(--color-text-4);
+}
+
+.projectContextRef {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 240px;
+  height: 22px;
+  padding: 0 2px 0 7px;
+  border-radius: 4px;
+  background: var(--color-fill-2);
+  color: var(--color-text-2);
+  font-size: 12px;
+}
+
+.projectContextRefName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectContextRefRemove {
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  padding: 0 !important;
+  color: var(--color-text-3) !important;
 }
 
 .workspaceEmptyBtn {

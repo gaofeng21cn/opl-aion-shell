@@ -54,6 +54,7 @@ function buildDeps(): GuidSendDeps {
     setInput: vi.fn(),
     files: [],
     setFiles: vi.fn(),
+    projectContextRefs: [],
     dir: '/tmp/opl',
     setDir: vi.fn(),
     setLoading: vi.fn(),
@@ -206,5 +207,31 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
     const payload = mocks.createConversation.mock.calls[0][0];
     expect(payload.extra.current_model_id).toBe('gpt-6');
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'ultra' });
+  });
+
+  it('keeps project refs separate from attachments while sending both through the existing file context path', async () => {
+    const deps = buildDeps();
+    deps.files = ['/tmp/opl/draft.pdf'];
+    deps.projectContextRefs = [
+      {
+        path: '/tmp/opl/docs/protocol.md',
+        name: 'protocol.md',
+        relativePath: 'docs/protocol.md',
+        isFile: true,
+      },
+    ];
+
+    const { result } = renderHook(() => useGuidSend(deps));
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    const payload = mocks.createConversation.mock.calls[0][0];
+    expect(payload.extra.default_files).toEqual(['/tmp/opl/draft.pdf']);
+    expect(payload.extra.project_context_refs).toBeUndefined();
+    expect(JSON.parse(sessionStorage.getItem('acp_initial_message_conversation-1') || '{}').files).toEqual([
+      '/tmp/opl/docs/protocol.md',
+      '/tmp/opl/draft.pdf',
+    ]);
   });
 });
