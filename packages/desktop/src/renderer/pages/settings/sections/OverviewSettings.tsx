@@ -105,11 +105,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         </div>
       </header>
 
-      <section
-        className='opl-settings-section opl-settings-section--summary'
-        id='status'
-        data-testid='settings-overview-primary'
-      >
+      <section className='opl-settings-section' id='status' data-testid='settings-overview-primary'>
         <div className='opl-settings-row'>
           <div className='opl-settings-row__main'>
             <Typography.Text className='font-600 text-t-primary'>
@@ -135,28 +131,6 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                   })
                 : t('settings.oplEnvironmentPage.healthSummary.values.canUse')}
             </span>
-          </div>
-        </div>
-        <div className='opl-settings-overview-grid' data-testid='settings-overview-summary-grid'>
-          <div className='opl-settings-overview-metric'>
-            <div className='opl-settings-overview-metric__label'>{t('settings.overviewPage.workspace.title')}</div>
-            <div className='opl-settings-overview-metric__value' title={workspaceRoot ?? undefined}>
-              {workspaceRoot ?? t('settings.overviewPage.workspace.notConfigured')}
-            </div>
-          </div>
-          <div className='opl-settings-overview-metric'>
-            <div className='opl-settings-overview-metric__label'>{t('settings.overviewPage.modulesTitle')}</div>
-            <div className='opl-settings-overview-metric__value'>
-              {t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules })}
-            </div>
-          </div>
-          <div className='opl-settings-overview-metric'>
-            <div className='opl-settings-overview-metric__label'>
-              {t('settings.overviewPage.workspace.permissionLabel')}
-            </div>
-            <div className='opl-settings-overview-metric__value'>
-              {t(`agentMode.${permissionMode}`, { defaultValue: permissionMode })}
-            </div>
           </div>
         </div>
       </section>
