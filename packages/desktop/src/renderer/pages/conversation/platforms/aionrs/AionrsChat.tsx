@@ -33,6 +33,8 @@ const AionrsChat: React.FC<{
   loadedMcpServers?: string[];
   loadedMcpStatuses?: IConversationMcpStatus[];
   agent_name?: string;
+  branch?: string;
+  activeCapabilityLabel?: string;
 }> = ({
   conversation_id,
   workspace,
@@ -44,6 +46,8 @@ const AionrsChat: React.FC<{
   loadedMcpServers,
   loadedMcpStatuses,
   agent_name,
+  branch,
+  activeCapabilityLabel,
 }) => {
   useMessageLstCache(conversation_id);
   usePendingConfirmationsRecovery(conversation_id);
@@ -75,6 +79,9 @@ const AionrsChat: React.FC<{
             modelSelection={modelSelection}
             session_mode={session_mode}
             agent_name={agent_name}
+            workspacePath={workspace}
+            branch={branch}
+            activeCapabilityLabel={activeCapabilityLabel}
           />
         </div>
       </ConversationArtifactProvider>

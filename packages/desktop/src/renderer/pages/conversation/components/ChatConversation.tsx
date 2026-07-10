@@ -48,6 +48,12 @@ const hasLoadedSkill = (conversation: TChatConversation | undefined, skillName: 
   return skills?.includes(skillName) ?? false;
 };
 
+const getConversationBranch = (conversation: TChatConversation | undefined): string | undefined => {
+  const extra = conversation?.extra as Record<string, unknown> | undefined;
+  const branch = extra?.git_branch ?? extra?.branch_name ?? extra?.branch;
+  return typeof branch === 'string' && branch.trim() ? branch.trim() : undefined;
+};
+
 const _AssociatedConversation: React.FC<{ conversation_id: string }> = ({ conversation_id }) => {
   const { data } = useSWR(['getAssociateConversation', conversation_id], () =>
     ipcBridge.conversation.getAssociateConversation.invoke({ conversation_id })
@@ -237,6 +243,8 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
         loadedMcpServers={(ordinaryExtra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
         loadedMcpStatuses={(ordinaryExtra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses}
         agent_name={presetAssistantInfo?.name}
+        branch={getConversationBranch(conversation)}
+        activeCapabilityLabel={presetAssistantInfo?.name}
       />
     </ChatLayout>
   );
@@ -284,6 +292,8 @@ const ChatConversation: React.FC<{
             backend={conversation.extra?.backend || 'claude'}
             session_mode={conversation.extra?.session_mode}
             agent_name={assistantDisplayName}
+            branch={getConversationBranch(conversation)}
+            activeCapabilityLabel={presetAssistantInfo?.name}
             cron_job_id={(ordinaryExtra as { cron_job_id?: string } | undefined)?.cron_job_id}
             hideSendBox={resolvedHideSendBox}
             loadedSkills={(ordinaryExtra as { skills?: string[] } | undefined)?.skills}

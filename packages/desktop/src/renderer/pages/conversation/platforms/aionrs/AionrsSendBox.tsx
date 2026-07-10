@@ -9,6 +9,7 @@ import { filterOplOrdinaryMcpStatuses, filterOplOrdinarySkillNames } from '@/com
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
+import ConversationComposerContextStrip from '@/renderer/components/chat/ConversationComposerContextStrip';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -100,8 +101,19 @@ const AionrsSendBox: React.FC<{
   modelSelection: AionrsModelSelection;
   session_mode?: string;
   agent_name?: string;
-}> = ({ conversation_id, modelSelection, session_mode, agent_name }) => {
-  const [workspacePath, setWorkspacePath] = useState('');
+  workspacePath?: string;
+  branch?: string;
+  activeCapabilityLabel?: string;
+}> = ({
+  conversation_id,
+  modelSelection,
+  session_mode,
+  agent_name,
+  workspacePath: workspaceProp,
+  branch,
+  activeCapabilityLabel,
+}) => {
+  const [workspacePath, setWorkspacePath] = useState(workspaceProp ?? '');
   const [dynamicModes, setDynamicModes] = useState<AgentModeOption[]>([]);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
@@ -572,6 +584,11 @@ const AionrsSendBox: React.FC<{
         onClear={clear}
       />
       <ThoughtDisplay thought={thought} running={running} onStop={handleStop} />
+      <ConversationComposerContextStrip
+        workspacePath={workspacePath}
+        branch={branch}
+        activeCapabilityLabel={activeCapabilityLabel}
+      />
 
       <SendBox
         data-testid='aionrs-sendbox'
