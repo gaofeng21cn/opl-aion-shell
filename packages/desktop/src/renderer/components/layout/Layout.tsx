@@ -335,7 +335,12 @@ const Layout: React.FC<{
           <Titlebar workspaceAvailable={workspaceAvailable} />
           {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
           {isMobile && !collapsed && (
-            <div className='fixed inset-0 bg-black/30 z-90' onClick={() => setCollapsed(true)} aria-hidden='true' />
+            <div
+              className='fixed inset-0 bg-black/30 z-90'
+              onClick={() => setCollapsed(true)}
+              aria-hidden='true'
+              data-testid='app-navigation-rail-backdrop'
+            />
           )}
 
           <ArcoLayout className={'size-full layout flex-1 min-h-0'}>
@@ -348,6 +353,7 @@ const Layout: React.FC<{
                 'layout-sider--dragging': isSiderDragging,
               })}
               style={siderStyle}
+              data-testid='app-navigation-rail-surface'
             >
               <ArcoLayout.Header
                 className={classNames(
@@ -408,6 +414,7 @@ const Layout: React.FC<{
 
             <ArcoLayout.Content
               className={'bg-1 layout-content flex flex-col min-h-0'}
+              data-testid='app-main-content'
               onClick={() => {
                 if (isMobile && !collapsed) setCollapsed(true);
               }}
