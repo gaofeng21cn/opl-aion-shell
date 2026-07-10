@@ -193,9 +193,9 @@ const AcpSendBox: React.FC<{
     canSwitch: canSwitchModel,
     selectModel,
     selectAutoModel,
+    selectReasoningEffort,
     thoughtLevel,
     setStatus,
-    setConfigOption,
   } = useAcpModelInfo({
     conversation_id,
     backend,
@@ -293,11 +293,11 @@ const AcpSendBox: React.FC<{
   const handleSheetReasoningSelect = useCallback(
     (value: string) => {
       if (!thoughtLevel || value === thoughtLevel.currentValue || isSettingReasoning) return;
-      void setConfigOption(thoughtLevel.id, value)
+      void selectReasoningEffort(value)
         .then(() => Message.success(t('agent.thoughtLevel.switchSuccess')))
         .catch((error) => Message.error(t(configErrorMessageKey(error))));
     },
-    [isSettingReasoning, setConfigOption, thoughtLevel, t]
+    [isSettingReasoning, selectReasoningEffort, thoughtLevel, t]
   );
 
   const handleSheetAutoSelect = useCallback(() => {
@@ -587,7 +587,7 @@ Please check your local CLI tool authentication status`,
     const autoModelOption =
       useOplCodexModelDisplay && model_info?.available_models.length
         ? buildOplCodexAutoModelOption({
-            availableModels: model_info.available_models,
+            modelInfo: model_info,
             localeKey: modelDisplayLocale,
           })
         : null;

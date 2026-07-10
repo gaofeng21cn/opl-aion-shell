@@ -1005,6 +1005,64 @@ describe('useAcpModelInfo', () => {
     expect(configServiceSetMock).not.toHaveBeenCalled();
   });
 
+  it('pins the current resolved model when reasoning is overridden from Auto', async () => {
+    const modelInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
+      available_models: [{ id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol', isDefault: true }],
+    };
+    getModelInvokeMock.mockResolvedValue({ model_info: modelInfo });
+    setModelInvokeMock.mockResolvedValue({ model_info: modelInfo });
+    getConfigOptionsInvokeMock.mockResolvedValue({
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+    setConfigOptionInvokeMock.mockResolvedValue({
+      confirmation: 'observed',
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'ultra',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'reasoning-pin-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol'));
+    await act(async () => {
+      await result.current.selectReasoningEffort('ultra');
+    });
+
+    expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', {
+      codex: { preferredModelId: 'gpt-5.6-sol' },
+    });
+    expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
+      conversation_id: 'reasoning-pin-codex-conversation',
+      option_id: 'reasoning_effort',
+      value: 'ultra',
+    });
+  });
+
   it('saves the requested Codex model when setModel succeeds without a receipt and reload has no model info', async () => {
     const initialInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.6-sol',

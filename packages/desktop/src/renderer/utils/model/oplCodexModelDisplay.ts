@@ -9,7 +9,8 @@ import {
   getOplDefaultCodexReasoningEffort,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
-import { selectDefaultCodexModelId } from '@/common/types/codex/codexModels';
+import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
+import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 
 export type OplModelDisplayLocale = 'zh-CN' | 'en-US';
 
@@ -94,17 +95,18 @@ export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): Op
 }
 
 export function buildOplCodexAutoModelOption(input: {
-  availableModels: Array<{ id: string; label?: string | null }>;
+  modelInfo: AcpModelInfo;
   localeKey: OplModelDisplayLocale;
 }): OplCodexModelDisplay {
   const localeKey = resolveLocaleKey(input.localeKey);
   const options = getOplCodexModelDisplayOptions();
-  const resolvedModelId = selectDefaultCodexModelId(input.availableModels);
-  const resolvedModel = input.availableModels.find((model) => model.id === resolvedModelId);
+  const selection = resolveOplCodexAutoSelection(input.modelInfo);
+  const catalog = input.modelInfo.catalog_models ?? input.modelInfo.available_models;
+  const resolvedModel = catalog.find((model) => model.id === selection.modelId);
   const modelDisplay = formatOplCodexModelDisplay({
-    id: resolvedModelId,
+    id: selection.modelId,
     label: resolvedModel?.label,
-    reasoningEffort: options.auto_option.resolved_reasoning_effort,
+    reasoningEffort: selection.reasoningEffort,
     localeKey,
   });
   const label = localeKey === 'en-US' ? options.auto_option.label_en : options.auto_option.label_zh;

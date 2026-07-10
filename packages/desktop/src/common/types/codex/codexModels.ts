@@ -6,8 +6,8 @@
 
 /**
  * Codex model defaults are App product policy.
- * The shell observes Codex capability lists from ACP, filters retired entries,
- * and exposes only the App allowlist in its product-defined order.
+ * The shell observes Codex capability lists from ACP, filters hidden or retired
+ * entries, and keeps App-known models separate from unknown catalog defaults.
  */
 import {
   getOplCodexAutoModelPolicy,
@@ -26,6 +26,13 @@ export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFF
   : DEFAULT_CODEX_MODEL_ID;
 export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
 const CODEX_AUTO_MODEL_POLICY = getOplCodexAutoModelPolicy();
+const ACCEPT_UNKNOWN_CATALOG_DEFAULT =
+  CODEX_AUTO_MODEL_POLICY.unknown_default_model_policy ===
+  'accept_catalog_default_even_when_not_in_frontier_model_preference_order';
+const USE_HIGHEST_UNKNOWN_REASONING =
+  CODEX_AUTO_MODEL_POLICY.unknown_model_reasoning_effort_policy === 'highest_supported_reasoning_effort_from_catalog';
+const EXCLUDE_HIDDEN_MODELS =
+  CODEX_AUTO_MODEL_POLICY.catalog_hidden_model_policy === 'exclude_hidden_models_from_auto_and_fixed_options';
 const CODEX_FRONTIER_MODEL_PREFERENCE_ORDER = CODEX_AUTO_MODEL_POLICY.frontier_model_preference_order;
 const CODEX_FRONTIER_MODEL_PREFERENCE_INDEX = new Map(
   CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.map((id, index) => [id, index])
@@ -42,13 +49,15 @@ export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; descriptio
     description: 'One Person Lab App Codex frontier model',
   }));
 
-type CodexModelOption = AcpAvailableModel | { id: string; label?: string | null };
+type CodexModelOption = AcpAvailableModel | { id: string; label?: string | null; hidden?: boolean };
 
 function normalizeCodexCatalogOptions(availableModels: CodexModelOption[] | undefined | null): AcpAvailableModel[] {
   const seen = new Set<string>();
   return (availableModels ?? []).flatMap((model) => {
     const id = model.id.trim();
-    if (!id || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) return [];
+    if (!id || (EXCLUDE_HIDDEN_MODELS && model.hidden === true) || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) {
+      return [];
+    }
     seen.add(id);
     return [{ ...model, id, label: model.label?.trim() || CODEX_MODEL_DISPLAY_LABELS.get(id) || id }];
   });
@@ -126,7 +135,9 @@ export function resolveOplCodexAutoSelection(modelInfo?: AcpModelInfo | null): C
   const catalogModels = normalizeCodexCatalogOptions(modelInfo?.catalog_models ?? modelInfo?.available_models);
   const catalogDefault = catalogModels.find((model) => model.isDefault);
   const unknownCatalogDefault =
-    catalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id) ? catalogDefault : null;
+    ACCEPT_UNKNOWN_CATALOG_DEFAULT && catalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id)
+      ? catalogDefault
+      : null;
   const knownModel = CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.find((id) => catalogModels.some((model) => model.id === id));
   const modelId =
     unknownCatalogDefault?.id ??
@@ -135,7 +146,9 @@ export function resolveOplCodexAutoSelection(modelInfo?: AcpModelInfo | null): C
     CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model;
   const selectedModel = catalogModels.find((model) => model.id === modelId);
   const reasoningEffort = unknownCatalogDefault
-    ? unknownCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort?.trim() ||
+    ? (USE_HIGHEST_UNKNOWN_REASONING
+        ? unknownCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort?.trim()
+        : null) ||
       unknownCatalogDefault.defaultReasoningEffort?.trim() ||
       CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
     : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??

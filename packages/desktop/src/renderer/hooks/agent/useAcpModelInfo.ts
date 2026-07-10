@@ -7,7 +7,11 @@
 import { ipcBridge } from '@/common';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
-import { isOplCodexCliFixedExecutor, shouldShowOplCodexModelList } from '@/common/config/oplProductProfile';
+import {
+  getOplCodexAutoModelPolicy,
+  isOplCodexCliFixedExecutor,
+  shouldShowOplCodexModelList,
+} from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
   normalizeCodexModelInfo,
@@ -29,6 +33,7 @@ type AcpModelInfoFetchResult = {
 };
 
 const getAcpModelInfoKey = (conversation_id: string): AcpModelInfoKey => ['acp-model-info', conversation_id] as const;
+const CODEX_AUTO_PERSISTENCE_POLICY = getOplCodexAutoModelPolicy().persistence_policy;
 
 const summarizeModelInfo = (info: AcpModelInfo | null | undefined) => {
   if (!info) return null;
@@ -172,6 +177,8 @@ export interface UseAcpModelInfoResult {
   selectModel: (model_id: string) => void;
   /** Restore App automatic model selection and clear any fixed-model preference. */
   selectAutoModel: () => Promise<void>;
+  /** Pin the resolved model and leave Auto before applying a reasoning override. */
+  selectReasoningEffort: (value: string) => Promise<void>;
   /** Runtime reasoning/thought-level config exposed by ACP, when available. */
   thoughtLevel: AcpDerivedOption | null;
   setStatus: AcpConfigSetStatus;
@@ -663,6 +670,30 @@ export const useAcpModelInfo = ({
     }
   }, [applyAutoSelection, backend]);
 
+  const selectReasoningEffort = useCallback(
+    async (value: string): Promise<void> => {
+      if (!thoughtLevel || value === thoughtLevel.currentValue) return;
+      if (backend !== 'codex') {
+        await setConfigOption(thoughtLevel.id, value);
+        return;
+      }
+      const currentModelId = reportedCodexCurrentModelIdRef.current ?? model_info?.current_model_id;
+      if (!currentModelId) throw new Error('codex_reasoning_override_requires_resolved_model');
+      if (CODEX_AUTO_PERSISTENCE_POLICY.reasoning_override_from_auto !== 'pin_current_resolved_model_and_exit_auto') {
+        throw new Error('unsupported_codex_reasoning_override_persistence_policy');
+      }
+      hasUserChangedModel.current = true;
+      try {
+        await setConfigOption(thoughtLevel.id, value);
+        await savePreferredModelId(backend, currentModelId);
+      } catch (error) {
+        hasUserChangedModel.current = false;
+        throw error;
+      }
+    },
+    [backend, model_info?.current_model_id, setConfigOption, thoughtLevel]
+  );
+
   useEffect(() => {
     if (
       !enabled ||
@@ -703,5 +734,14 @@ export const useAcpModelInfo = ({
     thoughtLevel?.currentValue,
   ]);
 
-  return { model_info, canSwitch, selectModel, selectAutoModel, thoughtLevel, setStatus, setConfigOption };
+  return {
+    model_info,
+    canSwitch,
+    selectModel,
+    selectAutoModel,
+    selectReasoningEffort,
+    thoughtLevel,
+    setStatus,
+    setConfigOption,
+  };
 };

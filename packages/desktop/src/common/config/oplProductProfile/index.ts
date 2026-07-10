@@ -12,9 +12,16 @@ export type OplCodexAutoModelPolicy = {
   authority: 'one-person-lab-app';
   mode_default: 'auto';
   model_catalog_source: 'codex_cli_model_list';
+  catalog_response_models_field: 'data';
   catalog_default_model_field: 'isDefault';
   catalog_supported_reasoning_efforts_field: 'supportedReasoningEfforts';
+  catalog_supported_reasoning_effort_option_value_field: 'reasoningEffort';
   catalog_reasoning_effort_order_policy: 'last_advertised_supported_reasoning_effort_is_highest';
+  catalog_pagination_request_cursor_field: 'cursor';
+  catalog_pagination_response_cursor_field: 'nextCursor';
+  catalog_pagination_completion_policy: 'exhaust_pages_until_next_cursor_is_null';
+  catalog_hidden_model_field: 'hidden';
+  catalog_hidden_model_policy: 'exclude_hidden_models_from_auto_and_fixed_options';
   frontier_model_preference_order_role: 'known_model_fallback_and_fixed_option_preference_not_allowlist';
   frontier_model_preference_order: string[];
   known_model_reasoning_effort_overrides: Record<string, OplCodexReasoningEffort>;
@@ -25,6 +32,9 @@ export type OplCodexAutoModelPolicy = {
   persistence_policy: {
     auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog';
     fixed: 'persist_selected_model_and_reasoning_effort';
+    state_encoding: 'auto_has_no_model_snapshot_fixed_has_model_and_reasoning';
+    reasoning_override_from_auto: 'pin_current_resolved_model_and_exit_auto';
+    stale_fixed_model: 'preserve_fixed_selection_as_unavailable_until_user_restores_auto_or_selects_available_model';
   };
 };
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
@@ -253,10 +263,8 @@ export type OplCodexModelDisplayOptions = {
     label_en: string;
     description_zh: string;
     description_en: string;
-    resolved_model: string;
-    resolved_model_label_zh: string;
-    resolved_model_label_en: string;
-    resolved_reasoning_effort: OplCodexReasoningEffort;
+    catalog_unavailable_fallback_model: string;
+    catalog_unavailable_fallback_reasoning_effort: OplCodexReasoningEffort;
     follows_latest_strongest: true;
   };
   fixed_model_description_zh: string;
@@ -684,9 +692,16 @@ function readOplCodexAutoModelPolicy(
     value.authority !== 'one-person-lab-app' ||
     value.mode_default !== 'auto' ||
     value.model_catalog_source !== 'codex_cli_model_list' ||
+    value.catalog_response_models_field !== 'data' ||
     value.catalog_default_model_field !== 'isDefault' ||
     value.catalog_supported_reasoning_efforts_field !== 'supportedReasoningEfforts' ||
+    value.catalog_supported_reasoning_effort_option_value_field !== 'reasoningEffort' ||
     value.catalog_reasoning_effort_order_policy !== 'last_advertised_supported_reasoning_effort_is_highest' ||
+    value.catalog_pagination_request_cursor_field !== 'cursor' ||
+    value.catalog_pagination_response_cursor_field !== 'nextCursor' ||
+    value.catalog_pagination_completion_policy !== 'exhaust_pages_until_next_cursor_is_null' ||
+    value.catalog_hidden_model_field !== 'hidden' ||
+    value.catalog_hidden_model_policy !== 'exclude_hidden_models_from_auto_and_fixed_options' ||
     value.frontier_model_preference_order_role !== 'known_model_fallback_and_fixed_option_preference_not_allowlist' ||
     value.unknown_default_model_policy !== 'accept_catalog_default_even_when_not_in_frontier_model_preference_order' ||
     value.unknown_model_reasoning_effort_policy !== 'highest_supported_reasoning_effort_from_catalog' ||
@@ -720,7 +735,11 @@ function readOplCodexAutoModelPolicy(
     ) !== defaultReasoningEffort ||
     !isRecord(persistence) ||
     persistence.auto !== 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog' ||
-    persistence.fixed !== 'persist_selected_model_and_reasoning_effort'
+    persistence.fixed !== 'persist_selected_model_and_reasoning_effort' ||
+    persistence.state_encoding !== 'auto_has_no_model_snapshot_fixed_has_model_and_reasoning' ||
+    persistence.reasoning_override_from_auto !== 'pin_current_resolved_model_and_exit_auto' ||
+    persistence.stale_fixed_model !==
+      'preserve_fixed_selection_as_unavailable_until_user_restores_auto_or_selects_available_model'
   ) {
     throw new Error('Invalid OPL product profile: Codex Auto fallback or persistence policy is invalid');
   }
@@ -728,9 +747,16 @@ function readOplCodexAutoModelPolicy(
     authority: 'one-person-lab-app',
     mode_default: 'auto',
     model_catalog_source: 'codex_cli_model_list',
+    catalog_response_models_field: 'data',
     catalog_default_model_field: 'isDefault',
     catalog_supported_reasoning_efforts_field: 'supportedReasoningEfforts',
+    catalog_supported_reasoning_effort_option_value_field: 'reasoningEffort',
     catalog_reasoning_effort_order_policy: 'last_advertised_supported_reasoning_effort_is_highest',
+    catalog_pagination_request_cursor_field: 'cursor',
+    catalog_pagination_response_cursor_field: 'nextCursor',
+    catalog_pagination_completion_policy: 'exhaust_pages_until_next_cursor_is_null',
+    catalog_hidden_model_field: 'hidden',
+    catalog_hidden_model_policy: 'exclude_hidden_models_from_auto_and_fixed_options',
     frontier_model_preference_order_role: 'known_model_fallback_and_fixed_option_preference_not_allowlist',
     frontier_model_preference_order: frontierModelPreferenceOrder,
     known_model_reasoning_effort_overrides: knownModelReasoningEffortOverrides,
@@ -741,6 +767,9 @@ function readOplCodexAutoModelPolicy(
     persistence_policy: {
       auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog',
       fixed: 'persist_selected_model_and_reasoning_effort',
+      state_encoding: 'auto_has_no_model_snapshot_fixed_has_model_and_reasoning',
+      reasoning_override_from_auto: 'pin_current_resolved_model_and_exit_auto',
+      stale_fixed_model: 'preserve_fixed_selection_as_unavailable_until_user_restores_auto_or_selects_available_model',
     },
   };
 }
@@ -815,14 +844,14 @@ function readCodexModelDisplayOptions(
     autoOption.id !== '__auto' ||
     autoOption.label_zh !== '自动（推荐）' ||
     autoOption.label_en !== 'Auto (recommended)' ||
-    autoOption.resolved_model !== defaultModel ||
+    autoOption.catalog_unavailable_fallback_model !== defaultModel ||
     autoOption.follows_latest_strongest !== true
   ) {
     throw new Error('Invalid OPL product profile: Codex auto model display option is invalid');
   }
   const autoReasoningEffort = readRequiredReasoningEffort(
-    autoOption.resolved_reasoning_effort,
-    'gui.home.codex_model_display_options.auto_option.resolved_reasoning_effort'
+    autoOption.catalog_unavailable_fallback_reasoning_effort,
+    'gui.home.codex_model_display_options.auto_option.catalog_unavailable_fallback_reasoning_effort'
   );
   if (autoReasoningEffort !== defaultReasoningEffort) {
     throw new Error('Invalid OPL product profile: Codex auto model display reasoning must match Codex default');
@@ -924,12 +953,8 @@ function readCodexModelDisplayOptions(
       label_en: 'Auto (recommended)',
       description_zh: typeof autoOption.description_zh === 'string' ? autoOption.description_zh : '',
       description_en: typeof autoOption.description_en === 'string' ? autoOption.description_en : '',
-      resolved_model: defaultModel,
-      resolved_model_label_zh:
-        typeof autoOption.resolved_model_label_zh === 'string' ? autoOption.resolved_model_label_zh : defaultModel,
-      resolved_model_label_en:
-        typeof autoOption.resolved_model_label_en === 'string' ? autoOption.resolved_model_label_en : defaultModel,
-      resolved_reasoning_effort: autoReasoningEffort,
+      catalog_unavailable_fallback_model: defaultModel,
+      catalog_unavailable_fallback_reasoning_effort: autoReasoningEffort,
       follows_latest_strongest: true,
     },
     fixed_model_description_zh: '固定此模型',
@@ -1846,9 +1871,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     codexModel,
     frontierModelPreferenceOrder
   );
+  const defaultDisplayModel = codexModelDisplayOptions.visible_models.find((model) => model.id === codexModel);
   if (
-    homeModelStatusLabel !== codexModelDisplayOptions.auto_option.resolved_model_label_zh ||
-    homeModelStatusLabelEn !== codexModelDisplayOptions.auto_option.resolved_model_label_en
+    homeModelStatusLabel !== defaultDisplayModel?.label_zh ||
+    homeModelStatusLabelEn !== defaultDisplayModel.label_en
   ) {
     throw new Error('Invalid OPL product profile: GUI home Codex model status label must match the App default model');
   }

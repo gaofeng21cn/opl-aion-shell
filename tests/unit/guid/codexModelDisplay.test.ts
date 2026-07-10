@@ -37,15 +37,42 @@ describe('oplCodexModelDisplay', () => {
 
   it('explains the model and reasoning that Auto will resolve after selection', () => {
     const option = buildOplCodexAutoModelOption({
-      availableModels: [
-        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
-        { id: 'gpt-5.5', label: 'GPT-5.5' },
-      ],
+      modelInfo: {
+        current_model_id: null,
+        current_model_label: null,
+        available_models: [
+          { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+          { id: 'gpt-5.5', label: 'GPT-5.5' },
+        ],
+      },
       localeKey: 'zh-CN',
     });
 
     expect(option.label).toBe('自动（推荐）');
     expect(option.description).toBe('当前 5.6 Terra · 推理超高 · 跟随最新最强');
+  });
+
+  it('displays an unknown catalog default and its highest advertised reasoning effort', () => {
+    const option = buildOplCodexAutoModelOption({
+      modelInfo: {
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: '5.6 Sol',
+        available_models: [{ id: 'gpt-5.6-sol', label: '5.6 Sol' }],
+        catalog_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          {
+            id: 'gpt-6',
+            label: 'GPT-6',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+          },
+        ],
+      },
+      localeKey: 'en-US',
+    });
+
+    expect(option.label).toBe('Auto (recommended)');
+    expect(option.description).toBe('Current GPT-6 · Ultra reasoning · follows latest strongest');
   });
 
   it('uses localized reasoning labels', () => {

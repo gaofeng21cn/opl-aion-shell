@@ -85,7 +85,7 @@ const AcpModelSelector: React.FC<{
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
-  const { model_info, canSwitch, selectModel, selectAutoModel, thoughtLevel, setStatus, setConfigOption } =
+  const { model_info, canSwitch, selectModel, selectAutoModel, selectReasoningEffort, thoughtLevel, setStatus } =
     useAcpModelInfo({
       conversation_id,
       backend,
@@ -163,7 +163,7 @@ const AcpModelSelector: React.FC<{
   const autoModelDisplay =
     showCodexAutoOption && model_info?.available_models.length
       ? buildOplCodexAutoModelOption({
-          availableModels: model_info.available_models,
+          modelInfo: model_info,
           localeKey,
         })
       : null;
@@ -171,11 +171,11 @@ const AcpModelSelector: React.FC<{
   const handleReasoningSelect = useCallback(
     (value: string) => {
       if (!thoughtLevel || value === thoughtLevel.currentValue || isSettingReasoning) return;
-      void setConfigOption(thoughtLevel.id, value)
+      void selectReasoningEffort(value)
         .then(() => Message.success(t('agent.thoughtLevel.switchSuccess')))
         .catch((error) => Message.error(t(configErrorMessageKey(error))));
     },
-    [isSettingReasoning, setConfigOption, thoughtLevel, t]
+    [isSettingReasoning, selectReasoningEffort, thoughtLevel, t]
   );
   const handleAutoSelect = useCallback(() => {
     if (!model_info || isSettingReasoning) return;

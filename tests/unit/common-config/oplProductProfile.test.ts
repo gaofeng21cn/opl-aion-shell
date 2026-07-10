@@ -132,14 +132,20 @@ describe('OPL generated product profile', () => {
     expect(getOplCodexAutoModelPolicy()).toMatchObject({
       mode_default: 'auto',
       model_catalog_source: 'codex_cli_model_list',
+      catalog_response_models_field: 'data',
       catalog_default_model_field: 'isDefault',
       catalog_supported_reasoning_efforts_field: 'supportedReasoningEfforts',
+      catalog_supported_reasoning_effort_option_value_field: 'reasoningEffort',
+      catalog_pagination_request_cursor_field: 'cursor',
+      catalog_pagination_response_cursor_field: 'nextCursor',
+      catalog_pagination_completion_policy: 'exhaust_pages_until_next_cursor_is_null',
       unknown_default_model_policy: 'accept_catalog_default_even_when_not_in_frontier_model_preference_order',
       unknown_model_reasoning_effort_policy: 'highest_supported_reasoning_effort_from_catalog',
       catalog_unavailable_fallback: { model: 'gpt-5.6-sol', reasoning_effort: 'xhigh' },
       persistence_policy: {
         auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog',
         fixed: 'persist_selected_model_and_reasoning_effort',
+        reasoning_override_from_auto: 'pin_current_resolved_model_and_exit_auto',
       },
     });
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
@@ -158,7 +164,9 @@ describe('OPL generated product profile', () => {
       intelligence_enhancement_default_enabled: false,
       auto_option: {
         label_zh: '自动（推荐）',
-        description_zh: '当前 5.6 Sol · 推理超高 · 跟随最新最强',
+        description_zh: '跟随 Codex CLI 当前默认模型与 App 推理策略',
+        catalog_unavailable_fallback_model: 'gpt-5.6-sol',
+        catalog_unavailable_fallback_reasoning_effort: 'xhigh',
       },
       visible_models: [
         { id: 'gpt-5.6-sol', label_zh: '5.6 Sol' },
@@ -661,6 +669,25 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toEqual({ modelId: 'gpt-6', reasoningEffort: 'ultra' });
+  });
+
+  it('excludes a hidden unknown catalog default from Auto selection', () => {
+    expect(
+      resolveOplCodexAutoSelection({
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          {
+            id: 'gpt-6-preview',
+            label: 'GPT-6 Preview',
+            isDefault: true,
+            hidden: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'ultra' }],
+          },
+        ],
+      })
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
   });
 
   it('falls back to the App default when the Codex catalog is unavailable', () => {

@@ -101,12 +101,10 @@
           "id": "__auto",
           "label_zh": "自动（推荐）",
           "label_en": "Auto (recommended)",
-          "description_zh": "当前 5.6 Sol · 推理超高 · 跟随最新最强",
-          "description_en": "Current 5.6 Sol · Extra high reasoning · follows latest strongest",
-          "resolved_model": "gpt-5.6-sol",
-          "resolved_model_label_zh": "5.6 Sol",
-          "resolved_model_label_en": "5.6 Sol",
-          "resolved_reasoning_effort": "xhigh",
+          "description_zh": "跟随 Codex CLI 当前默认模型与 App 推理策略",
+          "description_en": "Follows the current Codex CLI default model and App reasoning policy",
+          "catalog_unavailable_fallback_model": "gpt-5.6-sol",
+          "catalog_unavailable_fallback_reasoning_effort": "xhigh",
           "follows_latest_strongest": true
         },
         "fixed_model_description_zh": "固定此模型",
@@ -704,9 +702,16 @@
       "authority": "one-person-lab-app",
       "mode_default": "auto",
       "model_catalog_source": "codex_cli_model_list",
+      "catalog_response_models_field": "data",
       "catalog_default_model_field": "isDefault",
       "catalog_supported_reasoning_efforts_field": "supportedReasoningEfforts",
+      "catalog_supported_reasoning_effort_option_value_field": "reasoningEffort",
       "catalog_reasoning_effort_order_policy": "last_advertised_supported_reasoning_effort_is_highest",
+      "catalog_pagination_request_cursor_field": "cursor",
+      "catalog_pagination_response_cursor_field": "nextCursor",
+      "catalog_pagination_completion_policy": "exhaust_pages_until_next_cursor_is_null",
+      "catalog_hidden_model_field": "hidden",
+      "catalog_hidden_model_policy": "exclude_hidden_models_from_auto_and_fixed_options",
       "frontier_model_preference_order_role": "known_model_fallback_and_fixed_option_preference_not_allowlist",
       "frontier_model_preference_order": [
         "gpt-5.6-sol",
@@ -729,7 +734,10 @@
       },
       "persistence_policy": {
         "auto": "persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog",
-        "fixed": "persist_selected_model_and_reasoning_effort"
+        "fixed": "persist_selected_model_and_reasoning_effort",
+        "state_encoding": "auto_has_no_model_snapshot_fixed_has_model_and_reasoning",
+        "reasoning_override_from_auto": "pin_current_resolved_model_and_exit_auto",
+        "stale_fixed_model": "preserve_fixed_selection_as_unavailable_until_user_restores_auto_or_selects_available_model"
       }
     },
     "opl_flow_context": {

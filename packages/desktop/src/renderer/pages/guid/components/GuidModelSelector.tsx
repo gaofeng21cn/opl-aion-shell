@@ -336,7 +336,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   if (currentAcpCachedModelInfo && currentAcpCachedModelInfo.available_models?.length > 0) {
     if (currentAcpCachedModelInfo.available_models.length > 0) {
       const autoModelDisplay = buildOplCodexAutoModelOption({
-        availableModels: currentAcpCachedModelInfo.available_models,
+        modelInfo: currentAcpCachedModelInfo,
         localeKey,
       });
       const effectiveModelId = selectedAcpModel ?? currentAcpCachedModelInfo.current_model_id;
