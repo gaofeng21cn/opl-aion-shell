@@ -9,14 +9,10 @@ import { Avatar, Button, Switch, Typography } from '@arco-design/web-react';
 import { Delete, EditTwo, Robot } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
+import { formatManagedAgentDiagnosticMessage, type ManagedAgent } from '@/renderer/utils/model/agentTypes';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
-type DetectedAgent = {
-  id: string;
-  agent_type: string;
-  backend?: string;
-  icon?: string;
-  name: string;
+type DetectedAgent = ManagedAgent & {
   custom_agent_id?: string;
   isExtension?: boolean;
   avatar?: string;
@@ -52,12 +48,32 @@ type AgentCardProps =
       onToggle: (enabled: boolean) => void;
     };
 
+const getManagedAgentStatus = (agent: ManagedAgent): { labelKey: string; className: string } => {
+  if (!agent.enabled) {
+    return { labelKey: 'settings.firstRun.status.disabled', className: 'text-t-secondary' };
+  }
+  if (!agent.installed || agent.status === 'missing') {
+    return { labelKey: 'settings.firstRun.status.missing', className: 'text-danger' };
+  }
+  if (agent.status === 'online') {
+    return { labelKey: 'settings.firstRun.status.ready', className: 'text-success' };
+  }
+  if (agent.status === 'offline') {
+    return { labelKey: 'settings.firstRun.status.attentionNeeded', className: 'text-warning' };
+  }
+  return { labelKey: 'settings.firstRun.status.unknown', className: 'text-t-secondary' };
+};
+
 const AgentCard: React.FC<AgentCardProps> = (props) => {
   const { t } = useTranslation();
   const goToChatButtonClassName = '!w-full !justify-center !rounded-10px !text-12px';
 
   if (props.type === 'detected') {
     const { agent, onTestConnection, isTesting } = props;
+    const status = getManagedAgentStatus(agent);
+    const diagnosticMessage = formatManagedAgentDiagnosticMessage(t, agent);
+    const guidance = agent.last_check_guidance?.trim();
+    const additionalGuidance = guidance && guidance !== diagnosticMessage ? guidance : '';
     const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);
     const logo =
       extensionAvatar ||
@@ -69,7 +85,7 @@ const AgentCard: React.FC<AgentCardProps> = (props) => {
       });
 
     return (
-      <div className='flex min-h-[154px] flex-col rounded-12px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] p-12px transition-colors hover:border-[var(--color-border-3)]'>
+      <div className='flex min-h-[184px] flex-col rounded-12px border border-solid border-[var(--color-border-2)] bg-[var(--color-bg-2)] p-12px transition-colors hover:border-[var(--color-border-3)]'>
         <div className='mb-10px flex justify-center'>
           <Avatar size={40} shape='square' style={{ flexShrink: 0, backgroundColor: 'transparent' }}>
             {logo ? <img src={logo} alt={agent.name} className='h-full w-full object-contain' /> : '🤖'}
@@ -80,9 +96,19 @@ const AgentCard: React.FC<AgentCardProps> = (props) => {
           <Typography.Text className='block text-13px font-medium leading-18px line-clamp-2'>
             {agent.name}
           </Typography.Text>
-          <Typography.Text className='mt-4px block text-11px text-t-secondary'>
-            {t('settings.agentManagement.detected')}
+          <Typography.Text className={`mt-4px block text-11px ${status.className}`}>
+            {t(status.labelKey)}
           </Typography.Text>
+          {diagnosticMessage && (
+            <Typography.Text className='mt-4px block text-11px leading-16px text-t-secondary line-clamp-2'>
+              {diagnosticMessage}
+            </Typography.Text>
+          )}
+          {additionalGuidance && (
+            <Typography.Text className='mt-4px block text-11px leading-16px text-warning line-clamp-2'>
+              {additionalGuidance}
+            </Typography.Text>
+          )}
         </div>
 
         <Button

@@ -5,7 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { ManagedAgent } from '@/renderer/utils/model/agentTypes';
+import { formatManagedAgentDiagnosticMessage, type ManagedAgent } from '@/renderer/utils/model/agentTypes';
 import AionModal from '@/renderer/components/base/AionModal';
 import { useManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
 import { Button, Message, Typography } from '@arco-design/web-react';
@@ -23,9 +23,13 @@ const LocalAgents: React.FC = () => {
 
   const { agents: allAgents, refreshCatalog } = useManagedAgents();
 
-  const detectedAgents = allAgents.filter(
+  const managedAgents = allAgents.filter(
     (a) => (a.agent_type === 'acp' || a.agent_type === 'aionrs') && a.agent_source !== 'custom'
   );
+  const detectedAgents = managedAgents.filter(
+    (agent) => agent.enabled && agent.installed && agent.status !== 'missing' && agent.status !== 'offline'
+  );
+  const unavailableAgents = managedAgents.filter((agent) => !detectedAgents.includes(agent));
 
   const customAgents: ManagedAgent[] = allAgents.filter((a) => a.agent_source === 'custom');
 
@@ -101,7 +105,7 @@ const LocalAgents: React.FC = () => {
         if (result.status === 'online') {
           Message.success(t('settings.testConnectionSuccess'));
         } else {
-          Message.warning(result.last_check_error_message || t('settings.testConnectionFailAcp'));
+          Message.warning(formatManagedAgentDiagnosticMessage(t, result) || t('settings.testConnectionFailAcp'));
         }
       } catch (error) {
         console.error('test managed agent failed:', error);
@@ -157,35 +161,57 @@ const LocalAgents: React.FC = () => {
         </div>
       )}
 
-      {/* Detected Agents section */}
-      <div className='px-16px mt-8px'>
-        <Typography.Text className='text-12px font-medium text-t-secondary mb-4px block'>
-          {t('settings.agentManagement.detected')}
-        </Typography.Text>
-      </div>
-      <div className='grid grid-cols-2 gap-10px px-16px md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
-        {aionrsAgent && (
-          <AgentCard
-            type='detected'
-            agent={aionrsAgent}
-            onTestConnection={() => void handleTestConnection(aionrsAgent.id)}
-            isTesting={testingAgentId === aionrsAgent.id}
-          />
+      <div data-testid='detected-agents-section'>
+        <div className='px-16px mt-8px'>
+          <Typography.Text className='text-12px font-medium text-t-secondary mb-4px block'>
+            {t('settings.agentManagement.detected')}
+          </Typography.Text>
+        </div>
+        <div className='grid grid-cols-2 gap-10px px-16px md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
+          {aionrsAgent && (
+            <AgentCard
+              type='detected'
+              agent={aionrsAgent}
+              onTestConnection={() => void handleTestConnection(aionrsAgent.id)}
+              isTesting={testingAgentId === aionrsAgent.id}
+            />
+          )}
+          {otherDetected.map((agent) => (
+            <AgentCard
+              key={agent.id}
+              type='detected'
+              agent={agent}
+              onTestConnection={() => void handleTestConnection(agent.id)}
+              isTesting={testingAgentId === agent.id}
+            />
+          ))}
+        </div>
+        {detectedAgents.length === 0 && (
+          <Typography.Text type='secondary' className='block px-16px py-16px text-center text-12px'>
+            {t('settings.agentManagement.localAgentsEmpty')}
+          </Typography.Text>
         )}
-        {otherDetected.map((agent) => (
-          <AgentCard
-            key={agent.backend || agent.agent_type}
-            type='detected'
-            agent={agent}
-            onTestConnection={() => void handleTestConnection(agent.id)}
-            isTesting={testingAgentId === agent.id}
-          />
-        ))}
       </div>
-      {(!detectedAgents || detectedAgents.length === 0) && (
-        <Typography.Text type='secondary' className='block px-16px py-16px text-center text-12px'>
-          {t('settings.agentManagement.localAgentsEmpty')}
-        </Typography.Text>
+
+      {unavailableAgents.length > 0 && (
+        <div data-testid='unavailable-agents-section'>
+          <div className='px-16px mt-16px'>
+            <Typography.Text className='text-12px font-medium text-t-secondary mb-4px block'>
+              {t('settings.firstRun.status.attentionNeeded')}
+            </Typography.Text>
+          </div>
+          <div className='grid grid-cols-2 gap-10px px-16px md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
+            {unavailableAgents.map((agent) => (
+              <AgentCard
+                key={agent.id}
+                type='detected'
+                agent={agent}
+                onTestConnection={() => void handleTestConnection(agent.id)}
+                isTesting={testingAgentId === agent.id}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Custom Agents section */}
