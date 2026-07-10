@@ -51,26 +51,33 @@
       "codex_default_model": "gpt-5.6-sol",
       "codex_default_reasoning_effort": "xhigh",
       "codex_default_permission_mode": "full-access",
-      "permission_mode_selector_visible": false,
+      "permission_mode_selector_visible": true,
       "conversation_backend_selector_visible": false,
       "conversation_model_selector_visible": true,
-      "conversation_permission_mode_selector_visible": false,
+      "conversation_permission_mode_selector_visible": true,
       "codex_home_model_status_label": "5.6 Sol",
       "codex_home_model_status_label_en": "5.6 Sol",
       "codex_precise_model_display_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
         "first_screen_policy": "chat_first_no_dashboard_or_landing_copy",
-        "composer_position": "pinned_bottom",
+        "composer_position": "floating_bottom_with_safe_inset",
         "composer_primary": true,
         "workspace_selector_visible": true,
         "purpose_entries_visible": ["research", "grant", "ppt", "book"],
-        "workspace_session_rail_default_state": "collapsed",
+        "purpose_entry_placement": "home_starters_and_capabilities_not_persistent_composer_selector",
+        "dynamic_question_title": true,
+        "starter_limit": 4,
+        "projectless_conversation_supported": true,
+        "text_chat_without_workspace": "available",
+        "workspace_session_rail_default_state": "visible_wide_drawer_narrow",
         "right_context_inspector_default_state": "collapsed",
         "must_not_show": [
           "dashboard-first home",
           "explanatory landing page",
           "backend settings panel in composer",
+          "Sites entry without an OPL product capability",
+          "Chat entry without an OPL product capability",
           "AionUI Team nav entry",
           "AionUI Team page as ordinary App surface"
         ]
@@ -305,57 +312,84 @@
     },
     "ordinary_conversation": {
       "path_id": "ordinary_codex_conversation",
-      "entry_source": "home_purpose_entry_or_new_conversation",
+      "entry_source": "home_starter_capabilities_project_task_or_projectless_new_conversation",
       "executor": "codex_cli",
-      "composer_position": "pinned_bottom",
-      "purpose_tag_visible": true,
+      "composer_position": "floating_bottom_with_safe_inset",
+      "active_capability_chip_visible": true,
+      "persistent_purpose_selector_visible": false,
       "agent_package_invocation_receipt_required": true,
       "assistant_route_receipt_required": true,
       "backend_selector_visible": false,
       "model_selector_visible": true,
-      "permission_mode_selector_visible": false,
+      "permission_mode_selector_visible": true,
+      "permission_mode_language_policy": "automation_and_file_access_in_user_language",
       "provider_selector_visible": false,
-      "model_status_surface": "gui.home.codex_home_model_status_label",
-      "technical_details_policy": "friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus"
+      "model_status_surface": "executor_policy.default_model_display_value",
+      "technical_details_policy": "single_compact_model_reasoning_menu_without_backend_or_provider",
+      "composer_context_strip": ["project", "local", "branch", "active_capability"],
+      "composer_bottom_action_row": [
+        "attach",
+        "context",
+        "permission_access_mode",
+        "model_reasoning",
+        "voice_optional",
+        "send_stop"
+      ],
+      "projectless_conversation_supported": true
     },
     "right_context_inspector": {
       "placement": "right",
+      "surface_kind": "resizable_side_panel",
       "default_state": "collapsed",
       "opens_on_user_request_only": true,
       "chat_canvas_remains_primary": true,
       "scope": "selected_workspace_and_conversation",
-      "tabs": [
+      "wide_desktop_mode": "resizable_split",
+      "primary_tools": [
+        {
+          "id": "review",
+          "label": "Review",
+          "authority": "review_receipt_refs_only"
+        },
+        {
+          "id": "terminal",
+          "label": "Terminal",
+          "authority": "shell_execution_surface_under_workspace_and_permission_policy"
+        },
+        {
+          "id": "browser",
+          "label": "Browser",
+          "authority": "shell_browser_surface_under_workspace_and_permission_policy"
+        },
         {
           "id": "files",
           "label": "Files",
           "authority": "workspace_refs_only"
-        },
+        }
+      ],
+      "secondary_sections": [
         {
-          "id": "capabilities",
-          "label": "Capabilities",
-          "authority": "app_packaged_skill_profiles"
+          "id": "artifacts",
+          "label": "Artifacts",
+          "authority": "artifact_refs_only_no_body"
         },
         {
           "id": "runtime",
-          "label": "Routing/runtime refs",
+          "label": "Runtime",
           "authority": "opl_app_state_refs_only"
+        },
+        {
+          "id": "actions",
+          "label": "Actions",
+          "authority": "app_action_receipt_refs"
         },
         {
           "id": "memory",
           "label": "Memory refs",
           "authority": "refs_only_no_memory_body_authority"
-        },
-        {
-          "id": "automations",
-          "label": "Always-On/Automations",
-          "authority": "app_state_action_refs"
-        },
-        {
-          "id": "settings",
-          "label": "Settings",
-          "authority": "app_owned_settings"
         }
       ],
+      "secondary_presentation": "sections_or_disclosures_not_equal_weight_tabs",
       "must_not_own": ["runtime truth", "domain truth", "artifact body", "memory body", "backend selection authority"]
     },
     "agent_package_invocation_receipt_policy": {
@@ -2602,8 +2636,8 @@
         "source_contract_ref": "contracts/app-gui-product-contract.json#settings_navigation.settings_ia",
         "page_state_matrix_ref": "contracts/app-page-state-matrix.json#pages",
         "visual_system": {
-          "style": "codex_app_quiet_workbench",
-          "card_policy": "few_cards_only_for_summary_or_repeated_entities",
+          "style": "opl_baseline_card_control_center",
+          "card_policy": "bounded_page_section_cards_with_flat_internal_rows",
           "nested_cards_allowed": false,
           "page_sections_as_floating_cards_allowed": false,
           "max_border_radius_px": 8,
