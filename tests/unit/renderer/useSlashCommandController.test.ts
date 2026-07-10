@@ -20,8 +20,8 @@ describe('useSlashCommandController helpers', () => {
     expect(getFuzzyMatchIndices('med-autoscience', 'auto')).toEqual([4, 5, 6, 7]);
     expect(getFuzzyMatchIndices('med-autoscience', 'official')).toBeNull();
 
-    expect(filterSlashCommands([command('open'), command('med-autoscience')], 'auto').map((item) => item.name)).toEqual([
-      'med-autoscience',
-    ]);
+    expect(filterSlashCommands([command('open'), command('med-autoscience')], 'auto').map((item) => item.name)).toEqual(
+      ['med-autoscience']
+    );
   });
 });

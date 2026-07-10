@@ -304,10 +304,10 @@ describe('runtime visualization projection normalization', () => {
         operator: {
           status: 'ready',
           workbench: {
-              runtime_scope: {
-                scope_source: 'inferred',
-                inferred_scope_hint: 'dm-cvd-mortality-risk',
-                current_scope: {
+            runtime_scope: {
+              scope_source: 'inferred',
+              inferred_scope_hint: 'dm-cvd-mortality-risk',
+              current_scope: {
                 kind: 'project',
                 id: 'project:medautoscience:dm-cvd-mortality-risk',
                 value: 'DM CVD Mortality Risk',

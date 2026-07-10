@@ -236,9 +236,7 @@ ipcMain.on('get-backend-startup-failure', (event) => {
 });
 
 ipcMain.handle('backend:recover-corrupted-database', async () => {
-  const { recoverCorruptedDatabaseAfterUserConfirmation } = await import(
-    './process/startup/recoverCorruptedDatabase'
-  );
+  const { recoverCorruptedDatabaseAfterUserConfirmation } = await import('./process/startup/recoverCorruptedDatabase');
 
   await recoverCorruptedDatabaseAfterUserConfirmation({
     getFailure: () => backendStartupFailureInfo,

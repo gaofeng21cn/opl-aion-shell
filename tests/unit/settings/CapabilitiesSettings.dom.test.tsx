@@ -658,7 +658,8 @@ describe('CapabilitiesSettingsContent', () => {
         actionId: 'refresh_registry',
         dryRun: false,
         payloadRefsOnlyJson: {
-          registry_url: 'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
+          registry_url:
+            'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json',
         },
       })
     );

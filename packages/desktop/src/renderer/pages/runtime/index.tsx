@@ -34,8 +34,7 @@ import { oplRecord, oplRecordList, oplString, useOplAppState } from '@/renderer/
 
 type RuntimeSnapshot = Record<string, unknown>;
 const RUNTIME_RUNNING_REFRESH_MS = 30_000;
-const TASK_ROW_GRID_TEMPLATE =
-  'minmax(220px, 1.35fr) minmax(112px, 0.62fr) minmax(164px, 0.9fr) minmax(128px, 0.62fr)';
+const TASK_ROW_GRID_TEMPLATE = 'minmax(220px, 1.35fr) minmax(112px, 0.62fr) minmax(164px, 0.9fr) minmax(128px, 0.62fr)';
 const TWO_LINE_CLAMP_STYLE: React.CSSProperties = {
   display: '-webkit-box',
   WebkitBoxOrient: 'vertical',
@@ -845,11 +844,7 @@ function humanizeProjectLabel(task: RuntimeTaskDrilldown): string {
 }
 
 function humanizeProjectContextLabel(task: RuntimeTaskDrilldown): string | null {
-  return (
-    titleCaseRuntimeTitle(task.projectDisplayName) ??
-    titleCaseRuntimeTitle(task.workspaceLabel) ??
-    null
-  );
+  return titleCaseRuntimeTitle(task.projectDisplayName) ?? titleCaseRuntimeTitle(task.workspaceLabel) ?? null;
 }
 
 function normalizedDisplayLabel(value: string | null | undefined): string | null {
@@ -1468,25 +1463,15 @@ function scopeMatchesTask(task: RuntimeTaskDrilldown, scope: RuntimeScopeOption 
       .some((value) => value === actorScopeValue);
   }
   if (scope.kind === 'workspace') {
-    const scopeCandidates = new Set([
-      scope.value,
-      scope.label,
-      scope.id,
-      scope.workspacePath,
-      pathLeaf(scope.workspacePath),
-    ].map(normalizeScopeToken));
+    const scopeCandidates = new Set(
+      [scope.value, scope.label, scope.id, scope.workspacePath, pathLeaf(scope.workspacePath)].map(normalizeScopeToken)
+    );
     return [task.workspaceId, task.workspaceLabel]
       .map(normalizeScopeToken)
       .some((value) => value && scopeCandidates.has(value));
   }
   if (scope.kind === 'project') {
-    return matches(
-      task.projectScopeId,
-      task.projectId,
-      task.projectDisplayName,
-      task.workspaceId,
-      task.workspaceLabel
-    );
+    return matches(task.projectScopeId, task.projectId, task.projectDisplayName, task.workspaceId, task.workspaceLabel);
   }
   return matches(task.taskId, task.title, task.workItemDisplayName, task.executionRunLabel);
 }

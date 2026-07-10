@@ -191,7 +191,11 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
           className='shrink-0'
           style={{ backgroundColor: logo ? 'transparent' : 'var(--color-fill-2)' }}
         >
-          {logo ? <img src={logo} alt='' className='h-full w-full object-contain' /> : <Robot theme='outline' size={14} />}
+          {logo ? (
+            <img src={logo} alt='' className='h-full w-full object-contain' />
+          ) : (
+            <Robot theme='outline' size={14} />
+          )}
         </Avatar>
         <span className='truncate'>{option.name}</span>
         {option.isExtension && (
