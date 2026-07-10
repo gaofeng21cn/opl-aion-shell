@@ -144,83 +144,6 @@ const extractThemePreviewPalette = (css: string, mode: 'light' | 'dark'): ThemeP
   };
 };
 
-const ThemeLayoutPreview: React.FC<{ palette: ThemePreviewPalette }> = ({ palette }) => {
-  return (
-    <div className='absolute inset-0 pointer-events-none'>
-      <div className='absolute inset-0' style={{ background: palette.appBg }} />
-      <div
-        className='absolute left-8px right-8px top-8px bottom-8px rounded-8px overflow-hidden border border-solid'
-        style={{ borderColor: palette.border, background: palette.mainBg }}
-      >
-        <div
-          className='h-14px border-b border-solid flex items-center px-6px gap-4px'
-          style={{ borderColor: palette.border, background: palette.headerBg }}
-        >
-          <span className='block w-5px h-5px rounded-full' style={{ background: palette.accent, opacity: 0.9 }}></span>
-          <span
-            className='block w-18px h-4px rounded-full'
-            style={{ background: palette.border, opacity: 0.45 }}
-          ></span>
-          <span
-            className='block w-12px h-4px rounded-full ml-auto'
-            style={{ background: palette.border, opacity: 0.45 }}
-          ></span>
-        </div>
-        <div style={{ height: 'calc(100% - 14px)', display: 'flex' }}>
-          <div
-            className='border-r border-solid px-3px py-3px flex flex-col gap-3px'
-            style={{ width: '23%', borderColor: palette.border, background: palette.sideBg }}
-          >
-            <span className='block h-3px rounded-full' style={{ background: palette.textMuted, opacity: 0.4 }}></span>
-            <span
-              className='block h-3px rounded-full w-4/5'
-              style={{ background: palette.textMuted, opacity: 0.33 }}
-            ></span>
-            <span
-              className='block h-3px rounded-full w-3/5'
-              style={{ background: palette.textMuted, opacity: 0.28 }}
-            ></span>
-          </div>
-          <div
-            className='border-r border-solid px-4px py-4px flex flex-col gap-4px'
-            style={{ width: '54%', borderColor: palette.border, background: palette.mainBg }}
-          >
-            <span
-              className='block h-6px rounded-[6px] w-4/5'
-              style={{ background: palette.aiBubble, opacity: 0.9 }}
-            ></span>
-            <span
-              className='block h-6px rounded-[6px] w-3/5 self-end'
-              style={{ background: palette.userBubble, opacity: 0.95 }}
-            ></span>
-            <span
-              className='block h-6px rounded-[6px] w-2/3'
-              style={{ background: palette.aiBubble, opacity: 0.82 }}
-            ></span>
-          </div>
-          <div className='px-3px py-3px flex flex-col gap-3px' style={{ width: '23%', background: palette.sideBg }}>
-            <span className='block h-3px rounded-full' style={{ background: palette.textMuted, opacity: 0.36 }}></span>
-            <span
-              className='block h-3px rounded-full w-5/6'
-              style={{ background: palette.textMuted, opacity: 0.3 }}
-            ></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/** Diagonal split preview for the "Follow System" card: light top-left, dark bottom-right. */
-const SystemThemePreview: React.FC = () => (
-  <div className='absolute inset-0 pointer-events-none'>
-    <ThemeLayoutPreview palette={fallbackThemePreviewPaletteByMode.light} />
-    <div className='absolute inset-0' style={{ clipPath: 'polygon(100% 0, 100% 100%, 0 100%)' }}>
-      <ThemeLayoutPreview palette={fallbackThemePreviewPaletteByMode.dark} />
-    </div>
-  </div>
-);
-
 const ensureBackgroundCss = <T extends { id?: string; cover?: string; css?: string; builtin?: boolean }>(
   theme: T
 ): T => {
@@ -244,7 +167,6 @@ const CssThemeSettings: React.FC = () => {
   const [themes, setThemes] = useState<Theme[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Theme | null>(null);
-  const [hoveredThemeId, setHoveredThemeId] = useState<string | null>(null);
 
   const activeThemeId = activeId ?? activeTheme?.id ?? DEFAULT_THEME_ID;
 
@@ -451,9 +373,12 @@ const CssThemeSettings: React.FC = () => {
         </Button>
       </div>
 
-      {/* 主题卡片列表 / Theme card list */}
+      {/* 主题色板列表 / Theme swatch list */}
       <div
-        className='grid w-full gap-12px'
+        className='grid w-full gap-x-16px gap-y-8px'
+        data-testid='css-theme-option-list'
+        data-layout='flat-swatch-list'
+        role='list'
         style={{
           gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
         }}
@@ -462,49 +387,71 @@ const CssThemeSettings: React.FC = () => {
           const previewPalette =
             themePreviewPalettes.get(theme.id) ||
             fallbackThemePreviewPaletteByMode[currentTheme === 'dark' ? 'dark' : 'light'];
-          const cardStyle = theme.cover
+          const swatchStyle = theme.cover
             ? {
                 backgroundImage: `url(${theme.cover})`,
-                backgroundSize: '100% 100%',
+                backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
                 backgroundColor: previewPalette.appBg,
               }
             : { backgroundColor: previewPalette.appBg };
           return (
-            <div
-              key={theme.id}
-              className={`relative cursor-pointer rounded-12px overflow-hidden border-2 transition-all duration-200 h-112px w-full ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-transparent hover:border-border-2'}`}
-              style={cardStyle}
-              onClick={() => handleSelectTheme(theme)}
-              onMouseEnter={() => setHoveredThemeId(theme.id)}
-              onMouseLeave={() => setHoveredThemeId(null)}
-            >
-              {theme.id === SYSTEM_THEME_ID ? (
-                <SystemThemePreview />
-              ) : (
-                !theme.cover && <ThemeLayoutPreview palette={previewPalette} />
-              )}
-
-              {/* 底部渐变遮罩与名称、编辑按钮 / Bottom gradient overlay with name and edit button */}
-              <div className='absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between p-8px'>
-                <span className='text-13px text-white truncate flex-1'>{theme.name}</span>
-                {/* 编辑按钮（仅用户主题） / Edit button (user themes only) */}
-                {hoveredThemeId === theme.id && !theme.builtin && (
-                  <div
-                    className='p-4px rounded-6px bg-white/20 cursor-pointer hover:bg-white/40 transition-colors ml-8px'
-                    onClick={(e) => handleEditTheme(theme, e)}
-                  >
-                    <EditTwo theme='outline' size='16' fill='#fff' />
-                  </div>
+            <div key={theme.id} className='flex min-w-0 items-center gap-8px py-4px' role='listitem'>
+              <button
+                type='button'
+                className={`relative h-40px w-56px shrink-0 overflow-hidden rounded-8px border-2 border-solid transition-colors ${activeThemeId === theme.id ? 'border-[var(--color-primary)]' : 'border-border-2 hover:border-[var(--color-primary)]'}`}
+                style={swatchStyle}
+                aria-label={theme.name}
+                aria-pressed={activeThemeId === theme.id}
+                title={theme.name}
+                data-testid='css-theme-option'
+                data-theme-option-surface='swatch'
+                onClick={() => handleSelectTheme(theme)}
+              >
+                {theme.id === SYSTEM_THEME_ID ? (
+                  <>
+                    <span
+                      className='absolute inset-y-0 left-0 w-1/2'
+                      style={{ background: fallbackThemePreviewPaletteByMode.light.appBg }}
+                    />
+                    <span
+                      className='absolute inset-y-0 right-0 w-1/2'
+                      style={{ background: fallbackThemePreviewPaletteByMode.dark.appBg }}
+                    />
+                  </>
+                ) : (
+                  !theme.cover && (
+                    <>
+                      <span
+                        className='absolute inset-5px rounded-4px border border-solid'
+                        style={{ background: previewPalette.mainBg, borderColor: previewPalette.border }}
+                      />
+                      <span
+                        className='absolute bottom-7px left-8px h-4px w-20px rounded-full'
+                        style={{ background: previewPalette.accent }}
+                      />
+                    </>
+                  )
                 )}
-              </div>
-
-              {/* 选中标记 / Selected indicator */}
-              {activeThemeId === theme.id && (
-                <div className='absolute top-8px right-8px'>
-                  <CheckOne theme='filled' size='20' fill='var(--color-primary)' />
-                </div>
+                {activeThemeId === theme.id && (
+                  <span className='absolute right-3px top-3px'>
+                    <CheckOne theme='filled' size='14' fill='var(--color-primary)' />
+                  </span>
+                )}
+              </button>
+              <span className='min-w-0 flex-1 truncate text-13px text-t-primary' title={theme.name}>
+                {theme.name}
+              </span>
+              {!theme.builtin && (
+                <Button
+                  type='text'
+                  size='mini'
+                  icon={<EditTwo theme='outline' size='16' />}
+                  aria-label={t('common.edit')}
+                  title={t('common.edit')}
+                  onClick={(event) => handleEditTheme(theme, event)}
+                />
               )}
             </div>
           );

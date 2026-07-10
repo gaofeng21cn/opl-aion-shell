@@ -13,6 +13,7 @@ type AccessSettingsTestMocks = {
   codexDefaultProfileModel: string | null;
   codexStatus: string;
   modelAccessReady: boolean;
+  appStateAvailable: boolean;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
@@ -24,6 +25,7 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   codexDefaultProfileModel: 'gpt-5.4',
   codexStatus: 'ready',
   modelAccessReady: true,
+  appStateAvailable: true,
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -193,122 +195,124 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplString: (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null),
   useOplAppState: () => {
     return {
-      appState: {
-        core: {
-          codex: {
-            status: accessSettingsMocks.codexStatus,
-            default_model: accessSettingsMocks.codexDefaultModel,
-            model: accessSettingsMocks.codexModel,
-            default_profile: {
-              model: accessSettingsMocks.codexDefaultProfileModel,
-            },
-            version: '0.125.0',
-            binary_path: '/usr/local/bin/codex',
-            model_access_ready: accessSettingsMocks.modelAccessReady,
-            model_access_source: 'opl_gateway',
-            opl_gateway_configured: true,
-            config: {
-              api_key_present: true,
-            },
-          },
-          executor: {
-            permission_mode: 'full_auto',
-          },
-        },
-        provider: {
-          provider_kind: 'temporal',
-          health_status: 'ready',
-          temporal: {
-            status: 'ready',
-            details: {
-              address: '127.0.0.1:7233',
-            },
-          },
-        },
-        settings_control_center: {
-          app_settings_read_model: {
-            docker_webui: {
-              ordinary_status: 'action_available',
-              runtime_proxy: {
-                status: 'diagnose_with_doctor',
+      appState: accessSettingsMocks.appStateAvailable
+        ? {
+            core: {
+              codex: {
+                status: accessSettingsMocks.codexStatus,
+                default_model: accessSettingsMocks.codexDefaultModel,
+                model: accessSettingsMocks.codexModel,
+                default_profile: {
+                  model: accessSettingsMocks.codexDefaultProfileModel,
+                },
+                version: '0.125.0',
+                binary_path: '/usr/local/bin/codex',
+                model_access_ready: accessSettingsMocks.modelAccessReady,
+                model_access_source: 'opl_gateway',
+                opl_gateway_configured: true,
+                config: {
+                  api_key_present: true,
+                },
               },
-              failure_recovery: {
-                status: 'available',
+              executor: {
+                permission_mode: 'full_auto',
               },
-              ordinary_next_actions: [
-                {
-                  action_id: 'settings_install_docker_webui',
-                  label: 'Install Docker WebUI',
-                  state: 'ready',
-                  route: 'opl app action execute --action settings_install_docker_webui',
-                  dry_run_route: 'opl app action execute --action settings_install_docker_webui --dry-run',
-                  payload_required: false,
-                  confirmation_required: true,
-                  danger_level: 'medium',
-                },
-                {
-                  action_id: 'settings_select_webui_seed',
-                  label: 'Select WebUI image seed',
-                  state: 'ready',
-                  route: 'opl app action execute --action settings_select_webui_seed',
-                  dry_run_route: 'opl app action execute --action settings_select_webui_seed --dry-run',
-                  payload_required: true,
-                  confirmation_required: true,
-                  danger_level: 'medium',
-                },
-                {
-                  action_id: 'settings_diagnose_docker_webui',
-                  label: 'Diagnose Docker WebUI',
-                  state: 'ready',
-                  route: 'opl app action execute --action settings_diagnose_docker_webui',
-                  dry_run_route: 'opl app action execute --action settings_diagnose_docker_webui --dry-run',
-                  payload_required: false,
-                  confirmation_required: false,
-                  danger_level: 'none',
-                },
-              ],
             },
-            resource_sources: {
-              cloud_remote_access: {
+            provider: {
+              provider_kind: 'temporal',
+              health_status: 'ready',
+              temporal: {
                 status: 'ready',
-                resource_source_refs: ['opl://resource-source/cloud-remote-access'],
-              },
-              opl_gateway: {
-                status: 'available',
-                gateway_status_ref: 'opl://gateway/status',
-                key_status_ref: 'opl://gateway/key/gflabtoken',
-                provider_policy_ref: 'opl://gateway/policy/provider-routing',
-              },
-              opl_workspace: {
-                status: 'ready',
-                environment_ref: 'opl://environment/default',
-                storage_ref: 'opl://storage/default',
-              },
-              opl_fabric: {
-                status: 'refs_only',
-                resource_source_ref: 'opl://fabric/resource-source',
-              },
-              cloud_compute: {
-                status: 'available',
-                resource_source_ref: 'opl://resource-source/opl-cloud/managed-compute',
-                console_managed: true,
-                console_policy_ref: 'opl://console/policy/compute',
-                quota_ref: 'opl://console/quota/compute',
-                billing_ref: 'opl://console/billing/project',
-                permission_ref: 'opl://console/permission/workspace',
-                environment_template_ref: 'opl://environment-template/python-r-quarto',
-                environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
-                task_applicability_ref: 'opl://task-applicability/mas',
-              },
-              user_hpc: {
-                status: 'available',
-                resource_source_ref: 'opl://resource-source/ssh-hpc/lab',
-                user_provided: true,
+                details: {
+                  address: '127.0.0.1:7233',
+                },
               },
             },
-          },
-        },
-      },
+            settings_control_center: {
+              app_settings_read_model: {
+                docker_webui: {
+                  ordinary_status: 'action_available',
+                  runtime_proxy: {
+                    status: 'diagnose_with_doctor',
+                  },
+                  failure_recovery: {
+                    status: 'available',
+                  },
+                  ordinary_next_actions: [
+                    {
+                      action_id: 'settings_install_docker_webui',
+                      label: 'Install Docker WebUI',
+                      state: 'ready',
+                      route: 'opl app action execute --action settings_install_docker_webui',
+                      dry_run_route: 'opl app action execute --action settings_install_docker_webui --dry-run',
+                      payload_required: false,
+                      confirmation_required: true,
+                      danger_level: 'medium',
+                    },
+                    {
+                      action_id: 'settings_select_webui_seed',
+                      label: 'Select WebUI image seed',
+                      state: 'ready',
+                      route: 'opl app action execute --action settings_select_webui_seed',
+                      dry_run_route: 'opl app action execute --action settings_select_webui_seed --dry-run',
+                      payload_required: true,
+                      confirmation_required: true,
+                      danger_level: 'medium',
+                    },
+                    {
+                      action_id: 'settings_diagnose_docker_webui',
+                      label: 'Diagnose Docker WebUI',
+                      state: 'ready',
+                      route: 'opl app action execute --action settings_diagnose_docker_webui',
+                      dry_run_route: 'opl app action execute --action settings_diagnose_docker_webui --dry-run',
+                      payload_required: false,
+                      confirmation_required: false,
+                      danger_level: 'none',
+                    },
+                  ],
+                },
+                resource_sources: {
+                  cloud_remote_access: {
+                    status: 'ready',
+                    resource_source_refs: ['opl://resource-source/cloud-remote-access'],
+                  },
+                  opl_gateway: {
+                    status: 'available',
+                    gateway_status_ref: 'opl://gateway/status',
+                    key_status_ref: 'opl://gateway/key/gflabtoken',
+                    provider_policy_ref: 'opl://gateway/policy/provider-routing',
+                  },
+                  opl_workspace: {
+                    status: 'ready',
+                    environment_ref: 'opl://environment/default',
+                    storage_ref: 'opl://storage/default',
+                  },
+                  opl_fabric: {
+                    status: 'refs_only',
+                    resource_source_ref: 'opl://fabric/resource-source',
+                  },
+                  cloud_compute: {
+                    status: 'available',
+                    resource_source_ref: 'opl://resource-source/opl-cloud/managed-compute',
+                    console_managed: true,
+                    console_policy_ref: 'opl://console/policy/compute',
+                    quota_ref: 'opl://console/quota/compute',
+                    billing_ref: 'opl://console/billing/project',
+                    permission_ref: 'opl://console/permission/workspace',
+                    environment_template_ref: 'opl://environment-template/python-r-quarto',
+                    environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
+                    task_applicability_ref: 'opl://task-applicability/mas',
+                  },
+                  user_hpc: {
+                    status: 'available',
+                    resource_source_ref: 'opl://resource-source/ssh-hpc/lab',
+                    user_provided: true,
+                  },
+                },
+              },
+            },
+          }
+        : {},
       load: accessSettingsMocks.load,
       refreshing: false,
     };
@@ -442,6 +446,7 @@ describe('AccessSettingsContent', () => {
     mocks.codexDefaultProfileModel = 'gpt-5.4';
     mocks.codexStatus = 'ready';
     mocks.modelAccessReady = true;
+    mocks.appStateAvailable = true;
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
@@ -524,6 +529,18 @@ describe('AccessSettingsContent', () => {
     render(<AccessSettingsContent />);
 
     expect(document.body.textContent).toContain('Default model: No default model was found in Codex config');
+  });
+
+  it('keeps unread model access neutral instead of presenting it as an exception', () => {
+    const mocks = getMocks();
+    mocks.appStateAvailable = false;
+
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.getByTestId('settings-access-model-status')).toHaveTextContent('Not read');
+    expect(view.getByTestId('settings-access-model-status')).not.toHaveClass('opl-settings-status--attention');
+    expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
+    expect(view.queryByTestId('settings-access-exception')).toBeNull();
   });
 
   it('does not promote OPL Gateway configuration when only Codex CLI needs attention', () => {

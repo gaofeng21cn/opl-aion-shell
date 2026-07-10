@@ -13,7 +13,7 @@ export type StatusCard = {
   statusLabel?: string;
   detail: string;
   help?: string;
-  tone: 'green' | 'orange';
+  tone: 'green' | 'orange' | 'neutral';
 };
 
 export type DockerWebuiAction = {
@@ -326,6 +326,7 @@ export function buildAccessProjection(
   const codex = oplRecord(core.codex);
   const codexConfig = oplRecord(codex.config);
   const codexDefaultProfile = oplRecord(codex.default_profile);
+  const codexStateAvailable = Object.keys(codex).length > 0;
 
   const codexStatus = normalizeAccessStatus(
     oplString(codex.status) ?? (oplString(codex.version) ? 'ready' : null),
@@ -344,11 +345,13 @@ export function buildAccessProjection(
     oplString(codexDefaultProfile.model) ??
     oplString(codexConfig.model) ??
     modelFallback;
-  const accountStatus = oplGatewayConfigured
-    ? t('settings.accessPage.cards.account.oplGatewayConfigured')
-    : modelAccessReady
-      ? t('settings.accessPage.cards.account.existingCodexConfigured')
-      : t('settings.accessPage.cards.account.missing');
+  const accountStatus = !codexStateAvailable
+    ? t('settings.accessPage.statusLabels.unknown')
+    : oplGatewayConfigured
+      ? t('settings.accessPage.cards.account.oplGatewayConfigured')
+      : modelAccessReady
+        ? t('settings.accessPage.cards.account.existingCodexConfigured')
+        : t('settings.accessPage.cards.account.missing');
   const accountSourceLabel = modelAccessSourceLabel(modelAccessSource, t);
   const modelLine = t('settings.accessPage.cards.codexCli.model', { model: modelName });
   const codexVersionLine = oplString(codex.version)
@@ -361,15 +364,15 @@ export function buildAccessProjection(
       title: t('settings.accessPage.cards.codexCli.title'),
       status: codexStatus,
       detail: compactAccessDetail([codexVersionLine, modelLine], modelFallback),
-      tone: codexStatus === 'ready' ? 'green' : 'orange',
+      tone: codexStatus === 'ready' ? 'green' : codexStatus === 'unknown' ? 'neutral' : 'orange',
     },
     {
       key: 'account',
       title: t('settings.accessPage.cards.account.title'),
-      status: modelAccessReady ? 'ready' : 'attention_required',
+      status: !codexStateAvailable ? 'unknown' : modelAccessReady ? 'ready' : 'attention_required',
       statusLabel: accountStatus,
       detail: compactAccessDetail([accountStatus, accountSourceLabel], accountStatus),
-      tone: modelAccessReady ? 'green' : 'orange',
+      tone: !codexStateAvailable ? 'neutral' : modelAccessReady ? 'green' : 'orange',
     },
   ];
 

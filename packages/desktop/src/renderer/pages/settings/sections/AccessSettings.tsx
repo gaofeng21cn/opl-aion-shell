@@ -50,6 +50,12 @@ export const AccessSettingsContent: React.FC = () => {
       : modelAccessNeedsAttention
         ? t('settings.accessPage.statusLabels.needsAttention')
         : t('settings.accessPage.statusLabels.unknown');
+  const modelAccessStatusModifier =
+    modelAccessCard?.tone === 'green'
+      ? 'opl-settings-status--ready'
+      : modelAccessCard?.tone === 'orange'
+        ? 'opl-settings-status--attention'
+        : '';
   const modelAccessSource = modelAccessCard
     ? splitAccessDetail(modelAccessCard.detail).find((line) => line !== modelAccessStatus)
     : null;
@@ -116,7 +122,8 @@ export const AccessSettingsContent: React.FC = () => {
             </div>
             <div className='opl-settings-row__meta'>
               <span
-                className={`opl-settings-status ${modelAccessCard?.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+                className={`opl-settings-status ${modelAccessStatusModifier}`.trim()}
+                data-testid='settings-access-model-status'
               >
                 {modelAccessCompactStatus}
               </span>

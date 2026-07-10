@@ -58,11 +58,20 @@ type ManifestCoverageGap = {
   selector?: string;
 };
 
-const gitCommit = () =>
-  execSync('git rev-parse HEAD', {
-    cwd: path.resolve(__dirname, '..', '..', '..'),
+const gitCommit = () => {
+  const cwd = path.resolve(__dirname, '..', '..', '..');
+  const dirty = execSync('git status --porcelain --untracked-files=no', {
+    cwd,
     encoding: 'utf8',
   }).trim();
+  if (dirty) {
+    throw new Error(`Settings visual evidence requires a clean tracked worktree:\n${dirty}`);
+  }
+  return execSync('git rev-parse HEAD', {
+    cwd,
+    encoding: 'utf8',
+  }).trim();
+};
 
 const anchor = (id: string, selector: string, required = true): SettingsVisualAnchor => ({
   id,
@@ -124,6 +133,12 @@ const coverageGapsFor = (
 };
 
 const openCompatibilityTarget = async (page: import('@playwright/test').Page, target: SettingsCompatibilityTarget) => {
+  const searchInput = page
+    .locator('[data-testid="settings-search-input"] input, input[data-testid="settings-search-input"]')
+    .first();
+  if (await searchInput.isVisible().catch(() => false)) {
+    await searchInput.fill('');
+  }
   await page.evaluate((source) => window.location.assign(`#/settings/${source}`), target.source);
   await page.waitForFunction(
     ({ route, section }) =>
