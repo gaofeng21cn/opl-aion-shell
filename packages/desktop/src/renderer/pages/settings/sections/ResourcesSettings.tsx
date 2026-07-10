@@ -5,11 +5,13 @@
  */
 
 import React, { useState } from 'react';
-import { Button, Message, Tag, Tooltip, Typography } from '@arco-design/web-react';
+import { Alert, Button, Message, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { LinkCloud, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { openExternalUrl } from '@/renderer/utils/platform';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   buildAccessProjection,
@@ -68,10 +70,19 @@ function resourceReadinessColor(readiness: ResourceReadiness): 'orange' | 'gray'
   return readiness === 'notConfigured' ? 'orange' : 'gray';
 }
 
-function dockerActionKind(action: DockerWebuiAction): 'open' | 'check' | 'configure' | 'other' {
+function dockerBrowserUrl(result: OplCommandResult): string | null {
+  const parsed = oplRecord(result.parsed);
+  const execution = oplRecord(parsed.app_action_execution ?? parsed);
+  const actionResult = oplRecord(execution.result);
+  const browserEntry = oplRecord(actionResult.docker_webui_browser_entry);
+  return oplString(browserEntry.browser_url);
+}
+
+function dockerActionKind(action: DockerWebuiAction): 'open' | 'check' | 'modelAccess' | 'configure' | 'other' {
   const actionId = action.actionId.toLowerCase();
   if (actionId.includes('open')) return 'open';
-  if (actionId.includes('diagnose') || actionId.includes('startup')) return 'check';
+  if (actionId.includes('diagnose')) return 'check';
+  if (actionId.includes('configure_webui_api_key')) return 'modelAccess';
   if (actionId.includes('install') || actionId.includes('configure') || actionId.includes('select')) {
     return 'configure';
   }
@@ -85,6 +96,7 @@ function dockerActionCtaLabel(
   const kind = dockerActionKind(action);
   if (kind === 'open') return t('settings.resourcesPage.docker.openResource');
   if (kind === 'check') return t('settings.resourcesPage.docker.recheck');
+  if (kind === 'modelAccess') return t('settings.resourcesPage.docker.openModelAccess');
   if (kind === 'configure') return t('settings.resourcesPage.docker.prepareEnvironment');
   return t('settings.resourcesPage.docker.runDryRoute');
 }
@@ -94,10 +106,10 @@ function preferredDockerAction(actions: DockerWebuiAction[], readiness: Resource
   const candidates = runnable.length > 0 ? runnable : actions;
   const priority =
     readiness === 'ready'
-      ? { open: 0, check: 1, configure: 2, other: 3 }
+      ? { open: 0, check: 1, modelAccess: 2, configure: 3, other: 4 }
       : readiness === 'notConfigured'
-        ? { configure: 0, check: 1, open: 2, other: 3 }
-        : { check: 0, configure: 1, open: 2, other: 3 };
+        ? { configure: 0, modelAccess: 1, check: 2, open: 3, other: 4 }
+        : { check: 0, modelAccess: 1, configure: 2, open: 3, other: 4 };
   return (
     candidates.toSorted((left, right) => priority[dockerActionKind(left)] - priority[dockerActionKind(right)])[0] ??
     null
@@ -106,28 +118,76 @@ function preferredDockerAction(actions: DockerWebuiAction[], readiness: Resource
 
 export const ResourcesSettingsContent: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [pendingDockerAction, setPendingDockerAction] = useState<DockerWebuiAction | null>(null);
   const { dockerWebui, resourceSources } = buildAccessProjection(appStateQuery.appState, t);
   const workspaceSources = resourceSources.filter((source) => source.category === 'oplWorkspace');
   const externalSources = resourceSources.filter((source) => source.category !== 'oplWorkspace');
   const dockerReadiness = dockerResourceReadiness(dockerWebui);
-  const primaryDockerAction = preferredDockerAction(dockerWebui.actions, dockerReadiness);
-  const secondaryDockerActions = dockerWebui.actions.filter((action) => action !== primaryDockerAction);
+  const actionableDockerActions = dockerWebui.actions.filter((action) => !action.payloadRequired);
+  const primaryDockerAction = preferredDockerAction(actionableDockerActions, dockerReadiness);
+  const secondaryDockerActions = actionableDockerActions.filter((action) => action !== primaryDockerAction);
 
   const handleDockerAction = async (action: DockerWebuiAction) => {
     if (action.payloadRequired) return;
+    const kind = dockerActionKind(action);
+    if (kind === 'modelAccess') {
+      void navigate('/settings/access#opl-gateway');
+      return;
+    }
     setRunningActionId(action.actionId);
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId: action.actionId,
-        dryRun: true,
+        dryRun: kind !== 'open' && kind !== 'check',
       });
       assertOplCommandOk(result);
-      Message.success(t('settings.resourcesPage.docker.actionDryRunSuccess'));
+      if (kind === 'open') {
+        const url = dockerBrowserUrl(result);
+        if (!url) throw new Error('Docker WebUI browser URL is unavailable');
+        await openExternalUrl(url);
+        Message.success(t('settings.resourcesPage.docker.openSuccess'));
+      } else if (kind === 'check') {
+        Message.success(t('settings.resourcesPage.docker.checkSuccess'));
+      } else {
+        setPendingDockerAction(action);
+        Message.success(t('settings.resourcesPage.docker.actionDryRunSuccess'));
+      }
+      if (kind === 'open' || kind === 'check') {
+        await appStateQuery.load('fast', { showRefreshing: true });
+      }
+    } catch {
+      Message.error(
+        t(
+          kind === 'open'
+            ? 'settings.resourcesPage.docker.openFailed'
+            : kind === 'check'
+              ? 'settings.resourcesPage.docker.checkFailed'
+              : 'settings.resourcesPage.docker.actionDryRunFailed'
+        )
+      );
+    } finally {
+      setRunningActionId(null);
+    }
+  };
+
+  const executePendingDockerAction = async () => {
+    if (!pendingDockerAction) return;
+    const action = pendingDockerAction;
+    setRunningActionId(action.actionId);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: action.actionId,
+        dryRun: false,
+      });
+      assertOplCommandOk(result);
+      setPendingDockerAction(null);
+      Message.success(t('settings.resourcesPage.docker.actionExecuteSuccess'));
       await appStateQuery.load('fast', { showRefreshing: true });
     } catch {
-      Message.error(t('settings.resourcesPage.docker.actionDryRunFailed'));
+      Message.error(t('settings.resourcesPage.docker.actionExecuteFailed'));
     } finally {
       setRunningActionId(null);
     }
@@ -144,7 +204,7 @@ export const ResourcesSettingsContent: React.FC = () => {
         </div>
       </header>
 
-      <section className='opl-settings-section' data-testid='opl-settings-server-webui'>
+      <section className='opl-settings-section' id='resource-readiness' data-testid='opl-settings-server-webui'>
         <div className='opl-settings-section__header'>
           <div>
             <Typography.Text className='block font-600 text-t-primary'>
@@ -160,7 +220,7 @@ export const ResourcesSettingsContent: React.FC = () => {
         </div>
 
         <div className='opl-settings-list'>
-          <div className='opl-settings-row'>
+          <div className='opl-settings-row' id='action-readiness'>
             <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
               <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
                 <Toolkit theme='outline' />
@@ -196,6 +256,40 @@ export const ResourcesSettingsContent: React.FC = () => {
           </div>
         </div>
 
+        {pendingDockerAction && (
+          <Alert
+            type='warning'
+            title={t('settings.resourcesPage.docker.confirmTitle')}
+            data-testid='opl-settings-docker-webui-confirmation'
+            content={
+              <div className='flex flex-col gap-8px'>
+                <span className='break-words'>
+                  {t('settings.resourcesPage.docker.confirmDescription', {
+                    action: t(`settings.resourcesPage.docker.actions.${pendingDockerAction.actionId}`, {
+                      defaultValue: pendingDockerAction.label,
+                    }),
+                  })}
+                </span>
+                <span className='text-12px text-t-secondary'>{t('settings.resourcesPage.docker.confirmBoundary')}</span>
+                <Space wrap size='small'>
+                  <Button size='small' onClick={() => setPendingDockerAction(null)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size='small'
+                    type='primary'
+                    loading={runningActionId === pendingDockerAction.actionId}
+                    onClick={() => void executePendingDockerAction()}
+                    data-testid='opl-settings-docker-webui-confirm'
+                  >
+                    {t('settings.resourcesPage.docker.confirmAction')}
+                  </Button>
+                </Space>
+              </div>
+            }
+          />
+        )}
+
         {secondaryDockerActions.length > 0 && (
           <DockerMoreActions
             actions={secondaryDockerActions}
@@ -206,7 +300,7 @@ export const ResourcesSettingsContent: React.FC = () => {
       </section>
 
       {resourceSources.length === 0 ? (
-        <section className='opl-settings-section'>
+        <section className='opl-settings-section' id='external-resources'>
           <div className='opl-settings-empty' data-testid='opl-settings-resource-sources-empty'>
             <LinkCloud theme='outline' />
             <Typography.Text className='block font-600 text-t-primary'>
@@ -229,7 +323,7 @@ export const ResourcesSettingsContent: React.FC = () => {
         </section>
       ) : (
         <>
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='workspace-resources'>
             <div className='opl-settings-section__header'>
               <div>
                 <Typography.Text className='block font-600 text-t-primary'>
@@ -248,7 +342,7 @@ export const ResourcesSettingsContent: React.FC = () => {
             />
           </section>
 
-          <section className='opl-settings-section'>
+          <section className='opl-settings-section' id='external-resources'>
             <div className='opl-settings-section__header'>
               <div>
                 <Typography.Text className='block font-600 text-t-primary'>

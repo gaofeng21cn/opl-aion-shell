@@ -7,9 +7,10 @@
 import { Button, Input, Message, Modal, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
 import { Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
+import AssistantSettings from './AssistantSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
@@ -35,9 +36,10 @@ import {
   formatCapabilityDisplayToken,
 } from './capabilitiesProjection';
 
-export type CapabilitiesTab = 'skills' | 'tools';
+export type CapabilitiesTab = 'skills' | 'tools' | 'assistants';
 
-const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab => value === 'skills' || value === 'tools';
+const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
+  value === 'skills' || value === 'tools' || value === 'assistants';
 const DEFAULT_AGENT_REGISTRY_URL =
   'https://raw.githubusercontent.com/gaofeng21cn/one-person-lab-app/main/contracts/agent-package-registry.json';
 
@@ -611,7 +613,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         </div>
       </header>
 
-      <section className='opl-settings-section' data-testid='agent-package-catalog'>
+      <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
+        <span id='source' aria-hidden='true' />
+        <span id='home-visibility' aria-hidden='true' />
         <div className='opl-settings-section__header'>
           <div>
             <Typography.Text className='block font-600 text-t-primary'>
@@ -1007,7 +1011,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
         </details>
       </section>
 
-      <section className='opl-settings-section'>
+      <section className='opl-settings-section' id='custom-assistants'>
         <details
           className='opl-settings-details'
           open={supportingSurfaceOpen}
@@ -1017,7 +1021,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           <summary className='cursor-pointer'>
             <Typography.Text className='font-600 text-t-primary'>
               {t('settings.capabilitiesPage.supporting.compactTitle', {
-                defaultValue: 'Skills and external tools',
+                defaultValue: 'Skills, tools, and assistants',
               })}
             </Typography.Text>
           </summary>
@@ -1043,6 +1047,12 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                 >
                   <ToolsModalContent />
                 </Tabs.TabPane>
+                <Tabs.TabPane
+                  key='assistants'
+                  title={t('settings.capabilitiesTab.assistants', { defaultValue: 'Custom assistants' })}
+                >
+                  <AssistantSettings withWrapper={false} />
+                </Tabs.TabPane>
               </Tabs>
             </div>
           )}
@@ -1053,18 +1063,24 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 };
 
 const CapabilitiesSettings: React.FC = () => {
+  const { hash } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>(() => {
     const tabParam = searchParams.get('tab');
+    if (hash === '#custom-assistants') return 'assistants';
     return isCapabilitiesTab(tabParam) ? tabParam : 'skills';
   });
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
+    if (hash === '#custom-assistants' && activeTab !== 'assistants') {
+      setActiveTab('assistants');
+      return;
+    }
     if (isCapabilitiesTab(tabParam) && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams, activeTab, hash]);
 
   const handleTabChange = (key: CapabilitiesTab) => {
     setActiveTab(key);
@@ -1078,7 +1094,7 @@ const CapabilitiesSettings: React.FC = () => {
       <CapabilitiesSettingsContent
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab'))}
+        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab')) || hash === '#custom-assistants'}
       />
     </SettingsPageWrapper>
   );

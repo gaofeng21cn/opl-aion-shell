@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { CapabilitiesSettingsContent } from '@/renderer/pages/settings/CapabilitiesSettings';
+import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
 const bridgeMocks = vi.hoisted(() => ({
@@ -40,6 +40,10 @@ vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent', () => ({
   default: () => <div data-testid='tools-detail'>Tools detail</div>,
+}));
+
+vi.mock('@/renderer/pages/settings/AssistantSettings', () => ({
+  default: () => <div data-testid='assistants-detail'>Assistants detail</div>,
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -437,11 +441,12 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.entries.customAssistants.title': 'Custom assistants',
         'settings.capabilitiesPage.entries.customAssistants.description': 'Use the Advanced assistant area.',
         'settings.capabilitiesPage.supporting.title': 'Skills, tools, and custom assistants',
-        'settings.capabilitiesPage.supporting.compactTitle': 'Skills and external tools',
+        'settings.capabilitiesPage.supporting.compactTitle': 'Skills, tools, and assistants',
         'settings.capabilitiesPage.supporting.description':
           'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
         'settings.capabilitiesTab.tools': 'External tools & voice',
+        'settings.capabilitiesTab.assistants': 'Custom assistants',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -466,7 +471,7 @@ describe('CapabilitiesSettingsContent', () => {
   it('shows purpose capability groups before skills and tools details', async () => {
     const onTabChange = vi.fn();
     const Harness = () => {
-      const [activeTab, setActiveTab] = React.useState<'skills' | 'tools'>('skills');
+      const [activeTab, setActiveTab] = React.useState<CapabilitiesTab>('skills');
       return (
         <CapabilitiesSettingsContent
           activeTab={activeTab}
@@ -619,7 +624,7 @@ describe('CapabilitiesSettingsContent', () => {
     expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
-    expect(screen.getByText('Skills and external tools')).toBeInTheDocument();
+    expect(screen.getByText('Skills, tools, and assistants')).toBeInTheDocument();
     expect(screen.queryByText('Custom assistants')).not.toBeInTheDocument();
     expect(screen.queryByTestId('capability-entry-external-tools')).not.toBeInTheDocument();
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
@@ -632,6 +637,10 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
     await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Custom assistants' }));
+    expect(onTabChange).toHaveBeenCalledWith('assistants');
+    await waitFor(() => expect(screen.getByTestId('assistants-detail')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');

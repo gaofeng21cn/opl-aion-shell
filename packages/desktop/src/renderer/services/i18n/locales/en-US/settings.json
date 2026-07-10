@@ -280,7 +280,8 @@
   "capabilities": "Agents & Capabilities",
   "capabilitiesTab": {
     "skills": "Skills",
-    "tools": "Tools"
+    "tools": "External tools & voice",
+    "assistants": "Custom assistants"
   },
   "webui": "Remote",
   "installed": "Installed",
@@ -1321,7 +1322,7 @@
       "assistants": "Custom assistants"
     },
     "resources": {
-      "webui": "Server WebUI",
+      "webui": "Browser workbench",
       "workspace": "Workspace",
       "connections": "External connections"
     },
@@ -1866,17 +1867,24 @@
   },
   "resourcesPage": {
     "title": "Resources & Connections",
-    "description": "Manage browser WebUI, OPL Workspace, cloud or hosted workspaces, and external environment connections.",
+    "description": "Manage the browser workbench, hosted workspaces, and external environment connections.",
+    "sections": {
+      "serverWebui": {
+        "title": "Browser workbench",
+        "description": "Use OPL in a browser on a server, remote device, or hosted environment."
+      }
+    },
     "docker": {
       "title": "WebUI and OPL Workspace",
       "description": "The desktop App already includes the local workbench. This area shows browser WebUI, server or hosted workspace open, check, and maintenance entries.",
-      "docker": "WebUI",
+      "docker": "Server deployment",
       "workspace": "OPL Workspace",
       "primaryActionTitle": "Available action",
       "runDryRoute": "Continue setup",
-      "openResource": "Open resource",
+      "openResource": "Open workbench",
       "recheck": "Recheck",
-      "prepareEnvironment": "Prepare environment",
+      "openModelAccess": "Open model access settings",
+      "prepareEnvironment": "Check deployment",
       "payloadRequired": "Needs details",
       "payloadRequiredHelp": "Choose a file or fill in the required configuration before running this action.",
       "confirmationRequired": "Confirms before changes",
@@ -1888,6 +1896,16 @@
       "technicalPreviewCommand": "Preview command",
       "actionDryRunSuccess": "Deployment check completed.",
       "actionDryRunFailed": "Deployment check failed.",
+      "openSuccess": "Opened the workbench in your browser.",
+      "openFailed": "The browser workbench could not be opened.",
+      "checkSuccess": "Workbench status check completed.",
+      "checkFailed": "Workbench status check failed.",
+      "actionExecuteSuccess": "The operation completed.",
+      "actionExecuteFailed": "The operation failed.",
+      "confirmTitle": "Confirm operation",
+      "confirmDescription": "The precheck is complete. Continue to run “{{action}}”.",
+      "confirmBoundary": "Workspace files and conversation data will not be changed.",
+      "confirmAction": "Continue",
       "noActions": "WebUI actions are not available yet.",
       "actions": {
         "settings_install_docker_webui": "Prepare server or hosted WebUI",
@@ -1899,12 +1917,15 @@
       }
     },
     "connections": {
-      "title": "Cloud and external environments",
-      "description": "Shows cloud, workspace, and external environments tasks can use. Technical references stay collapsed.",
-      "workspaceTitle": "OPL Workspace",
-      "workspaceDescription": "Confirm the workspace, environment, and storage entry points tasks can use. Low-level references stay collapsed.",
-      "noWorkspaceSources": "No OPL Workspace connection is currently reported.",
-      "noSources": "No cloud or external environment connection is currently reported."
+      "title": "External connections",
+      "description": "Review cloud compute, remote hosts, and data environments available to tasks.",
+      "workspaceTitle": "Hosted workspaces",
+      "workspaceDescription": "Review workspace, runtime environment, and storage entry points available to tasks.",
+      "noWorkspaceSources": "No hosted workspace connection is currently available.",
+      "noSources": "No external connection is currently available.",
+      "empty": "No workspace or external connection is currently available.",
+      "addConnection": "Add connection",
+      "addConnectionUnavailable": "This environment does not currently provide a connection setup entry point."
     },
     "statusLabels": {
       "action_available": "Available",
@@ -1917,7 +1938,9 @@
       "ok": "OK",
       "ready": "Available",
       "refs_only": "Available",
-      "unknown": "Needs check"
+      "unknown": "Needs check",
+      "resourceReady": "Ready",
+      "unverified": "Not verified"
     },
     "resourceSources": {
       "environmentRefs": "Has environment config",
@@ -1944,7 +1967,7 @@
   },
   "capabilitiesPage": {
     "title": "Agents & Capabilities",
-    "description": "Choose each capability by purpose first. Install sources and diagnostics stay in advanced details.",
+    "description": "Review capabilities by purpose, then open management or advanced details only when needed.",
     "status": {
       "ready": "Ready",
       "update": "Update available",
@@ -1962,7 +1985,7 @@
       },
       "customAssistants": {
         "title": "Custom assistants",
-        "description": "Create or adjust custom assistants from the Advanced assistant area when that product surface is enabled."
+        "description": "Create, duplicate, or adjust assistants for specific kinds of work."
       }
     },
     "purposes": {
@@ -1995,6 +2018,14 @@
       "notVisible": "Not visible to Codex yet",
       "unknown": "Visibility not reported"
     },
+    "visibility": {
+      "conversation": "Available in conversations",
+      "home": "Show on Home",
+      "conversationAvailable": "Available",
+      "conversationNeedsSync": "Sync needed",
+      "conversationUnavailable": "Not available",
+      "conversationUnverified": "Not verified"
+    },
     "detailLabels": {
       "purpose": "Purpose",
       "codexVisibility": "Codex visibility",
@@ -2006,6 +2037,8 @@
       "packageLockRef": "Package lock receipt",
       "actionReceiptRef": "Action receipt",
       "rollbackRef": "Recovery reference",
+      "manifestUrl": "Manifest URL",
+      "registryUrl": "Registry URL",
       "physicalSurfaceStatus": "Installed Codex surface",
       "physicalSurfaceReloadRequired": "Codex reload required",
       "physicalSurfacePluginId": "Installed plugin",
@@ -2076,9 +2109,10 @@
     },
     "packageManager": {
       "title": "Capability directory",
-      "description": "The left list shows only capability, purpose, and status. Home shortcuts, ordering, and suggestions stay in the detail panel.",
+      "description": "The list shows purpose, source, and availability. Home visibility and management actions stay in details.",
       "catalogTitle": "Capability directory",
-      "catalogDescription": "Open a row when you need setup details, Home shortcut controls, or advanced package context.",
+      "catalogDescription": "Open details only when you need to change Home visibility, sync, or repair a capability.",
+      "management": "Manage capabilities",
       "refreshRegistry": "Check for new capabilities",
       "searchPlaceholder": "Search capability, purpose, or tag",
       "allStatuses": "All statuses",
@@ -2126,6 +2160,7 @@
     },
     "supporting": {
       "title": "Skills, tools, and custom assistants",
+      "compactTitle": "Skills, tools, and custom assistants",
       "description": "Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot."
     }
   },

@@ -280,7 +280,8 @@
   "capabilities": "智能体与能力",
   "capabilitiesTab": {
     "skills": "技能",
-    "tools": "工具"
+    "tools": "外部工具与语音",
+    "assistants": "自定义助手"
   },
   "webui": "远程连接",
   "installed": "已安装",
@@ -1322,7 +1323,7 @@
       "assistants": "自定义助手"
     },
     "resources": {
-      "webui": "服务器 WebUI",
+      "webui": "浏览器工作台",
       "workspace": "工作区",
       "connections": "外部连接"
     },
@@ -1867,17 +1868,24 @@
   },
   "resourcesPage": {
     "title": "资源与连接",
-    "description": "管理浏览器 WebUI、OPL Workspace、云端/托管工作区和外部环境连接。",
+    "description": "管理浏览器工作台、托管工作区和外部环境连接。",
+    "sections": {
+      "serverWebui": {
+        "title": "浏览器工作台",
+        "description": "在浏览器中使用 OPL，适合服务器、远程设备或托管环境。"
+      }
+    },
     "docker": {
       "title": "WebUI 与 OPL Workspace",
       "description": "桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。",
-      "docker": "WebUI",
+      "docker": "服务器部署",
       "workspace": "OPL Workspace",
       "primaryActionTitle": "可用操作",
       "runDryRoute": "继续设置",
-      "openResource": "打开资源",
+      "openResource": "打开工作台",
       "recheck": "重新检查",
-      "prepareEnvironment": "准备部署",
+      "openModelAccess": "打开模型访问设置",
+      "prepareEnvironment": "检查部署条件",
       "payloadRequired": "需要填写信息",
       "payloadRequiredHelp": "这个操作需要先选择文件或填写配置。",
       "confirmationRequired": "变更前确认",
@@ -1889,6 +1897,16 @@
       "technicalPreviewCommand": "预检查命令",
       "actionDryRunSuccess": "部署前检查完成。",
       "actionDryRunFailed": "部署前检查失败。",
+      "openSuccess": "已在浏览器中打开工作台。",
+      "openFailed": "暂时无法打开浏览器工作台。",
+      "checkSuccess": "工作台状态检查完成。",
+      "checkFailed": "工作台状态检查失败。",
+      "actionExecuteSuccess": "操作已完成。",
+      "actionExecuteFailed": "操作执行失败。",
+      "confirmTitle": "确认执行",
+      "confirmDescription": "检查已完成。继续后会执行“{{action}}”。",
+      "confirmBoundary": "不会修改工作区文件或对话数据。",
+      "confirmAction": "继续执行",
       "noActions": "暂时没有可用的 WebUI 操作。",
       "actions": {
         "settings_install_docker_webui": "准备服务器/托管 WebUI",
@@ -1900,12 +1918,15 @@
       }
     },
     "connections": {
-      "title": "云端与外部环境",
-      "description": "展示任务可以使用的云端、工作区和外部环境；技术引用默认收起。",
-      "workspaceTitle": "OPL Workspace",
-      "workspaceDescription": "确认任务使用的工作区、环境和存储入口；底层引用默认收起。",
-      "noWorkspaceSources": "当前没有上报 OPL Workspace 连接。",
-      "noSources": "当前没有上报云端或外部环境连接。"
+      "title": "外部连接",
+      "description": "查看云端计算、远程主机和数据环境是否可用。",
+      "workspaceTitle": "托管工作区",
+      "workspaceDescription": "查看可供任务使用的工作区、运行环境和存储入口。",
+      "noWorkspaceSources": "当前没有可用的托管工作区连接。",
+      "noSources": "当前没有可用的外部连接。",
+      "empty": "当前没有工作区或外部连接。",
+      "addConnection": "添加连接",
+      "addConnectionUnavailable": "当前环境尚未提供可用的连接配置入口。"
     },
     "statusLabels": {
       "action_available": "可用",
@@ -1918,7 +1939,9 @@
       "ok": "正常",
       "ready": "可用",
       "refs_only": "可用",
-      "unknown": "需要检查"
+      "unknown": "需要检查",
+      "resourceReady": "已就绪",
+      "unverified": "未验证"
     },
     "resourceSources": {
       "environmentRefs": "有环境配置",
@@ -1945,7 +1968,7 @@
   },
   "capabilitiesPage": {
     "title": "智能体与能力",
-    "description": "先看每个能力的用途；包 ref、manifest 和诊断信息保留在高级详情里。",
+    "description": "按用途查看可用能力；需要调整时再打开管理或高级详情。",
     "status": {
       "ready": "已就绪",
       "update": "可更新",
@@ -1963,7 +1986,7 @@
       },
       "customAssistants": {
         "title": "自定义助手",
-        "description": "产品面启用时，可在高级助手区域创建或调整自定义助手。"
+        "description": "创建、复制或调整适合特定工作的助手。"
       }
     },
     "purposes": {
@@ -1996,6 +2019,14 @@
       "notVisible": "Codex 尚不可见",
       "unknown": "未报告可见性"
     },
+    "visibility": {
+      "conversation": "对话中可用",
+      "home": "首页显示",
+      "conversationAvailable": "可使用",
+      "conversationNeedsSync": "需同步",
+      "conversationUnavailable": "不可使用",
+      "conversationUnverified": "未验证"
+    },
     "detailLabels": {
       "purpose": "用途",
       "codexVisibility": "Codex 可见性",
@@ -2007,6 +2038,8 @@
       "packageLockRef": "包锁定回执",
       "actionReceiptRef": "动作回执",
       "rollbackRef": "恢复引用",
+      "manifestUrl": "Manifest 地址",
+      "registryUrl": "注册表地址",
       "physicalSurfaceStatus": "已安装 Codex surface",
       "physicalSurfaceReloadRequired": "需要重载 Codex",
       "physicalSurfacePluginId": "已安装插件",
@@ -2077,9 +2110,10 @@
     },
     "packageManager": {
       "title": "能力目录",
-      "description": "左侧只显示能力、用途和状态；首页快捷方式、排序和建议放在右侧详情里。",
+      "description": "列表显示用途、来源和可用状态；首页显示与管理操作放在详情中。",
       "catalogTitle": "能力目录",
-      "catalogDescription": "需要设置详情、首页快捷入口或高级包上下文时再打开行详情。",
+      "catalogDescription": "需要调整首页显示、同步或修复时再打开详情。",
+      "management": "管理能力",
       "refreshRegistry": "检查新能力",
       "searchPlaceholder": "搜索能力、用途或标签",
       "allStatuses": "所有状态",
@@ -2127,6 +2161,7 @@
     },
     "supporting": {
       "title": "技能、工具与自定义助手",
+      "compactTitle": "技能、工具与自定义助手",
       "description": "这些是支撑能力的详细配置，默认折叠；需要排查或调整时再打开。"
     }
   },
