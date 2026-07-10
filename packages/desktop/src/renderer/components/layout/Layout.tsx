@@ -87,6 +87,12 @@ const MOBILE_SIDER_WIDTH_RATIO = 0.67;
 const MOBILE_SIDER_MIN_WIDTH = 260;
 const MOBILE_SIDER_MAX_WIDTH = 420;
 
+const DesktopNavigationController: React.FC = () => {
+  const navigate = useNavigate();
+  useConversationShortcuts({ navigate });
+  return null;
+};
+
 const detectMobileViewportOrTouch = (): boolean => {
   if (typeof window === 'undefined') return false;
   if (isElectronDesktop()) {
@@ -118,7 +124,6 @@ const Layout: React.FC<{
   useDeepLink();
   useNotificationClick();
   const navigate = useNavigate();
-  useConversationShortcuts({ navigate });
   const location = useLocation();
   const workspaceAvailable =
     location.pathname.startsWith('/conversation/') || (TEAM_MODE_ENABLED && location.pathname.startsWith('/team/'));
@@ -324,6 +329,7 @@ const Layout: React.FC<{
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
       <NavigationHistoryProvider>
+        <DesktopNavigationController />
         <div
           className='app-shell flex flex-col size-full min-h-0'
           style={

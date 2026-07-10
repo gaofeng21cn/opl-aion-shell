@@ -1,5 +1,6 @@
 import ChatLayout from '@/renderer/pages/conversation/components/ChatLayout';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -96,7 +97,8 @@ describe('ChatLayout conversation context surfaces', () => {
     document.getElementById('app-titlebar-actions-slot')?.remove();
   });
 
-  it('keeps environment in the header and opens the desktop side panel only by user request', () => {
+  it('keeps the side panel closed until its header control is activated from the keyboard', async () => {
+    const user = userEvent.setup();
     render(
       <ChatLayout
         title='Conversation'
@@ -111,7 +113,10 @@ describe('ChatLayout conversation context surfaces', () => {
     expect(screen.getByTestId('environment')).toBeTruthy();
     expect(screen.queryByRole('complementary')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+    const toggle = screen.getByRole('button', { name: 'Open tools' });
+    await user.tab();
+    expect(toggle).toHaveFocus();
+    await user.keyboard('{Enter}');
 
     expect(screen.getByRole('complementary')).toBeTruthy();
     expect(screen.getByTestId('side-content')).toBeTruthy();
