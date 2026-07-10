@@ -180,7 +180,9 @@ export function buildAgentRuntimeModeState(agent: AgentRuntimeCatalog | null | u
   return { state: fromPayload.options.length > 0 ? 'ready' : 'empty', ...fromPayload };
 }
 
-export function buildAgentRuntimeSlashCommands(agent: AgentRuntimeCatalog | null | undefined): AgentRuntimeCommandState {
+export function buildAgentRuntimeSlashCommands(
+  agent: AgentRuntimeCatalog | null | undefined
+): AgentRuntimeCommandState {
   if (!agent) return { state: 'unknown', commands: [] };
   const commandValue = readRuntimeField(agent, 'available_commands');
   if (commandValue === undefined) return { state: 'unknown', commands: [] };

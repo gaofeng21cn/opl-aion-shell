@@ -94,6 +94,9 @@ import type { IAddTeamAgentParams, ICreateTeamParams } from './teamMapper';
 import {
   fromBackendAgent,
   fromBackendTeam,
+  fromBackendTeamAgentRenamedEvent,
+  fromBackendTeamAgentSpawnedEvent,
+  fromBackendTeamAgentStatusEvent,
   fromBackendTeamList,
   fromBackendTeamOptional,
   toBackendAgent,
@@ -1733,6 +1736,7 @@ export interface ICronAgentConfigRead {
   preset_agent_type?: string;
   mode?: string;
   model_id?: string;
+  model?: { provider_id: string; model: string; use_model?: string };
   config_options?: Record<string, string>;
   workspace?: string;
 }
@@ -2317,11 +2321,14 @@ export const team = {
       (p) => ({ session_mode: p.session_mode })
     )
   ),
-  agentStatusChanged: wsEmitter<ITeamAgentStatusEvent>('team.agent.status'),
-  agentSpawned: wsEmitter<ITeamAgentSpawnedEvent>('team.agent.spawned'),
-  agentRemoved: wsEmitter<ITeamAgentRemovedEvent>('team.agent.removed'),
-  agentRenamed: wsEmitter<ITeamAgentRenamedEvent>('team.agent.renamed'),
-  listChanged: wsEmitter<ITeamListChangedEvent>('team.list-changed'),
+  agentStatusChanged: wsMappedEmitter<ITeamAgentStatusEvent>(
+    'team.agentStatusChanged',
+    fromBackendTeamAgentStatusEvent
+  ),
+  agentSpawned: wsMappedEmitter<ITeamAgentSpawnedEvent>('team.agentSpawned', fromBackendTeamAgentSpawnedEvent),
+  agentRemoved: wsEmitter<ITeamAgentRemovedEvent>('team.agentRemoved'),
+  agentRenamed: wsMappedEmitter<ITeamAgentRenamedEvent>('team.agentRenamed', fromBackendTeamAgentRenamedEvent),
+  listChanged: wsEmitter<ITeamListChangedEvent>('team.listChanged'),
   created: wsEmitter<ITeamCreatedEvent>('team.created'),
-  teammateMessage: wsEmitter<ITeamTeammateMessageEvent>('team.teammate.message'),
+  teammateMessage: wsEmitter<ITeamTeammateMessageEvent>('team.teammateMessage'),
 };

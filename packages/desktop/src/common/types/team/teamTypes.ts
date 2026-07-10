@@ -68,14 +68,14 @@ export type ITeamAgentRemovedEvent = {
 export type ITeamAgentRenamedEvent = {
   team_id: string;
   slot_id: string;
-  old_name: string;
+  old_name?: string;
   new_name: string;
 };
 
 /** IPC event pushed to renderer when the team list changes (created/removed/agent changes) */
 export type ITeamListChangedEvent = {
   team_id: string;
-  action: 'created' | 'removed' | 'agent_added' | 'agent_removed';
+  action: 'created' | 'removed' | 'renamed' | 'agent_added' | 'agent_removed';
 };
 
 /** IPC event pushed when a new team is created (backend `team.created` WS event) */

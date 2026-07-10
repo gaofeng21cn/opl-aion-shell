@@ -176,4 +176,15 @@ describe('ipcBridge managed agents adapter', () => {
       },
     ]);
   });
+
+  it('subscribes to the AionCore Team WebSocket event names', async () => {
+    await import('@/common/adapter/ipcBridge');
+
+    expect(httpBridgeMocks.wsMappedEmitter).toHaveBeenCalledWith('team.agentStatusChanged', expect.any(Function));
+    expect(httpBridgeMocks.wsMappedEmitter).toHaveBeenCalledWith('team.agentSpawned', expect.any(Function));
+    expect(httpBridgeMocks.wsEmitter).toHaveBeenCalledWith('team.agentRemoved');
+    expect(httpBridgeMocks.wsMappedEmitter).toHaveBeenCalledWith('team.agentRenamed', expect.any(Function));
+    expect(httpBridgeMocks.wsEmitter).toHaveBeenCalledWith('team.listChanged');
+    expect(httpBridgeMocks.wsEmitter).toHaveBeenCalledWith('team.teammateMessage');
+  });
 });

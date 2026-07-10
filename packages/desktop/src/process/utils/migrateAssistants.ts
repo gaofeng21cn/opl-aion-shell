@@ -181,6 +181,7 @@ type ManagedAgentIdentity = { id: string; agent_type: string; backend?: string }
  * legacy `assistants` field (kept on purpose so the user can downgrade).
  */
 const ASSISTANTS_MIGRATION_FLAG = 'migration.assistantsMigrated_v1';
+const ASSISTANT_IMPORT_COMPLETED_FLAG = 'migration.assistantImportCompleted_v1';
 const ASSISTANT_AGENT_IDS_MIGRATION_FLAG = 'migration.assistantAgentIdsMigrated_v2';
 
 type LegacyConfigAccessor = {
@@ -196,27 +197,31 @@ async function readMigrationFlag(accessor: LegacyConfigAccessor, key: string): P
   }
 }
 
-async function markMigrationDone(configFile: ConfigFile, key: string): Promise<void> {
+async function markMigrationDone(configFile: ConfigFile, key: string): Promise<boolean> {
   const accessor = configFile as unknown as LegacyConfigAccessor;
   if (typeof accessor.set !== 'function') {
-    // Older fakes (test doubles) may expose only `get`; persist failure is
-    // logged but does not break the migration result — content-aware phases
-    // still make a re-run safe.
-    return;
+    console.warn('[AionUi] cannot persist assistants migration flag: config setter unavailable');
+    return false;
   }
   try {
     await accessor.set(key, true);
+    return true;
   } catch (err) {
     console.warn('[AionUi] failed to persist assistants migration flag', err);
+    return false;
   }
 }
 
-async function markAssistantsMigrationDone(configFile: ConfigFile): Promise<void> {
-  await markMigrationDone(configFile, ASSISTANTS_MIGRATION_FLAG);
+async function markAssistantsMigrationDone(configFile: ConfigFile): Promise<boolean> {
+  return markMigrationDone(configFile, ASSISTANTS_MIGRATION_FLAG);
 }
 
-async function markAssistantAgentIdsMigrationDone(configFile: ConfigFile): Promise<void> {
-  await markMigrationDone(configFile, ASSISTANT_AGENT_IDS_MIGRATION_FLAG);
+async function markAssistantImportCompleted(configFile: ConfigFile): Promise<boolean> {
+  return markMigrationDone(configFile, ASSISTANT_IMPORT_COMPLETED_FLAG);
+}
+
+async function markAssistantAgentIdsMigrationDone(configFile: ConfigFile): Promise<boolean> {
+  return markMigrationDone(configFile, ASSISTANT_AGENT_IDS_MIGRATION_FLAG);
 }
 
 export function buildRuntimeAgentIdMap(agents: ManagedAgentIdentity[]): Map<string, string> {
@@ -359,9 +364,7 @@ function collectUserAssistantAgentIdOverrides(
 
 async function applyAssistantAgentIdOverrides(overrides: AssistantAgentIdOverride[]): Promise<number> {
   if (overrides.length === 0) return 0;
-  const results = await Promise.allSettled(
-    overrides.map((override) => ipcBridge.assistants.update.invoke(override))
-  );
+  const results = await Promise.allSettled(overrides.map((override) => ipcBridge.assistants.update.invoke(override)));
   let failed = 0;
   let skipped = 0;
   results.forEach((r, i) => {
@@ -519,10 +522,11 @@ async function uploadLegacyAssistantRules(legacyAssistantIds: Set<string>): Prom
  *      only when the backend rule for that (id, locale) is currently empty,
  *      so post-migration edits are never overwritten.
  *
- * Separate v1 import and v2 agent-id flags make the migration restartable
- * without re-importing assistants the user later deletes. The legacy
- * `assistants` field is never touched, so downgrading to an older Electron
- * build still works.
+ * The import boundary is persisted immediately after Phase 1, before later
+ * repair phases run. Separate overall-completion and v2 agent-id flags keep
+ * the migration restartable without re-importing assistants the user later
+ * deletes. The legacy `assistants` field is never touched, so downgrading to
+ * an older Electron build still works.
  *
  * Returns `true` when all phases complete cleanly. A failure returns
  * `false` so the caller can log the partial state, but next launch
@@ -539,8 +543,9 @@ export async function migrateAssistantsToBackend(configFile: ConfigFile): Promis
 
   const rawConfigFile = configFile as unknown as LegacyConfigAccessor;
 
-  const [alreadyMigrated, agentIdsMigrated] = await Promise.all([
+  const [alreadyMigrated, importCompleted, agentIdsMigrated] = await Promise.all([
     readMigrationFlag(rawConfigFile, ASSISTANTS_MIGRATION_FLAG),
+    readMigrationFlag(rawConfigFile, ASSISTANT_IMPORT_COMPLETED_FLAG),
     readMigrationFlag(rawConfigFile, ASSISTANT_AGENT_IDS_MIGRATION_FLAG),
   ]);
   if (alreadyMigrated && agentIdsMigrated) {
@@ -582,26 +587,37 @@ export async function migrateAssistantsToBackend(configFile: ConfigFile): Promis
   ) {
     // Nothing to do — no-op success. Flag it so future launches don't even
     // bother reading the legacy field.
-    await markAssistantsMigrationDone(configFile);
-    await markAssistantAgentIdsMigrationDone(configFile);
-    return true;
+    const flagsPersisted = await Promise.all([
+      markAssistantImportCompleted(configFile),
+      markAssistantsMigrationDone(configFile),
+      markAssistantAgentIdsMigrationDone(configFile),
+    ]);
+    return flagsPersisted.every(Boolean);
   }
 
   // Phase 1: import user-authored assistants (if any).
-  if (!alreadyMigrated && userAssistants.length > 0) {
-    try {
-      const result = await ipcBridge.assistants.import.invoke({
-        assistants: userAssistants.map((assistant) => legacyAssistantToCreateRequest(assistant, runtimeAgentIds)),
-      });
-      if (result.failed !== 0) {
-        console.error(`[AionUi] Assistant migration partial: ${result.failed} failed`, result.errors);
+  if (!alreadyMigrated && !importCompleted) {
+    if (userAssistants.length > 0) {
+      try {
+        const result = await ipcBridge.assistants.import.invoke({
+          assistants: userAssistants.map((assistant) => legacyAssistantToCreateRequest(assistant, runtimeAgentIds)),
+        });
+        if (result.failed !== 0) {
+          console.error(`[AionUi] Assistant migration partial: ${result.failed} failed`, result.errors);
+          return false;
+        }
+        if (result.imported > 0 || result.skipped > 0) {
+          console.log(`[AionUi] migrated ${result.imported} assistants (skipped ${result.skipped})`);
+        }
+      } catch (error) {
+        console.error('[AionUi] Assistant migration failed:', error);
         return false;
       }
-      if (result.imported > 0 || result.skipped > 0) {
-        console.log(`[AionUi] migrated ${result.imported} assistants (skipped ${result.skipped})`);
-      }
-    } catch (error) {
-      console.error('[AionUi] Assistant migration failed:', error);
+    }
+    // Persist the import boundary before any later repair phase. Otherwise a
+    // later failure can cause the next launch to re-import an Assistant that
+    // the user deleted after the first successful import.
+    if (!(await markAssistantImportCompleted(configFile))) {
       return false;
     }
   }
@@ -633,7 +649,10 @@ export async function migrateAssistantsToBackend(configFile: ConfigFile): Promis
 
   // All four phases succeeded — set the completion flag so subsequent launches
   // short-circuit and we don't re-import assistants the user deletes later.
-  await markAssistantsMigrationDone(configFile);
-  await markAssistantAgentIdsMigrationDone(configFile);
-  return true;
+  const flagsPersisted = await Promise.all([
+    markAssistantImportCompleted(configFile),
+    markAssistantsMigrationDone(configFile),
+    markAssistantAgentIdsMigrationDone(configFile),
+  ]);
+  return flagsPersisted.every(Boolean);
 }

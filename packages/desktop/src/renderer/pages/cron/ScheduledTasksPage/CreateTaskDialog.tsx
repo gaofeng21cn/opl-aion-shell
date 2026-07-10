@@ -28,6 +28,8 @@ import { createCronSchedule } from '@renderer/pages/cron/cronUtils';
 import { getConversationCreateErrorMessage } from '@renderer/pages/conversation/utils/conversationCreateError';
 import {
   resolveCronAgentConfig,
+  resolveCronEditProviderId,
+  shouldIncludeCronAgentConfig,
   type CronAssistantIdentity,
 } from '@renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
 
@@ -200,6 +202,11 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const [config_options, setConfigOptions] = useState<Record<string, string> | undefined>(undefined);
   const [workspace, setWorkspace] = useState<string | undefined>(undefined);
   const [selectedAgent, setSelectedAgent] = useState<string | undefined>(undefined);
+  const canWriteAgentConfig = shouldIncludeCronAgentConfig({
+    isEditMode,
+    originalExecutionMode: editJob?.target.execution_mode,
+    nextExecutionMode: execution_mode,
+  });
 
   // Populate form when entering edit mode
   useEffect(() => {
@@ -279,12 +286,14 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   const geminiCurrentModel = useMemo<TProviderWithModel | undefined>(() => {
     if (resolvedBackend !== 'aionrs' || !model_id) return undefined;
 
-    const editedProviderId = resolvedBackend === 'aionrs' ? editJob?.metadata.agent_config?.backend : undefined;
+    const editedProviderId =
+      resolvedBackend === 'aionrs' ? resolveCronEditProviderId(editJob?.metadata.agent_config) : undefined;
     if (editedProviderId) {
       const byId = filteredProviders.find((p) => p.id === editedProviderId);
       if (byId && getAvailableModels(byId).includes(model_id)) {
         return { ...byId, use_model: model_id } as TProviderWithModel;
       }
+      return undefined;
     }
 
     for (const p of filteredProviders) {
@@ -423,7 +432,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       const scheduleDesc = scheduleInfo.description;
       const schedule = createCronSchedule(scheduleExpr, scheduleDesc);
 
-      const agent_config = resolveAgentConfig(values.agent);
+      const agent_config = canWriteAgentConfig ? resolveAgentConfig(values.agent) : undefined;
 
       if (isEditMode) {
         // Edit mode: update existing job
@@ -440,7 +449,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             },
             metadata: {
               conversation_title: editJob!.metadata.conversation_title,
-              agent_config,
+              ...(agent_config ? { agent_config } : {}),
             },
           },
         });
@@ -503,9 +512,10 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           <FormItem
             label={t('cron.page.form.agent')}
             field='agent'
-            rules={[{ required: true, message: t('cron.page.form.agentRequired') }]}
+            rules={[{ required: canWriteAgentConfig, message: t('cron.page.form.agentRequired') }]}
           >
             <Select
+              disabled={!canWriteAgentConfig}
               placeholder={t('cron.page.form.agentPlaceholder')}
               onChange={handleAgentChange}
               renderFormat={(_option, value) => {

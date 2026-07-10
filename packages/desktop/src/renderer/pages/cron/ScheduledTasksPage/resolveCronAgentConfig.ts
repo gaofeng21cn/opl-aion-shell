@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ICronAgentConfigWrite } from '@/common/adapter/ipcBridge';
+import type { ICronAgentConfigRead, ICronAgentConfigWrite } from '@/common/adapter/ipcBridge';
 import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
 
 export type CronAssistantIdentity = Pick<Assistant, 'id' | 'name' | 'name_i18n' | 'agent' | 'preset_agent_type'>;
@@ -20,6 +20,21 @@ type ResolveCronAgentConfigInput = {
   getMode: (assistant: CronAssistantIdentity) => string | undefined;
   aionrsModelRequiredMessage: string;
 };
+
+type CronExecutionMode = 'existing' | 'new_conversation';
+
+export function resolveCronEditProviderId(config: ICronAgentConfigRead | undefined): string | undefined {
+  return config?.model?.provider_id;
+}
+
+export function shouldIncludeCronAgentConfig(input: {
+  isEditMode: boolean;
+  originalExecutionMode?: CronExecutionMode;
+  nextExecutionMode: CronExecutionMode;
+}): boolean {
+  if (!input.isEditMode) return true;
+  return (input.originalExecutionMode ?? 'existing') !== 'existing' && input.nextExecutionMode !== 'existing';
+}
 
 export function resolveCronAgentConfig(input: ResolveCronAgentConfigInput): ICronAgentConfigWrite {
   const assistant = input.assistants.find((candidate) => candidate.id === input.assistantId);

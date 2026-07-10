@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCronAgentConfig } from '@/renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
+import {
+  resolveCronAgentConfig,
+  resolveCronEditProviderId,
+  shouldIncludeCronAgentConfig,
+} from '@/renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
 
 describe('Cron assistant write config', () => {
   it('writes assistant identity without legacy runtime fields', () => {
@@ -64,5 +68,49 @@ describe('Cron assistant write config', () => {
         aionrsModelRequiredMessage: 'model required',
       })
     ).toThrow('assistant_id is required');
+  });
+
+  it('reads the exact AionRS provider from the model DTO', () => {
+    expect(
+      resolveCronEditProviderId({
+        name: 'AionRS',
+        backend: 'legacy-wrong-provider',
+        model: {
+          provider_id: 'provider-canonical',
+          model: 'gemini-2.5-pro',
+        },
+      })
+    ).toBe('provider-canonical');
+  });
+
+  it('omits agent_config whenever an edit starts or ends in existing-conversation mode', () => {
+    expect(
+      shouldIncludeCronAgentConfig({
+        isEditMode: true,
+        originalExecutionMode: 'existing',
+        nextExecutionMode: 'new_conversation',
+      })
+    ).toBe(false);
+    expect(
+      shouldIncludeCronAgentConfig({
+        isEditMode: true,
+        originalExecutionMode: 'new_conversation',
+        nextExecutionMode: 'existing',
+      })
+    ).toBe(false);
+    expect(
+      shouldIncludeCronAgentConfig({
+        isEditMode: true,
+        originalExecutionMode: 'new_conversation',
+        nextExecutionMode: 'new_conversation',
+      })
+    ).toBe(true);
+    expect(
+      shouldIncludeCronAgentConfig({
+        isEditMode: false,
+        originalExecutionMode: undefined,
+        nextExecutionMode: 'existing',
+      })
+    ).toBe(true);
   });
 });

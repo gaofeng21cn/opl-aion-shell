@@ -289,9 +289,7 @@ export const useGuidAgentSelection = ({
           id: assistant.id,
           custom_agent_id: assistant.id,
           assistant_id: assistant.id,
-          backend_assistant_id: backendAssistantIdByCanonicalId.get(
-            canonicalizeOplProfessionalAgentId(assistant.id)
-          ),
+          backend_assistant_id: backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(assistant.id)),
           managed_agent_id: assistant.agent_id,
           is_preset: true,
           context: '',

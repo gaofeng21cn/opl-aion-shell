@@ -26,12 +26,7 @@ export type ManagedAgentBackendOption = {
 };
 
 export function isRunnableManagedAgent(agent: ManagedAgent): boolean {
-  return (
-    agent.enabled &&
-    agent.installed &&
-    agent.status !== 'missing' &&
-    agent.status !== 'offline'
-  );
+  return agent.enabled && agent.installed && agent.status !== 'missing' && agent.status !== 'offline';
 }
 
 export async function refreshManagedAgentCatalogAndAssistants(): Promise<ManagedAgent[] | undefined> {
