@@ -130,14 +130,14 @@ This follow-up repairs stable `v2.1.31` compatibility only. The unreleased `v2.1
 
 This read-only review is not a second intake. It records why upstream `main` must not be merged or cherry-picked as a bundle:
 
-| Upstream commit | Capability change | OPL disposition |
-| --- | --- | --- |
-| `1619d36af` | Reworks the message queue into persisted automatic/manual send drafts with edit, delete, reorder, and send-now actions. | `adopt_later`: useful, but only after stop/send ordering, queue limits, failure recovery, and the OPL Conversation runtime gate are defined. |
-| `3268482e6` | Updates Russian desktop/mobile localization. | `reject`: OPL maintains only `zh-CN` and `en-US` product copy. |
-| `756d544c6` | Adds searchable two-level model/reasoning menus and removes the model health dot. | `adopt_later` for search/layout only; do not replace OPL model, reasoning, intelligence-enhancement, or health policy. |
-| `9397d771c` | Folds send-draft help into the automatic/manual mode toggle. | `watch_only`: no independent capability; reassess with the final draft-box behavior. |
-| `826eba76c` | Adds a WIP manual Team member-management and warmup experience across Team, Conversation, Settings, and Cron surfaces. | `reject` for the ordinary App: Team remains fail-closed, and the change conflicts with the managed Assistant/runtime identity contract. |
-| `8f16ee708` | Moves mobile Home model, reasoning, permission, file, Skills, and MCP controls into a `+` action sheet. | `adopt_later` for the generic mobile action-sheet pattern only; do not import raw provider/model reconstruction that bypasses OPL Home and model policy. |
+| Upstream commit | Capability change                                                                                                       | OPL disposition                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `1619d36af`     | Reworks the message queue into persisted automatic/manual send drafts with edit, delete, reorder, and send-now actions. | `adopt_later`: useful, but only after stop/send ordering, queue limits, failure recovery, and the OPL Conversation runtime gate are defined.             |
+| `3268482e6`     | Updates Russian desktop/mobile localization.                                                                            | `reject`: OPL maintains only `zh-CN` and `en-US` product copy.                                                                                           |
+| `756d544c6`     | Adds searchable two-level model/reasoning menus and removes the model health dot.                                       | `adopt_later` for search/layout only; do not replace OPL model, reasoning, intelligence-enhancement, or health policy.                                   |
+| `9397d771c`     | Folds send-draft help into the automatic/manual mode toggle.                                                            | `watch_only`: no independent capability; reassess with the final draft-box behavior.                                                                     |
+| `826eba76c`     | Adds a WIP manual Team member-management and warmup experience across Team, Conversation, Settings, and Cron surfaces.  | `reject` for the ordinary App: Team remains fail-closed, and the change conflicts with the managed Assistant/runtime identity contract.                  |
+| `8f16ee708`     | Moves mobile Home model, reasoning, permission, file, Skills, and MCP controls into a `+` action sheet.                 | `adopt_later` for the generic mobile action-sheet pattern only; do not import raw provider/model reconstruction that bypasses OPL Home and model policy. |
 
 Future intake must start from the next stable release and repeat behavior classification. It must not treat these unreleased commits as implied follow-up work for the `v2.1.31` adaptation.
 
