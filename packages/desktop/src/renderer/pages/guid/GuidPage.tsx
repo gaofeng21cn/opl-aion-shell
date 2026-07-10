@@ -25,6 +25,7 @@ import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
+import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
 import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
@@ -39,6 +40,7 @@ import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
 import SpeechInputButton from '@/renderer/components/chat/SpeechInputButton';
 import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
+import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
 import { Button, ConfigProvider } from '@arco-design/web-react';
@@ -108,6 +110,7 @@ const GuidPage: React.FC = () => {
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -204,6 +207,9 @@ const GuidPage: React.FC = () => {
   // Only aionrs uses this provider-based model picker now (Gemini runs as a
   // regular ACP backend with its own model selector).
   const modelSelection = useGuidModelSelection('aionrs');
+  const coreReadiness = useCoreLaunchPrerequisites();
+  const fileAccessBlocked = coreReadiness.known && !coreReadiness.workspaceRootReady;
+  const handleFileAccessBlocked = useCallback(() => setSetupNoticeKind('workspace'), []);
 
   const navState = location.state as GuidNavigationState | null;
   const resetAssistantRequested = navState?.resetAssistant === true;
@@ -220,12 +226,18 @@ const GuidPage: React.FC = () => {
 
   const guidInput = useGuidInput({
     locationState: navState,
+    fileAccessEnabled: !fileAccessBlocked,
+    onFileAccessBlocked: handleFileAccessBlocked,
   });
   const appendSlashSelectedFiles = useCallback(
     (selectedFiles: string[]) => {
+      if (fileAccessBlocked) {
+        handleFileAccessBlocked();
+        return;
+      }
       guidInput.setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
     },
-    [guidInput.setFiles]
+    [fileAccessBlocked, guidInput.setFiles, handleFileAccessBlocked]
   );
   const { onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSlashSelectedFiles,
@@ -285,6 +297,10 @@ const GuidPage: React.FC = () => {
     input: guidInput.input,
     commands: guidSlashCommands,
     onExecuteBuiltin: (name) => {
+      if (name === 'open' && fileAccessBlocked) {
+        handleFileAccessBlocked();
+        return;
+      }
       onSlashBuiltinCommand(name);
       guidInput.setInput('');
     },
@@ -359,6 +375,36 @@ const GuidPage: React.FC = () => {
     t,
     language: i18n.language,
   });
+
+  const openFirstRunSetup = useCallback(() => {
+    void navigate('/first-run');
+  }, [navigate]);
+
+  const sendWithPrerequisiteCheck = useCallback(() => {
+    if (coreReadiness.known && !coreReadiness.codexCliReady) {
+      setSetupNoticeKind('local_assistant');
+      return;
+    }
+    if (coreReadiness.known && !coreReadiness.modelAccessReady) {
+      setSetupNoticeKind('model_access');
+      return;
+    }
+    if (fileAccessBlocked && (guidInput.files.length > 0 || Boolean(guidInput.dir))) {
+      setSetupNoticeKind('workspace');
+      return;
+    }
+    setSetupNoticeKind(null);
+    send.sendMessageHandler();
+  }, [coreReadiness, fileAccessBlocked, guidInput.dir, guidInput.files.length, send.sendMessageHandler]);
+
+  useEffect(() => {
+    if (!setupNoticeKind || !coreReadiness.known) return;
+    const resolved =
+      (setupNoticeKind === 'local_assistant' && coreReadiness.codexCliReady) ||
+      (setupNoticeKind === 'model_access' && coreReadiness.modelAccessReady) ||
+      (setupNoticeKind === 'workspace' && coreReadiness.workspaceRootReady);
+    if (resolved) setSetupNoticeKind(null);
+  }, [coreReadiness, setupNoticeKind]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -450,10 +496,10 @@ const GuidPage: React.FC = () => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         if (!guidInput.input.trim()) return;
-        send.sendMessageHandler();
+        sendWithPrerequisiteCheck();
       }
     },
-    [mention, guidInput.input, send.sendMessageHandler, slashController]
+    [mention, guidInput.input, sendWithPrerequisiteCheck, slashController]
   );
 
   const handleSelectAssistant = useCallback(
@@ -714,6 +760,8 @@ const GuidPage: React.FC = () => {
     <GuidActionRow
       files={guidInput.files}
       onFilesUploaded={guidInput.handleFilesUploaded}
+      fileAccessDisabled={fileAccessBlocked}
+      fileAccessDisabledReason={t('common.firstRunRecovery.fileAccessUnavailable')}
       modelSelectorNode={modelSelectorNode}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agent_type}
@@ -744,7 +792,7 @@ const GuidPage: React.FC = () => {
       }
       loading={guidInput.loading}
       isButtonDisabled={send.isButtonDisabled}
-      onSend={send.sendMessageHandler}
+      onSend={sendWithPrerequisiteCheck}
     />
   );
   const slashCommandMenuNode = slashController.isOpen ? (
@@ -890,7 +938,11 @@ const GuidPage: React.FC = () => {
             workspaceDir={guidInput.dir}
             onSelectWorkspace={(dir) => guidInput.setDir(dir)}
             onClearWorkspace={() => guidInput.setDir('')}
+            workspaceAccessDisabled={fileAccessBlocked}
+            workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
           />
+
+          {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}
 
           <AssistantSelectionArea
             is_presetAgent={agentSelection.is_presetAgent}

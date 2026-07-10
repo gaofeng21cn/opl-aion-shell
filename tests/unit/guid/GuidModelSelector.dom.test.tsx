@@ -130,6 +130,7 @@ describe('GuidModelSelector Codex display', () => {
         actionId: 'intelligence_enhancement_status',
         dryRun: false,
       });
+      expect(mocks.clientConfigSetLocal).toHaveBeenCalledWith('codex.oplFlowIntelligenceEnhancementMode', false);
     });
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toBeInTheDocument();

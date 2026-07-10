@@ -17,6 +17,7 @@ import { SiderToolbar, SiderSearchEntry, SiderScheduledEntry } from './SiderNav'
 import SiderFooter from './SiderFooter';
 import CronJobSiderSection from './CronJobSiderSection';
 import TeamSiderSection from './TeamSiderSection';
+import FirstRunSetupEntry from './FirstRunSetupEntry';
 import siderStyles from './Sider.module.css';
 
 const WorkspaceGroupedHistory = React.lazy(() => import('@renderer/pages/conversation/GroupedHistory'));
@@ -263,6 +264,7 @@ const Sider: React.FC<SiderProps> = ({ onSessionClick, collapsed = false }) => {
           </div>
         )}
       </div>
+      {!isSettings && <FirstRunSetupEntry collapsed={collapsed} isMobile={isMobile} onNavigate={onSessionClick} />}
       {/* Footer */}
       <SiderFooter
         isMobile={isMobile}

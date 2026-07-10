@@ -100,6 +100,26 @@
     },
     "skipCheck": "跳过，先进入首页"
   },
+  "firstRunRecovery": {
+    "completeSetup": "完成首次设置",
+    "sidebarHint": "不影响浏览，完成后即可使用全部能力",
+    "fileAccessUnavailable": "完成工作目录设置后即可添加文件",
+    "workspaceAccessUnavailable": "完成工作目录设置后即可选择项目",
+    "notice": {
+      "local_assistant": {
+        "title": "需要完成本机助手设置",
+        "description": "完成后即可发送消息；当前草稿会保留。"
+      },
+      "model_access": {
+        "title": "需要完成模型访问设置",
+        "description": "完成后即可发送消息；当前草稿会保留。"
+      },
+      "workspace": {
+        "title": "需要完成工作目录设置",
+        "description": "完成后即可添加文件或选择项目；普通文字对话仍可使用。"
+      }
+    }
+  },
   "backendStartup": {
     "incompatibleRuntime": {
       "title": "当前系统不支持内置后端",

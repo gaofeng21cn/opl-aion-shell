@@ -53,4 +53,19 @@ describe('useGuidInput — ELECTRON-1K6', () => {
     expect(result.current.files).toEqual(['/tmp/c.pdf']);
     expect(result.current.dir).toBe('/Users/me/projects/my-project');
   });
+
+  it('blocks file context while workspace setup is incomplete', () => {
+    const onFileAccessBlocked = vi.fn();
+    const { result } = renderHook(() =>
+      useGuidInput({ locationState: null, fileAccessEnabled: false, onFileAccessBlocked })
+    );
+
+    act(() => {
+      result.current.handleFilesPasted([{ path: '/tmp/a.png' } as never]);
+      result.current.handleFilesUploaded(['/tmp/c.pdf']);
+    });
+
+    expect(result.current.files).toEqual([]);
+    expect(onFileAccessBlocked).toHaveBeenCalledTimes(2);
+  });
 });

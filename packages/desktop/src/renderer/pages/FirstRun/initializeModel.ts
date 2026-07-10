@@ -23,6 +23,14 @@ export const FIRST_RUN_ITEM_IDS = [
 
 export type FirstRunItemId = (typeof FIRST_RUN_ITEM_IDS)[number];
 
+export type CoreLaunchPrerequisiteState = {
+  known: boolean;
+  workspaceRootReady: boolean;
+  codexCliReady: boolean;
+  modelAccessReady: boolean;
+  readyToLaunch: boolean;
+};
+
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -135,8 +143,17 @@ function readAppStatePayload(parsed: unknown): JsonRecord | null {
   return readString(appState, 'schema_version') === 'opl_app_state.v1' ? appState : null;
 }
 
-export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
+export function readCoreLaunchPrerequisiteState(parsed: unknown): CoreLaunchPrerequisiteState {
   const appState = readAppStatePayload(parsed);
+  if (!appState) {
+    return {
+      known: false,
+      workspaceRootReady: false,
+      codexCliReady: false,
+      modelAccessReady: false,
+      readyToLaunch: false,
+    };
+  }
   const codex = readRecord(readRecord(appState, 'core'), 'codex');
   const paths = readRecord(appState, 'paths');
   const workspaceRoot = readRecord(paths, 'workspace_root');
@@ -148,17 +165,29 @@ export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
   const codexVersionStatus = readString(codex, 'version_status');
   const codexHealth = readString(codex, 'health_status');
 
-  return Boolean(
-    selectedWorkspace &&
-    workspaceExists !== false &&
-    workspaceHealth !== 'missing' &&
-    workspaceHealth !== 'blocking' &&
+  const workspaceRootReady = Boolean(
+    selectedWorkspace && workspaceExists !== false && workspaceHealth !== 'missing' && workspaceHealth !== 'blocking'
+  );
+  const codexCliReady = Boolean(
     codexInstalled === true &&
-    codexConfigured === true &&
     codexVersionStatus !== 'incompatible' &&
     codexHealth !== 'missing' &&
     codexHealth !== 'blocking'
   );
+  const modelAccessReady = codexConfigured === true;
+
+  return {
+    known: true,
+    workspaceRootReady,
+    codexCliReady,
+    modelAccessReady,
+    readyToLaunch: workspaceRootReady && codexCliReady && modelAccessReady,
+  };
+}
+
+export function isCoreLaunchReadyFromAppState(parsed: unknown): boolean {
+  const readiness = readCoreLaunchPrerequisiteState(parsed);
+  return readiness.known && readiness.readyToLaunch;
 }
 
 export function findChecklistItem(

@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
@@ -8,6 +8,21 @@ import GuidPage from '@/renderer/pages/guid/GuidPage';
 
 const mocks = vi.hoisted(() => ({
   i18nLanguage: { value: 'zh-CN' },
+  translate: (key: string, options?: Record<string, unknown>) =>
+    String(
+      options?.defaultValue ??
+        ({
+          'guid.inspector.title': '上下文',
+          'guid.inspector.open': '打开上下文',
+          'guid.inspector.files': '文件',
+          'guid.inspector.capabilities': '能力',
+          'guid.inspector.runtime': '运行',
+          'guid.inspector.memory': '记忆',
+          'guid.inspector.automations': '自动化',
+          'guid.inspector.settings': '设置',
+        }[key] ||
+          key)
+    ),
   locationState: { value: null as Record<string, unknown> | null },
   navigate: vi.fn(),
   setSelectedAgentKey: vi.fn(),
@@ -17,10 +32,38 @@ const mocks = vi.hoisted(() => ({
   setDir: vi.fn(),
   setLoading: vi.fn(),
   ensureBackendMcpCatalog: vi.fn(),
+  appState: {
+    value: {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: true,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/OPL Workspace',
+          exists: true,
+          health_status: 'ready',
+        },
+      },
+    } as Record<string, unknown>,
+  },
+  guidInput: {
+    input: '',
+    files: [] as string[],
+    dir: '',
+  },
+  sendMessageHandler: vi.fn(),
+  sendDisabled: { value: true },
+  slashExecuteBuiltin: { value: undefined as ((name: string) => void) | undefined },
   useGuidSend: vi.fn(() => ({
     handleSend: vi.fn().mockResolvedValue(undefined),
-    sendMessageHandler: vi.fn(),
-    isButtonDisabled: true,
+    sendMessageHandler: mocks.sendMessageHandler,
+    isButtonDisabled: mocks.sendDisabled.value,
   })),
   isPresetAgent: { value: true },
 }));
@@ -95,21 +138,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, unknown>) =>
-      String(
-        options?.defaultValue ??
-          ({
-            'guid.inspector.title': '上下文',
-            'guid.inspector.open': '打开上下文',
-            'guid.inspector.files': '文件',
-            'guid.inspector.capabilities': '能力',
-            'guid.inspector.runtime': '运行',
-            'guid.inspector.memory': '记忆',
-            'guid.inspector.automations': '自动化',
-            'guid.inspector.settings': '设置',
-          }[key] ||
-            key)
-      ),
+    t: mocks.translate,
     i18n: { language: mocks.i18nLanguage.value },
   }),
 }));
@@ -136,6 +165,10 @@ vi.mock('@/renderer/hooks/chat/useInputFocusRing', () => ({
     inactiveBorderColor: '#ddd',
     activeShadow: 'none',
   }),
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  useOplAppState: () => ({ appState: mocks.appState.value }),
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
@@ -216,11 +249,11 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidAgentSelection', () => ({
 
 vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
   useGuidInput: () => ({
-    input: '',
+    input: mocks.guidInput.input,
     setInput: mocks.setInput,
-    files: [],
+    files: mocks.guidInput.files,
     setFiles: mocks.setFiles,
-    dir: '',
+    dir: mocks.guidInput.dir,
     setDir: mocks.setDir,
     loading: false,
     setLoading: mocks.setLoading,
@@ -261,6 +294,22 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidSend', () => ({
   useGuidSend: mocks.useGuidSend,
 }));
 
+vi.mock('@/renderer/hooks/chat/useSlashCommandController', () => ({
+  useSlashCommandController: (options: { onExecuteBuiltin?: (name: string) => void }) => {
+    mocks.slashExecuteBuiltin.value = options.onExecuteBuiltin;
+    return {
+      query: null,
+      isOpen: false,
+      activeIndex: 0,
+      filteredCommands: [],
+      onKeyDown: vi.fn().mockReturnValue(false),
+      onSelectByIndex: vi.fn().mockReturnValue(false),
+      setDismissed: vi.fn(),
+      setActiveIndex: vi.fn(),
+    };
+  },
+}));
+
 vi.mock('@/renderer/pages/guid/hooks/useTypewriterPlaceholder', () => ({
   useTypewriterPlaceholder: () => '描述任务',
 }));
@@ -274,15 +323,18 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     mentionSelectorBadge,
     placeholder,
     actionRow,
+    workspaceAccessDisabled,
   }: {
     mentionSelectorBadge: React.ReactNode;
     placeholder: string;
     actionRow: React.ReactNode;
+    workspaceAccessDisabled?: boolean;
   }) => (
     <div data-testid='guid-input-card'>
       {mentionSelectorBadge}
       <div data-testid='guid-placeholder'>{placeholder}</div>
       {actionRow}
+      {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
     </div>
   ),
 }));
@@ -306,6 +358,30 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setDir.mockClear();
     mocks.setLoading.mockClear();
     mocks.ensureBackendMcpCatalog.mockReset();
+    mocks.appState.value = {
+      schema_version: 'opl_app_state.v1',
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: true,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/OPL Workspace',
+          exists: true,
+          health_status: 'ready',
+        },
+      },
+    };
+    mocks.guidInput.input = '';
+    mocks.guidInput.files = [];
+    mocks.guidInput.dir = '';
+    mocks.sendMessageHandler.mockClear();
+    mocks.sendDisabled.value = true;
+    mocks.slashExecuteBuiltin.value = undefined;
     mocks.ensureBackendMcpCatalog.mockResolvedValue({
       allServers: [
         {
@@ -436,6 +512,87 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByTestId('quick-actions')).not.toBeInTheDocument();
     expect(screen.queryByText(/running attempts/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/needs_attention/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps Home browsable but blocks send with an inline model access recovery action', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.guidInput.input = '继续我的任务';
+    mocks.sendDisabled.value = false;
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      core: {
+        codex: {
+          installed: true,
+          model_access_ready: false,
+          version_status: 'compatible',
+          health_status: 'ready',
+        },
+      },
+    };
+
+    render(<GuidPage />);
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+
+    expect(mocks.sendMessageHandler).not.toHaveBeenCalled();
+    expect(screen.getByTestId('opl-guid-setup-notice')).toHaveTextContent(
+      'common.firstRunRecovery.notice.model_access.title'
+    );
+
+    await userEvent.click(screen.getByTestId('opl-guid-setup-notice-action'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/first-run');
+  });
+
+  it('restricts file and project context without blocking a plain conversation', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.guidInput.input = '只进行文字对话';
+    mocks.sendDisabled.value = false;
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/OPL Workspace',
+          exists: false,
+          health_status: 'missing',
+        },
+      },
+    };
+
+    render(<GuidPage />);
+
+    expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-guid-workspace-access-disabled')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
+  });
+
+  it('blocks the /open file command without clearing the draft when workspace setup is incomplete', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.guidInput.input = '/';
+    mocks.appState.value = {
+      ...mocks.appState.value,
+      paths: {
+        workspace_root: {
+          selected_path: '/Users/example/OPL Workspace',
+          exists: false,
+          health_status: 'missing',
+        },
+      },
+    };
+
+    const { ipcBridge } = await import('@/common');
+    vi.mocked(ipcBridge.dialog.showOpen.invoke).mockClear();
+    render(<GuidPage />);
+    await waitFor(() => expect(mocks.slashExecuteBuiltin.value).toBeTypeOf('function'));
+    const setInputCallCount = mocks.setInput.mock.calls.length;
+
+    act(() => mocks.slashExecuteBuiltin.value?.('open'));
+
+    expect(ipcBridge.dialog.showOpen.invoke).not.toHaveBeenCalled();
+    expect(mocks.setInput).toHaveBeenCalledTimes(setInputCallCount);
+    expect(screen.getByTestId('opl-guid-setup-notice')).toHaveTextContent(
+      'common.firstRunRecovery.notice.workspace.title'
+    );
   });
 
   it('prefills a Chinese post-install Codex self-check prompt from first-run navigation state', () => {

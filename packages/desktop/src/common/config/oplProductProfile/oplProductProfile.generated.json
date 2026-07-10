@@ -923,9 +923,13 @@
       "ready_to_launch_blocking": false
     },
     "first_conversation": {
-      "gate": "acp_warmup_before_initial_send",
+      "gate": "capability_prerequisites_then_acp_warmup_before_initial_send",
       "source_command": "opl system initialize --json",
-      "ready_to_launch_must_be_true": true,
+      "ready_to_launch_must_be_true": false,
+      "required_before_plain_send": ["codex_cli", "codex_config"],
+      "required_before_file_or_project_send": ["workspace_root", "codex_cli", "codex_config"],
+      "unknown_readiness_policy": "allow_attempt_without_mutating_readiness",
+      "blocked_feedback": "localized_inline_non_modal_setup_notice_preserves_prompt",
       "must_wait_for": ["conversation_record_ready", "acp_warmup_complete"],
       "must_not_wait_for": [
         "domain_modules",
@@ -937,6 +941,33 @@
         "ecosystem_module_updates"
       ],
       "failure_policy": "show_retryable_initial_message_error_without_losing_user_prompt"
+    },
+    "ordinary_shell_recovery": {
+      "persistent_setup_entry": {
+        "visibility": "core_prerequisites_incomplete_after_guid_entry",
+        "surface": "ordinary_sidebar_non_modal_entry",
+        "target_route": "/first-run",
+        "label_policy": "localized_complete_first_setup",
+        "must_preserve_current_route_until_clicked": true
+      },
+      "plain_conversation": {
+        "required_items": ["codex_cli", "codex_config"],
+        "workspace_root_required": false,
+        "blocked_feedback": "localized_inline_non_modal_notice_with_first_run_action",
+        "must_preserve_prompt": true
+      },
+      "file_and_project_context": {
+        "required_items": ["workspace_root"],
+        "restricted_capabilities": [
+          "file_dialog_attachment",
+          "file_paste_attachment",
+          "file_drag_attachment",
+          "project_workspace_selection"
+        ],
+        "blocked_feedback": "disabled_control_with_local_explanation_and_persistent_setup_entry",
+        "plain_conversation_remains_available": true
+      },
+      "unknown_readiness_policy": "do_not_synthesize_failure_or_mutate_readiness"
     },
     "progress_model": {
       "source_command": "opl system initialize --json",

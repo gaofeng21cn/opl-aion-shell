@@ -32,12 +32,18 @@ export type GuidInputResult = {
 
 type UseGuidInputOptions = {
   locationState: { workspace?: string } | null;
+  fileAccessEnabled?: boolean;
+  onFileAccessBlocked?: () => void;
 };
 
 /**
  * Hook that manages input state, file handling, and drag/paste for the Guid page.
  */
-export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputResult => {
+export const useGuidInput = ({
+  locationState,
+  fileAccessEnabled = true,
+  onFileAccessBlocked,
+}: UseGuidInputOptions): GuidInputResult => {
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<string[]>([]);
   const [dir, setDir] = useState<string>('');
@@ -54,15 +60,29 @@ export const useGuidInput = ({ locationState }: UseGuidInputOptions): GuidInputR
   // Handle pasted files (append mode to support multiple pastes)
   // Do NOT clear dir here: paste/drag should coexist with a selected workspace,
   // matching the dialog-upload path (handleFilesUploaded).
-  const handleFilesPasted = useCallback((pastedFiles: FileMetadata[]) => {
-    const file_paths = pastedFiles.map((file) => file.path);
-    setFiles((prevFiles) => [...prevFiles, ...file_paths]);
-  }, []);
+  const handleFilesPasted = useCallback(
+    (pastedFiles: FileMetadata[]) => {
+      if (!fileAccessEnabled) {
+        onFileAccessBlocked?.();
+        return;
+      }
+      const file_paths = pastedFiles.map((file) => file.path);
+      setFiles((prevFiles) => [...prevFiles, ...file_paths]);
+    },
+    [fileAccessEnabled, onFileAccessBlocked]
+  );
 
   // Handle files uploaded via dialog (append mode)
-  const handleFilesUploaded = useCallback((uploadedPaths: string[]) => {
-    setFiles((prevFiles) => [...prevFiles, ...uploadedPaths]);
-  }, []);
+  const handleFilesUploaded = useCallback(
+    (uploadedPaths: string[]) => {
+      if (!fileAccessEnabled) {
+        onFileAccessBlocked?.();
+        return;
+      }
+      setFiles((prevFiles) => [...prevFiles, ...uploadedPaths]);
+    },
+    [fileAccessEnabled, onFileAccessBlocked]
+  );
 
   const handleRemoveFile = useCallback((targetPath: string) => {
     setFiles((prevFiles) => prevFiles.filter((file) => file !== targetPath));

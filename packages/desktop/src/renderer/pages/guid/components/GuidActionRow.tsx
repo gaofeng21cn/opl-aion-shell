@@ -26,6 +26,8 @@ type GuidActionRowProps = {
   // File handling
   files: string[];
   onFilesUploaded: (paths: string[]) => void;
+  fileAccessDisabled?: boolean;
+  fileAccessDisabledReason?: string;
 
   // Model selector node (rendered by parent)
   modelSelectorNode: React.ReactNode;
@@ -71,6 +73,8 @@ type GuidActionRowProps = {
 const GuidActionRow: React.FC<GuidActionRowProps> = ({
   files,
   onFilesUploaded,
+  fileAccessDisabled = false,
+  fileAccessDisabledReason,
   modelSelectorNode,
   selectedAgent,
   effectiveModeAgent,
@@ -270,31 +274,43 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
     </Menu>
   );
 
+  const fileEntry = (
+    <span
+      className={`flex items-center gap-4px lh-[1] ${fileAccessDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+      data-testid={fileAccessDisabled ? 'opl-guid-file-access-disabled' : undefined}
+    >
+      <Button
+        type='secondary'
+        shape='circle'
+        className={isPlusDropdownOpen ? styles.plusButtonRotate : ''}
+        icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
+        loading={uploading}
+        disabled={uploading || fileAccessDisabled}
+        data-testid='file-upload-btn'
+        aria-label={fileAccessDisabled ? fileAccessDisabledReason : undefined}
+      />
+      {files.length > 0 && (
+        <Tooltip
+          className={'!max-w-max'}
+          content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}
+        >
+          <span className='text-t-primary'>File({files.length})</span>
+        </Tooltip>
+      )}
+    </span>
+  );
+
   return (
     <div className={styles.actionRow}>
       <div className={styles.actionTools}>
         <div className={styles.actionEntry}>
-          <Dropdown trigger='hover' onVisibleChange={setIsPlusDropdownOpen} droplist={menuContent}>
-            <span className='flex items-center gap-4px cursor-pointer lh-[1]'>
-              <Button
-                type='secondary'
-                shape='circle'
-                className={isPlusDropdownOpen ? styles.plusButtonRotate : ''}
-                icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
-                loading={uploading}
-                disabled={uploading}
-                data-testid='file-upload-btn'
-              />
-              {files.length > 0 && (
-                <Tooltip
-                  className={'!max-w-max'}
-                  content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}
-                >
-                  <span className='text-t-primary'>File({files.length})</span>
-                </Tooltip>
-              )}
-            </span>
-          </Dropdown>
+          {fileAccessDisabled ? (
+            <Tooltip content={fileAccessDisabledReason}>{fileEntry}</Tooltip>
+          ) : (
+            <Dropdown trigger='hover' onVisibleChange={setIsPlusDropdownOpen} droplist={menuContent}>
+              {fileEntry}
+            </Dropdown>
+          )}
           {isWebUI && (
             <input
               ref={fileInputRef}

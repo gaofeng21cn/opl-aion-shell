@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
+import { readCoreLaunchPrerequisiteState, readInitializePayload } from '@/renderer/pages/FirstRun/initializeModel';
 
 const blockedInitialize = {
   setup_flow: {
@@ -121,5 +121,49 @@ describe('FirstRun initialize payload validation', () => {
     delete (initialize.checklist[0] as { required?: boolean }).required;
 
     expect(readInitializePayload({ system_initialize: initialize })).toBeNull();
+  });
+});
+
+describe('Core launch prerequisite projection', () => {
+  const appState = {
+    schema_version: 'opl_app_state.v1',
+    core: {
+      codex: {
+        installed: true,
+        model_access_ready: true,
+        version_status: 'compatible',
+        health_status: 'ready',
+      },
+    },
+    paths: {
+      workspace_root: {
+        selected_path: '/Users/example/OPL Workspace',
+        exists: true,
+        health_status: 'ready',
+      },
+    },
+  };
+
+  it('projects workspace, local assistant, and model access independently', () => {
+    const withoutWorkspace = structuredClone(appState);
+    withoutWorkspace.paths.workspace_root.health_status = 'missing';
+
+    expect(readCoreLaunchPrerequisiteState(withoutWorkspace)).toEqual({
+      known: true,
+      workspaceRootReady: false,
+      codexCliReady: true,
+      modelAccessReady: true,
+      readyToLaunch: false,
+    });
+  });
+
+  it('keeps unknown App state distinct from a confirmed missing prerequisite', () => {
+    expect(readCoreLaunchPrerequisiteState({})).toEqual({
+      known: false,
+      workspaceRootReady: false,
+      codexCliReady: false,
+      modelAccessReady: false,
+      readyToLaunch: false,
+    });
   });
 });

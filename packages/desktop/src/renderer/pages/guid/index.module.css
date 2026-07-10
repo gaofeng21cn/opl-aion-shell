@@ -8,6 +8,62 @@
   margin: 0 auto;
 }
 
+.guidSetupNotice {
+  width: min(100%, 760px);
+  min-height: 44px;
+  margin: 10px auto 0;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--color-border-2);
+  border-radius: 6px;
+  background: var(--color-fill-1);
+  color: var(--color-text-2);
+}
+
+.guidSetupNoticeIcon {
+  flex: 0 0 auto;
+  color: rgb(var(--primary-6));
+}
+
+.guidSetupNoticeCopy {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.guidSetupNoticeCopy strong {
+  color: var(--color-text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.guidSetupNotice :global(.arco-btn) {
+  flex: 0 0 auto;
+  min-height: 32px;
+}
+
+@media (max-width: 520px) {
+  .guidSetupNotice {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .guidSetupNoticeCopy {
+    flex-basis: calc(100% - 28px);
+  }
+
+  .guidSetupNotice :global(.arco-btn) {
+    margin-left: 25px;
+  }
+}
+
 .guidShellFrame {
   position: absolute;
   inset: 0;
@@ -554,6 +610,20 @@
 .workspaceEmptyBtn:hover {
   color: var(--color-text-2);
   background: var(--color-fill-3);
+}
+
+.workspaceEmptyBtn:disabled,
+.workspacePillMain:disabled {
+  color: var(--color-text-4);
+  background: transparent;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.workspaceEmptyBtn:disabled:hover,
+.workspacePillMain:disabled:hover {
+  color: var(--color-text-4);
+  background: transparent;
 }
 
 /* 选中态：和空状态同色系，不做颜色跳变 */

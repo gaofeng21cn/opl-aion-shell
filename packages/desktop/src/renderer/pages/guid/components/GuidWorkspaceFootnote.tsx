@@ -17,6 +17,8 @@ type GuidWorkspaceFootnoteProps = {
   workspaceDir: string;
   onSelectWorkspace: (dir: string) => void;
   onClearWorkspace: () => void;
+  accessDisabled?: boolean;
+  accessDisabledReason?: string;
 };
 
 const FolderIcon = ({ size = 12 }: { size?: number }) => (
@@ -51,6 +53,8 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   workspaceDir,
   onSelectWorkspace,
   onClearWorkspace,
+  accessDisabled = false,
+  accessDisabledReason,
 }) => {
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
@@ -230,15 +234,20 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
     : null;
 
   return (
-    <div className={styles.workspaceFootnote}>
+    <div
+      className={styles.workspaceFootnote}
+      data-testid={accessDisabled ? 'opl-guid-workspace-access-disabled' : undefined}
+    >
       {workspaceDir ? (
         <>
-          <Tooltip content={workspaceDir} position='top'>
+          <Tooltip content={accessDisabled ? accessDisabledReason : workspaceDir} position='top'>
             <div className={styles.workspacePill}>
               <button
                 ref={triggerRef as React.RefObject<HTMLButtonElement>}
                 className={styles.workspacePillMain}
-                onClick={toggleOpen}
+                onClick={accessDisabled ? undefined : toggleOpen}
+                disabled={accessDisabled}
+                aria-label={accessDisabled ? accessDisabledReason : undefined}
               >
                 <FolderIcon size={14} />
                 <span className={styles.workspacePillName}>{workspaceName}</span>
@@ -266,23 +275,29 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
         </>
       ) : (
         <>
-          <button
-            ref={triggerRef as React.RefObject<HTMLButtonElement>}
-            className={styles.workspaceEmptyBtn}
-            data-testid='workspace-selector-btn'
-            onClick={recentWorkspaces.length > 0 ? toggleOpen : handleBrowseWorkspace}
-          >
-            <FolderIcon size={14} />
-            <span>{t('guid.workspace.workInProject')}</span>
-            {recentWorkspaces.length > 0 && (
-              <Down
-                theme='outline'
-                size='12'
-                fill='currentColor'
-                style={{ flexShrink: 0, transform: 'translateY(1px)' }}
-              />
-            )}
-          </button>
+          <Tooltip content={accessDisabled ? accessDisabledReason : undefined} position='top'>
+            <span>
+              <button
+                ref={triggerRef as React.RefObject<HTMLButtonElement>}
+                className={styles.workspaceEmptyBtn}
+                data-testid='workspace-selector-btn'
+                onClick={recentWorkspaces.length > 0 ? toggleOpen : handleBrowseWorkspace}
+                disabled={accessDisabled}
+                aria-label={accessDisabled ? accessDisabledReason : undefined}
+              >
+                <FolderIcon size={14} />
+                <span>{t('guid.workspace.workInProject')}</span>
+                {recentWorkspaces.length > 0 && (
+                  <Down
+                    theme='outline'
+                    size='12'
+                    fill='currentColor'
+                    style={{ flexShrink: 0, transform: 'translateY(1px)' }}
+                  />
+                )}
+              </button>
+            </span>
+          </Tooltip>
           {dropdownEl}
         </>
       )}

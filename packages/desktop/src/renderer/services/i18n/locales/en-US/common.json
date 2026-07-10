@@ -100,6 +100,26 @@
     },
     "skipCheck": "Skip and enter Home"
   },
+  "firstRunRecovery": {
+    "completeSetup": "Complete first setup",
+    "sidebarHint": "Browse now and finish setup for full access",
+    "fileAccessUnavailable": "Complete workspace setup to add files",
+    "workspaceAccessUnavailable": "Complete workspace setup to select a project",
+    "notice": {
+      "local_assistant": {
+        "title": "Finish local assistant setup",
+        "description": "Complete setup before sending. Your draft will be preserved."
+      },
+      "model_access": {
+        "title": "Finish model access setup",
+        "description": "Complete setup before sending. Your draft will be preserved."
+      },
+      "workspace": {
+        "title": "Finish workspace setup",
+        "description": "Complete setup to add files or select a project. Plain text conversations remain available."
+      }
+    }
+  },
   "backendStartup": {
     "incompatibleRuntime": {
       "title": "This system is not supported by the bundled backend",

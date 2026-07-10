@@ -48,6 +48,8 @@ type GuidInputCardProps = {
   workspaceDir: string;
   onSelectWorkspace: (dir: string) => void;
   onClearWorkspace: () => void;
+  workspaceAccessDisabled?: boolean;
+  workspaceAccessDisabledReason?: string;
 };
 
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
@@ -74,6 +76,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   workspaceDir,
   onSelectWorkspace,
   onClearWorkspace,
+  workspaceAccessDisabled = false,
+  workspaceAccessDisabledReason,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -156,6 +160,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         workspaceDir={workspaceDir}
         onSelectWorkspace={onSelectWorkspace}
         onClearWorkspace={onClearWorkspace}
+        accessDisabled={workspaceAccessDisabled}
+        accessDisabledReason={workspaceAccessDisabledReason}
       />
     </div>
   );
