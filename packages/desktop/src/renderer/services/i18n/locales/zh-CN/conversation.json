@@ -70,6 +70,8 @@
     "exportDialogTitle": "导出话题",
     "exportDialogSingleDescription": "将导出当前话题的会话记录（JSON + Markdown）及项目文件，并打包为 ZIP。",
     "exportDialogBatchDescription": "将导出已选 {{count}} 个话题的会话记录（JSON + Markdown）及项目文件，并打包为 ZIP。",
+    "exportFileName": "ZIP 文件名",
+    "exportFileNameRequired": "请输入 ZIP 文件名",
     "exportTargetFolder": "导出到文件夹",
     "exportSelectFolder": "请选择导出文件夹",
     "exportDialogHint": "目录选择与\"更换项目\"一致；确认后开始导出。",
