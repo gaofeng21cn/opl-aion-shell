@@ -85,7 +85,12 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
 
   useEffect(() => {
     if (!isMobile) return;
-    activeMobileNavItemRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const activeItem = activeMobileNavItemRef.current;
+    const nav = activeItem?.parentElement;
+    if (!activeItem || !nav) return;
+    nav.scrollTo({
+      left: Math.max(0, activeItem.offsetLeft - (nav.clientWidth - activeItem.offsetWidth) / 2),
+    });
   }, [isMobile, menuItems, pathname]);
 
   const selectSearchResult = React.useCallback(
