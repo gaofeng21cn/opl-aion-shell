@@ -163,6 +163,7 @@ const ChatLayout: React.FC<{
         aria-label={rightSiderCollapsed ? t('conversation.sidePanel.open') : t('conversation.sidePanel.close')}
         aria-expanded={!rightSiderCollapsed}
         onClick={() => dispatchWorkspaceToggleEvent()}
+        data-testid='conversation-side-panel-toggle'
       />
     </Tooltip>
   );
@@ -232,7 +233,7 @@ const ChatLayout: React.FC<{
   return (
     <ArcoLayout className='size-full color-black'>
       <div ref={containerRef} className='flex flex-1 relative w-full overflow-hidden'>
-        <div className='flex flex-col min-w-0 flex-1'>
+        <div className='flex flex-col min-w-0 flex-1' data-testid='conversation-main-column'>
           <div className='shrink-0 !bg-1'>
             {isMobile ? mobileActionsSlot && createPortal(headerTools, mobileActionsSlot) : desktopHeader}
             {props.tabsSlot}
@@ -289,6 +290,7 @@ const ChatLayout: React.FC<{
             className='chat-layout-right-sider layout-sider'
             hidden={rightSiderCollapsed}
             aria-hidden={rightSiderCollapsed}
+            data-testid='conversation-side-panel-surface'
             style={{
               flex: `0 0 ${Math.round(workspaceWidthPx)}px`,
               width: `${Math.round(workspaceWidthPx)}px`,
