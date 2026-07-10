@@ -1044,13 +1044,16 @@
   "firstRun": {
     "title": "准备开始使用",
     "description": "只需确认工作目录、本机助手和模型访问。其他组件会在后台准备。",
-    "openRuntimeSettings": "运行设置",
+    "setupTitle": "首次设置",
+    "estimatedTime": "约 2 分钟",
+    "help": "帮助",
+    "stepCounter": "第 {{current}} 步，共 {{total}} 步",
+    "stepProgress": "{{ready}} / {{total}} 已完成",
     "enterGuid": "进入 OPL",
     "coreReady": "核心已就绪",
     "ready": "就绪",
     "needsSetup": "需要处理",
     "stage": "当前阶段：{{phase}}",
-    "coreProgress": "准备进度 {{progress}}",
     "fullReadinessProgress": "完整就绪度已完成 {{progress}}",
     "maintenanceProgress": "维护和可选项已完成 {{progress}}",
     "blockers": "待处理项",
@@ -1060,6 +1063,7 @@
     "noMaintenance": "暂无待维护项",
     "readiness": "就绪检查",
     "technicalDetails": "技术详情",
+    "technicalPanelTitle": "系统与维护详情",
     "lastAction": "上次操作结果",
     "noActionYet": "此窗口内尚未运行维护操作。",
     "initializePending": {
@@ -1067,6 +1071,43 @@
       "progress": "正在读取初始化状态，首次启动可能需要几秒。",
       "duration": " · {{seconds}} 秒",
       "itemSummary": "等待初始化检查返回此项状态。"
+    },
+    "initializePhases": {
+      "environment": "正在检查本机环境",
+      "codex": "正在检查本机助手",
+      "familyRuntimeProvider": "正在检查后台任务服务",
+      "nativeHelpers": "正在检查系统工具",
+      "modules": "正在检查扩展能力",
+      "developerMode": "正在检查开发者设置",
+      "settings": "正在读取本机设置",
+      "workspaceRoot": "正在检查工作目录",
+      "recommendedSkills": "正在检查推荐能力",
+      "guiShell": "正在检查应用界面",
+      "summary": "正在汇总设置结果"
+    },
+    "checking": {
+      "title": "正在检查这台设备",
+      "currentTask": "当前检查",
+      "action": "正在检查",
+      "itemsPending": "正在确认是否有待处理项。",
+      "nextStepPending": "检查完成后会显示下一步。"
+    },
+    "modelAccess": {
+      "title": "连接模型服务",
+      "description": "让 OPL 使用你的模型访问权限。你可以使用 OPL Gateway，也可以继续使用已配置的 Codex。",
+      "methodLabel": "模型访问方式",
+      "oneStepRemaining": "还差一步即可开始使用",
+      "gateway": "OPL Gateway",
+      "existingCodex": "已有 Codex 配置",
+      "existingDescription": "OPL 会重新检查这台设备上的 Codex 模型访问。若仍未通过，请切回 OPL Gateway 并输入访问密钥。",
+      "recheckExisting": "重新检测已有配置"
+    },
+    "readyPanel": {
+      "title": "已经准备好了",
+      "description": "工作目录、本机助手和模型访问均已就绪。扩展能力可以在进入后继续后台准备。"
+    },
+    "blockedPanel": {
+      "title": "完成最后一项设置"
     },
     "beginner": {
       "title": "正在准备",
@@ -1126,47 +1167,6 @@
         "maintenance": "推荐能力会在进入后继续准备。"
       }
     },
-    "itemDescriptions": {
-      "workspaceRoot": "OPL 存放项目、文件和本机任务产物的位置。",
-      "codex": "OPL 用来启动会话和执行命令的本机助手运行环境。",
-      "codexConfig": "让本机助手访问 OPL Gateway 或已有 Codex 模型服务的配置。",
-      "domainModules": "MAS、MAG、RCA、BookForge 等可选 OPL 能力包。",
-      "familyRuntimeProvider": "用于执行较长 OPL 任务的本机后台运行底座。",
-      "recommendedSkills": "增强特定 OPL 工作流的配套能力。"
-    },
-    "itemActionPrefix": "是否需要操作：{{action}}",
-    "itemActions": {
-      "workspaceRoot": {
-        "ready": "无需处理。",
-        "needsAction": "开始前请选择或修复工作目录。",
-        "waiting": "等待启动检查完成。"
-      },
-      "codex": {
-        "ready": "无需处理。",
-        "needsAction": "开始前请完成本机助手准备。",
-        "waiting": "等待启动检查完成。"
-      },
-      "codexConfig": {
-        "ready": "我已配置，跳过。",
-        "needsAction": "在下方输入 OPL Gateway 访问密钥。",
-        "waiting": "等待启动检查完成。"
-      },
-      "domainModules": {
-        "ready": "无需处理。",
-        "maintenance": "可以在进入后继续后台准备。",
-        "waiting": "等待启动检查完成。"
-      },
-      "familyRuntimeProvider": {
-        "ready": "无需处理。",
-        "maintenance": "可以在进入后继续后台准备。",
-        "waiting": "等待启动检查完成。"
-      },
-      "recommendedSkills": {
-        "ready": "无需处理。",
-        "maintenance": "可以在进入后继续后台准备。",
-        "waiting": "等待启动检查完成。"
-      }
-    },
     "nextSteps": {
       "workspaceRoot": "选择一个本机工作目录。",
       "codex": "等待本机助手准备完成，或在技术详情中重试。",
@@ -1191,16 +1191,20 @@
       "failed": "失败"
     },
     "actions": {
-      "completed": "操作已完成"
+      "completed": "操作已完成",
+      "install": "继续设置",
+      "chooseWorkspace": "选择工作目录"
     },
     "codex": {
       "title": "OPL Gateway",
       "prompt": "请输入管理员提供的 OPL Gateway 访问密钥。已有可用 Codex 配置时可以跳过首启配置，之后仍可在设置中切换到 OPL Gateway。",
       "defaults": "服务商和模型细节保留在诊断信息中；首次配置页只展示 OPL Gateway 访问步骤。",
+      "apiKeyLabel": "OPL Gateway 访问密钥",
       "apiKeyPlaceholder": "输入 OPL Gateway 访问密钥",
       "apiKeyRequired": "请输入 OPL Gateway 访问密钥",
-      "configure": "配置 OPL Gateway",
-      "configured": "OPL Gateway 已配置"
+      "localOnly": "访问密钥保存在本机，仅发送到已配置的模型端点。",
+      "verifyAndContinue": "验证并继续",
+      "configure": "配置 OPL Gateway"
     },
     "maintenance": {
       "title": "维护操作",
@@ -1210,9 +1214,13 @@
       "reconcileModules": "同步模块"
     },
     "error": {
+      "title": "启动检查未完成",
+      "description": "核心准备状态尚未确认；检查成功前不会显示就绪结论。",
+      "retry": "重新检查",
       "general": "OPL 暂时无法完成启动检查。打开技术详情可以重试或查看诊断信息。",
       "blocked": "还有一个设置项需要处理。按下方下一步完成后，可在技术详情中重试。",
-      "codexConfig": "模型访问还未配置。请输入管理员提供的访问密钥后继续。"
+      "codexConfig": "模型访问还未配置。请输入管理员提供的访问密钥后继续。",
+      "workspace": "OPL 无法保存工作目录。请选择其他可写目录，或打开技术详情查看原因。"
     }
   },
   "oplFirstLaunch": {

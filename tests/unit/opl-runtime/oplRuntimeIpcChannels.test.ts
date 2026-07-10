@@ -7,7 +7,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const platformMocks = vi.hoisted(() => ({
-  buildProvider: vi.fn(() => ({
+  buildProvider: vi.fn((_channel: string) => ({
     provider: vi.fn(),
     invoke: vi.fn(),
   })),
@@ -72,5 +72,30 @@ describe('OPL runtime IPC channel contract', () => {
       ])
     );
     expect(channels).not.toEqual(expect.arrayContaining(['local-data-lifecycle.delete-silently']));
+  });
+
+  it('keeps OPL runtime calls on desktop IPC when the Electron preload exists but aioncore has no port', async () => {
+    vi.resetModules();
+    const electronInvoke = vi.fn().mockResolvedValue({ ok: true });
+    platformMocks.buildProvider.mockImplementation((channel: string) => ({
+      provider: vi.fn(),
+      invoke: channel === 'opl-runtime.get-initialize' ? electronInvoke : vi.fn(),
+    }));
+    vi.stubGlobal('window', { electronAPI: {}, __backendPort: 0 });
+    vi.stubGlobal('document', {});
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { ok: true } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { oplRuntime } = await import('@/common/adapter/ipcBridge');
+    await oplRuntime.getInitialize.invoke();
+
+    expect(electronInvoke).toHaveBeenCalledOnce();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

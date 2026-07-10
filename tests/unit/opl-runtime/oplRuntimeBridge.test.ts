@@ -65,6 +65,7 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
         'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
+        'opl system initialize --events --json',
         'opl system initialize --json',
         'opl install --skip-gui-open --skip-modules --skip-native-helper-repair --json',
         'opl system configure-codex --api-key-stdin --json',
@@ -146,13 +147,15 @@ describe('OPL runtime bridge command whitelist', () => {
   it('builds the first-run command surface without allowing arbitrary shell commands', () => {
     expect(__oplRuntimeBridgeTest.buildInitializeCommand()).toEqual({
       surface: 'system_initialize',
-      args: ['system', 'initialize', '--json'],
-      redactedCommand: 'opl system initialize --json',
+      args: ['system', 'initialize', '--events', '--json'],
+      redactedCommand: 'opl system initialize --events --json',
+      timeoutMs: 120_000,
     });
     expect(__oplRuntimeBridgeTest.buildInitializeFallbackCommand()).toEqual({
       surface: 'system_initialize',
       args: ['system', 'initialize', '--json'],
       redactedCommand: 'opl system initialize --json',
+      timeoutMs: 120_000,
     });
     expect(__oplRuntimeBridgeTest.buildInstallPrepCommand()).toEqual({
       surface: 'install_prep',
@@ -661,6 +664,42 @@ describe('OPL runtime bridge command whitelist', () => {
       system_initialize: {
         surface_id: 'opl_system_initialize',
         setup_flow: { ready_to_launch: true },
+      },
+    });
+  });
+
+  it('ignores non-event stdout lines without crashing initialize event streaming', async () => {
+    const completeLine = JSON.stringify({
+      event: {
+        surface_id: 'opl_system_initialize_event',
+        event_type: 'complete',
+        phase: 'summary',
+        label: 'Initialize payload ready',
+        sequence: 2,
+        observed_at: '2026-07-10T00:00:00.000Z',
+        payload: {
+          system_initialize: {
+            setup_flow: { ready_to_launch: false },
+          },
+        },
+      },
+    });
+    const stdout = `warning on stdout\n${completeLine}\n`;
+
+    await expect(
+      __oplRuntimeBridgeTest.runInitializeEventsCommand({
+        surface: 'system_initialize',
+        command: process.execPath,
+        args: ['-e', `process.stdout.write(${JSON.stringify(stdout)})`],
+        redactedCommand: 'fixture initialize events',
+        timeoutMs: 5_000,
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      parsed: {
+        system_initialize: {
+          setup_flow: { ready_to_launch: false },
+        },
       },
     });
   });

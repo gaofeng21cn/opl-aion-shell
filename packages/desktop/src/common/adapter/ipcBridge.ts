@@ -558,7 +558,7 @@ function isWebUiBrowserMode(): boolean {
   return (
     typeof window !== 'undefined' &&
     typeof document !== 'undefined' &&
-    !(window as Window & { __backendPort?: number }).__backendPort
+    !(window as Window & { electronAPI?: unknown }).electronAPI
   );
 }
 

@@ -6,14 +6,14 @@ export type FirstRunChecklistItem = {
   status: string;
   required: boolean;
   blocking: boolean;
-  readiness_layer?: 'core_launch' | 'full_readiness' | 'optional';
-  severity?: 'blocking' | 'maintenance' | 'info';
+  readiness_layer: 'core_launch' | 'full_readiness' | 'optional';
+  severity: 'blocking' | 'maintenance' | 'info';
   user_action_required?: boolean;
   auto_action_available?: boolean;
   action_command_ref?: string | null;
   last_attempt?: Record<string, unknown> | null;
-  next_visible_step?: string;
-  detail_summary?: string;
+  next_visible_step: string;
+  detail_summary: string;
 };
 
 export type FirstRunInitialize = {

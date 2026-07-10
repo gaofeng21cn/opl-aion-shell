@@ -1043,13 +1043,16 @@
   "firstRun": {
     "title": "Prepare One Person Lab",
     "description": "Confirm the workspace, local assistant, and model access. Everything else prepares in the background.",
-    "openRuntimeSettings": "Runtime settings",
+    "setupTitle": "First setup",
+    "estimatedTime": "About 2 minutes",
+    "help": "Help",
+    "stepCounter": "Step {{current}} of {{total}}",
+    "stepProgress": "{{ready}} / {{total}} complete",
     "enterGuid": "Start in OPL",
     "coreReady": "Core ready",
     "ready": "Ready",
     "needsSetup": "Needs setup",
     "stage": "Current stage: {{phase}}",
-    "coreProgress": "Setup progress {{progress}}",
     "fullReadinessProgress": "Full readiness {{progress}} complete",
     "maintenanceProgress": "Maintenance and optional items {{progress}} complete",
     "blockers": "Items to finish",
@@ -1059,6 +1062,7 @@
     "noMaintenance": "No maintenance pending",
     "readiness": "Readiness checks",
     "technicalDetails": "Technical details",
+    "technicalPanelTitle": "System and maintenance details",
     "lastAction": "Last action result",
     "noActionYet": "No maintenance action has run in this window.",
     "initializePending": {
@@ -1066,6 +1070,43 @@
       "progress": "Reading the initialization status now. This can take a few seconds on first launch.",
       "duration": " · {{seconds}}s",
       "itemSummary": "Waiting for the initialization check to report this item."
+    },
+    "initializePhases": {
+      "environment": "Inspecting the local environment",
+      "codex": "Checking the local assistant",
+      "familyRuntimeProvider": "Checking background task services",
+      "nativeHelpers": "Checking system tools",
+      "modules": "Checking capability packs",
+      "developerMode": "Checking developer settings",
+      "settings": "Reading local settings",
+      "workspaceRoot": "Checking the workspace folder",
+      "recommendedSkills": "Checking recommended capabilities",
+      "guiShell": "Checking the App interface",
+      "summary": "Summarizing setup results"
+    },
+    "checking": {
+      "title": "Checking this device",
+      "currentTask": "Current check",
+      "action": "Checking",
+      "itemsPending": "Checking whether anything needs your attention.",
+      "nextStepPending": "The next step will appear when this check finishes."
+    },
+    "modelAccess": {
+      "title": "Connect a model service",
+      "description": "Give OPL access to your models. Use OPL Gateway or continue with an existing Codex configuration.",
+      "methodLabel": "Model access method",
+      "oneStepRemaining": "One step left before you can start",
+      "gateway": "OPL Gateway",
+      "existingCodex": "Existing Codex setup",
+      "existingDescription": "OPL will check Codex model access on this device again. If it still fails, switch back to OPL Gateway and enter an access key.",
+      "recheckExisting": "Check existing setup again"
+    },
+    "readyPanel": {
+      "title": "Everything is ready",
+      "description": "Your workspace, local assistant, and model access are ready. Extra capabilities can continue preparing after you enter."
+    },
+    "blockedPanel": {
+      "title": "Finish the last setup item"
     },
     "beginner": {
       "title": "Checking the essentials",
@@ -1125,47 +1166,6 @@
         "maintenance": "Recommended skills will keep preparing after you start."
       }
     },
-    "itemDescriptions": {
-      "workspaceRoot": "Where OPL stores projects, files, and local task output.",
-      "codex": "The local assistant runtime used by OPL to run sessions and commands.",
-      "codexConfig": "The configuration that lets the local assistant reach OPL Gateway or existing Codex model access.",
-      "domainModules": "Optional OPL capability packs such as MAS, MAG, RCA, and BookForge.",
-      "familyRuntimeProvider": "The local background runner used for longer OPL tasks.",
-      "recommendedSkills": "Companion skills that improve specialized OPL workflows."
-    },
-    "itemActionPrefix": "Action: {{action}}",
-    "itemActions": {
-      "workspaceRoot": {
-        "ready": "No action needed.",
-        "needsAction": "Choose or repair the workspace before starting.",
-        "waiting": "Wait for the startup check to finish."
-      },
-      "codex": {
-        "ready": "No action needed.",
-        "needsAction": "Finish local assistant setup before starting.",
-        "waiting": "Wait for the startup check to finish."
-      },
-      "codexConfig": {
-        "ready": "Already configured; skip.",
-        "needsAction": "Enter the OPL Gateway access key below.",
-        "waiting": "Wait for the startup check to finish."
-      },
-      "domainModules": {
-        "ready": "No action needed.",
-        "maintenance": "Can continue in the background after you start.",
-        "waiting": "Wait for the startup check to finish."
-      },
-      "familyRuntimeProvider": {
-        "ready": "No action needed.",
-        "maintenance": "Can continue in the background after you start.",
-        "waiting": "Wait for the startup check to finish."
-      },
-      "recommendedSkills": {
-        "ready": "No action needed.",
-        "maintenance": "Can continue in the background after you start.",
-        "waiting": "Wait for the startup check to finish."
-      }
-    },
     "nextSteps": {
       "workspaceRoot": "Choose a local workspace folder.",
       "codex": "Wait for the local assistant to finish setup, or retry from technical details.",
@@ -1190,16 +1190,20 @@
       "failed": "Failed"
     },
     "actions": {
-      "completed": "Action completed"
+      "completed": "Action completed",
+      "install": "Continue setup",
+      "chooseWorkspace": "Choose workspace folder"
     },
     "codex": {
       "title": "OPL Gateway",
       "prompt": "Enter the OPL Gateway access key from your administrator. If Codex model access already works, you can skip first launch setup and switch to OPL Gateway later in Settings.",
       "defaults": "The app keeps provider and model details in diagnostics; the setup screen only asks for OPL Gateway access when needed.",
+      "apiKeyLabel": "OPL Gateway access key",
       "apiKeyPlaceholder": "Enter OPL Gateway access key",
       "apiKeyRequired": "Enter the OPL Gateway access key",
-      "configure": "Configure OPL Gateway",
-      "configured": "OPL Gateway configured"
+      "localOnly": "The access key is stored on this device and sent only to the configured model endpoint.",
+      "verifyAndContinue": "Verify and continue",
+      "configure": "Configure OPL Gateway"
     },
     "maintenance": {
       "title": "Maintenance actions",
@@ -1209,9 +1213,13 @@
       "reconcileModules": "Reconcile modules"
     },
     "error": {
+      "title": "Startup check incomplete",
+      "description": "Core readiness has not been confirmed. OPL will not show a ready result until the check succeeds.",
+      "retry": "Check again",
       "general": "OPL could not finish the startup check. Open technical details to retry or inspect the diagnostic.",
       "blocked": "One setup item still needs attention. Follow the next step below, then retry from technical details.",
-      "codexConfig": "Model access is not configured yet. Enter the access key from your administrator to continue."
+      "codexConfig": "Model access is not configured yet. Enter the access key from your administrator to continue.",
+      "workspace": "OPL could not save the workspace folder. Choose another writable folder or open technical details."
     }
   },
   "oplFirstLaunch": {

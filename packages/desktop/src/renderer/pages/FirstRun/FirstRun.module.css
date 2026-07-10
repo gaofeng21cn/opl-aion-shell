@@ -1,46 +1,578 @@
 .firstRunPage {
-  min-height: 100%;
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg-2);
   color: var(--text-primary);
-  overflow: auto;
+  letter-spacing: 0;
 }
 
-.firstRunShell {
-  width: min(1120px, 100%);
+.firstRunBrandBar {
+  display: flex;
+  min-height: 64px;
+  flex: 0 0 64px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-base);
+  background: var(--bg-1);
+  padding: 0 28px;
+  -webkit-app-region: drag;
+}
+
+.firstRunBrandBarMac {
+  padding-left: 84px;
+}
+
+.firstRunBrandActions {
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.firstRunWindowControls {
+  display: flex;
+  align-self: stretch;
+}
+
+.firstRunBrandIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.firstRunBrandIdentity img {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 6px;
+}
+
+.firstRunBrandIdentity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firstRunHelpButton,
+.firstRunTechnicalButton {
+  min-height: 44px !important;
+  color: var(--text-secondary) !important;
+  -webkit-app-region: no-drag;
+}
+
+.firstRunHelpButton:hover,
+.firstRunTechnicalButton:hover {
+  color: var(--text-primary) !important;
+}
+
+.firstRunScrollArea {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: 36px 24px 48px;
+}
+
+.firstRunWorkspace,
+.firstRunTechnicalRegion {
+  width: min(1040px, 100%);
   margin: 0 auto;
-  padding: 32px 24px 40px;
+}
+
+.firstRunWorkspace {
+  min-height: 640px;
+  overflow: hidden;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+  box-shadow: 0 14px 38px color-mix(in srgb, var(--text-primary) 7%, transparent);
+}
+
+.firstRunWorkspaceBody,
+.firstRunBeginnerSurface {
+  min-width: 0;
+  min-height: 640px;
+}
+
+.firstRunBeginnerSurface {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.firstRunStepRail {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border-base);
+  background: color-mix(in srgb, var(--bg-2) 72%, var(--bg-1));
+  padding: 34px 28px 26px;
+}
+
+.firstRunStepRailHeader h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 32px;
+}
+
+.firstRunStepRailHeader p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.firstRunStepList {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
+  margin: 36px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.firstRunHeader {
-  display: flex;
+.firstRunStep {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 32px minmax(0, 1fr);
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  padding: 0 0 34px;
 }
 
-.firstRunHeader h1 {
-  margin: 0;
-  font-size: 28px;
-  line-height: 36px;
-  font-weight: 700;
+.firstRunStep:not(:last-child)::after {
+  position: absolute;
+  top: 34px;
+  bottom: 2px;
+  left: 15px;
+  width: 1px;
+  background: var(--border-base);
+  content: '';
+}
+
+.firstRunStepMarker {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid var(--border-base);
+  border-radius: 50%;
+  background: var(--bg-1);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.firstRunStepMarker svg {
+  width: 17px;
+  height: 17px;
+}
+
+.firstRunStepCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 3px;
+}
+
+.firstRunStepLabel {
   color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
 
-.firstRunHeader p {
-  margin: 8px 0 0;
-  max-width: 720px;
+.firstRunStepStatus {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunStepComplete .firstRunStepMarker {
+  border-color: rgb(var(--success-6));
+  background: rgb(var(--success-6));
+  color: var(--bg-1);
+}
+
+.firstRunStepComplete .firstRunStepStatus {
+  color: rgb(var(--success-6));
+}
+
+.firstRunStepActive .firstRunStepMarker {
+  border-color: rgb(var(--primary-6));
+  background: rgb(var(--primary-6));
+  color: var(--bg-1);
+  box-shadow: 0 0 0 3px rgba(var(--primary-6), 0.12);
+}
+
+.firstRunStepActive .firstRunStepStatus {
+  color: rgb(var(--primary-6));
+  font-weight: 500;
+}
+
+.firstRunStepPending {
+  opacity: 0.72;
+}
+
+.firstRunStepProgress {
+  margin-top: auto;
+  border-top: 1px solid var(--border-base);
+  padding-top: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.firstRunTechnicalButton {
+  width: 100%;
+  justify-content: flex-start !important;
+  margin-top: 14px;
+  padding: 0 !important;
+}
+
+.firstRunTaskPanel {
+  display: flex;
+  min-width: 0;
+  min-height: 640px;
+  flex-direction: column;
+  padding: 42px 52px 32px;
+}
+
+.firstRunStepCounter {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+
+.firstRunTaskContent {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-start;
+  padding: 18px 0 28px;
+}
+
+.firstRunStatePanel {
+  display: flex;
+  width: min(640px, 100%);
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.firstRunStateIcon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(var(--primary-6), 0.1);
+  color: rgb(var(--primary-6));
+}
+
+.firstRunStateIcon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.firstRunStateIconReady {
+  background: rgba(var(--success-6), 0.12);
+  color: rgb(var(--success-6));
+}
+
+.firstRunStatePanel h2 {
+  margin: 22px 0 0;
+  color: var(--text-primary);
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 38px;
+}
+
+.firstRunStatePanel > p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunReadyDescription {
+  max-width: 520px;
+}
+
+.firstRunInitializeStatus {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 28px;
+  border-left: 2px solid rgb(var(--primary-6));
+  background: var(--bg-2);
+  padding: 12px 14px;
+}
+
+.firstRunInitializeStatus span {
   color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.firstRunInitializeStatus strong {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunAttentionStrip {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  margin-top: 24px;
+  border: 1px solid rgb(var(--warning-3));
+  border-radius: 6px;
+  background: rgb(var(--warning-1));
+  padding: 11px 13px;
+  color: rgb(var(--warning-6));
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.firstRunAttentionStrip svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+
+.firstRunAccessMethods {
+  display: grid !important;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 24px;
+}
+
+.firstRunAccessMethods :global(.arco-radio-button) {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 14px;
+  text-align: center;
+}
+
+.firstRunAccessForm,
+.firstRunExistingAccess {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  margin-top: 26px;
+}
+
+.firstRunAccessForm label {
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.firstRunAccessForm :global(.arco-input-inner-wrapper) {
+  min-height: 44px;
+  border-radius: 6px;
+}
+
+.firstRunSecurityNote {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 11px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.firstRunSecurityNote svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin-top: 1px;
+}
+
+.firstRunExistingAccess {
+  border-left: 2px solid var(--border-base);
+  padding-left: 14px;
+}
+
+.firstRunExistingAccess p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 21px;
+}
+
+.firstRunTaskActions {
+  width: 100%;
+  margin-top: 24px;
+}
+
+.firstRunTaskActions :global(.arco-btn) {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.firstRunTaskContext {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  border-top: 1px solid var(--border-base);
+  padding-top: 20px;
+}
+
+.firstRunTaskContext > div {
+  min-width: 0;
+}
+
+.firstRunTaskContext span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.firstRunTaskContext p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunError {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 16px;
+  border: 1px solid rgb(var(--danger-3));
+  border-radius: 6px;
+  background: rgb(var(--danger-1));
+  color: rgb(var(--danger-6));
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunTechnicalRegion {
+  margin-top: 16px;
+  scroll-margin-top: 16px;
+}
+
+.firstRunDetailsCollapse {
+  overflow: hidden;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
+}
+
+.firstRunDetailsCollapse :global(.arco-collapse-item-header) {
+  min-height: 46px;
+  background: var(--bg-1);
+}
+
+.firstRunDetailsCollapse :global(.arco-collapse-item-content-box) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.firstRunDiagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--border-base);
+  border-radius: 6px;
+  background: var(--bg-2);
+  padding: 12px;
+}
+
+.firstRunDiagnosticLine {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunMeta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.firstRunTechnicalError {
+  border: 1px solid rgb(var(--danger-3));
+  border-radius: 6px;
+  background: var(--bg-1);
+  color: rgb(var(--danger-6));
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.firstRunSectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.firstRunGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .firstRunCard {
   min-width: 0;
   border: 1px solid var(--border-base);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-1);
   padding: 14px;
 }
@@ -50,8 +582,8 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 15px;
-  line-height: 22px;
   font-weight: 600;
+  line-height: 22px;
 }
 
 .firstRunCard p {
@@ -59,152 +591,6 @@
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 20px;
-}
-
-.firstRunHeroPanel {
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-1);
-  padding: 18px;
-}
-
-.firstRunHeroMain {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.firstRunStatusHeading {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.firstRunStatusHeading h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 15px;
-  line-height: 22px;
-  font-weight: 600;
-}
-
-.firstRunStatusHeading p,
-.firstRunSignal p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-}
-
-.firstRunMutedLine {
-  color: var(--text-tertiary) !important;
-}
-
-.firstRunProgressHero {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
-}
-
-.firstRunProgressPercent {
-  color: var(--text-primary);
-  font-size: 34px;
-  line-height: 40px;
-  font-weight: 700;
-}
-
-.firstRunProgressStack {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.firstRunProgressStack p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.firstRunSimpleSteps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.firstRunSimpleStep,
-.firstRunStatusStrip {
-  min-width: 0;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-2);
-  padding: 12px;
-}
-
-.firstRunSimpleStep {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: flex-start;
-  gap: 8px;
-}
-
-.firstRunHeroActions,
-.firstRunSectionActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.firstRunStatusStrip {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.firstRunStatusStrip p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-}
-
-.firstRunStripLabel {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.firstRunHeroIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: var(--primary);
-}
-
-.firstRunDetailsCollapse {
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-1);
-  overflow: hidden;
-}
-
-.firstRunDetailsCollapse :global(.arco-collapse-item-header) {
-  background: var(--bg-1);
-}
-
-.firstRunDetailsCollapse :global(.arco-collapse-item-content-box) {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 0 14px 14px;
 }
 
 .firstRunCardHeader {
@@ -217,152 +603,71 @@
 
 .firstRunCardTitle {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
-  min-width: 0;
 }
 
 .firstRunCardIcon {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 22px;
   height: 22px;
+  align-items: center;
+  justify-content: center;
   color: var(--text-secondary);
-}
-
-.firstRunGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.firstRunList {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.firstRunItem {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-1);
-}
-
-.firstRunItemBody {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.firstRunItemTitle {
-  color: var(--text-primary);
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 600;
-}
-
-.firstRunItemDescription,
-.firstRunItemSummary,
-.firstRunItemAction,
-.firstRunMeta,
-.firstRunCommand {
-  color: var(--text-tertiary);
-  font-size: 12px;
-  line-height: 18px;
-  overflow-wrap: anywhere;
-}
-
-.firstRunItemDescription {
-  color: var(--text-secondary);
-}
-
-.firstRunItemAction {
-  color: var(--text-secondary);
-}
-
-.firstRunCommand {
-  font-family: var(--font-mono);
 }
 
 .firstRunProgressDetails {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 8px;
+  margin: 8px 0 12px;
 }
 
 .firstRunProgressDetails p {
   margin: 0;
 }
 
-.firstRunApiKey {
+.firstRunList {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-2);
-  padding: 12px;
-}
-
-.firstRunApiKey p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.firstRunApiKeyControls {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto;
   gap: 8px;
 }
 
-.firstRunError {
-  border: 1px solid var(--danger);
-  border-radius: 8px;
-  background: var(--bg-1);
-  color: var(--danger);
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 20px;
-  overflow-wrap: anywhere;
-}
-
-.firstRunDiagnostics {
+.firstRunItem {
   display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border-base);
+  padding-top: 10px;
+}
+
+.firstRunItemBody {
+  display: flex;
+  min-width: 0;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid var(--border-base);
-  border-radius: 8px;
-  background: var(--bg-2);
-  padding: 12px;
+  gap: 3px;
 }
 
-.firstRunDiagnosticLine {
-  color: var(--text-secondary);
+.firstRunItemTitle {
+  color: var(--text-primary);
   font-size: 13px;
+  font-weight: 600;
   line-height: 20px;
-  overflow-wrap: anywhere;
 }
 
-.firstRunTechnicalError {
-  border: 1px solid var(--danger);
-  border-radius: 8px;
-  background: var(--bg-1);
-  color: var(--danger);
-  padding: 10px 12px;
-  font-family: var(--font-mono);
+.firstRunItemSummary,
+.firstRunCommand {
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 18px;
   overflow-wrap: anywhere;
+}
+
+.firstRunCommand {
+  font-family: var(--font-mono);
 }
 
 .firstRunResult {
@@ -370,7 +675,7 @@
   overflow: auto;
   margin: 0;
   border: 1px solid var(--border-base);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-2);
   padding: 12px;
   font-size: 12px;
@@ -378,19 +683,141 @@
 }
 
 @media (max-width: 860px) {
-  .firstRunShell {
-    padding: 24px 14px 32px;
+  .firstRunBrandBar {
+    padding: 0 18px;
   }
 
-  .firstRunHeader,
-  .firstRunGrid,
-  .firstRunApiKeyControls,
-  .firstRunSimpleSteps,
-  .firstRunStatusStrip {
+  .firstRunBrandBarMac {
+    padding-left: 84px;
+  }
+
+  .firstRunScrollArea {
+    padding: 20px 14px 32px;
+  }
+
+  .firstRunWorkspace,
+  .firstRunWorkspaceBody,
+  .firstRunBeginnerSurface {
+    min-height: 0;
+  }
+
+  .firstRunBeginnerSurface {
     grid-template-columns: 1fr;
   }
 
-  .firstRunHeader {
-    flex-direction: column;
+  .firstRunStepRail {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-base);
+    padding: 24px;
+  }
+
+  .firstRunStepList {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 24px;
+  }
+
+  .firstRunStep {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 9px;
+    padding: 0;
+  }
+
+  .firstRunStep::after {
+    display: none;
+  }
+
+  .firstRunStepMarker {
+    width: 28px;
+    height: 28px;
+  }
+
+  .firstRunStepProgress {
+    margin-top: 22px;
+    padding-top: 14px;
+  }
+
+  .firstRunTechnicalButton {
+    width: auto;
+  }
+
+  .firstRunTaskPanel {
+    min-height: 560px;
+    padding: 34px 36px 28px;
+  }
+}
+
+@media (max-width: 600px) {
+  .firstRunBrandBar {
+    min-height: 56px;
+    flex-basis: 56px;
+    padding: 0 14px;
+  }
+
+  .firstRunBrandBarMac {
+    padding-left: 80px;
+  }
+
+  .firstRunBrandIdentity {
+    font-size: 14px;
+  }
+
+  .firstRunBrandIdentity img {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+  }
+
+  .firstRunHelpButton {
+    min-width: 44px;
+    padding: 0 6px !important;
+  }
+
+  .firstRunScrollArea {
+    padding: 12px 8px 24px;
+  }
+
+  .firstRunWorkspace {
+    border-radius: 6px;
+  }
+
+  .firstRunStepRail {
+    padding: 20px;
+  }
+
+  .firstRunStepRailHeader h1 {
+    font-size: 21px;
+    line-height: 28px;
+  }
+
+  .firstRunStepList {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  .firstRunTaskPanel {
+    min-height: 520px;
+    padding: 28px 22px 24px;
+  }
+
+  .firstRunStatePanel h2 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+
+  .firstRunAccessMethods,
+  .firstRunTaskContext,
+  .firstRunGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .firstRunAccessMethods :global(.arco-radio-button) {
+    min-height: 44px;
+  }
+
+  .firstRunTaskContext {
+    gap: 14px;
   }
 }
