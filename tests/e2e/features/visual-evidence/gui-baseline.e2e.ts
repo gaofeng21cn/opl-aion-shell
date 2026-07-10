@@ -59,7 +59,8 @@ async function ensureRendererReady(page: Page): Promise<void> {
   await page.waitForFunction(
     () =>
       window.location.href !== 'about:blank' &&
-      typeof (window as unknown as { __backendPort?: number }).__backendPort === 'number',
+      typeof (window as unknown as { __backendPort?: number }).__backendPort === 'number' &&
+      ((window as unknown as { __backendPort?: number }).__backendPort ?? 0) > 0,
     { timeout: 30_000 }
   );
 }
