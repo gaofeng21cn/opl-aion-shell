@@ -4462,8 +4462,34 @@ function collectMainBootstrapFatalArtifacts(options, secret, targetDir = path.jo
   return summary;
 }
 
-function collectAppLogArtifacts(options, secret) {
-  const logRoots = [
+function isPathWithinRoot(root, candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`));
+}
+
+function copyLogDirectory(sourceRoot, targetRoot, secret) {
+  const stack = [sourceRoot];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const source = path.resolve(current, entry.name);
+      if (!isPathWithinRoot(sourceRoot, source)) continue;
+      const stats = fs.lstatSync(source);
+      if (stats.isSymbolicLink()) continue;
+      if (stats.isDirectory()) {
+        stack.push(source);
+        continue;
+      }
+      if (!stats.isFile()) continue;
+      const target = path.join(targetRoot, path.relative(sourceRoot, source));
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      copyTextFileIfExists(source, target, secret);
+    }
+  }
+}
+
+function collectAppLogArtifacts(options, secret, logRoots) {
+  const roots = logRoots ?? [
     path.dirname(defaultFirstRunLogPath()),
     path.join(userHomeDir(), 'Library', 'Logs', 'AionUi'),
     path.join(userHomeDir(), 'Library', 'Logs', 'One Person Lab'),
@@ -4473,17 +4499,15 @@ function collectAppLogArtifacts(options, secret) {
   ];
   const seen = new Set();
   const targetDir = path.join(options.artifacts, 'app-logs');
-  for (const logDir of logRoots) {
-    if (seen.has(logDir) || !fs.existsSync(logDir)) continue;
-    seen.add(logDir);
-    fs.mkdirSync(targetDir, { recursive: true });
-    const safeRootName = path.basename(logDir).replace(/[^A-Za-z0-9_.-]/g, '_');
-    for (const entry of fs.readdirSync(logDir, { withFileTypes: true })) {
-      if (!entry.isFile()) continue;
-      const source = path.join(logDir, entry.name);
-      const target = path.join(targetDir, `${safeRootName}-${entry.name}`);
-      copyTextFileIfExists(source, target, secret);
-    }
+  for (const [index, logDir] of roots.entries()) {
+    const sourceRoot = path.resolve(logDir);
+    if (seen.has(sourceRoot) || !fs.existsSync(sourceRoot)) continue;
+    const stats = fs.lstatSync(sourceRoot);
+    if (stats.isSymbolicLink() || !stats.isDirectory()) continue;
+    seen.add(sourceRoot);
+    const safeRootName = path.basename(sourceRoot).replace(/[^A-Za-z0-9_.-]/g, '_') || 'logs';
+    const targetRoot = path.join(targetDir, `${String(index + 1).padStart(2, '0')}-${safeRootName}`);
+    copyLogDirectory(sourceRoot, targetRoot, secret);
   }
 }
 
@@ -5591,6 +5615,7 @@ export const __test =
         collectRendererBootstrapDiagnostics,
         collectLaunchLogText,
         collectMainBootstrapFatalArtifacts,
+        collectAppLogArtifacts,
         defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,
         captureFullReleaseScreenshotEvidence,

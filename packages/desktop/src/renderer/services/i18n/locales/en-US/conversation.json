@@ -46,6 +46,7 @@
     "batchExportConfirm": "Export {{count}} selected topics?",
     "batchDelete": "Batch Delete",
     "batchDeleteConfirm": "Delete {{count}} selected topics?",
+    "batchDeleteResult": "Batch delete finished: {{successCount}} deleted, {{failureCount}} failed",
     "batchDeleteSuccess": "{{count}} topics deleted",
     "batchNoSelection": "Please select topics first",
     "export": "Export",

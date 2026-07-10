@@ -224,23 +224,43 @@ const TaskDetailPage: React.FC = () => {
       okButtonProps: { status: 'warning' },
       onOk: async () => {
         const selectedIds = Array.from(selectedConversationIds);
-        try {
-          const results = await Promise.all(selectedIds.map(removeHistoryConversation));
-          const successCount = results.filter(Boolean).length;
-          emitter.emit('chat.history.refresh');
-          await refetchConversations();
-          if (successCount > 0) {
-            Message.success(t('conversation.history.batchDeleteSuccess', { count: successCount }));
-          } else {
-            Message.error(t('conversation.history.deleteFailed'));
+        const results = await Promise.allSettled(selectedIds.map(removeHistoryConversation));
+        const failedIds = new Set<string>();
+        let successCount = 0;
+
+        results.forEach((result, index) => {
+          const conversationId = selectedIds[index];
+          if (result.status === 'fulfilled' && result.value) {
+            successCount += 1;
+            return;
           }
-        } catch (error) {
-          console.error('[TaskDetailPage] Failed to batch delete conversations:', error);
-          Message.error(t('conversation.history.deleteFailed'));
-        } finally {
+          failedIds.add(conversationId);
+          if (result.status === 'rejected') {
+            console.error(`[TaskDetailPage] Failed to delete conversation ${conversationId}:`, result.reason);
+          }
+        });
+
+        emitter.emit('chat.history.refresh');
+        const refreshResults = await Promise.allSettled([
+          Promise.resolve().then(refetchConversations),
+          Promise.resolve().then(fetchJob),
+        ]);
+        refreshResults.forEach((result) => {
+          if (result.status === 'rejected') {
+            console.error('[TaskDetailPage] Failed to refresh after batch delete:', result.reason);
+          }
+        });
+
+        const failureCount = failedIds.size;
+        const resultMessage = t('conversation.history.batchDeleteResult', { successCount, failureCount });
+        if (failureCount === 0) {
           setSelectedConversationIds(new Set());
           setHistoryBatchMode(false);
-          await fetchJob();
+          Message.success(resultMessage);
+        } else {
+          setSelectedConversationIds(failedIds);
+          setHistoryBatchMode(true);
+          Message.error(resultMessage);
         }
       },
       style: { borderRadius: '12px' },

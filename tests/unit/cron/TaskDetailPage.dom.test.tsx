@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { Message } from '@arco-design/web-react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,13 +21,14 @@ const removeConversationInvokeMock = vi.fn();
 const updateConversationInvokeMock = vi.fn();
 const navigateMock = vi.fn();
 const refetchConversationsMock = vi.fn();
-const { useCronJobConversationsMock } = vi.hoisted(() => ({
+const { translateMock, useCronJobConversationsMock } = vi.hoisted(() => ({
+  translateMock: vi.fn((key: string) => key),
   useCronJobConversationsMock: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: translateMock,
   }),
 }));
 
@@ -143,7 +145,61 @@ describe('TaskDetailPage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/conversation/conv-run');
   });
 
-  it('batch deletes execution history conversations without deleting the scheduled task', async () => {
+  it('keeps failed execution history selected and retryable after mixed batch delete results', async () => {
+    useCronJobConversationsMock.mockReturnValue({
+      conversations: [
+        conversation({ id: 'conv-run-success', name: 'Run success' }),
+        conversation({ id: 'conv-run-false', name: 'Run false' }),
+        conversation({ id: 'conv-run-throw', name: 'Run throw' }),
+      ],
+      refetch: refetchConversationsMock,
+    });
+    removeConversationInvokeMock.mockImplementation(({ id }: { id: string }) => {
+      if (id === 'conv-run-success') return Promise.resolve(true);
+      if (id === 'conv-run-false') return Promise.resolve(false);
+      return Promise.reject(new Error('remove failed'));
+    });
+
+    renderTaskDetail();
+
+    await waitFor(() => expect(getJobInvokeMock).toHaveBeenCalledWith({ job_id: 'job-1' }));
+    await enterHistoryBatchModeAndSelectAll();
+    fireEvent.click(screen.getByText('conversation.history.batchDelete').closest('button')!);
+
+    await waitFor(() => expect(removeConversationInvokeMock).toHaveBeenCalledTimes(3));
+    await waitFor(() =>
+      expect(translateMock).toHaveBeenCalledWith('conversation.history.batchDeleteResult', {
+        successCount: 1,
+        failureCount: 2,
+      })
+    );
+    expect(Message.error).toHaveBeenCalledWith('conversation.history.batchDeleteResult');
+    expect(refetchConversationsMock).toHaveBeenCalledTimes(1);
+    expect(getJobInvokeMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('conversation.history.cancelDelete')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getAllByRole('checkbox').map((checkbox) => (checkbox as HTMLInputElement).checked)).toEqual([
+        false,
+        false,
+        true,
+        true,
+      ])
+    );
+
+    removeConversationInvokeMock.mockClear();
+    removeConversationInvokeMock.mockResolvedValue(true);
+    fireEvent.click(screen.getByText('conversation.history.batchDelete').closest('button')!);
+
+    await waitFor(() =>
+      expect(removeConversationInvokeMock.mock.calls.map(([input]) => input)).toEqual([
+        { id: 'conv-run-false' },
+        { id: 'conv-run-throw' },
+      ])
+    );
+    await waitFor(() => expect(screen.getByText('conversation.history.batchManage')).toBeInTheDocument());
+  });
+
+  it('exits batch mode after all selected execution history conversations are deleted', async () => {
     useCronJobConversationsMock.mockReturnValue({
       conversations: [
         conversation({ id: 'conv-run-1', name: 'Run 1' }),
@@ -155,20 +211,30 @@ describe('TaskDetailPage', () => {
     renderTaskDetail();
 
     await waitFor(() => expect(getJobInvokeMock).toHaveBeenCalledWith({ job_id: 'job-1' }));
-
-    fireEvent.click(await screen.findByText('conversation.history.batchManage'));
-    fireEvent.click(screen.getByText('conversation.history.selectAll'));
-    const batchDeleteButton = screen.getByText('conversation.history.batchDelete').closest('button');
-    await waitFor(() => expect(batchDeleteButton).not.toBeDisabled());
-    fireEvent.click(batchDeleteButton!);
+    await enterHistoryBatchModeAndSelectAll();
+    fireEvent.click(screen.getByText('conversation.history.batchDelete').closest('button')!);
 
     await waitFor(() => {
       expect(removeConversationInvokeMock).toHaveBeenCalledWith({ id: 'conv-run-1' });
       expect(removeConversationInvokeMock).toHaveBeenCalledWith({ id: 'conv-run-2' });
     });
+    expect(translateMock).toHaveBeenCalledWith('conversation.history.batchDeleteResult', {
+      successCount: 2,
+      failureCount: 0,
+    });
+    expect(Message.success).toHaveBeenCalledWith('conversation.history.batchDeleteResult');
+    await waitFor(() => expect(screen.getByText('conversation.history.batchManage')).toBeInTheDocument());
     expect(removeJobInvokeMock).not.toHaveBeenCalled();
   });
 });
+
+async function enterHistoryBatchModeAndSelectAll() {
+  fireEvent.click(await screen.findByText('conversation.history.batchManage'));
+  fireEvent.click(screen.getByText('conversation.history.selectAll'));
+  await waitFor(() =>
+    expect(screen.getByText('conversation.history.batchDelete').closest('button')).not.toBeDisabled()
+  );
+}
 
 function renderTaskDetail() {
   return render(

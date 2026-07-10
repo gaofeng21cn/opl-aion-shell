@@ -723,6 +723,7 @@ export type I18nKey =
   | 'conversation.dropdown.presetAssistants'
   | 'conversation.history.batchDelete'
   | 'conversation.history.batchDeleteConfirm'
+  | 'conversation.history.batchDeleteResult'
   | 'conversation.history.batchDeleteSuccess'
   | 'conversation.history.batchExport'
   | 'conversation.history.batchExportConfirm'

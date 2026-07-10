@@ -1816,6 +1816,36 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('collects date-nested app logs without collisions or following symlinks outside the log root', () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-log-artifacts-'));
+    try {
+      const artifacts = path.join(workspace, 'artifacts');
+      const firstLogRoot = path.join(workspace, 'first', 'logs');
+      const secondLogRoot = path.join(workspace, 'second', 'logs');
+      const relativeLogPath = path.join('2026', '07', '10', 'app.log');
+      const outsideLog = path.join(workspace, 'outside.log');
+      writeFile(path.join(firstLogRoot, relativeLogPath), 'first root log\n');
+      writeFile(path.join(secondLogRoot, relativeLogPath), 'second root log\n');
+      writeFile(outsideLog, 'outside log\n');
+      fs.symlinkSync(outsideLog, path.join(firstLogRoot, '2026', '07', '10', 'outside.log'));
+
+      vmSmoke.collectAppLogArtifacts({ artifacts, processName: 'One Person Lab' }, 'secret', [
+        firstLogRoot,
+        secondLogRoot,
+      ]);
+
+      expect(fs.readFileSync(path.join(artifacts, 'app-logs', '01-logs', relativeLogPath), 'utf8')).toBe(
+        'first root log\n'
+      );
+      expect(fs.readFileSync(path.join(artifacts, 'app-logs', '02-logs', relativeLogPath), 'utf8')).toBe(
+        'second root log\n'
+      );
+      expect(fs.existsSync(path.join(artifacts, 'app-logs', '01-logs', '2026', '07', '10', 'outside.log'))).toBe(false);
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('detects the native modal launch blocker signature from launch diagnostics and process samples', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-native-modal-blocker-'));
     try {
