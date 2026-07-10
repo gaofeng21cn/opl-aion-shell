@@ -23,6 +23,8 @@ const GITHUB_OWNER = 'iOfficeAI';
 const GITHUB_REPO = 'AionCore';
 const DEFAULT_DOWNLOAD_ATTEMPTS = 4;
 const DEFAULT_DOWNLOAD_RETRY_DELAY_MS = 5000;
+const DEFAULT_MANAGED_RESOURCE_PREPARE_ATTEMPTS = 3;
+const DEFAULT_MANAGED_RESOURCE_PREPARE_RETRY_DELAY_MS = 5000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS = 600000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
@@ -398,6 +400,20 @@ function getDownloadRetryDelayMs() {
   return parsePositiveInteger(process.env.AIONUI_AIONCORE_DOWNLOAD_RETRY_DELAY_MS, DEFAULT_DOWNLOAD_RETRY_DELAY_MS);
 }
 
+function getManagedResourcePrepareAttempts() {
+  return parsePositiveInteger(
+    process.env.AIONUI_AIONCORE_MANAGED_RESOURCE_ATTEMPTS,
+    DEFAULT_MANAGED_RESOURCE_PREPARE_ATTEMPTS
+  );
+}
+
+function getManagedResourcePrepareRetryDelayMs() {
+  return parsePositiveInteger(
+    process.env.AIONUI_AIONCORE_MANAGED_RESOURCE_RETRY_DELAY_MS,
+    DEFAULT_MANAGED_RESOURCE_PREPARE_RETRY_DELAY_MS
+  );
+}
+
 function withDefaultEnvValue(env, key, value) {
   return env[key] ? env[key] : String(value);
 }
@@ -425,28 +441,53 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
   const bundleOut = path.join(targetDir, 'managed-resources');
   const dataDir = path.join(targetDir, '.prepare-data');
   const execFile = options.execFileSync || execFileSync;
+  const attempts = parsePositiveInteger(options.attempts, getManagedResourcePrepareAttempts());
+  const baseDelayMs = parsePositiveInteger(options.retryDelayMs, getManagedResourcePrepareRetryDelayMs());
+  const sleep = options.sleep || sleepSync;
+  const logger = options.logger || console;
+  let lastError = null;
 
   removeDirectorySafe(bundleOut);
   removeDirectorySafe(dataDir);
-  ensureDirectory(bundleOut);
   ensureDirectory(dataDir);
 
-  console.log(`  Preparing managed resources under ${path.relative(process.cwd(), bundleOut)}`);
-  try {
-    execFile(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', bundleOut], {
-      stdio: 'inherit',
-      env: getManagedResourcePrepareEnv(options.env || process.env),
-    });
-  } catch (error) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     removeDirectorySafe(bundleOut);
+    ensureDirectory(bundleOut);
+    logger.log(
+      `  Preparing managed resources under ${path.relative(process.cwd(), bundleOut)} (${attempt}/${attempts})`
+    );
+
+    try {
+      execFile(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', bundleOut], {
+        stdio: 'inherit',
+        env: getManagedResourcePrepareEnv(options.env || process.env),
+      });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      removeDirectorySafe(bundleOut);
+      if (attempt >= attempts) {
+        break;
+      }
+
+      const delayMs = Math.min(baseDelayMs * attempt, MAX_DOWNLOAD_RETRY_DELAY_MS);
+      logger.warn(`  Managed resource preparation attempt ${attempt}/${attempts} failed: ${error?.message || error}`);
+      logger.warn(`  Waiting ${delayMs}ms before retrying managed resource preparation`);
+      sleep(delayMs);
+    }
+  }
+
+  if (lastError) {
     removeDirectorySafe(dataDir);
     throw new Error(
       [
-        `Failed to prepare managed resources for ${path.relative(process.cwd(), binaryPath)}.`,
+        `Managed resource preparation failed after ${attempts} attempts for ${path.relative(process.cwd(), binaryPath)}.`,
         'The partial managed-resources directory was removed; rerun the same build command.',
-        `Cause: ${error?.message || error}`,
+        `Cause: ${lastError?.message || lastError}`,
       ].join(' '),
-      { cause: error }
+      { cause: lastError }
     );
   }
 

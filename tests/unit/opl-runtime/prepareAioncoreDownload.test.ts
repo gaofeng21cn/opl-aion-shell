@@ -130,24 +130,70 @@ describe('prepare-aioncore managed resources preparation', () => {
     expect(env.AIONUI_BUNDLED_MANAGED_RESOURCES).toBe('');
   });
 
-  it('removes partial managed resources after preparation failure', () => {
+  it('retries with a clean bundle while preserving prepared runtime data', () => {
     const dir = makeTempDir();
     const targetDir = path.join(dir, 'darwin-arm64');
     const binaryPath = path.join(targetDir, 'aioncore');
+    const delays: number[] = [];
+    let calls = 0;
+    fs.mkdirSync(targetDir, { recursive: true });
+    fs.writeFileSync(binaryPath, 'binary');
+
+    const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
+      attempts: 2,
+      retryDelayMs: 10,
+      sleep: (ms: number) => delays.push(ms),
+      logger: { log() {}, warn() {} },
+      execFileSync(_command: string, args: string[]) {
+        calls += 1;
+        const dataDir = args[args.indexOf('--data-dir') + 1];
+        const outputDir = args[args.indexOf('--bundle-out') + 1];
+        if (calls === 1) {
+          fs.writeFileSync(path.join(dataDir, 'runtime-ready'), 'ready');
+          fs.mkdirSync(path.join(outputDir, 'acp'), { recursive: true });
+          fs.writeFileSync(path.join(outputDir, 'acp', 'partial'), 'partial');
+          throw new Error('npm fetch reset');
+        }
+
+        expect(fs.existsSync(path.join(outputDir, 'acp', 'partial'))).toBe(false);
+        expect(fs.readFileSync(path.join(dataDir, 'runtime-ready'), 'utf8')).toBe('ready');
+        const nodeBin = path.join(outputDir, 'node', 'node-v24.11.0-darwin-arm64', 'bin');
+        fs.mkdirSync(nodeBin, { recursive: true });
+        fs.writeFileSync(path.join(nodeBin, 'node'), 'node');
+      },
+    });
+
+    expect(calls).toBe(2);
+    expect(delays).toEqual([10]);
+    expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
+    expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
+  });
+
+  it('fails closed and removes partial output after all retries fail', () => {
+    const dir = makeTempDir();
+    const targetDir = path.join(dir, 'darwin-arm64');
+    const binaryPath = path.join(targetDir, 'aioncore');
+    let calls = 0;
     fs.mkdirSync(targetDir, { recursive: true });
     fs.writeFileSync(binaryPath, 'binary');
 
     expect(() =>
       __test__.prepareManagedResources(binaryPath, targetDir, {
+        attempts: 2,
+        retryDelayMs: 1,
+        sleep() {},
+        logger: { log() {}, warn() {} },
         execFileSync(_command: string, args: string[]) {
+          calls += 1;
           const bundleOut = args[args.indexOf('--bundle-out') + 1];
           fs.mkdirSync(path.join(bundleOut, 'acp'), { recursive: true });
           fs.writeFileSync(path.join(bundleOut, 'acp', 'partial'), 'partial');
-          throw new Error('codex-acp install timed out');
+          throw new Error(`npm fetch failed ${calls}`);
         },
       })
-    ).toThrow(/partial managed-resources directory was removed/);
+    ).toThrow(/failed after 2 attempts.*partial managed-resources directory was removed.*npm fetch failed 2/i);
 
+    expect(calls).toBe(2);
     expect(fs.existsSync(path.join(targetDir, 'managed-resources'))).toBe(false);
     expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
   });
