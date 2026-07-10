@@ -345,7 +345,9 @@ test.describe('Settings Pages', () => {
       action: async (page) => {
         await page.evaluate(() => window.location.assign('#/settings/general'));
         await page.waitForFunction(() => window.location.hash === '#/settings/general', { timeout: 10_000 });
-        const input = page.locator('[data-testid="settings-search-input"] input').first();
+        const input = page
+          .locator('[data-testid="settings-search-input"] input, input[data-testid="settings-search-input"]')
+          .first();
         await expect(input).toBeVisible();
         await input.fill('');
         await input.fill('zz-no-route-match-zz');
@@ -354,19 +356,6 @@ test.describe('Settings Pages', () => {
       anchors: [
         anchor('settings_search_input', '[data-testid="settings-search-input"]'),
         anchor('settings_search_empty', '[data-testid="settings-search-empty"]'),
-      ],
-    },
-    {
-      id: 'make_opl_usable_confirmation',
-      route: 'environment',
-      state: 'state_changing_action_confirmation',
-      action: async (page) => {
-        await page.locator('[data-testid="opl-maintenance-hub-make-usable"]').click();
-      },
-      anchors: [
-        anchor('maintenance_hub', '[data-testid="opl-maintenance-hub"]'),
-        anchor('make_usable_confirmation', '[data-testid="opl-maintenance-hub-make-usable-confirmation"]'),
-        anchor('make_usable_confirm_button', '[data-testid="opl-maintenance-hub-make-usable-confirm"]'),
       ],
     },
   ];
@@ -540,7 +529,12 @@ test.describe('Settings Pages', () => {
               (target) => `/settings/${target.source} -> /settings/${target.target}?section=${target.section}`
             ),
             interaction_states: stateTargets.map((target) => target.state),
-            coverage_gaps: [],
+            coverage_gaps: [
+              {
+                id: 'state_changing_action_confirmation',
+                reason: 'covered_by_focused_dom_tests_but_not_available_in_the_backend_independent_visual_fixture',
+              },
+            ],
             viewports: SETTINGS_VISUAL_VIEWPORTS.map((viewport) => viewport.name),
           },
           release_readiness_claim: false,

@@ -415,9 +415,12 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.resourceSources.noRefs': 'No resource context reported.',
         'settings.accessPage.statusLabels.action_available': 'Available action',
         'settings.accessPage.statusLabels.available': 'Available',
+        'settings.accessPage.statusLabels.connected': 'Connected',
         'settings.accessPage.statusLabels.diagnose_with_doctor': 'Diagnostics available',
+        'settings.accessPage.statusLabels.needsAttention': 'Needs attention',
         'settings.accessPage.statusLabels.ready': 'Ready',
         'settings.accessPage.statusLabels.refs_only': 'Refs only',
+        'settings.accessPage.statusLabels.unknown': 'Not read',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
         'common.cancel': 'Cancel',
@@ -471,7 +474,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).toContain('Installed: 0.125.0');
     expect(document.body.textContent).toContain('Default model: gpt-5.5');
     expect(document.body.textContent).not.toContain('/usr/local/bin/codex');
-    expect(document.body.textContent).toContain('OPL Gateway is connected.');
+    expect(document.body.textContent).toContain('Connected');
     expect(document.body.textContent).not.toContain('Currently using OPL Gateway.');
     expect(document.body.textContent).not.toContain('Background Task Service');
     expect(document.body.textContent).not.toContain('local OPL scheduling');
@@ -530,7 +533,7 @@ describe('AccessSettingsContent', () => {
 
     const view = render(<AccessSettingsContent />);
 
-    expect(view.getByText('OPL Gateway is connected.')).toBeTruthy();
+    expect(view.getByText('Connected')).toBeTruthy();
     expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
     expect(view.queryByTestId('settings-access-exception')).toBeNull();
     expect(view.getByTestId('opl-settings-show-gateway-config-button')).toHaveAttribute(

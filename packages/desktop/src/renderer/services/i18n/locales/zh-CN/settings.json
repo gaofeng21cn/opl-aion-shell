@@ -1836,6 +1836,9 @@
       }
     },
     "statusLabels": {
+      "connected": "已连接",
+      "needsAttention": "需要处理",
+      "unknown": "未读取到",
       "action_available": "可操作",
       "available": "可用",
       "diagnose_with_doctor": "可诊断",

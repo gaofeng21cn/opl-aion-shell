@@ -117,7 +117,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       {!collapsed && searchMatches === 0 && (
         <div
           className='mx-2px px-10px py-9px rd-8px text-13px text-t-secondary bg-fill-1'
-          data-testid='settings-sider-search-empty'
+          data-testid='settings-search-empty'
         >
           {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
         </div>

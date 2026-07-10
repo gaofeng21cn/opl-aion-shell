@@ -1835,6 +1835,9 @@
       }
     },
     "statusLabels": {
+      "connected": "Connected",
+      "needsAttention": "Needs attention",
+      "unknown": "Not read",
       "action_available": "Available action",
       "available": "Available",
       "diagnose_with_doctor": "Diagnostics available",
