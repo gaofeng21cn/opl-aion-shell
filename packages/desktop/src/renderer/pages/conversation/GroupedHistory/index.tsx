@@ -36,6 +36,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   batchMode = false,
   onBatchModeChange,
   afterPinnedContent,
+  archived = false,
 }) => {
   const { id } = useParams();
   const { t } = useTranslation();
@@ -115,7 +116,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     pinnedConversations,
     timelineSections,
     handleToggleWorkspace,
-  } = useConversations();
+  } = useConversations(archived);
 
   const {
     selectedConversationIds,
@@ -139,6 +140,9 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
     handleRenameConfirm,
     handleRenameCancel,
     handleTogglePin,
+    handleArchive,
+    handleRestore,
+    handleReset,
     handleMenuVisibleChange,
     handleOpenMenu,
     handleRemoveProject,
@@ -206,6 +210,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       // underlying handleExportConversation logic from useExport is kept for a
       // future per-platform re-enable.
       onTogglePin: handleTogglePin,
+      onArchive: handleArchive,
+      onRestore: handleRestore,
+      onReset: handleReset,
+      archivedView: archived,
       getJobStatus,
     }),
     [
@@ -224,6 +232,10 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       handleEditStart,
       handleDeleteClick,
       handleTogglePin,
+      handleArchive,
+      handleRestore,
+      handleReset,
+      archived,
       getJobStatus,
     ]
   );
@@ -273,7 +285,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       <>
         {afterPinnedContent}
         <div className='py-48px flex-center'>
-          <Empty description={t('conversation.history.noHistory')} />
+          <Empty description={t(archived ? 'conversation.history.noArchived' : 'conversation.history.noHistory')} />
         </div>
       </>
     );
@@ -572,50 +584,52 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                         </span>
                       }
                       trailing={
-                        <span className='flex items-center gap-6px'>
-                          <Tooltip content={t('conversation.history.newConversationInProject')} position='top'>
-                            <span
-                              role='button'
-                              tabIndex={0}
-                              aria-label={t('conversation.history.newConversationInProject')}
-                              className={classNames(
-                                'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                isMobile ? 'flex' : 'hidden group-hover:flex'
-                              )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void navigate('/guid', { state: { workspace: group.workspace } });
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
+                        !archived ? (
+                          <span className='flex items-center gap-6px'>
+                            <Tooltip content={t('conversation.history.newConversationInProject')} position='top'>
+                              <span
+                                role='button'
+                                tabIndex={0}
+                                aria-label={t('conversation.history.newConversationInProject')}
+                                className={classNames(
+                                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
+                                  isMobile ? 'flex' : 'hidden group-hover:flex'
+                                )}
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   void navigate('/guid', { state: { workspace: group.workspace } });
-                                }
-                              }}
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    void navigate('/guid', { state: { workspace: group.workspace } });
+                                  }
+                                }}
+                              >
+                                <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                              </span>
+                            </Tooltip>
+                            <Dropdown
+                              droplist={projectMenu}
+                              trigger='click'
+                              position='br'
+                              getPopupContainer={() => document.body}
+                              unmountOnExit={false}
                             >
-                              <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
-                            </span>
-                          </Tooltip>
-                          <Dropdown
-                            droplist={projectMenu}
-                            trigger='click'
-                            position='br'
-                            getPopupContainer={() => document.body}
-                            unmountOnExit={false}
-                          >
-                            <span
-                              aria-label='Project actions'
-                              className={classNames(
-                                'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                                isMobile ? 'flex' : 'hidden group-hover:flex'
-                              )}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
-                            </span>
-                          </Dropdown>
-                        </span>
+                              <span
+                                aria-label={t('conversation.history.projectActions')}
+                                className={classNames(
+                                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
+                                  isMobile ? 'flex' : 'hidden group-hover:flex'
+                                )}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                              </span>
+                            </Dropdown>
+                          </span>
+                        ) : null
                       }
                     >
                       <div className={classNames('flex flex-col min-w-0', { 'mt-1px': !collapsed })}>

@@ -202,6 +202,12 @@ export interface IEnvStorageRefer {
 export type ConversationSource = 'aionui' | 'telegram' | 'lark' | 'dingtalk' | 'weixin' | 'wecom' | (string & {});
 
 export type TChatConversationStatus = 'pending' | 'running' | 'finished';
+export type TConversationArchiveExtra = {
+  /** Hidden from active history until explicitly restored. */
+  archived?: boolean;
+  /** Millisecond timestamp used to order archived conversations. */
+  archived_at?: number;
+};
 export type TConversationRuntimeStateKind = 'idle' | 'starting' | 'running' | 'waiting_confirmation';
 
 export type TConversationRuntimeSummary = {
@@ -242,7 +248,7 @@ interface IChatConversation<T, Extra> {
   desc?: string;
   id: string;
   type: T;
-  extra: Extra;
+  extra: Extra & TConversationArchiveExtra;
   model: TProviderWithModel;
   status?: TChatConversationStatus | undefined;
   runtime?: TConversationRuntimeSummary;

@@ -1,4 +1,17 @@
 {
+  "home": {
+    "question": "今天要推进什么？",
+    "capabilityQuestion": "要让 {{capability}} 推进什么？",
+    "startersLabel": "选择一个能力开始",
+    "projectRequiredForAttachments": "选择项目后才能添加文件",
+    "localContext": "本地",
+    "projectlessTextOnly": "无项目 · 仅文本",
+    "activeCapability": "能力：{{capability}}"
+  },
+  "capabilities": {
+    "title": "能力",
+    "description": "选择负责当前任务的 OPL 能力；安装与配置仍在设置中完成。"
+  },
   "agentFallbackNotice": "{{original}} 不可用，已自动切换到 {{fallback}}。",
   "noAgentAvailable": "没有可用的 Main Agent。请登录 Google 或安装 Claude/Codex CLI。是否前往设置？",
   "noAgentAvailableShort": "没有可用的 Main Agent。点击配置。",

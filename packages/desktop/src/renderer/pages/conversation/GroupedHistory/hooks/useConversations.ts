@@ -7,13 +7,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useConversationHistoryContext } from '@/renderer/hooks/context/ConversationHistoryContext';
+import { isConversationArchived } from '../utils/groupingHelpers';
 import {
   dispatchWorkspaceExpansionChange,
   readExpandedWorkspaces,
   WORKSPACE_EXPANSION_STORAGE_KEY,
 } from './useWorkspaceExpansionState';
 
-export const useConversations = () => {
+export const useConversations = (archived = false) => {
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => readExpandedWorkspaces());
   const { id } = useParams();
   const {
@@ -23,6 +24,7 @@ export const useConversations = () => {
     clearCompletionUnread,
     setActiveConversation,
     groupedHistory,
+    archivedHistory,
   } = useConversationHistoryContext();
 
   // Track whether auto-expand has already been performed to avoid
@@ -70,7 +72,10 @@ export const useConversations = () => {
     dispatchWorkspaceExpansionChange(expandedWorkspaces);
   }, [expandedWorkspaces]);
 
-  const { pinnedConversations, timelineSections } = groupedHistory;
+  const { pinnedConversations, timelineSections } = archived ? archivedHistory : groupedHistory;
+  const visibleConversations = conversations.filter(
+    (conversation) => isConversationArchived(conversation) === archived
+  );
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {
@@ -120,7 +125,7 @@ export const useConversations = () => {
   }, []);
 
   return {
-    conversations,
+    conversations: visibleConversations,
     isConversationGenerating,
     hasCompletionUnread,
     expandedWorkspaces,

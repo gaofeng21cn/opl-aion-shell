@@ -12,14 +12,9 @@ const mocks = vi.hoisted(() => ({
     String(
       options?.defaultValue ??
         ({
-          'guid.inspector.title': '上下文',
-          'guid.inspector.open': '打开上下文',
-          'guid.inspector.files': '文件',
-          'guid.inspector.capabilities': '能力',
-          'guid.inspector.runtime': '运行',
-          'guid.inspector.memory': '记忆',
-          'guid.inspector.automations': '自动化',
-          'guid.inspector.settings': '设置',
+          'guid.home.question': '今天要推进什么？',
+          'guid.home.capabilityQuestion': `要让 ${String(options?.capability ?? '')} 推进什么？`,
+          'guid.home.startersLabel': '选择一个能力开始',
         }[key] ||
           key)
     ),
@@ -320,27 +315,26 @@ vi.mock('@/renderer/hooks/mcp/catalog', () => ({
 
 vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
   default: ({
-    mentionSelectorBadge,
     placeholder,
     actionRow,
+    activeCapabilityLabel,
+    fileAccessDisabled,
     workspaceAccessDisabled,
   }: {
-    mentionSelectorBadge: React.ReactNode;
     placeholder: string;
     actionRow: React.ReactNode;
+    activeCapabilityLabel?: string;
+    fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
   }) => (
     <div data-testid='guid-input-card'>
-      {mentionSelectorBadge}
       <div data-testid='guid-placeholder'>{placeholder}</div>
+      {activeCapabilityLabel ? <div data-testid='guid-active-capability'>{activeCapabilityLabel}</div> : null}
       {actionRow}
+      {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
     </div>
   ),
-}));
-
-vi.mock('@/renderer/pages/guid/components/AssistantSelectionArea', () => ({
-  default: () => <div data-testid='assistant-selection-area' />,
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/FeedbackReportModal', () => ({
@@ -408,17 +402,18 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.useGuidSend.mockClear();
   });
 
-  it('keeps the default hero and shows the selected built-in assistant as a compact @ tag', async () => {
+  it('shows a dynamic capability question and keeps purpose outside the composer controls', async () => {
     render(<GuidPage />);
 
-    expect(screen.getByTestId('opl-chat-first-frame')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
-    expect(screen.getByText('@MAS')).toBeInTheDocument();
+    expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-mas')).toBeInTheDocument();
+    expect(screen.getByTestId('guid-active-capability')).toHaveTextContent('Med Auto Science');
     expect(screen.getByTestId('guid-placeholder')).toHaveTextContent('MAS');
-    expect(screen.getByText('conversation.welcome.title')).toBeInTheDocument();
+    expect(screen.getByText('要让 Med Auto Science 推进什么？')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-home-model-status')).not.toBeInTheDocument();
     expect(screen.queryByText('模型: GPT-5.5')).not.toBeInTheDocument();
-    expect(screen.queryByText('Med Auto Science')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Med Auto Science')).toHaveLength(2);
     expect(screen.queryByText(/Default Codex CLI/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('guid-model-selector')).not.toBeInTheDocument();
     await waitFor(() => {
@@ -452,45 +447,36 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.getByTestId('guid-model-selector')).toBeInTheDocument();
   });
 
-  it('opens the right context inspector with App-owned context tabs on request', async () => {
+  it('does not render the retired static inspector surface', () => {
     render(<GuidPage />);
 
     expect(screen.queryByTestId('opl-guid-context-inspector')).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByTestId('opl-guid-context-inspector-toggle'));
-
-    expect(screen.getByTestId('opl-guid-context-inspector')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-inspector-tab-files')).toHaveTextContent('文件');
-    expect(screen.getByTestId('opl-inspector-tab-capabilities')).toHaveTextContent('能力');
-    expect(screen.getByTestId('opl-inspector-tab-runtime')).toHaveTextContent('运行');
-    expect(screen.getByTestId('opl-inspector-tab-memory')).toHaveTextContent('记忆');
-    expect(screen.getByTestId('opl-inspector-tab-automations')).toHaveTextContent('自动化');
-    expect(screen.getByTestId('opl-inspector-tab-settings')).toHaveTextContent('设置');
+    expect(screen.queryByTestId('opl-guid-context-inspector-toggle')).not.toBeInTheDocument();
   });
 
-  it('does not open an execution-agent dropdown from the selected built-in assistant badge', async () => {
+  it('selects an active capability from a Home starter without exposing an agent selector', async () => {
     render(<GuidPage />);
-    mocks.setMentionSelectorVisible.mockClear();
+    mocks.setSelectedAgentKey.mockClear();
 
-    await userEvent.click(screen.getByText('@MAS'));
+    await userEvent.click(screen.getByTestId('home-starter-mas'));
 
-    expect(mocks.setMentionSelectorVisible).not.toHaveBeenCalled();
-    expect(screen.queryByText('Codex')).not.toBeInTheDocument();
+    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mas');
+    expect(screen.queryByText('@MAS')).not.toBeInTheDocument();
   });
 
-  it('lets the user clear the selected purpose and return to the default agent', async () => {
+  it('applies a capability selected from the ordinary Capabilities route', () => {
+    mocks.locationState.value = { selectedCapabilityId: 'mag' };
+
     render(<GuidPage />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'common.clear' }));
-
-    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('codex');
-    expect(mocks.setMentionSelectorVisible).toHaveBeenCalledWith(false);
+    expect(mocks.setSelectedAgentKey).toHaveBeenCalledWith('custom:mag');
+    expect(mocks.navigate).toHaveBeenCalledWith('/guid', { replace: true, state: null });
   });
 
   it('loads only App-packaged available skills on the OPL home path', async () => {
     render(<GuidPage />);
 
-    await screen.findByText('@MAS');
+    await screen.findByTestId('home-starter-mas');
 
     const { ipcBridge } = await import('@/common');
     expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).toHaveBeenCalled();
@@ -564,6 +550,19 @@ describe('GuidPage selected purpose assistant surface', () => {
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
     expect(screen.queryByTestId('opl-guid-setup-notice')).not.toBeInTheDocument();
+  });
+
+  it('keeps projectless text conversations available while disabling attachments', async () => {
+    mocks.isPresetAgent.value = false;
+    mocks.guidInput.input = '只进行文字对话';
+    mocks.sendDisabled.value = false;
+
+    render(<GuidPage />);
+
+    expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-guid-workspace-access-disabled')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('guid-send-btn'));
+    expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
   });
 
   it('blocks the /open file command without clearing the draft when workspace setup is incomplete', async () => {

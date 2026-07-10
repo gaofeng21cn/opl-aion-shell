@@ -23,7 +23,9 @@ vi.mock('@/renderer/components/media/UploadProgressBar', () => ({
 }));
 
 vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
-  default: () => <div data-testid='workspace-footnote' />,
+  default: ({ activeCapabilityLabel }: { activeCapabilityLabel?: string }) => (
+    <div data-testid='workspace-footnote'>{activeCapabilityLabel}</div>
+  ),
 }));
 
 function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
@@ -43,7 +45,6 @@ function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
       activeShadow='none'
       dragHandlers={{}}
       mentionOpen={false}
-      mentionSelectorBadge={<div data-testid='mention-badge' />}
       mentionDropdown={null}
       files={[]}
       onRemoveFile={vi.fn()}
@@ -52,6 +53,7 @@ function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
       workspaceDir=''
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
+      activeCapabilityLabel='Research'
     />
   );
 }
@@ -61,10 +63,10 @@ describe('GuidInputCard compact home composer', () => {
     renderCard();
 
     expect(screen.getByTestId('guid-input')).toHaveAttribute('placeholder', 'Describe task');
-    expect(screen.getByTestId('mention-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('mention-badge')).not.toBeInTheDocument();
     expect(screen.getByTestId('upload-progress')).toBeInTheDocument();
     expect(screen.getByTestId('action-row')).toBeInTheDocument();
-    expect(screen.getByTestId('workspace-footnote')).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-footnote')).toHaveTextContent('Research');
     expect(screen.queryByTestId('guid-activity-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-continue-context-entry')).not.toBeInTheDocument();
   });

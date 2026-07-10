@@ -33,7 +33,6 @@ type GuidInputCardProps = {
 
   // Mention state
   mentionOpen: boolean;
-  mentionSelectorBadge: React.ReactNode;
   mentionDropdown: React.ReactNode;
 
   // Files
@@ -50,6 +49,7 @@ type GuidInputCardProps = {
   onClearWorkspace: () => void;
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
+  activeCapabilityLabel?: string;
 };
 
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
@@ -67,7 +67,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   activeShadow,
   dragHandlers,
   mentionOpen,
-  mentionSelectorBadge,
   mentionDropdown,
   files,
   onRemoveFile,
@@ -78,6 +77,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   onClearWorkspace,
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
+  activeCapabilityLabel,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -122,7 +122,6 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           boxShadow: isInputActive && !isFileDragging ? activeShadow : 'none',
         }}
       >
-        {mentionSelectorBadge}
         <Input.TextArea
           autoSize={textareaAutoSize}
           placeholder={placeholder}
@@ -162,6 +161,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         onClearWorkspace={onClearWorkspace}
         accessDisabled={workspaceAccessDisabled}
         accessDisabledReason={workspaceAccessDisabledReason}
+        activeCapabilityLabel={activeCapabilityLabel}
       />
     </div>
   );

@@ -21,12 +21,12 @@ import { resolveLocaleKey } from '@/common/utils';
 
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
-import AssistantSelectionArea from './components/AssistantSelectionArea';
 import GuidActionRow from './components/GuidActionRow';
 import GuidInputCard from './components/GuidInputCard';
 import GuidModelSelector from './components/GuidModelSelector';
+import HomeStarters from './components/HomeStarters';
 import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
-import MentionDropdown, { MentionSelectorBadge } from './components/MentionDropdown';
+import MentionDropdown from './components/MentionDropdown';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
@@ -42,9 +42,7 @@ import { appendSpeechTranscript } from '@/renderer/hooks/system/useSpeechInput';
 import { useLiveTranscriptInsertion } from '@/renderer/hooks/system/useLiveTranscriptInsertion';
 import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunchPrerequisites';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
-import { shouldShowOplHomeAgentTabs } from './oplGuidProfile';
-import { Button, ConfigProvider } from '@arco-design/web-react';
-import { Down, FolderOpen, History, Link, MemoryCard, Right, SettingTwo, Timer } from '@icon-park/react';
+import { ConfigProvider } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -58,6 +56,7 @@ type GuidNavigationState = {
   selectedAgentKey?: string;
   workspace?: string;
   postInstallSelfCheck?: boolean;
+  selectedCapabilityId?: string;
 };
 
 const POST_INSTALL_SELF_CHECK_PROMPT_DEFAULTS: Record<'zh-CN' | 'en-US', string> = {
@@ -105,11 +104,8 @@ const GuidPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const guidContainerRef = useRef<HTMLDivElement>(null);
-  const openAssistantDetailsRef = useRef<(() => void) | null>(null);
-  const descriptionTextRef = useRef<HTMLDivElement>(null);
   const preservePostInstallPromptRef = useRef(false);
   const { activeBorderColor, inactiveBorderColor, activeShadow } = useInputFocusRing();
-  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
 
   const localeKey = resolveLocaleKey(i18n.language);
@@ -546,55 +542,26 @@ const GuidPage: React.FC = () => {
     }
   }, [agentSelection.is_presetAgent, selectedAssistantRecord, selectedAssistantRequiredSkills]);
 
-  const heroTitle = useMemo(() => {
-    return t('conversation.welcome.title');
-  }, [t]);
-  const inspectorTabs = useMemo(
-    () => [
-      {
-        id: 'files',
-        label: t('guid.inspector.files'),
-        icon: <FolderOpen theme='outline' size='14' fill='currentColor' />,
-      },
-      {
-        id: 'capabilities',
-        label: t('guid.inspector.capabilities'),
-        icon: <Link theme='outline' size='14' fill='currentColor' />,
-      },
-      {
-        id: 'runtime',
-        label: t('guid.inspector.runtime'),
-        icon: <Timer theme='outline' size='14' fill='currentColor' />,
-      },
-      {
-        id: 'memory',
-        label: t('guid.inspector.memory'),
-        icon: <MemoryCard theme='outline' size='14' fill='currentColor' />,
-      },
-      {
-        id: 'automations',
-        label: t('guid.inspector.automations'),
-        icon: <History theme='outline' size='14' fill='currentColor' />,
-      },
-      {
-        id: 'settings',
-        label: t('guid.inspector.settings'),
-        icon: <SettingTwo theme='outline' size='14' fill='currentColor' />,
-      },
-    ],
-    [t]
+  const activeCapabilityLabel = useMemo(() => {
+    return selectedAssistantRecord?.name_i18n?.[localeKey] || selectedAssistantRecord?.name;
+  }, [localeKey, selectedAssistantRecord]);
+  const heroTitle = useMemo(
+    () =>
+      activeCapabilityLabel
+        ? t('guid.home.capabilityQuestion', { capability: activeCapabilityLabel })
+        : t('guid.home.question'),
+    [activeCapabilityLabel, t]
   );
-  const shouldRenderAgentTabs =
-    agentSelection.availableAgents !== undefined && shouldShowOplHomeAgentTabs(agentSelection.availableAgents);
   const selectedAssistantDescription = useMemo(() => {
     return selectedAssistantRecord?.description_i18n?.[localeKey] || selectedAssistantRecord?.description || '';
   }, [selectedAssistantRecord, localeKey]);
-  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
-  const [canExpandDescription, setCanExpandDescription] = useState(false);
 
   // Reset guid-local UI state before paint so same-route navigations do not
   // briefly show the previous draft or preset assistant layout.
   useLayoutEffect(() => {
+    if (navState?.selectedCapabilityId) {
+      agentSelection.setSelectedAgentKey(`custom:${navState.selectedCapabilityId}`);
+    }
     if (postInstallSelfCheckRequested) {
       guidInput.setInput(buildPostInstallSelfCheckPrompt(t, localeKey));
       preservePostInstallPromptRef.current = true;
@@ -608,14 +575,15 @@ const GuidPage: React.FC = () => {
     if (!navState?.workspace) {
       guidInput.setDir('');
     }
-    setIsDescriptionExpanded(false);
   }, [
+    agentSelection.setSelectedAgentKey,
     guidInput.setDir,
     guidInput.setFiles,
     guidInput.setInput,
     guidInput.setLoading,
     localeKey,
     location.key,
+    navState?.selectedCapabilityId,
     navState?.workspace,
     postInstallSelfCheckRequested,
     t,
@@ -630,66 +598,24 @@ const GuidPage: React.FC = () => {
   // next hard reload, the browser would then request '/guid' directly from
   // the dev server (which has no SPA fallback) and 404.
   useEffect(() => {
-    if (!resetAssistantRequested && !preselectAgentKey && !postInstallSelfCheckRequested) return;
+    if (
+      !resetAssistantRequested &&
+      !preselectAgentKey &&
+      !postInstallSelfCheckRequested &&
+      !navState?.selectedCapabilityId
+    )
+      return;
     navigate(`${location.pathname}${location.search}${location.hash}`, { replace: true, state: null });
   }, [
     resetAssistantRequested,
     preselectAgentKey,
     postInstallSelfCheckRequested,
+    navState?.selectedCapabilityId,
     location.pathname,
     location.search,
     location.hash,
     navigate,
   ]);
-
-  useEffect(() => {
-    const node = descriptionTextRef.current;
-    if (!node || !agentSelection.is_presetAgent || !selectedAssistantDescription) {
-      setCanExpandDescription(false);
-      return;
-    }
-
-    const checkExpandable = () => {
-      // In line-clamp mode, scrollWidth/scrollHeight can be unreliable in some engines.
-      // Measure the natural multi-line height via an off-screen clone.
-      const clone = node.cloneNode(true) as HTMLDivElement;
-      const computed = window.getComputedStyle(node);
-      clone.style.position = 'absolute';
-      clone.style.visibility = 'hidden';
-      clone.style.pointerEvents = 'none';
-      clone.style.zIndex = '-1';
-      clone.style.left = '-99999px';
-      clone.style.top = '0';
-      clone.style.width = `${node.clientWidth}px`;
-      clone.style.display = 'block';
-      clone.style.overflow = 'visible';
-      clone.style.whiteSpace = 'normal';
-      clone.style.webkitLineClamp = 'unset';
-      clone.style.webkitBoxOrient = 'unset';
-      clone.style.lineHeight = computed.lineHeight;
-      clone.style.fontSize = computed.fontSize;
-      clone.style.fontWeight = computed.fontWeight;
-      clone.style.letterSpacing = computed.letterSpacing;
-      clone.style.fontFamily = computed.fontFamily;
-      document.body.appendChild(clone);
-
-      const expandedHeight = clone.scrollHeight;
-      document.body.removeChild(clone);
-      const lineHeight = Number.parseFloat(computed.lineHeight) || 20;
-      const canExpand = expandedHeight > lineHeight + 1;
-      setCanExpandDescription(canExpand);
-      if (!canExpand) {
-        setIsDescriptionExpanded(false);
-      }
-    };
-
-    checkExpandable();
-
-    if (typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => checkExpandable());
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [agentSelection.is_presetAgent, selectedAssistantDescription]);
 
   const effectiveAgentRecord = useMemo(() => {
     return agentSelection.availableAgents?.find(
@@ -760,8 +686,12 @@ const GuidPage: React.FC = () => {
     <GuidActionRow
       files={guidInput.files}
       onFilesUploaded={guidInput.handleFilesUploaded}
-      fileAccessDisabled={fileAccessBlocked}
-      fileAccessDisabledReason={t('common.firstRunRecovery.fileAccessUnavailable')}
+      fileAccessDisabled={fileAccessBlocked || !guidInput.dir}
+      fileAccessDisabledReason={
+        fileAccessBlocked
+          ? t('common.firstRunRecovery.fileAccessUnavailable')
+          : t('guid.home.projectRequiredForAttachments')
+      }
       modelSelectorNode={modelSelectorNode}
       selectedAgent={agentSelection.selectedAgent}
       effectiveModeAgent={agentSelection.currentEffectiveAgentInfo.agent_type}
@@ -821,78 +751,28 @@ const GuidPage: React.FC = () => {
         data-testid='opl-guid-entry'
         aria-label='opl-guid-entry'
       >
-        <div className={styles.guidShellFrame} data-testid='opl-chat-first-frame'>
-          <Button
-            type='secondary'
-            shape='circle'
-            className={styles.guidContextInspectorToggle}
-            data-testid='opl-guid-context-inspector-toggle'
-            aria-label={t('guid.inspector.open')}
-            icon={<Right theme='outline' size='14' fill='currentColor' />}
-            onClick={() => setIsInspectorOpen((open) => !open)}
-          />
-          {isInspectorOpen ? (
-            <aside className={styles.guidContextInspector} data-testid='opl-guid-context-inspector'>
-              <div className={styles.guidContextInspectorTitle}>{t('guid.inspector.title')}</div>
-              <div className={styles.guidContextInspectorTabs}>
-                {inspectorTabs.map((tab) => (
-                  <Button
-                    key={tab.id}
-                    type='text'
-                    size='mini'
-                    className={styles.guidContextInspectorTab}
-                    data-testid={`opl-inspector-tab-${tab.id}`}
-                    aria-label={tab.label}
-                  >
-                    {tab.icon}
-                    <span>{tab.label}</span>
-                  </Button>
-                ))}
-              </div>
-            </aside>
-          ) : null}
-        </div>
         <div className={styles.guidLayout}>
           <div className={styles.heroHeader}>
             <div className='text-center'>
-              <p className='text-2xl font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
+              <p className='text-20px leading-28px font-semibold mb-0 text-0 text-center'>{heroTitle}</p>
             </div>
           </div>
 
           {agentSelection.is_presetAgent && selectedAssistantDescription ? (
-            <div
-              className={`${styles.heroSubtitle} ${isDescriptionExpanded ? styles.heroSubtitleExpanded : ''}`}
-              onClick={() => {
-                if (!canExpandDescription) return;
-                setIsDescriptionExpanded((v) => !v);
-              }}
-            >
-              <div
-                ref={descriptionTextRef}
-                className={`${styles.heroSubtitleText} ${isDescriptionExpanded ? styles.heroSubtitleTextExpanded : ''}`}
-              >
-                {selectedAssistantDescription}
-              </div>
-              {canExpandDescription ? (
-                <Button
-                  size='mini'
-                  type='secondary'
-                  shape='circle'
-                  icon={<Down theme='outline' size={12} fill='currentColor' />}
-                  className={`${styles.heroSubtitleToggle} ${isDescriptionExpanded ? styles.heroSubtitleToggleExpanded : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsDescriptionExpanded((v) => !v);
-                  }}
-                  aria-label={
-                    isDescriptionExpanded
-                      ? t('common.collapse', { defaultValue: 'Collapse' })
-                      : t('common.expand', { defaultValue: 'Expand' })
-                  }
-                />
-              ) : null}
-            </div>
+            <p className='m-0 mb-12px text-center text-13px leading-20px text-t-secondary'>
+              {selectedAssistantDescription}
+            </p>
           ) : null}
+
+          <HomeStarters
+            assistants={agentSelection.assistants}
+            localeKey={localeKey}
+            activeCapabilityId={selectedAssistantRecord?.id}
+            onSelect={(assistantId) => {
+              handleSelectAssistant(`custom:${assistantId}`);
+              guidInput.handleTextareaFocus();
+            }}
+          />
 
           <GuidInputCard
             input={guidInput.input}
@@ -913,23 +793,6 @@ const GuidPage: React.FC = () => {
             activeShadow={activeShadow}
             dragHandlers={guidInput.dragHandlers}
             mentionOpen={mention.mentionOpen}
-            mentionSelectorBadge={
-              <MentionSelectorBadge
-                visible={mention.mentionSelectorVisible}
-                open={mention.mentionSelectorOpen}
-                onOpenChange={mention.setMentionSelectorOpen}
-                agentLabel={mention.selectedAgentLabel}
-                mentionMenu={mentionDropdownNode}
-                onResetQuery={() => mention.setMentionQuery(null)}
-                dropdownEnabled={false}
-                onClear={() => {
-                  agentSelection.setSelectedAgentKey(agentSelection.defaultAgentKey);
-                  mention.setMentionSelectorVisible(false);
-                  mention.setMentionSelectorOpen(false);
-                  mention.setMentionActiveIndex(0);
-                }}
-              />
-            }
             mentionDropdown={mentionDropdownNode}
             files={guidInput.files}
             onRemoveFile={guidInput.handleRemoveFile}
@@ -940,23 +803,10 @@ const GuidPage: React.FC = () => {
             onClearWorkspace={() => guidInput.setDir('')}
             workspaceAccessDisabled={fileAccessBlocked}
             workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
+            activeCapabilityLabel={activeCapabilityLabel}
           />
 
           {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}
-
-          <AssistantSelectionArea
-            is_presetAgent={agentSelection.is_presetAgent}
-            selectedAgentInfo={agentSelection.selectedAgentInfo}
-            assistants={agentSelection.assistants}
-            localeKey={localeKey}
-            currentEffectiveAgentInfo={agentSelection.currentEffectiveAgentInfo}
-            onSelectAssistant={handleSelectAssistant}
-            onSetInput={guidInput.setInput}
-            onFocusInput={guidInput.handleTextareaFocus}
-            onRegisterOpenDetails={(openDetails) => {
-              openAssistantDetailsRef.current = openDetails;
-            }}
-          />
         </div>
       </div>
     </ConfigProvider>

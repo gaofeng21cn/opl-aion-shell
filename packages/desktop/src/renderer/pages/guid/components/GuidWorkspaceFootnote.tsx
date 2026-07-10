@@ -19,6 +19,7 @@ type GuidWorkspaceFootnoteProps = {
   onClearWorkspace: () => void;
   accessDisabled?: boolean;
   accessDisabledReason?: string;
+  activeCapabilityLabel?: string;
 };
 
 const FolderIcon = ({ size = 12 }: { size?: number }) => (
@@ -55,6 +56,7 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
   onClearWorkspace,
   accessDisabled = false,
   accessDisabledReason,
+  activeCapabilityLabel,
 }) => {
   const { t } = useTranslation();
   const recentWorkspaces = getRecentWorkspaces();
@@ -300,6 +302,19 @@ const GuidWorkspaceFootnote: React.FC<GuidWorkspaceFootnoteProps> = ({
           </Tooltip>
           {dropdownEl}
         </>
+      )}
+      <span className={styles.contextStripMeta} data-testid='guid-local-context'>
+        {t('guid.home.localContext')}
+      </span>
+      {!workspaceDir && (
+        <span className={styles.contextStripMeta} data-testid='guid-projectless-limit'>
+          {t('guid.home.projectlessTextOnly')}
+        </span>
+      )}
+      {activeCapabilityLabel && (
+        <span className={styles.contextStripMeta} data-testid='guid-active-capability'>
+          {t('guid.home.activeCapability', { capability: activeCapabilityLabel })}
+        </span>
       )}
     </div>
   );

@@ -11,7 +11,7 @@ import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Checkbox, Dropdown, Menu, Spin, Tooltip } from '@arco-design/web-react';
-import { DeleteOne, EditOne, Export, MessageOne, MoreOne, Pushpin } from '@icon-park/react';
+import { DeleteOne, EditOne, Export, Inbox, MessageOne, MoreOne, Pushpin, Refresh, Undo } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +44,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     onDelete,
     onExport,
     onTogglePin,
+    onArchive,
+    onRestore,
+    onReset,
+    archivedView = false,
     getJobStatus,
   } = props;
   const { t } = useTranslation();
@@ -226,15 +230,29 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                     }
                     if (key === 'delete') {
                       onDelete(conversation.id);
+                      return;
+                    }
+                    if (key === 'archive') {
+                      onArchive?.(conversation);
+                      return;
+                    }
+                    if (key === 'restore') {
+                      onRestore?.(conversation);
+                      return;
+                    }
+                    if (key === 'reset') {
+                      onReset?.(conversation.id);
                     }
                   }}
                 >
-                  <Menu.Item key='pin'>
-                    <div className='flex items-center gap-8px'>
-                      <Pushpin theme='outline' size='14' />
-                      <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
-                    </div>
-                  </Menu.Item>
+                  {!archivedView && (
+                    <Menu.Item key='pin'>
+                      <div className='flex items-center gap-8px'>
+                        <Pushpin theme='outline' size='14' />
+                        <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
                   <Menu.Item key='rename'>
                     <div className='flex items-center gap-8px'>
                       <EditOne theme='outline' size='14' />
@@ -249,6 +267,27 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                       </div>
                     </Menu.Item>
                   )}
+                  {archivedView ? (
+                    <Menu.Item key='restore'>
+                      <div className='flex items-center gap-8px'>
+                        <Undo theme='outline' size='14' />
+                        <span>{t('conversation.history.restore')}</span>
+                      </div>
+                    </Menu.Item>
+                  ) : (
+                    <Menu.Item key='archive'>
+                      <div className='flex items-center gap-8px'>
+                        <Inbox theme='outline' size='14' />
+                        <span>{t('conversation.history.archive')}</span>
+                      </div>
+                    </Menu.Item>
+                  )}
+                  <Menu.Item key='reset'>
+                    <div className='flex items-center gap-8px'>
+                      <Refresh theme='outline' size='14' />
+                      <span>{t('conversation.history.resetTitle')}</span>
+                    </div>
+                  </Menu.Item>
                   <Menu.Item key='delete'>
                     <div className='flex items-center gap-8px text-[rgb(var(--warning-6))]'>
                       <DeleteOne theme='outline' size='14' />

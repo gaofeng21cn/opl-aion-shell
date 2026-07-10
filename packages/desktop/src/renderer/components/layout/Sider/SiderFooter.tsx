@@ -6,10 +6,9 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@arco-design/web-react';
-import { ArrowCircleLeft, CloseOne, Moon, SettingTwo, SunOne } from '@icon-park/react';
+import { Button, Tooltip } from '@arco-design/web-react';
+import { ArrowCircleLeft, Help, Moon, SettingTwo, SunOne, User } from '@icon-park/react';
 import classNames from 'classnames';
-import { iconColors } from '@renderer/styles/colors';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
 
 interface SiderFooterProps {
@@ -19,9 +18,9 @@ interface SiderFooterProps {
   theme: string;
   siderTooltipProps: SiderTooltipProps;
   onSettingsClick: () => void;
+  onAccountClick: () => void;
+  onHelpClick: () => void;
   onThemeToggle: () => void;
-  showLogout?: boolean;
-  onLogoutClick?: () => void;
 }
 
 const SiderFooter: React.FC<SiderFooterProps> = ({
@@ -31,9 +30,9 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
   theme,
   siderTooltipProps,
   onSettingsClick,
+  onAccountClick,
+  onHelpClick,
   onThemeToggle,
-  showLogout = false,
-  onLogoutClick,
 }) => {
   const { t } = useTranslation();
 
@@ -59,58 +58,51 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
 
   return (
     <div className='shrink-0 sider-footer mt-auto pt-8px pb-8px border-t border-solid border-[var(--color-border-2)] border-l-0 border-r-0 border-b-0'>
-      <div className={classNames('flex', collapsed ? 'flex-col gap-2px' : 'items-center gap-2px')}>
-        <Tooltip {...siderTooltipProps} content={isSettings ? t('common.back') : t('common.settings')} position='right'>
-          <div
-            onClick={onSettingsClick}
-            className={classNames(
-              'group h-34px flex items-center rd-0.5rem cursor-pointer transition-colors',
-              collapsed ? 'w-full justify-center' : 'flex-1 min-w-0 justify-start gap-8px pl-10px pr-8px',
-              isMobile && 'sider-footer-btn-mobile',
-              {
-                'bg-fill-3': isSettings,
-                'hover:bg-fill-3 active:bg-fill-4': !isSettings,
-              }
-            )}
-          >
-            <span className='size-22px flex items-center justify-center shrink-0 text-t-secondary'>{settingsIcon}</span>
-            <span className='collapsed-hidden text-t-primary text-14px font-[500] leading-24px truncate'>
-              {isSettings ? t('common.back') : t('common.settings')}
-            </span>
-          </div>
-        </Tooltip>
-        {showLogout && onLogoutClick && (
-          <Tooltip {...siderTooltipProps} content={t('settings.googleLogout')} position='right'>
-            <div
-              onClick={onLogoutClick}
+      <div className='flex flex-col gap-2px'>
+        {[
+          {
+            key: 'account',
+            label: t('common.account'),
+            icon: <User theme='outline' size='16' fill='currentColor' />,
+            onClick: onAccountClick,
+          },
+          {
+            key: 'help',
+            label: t('common.help'),
+            icon: <Help theme='outline' size='16' fill='currentColor' />,
+            onClick: onHelpClick,
+          },
+          {
+            key: 'settings',
+            label: isSettings ? t('common.back') : t('common.settings'),
+            icon: settingsIcon,
+            onClick: onSettingsClick,
+          },
+        ].map((entry) => (
+          <Tooltip key={entry.key} {...siderTooltipProps} content={entry.label} position='right'>
+            <Button
+              type='text'
               className={classNames(
-                'h-32px flex items-center rd-0.5rem cursor-pointer transition-colors hover:bg-[rgba(var(--primary-6),0.14)] active:bg-fill-2',
-                collapsed ? 'w-full justify-center' : 'flex-1 min-w-0 justify-start gap-10px px-14px',
-                isMobile && 'sider-footer-btn-mobile'
+                '!h-34px !w-full !rd-8px !text-t-primary !border-0',
+                collapsed ? '!justify-center !px-0' : '!justify-start !px-10px',
+                isMobile && 'sider-footer-btn-mobile',
+                entry.key === 'settings' && isSettings ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3'
               )}
+              icon={<span className='size-22px flex-center shrink-0 text-t-secondary'>{entry.icon}</span>}
+              onClick={entry.onClick}
+              data-testid={`sider-footer-${entry.key}`}
             >
-              <span className='size-20px flex items-center justify-center shrink-0'>
-                <CloseOne
-                  theme='outline'
-                  size='16'
-                  fill={iconColors.primary}
-                  className='block leading-none'
-                  style={{ lineHeight: 0 }}
-                />
-              </span>
-              <span className='collapsed-hidden text-t-primary text-14px font-[500] leading-24px truncate'>
-                {t('settings.googleLogout')}
-              </span>
-            </div>
+              {!collapsed && <span className='text-14px font-[500] leading-24px truncate'>{entry.label}</span>}
+            </Button>
           </Tooltip>
-        )}
-        {/* Theme toggle — lightweight icon button, only while inside Settings page (not in collapsed mode) */}
+        ))}
         {showThemeToggle && (
           <Tooltip {...siderTooltipProps} content={themeTooltip} position='right'>
-            <div
+            <Button
+              type='text'
               onClick={onThemeToggle}
               className={classNames(
-                'h-32px w-40px shrink-0 flex items-center justify-center cursor-pointer rd-0.5rem transition-colors text-t-secondary hover:bg-fill-2 hover:text-t-primary active:bg-fill-3',
+                '!h-32px !w-full !justify-center !rd-8px !text-t-secondary !bg-transparent hover:!bg-fill-2',
                 isMobile && 'sider-footer-btn-mobile'
               )}
               aria-label={themeTooltip}
@@ -122,7 +114,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
                   <Moon theme='outline' size='18' fill='currentColor' className='block leading-none' />
                 )}
               </span>
-            </div>
+            </Button>
           </Tooltip>
         )}
       </div>

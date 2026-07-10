@@ -18,6 +18,7 @@ import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
+import { isConversationArchived } from './utils/groupingHelpers';
 import './ConversationSearchPopover.css';
 
 const PAGE_SIZE = 20;
@@ -201,7 +202,8 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
           page_size: PAGE_SIZE,
         });
 
-        setItems((prev) => (append ? [...prev, ...result.items] : result.items));
+        const activeItems = result.items.filter((item) => !isConversationArchived(item.conversation));
+        setItems((prev) => (append ? [...prev, ...activeItems] : activeItems));
         setPage(pageToLoad);
         setHasMore(result.has_more);
       } catch (error) {

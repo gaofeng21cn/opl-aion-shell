@@ -223,6 +223,75 @@ export const useConversationActions = ({
     [t]
   );
 
+  const setArchivedState = useCallback(
+    async (conversation: TChatConversation, archived: boolean) => {
+      try {
+        const success = await ipcBridge.conversation.update.invoke({
+          id: conversation.id,
+          updates: {
+            extra: {
+              archived,
+              archived_at: archived ? Date.now() : undefined,
+            } as Partial<TChatConversation['extra']>,
+          } as Partial<TChatConversation>,
+          merge_extra: true,
+        });
+        if (!success) {
+          Message.error(t(archived ? 'conversation.history.archiveFailed' : 'conversation.history.restoreFailed'));
+          return;
+        }
+
+        emitter.emit('chat.history.refresh');
+        Message.success(t(archived ? 'conversation.history.archiveSuccess' : 'conversation.history.restoreSuccess'));
+        if (archived && id === conversation.id) {
+          void navigate('/guid');
+        }
+      } catch (error) {
+        console.error(`Failed to ${archived ? 'archive' : 'restore'} conversation:`, error);
+        Message.error(t(archived ? 'conversation.history.archiveFailed' : 'conversation.history.restoreFailed'));
+      }
+    },
+    [id, navigate, t]
+  );
+
+  const handleArchive = useCallback(
+    (conversation: TChatConversation) => {
+      void setArchivedState(conversation, true);
+    },
+    [setArchivedState]
+  );
+
+  const handleRestore = useCallback(
+    (conversation: TChatConversation) => {
+      void setArchivedState(conversation, false);
+    },
+    [setArchivedState]
+  );
+
+  const handleReset = useCallback(
+    (conversation_id: string) => {
+      Modal.confirm({
+        title: t('conversation.history.resetTitle'),
+        content: t('conversation.history.resetConfirm'),
+        okText: t('conversation.history.confirmReset'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            await ipcBridge.conversation.reset.invoke({ id: conversation_id });
+            emitter.emit('chat.history.refresh');
+            Message.success(t('conversation.history.resetSuccess'));
+          } catch (error) {
+            console.error('Failed to reset conversation:', error);
+            Message.error(t('conversation.history.resetFailed'));
+          }
+        },
+        alignCenter: true,
+        getPopupContainer: () => document.body,
+      });
+    },
+    [t]
+  );
+
   const handleMenuVisibleChange = useCallback((conversation_id: string, visible: boolean) => {
     setDropdownVisibleId(visible ? conversation_id : null);
   }, []);
@@ -289,6 +358,9 @@ export const useConversationActions = ({
     handleRenameConfirm,
     handleRenameCancel,
     handleTogglePin,
+    handleArchive,
+    handleRestore,
+    handleReset,
     handleMenuVisibleChange,
     handleOpenMenu,
     handleRemoveProject,

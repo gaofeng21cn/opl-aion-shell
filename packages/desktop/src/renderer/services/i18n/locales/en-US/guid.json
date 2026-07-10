@@ -1,4 +1,17 @@
 {
+  "home": {
+    "question": "What do you want to move forward?",
+    "capabilityQuestion": "What should {{capability}} move forward?",
+    "startersLabel": "Start with a capability",
+    "projectRequiredForAttachments": "Choose a project before adding files",
+    "localContext": "Local",
+    "projectlessTextOnly": "Projectless · text only",
+    "activeCapability": "Capability: {{capability}}"
+  },
+  "capabilities": {
+    "title": "Capabilities",
+    "description": "Choose the OPL capability that should own this task. Installation and configuration remain in Settings."
+  },
   "agentFallbackNotice": "{{original}} is unavailable, using {{fallback}} instead.",
   "noAgentAvailable": "No Main Agent is available. Please login to Google or install Claude/Codex CLI. Go to settings?",
   "noAgentAvailableShort": "No Main Agent available. Click to configure.",

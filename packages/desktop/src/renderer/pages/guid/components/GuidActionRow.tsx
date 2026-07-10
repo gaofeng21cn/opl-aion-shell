@@ -301,7 +301,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   );
 
   return (
-    <div className={styles.actionRow}>
+    <div className={styles.actionRow} data-testid='guid-action-row'>
       <div className={styles.actionTools}>
         <div className={styles.actionEntry}>
           {fileAccessDisabled ? (
@@ -322,7 +322,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           )}
         </div>
       </div>
-      <div className={styles.actionSubmit}>
+      <div className={styles.actionSubmit} data-testid='guid-action-submit'>
         {configOptionCount > 0 && (
           <div className={styles.actionConfigGroup} data-mobile={isMobile ? 'true' : undefined}>
             {modelSelectorNode}
@@ -361,11 +361,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           loading={loading}
           disabled={isButtonDisabled}
           className='send-button-custom'
-          style={{
-            backgroundColor: isButtonDisabled ? undefined : '#000000',
-            borderColor: isButtonDisabled ? undefined : '#000000',
-          }}
-          icon={<ArrowUp theme='filled' size='14' fill='white' strokeWidth={5} />}
+          icon={<ArrowUp theme='filled' size='14' fill='currentColor' strokeWidth={5} />}
           onClick={onSend}
           data-testid='guid-send-btn'
         />

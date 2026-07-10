@@ -76,7 +76,9 @@ const useDebug = () => {
 
 const UpdateModal = React.lazy(() => import('@/renderer/components/settings/UpdateModal'));
 
-const DEFAULT_SIDER_WIDTH = 260;
+const DEFAULT_SIDER_WIDTH = 300;
+const MIN_SIDER_WIDTH = 280;
+const MAX_SIDER_WIDTH = 340;
 const PRODUCT_DISPLAY_NAME = getOplProductDisplayName();
 const DESKTOP_COLLAPSED_WIDTH = 0;
 const SIDER_DRAG_SNAP_THRESHOLD = Math.round((DEFAULT_SIDER_WIDTH + DESKTOP_COLLAPSED_WIDTH) / 2);
@@ -104,8 +106,10 @@ const Layout: React.FC<{
   sider: React.ReactNode;
   onSessionClick?: () => void;
 }> = ({ sider, onSessionClick: _onSessionClick }) => {
-  const [collapsed, setCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => detectMobileViewportOrTouch());
+  const [isMobile, setIsMobile] = useState(() => detectMobileViewportOrTouch());
+  const [desktopSiderWidth, setDesktopSiderWidth] = useState(DEFAULT_SIDER_WIDTH);
+  const [isSiderDragging, setIsSiderDragging] = useState(false);
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
     typeof window === 'undefined' ? 390 : window.innerWidth
   );
@@ -119,6 +123,8 @@ const Layout: React.FC<{
   const workspaceAvailable =
     location.pathname.startsWith('/conversation/') || (TEAM_MODE_ENABLED && location.pathname.startsWith('/team/'));
   const collapsedRef = useRef(collapsed);
+  const desktopSiderWidthRef = useRef(desktopSiderWidth);
+  const wasMobileRef = useRef(false);
   const dragStateRef = useRef<{ active: boolean; startX: number; startWidth: number }>({
     active: false,
     startX: 0,
@@ -143,7 +149,13 @@ const Layout: React.FC<{
 
   // 进入移动端后立即折叠 / Collapse immediately when switching to mobile
   useEffect(() => {
-    if (!isMobile || collapsedRef.current) {
+    if (!isMobile) {
+      if (wasMobileRef.current) setCollapsed(false);
+      wasMobileRef.current = false;
+      return;
+    }
+    wasMobileRef.current = true;
+    if (collapsedRef.current) {
       return;
     }
     setCollapsed(true);
@@ -232,10 +244,13 @@ const Layout: React.FC<{
         MOBILE_SIDER_MIN_WIDTH,
         Math.min(MOBILE_SIDER_MAX_WIDTH, Math.round(viewportWidth * MOBILE_SIDER_WIDTH_RATIO))
       )
-    : DEFAULT_SIDER_WIDTH;
+    : desktopSiderWidth;
   useEffect(() => {
     collapsedRef.current = collapsed;
   }, [collapsed]);
+  useEffect(() => {
+    desktopSiderWidthRef.current = desktopSiderWidth;
+  }, [desktopSiderWidth]);
 
   const beginSiderResizeDrag = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
@@ -244,8 +259,9 @@ const Layout: React.FC<{
       dragStateRef.current = {
         active: true,
         startX: event.clientX,
-        startWidth: collapsedRef.current ? DESKTOP_COLLAPSED_WIDTH : DEFAULT_SIDER_WIDTH,
+        startWidth: collapsedRef.current ? DESKTOP_COLLAPSED_WIDTH : desktopSiderWidthRef.current,
       };
+      setIsSiderDragging(true);
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
     },
@@ -265,11 +281,15 @@ const Layout: React.FC<{
       if (shouldCollapse !== collapsedRef.current) {
         setCollapsed(shouldCollapse);
       }
+      if (!shouldCollapse) {
+        setDesktopSiderWidth(Math.min(MAX_SIDER_WIDTH, Math.max(MIN_SIDER_WIDTH, draggedWidth)));
+      }
     };
 
     const endDrag = () => {
       if (!dragStateRef.current.active) return;
       dragStateRef.current.active = false;
+      setIsSiderDragging(false);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
@@ -303,7 +323,14 @@ const Layout: React.FC<{
   return (
     <LayoutContext.Provider value={{ isMobile, siderCollapsed: collapsed, setSiderCollapsed: setCollapsed }}>
       <NavigationHistoryProvider>
-        <div className='app-shell flex flex-col size-full min-h-0'>
+        <div
+          className='app-shell flex flex-col size-full min-h-0'
+          style={
+            {
+              '--app-sider-current-width': `${isMobile || collapsed ? 0 : siderWidth}px`,
+            } as React.CSSProperties
+          }
+        >
           <Titlebar workspaceAvailable={workspaceAvailable} />
           {/* 移动端左侧边栏蒙板 / Mobile left sider backdrop */}
           {isMobile && !collapsed && (
@@ -317,6 +344,7 @@ const Layout: React.FC<{
               width={siderWidth}
               className={classNames('!bg-2 layout-sider', {
                 collapsed: collapsed,
+                'layout-sider--dragging': isSiderDragging,
               })}
               style={siderStyle}
             >
@@ -328,6 +356,8 @@ const Layout: React.FC<{
                     'cursor-pointer group ': collapsed,
                   }
                 )}
+                data-testid='app-navigation-rail'
+                data-sider-width={siderWidth}
               >
                 <div
                   className={classNames('shrink-0 size-32px relative rd-0.5rem overflow-hidden', {
@@ -368,6 +398,7 @@ const Layout: React.FC<{
                   style={{ right: '-4px' }}
                   onMouseDown={beginSiderResizeDrag}
                   aria-hidden='true'
+                  data-testid='app-navigation-rail-resize'
                 >
                   <div className='absolute top-0 left-1/2 h-full w-1px -translate-x-1/2 bg-transparent group-hover:bg-[var(--color-border-2)] transition-colors duration-150' />
                 </div>

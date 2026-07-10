@@ -8,10 +8,14 @@ import React, { createContext, useContext, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConversationListSync } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
 import type { GroupedHistoryResult } from '@/renderer/pages/conversation/GroupedHistory/types';
-import { buildGroupedHistory } from '@/renderer/pages/conversation/GroupedHistory/utils/groupingHelpers';
+import {
+  buildArchivedHistory,
+  buildGroupedHistory,
+} from '@/renderer/pages/conversation/GroupedHistory/utils/groupingHelpers';
 
 export type ConversationHistoryContextValue = ReturnType<typeof useConversationListSync> & {
   groupedHistory: GroupedHistoryResult;
+  archivedHistory: GroupedHistoryResult;
 };
 
 const ConversationHistoryContext = createContext<ConversationHistoryContextValue | null>(null);
@@ -23,13 +27,17 @@ export const ConversationHistoryProvider: React.FC<React.PropsWithChildren> = ({
   const groupedHistory = useMemo(() => {
     return buildGroupedHistory(conversationListSync.conversations, t);
   }, [conversationListSync.conversations, t]);
+  const archivedHistory = useMemo(() => {
+    return buildArchivedHistory(conversationListSync.conversations, t);
+  }, [conversationListSync.conversations, t]);
 
   const value = useMemo<ConversationHistoryContextValue>(() => {
     return {
       ...conversationListSync,
       groupedHistory,
+      archivedHistory,
     };
-  }, [conversationListSync, groupedHistory]);
+  }, [archivedHistory, conversationListSync, groupedHistory]);
 
   return <ConversationHistoryContext.Provider value={value}>{children}</ConversationHistoryContext.Provider>;
 };

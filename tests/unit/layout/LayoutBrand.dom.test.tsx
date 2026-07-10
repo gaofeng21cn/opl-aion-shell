@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Layout from '@/renderer/components/layout/Layout';
 
@@ -42,7 +42,8 @@ vi.mock('@renderer/hooks/ui/useConversationShortcuts', () => ({
 }));
 
 describe('Layout App branding', () => {
-  it('renders the App-owned product name in the sidebar header', () => {
+  it('renders the App-owned product name with a 300px adjustable desktop rail', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1200, writable: true });
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
@@ -55,5 +56,12 @@ describe('Layout App branding', () => {
 
     expect(screen.getByText('One Person Lab App')).toBeInTheDocument();
     expect(screen.queryByText('AionUi')).not.toBeInTheDocument();
+    expect(screen.getByTestId('app-navigation-rail')).toHaveAttribute('data-sider-width', '300');
+
+    fireEvent.mouseDown(screen.getByTestId('app-navigation-rail-resize'), { clientX: 300 });
+    fireEvent.mouseMove(window, { clientX: 380 });
+    fireEvent.mouseUp(window);
+
+    expect(screen.getByTestId('app-navigation-rail')).toHaveAttribute('data-sider-width', '340');
   });
 });

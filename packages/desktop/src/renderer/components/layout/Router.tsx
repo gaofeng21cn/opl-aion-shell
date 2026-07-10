@@ -13,6 +13,8 @@ import {
 const Conversation = React.lazy(() => import('@renderer/pages/conversation'));
 const FirstRun = React.lazy(() => import('@renderer/pages/FirstRun'));
 const Guid = React.lazy(() => import('@renderer/pages/guid'));
+const CapabilitiesPage = React.lazy(() => import('@renderer/pages/guid/CapabilitiesPage'));
+const ArchivedPage = React.lazy(() => import('@renderer/pages/conversation/GroupedHistory/ArchivedPage'));
 const OverviewSettings = React.lazy(() => import('@renderer/pages/settings/sections/OverviewSettings'));
 const RuntimeSettings = React.lazy(() => import('@renderer/pages/settings/sections/RuntimeSettings'));
 const WorkspaceSettings = React.lazy(() => import('@renderer/pages/settings/sections/WorkspaceSettings'));
@@ -120,6 +122,8 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
         <Route path='/first-run' element={<ProtectedRoute>{withRouteFallback(FirstRun)}</ProtectedRoute>} />
         <Route element={<ProtectedLayout layout={layout} />}>
           <Route path='/guid' element={withRouteFallback(Guid)} />
+          <Route path='/capabilities' element={withRouteFallback(CapabilitiesPage)} />
+          <Route path='/archived' element={withRouteFallback(ArchivedPage)} />
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
           <Route
             path='/team/:id'

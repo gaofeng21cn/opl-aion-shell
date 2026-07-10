@@ -588,6 +588,19 @@
   background: transparent;
 }
 
+.contextStripMeta {
+  color: var(--color-text-3);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.contextStripMeta::before {
+  content: '·';
+  margin-right: 8px;
+  color: var(--color-text-4);
+}
+
 .workspaceEmptyBtn {
   display: inline-flex;
   align-items: center;
