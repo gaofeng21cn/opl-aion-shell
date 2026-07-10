@@ -3,8 +3,7 @@
  * Copyright 2025 AionUi (aionui.com)
  * SPDX-License-Identifier: Apache-2.0
  *
- * Node-environment tests for feedbackBridge's IPC handlers.
- * Covers the new feedback:capture-screenshot handler (main-process side).
+ * Node-environment tests for feedbackBridge's IPC handlers and log redaction.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -12,7 +11,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { collectFeedbackLogAttachment } from '@/process/feedback/logs';
+import { collectFeedbackLogAttachment, redactFeedbackLogContent } from '@/process/feedback/logs';
 
 // Table of handlers registered via ipcMain.handle during module import.
 const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -27,6 +26,16 @@ type FakeWindow = {
 };
 
 let currentWindow: FakeWindow | null = null;
+
+const sentryMainMocks = vi.hoisted(() => ({
+  flush: vi.fn(async () => true),
+  getClient: vi.fn(() => ({ getDsn: () => ({ host: 'example.invalid' }) })),
+}));
+
+vi.mock('@sentry/electron/main', () => ({
+  flush: sentryMainMocks.flush,
+  getClient: sentryMainMocks.getClient,
+}));
 
 vi.mock('electron', () => ({
   ipcMain: {
@@ -46,6 +55,10 @@ vi.mock('electron', () => ({
 beforeEach(async () => {
   handlers.clear();
   currentWindow = null;
+  sentryMainMocks.flush.mockReset();
+  sentryMainMocks.flush.mockResolvedValue(true);
+  sentryMainMocks.getClient.mockReset();
+  sentryMainMocks.getClient.mockReturnValue({ getDsn: () => ({ host: 'example.invalid' }) });
   vi.resetModules();
   // Importing registers the ipcMain.handle callbacks into our map.
   await import('@/process/bridge/feedbackBridge');
@@ -53,6 +66,39 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  delete process.env.SENTRY_DSN;
+});
+
+describe('feedback delivery availability', () => {
+  it('reports unavailable when no Sentry DSN is configured', async () => {
+    const handler = handlers.get('feedback:is-delivery-available')!;
+
+    expect(handler).toBeDefined();
+    await expect(handler({})).resolves.toBe(false);
+  });
+
+  it('reports available when a non-empty Sentry DSN is configured', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.invalid/1';
+    const handler = handlers.get('feedback:is-delivery-available')!;
+
+    await expect(handler({})).resolves.toBe(true);
+  });
+
+  it('does not flush when no Sentry DSN is configured', async () => {
+    const handler = handlers.get('feedback:flush-delivery')!;
+
+    await expect(handler({})).resolves.toBe(false);
+    expect(sentryMainMocks.flush).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed main-process Sentry flush', async () => {
+    process.env.SENTRY_DSN = 'https://public@example.invalid/1';
+    sentryMainMocks.flush.mockResolvedValue(false);
+    const handler = handlers.get('feedback:flush-delivery')!;
+
+    await expect(handler({})).resolves.toBe(false);
+    expect(sentryMainMocks.flush).toHaveBeenCalledWith(5000);
+  });
 });
 
 describe('feedbackBridge — capture-screenshot', () => {
@@ -130,10 +176,39 @@ describe('feedbackBridge — capture-screenshot', () => {
 });
 
 describe('feedback logs', () => {
+  it('redacts home paths, credentials, OpenAI keys, and sensitive URL query values', () => {
+    const redacted = redactFeedbackLogContent(
+      [
+        'workspace=/Users/alice/Projects/private',
+        'Authorization: Bearer bearer-value',
+        'OPENAI_API_KEY=plain-api-key',
+        'token: plain-token',
+        'secret="plain-secret"',
+        'key=sk-proj-abcdefghijklmnop',
+        'url=https://example.com/callback?token=url-token&safe=visible&api_key=url-api-key',
+      ].join('\n'),
+      '/Users/alice'
+    );
+
+    expect(redacted).toContain('[REDACTED_HOME]/Projects/private');
+    expect(redacted).toContain('safe=visible');
+    for (const secret of [
+      'bearer-value',
+      'plain-api-key',
+      'plain-token',
+      'plain-secret',
+      'sk-proj-abcdefghijklmnop',
+      'url-token',
+      'url-api-key',
+    ]) {
+      expect(redacted).not.toContain(secret);
+    }
+  });
+
   it('collects the same recent three log days used by user feedback reports', () => {
     const logsDir = mkdtempSync(path.join(tmpdir(), 'aionui-feedback-logs-'));
     try {
-      writeFileSync(path.join(logsDir, '2026-05-25.log'), 'today frontend\n');
+      writeFileSync(path.join(logsDir, '2026-05-25.log'), 'today frontend Authorization: Bearer attachment-secret\n');
       writeFileSync(path.join(logsDir, '2026-05-25.aioncore.log'), 'today backend\n');
       writeFileSync(path.join(logsDir, '2026-05-24.aionrs.log'), 'yesterday rust\n');
       writeFileSync(path.join(logsDir, '2026-05-23.log'), 'third day frontend\n');
@@ -147,6 +222,8 @@ describe('feedback logs', () => {
       expect(attachment!.contentType).toBe('application/gzip');
       const content = gunzipSync(attachment!.data).toString('utf8');
       expect(content).toContain('today frontend');
+      expect(content).not.toContain('attachment-secret');
+      expect(content).toContain('Authorization: [REDACTED]');
       expect(content).toContain('today backend');
       expect(content).toContain('yesterday rust');
       expect(content).toContain('third day frontend');

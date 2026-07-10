@@ -6,7 +6,7 @@
 
 import ModalWrapper from '@renderer/components/base/ModalWrapper';
 import { FEEDBACK_MODULES } from './feedbackModules';
-import { Input, Select, Message, Upload } from '@arco-design/web-react';
+import { Checkbox, Input, Select, Message, Upload } from '@arco-design/web-react';
 import type { UploadItem } from '@arco-design/web-react/es/Upload';
 import { Info } from '@icon-park/react';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -17,6 +17,7 @@ const DESCRIPTION_MAX_LENGTH = 2000;
 const MAX_SCREENSHOTS = 3;
 const ACCEPTED_IMAGE_TYPES = '.png,.jpg,.jpeg,.gif';
 const SUMMARY_PREVIEW_LENGTH = 60;
+const FEEDBACK_FLUSH_TIMEOUT_MS = 5000;
 
 type ScreenshotBuffer = {
   name: string;
@@ -68,6 +69,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
   const [module, setModule] = useState<string | undefined>(defaultModule);
   const [description, setDescription] = useState('');
   const [screenshots, setScreenshots] = useState<UploadItem[]>([]);
+  const [includeLogs, setIncludeLogs] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const descriptionRef = useRef<RefTextAreaType | null>(null);
   const [error, setError] = useState('');
@@ -76,6 +78,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
     setModule(undefined);
     setDescription('');
     setScreenshots([]);
+    setIncludeLogs(false);
     setError('');
   }, []);
 
@@ -97,6 +100,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
   useEffect(() => {
     if (!visible) return;
     setModule(defaultModule);
+    setIncludeLogs(false);
     if (prefilledScreenshots && prefilledScreenshots.length > 0) {
       const items: UploadItem[] = prefilledScreenshots.slice(0, MAX_SCREENSHOTS).map((shot, index) => {
         // Normalize into a Blob so the BlobPart typing accepts SharedArrayBuffer-backed
@@ -130,15 +134,29 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
     setSubmitting(true);
 
     try {
-      // Collect logs via IPC (graceful fallback)
+      const electronAPI = window.electronAPI;
+      const deliveryAvailable = await electronAPI?.isFeedbackDeliveryAvailable?.();
+      if (!deliveryAvailable) {
+        setError(t('common.feedback.deliveryUnavailable'));
+        return;
+      }
+
+      const Sentry = await import('@sentry/electron/renderer');
+      const client = Sentry.getClient();
+      if (!client) {
+        setError(t('common.feedback.deliveryUnavailable'));
+        return;
+      }
+
       let logData: { filename: string; data: number[] } | null = null;
-      try {
-        const electronAPI = window.electronAPI;
-        if (electronAPI?.collectFeedbackLogs) {
-          logData = await electronAPI.collectFeedbackLogs();
+      if (includeLogs) {
+        try {
+          if (electronAPI.collectFeedbackLogs) {
+            logData = await electronAPI.collectFeedbackLogs();
+          }
+        } catch {
+          // Feedback can still be submitted without the optional log attachment.
         }
-      } catch {
-        // Non-blocking: continue without logs
       }
 
       // Read screenshot files as ArrayBuffer
@@ -160,11 +178,8 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
         )
       ).filter((item): item is ScreenshotBuffer => item !== null);
 
-      // Submit via Sentry
       // Use hint.attachments instead of scope.addAttachment to avoid
       // @sentry/electron's ScopeToMain normalize() corrupting Uint8Array binary data.
-      const Sentry = await import('@sentry/electron/renderer');
-
       const attachments: Array<{ filename: string; data: Uint8Array; contentType: string }> = [];
 
       if (logData) {
@@ -190,7 +205,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
           : normalizedDescription;
       const eventSummary = `${t(selectedModule?.i18nKey ?? 'settings.bugReportModuleOther')}: ${summaryPreview}`;
 
-      Sentry.withScope((scope) => {
+      const eventId = Sentry.withScope((scope) => {
         scope.setTag('type', 'user-feedback');
         scope.setTag('module', module);
         Object.entries(feedbackTags ?? {}).forEach(([key, value]) => {
@@ -199,7 +214,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
           }
         });
 
-        Sentry.captureEvent(
+        return Sentry.captureEvent(
           {
             level: 'info',
             message: eventSummary,
@@ -212,6 +227,23 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
         );
       });
 
+      if (!eventId) {
+        setError(t('common.feedback.deliveryFailed'));
+        return;
+      }
+
+      let delivered = false;
+      try {
+        const rendererFlushed = await client.flush(FEEDBACK_FLUSH_TIMEOUT_MS);
+        delivered = rendererFlushed && (await electronAPI.flushFeedbackDelivery?.()) === true;
+      } catch {
+        delivered = false;
+      }
+      if (!delivered) {
+        setError(t('common.feedback.deliveryFailed'));
+        return;
+      }
+
       Message.success(t('settings.bugReportSuccess'));
       resetForm();
       onCancel();
@@ -220,7 +252,18 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
     } finally {
       setSubmitting(false);
     }
-  }, [module, description, screenshots, t, onCancel, resetForm, selectedModule, feedbackExtra, feedbackTags]);
+  }, [
+    module,
+    description,
+    screenshots,
+    includeLogs,
+    t,
+    onCancel,
+    resetForm,
+    selectedModule,
+    feedbackExtra,
+    feedbackTags,
+  ]);
 
   const isFormValid = module !== undefined && description.trim().length > 0;
 
@@ -390,6 +433,15 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
             </div>
           </div>
 
+          <div className='flex flex-col gap-4px'>
+            <Checkbox data-testid='feedback-report-include-logs' checked={includeLogs} onChange={setIncludeLogs}>
+              <span className='text-13px text-t-secondary'>{t('common.feedback.includeLogs')}</span>
+            </Checkbox>
+            <span className='pl-24px text-12px leading-18px text-t-tertiary'>
+              {t('common.feedback.includeLogsDescription')}
+            </span>
+          </div>
+
           {/* Auto-info Banner */}
           <div className='flex'>
             <div
@@ -397,7 +449,7 @@ const FeedbackReportModal: React.FC<FeedbackReportModalProps> = ({
               className='inline-flex max-w-full items-start gap-6px px-10px py-8px bg-fill-1 rd-8px text-12px leading-18px text-t-tertiary'
             >
               <Info theme='outline' size='14' className='mt-2px flex-shrink-0' />
-              <span>{t('settings.bugReportAutoInfo')}</span>
+              <span>{t('common.feedback.privacyInfo')}</span>
             </div>
           </div>
 

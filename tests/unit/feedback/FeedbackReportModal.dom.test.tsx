@@ -12,7 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ConfigProvider } from '@arco-design/web-react';
+import { ConfigProvider, Message } from '@arco-design/web-react';
 
 vi.mock('@arco-design/web-react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@arco-design/web-react')>();
@@ -31,11 +31,14 @@ vi.mock('react-i18next', () => ({
 
 const sentryMocks = vi.hoisted(() => {
   const setTag = vi.fn();
+  const flush = vi.fn(async () => true);
   return {
     setTag,
-    captureEvent: vi.fn(),
-    withScope: vi.fn((callback: (scope: { setTag: typeof setTag }) => void) => {
-      callback({ setTag });
+    flush,
+    captureEvent: vi.fn(() => 'feedback-event-id'),
+    getClient: vi.fn(() => ({ flush })),
+    withScope: vi.fn((callback: (scope: { setTag: typeof setTag }) => unknown) => {
+      return callback({ setTag });
     }),
   };
 });
@@ -48,6 +51,31 @@ import FeedbackReportModal, {
 
 const renderModal = (ui: React.ReactElement) => render(<ConfigProvider>{ui}</ConfigProvider>);
 
+const deliveryAvailable = vi.fn(async () => true);
+const collectFeedbackLogs = vi.fn(async () => ({ filename: 'logs.gz', data: [1, 2, 3] }));
+const flushFeedbackDelivery = vi.fn(async () => true);
+
+const installElectronApi = () => {
+  (
+    window as unknown as {
+      electronAPI?: {
+        isFeedbackDeliveryAvailable: typeof deliveryAvailable;
+        collectFeedbackLogs: typeof collectFeedbackLogs;
+        flushFeedbackDelivery: typeof flushFeedbackDelivery;
+      };
+    }
+  ).electronAPI = {
+    isFeedbackDeliveryAvailable: deliveryAvailable,
+    collectFeedbackLogs,
+    flushFeedbackDelivery,
+  };
+};
+
+const submitReport = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.type(screen.getByPlaceholderText('settings.bugReportDescriptionPlaceholder'), 'provider failed');
+  await user.click(screen.getByText('settings.bugReportSubmit'));
+};
+
 const buildScreenshot = (name: string, byte: number): PrefilledScreenshot => ({
   filename: name,
   data: new Uint8Array([byte, byte + 1, byte + 2]),
@@ -56,11 +84,21 @@ const buildScreenshot = (name: string, byte: number): PrefilledScreenshot => ({
 
 describe('FeedbackReportModal — prefill', () => {
   beforeEach(() => {
-    // Ensure no leftover global electronAPI from other tests interferes.
-    (window as unknown as { electronAPI?: unknown }).electronAPI = undefined;
+    installElectronApi();
+    deliveryAvailable.mockReset();
+    deliveryAvailable.mockResolvedValue(true);
+    collectFeedbackLogs.mockReset();
+    collectFeedbackLogs.mockResolvedValue({ filename: 'logs.gz', data: [1, 2, 3] });
+    flushFeedbackDelivery.mockReset();
+    flushFeedbackDelivery.mockResolvedValue(true);
     sentryMocks.setTag.mockClear();
-    sentryMocks.captureEvent.mockClear();
+    sentryMocks.flush.mockReset();
+    sentryMocks.flush.mockResolvedValue(true);
+    sentryMocks.captureEvent.mockReset();
+    sentryMocks.captureEvent.mockReturnValue('feedback-event-id');
+    sentryMocks.getClient.mockClear();
     sentryMocks.withScope.mockClear();
+    vi.mocked(Message.success).mockClear();
   });
 
   afterEach(() => {
@@ -169,8 +207,7 @@ describe('FeedbackReportModal — prefill', () => {
       />
     );
 
-    await user.type(screen.getByPlaceholderText('settings.bugReportDescriptionPlaceholder'), 'provider failed');
-    await user.click(screen.getByText('settings.bugReportSubmit'));
+    await submitReport(user);
 
     await waitFor(() => {
       expect(sentryMocks.captureEvent).toHaveBeenCalledTimes(1);
@@ -193,5 +230,92 @@ describe('FeedbackReportModal — prefill', () => {
       expect.objectContaining({ attachments: [] })
     );
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('FeedbackReportModal — privacy and delivery', () => {
+  beforeEach(() => {
+    installElectronApi();
+    deliveryAvailable.mockReset();
+    deliveryAvailable.mockResolvedValue(true);
+    collectFeedbackLogs.mockReset();
+    collectFeedbackLogs.mockResolvedValue({ filename: 'logs.gz', data: [1, 2, 3] });
+    flushFeedbackDelivery.mockReset();
+    flushFeedbackDelivery.mockResolvedValue(true);
+    sentryMocks.flush.mockReset();
+    sentryMocks.flush.mockResolvedValue(true);
+    sentryMocks.captureEvent.mockReset();
+    sentryMocks.captureEvent.mockReturnValue('feedback-event-id');
+    sentryMocks.getClient.mockClear();
+    sentryMocks.withScope.mockClear();
+    vi.mocked(Message.success).mockClear();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('keeps diagnostic logs off by default', async () => {
+    const user = userEvent.setup();
+    renderModal(<FeedbackReportModal visible={true} onCancel={vi.fn()} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    await waitFor(() => expect(sentryMocks.captureEvent).toHaveBeenCalledTimes(1));
+    expect(collectFeedbackLogs).not.toHaveBeenCalled();
+    expect(sentryMocks.captureEvent).toHaveBeenCalledWith(expect.anything(), { attachments: [] });
+  });
+
+  it('collects diagnostic logs only after explicit opt-in', async () => {
+    const user = userEvent.setup();
+    renderModal(<FeedbackReportModal visible={true} onCancel={vi.fn()} defaultModule='conversation-session' />);
+
+    await user.click(screen.getByTestId('feedback-report-include-logs'));
+    await submitReport(user);
+
+    await waitFor(() => expect(collectFeedbackLogs).toHaveBeenCalledTimes(1));
+    expect(sentryMocks.captureEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        attachments: [
+          expect.objectContaining({
+            filename: 'logs.gz',
+            contentType: 'application/gzip',
+          }),
+        ],
+      })
+    );
+  });
+
+  it('does not report success when the delivery backend is unavailable', async () => {
+    deliveryAvailable.mockResolvedValue(false);
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.deliveryUnavailable')).toBeInTheDocument();
+    expect(sentryMocks.captureEvent).not.toHaveBeenCalled();
+    expect(sentryMocks.flush).not.toHaveBeenCalled();
+    expect(flushFeedbackDelivery).not.toHaveBeenCalled();
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('does not report success when Sentry cannot flush the event', async () => {
+    flushFeedbackDelivery.mockResolvedValue(false);
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    renderModal(<FeedbackReportModal visible={true} onCancel={onCancel} defaultModule='conversation-session' />);
+
+    await submitReport(user);
+
+    expect(await screen.findByText('common.feedback.deliveryFailed')).toBeInTheDocument();
+    expect(sentryMocks.captureEvent).toHaveBeenCalledTimes(1);
+    expect(sentryMocks.flush).toHaveBeenCalledTimes(1);
+    expect(flushFeedbackDelivery).toHaveBeenCalledTimes(1);
+    expect(Message.success).not.toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

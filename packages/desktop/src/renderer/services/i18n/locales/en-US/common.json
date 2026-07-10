@@ -28,6 +28,13 @@
   "download": "Download",
   "close": "Close",
   "retry": "Retry",
+  "feedback": {
+    "includeLogs": "Attach redacted diagnostic logs",
+    "includeLogsDescription": "Off by default. Recent logs are collected and redacted only when you select this option.",
+    "privacyInfo": "Your description and screenshots are sent with the report. Diagnostic logs are excluded unless you select the option above.",
+    "deliveryUnavailable": "Feedback delivery is unavailable. Nothing was sent.",
+    "deliveryFailed": "Delivery could not be confirmed. Please try again."
+  },
   "reload": "Reload",
   "technical_details": "Technical Details",
   "error_details": "Error Details",

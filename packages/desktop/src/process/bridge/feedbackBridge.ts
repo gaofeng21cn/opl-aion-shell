@@ -10,8 +10,28 @@
  */
 
 import { ipcMain, app, BrowserWindow } from 'electron';
+import * as Sentry from '@sentry/electron/main';
 import * as path from 'path';
 import { collectFeedbackLogAttachment } from '../feedback/logs';
+
+const FEEDBACK_FLUSH_TIMEOUT_MS = 5000;
+
+function isFeedbackDeliveryAvailable(): boolean {
+  return Boolean(process.env.SENTRY_DSN?.trim() && Sentry.getClient()?.getDsn());
+}
+
+ipcMain.handle('feedback:is-delivery-available', async () => isFeedbackDeliveryAvailable());
+
+ipcMain.handle('feedback:flush-delivery', async () => {
+  if (!isFeedbackDeliveryAvailable()) {
+    return false;
+  }
+  try {
+    return await Sentry.flush(FEEDBACK_FLUSH_TIMEOUT_MS);
+  } catch {
+    return false;
+  }
+});
 
 ipcMain.handle('feedback:collect-logs', async () => {
   try {

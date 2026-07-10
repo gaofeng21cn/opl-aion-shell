@@ -17,6 +17,10 @@ export interface ElectronBridgeAPI {
   getPathForFile?: (file: File) => string;
   // Feedback log collection / 收集反馈日志
   collectFeedbackLogs?: () => Promise<{ filename: string; data: number[] } | null>;
+  // Feedback delivery availability / 反馈提交后端可用性
+  isFeedbackDeliveryAvailable?: () => Promise<boolean>;
+  // Feedback main-process delivery flush / 反馈主进程提交队列刷新
+  flushFeedbackDelivery?: () => Promise<boolean>;
   // Feedback screenshot capture / 反馈截图
   captureFeedbackScreenshot?: () => Promise<{ filename: string; data: number[] } | null>;
   recoverCorruptedDatabase?: () => Promise<void>;

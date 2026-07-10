@@ -5,6 +5,7 @@
  */
 
 import * as fs from 'node:fs';
+import { homedir } from 'node:os';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 
@@ -13,6 +14,43 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}/;
 const YEAR_DIR_PATTERN = /^\d{4}$/;
 const MONTH_OR_DAY_DIR_PATTERN = /^\d{2}$/;
 const DEFAULT_LOG_DAYS = 3;
+const REDACTED = '[REDACTED]';
+const REDACTED_HOME = '[REDACTED_HOME]';
+const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+/gi;
+const OPENAI_KEY_PATTERN = /\bsk-[a-z0-9_-]{4,}\b/gi;
+const BEARER_PATTERN = /\bBearer\s+[a-z0-9._~+/=-]+/gi;
+const AUTHORIZATION_HEADER_PATTERN = /\bAuthorization\s*:\s*[^\r\n]+/gi;
+const SENSITIVE_KEY_NAME =
+  '(?:[a-z0-9]+[_-])*(?:api[ _-]?key|auth[_-]?token|access[_-]?token|refresh[_-]?token|token|client[_-]?secret|secret|password|passwd)';
+const SENSITIVE_ASSIGNMENT_PATTERN = new RegExp(
+  `((?:["']?\\b${SENSITIVE_KEY_NAME}\\b["']?)\\s*(?:=|:)\\s*)(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|[^\\s,;&}\\]]+)`,
+  'gi'
+);
+const SENSITIVE_FLAG_PATTERN = new RegExp(
+  `((?:--?)${SENSITIVE_KEY_NAME}\\s+)(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|\\S+)`,
+  'gi'
+);
+const SENSITIVE_QUERY_KEYS = new Set([
+  'apikey',
+  'auth',
+  'authorization',
+  'authtoken',
+  'accesstoken',
+  'refreshtoken',
+  'token',
+  'key',
+  'secret',
+  'clientsecret',
+  'password',
+  'passwd',
+  'credential',
+  'signature',
+  'sig',
+  'session',
+  'sessionid',
+  'code',
+]);
+const GENERIC_HOME_PATTERNS = [/\/Users\/[^/\s"'<>]+/g, /\/home\/[^/\s"'<>]+/g, /[a-z]:\\Users\\[^\\\s"'<>]+/gi];
 
 export type FeedbackLogAttachment = {
   filename: string;
@@ -24,6 +62,65 @@ type FeedbackLogCandidate = {
   date: string;
   path: string;
 };
+
+function normalizeSensitiveQueryKey(key: string): string {
+  return key.toLowerCase().replaceAll('-', '').replaceAll('_', '');
+}
+
+function redactUrl(rawUrl: string): string {
+  const trailingMatch = rawUrl.match(/[),.;!?]+$/);
+  const trailing = trailingMatch?.[0] ?? '';
+  const candidate = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl;
+
+  try {
+    const url = new URL(candidate);
+    let changed = false;
+    if (url.username) {
+      url.username = REDACTED;
+      changed = true;
+    }
+    if (url.password) {
+      url.password = REDACTED;
+      changed = true;
+    }
+    for (const key of url.searchParams.keys()) {
+      if (SENSITIVE_QUERY_KEYS.has(normalizeSensitiveQueryKey(key))) {
+        url.searchParams.set(key, REDACTED);
+        changed = true;
+      }
+    }
+    return changed ? `${url.toString()}${trailing}` : rawUrl;
+  } catch {
+    return rawUrl;
+  }
+}
+
+function replaceHomePath(content: string, homePath: string): string {
+  if (!homePath) {
+    return content;
+  }
+
+  let redacted = content.split(homePath).join(REDACTED_HOME);
+  const alternateHomePath = path.sep === '/' ? homePath.replaceAll('/', '\\') : homePath.replaceAll('\\', '/');
+  if (alternateHomePath !== homePath) {
+    redacted = redacted.split(alternateHomePath).join(REDACTED_HOME);
+  }
+  return redacted;
+}
+
+export function redactFeedbackLogContent(content: string, homePath = homedir()): string {
+  let redacted = content.replace(URL_PATTERN, redactUrl);
+  redacted = replaceHomePath(redacted, homePath);
+  for (const pattern of GENERIC_HOME_PATTERNS) {
+    redacted = redacted.replace(pattern, REDACTED_HOME);
+  }
+  return redacted
+    .replace(AUTHORIZATION_HEADER_PATTERN, `Authorization: ${REDACTED}`)
+    .replace(BEARER_PATTERN, `Bearer ${REDACTED}`)
+    .replace(OPENAI_KEY_PATTERN, REDACTED)
+    .replace(SENSITIVE_ASSIGNMENT_PATTERN, `$1${REDACTED}`)
+    .replace(SENSITIVE_FLAG_PATTERN, `$1${REDACTED}`);
+}
 
 function isFeedbackLogFileForDate(file: string, date: string): boolean {
   return LOG_SUFFIXES.some((suffix) => file === `${date}${suffix}`);
@@ -178,7 +275,7 @@ export function collectFeedbackLogAttachment(logsDirs: string | string[]): Feedb
   const parts: string[] = [];
   for (const logPath of logPaths) {
     const basename = getLogHeaderName(logPath, normalizedDirs[0], true);
-    const content = fs.readFileSync(logPath, 'utf8');
+    const content = redactFeedbackLogContent(fs.readFileSync(logPath, 'utf8'));
     parts.push(`=== ${basename} ===\n${content}\n`);
   }
 
