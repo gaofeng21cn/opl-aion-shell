@@ -1426,7 +1426,7 @@
       "owner": "one-person-lab-app",
       "purpose": "app_owned_settings_control_plane",
       "state": "active",
-      "machine_boundary": "Hydrated Settings registry and Codex-style experience input for active shell adapters. This contract owns ordinary and secondary page routing, compatibility redirects, slots, bilingual item search, page DOM/anchor requirements, visual behavior, and state/action source classification. It does not own OPL runtime truth, provider implementation, domain truth, release readiness, or shell-local rendering details.",
+      "machine_boundary": "Hydrated Settings registry and OPL card-based control-center input for active shell adapters. This contract owns ordinary and secondary page routing, compatibility redirects, slots, bilingual item search, page DOM/anchor requirements, visual behavior, and state/action source classification. It does not own OPL runtime truth, provider implementation, domain truth, release readiness, or shell-local rendering details.",
       "source_contract_ref": "contracts/app-gui-product-contract.json#settings_navigation",
       "page_state_matrix_ref": "contracts/app-page-state-matrix.json#pages",
       "product_profile_projection_target": "settings.control_plane",
@@ -1826,17 +1826,20 @@
         "owner": "one-person-lab-app",
         "source_refs": [
           "contracts/app-product-profile.json#codex",
+          "contracts/app-product-profile.json#codex.auto_model_policy",
           "contracts/app-product-profile.json#gui.home.codex_model_display_options",
           "contracts/app-gui-product-contract.json#executor_policy"
         ],
         "default_model_ref": "contracts/app-product-profile.json#codex.default_model",
         "default_reasoning_effort_ref": "contracts/app-product-profile.json#codex.default_reasoning_effort",
+        "auto_model_policy_ref": "contracts/app-product-profile.json#codex.auto_model_policy",
         "ordinary_surface": "home_and_conversation_model_selector_primary_reasoning_with_secondary_model_and_intelligence_menus",
         "settings_surface": "settings_access.model_access",
         "adapter_policy": "Aion/Hermes/shell render App-derived model and reasoning policy only",
         "shell_must_not_own": [
           "default model",
           "frontier model preference order",
+          "Auto model resolution and persistence policy",
           "reasoning effort options",
           "model access readiness truth",
           "provider selector as ordinary UI"
@@ -2174,7 +2177,7 @@
             "evidence_required": [
               "App contract names the Control Center",
               "page copy is user-task first",
-              "visual contract requires Codex App quiet-workbench behavior"
+              "visual contract requires bounded OPL page-section cards with flat internal rows"
             ]
           },
           {
@@ -2374,7 +2377,7 @@
           {
             "id": "visual_system",
             "track": "visual_qa",
-            "goal": "Settings uses Codex App quiet-workbench visuals with limited cards and stable spacing.",
+            "goal": "Settings uses the established OPL bounded-card baseline with flat internal rows and stable spacing.",
             "evidence_required": [
               "nested cards are forbidden",
               "radius is at most eight pixels",
