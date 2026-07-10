@@ -111,7 +111,16 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             },
             git: { sync_status: 'behind', dirty: false },
           },
-          { module_id: 'oplmetaagent', status: 'ready', recommended_action: 'update' },
+          {
+            module_id: 'oplmetaagent',
+            status: 'ready',
+            recommended_action: 'update',
+            source_policy: {
+              effective_install_update_source: 'git_checkout',
+              configured_by: 'developer_mode',
+            },
+            git: { sync_status: 'behind', dirty: false },
+          },
         ],
       },
       operator: {
@@ -305,6 +314,12 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.codexVisibility.needsSync': 'Needs sync before Codex sees the latest version',
         'settings.capabilitiesPage.codexVisibility.notVisible': 'Not visible to Codex yet',
         'settings.capabilitiesPage.codexVisibility.unknown': 'Visibility not reported',
+        'settings.capabilitiesPage.visibility.conversation': 'Available in conversations',
+        'settings.capabilitiesPage.visibility.home': 'Show on Home',
+        'settings.capabilitiesPage.visibility.conversationAvailable': 'Available',
+        'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync needed',
+        'settings.capabilitiesPage.visibility.conversationUnavailable': 'Not available',
+        'settings.capabilitiesPage.visibility.conversationUnverified': 'Not verified',
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
         'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
         'settings.capabilitiesPage.detailLabels.packageId': 'Package ID',
@@ -377,6 +392,10 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.allStatuses': 'All statuses',
         'settings.capabilitiesPage.packageManager.manifestUrlPlaceholder': 'Manifest URL',
         'settings.capabilitiesPage.packageManager.installFromManifest': 'Install manifest',
+        'settings.capabilitiesPage.packageManager.addCapability': 'Add capability',
+        'settings.capabilitiesPage.packageManager.advancedAddTitle': 'Advanced add method',
+        'settings.capabilitiesPage.packageManager.advancedAddDescription': 'Use a validated capability manifest.',
+        'settings.capabilitiesPage.packageManager.management': 'Manage capabilities',
         'settings.capabilitiesPage.packageManager.moreActions': 'More package actions',
         'settings.capabilitiesPage.packageManager.hideFromHome': 'Hide from Home',
         'settings.capabilitiesPage.packageManager.showOnHome': 'Show on Home',
@@ -418,6 +437,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.entries.customAssistants.title': 'Custom assistants',
         'settings.capabilitiesPage.entries.customAssistants.description': 'Use the Advanced assistant area.',
         'settings.capabilitiesPage.supporting.title': 'Skills, tools, and custom assistants',
+        'settings.capabilitiesPage.supporting.compactTitle': 'Skills and external tools',
         'settings.capabilitiesPage.supporting.description':
           'Supporting capability details stay collapsed by default. Open them only when you need to configure or troubleshoot.',
         'settings.capabilitiesTab.skills': 'Skills',
@@ -461,12 +481,10 @@ describe('CapabilitiesSettingsContent', () => {
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Capability directory')).toBeInTheDocument();
-    expect(screen.getByTestId('agent-package-search')).toBeInTheDocument();
+    expect(screen.getByTestId('capabilities-settings-page')).toHaveClass('opl-settings-page');
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
-    expect(screen.getByText('Capability')).toBeInTheDocument();
-    expect(screen.getByText('Purpose')).toBeInTheDocument();
-    expect(screen.queryByText('Home shortcut')).not.toBeInTheDocument();
-    expect(screen.queryByText('Action')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Available in conversations')).toHaveLength(5);
+    expect(screen.getAllByText('Show on Home')).toHaveLength(5);
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-package-add-capability'));
@@ -482,24 +500,26 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Developer source').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Local developer source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Needs repair').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Visible in Codex').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Needs sync before Codex sees the latest version').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sync needed').length).toBeGreaterThan(0);
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByText('Research')).toBeInTheDocument();
+    expect(within(research).getByText('Ready')).toBeInTheDocument();
+    expect(within(research).getByText('Local developer source')).toBeInTheDocument();
     const bookforge = screen.getByTestId('capability-purpose-obf');
-    expect(within(bookforge).getByText('Developer source')).toBeInTheDocument();
-    fireEvent.click(bookforge);
+    expect(within(bookforge).getByText('Ready')).toBeInTheDocument();
+    expect(within(bookforge).getByText('Local developer source')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-open-details-obf'));
     expect(screen.getByTestId('agent-package-update-obf')).toBeDisabled();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByText('Meta agent')).toBeInTheDocument();
-    fireEvent.click(oma);
-    const omaHomeSwitch = within(screen.getByTestId('capability-details-oma')).getByTestId(
-      'agent-package-home-toggle-details-oma'
-    );
+    expect(within(oma).getByText('Ready')).toBeInTheDocument();
+    expect(within(oma).getByText('Local developer source')).toBeInTheDocument();
+    const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).not.toHaveClass('arco-switch-checked');
     fireEvent.click(omaHomeSwitch);
     await waitFor(() =>
@@ -514,7 +534,7 @@ describe('CapabilitiesSettingsContent', () => {
         })
       )
     );
-    fireEvent.click(research);
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     let detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getByText('Review suggestions')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('OpenScience artifact graph review')).toBeInTheDocument();
@@ -540,7 +560,6 @@ describe('CapabilitiesSettingsContent', () => {
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
     detailedResearch = screen.getByTestId('capability-details-mas');
     expect(within(detailedResearch).getAllByText('1.2.3').length).toBeGreaterThan(0);
-    expect(within(detailedResearch).getAllByText('Local developer source').length).toBeGreaterThan(0);
     expect(within(detailedResearch).queryByText('git_checkout')).not.toBeInTheDocument();
     expect(within(detailedResearch).getAllByText('2026-06-30T01:00:00Z').length).toBeGreaterThan(0);
     expect(within(detailedResearch).queryByText('Not reported')).not.toBeInTheDocument();
@@ -587,33 +606,34 @@ describe('CapabilitiesSettingsContent', () => {
     ).not.toBeInTheDocument();
     expect(within(detailedResearch).getByText(/receipt:\/\/export\/latest/)).toBeInTheDocument();
 
-    const grant = screen.getByTestId('capability-purpose-mag');
-    fireEvent.click(grant);
+    fireEvent.click(screen.getByTestId('capability-open-details-mag'));
     expect(
       within(screen.getByTestId('capability-details-mag')).queryByTestId(
         'capability-candidate-report-mag-grant-workflow'
       )
     ).not.toBeInTheDocument();
 
-    const presentations = screen.getByTestId('capability-purpose-rca');
-    fireEvent.click(presentations);
+    fireEvent.click(screen.getByTestId('capability-open-details-rca'));
     expect(within(screen.getByTestId('capability-details-rca')).queryByText('receipt missing')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-rca'));
     expect(within(screen.getByTestId('capability-details-rca')).getAllByText('receipt missing').length).toBeGreaterThan(
       0
     );
-    expect(screen.getAllByText('External tools & voice').length).toBeGreaterThan(0);
-    expect(screen.getByText('Custom assistants')).toBeInTheDocument();
-    expect(screen.getAllByText('Skills').length).toBeGreaterThan(0);
+    expect(screen.getByText('Skills and external tools')).toBeInTheDocument();
+    expect(screen.queryByText('Custom assistants')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('capability-entry-external-tools')).not.toBeInTheDocument();
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
     expect(screen.getAllByText('OPL Meta Agent')).toHaveLength(1);
 
-    const externalTools = screen.getByTestId('capability-entry-external-tools');
-    fireEvent.click(within(externalTools).getByRole('button', { name: 'External tools & voice' }));
+    const supportingDetails = screen.getByTestId('capability-supporting-surfaces') as HTMLDetailsElement;
+    supportingDetails.open = true;
+    fireEvent(supportingDetails, new Event('toggle'));
+    await waitFor(() => expect(screen.getByTestId('skills-detail')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: 'External tools & voice' }));
     expect(onTabChange).toHaveBeenCalledWith('tools');
     await waitFor(() => expect(screen.getByTestId('tools-detail')).toBeInTheDocument());
 
-    fireEvent.click(screen.getByTestId('open-skills-support'));
+    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
     expect(onTabChange).toHaveBeenCalledWith('skills');
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
   });
@@ -636,6 +656,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     fireEvent.click(screen.getByTestId('agent-package-home-down-details-mas'));
     expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v1')).toContain('grant');
     await waitFor(() =>
@@ -683,9 +704,13 @@ describe('CapabilitiesSettingsContent', () => {
   it('routes package lifecycle management actions through App action refs', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 
+    fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     expect(screen.getByTestId('agent-package-update-mas')).toBeDisabled();
 
-    fireEvent.click(screen.getByTestId('capability-purpose-mag'));
+    fireEvent.click(screen.getByTestId('capability-open-details-mag'));
+    expect(screen.queryByText('https://example.test/mag.json')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('capability-advanced-toggle-mag'));
+    expect(screen.getByText('https://example.test/mag.json')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-package-update-mag'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({

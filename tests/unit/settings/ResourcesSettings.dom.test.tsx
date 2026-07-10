@@ -7,6 +7,7 @@ import { ResourcesSettingsContent } from '@/renderer/pages/settings/sections/Res
 const resourcesSettingsMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
   load: vi.fn(),
+  resourceSources: null as Record<string, unknown> | null,
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -20,6 +21,28 @@ if (typeof globalThis.document === 'undefined') {
 }
 
 const getMocks = () => resourcesSettingsMocks;
+
+const createResourceSources = () => ({
+  cloud_remote_access: {
+    status: 'ready',
+    resource_source_refs: ['opl://resource-source/cloud-remote-access'],
+  },
+  opl_workspace: {
+    status: 'ready',
+    environment_ref: 'opl://environment/default',
+    storage_ref: 'opl://storage/default',
+  },
+  cloud_compute: {
+    status: 'available',
+    resource_source_ref: 'opl://resource-source/opl-cloud/managed-compute',
+    console_managed: true,
+    console_policy_ref: 'opl://console/policy/compute',
+    quota_ref: 'opl://console/quota/compute',
+    billing_ref: 'opl://console/billing/project',
+    permission_ref: 'opl://console/permission/workspace',
+    environment_template_ref: 'opl://environment-template/python-r-quarto',
+  },
+});
 
 const openDetailsFor = (summary: HTMLElement) => {
   const details = summary.closest('details') as HTMLDetailsElement | null;
@@ -170,27 +193,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               },
             ],
           },
-          resource_sources: {
-            cloud_remote_access: {
-              status: 'ready',
-              resource_source_refs: ['opl://resource-source/cloud-remote-access'],
-            },
-            opl_workspace: {
-              status: 'ready',
-              environment_ref: 'opl://environment/default',
-              storage_ref: 'opl://storage/default',
-            },
-            cloud_compute: {
-              status: 'available',
-              resource_source_ref: 'opl://resource-source/opl-cloud/managed-compute',
-              console_managed: true,
-              console_policy_ref: 'opl://console/policy/compute',
-              quota_ref: 'opl://console/quota/compute',
-              billing_ref: 'opl://console/billing/project',
-              permission_ref: 'opl://console/permission/workspace',
-              environment_template_ref: 'opl://environment-template/python-r-quarto',
-            },
-          },
+          resource_sources: resourcesSettingsMocks.resourceSources,
         },
       },
     },
@@ -205,6 +208,8 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.resourcesPage.title': '资源与连接',
         'settings.resourcesPage.description': '管理浏览器 WebUI、OPL Workspace、云端/托管工作区和外部环境连接。',
+        'settings.resourcesPage.sections.serverWebui.title': '服务器 WebUI',
+        'settings.resourcesPage.sections.serverWebui.description': '配置、检查或打开浏览器工作台。',
         'settings.resourcesPage.docker.title': 'WebUI 与 OPL Workspace',
         'settings.resourcesPage.docker.description':
           '桌面 App 已内置本机工作台；这里显示浏览器 WebUI、服务器/托管工作区的打开、检查和维护入口。',
@@ -237,11 +242,19 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.connections.workspaceTitle': 'OPL Workspace',
         'settings.resourcesPage.connections.workspaceDescription':
           '确认任务使用的工作区、环境和存储入口；底层引用默认收起。',
+        'settings.resourcesPage.connections.noWorkspaceSources': '当前没有上报 OPL Workspace 连接。',
+        'settings.resourcesPage.connections.noSources': '当前没有上报云端或外部环境连接。',
+        'settings.resourcesPage.connections.empty': '当前没有上报工作区或外部连接。',
+        'settings.resourcesPage.connections.addConnection': '添加连接',
+        'settings.resourcesPage.connections.addConnectionUnavailable': '当前未上报可执行的连接配置入口。',
         'settings.resourcesPage.statusLabels.action_available': '可用',
         'settings.resourcesPage.statusLabels.available': '可用',
         'settings.resourcesPage.statusLabels.attention_required': '需要检查',
         'settings.resourcesPage.statusLabels.needs_input': '需要填写信息',
+        'settings.resourcesPage.statusLabels.not_configured': '尚未配置',
         'settings.resourcesPage.statusLabels.ready': '可用',
+        'settings.resourcesPage.statusLabels.resourceReady': '已就绪',
+        'settings.resourcesPage.statusLabels.unverified': '未验证',
         'settings.resourcesPage.resourceSources.environmentRefs': '有环境配置',
         'settings.resourcesPage.resourceSources.managementRefs': '有管理信息',
         'settings.resourcesPage.resourceSources.technicalRefs': '技术引用',
@@ -262,6 +275,7 @@ vi.mock('react-i18next', () => ({
 describe('ResourcesSettingsContent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getMocks().resourceSources = createResourceSources();
     getMocks().executeActionInvoke.mockResolvedValue({
       surface: 'app_action',
       command: 'opl app action execute --action settings_install_docker_webui --dry-run --json',
@@ -280,12 +294,14 @@ describe('ResourcesSettingsContent', () => {
     const view = render(<ResourcesSettingsContent />);
 
     expect(view.getByText('资源与连接')).toBeTruthy();
-    expect(view.getByText('WebUI 与 OPL Workspace')).toBeTruthy();
-    expect(view.getAllByText('WebUI').length).toBeGreaterThan(0);
-    expect(view.getAllByText('OPL Workspace').length).toBeGreaterThan(0);
+    expect(view.getByTestId('resources-settings-page')).toHaveClass('opl-settings-page');
+    expect(view.getByText('服务器 WebUI')).toBeTruthy();
+    expect(view.getAllByText('OPL Workspace')).toHaveLength(1);
     expect(view.getByText('云端与外部环境')).toBeTruthy();
-    expect(view.getByText('可用操作')).toBeTruthy();
-    expect(view.getByText('打开 WebUI')).toBeTruthy();
+    expect(view.getAllByText('未验证').length).toBeGreaterThan(0);
+    expect(view.getByText('重新检查')).toBeTruthy();
+    expect(view.queryByText('可用')).toBeNull();
+    expect(view.queryByText('打开 WebUI')).toBeNull();
     expect(view.queryByText('准备服务器/托管 WebUI')).toBeNull();
     expect(view.queryByText('配置 WebUI 模型访问')).toBeNull();
     expect(view.queryByText('选择 WebUI 镜像或模板')).toBeNull();
@@ -295,6 +311,7 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('payload');
+    expect(document.body.textContent).not.toContain('Docker');
     expect(document.body.textContent).not.toContain('attention_needed');
     expect(document.body.textContent).toContain('由 OPL Console 管理');
     expect(document.body.textContent).toContain('OPL Cloud 托管计算');
@@ -308,8 +325,9 @@ describe('ResourcesSettingsContent', () => {
     openDetailsFor(view.getByText('更多操作'));
     expect(view.getByText('准备服务器/托管 WebUI')).toBeTruthy();
     expect(view.getByText('配置 WebUI 模型访问')).toBeTruthy();
-    expect(view.getByText('需要检查')).toBeTruthy();
     expect(view.getByText('选择 WebUI 镜像或模板')).toBeTruthy();
+    expect(view.getByText('打开 WebUI')).toBeTruthy();
+    expect(view.getAllByText('需要填写信息').length).toBeGreaterThan(0);
     expect(document.body.textContent).not.toContain('opl app action execute --action');
     expect(document.body.textContent).not.toContain('dry-run');
     expect(document.body.textContent).not.toContain('attention_needed');
@@ -326,15 +344,15 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).toContain('opl://environment-template/python-r-quarto');
   });
 
-  it('checks Docker WebUI ordinary action routes through the App control-plane action bridge', async () => {
+  it('uses the check action when WebUI actions exist without resource-ready evidence', async () => {
     const view = render(<ResourcesSettingsContent />);
 
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_open_docker_webui'));
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_diagnose_docker_webui'));
 
     const mocks = getMocks();
     await waitFor(() =>
       expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'settings_open_docker_webui',
+        actionId: 'settings_diagnose_docker_webui',
         dryRun: true,
       })
     );
@@ -356,11 +374,24 @@ describe('ResourcesSettingsContent', () => {
     });
     const view = render(<ResourcesSettingsContent />);
 
-    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_open_docker_webui'));
+    fireEvent.click(view.getByTestId('opl-settings-docker-webui-action-settings_diagnose_docker_webui'));
 
     await waitFor(() => expect(view.getByText('部署前检查失败。')).toBeTruthy());
     expect(mocks.load).not.toHaveBeenCalled();
     expect(document.body.textContent).not.toContain('部署前检查完成。');
+  });
+
+  it('renders one honest empty state when no resource source is reported', () => {
+    getMocks().resourceSources = null;
+
+    const view = render(<ResourcesSettingsContent />);
+
+    expect(view.getByTestId('opl-settings-resource-sources-empty')).toBeTruthy();
+    expect(view.queryByTestId('opl-settings-workspace-resource-sources')).toBeNull();
+    expect(view.queryByTestId('opl-settings-resource-sources')).toBeNull();
+    expect(view.getByText('当前没有上报工作区或外部连接。')).toBeTruthy();
+    expect(view.getByTestId('opl-settings-add-connection')).toBeDisabled();
+    expect(view.queryAllByText('OPL Workspace')).toHaveLength(0);
   });
 
   it('does not invent shell-local input for Docker WebUI actions that require payload refs', () => {

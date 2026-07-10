@@ -15,6 +15,8 @@ import { oplRecord, oplRecordList, oplString } from '@/renderer/hooks/system/use
 
 export type CapabilityStatus = 'ready' | 'update' | 'sync' | 'source' | 'attention' | 'repair' | 'missing';
 
+export type CapabilityAvailabilityStatus = Exclude<CapabilityStatus, 'source'>;
+
 export type CapabilityCodexVisibility = 'visible' | 'needsSync' | 'notVisible' | 'unknown';
 
 export type CapabilityPrimaryAction = 'view' | 'configure' | 'maintenance';
@@ -39,6 +41,7 @@ export type CapabilityPurposeViewModel = {
   enabled: boolean | null;
   hidden: boolean | null;
   status: CapabilityStatus;
+  availabilityStatus: CapabilityAvailabilityStatus;
   primaryAction: CapabilityPrimaryAction;
   codexVisibility: CapabilityCodexVisibility;
   version: string | null;
@@ -57,6 +60,7 @@ export type CapabilityPurposeViewModel = {
 export type ExtraCapabilityPurposeInput = Omit<
   CapabilityPurposeViewModel,
   | 'status'
+  | 'availabilityStatus'
   | 'primaryAction'
   | 'codexVisibility'
   | 'version'
@@ -597,6 +601,13 @@ function mapCapabilityStatus(
   if (!packageState && !module) return 'missing';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
   if (
+    ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
+      status ?? ''
+    )
+  ) {
+    return 'repair';
+  }
+  if (
     developerCheckout &&
     (status === 'dirty' ||
       git.dirty === true ||
@@ -623,15 +634,12 @@ function mapCapabilityStatus(
   if (status === 'dirty' || ['unknown', 'attentionrequired'].includes(status ?? '')) {
     return 'attention';
   }
-  if (
-    ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
-      status ?? ''
-    )
-  ) {
-    return 'repair';
-  }
   if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(status ?? '')) return 'ready';
   return 'attention';
+}
+
+function capabilityAvailabilityStatus(status: CapabilityStatus): CapabilityAvailabilityStatus {
+  return status === 'source' ? 'ready' : status;
 }
 
 function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAction {
@@ -924,6 +932,7 @@ function buildCapabilityPurpose(
   purpose: Omit<
     CapabilityPurposeViewModel,
     | 'status'
+    | 'availabilityStatus'
     | 'primaryAction'
     | 'codexVisibility'
     | 'version'
@@ -995,6 +1004,7 @@ function buildCapabilityPurpose(
     enabled: capabilityPackageEnabled(packageState, module),
     hidden: capabilityPackageHidden(packageState, module),
     status,
+    availabilityStatus: capabilityAvailabilityStatus(status),
     primaryAction: capabilityPrimaryAction(status),
     codexVisibility: capabilityCodexVisibility(packageState, module, status),
     version: capabilityVersion(packageState, module),
