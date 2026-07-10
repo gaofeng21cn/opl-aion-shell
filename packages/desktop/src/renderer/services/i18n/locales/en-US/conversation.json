@@ -70,6 +70,8 @@
     "exportDialogTitle": "Export Topics",
     "exportDialogSingleDescription": "Export current topic conversation records (JSON + Markdown) and project files into a ZIP package.",
     "exportDialogBatchDescription": "Export {{count}} selected topics' conversation records (JSON + Markdown) and project files into one ZIP package.",
+    "exportFileName": "ZIP File Name",
+    "exportFileNameRequired": "Please enter a ZIP file name",
     "exportTargetFolder": "Export To Folder",
     "exportSelectFolder": "Please select an export folder",
     "exportDialogHint": "Folder selection follows the same interaction as changing the project.",

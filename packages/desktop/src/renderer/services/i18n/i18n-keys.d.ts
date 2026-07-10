@@ -797,6 +797,8 @@ export type I18nKey =
   | 'conversation.history.exportDialogSingleDescription'
   | 'conversation.history.exportDialogTitle'
   | 'conversation.history.exportFailed'
+  | 'conversation.history.exportFileName'
+  | 'conversation.history.exportFileNameRequired'
   | 'conversation.history.exportSelectFolder'
   | 'conversation.history.exportSuccess'
   | 'conversation.history.exportTargetFolder'

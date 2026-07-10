@@ -39,6 +39,7 @@ export const useExport = ({
   const [exportTask, setExportTask] = useState<ExportTask>(null);
   const [exportModalVisible, setExportModalVisible] = useState(false);
   const [exportTargetPath, setExportTargetPath] = useState('');
+  const [exportFileName, setExportFileName] = useState('');
   const [exportModalLoading, setExportModalLoading] = useState(false);
   const [showExportDirectorySelector, setShowExportDirectorySelector] = useState(false);
   const [currentExportRequestId, setCurrentExportRequestId] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export const useExport = ({
     setExportModalVisible(false);
     setExportTask(null);
     setExportTargetPath('');
+    setExportFileName('');
     setExportModalLoading(false);
     setCurrentExportRequestId(null);
   }, [currentExportRequestId, exportModalLoading]);
@@ -99,6 +101,11 @@ export const useExport = ({
     async (task: NonNullable<ExportTask>) => {
       exportCanceledRef.current = false;
       setExportTask(task);
+      const baseName =
+        task.mode === 'single'
+          ? sanitizeFileName(task.conversation.name || task.conversation.id).slice(0, 40) || 'topic'
+          : 'batch-export';
+      setExportFileName(`${baseName}-${formatTimestamp()}.zip`);
       setExportModalVisible(true);
       const desktopPath = await getDesktopPath();
       setExportTargetPath(desktopPath);
@@ -139,21 +146,16 @@ export const useExport = ({
   }, [exportModalLoading, exportTargetPath, getDesktopPath, t]);
 
   const fetchConversationMessages = useCallback(async (conversation_id: string): Promise<TMessage[]> => {
-    try {
-      const result = await withTimeout(
-        ipcBridge.database.getConversationMessages.invoke({
-          conversation_id: conversation_id,
-          page: 0,
-          page_size: 10000,
-        }),
-        EXPORT_IO_TIMEOUT_MS,
-        `getConversationMessages:${conversation_id}`
-      );
-      return result.items;
-    } catch (error) {
-      console.warn('[WorkspaceGroupedHistory] Export message fetch timeout/failure:', conversation_id, error);
-      return [];
-    }
+    const result = await withTimeout(
+      ipcBridge.database.getConversationMessages.invoke({
+        conversation_id: conversation_id,
+        page: 0,
+        page_size: 10000,
+      }),
+      EXPORT_IO_TIMEOUT_MS,
+      `getConversationMessages:${conversation_id}`
+    );
+    return result.items;
   }, []);
 
   const fetchConversationWorkspaceTree = useCallback(async (conversation: TChatConversation) => {
@@ -162,21 +164,16 @@ export const useExport = ({
       return undefined;
     }
 
-    try {
-      const trees = await withTimeout(
-        ipcBridge.conversation.getWorkspace.invoke({
-          conversation_id: conversation.id,
-          workspace,
-          path: workspace,
-        }),
-        EXPORT_IO_TIMEOUT_MS,
-        `getWorkspace:${conversation.id}`
-      );
-      return trees?.[0];
-    } catch (error) {
-      console.warn('[WorkspaceGroupedHistory] Failed to read workspace for export:', conversation.id, error);
-      return undefined;
-    }
+    const trees = await withTimeout(
+      ipcBridge.conversation.getWorkspace.invoke({
+        conversation_id: conversation.id,
+        workspace,
+        path: workspace,
+      }),
+      EXPORT_IO_TIMEOUT_MS,
+      `getWorkspace:${conversation.id}`
+    );
+    return trees?.[0];
   }, []);
 
   const buildConversationExportFiles = useCallback(
@@ -245,6 +242,12 @@ export const useExport = ({
       Message.warning(t('conversation.history.exportSelectFolder'));
       return;
     }
+    const requestedFileName = exportFileName.trim();
+    if (!requestedFileName) {
+      Message.warning(t('conversation.history.exportFileNameRequired'));
+      return;
+    }
+    const fileNameWithoutExtension = sanitizeFileName(requestedFileName.replace(/\.zip$/i, ''));
 
     setExportModalLoading(true);
     exportCanceledRef.current = false;
@@ -261,9 +264,7 @@ export const useExport = ({
       if (exportTask.mode === 'single') {
         throwIfCanceled();
         const conversation = exportTask.conversation;
-        const shortTopicName = sanitizeFileName(conversation.name || conversation.id).slice(0, 40) || 'topic';
-        const zipFileName = `${shortTopicName}-${formatTimestamp()}`;
-        const exportPath = await createUniqueFilePath(directory, zipFileName, 'zip');
+        const exportPath = await createUniqueFilePath(directory, fileNameWithoutExtension, 'zip');
         throwIfCanceled();
         const topicFolderName = buildTopicFolderName(conversation);
         const files = await buildConversationExportFiles(conversation, topicFolderName);
@@ -276,6 +277,7 @@ export const useExport = ({
           setExportModalVisible(false);
           setExportTask(null);
           setExportTargetPath('');
+          setExportFileName('');
           setCurrentExportRequestId(null);
         } else {
           Message.error(t('conversation.history.exportFailed'));
@@ -303,7 +305,7 @@ export const useExport = ({
       topicFilesList.forEach((topicFiles) => {
         files.push(...topicFiles);
       });
-      const exportPath = await createUniqueFilePath(directory, `batch-export-${formatTimestamp()}`, 'zip');
+      const exportPath = await createUniqueFilePath(directory, fileNameWithoutExtension, 'zip');
       throwIfCanceled();
       const success = await runCreateZip(exportPath, files, request_id);
       throwIfCanceled();
@@ -315,6 +317,7 @@ export const useExport = ({
         setExportModalVisible(false);
         setExportTask(null);
         setExportTargetPath('');
+        setExportFileName('');
         setCurrentExportRequestId(null);
       } else {
         Message.error(t('conversation.history.exportFailed'));
@@ -335,6 +338,7 @@ export const useExport = ({
     buildConversationExportFiles,
     conversations,
     createUniqueFilePath,
+    exportFileName,
     exportTargetPath,
     exportTask,
     onBatchModeChange,
@@ -347,9 +351,11 @@ export const useExport = ({
     exportTask,
     exportModalVisible,
     exportTargetPath,
+    exportFileName,
     exportModalLoading,
     showExportDirectorySelector,
     setShowExportDirectorySelector,
+    setExportFileName,
     closeExportModal,
     handleSelectExportDirectoryFromModal,
     handleSelectExportFolder,
