@@ -6,7 +6,7 @@
 
 import type { ICronJob } from '@/common/adapter/ipcBridge';
 import { getAgentLogo } from '@renderer/utils/model/agentLogo';
-import type { AgentMetadata } from '@renderer/utils/model/agentTypes';
+import type { ManagedAgent } from '@renderer/utils/model/agentTypes';
 
 function normalizeAgentBackend(agent: string | undefined): string | undefined {
   if (!agent) return undefined;
@@ -22,7 +22,7 @@ function normalizeAgentBackend(agent: string | undefined): string | undefined {
  * `agent_type` directly — aionrs in particular reuses `agent_config.backend`
  * for provider_id, so we must not fall back to it there.
  */
-export function getJobAgentMeta(job: ICronJob, cliAgents: AgentMetadata[]): { name?: string; logo?: string | null } {
+export function getJobAgentMeta(job: ICronJob, cliAgents: ManagedAgent[]): { name?: string; logo?: string | null } {
   const rawType = normalizeAgentBackend(job.metadata.agent_type);
   if (!rawType) return {};
 

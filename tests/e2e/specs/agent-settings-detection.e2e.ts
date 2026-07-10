@@ -1,20 +1,20 @@
 /**
- * Agent Settings Detection — E2E tests.
+ * Agent Settings Management Catalog — E2E tests.
  *
- * Covers: LocalAgents component rendering, CLI agent detection,
- * Gemini presence, agent status, PresetManagement sync, refresh.
+ * Covers: LocalAgents component rendering, managed CLI catalog,
+ * known runtime presence, agent status, and catalog refresh.
  */
 import { test, expect } from '../fixtures';
 import { goToSettings, expectUrlContains, expectBodyContainsAny, settingsSiderItemById } from '../helpers';
 
-test.describe('Agent Settings Detection', () => {
+test.describe('Agent Settings Management Catalog', () => {
   test('LocalAgents page renders', async ({ page }) => {
     await goToSettings(page, 'agent');
     await expectUrlContains(page, 'agent');
     await expectBodyContainsAny(page, ['Agent', 'agent', '助手', '代理']);
   });
 
-  test('detected CLI agents displayed', async ({ page }) => {
+  test('managed CLI agents displayed', async ({ page }) => {
     await goToSettings(page, 'agent');
 
     // At least one detected agent card should be visible
@@ -44,22 +44,11 @@ test.describe('Agent Settings Detection', () => {
     await expect(siderItem).toBeVisible({ timeout: 8_000 });
   });
 
-  test('preset management section is visible', async ({ page }) => {
+  test('managed agent catalog exposes diagnostics or custom-agent actions', async ({ page }) => {
     await goToSettings(page, 'agent');
 
-    // The agent settings page includes preset management area
-    // Look for text indicating presets or assistants
-    await expectBodyContainsAny(page, [
-      'Preset',
-      'preset',
-      'Custom',
-      'custom',
-      '预设',
-      '自定义',
-      'Assistants',
-      'assistants',
-      '助手',
-    ]);
+    // The management catalog exposes either diagnostics or custom-agent actions.
+    await expectBodyContainsAny(page, ['Test Connection', 'test connection', '测试连接', 'Custom', 'custom', '自定义']);
   });
 
   test('detected agents section refreshes without error', async ({ page }) => {

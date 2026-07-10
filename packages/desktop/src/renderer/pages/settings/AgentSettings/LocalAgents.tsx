@@ -5,35 +5,32 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import type { ManagedAgent } from '@/renderer/utils/model/agentTypes';
 import AionModal from '@/renderer/components/base/AionModal';
-import { useAgents } from '@/renderer/hooks/agent/useAgents';
-import { Button, Typography } from '@arco-design/web-react';
+import { useManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
+import { Button, Message, Typography } from '@arco-design/web-react';
 import { Home, Plus } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import AgentCard from './AgentCard';
 import { AgentHubModal } from './AgentHubModal';
 import InlineAgentEditor, { type CustomAgentDraft } from './InlineAgentEditor';
-import { getAgentKey } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 
 const LocalAgents: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [hubModalVisible, setHubModalVisible] = useState(false);
+  const [testingAgentId, setTestingAgentId] = useState<string | null>(null);
 
-  // Single fetch for all agents; both detected and custom lists are derived from it.
-  const { agents: allAgents, revalidate: mutateAgents } = useAgents();
+  const { agents: allAgents, refreshCatalog } = useManagedAgents();
 
   const detectedAgents = allAgents.filter(
     (a) => (a.agent_type === 'acp' || a.agent_type === 'aionrs') && a.agent_source !== 'custom'
   );
 
-  const customAgents: AgentMetadata[] = allAgents.filter((a) => a.agent_source === 'custom');
+  const customAgents: ManagedAgent[] = allAgents.filter((a) => a.agent_source === 'custom');
 
   const [editorVisible, setEditorVisible] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<AgentMetadata | null>(null);
+  const [editingAgent, setEditingAgent] = useState<ManagedAgent | null>(null);
 
   const handleSaveCustomAgent = useCallback(
     async (draft: CustomAgentDraft) => {
@@ -51,7 +48,7 @@ const LocalAgents: React.FC = () => {
         } else {
           await ipcBridge.acpConversation.createCustomAgent.invoke(body);
         }
-        await mutateAgents();
+        await refreshCatalog();
         setEditorVisible(false);
         setEditingAgent(null);
       } catch (err) {
@@ -59,31 +56,31 @@ const LocalAgents: React.FC = () => {
         console.error('save custom agent failed:', err);
       }
     },
-    [editingAgent, mutateAgents]
+    [editingAgent, refreshCatalog]
   );
 
   const handleDeleteCustomAgent = useCallback(
     async (agentId: string) => {
       try {
         await ipcBridge.acpConversation.deleteCustomAgent.invoke({ id: agentId });
-        await mutateAgents();
+        await refreshCatalog();
       } catch (err) {
         console.error('delete custom agent failed:', err);
       }
     },
-    [mutateAgents]
+    [refreshCatalog]
   );
 
   const handleToggleCustomAgent = useCallback(
     async (agentId: string, enabled: boolean) => {
       try {
         await ipcBridge.acpConversation.setAgentEnabled.invoke({ id: agentId, enabled });
-        await mutateAgents();
+        await refreshCatalog();
       } catch (err) {
         console.error('toggle custom agent failed:', err);
       }
     },
-    [mutateAgents]
+    [refreshCatalog]
   );
 
   // Aion CLI first among detected agents
@@ -95,11 +92,25 @@ const LocalAgents: React.FC = () => {
     setEditorVisible(true);
   }, []);
 
-  const goToChatWithAgent = useCallback(
-    (agent: AgentMetadata) => {
-      navigate('/guid', { state: { selectedAgentKey: getAgentKey(agent) } });
+  const handleTestConnection = useCallback(
+    async (agentId: string) => {
+      try {
+        setTestingAgentId(agentId);
+        const result = await ipcBridge.acpConversation.checkManagedAgentHealthById.invoke({ id: agentId });
+        await refreshCatalog();
+        if (result.status === 'online') {
+          Message.success(t('settings.testConnectionSuccess'));
+        } else {
+          Message.warning(result.last_check_error_message || t('settings.testConnectionFailAcp'));
+        }
+      } catch (error) {
+        console.error('test managed agent failed:', error);
+        Message.error(t('settings.testConnectionFailAcp'));
+      } finally {
+        setTestingAgentId(null);
+      }
     },
-    [navigate]
+    [refreshCatalog, t]
   );
 
   return (
@@ -154,14 +165,20 @@ const LocalAgents: React.FC = () => {
       </div>
       <div className='grid grid-cols-2 gap-10px px-16px md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'>
         {aionrsAgent && (
-          <AgentCard type='detected' agent={aionrsAgent} onGoToChat={() => goToChatWithAgent(aionrsAgent)} />
+          <AgentCard
+            type='detected'
+            agent={aionrsAgent}
+            onTestConnection={() => void handleTestConnection(aionrsAgent.id)}
+            isTesting={testingAgentId === aionrsAgent.id}
+          />
         )}
         {otherDetected.map((agent) => (
           <AgentCard
             key={agent.backend || agent.agent_type}
             type='detected'
             agent={agent}
-            onGoToChat={() => goToChatWithAgent(agent)}
+            onTestConnection={() => void handleTestConnection(agent.id)}
+            isTesting={testingAgentId === agent.id}
           />
         ))}
       </div>
@@ -225,7 +242,8 @@ const LocalAgents: React.FC = () => {
             key={agent.id}
             type='custom'
             agent={agent}
-            onGoToChat={() => goToChatWithAgent(agent)}
+            onTestConnection={() => void handleTestConnection(agent.id)}
+            isTesting={testingAgentId === agent.id}
             onEdit={() => {
               setEditingAgent(agent);
               setEditorVisible(true);

@@ -15,6 +15,7 @@ import {
 import { Magic, FolderOpen, Lightning } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
+import { refreshManagedAgentCatalogAndAssistants } from '@/renderer/hooks/agent/useManagedAgents';
 import { uuid } from '@/common/utils';
 import type { TMessage } from '@/common/chat/chatLib';
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
@@ -277,7 +278,7 @@ Requirements:
           content,
         });
       }
-      await ipcBridge.acpConversation.refreshCustomAgents.invoke();
+      await refreshManagedAgentCatalogAndAssistants();
       Message.success(
         t('conversation.skill_generator.preset_registered', { defaultValue: 'Agent preset registered successfully!' })
       );

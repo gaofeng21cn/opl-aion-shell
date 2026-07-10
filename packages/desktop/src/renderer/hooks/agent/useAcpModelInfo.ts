@@ -15,7 +15,8 @@ import {
 } from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
-import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
+import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { type AcpConfigSetStatus, type AcpDerivedOption, useAcpConfigOptions } from './useAcpConfigOptions';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import useSWR from 'swr';
@@ -208,11 +209,11 @@ export const useAcpModelInfo = ({
     [backend, mutateModelInfo]
   );
 
-  const { data: agentsData } = useSWR<AgentMetadata[]>(enabled ? DETECTED_AGENTS_SWR_KEY : null, fetchDetectedAgents);
+  const agentsData = useManagedAgentRuntimeCatalog();
   const handshakeModelInfo = useMemo<AcpModelInfo | null>(() => {
     if (!backend || !agentsData?.length) return null;
     const matched = agentsData.find((a) => (a.backend ?? a.agent_type) === backend);
-    const info = normalizeAcpModelInfo(matched?.handshake?.available_models);
+    const info = normalizeAcpModelInfo(buildAgentRuntimeModelInfo(matched));
     if (backend === 'codex') return buildCodexDefaultModelInfo(info);
     if (!info || info.available_models.length === 0) return null;
     return info;

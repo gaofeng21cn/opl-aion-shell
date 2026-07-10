@@ -3,7 +3,7 @@
  * Contains name/avatar fields, agent selector, rules editor, and skills section.
  */
 import type { AssistantListItem, BuiltinAutoSkill, SkillInfo } from './types';
-import type { AvailableBackend } from '@/renderer/hooks/assistant';
+import type { ManagedAgentBackendOption } from '@/renderer/hooks/agent/useManagedAgents';
 import EmojiPicker from '@/renderer/components/chat/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
@@ -56,7 +56,7 @@ type AssistantEditDrawerProps = {
   isExtensionAssistant: (assistant: AssistantListItem | null | undefined) => boolean;
 
   // Agent backend options
-  availableBackends: AvailableBackend[];
+  availableBackends: ManagedAgentBackendOption[];
 
   // Handlers
   handleSave: () => void;
@@ -178,7 +178,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
     : isRuleEditable && promptViewMode === 'edit'
       ? '260px'
       : '220px';
-  const renderAgentOption = (option: AvailableBackend) => {
+  const renderAgentOption = (option: ManagedAgentBackendOption) => {
     const logo = resolveAgentLogo({
       backend: option.id,
       isExtension: option.isExtension,

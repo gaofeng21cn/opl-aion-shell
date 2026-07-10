@@ -21,7 +21,7 @@ const {
   writeRendererLogInvokeMock,
   configServiceGetMock,
   configServiceSetMock,
-  fetchDetectedAgentsMock,
+  fetchManagedAgentsMock,
   responseStreamHandlerRef,
 } = vi.hoisted(() => ({
   getModelInvokeMock: vi.fn(),
@@ -32,7 +32,7 @@ const {
   writeRendererLogInvokeMock: vi.fn(),
   configServiceGetMock: vi.fn(),
   configServiceSetMock: vi.fn(),
-  fetchDetectedAgentsMock: vi.fn(),
+  fetchManagedAgentsMock: vi.fn(),
   responseStreamHandlerRef: {
     current: undefined as ((message: IResponseMessage) => void) | undefined,
   },
@@ -69,8 +69,8 @@ vi.mock('@/common/config/configService', () => ({
 }));
 
 vi.mock('@/renderer/utils/model/agentTypes', () => ({
-  DETECTED_AGENTS_SWR_KEY: 'detected-agents',
-  fetchDetectedAgents: fetchDetectedAgentsMock,
+  MANAGED_AGENTS_SWR_KEY: 'managed-agents',
+  fetchManagedAgents: fetchManagedAgentsMock,
 }));
 
 const buildModelInfo = (overrides: Partial<AcpModelInfo> = {}): AcpModelInfo => ({
@@ -147,7 +147,7 @@ describe('useAcpModelInfo', () => {
     writeRendererLogInvokeMock.mockResolvedValue(undefined);
     configServiceGetMock.mockReturnValue({});
     configServiceSetMock.mockResolvedValue(undefined);
-    fetchDetectedAgentsMock.mockResolvedValue([]);
+    fetchManagedAgentsMock.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -413,7 +413,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('does not restore stale handshake model when active session lookup returns 404 after cache exists', async () => {
-    fetchDetectedAgentsMock.mockResolvedValue([
+    fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'claude',
         backend: 'claude',
@@ -491,7 +491,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('falls back to App default Codex model options before the first ACP handshake', async () => {
-    fetchDetectedAgentsMock.mockResolvedValue([
+    fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
         backend: 'codex',
@@ -529,7 +529,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('does not invent App fallback models when ACP explicitly reports an empty model list', async () => {
-    fetchDetectedAgentsMock.mockResolvedValue([
+    fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
         backend: 'codex',
@@ -555,7 +555,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(fetchDetectedAgentsMock).toHaveBeenCalled();
+      expect(fetchManagedAgentsMock).toHaveBeenCalled();
       expect(getModelInvokeMock).toHaveBeenCalled();
     });
     await act(async () => {
@@ -567,7 +567,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('keeps an explicitly empty active Codex model list instead of restoring fallback models', async () => {
-    fetchDetectedAgentsMock.mockResolvedValue([
+    fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
         backend: 'codex',
@@ -589,7 +589,7 @@ describe('useAcpModelInfo', () => {
 
     await waitFor(() => {
       expect(getModelInvokeMock).toHaveBeenCalled();
-      expect(fetchDetectedAgentsMock).toHaveBeenCalled();
+      expect(fetchManagedAgentsMock).toHaveBeenCalled();
     });
     await act(async () => {
       await new Promise((resolve) => window.setTimeout(resolve, 20));

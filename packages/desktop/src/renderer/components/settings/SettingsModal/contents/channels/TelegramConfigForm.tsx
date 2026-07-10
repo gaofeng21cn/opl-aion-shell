@@ -5,15 +5,12 @@
  */
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/common/types/channel/channel';
-import { channel } from '@/common/adapter/ipcBridge';
-import { getAgents } from '@/renderer/hooks/agent/useAgents';
+import { assistants, channel } from '@/common/adapter/ipcBridge';
 import { configService } from '@/common/config/configService';
 import GoogleModelSelector from '@/renderer/pages/conversation/platforms/gemini/GoogleModelSelector';
 import type { GoogleModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGoogleModelSelection';
-import {
-  isSupportedNewConversationAgent,
-  normalizeSupportedAgentSelection,
-} from '@/renderer/utils/model/agentTypeSupportPolicy';
+import { normalizeSupportedAgentSelection } from '@/renderer/utils/model/agentTypeSupportPolicy';
+import { buildChannelAgentOptions } from './assistantOptions';
 import { Button, Dropdown, Empty, Input, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -125,16 +122,13 @@ const TelegramConfigForm: React.FC<TelegramConfigFormProps> = ({
   useEffect(() => {
     const loadAgentsAndSelection = async () => {
       try {
-        const [agentsResp, saved] = await Promise.all([getAgents(), configService.get('assistant.telegram.agent')]);
+        const [assistantsResp, saved] = await Promise.all([
+          assistants.list.invoke(),
+          configService.get('assistant.telegram.agent'),
+        ]);
 
-        if (Array.isArray(agentsResp)) {
-          const list = agentsResp.filter(isSupportedNewConversationAgent).map((a) => ({
-            agent_type: a.agent_type,
-            backend: a.backend,
-            name: a.name,
-            id: a.id,
-          }));
-          setAvailableAgents(list);
+        if (Array.isArray(assistantsResp)) {
+          setAvailableAgents(buildChannelAgentOptions(assistantsResp));
         }
 
         if (saved && typeof saved === 'object') {

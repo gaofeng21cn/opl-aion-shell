@@ -21,7 +21,8 @@ import { Message } from '@arco-design/web-react';
 import coworkSvg from '@/renderer/assets/icons/cowork.svg';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { useSettingsViewMode } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
-import { useDetectedAgents, useAssistantEditor, useAssistantList } from '@/renderer/hooks/assistant';
+import { useAssistantEditor, useAssistantList } from '@/renderer/hooks/assistant';
+import { useManagedAgentBackends } from '@/renderer/hooks/agent/useManagedAgents';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { resolveAvatarImageSrc } from './assistantUtils';
 import AssistantEditDrawer from './AssistantEditDrawer';
@@ -67,7 +68,7 @@ const AssistantSettings: React.FC = () => {
     localeKey,
   } = useAssistantList();
 
-  const { availableBackends, refreshAgentDetection } = useDetectedAgents();
+  const { availableBackends, refreshAgentDetection } = useManagedAgentBackends();
 
   const editor = useAssistantEditor({
     localeKey,

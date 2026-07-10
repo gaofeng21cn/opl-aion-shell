@@ -5,7 +5,8 @@
  */
 
 import coworkSvg from '@/renderer/assets/icons/cowork.svg';
-import { useDetectedAgents, useAssistantEditor, useAssistantList } from '@/renderer/hooks/assistant';
+import { useAssistantEditor, useAssistantList } from '@/renderer/hooks/assistant';
+import { useManagedAgentBackends } from '@/renderer/hooks/agent/useManagedAgents';
 import AssistantEditDrawer from '@/renderer/pages/settings/AssistantSettings/AssistantEditDrawer';
 import DeleteAssistantModal from '@/renderer/pages/settings/AssistantSettings/DeleteAssistantModal';
 import SkillConfirmModals from '@/renderer/pages/settings/AssistantSettings/SkillConfirmModals';
@@ -79,7 +80,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
   // editor target use the prop.
   const { activeAssistantId, setActiveAssistantId, activeAssistant, isExtensionAssistant, loadAssistants } =
     useAssistantList();
-  const { availableBackends, refreshAgentDetection } = useDetectedAgents();
+  const { availableBackends, refreshAgentDetection } = useManagedAgentBackends();
 
   const editor = useAssistantEditor({
     localeKey,

@@ -39,10 +39,6 @@ vi.mock('@/renderer/hooks/assistant', () => ({
     isExtensionAssistant: false,
     loadAssistants: vi.fn(),
   }),
-  useDetectedAgents: () => ({
-    availableBackends: [],
-    refreshAgentDetection: vi.fn(),
-  }),
   useAssistantEditor: () => ({
     skillsModalVisible: false,
     customSkills: [],

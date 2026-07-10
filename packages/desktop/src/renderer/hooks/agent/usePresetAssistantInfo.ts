@@ -11,7 +11,7 @@ import { ipcBridge } from '@/common';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
 import CoworkLogo from '@/renderer/assets/icons/cowork.svg';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
-import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import useSWR from 'swr';
 export interface PresetAssistantInfo {
   name: string;
@@ -230,7 +230,7 @@ export function usePresetAssistantInfo(conversation: TChatConversation | undefin
   // Backend-registered agents (includes `agent_source === 'custom'` rows). Used
   // to resolve the user-picked emoji/name for a custom ACP conversation where
   // no preset assistant was attached.
-  const { data: detectedAgents } = useSWR<AgentMetadata[]>(DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents);
+  const managedAgents = useManagedAgentRuntimeCatalog();
 
   return useMemo(() => {
     if (!conversation) return { info: null, isLoading: false };
@@ -257,8 +257,8 @@ export function usePresetAssistantInfo(conversation: TChatConversation | undefin
       (typeof extra?.agent_id === 'string' && extra.agent_id.trim()) ||
       (typeof extra?.custom_agent_id === 'string' && extra.custom_agent_id.trim()) ||
       '';
-    if (rowAgentId && Array.isArray(detectedAgents)) {
-      const row = detectedAgents.find((a) => a.id === rowAgentId && a.agent_source === 'custom');
+    if (rowAgentId) {
+      const row = managedAgents.find((a) => a.id === rowAgentId && a.agent_source === 'custom');
       if (row) {
         const normalized = normalizeAvatar(row.icon);
         return { info: { name: row.name, logo: normalized.logo, isEmoji: normalized.isEmoji }, isLoading: false };
@@ -323,6 +323,6 @@ export function usePresetAssistantInfo(conversation: TChatConversation | undefin
     remoteAgentId,
     remoteAgent,
     isLoadingRemoteAgent,
-    detectedAgents,
+    managedAgents,
   ]);
 }

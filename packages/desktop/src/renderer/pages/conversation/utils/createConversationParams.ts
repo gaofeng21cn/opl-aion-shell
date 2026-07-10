@@ -18,8 +18,8 @@ import {
   getConversationTypeForBackend,
 } from '@/common/utils/buildAgentConversationParams';
 import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
-import { getAgents } from '@/renderer/hooks/agent/useAgents';
-import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
+import { getManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
+import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { hasSpecificModelCapability } from '@/renderer/utils/model/modelCapabilities';
 
@@ -72,9 +72,9 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   const preferredModelId = backendConfig?.preferredModelId;
 
   if (backend === 'codex') {
-    const agents = await getAgents();
+    const agents = await getManagedAgents();
     const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
     const modelInfo = buildCodexDefaultModelInfo(handshakeModels);
     const normalizedPreferredModelId = preferredModelId?.trim();
     if (
@@ -91,9 +91,9 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   }
 
   // Fallback: last-seen model info persisted on the backend's agent_metadata row.
-  const agents = await getAgents();
+  const agents = await getManagedAgents();
   const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
-  const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+  const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
   const handshakeModelId = handshakeModels?.current_model_id;
   if (typeof handshakeModelId === 'string' && handshakeModelId.trim().length > 0) {
     return handshakeModelId;

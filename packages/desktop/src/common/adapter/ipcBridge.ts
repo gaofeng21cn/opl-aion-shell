@@ -1119,8 +1119,7 @@ export const mode = {
 export const acpConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: conversation.responseStream,
-  getAvailableAgents: httpGet<AgentMetadata[], void>('/api/agents'),
-  refreshCustomAgents: httpPost<void, void>('/api/agents/refresh'),
+  getManagedAgents: httpGet<ManagedAgent[], void>('/api/agents/management'),
   testCustomAgent: httpPost<
     { step: 'success' } | { step: 'fail_cli'; error: string } | { step: 'fail_acp'; error: string },
     { command: string; acp_args?: string[]; env?: Record<string, string>; runtime_scope_id?: string }
@@ -1166,11 +1165,12 @@ export const acpConversation = {
   ),
   deleteCustomAgent: httpDelete<{ deleted: boolean }, { id: string }>((p) => `/api/agents/custom/${p.id}`),
   setAgentEnabled: httpPatch<AgentMetadata, { id: string; enabled: boolean }>(
-    (p) => `/api/agents/${p.id}/enabled`,
+    (p) => `/api/agents/${encodeURIComponent(p.id)}/enabled`,
     (p) => ({ enabled: p.enabled })
   ),
-  checkAgentHealth: httpPost<{ available: boolean; latency?: number; error?: string }, { backend: string }>(
-    '/api/agents/health-check'
+  checkManagedAgentHealthById: httpPost<ManagedAgent, { id: string }>(
+    (p) => `/api/agents/${encodeURIComponent(p.id)}/health-check`,
+    () => undefined
   ),
   checkProviderHealth: httpPost<ProviderHealthCheckResponse, ProviderHealthCheckRequest>(
     '/api/agents/provider-health-check'
@@ -1249,7 +1249,7 @@ export const mcpService = {
         }
       >;
     }>,
-    Array<{ agent_type: string; backend?: string; name: string; cli_path?: string }>
+    void
   >('/api/mcp/agent-configs'),
   testMcpConnection: httpPost<
     {
@@ -2162,7 +2162,7 @@ export const channel = {
 // ---------------------------------------------------------------------------
 
 import type { HubExtensionStatus, IHubAgentItem } from '@/common/types/agent/hub';
-import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import type { AgentMetadata, ManagedAgent } from '@/renderer/utils/model/agentTypes';
 
 export const hub = {
   getExtensionList: httpGet<IHubAgentItem[], void>('/api/hub/extensions'),

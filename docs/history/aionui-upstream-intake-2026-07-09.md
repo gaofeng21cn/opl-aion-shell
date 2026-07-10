@@ -10,11 +10,12 @@ Machine boundary: Human-readable intake record. Use GitHub release refs, upstrea
 - Upstream remote: `https://github.com/iOfficeAI/AionUi.git`.
 - Intake range: `v2.1.27...v2.1.31`.
 - Canonical upstream release: `v2.1.31`, published `2026-07-08T13:08:39Z`, URL `https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.31`.
-- Fresh `2026-07-10` readback still reports `v2.1.31` as the latest release, with upstream `main` and the release tag both at `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
+- Fresh `2026-07-10` readback still reports `v2.1.31` as the latest stable release at `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`. Upstream `main` has since advanced by one unreleased send-draft commit; it is not part of this stable intake.
 - Fresh upstream refs observed in this lane:
-  - `refs/heads/main` = `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
+  - `refs/heads/main` = `1619d36af20e3c8df2df595a86eb36a315f0887a`.
   - `refs/tags/v2.1.31` = `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
   - `refs/tags/v2.1.27` = `70fcbfd7729b7d2b86af37ae301aefc15df17e84`.
+- The only observed commit after the stable tag is `1619d36af feat(conversation): rework message queue into a send draft box (#3547)`. It remains a future intake candidate until an upstream release and a separate behavior review admit it.
 - GitHub release list showed `v2.1.31` as the latest release at intake time. `v2.1.29` has a tag but no standalone GitHub release; `v2.1.30` explicitly rolls up `v2.1.29` and `v2.1.30`.
 - GitHub compare `v2.1.27...v2.1.31` reported `58` commits ahead, `0` behind. The largest changed prefix was `packages/desktop/src` with `233` files, plus installer resources, docs/PRDs, i18n payloads, bootstrap tests, assistant tests, and Web host files.
 - Local OPL shell package version remains OPL-owned metadata and is not an upstream-currentness claim.
@@ -62,6 +63,7 @@ Main-session accepted only scoped capability adaptations:
 | Contract, Cron, VM, and startup remediation | `2ac1bc4c2`, `637bfa844`, `0b9c8b122`, `827496799`, `84a4c8153` | accepted/adapted         | Capability projection type safety, retryable partial Cron deletion, fail-closed backend startup directories, and failure-evidence collectors that preserve the primary VM smoke error       |
 | Feedback privacy and queue confirmation     | `5f786a6db`, `9059e9923`                                        | accepted/adapted         | Diagnostics remain off by default, explicit opt-in is required, selected logs are redacted, and the UI claims only that feedback entered the sending queue                                  |
 | AionCore build and recovery                 | `5d554c0ae`, `a5811dd39`, `598997cf3`, `81c8b37fd`              | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                       |
+| Managed-agent API compatibility             | this managed-agent follow-up                                    | accepted/adapted         | Business assistants use `/api/assistants`; diagnostics and runtime metadata use `/api/agents/management`; health checks use the per-id route; legacy list/refresh facades are removed       |
 | Upstream non-zh/en locale payload           | none                                                            | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only                                                                              |
 | Docs/boundary record                        | `3ea74dc47` plus this follow-up update                          | accepted                 | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof                                                                                     |
 
@@ -106,15 +108,35 @@ A real corrupted-database probe then confirmed both runtime boundaries. Without 
 
 This evidence closes the shell build-preparation defect. App packaging, installation, launch, and release authority still require the App-side validation and installed-artifact evidence recorded outside this shell intake document.
 
+## Managed-Agent API Follow-Up 2026-07-10
+
+The first v2.1.31 selective absorption kept legacy agent-list consumers after the shell had already moved to AionCore `v0.1.44`. A live installed-App baseline exposed the mismatch: `/guid` requested exact `GET /api/agents` and received `404`, while `GET /api/assistants` returned `200`. The intake matrix and AionCore version/recovery gates passed because they did not inspect the agent API callers.
+
+AionCore `v0.1.44` owns three distinct surfaces that must remain separate:
+
+- user-selectable business assistants come from `GET /api/assistants`;
+- Agent Settings, health/diagnostic state, modes, models, and commands come from `GET /api/agents/management`;
+- an individual managed-agent health check uses `POST /api/agents/{id}/health-check`.
+
+The shell adapter now follows that split. `/guid`, channel configuration, Cron, Team helpers, MCP import, assistant editing, and conversation creation use generated assistants for business choices and managed rows only for runtime metadata. Generated assistants link to managed metadata through their declared `agent_id`; the shell does not cast a `ManagedAgent` into an assistant candidate. The legacy `useAgents`, `useDetectedAgents`, readiness/setup card, preset-management, refresh route, and non-id health route are retired.
+
+The runtime catalog also preserves the difference between missing model metadata and an explicitly empty model list. Missing metadata may use the App-owned Codex defaults before the first handshake; an explicit empty list must remain empty and must not silently invent model availability.
+
+The App repo now owns a source gate for this API split. Shell unit/DOM tests cover the bridge routes, managed catalog fetch/cache, Guid candidate/runtime association, Agent Settings health checks, model/mode/command metadata, conversation creation, and explicit-empty model behavior. The locale boundary remains `zh-CN` and `en-US`; no additional upstream locale payload was admitted.
+
+This follow-up repairs stable `v2.1.31` compatibility only. Upstream `main` commit `1619d36af` is newer than the stable tag and changes send-draft behavior, so it remains outside this lane pending its own behavior assessment.
+
 ## Evidence Commands Run For This Draft
 
 ```bash
 gh release list -R iOfficeAI/AionUi --limit 10
+gh release list -R iOfficeAI/AionUi --limit 1 --json tagName,publishedAt,isLatest,name
 gh release view v2.1.31 -R iOfficeAI/AionUi --json tagName,publishedAt,targetCommitish,name,body,url
 gh release view v2.1.30 -R iOfficeAI/AionUi --json tagName,publishedAt,targetCommitish,name,body,url
 gh release view v2.1.28 -R iOfficeAI/AionUi --json tagName,publishedAt,targetCommitish,name,body,url
 gh release view v2.1.29 -R iOfficeAI/AionUi --json tagName,publishedAt,targetCommitish,name,body,url
 git ls-remote https://github.com/iOfficeAI/AionUi.git refs/heads/main refs/tags/v2.1.27 refs/tags/v2.1.28 refs/tags/v2.1.29 refs/tags/v2.1.30 refs/tags/v2.1.31
+git log --oneline e49cd94935f4e461f002a1260a47c1b7b2ce81ca..upstream/main
 gh api repos/iOfficeAI/AionUi/compare/v2.1.27...v2.1.31 --jq '{status:.status,ahead_by:.ahead_by,behind_by:.behind_by,total_commits:.total_commits}'
 ```
 

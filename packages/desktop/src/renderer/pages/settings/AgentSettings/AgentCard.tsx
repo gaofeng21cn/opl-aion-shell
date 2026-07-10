@@ -12,6 +12,7 @@ import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 
 type DetectedAgent = {
+  id: string;
   agent_type: string;
   backend?: string;
   icon?: string;
@@ -38,12 +39,14 @@ type AgentCardProps =
   | {
       type: 'detected';
       agent: DetectedAgent;
-      onGoToChat: () => void;
+      onTestConnection: () => void;
+      isTesting?: boolean;
     }
   | {
       type: 'custom';
       agent: CustomAgentCardData;
-      onGoToChat: () => void;
+      onTestConnection: () => void;
+      isTesting?: boolean;
       onEdit: () => void;
       onDelete: () => void;
       onToggle: (enabled: boolean) => void;
@@ -54,7 +57,7 @@ const AgentCard: React.FC<AgentCardProps> = (props) => {
   const goToChatButtonClassName = '!w-full !justify-center !rounded-10px !text-12px';
 
   if (props.type === 'detected') {
-    const { agent, onGoToChat } = props;
+    const { agent, onTestConnection, isTesting } = props;
     const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);
     const logo =
       extensionAvatar ||
@@ -82,14 +85,20 @@ const AgentCard: React.FC<AgentCardProps> = (props) => {
           </Typography.Text>
         </div>
 
-        <Button size='small' type='secondary' onClick={onGoToChat} className={goToChatButtonClassName}>
-          {t('settings.agentManagement.goToChat')}
+        <Button
+          size='small'
+          type='secondary'
+          loading={isTesting}
+          onClick={onTestConnection}
+          className={goToChatButtonClassName}
+        >
+          {t('settings.testConnectionBtn')}
         </Button>
       </div>
     );
   }
 
-  const { agent, onGoToChat, onEdit, onDelete, onToggle } = props;
+  const { agent, onTestConnection, isTesting, onEdit, onDelete, onToggle } = props;
 
   return (
     <div className='flex items-center justify-between px-16px py-10px rd-8px bg-aou-1 hover:bg-aou-2'>
@@ -111,8 +120,14 @@ const AgentCard: React.FC<AgentCardProps> = (props) => {
       </div>
       <div className='flex items-center gap-8px'>
         <Switch size='small' checked={agent.enabled !== false} onChange={onToggle} />
-        <Button size='small' type='text' onClick={onGoToChat} disabled={agent.enabled === false}>
-          {t('settings.agentManagement.goToChat')}
+        <Button
+          size='small'
+          type='text'
+          loading={isTesting}
+          onClick={onTestConnection}
+          disabled={agent.enabled === false}
+        >
+          {t('settings.testConnectionBtn')}
         </Button>
         <Button size='small' type='text' icon={<EditTwo theme='outline' size='14' />} onClick={onEdit} />
         <Button
