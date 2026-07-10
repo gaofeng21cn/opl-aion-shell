@@ -687,6 +687,8 @@
   "includePrereleaseUpdates": "包含预发布/dev 版本",
   "includeNightlyUpdates": "包含 nightly/dev 版本",
   "aboutVersionBadge": "版本 {{version}} · {{channel}}",
+  "aboutAppVersion": "App 版本",
+  "aboutReleaseChannel": "更新通道",
   "aboutUpdateChecking": "正在检查更新…",
   "aboutUpdateAvailable": "发现新版本 {{version}}",
   "aboutUpdateCurrent": "已是最新版",
@@ -1365,6 +1367,7 @@
     "description": "确认本机是否可用、需要处理什么，以及常用设置入口。",
     "overall": {
       "title": "这台电脑",
+      "attentionCount": "{{count}} 项需要处理",
       "readyDescription": "工作目录和主要本机能力已可用。",
       "attentionDescription": "仍有设置需要处理；下面只列出会影响使用的事项。"
     },
@@ -1670,6 +1673,7 @@
     },
     "actions": {
       "refresh": "刷新",
+      "previewAll": "预览清理",
       "archive": "创建归档",
       "restoreProof": "验证归档",
       "deleteWithReceipt": "删除本机文件",
@@ -1720,6 +1724,11 @@
         "required": "请先查看可清理内容。",
         "summary": "将清理 {{count}} 项，共 {{bytes}}。"
       }
+    },
+    "history": {
+      "title": "最近清理记录",
+      "latest": "最近一次操作：{{time}}",
+      "empty": "还没有执行过清理。"
     },
     "messages": {
       "actionComplete": "存储操作已完成",
@@ -1782,6 +1791,7 @@
     "modelAccount": {
       "title": "模型访问",
       "description": "模型访问已连接；只有需要更换访问密钥时才打开配置。",
+      "keyTitle": "OPL Gateway 访问密钥",
       "showConfigButton": "配置 OPL Gateway",
       "apiKeyPlaceholder": "粘贴 OPL Gateway 访问密钥",
       "apiKeyRequired": "请输入 OPL Gateway 访问密钥。",
@@ -1798,7 +1808,7 @@
       "remoteAccess": "远程访问",
       "nativeTitle": "连接信息",
       "nativePort": "端口：25808",
-      "nativeAccount": "账号：admin，可在远程访问设置中修改。",
+      "nativeAccount": "账号：在远程访问设置中查看或修改。",
       "nativePassword": "密码：在远程访问设置中查看、复制或重置。",
       "openNativeSettings": "打开远程访问设置",
       "openResources": "查看资源与连接",
@@ -1903,6 +1913,9 @@
       "checkFailed": "工作台状态检查失败。",
       "actionExecuteSuccess": "操作已完成。",
       "actionExecuteFailed": "操作执行失败。",
+      "receiptAvailable": "已记录操作回执。",
+      "structuredResultAvailable": "已收到结构化操作结果。",
+      "resultSummaryUnavailable": "操作未返回结果摘要。",
       "confirmTitle": "确认执行",
       "confirmDescription": "检查已完成。继续后会执行“{{action}}”。",
       "confirmBoundary": "不会修改工作区文件或对话数据。",
@@ -2222,13 +2235,13 @@
       },
       "makeUsable": {
         "label": "检查并修复",
-        "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
-        "complete": "OPL 可用性检查已完成。请按下方显示的重启或重新加载指引继续。",
-        "confirmTitle": "确认 OPL 维护操作",
-        "confirmWillChange": "会运行现有修复准备和托管更新检查，并只应用不需要重启的安全修复或同步动作。",
+        "help": "运行当前建议的 OPL 安全修复，然后重新检查状态。",
+        "complete": "建议修复已完成，状态已重新检查。",
+        "confirmTitle": "确认运行建议修复",
+        "confirmWillChange": "会运行当前建议的 OPL 安全修复，然后重新检查状态。",
         "confirmWillNotChange": "不会覆盖本机开发目录、写入领域真相、删除用户数据，也不会静默应用需要重启的更新。",
-        "confirmRecovery": "动作完成后会继续显示回执、恢复引用和重新加载指引。",
-        "confirmAction": "运行维护"
+        "confirmRecovery": "如仍需处理，本页会继续显示下一项建议。",
+        "confirmAction": "运行建议修复"
       },
       "status": {
         "available": "可用"

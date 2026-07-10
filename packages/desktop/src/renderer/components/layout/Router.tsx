@@ -22,6 +22,9 @@ const CapabilitiesSettings = React.lazy(() => import('@renderer/pages/settings/C
 const AccessSettings = React.lazy(() => import('@renderer/pages/settings/sections/AccessSettings'));
 const ResourcesSettings = React.lazy(() => import('@renderer/pages/settings/sections/ResourcesSettings'));
 const AppearanceSettings = React.lazy(() => import('@renderer/pages/settings/sections/AppearanceSettings'));
+const AboutSettings = React.lazy(
+  () => import('@renderer/components/settings/SettingsModal/contents/AboutModalContent')
+);
 const SystemSettings = React.lazy(() => import('@renderer/pages/settings/SystemSettings'));
 const ExtensionSettingsPage = React.lazy(() => import('@renderer/pages/settings/ExtensionSettingsPage'));
 const RuntimePage = React.lazy(() => import('@renderer/pages/runtime'));
@@ -47,6 +50,7 @@ const SETTINGS_COMPONENTS = {
   AccessSettingsContent: AccessSettings,
   ResourcesSettingsContent: ResourcesSettings,
   AppearanceModalContent: AppearanceSettings,
+  AboutModalContent: AboutSettings,
   SystemModalContent: SystemSettings,
 };
 

@@ -6,8 +6,8 @@ import { filterAssistants, groupAssistantsByEnabled, type AssistantListFilter } 
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import type { AssistantListItem } from './types';
 import AssistantAvatar from './AssistantAvatar';
-import { Button, Input, Switch, Tabs, Tag } from '@arco-design/web-react';
-import { Plus, Search, SettingOne, CloseSmall } from '@icon-park/react';
+import { Button, Input, Switch, Tabs, Tag, Tooltip } from '@arco-design/web-react';
+import { CloseSmall, Copy, Plus, Search, SettingOne } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -98,9 +98,9 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
     return (
       <Tag
         size='small'
-        color='green'
+        color='gray'
         bordered={false}
-        className='!text-11px !leading-16px !px-8px !py-1px !rounded-8px !bg-primary-1 !text-primary-6'
+        className='!rounded-4px !px-6px !py-0 !text-11px !leading-16px !text-t-secondary'
       >
         {t('settings.assistantSourceCustom', { defaultValue: 'Custom' })}
       </Tag>
@@ -109,13 +109,14 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
 
   const renderAssistantCard = (assistant: AssistantListItem) => {
     const assistantIsExtension = isExtensionAssistant(assistant);
+    const duplicateLabel = t('settings.duplicateAssistant', { defaultValue: 'Duplicate' });
 
     return (
       <div
         key={assistant.id}
         ref={cardRefSetter(assistant.id)}
         data-testid={`assistant-card-${assistant.id}`}
-        className={`group border border-solid rounded-16px px-16px py-14px flex items-center justify-between cursor-pointer transition-all duration-180 hover:border-[var(--color-primary-light-4)] hover:bg-bg-1 ${highlightedId === assistant.id ? 'border-primary-5 bg-primary-1' : 'border-[var(--color-neutral-3)] bg-fill-0'}`}
+        className={`group flex cursor-pointer items-center justify-between border-0 border-t border-solid border-border-1 px-2px py-12px transition-colors duration-150 hover:bg-fill-1 ${highlightedId === assistant.id ? 'bg-fill-2' : 'bg-transparent'}`}
         onClick={() => {
           setActiveAssistantId(assistant.id);
           onEdit(assistant);
@@ -137,15 +138,19 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
           className='flex items-center gap-10px text-t-secondary ml-12px flex-shrink-0'
           onClick={(e) => e.stopPropagation()}
         >
-          <span
-            className='invisible group-hover:visible text-12px text-primary cursor-pointer hover:underline transition-all'
-            data-testid={`btn-duplicate-${assistant.id}`}
-            onClick={() => {
-              onDuplicate(assistant);
-            }}
-          >
-            {t('settings.duplicateAssistant', { defaultValue: 'Duplicate' })}
-          </span>
+          <Tooltip content={duplicateLabel}>
+            <Button
+              type='text'
+              size='small'
+              icon={<Copy theme='outline' size={16} />}
+              aria-label={duplicateLabel}
+              className='!h-32px !w-32px !rounded-6px !p-0'
+              data-testid={`btn-duplicate-${assistant.id}`}
+              onClick={() => {
+                onDuplicate(assistant);
+              }}
+            />
+          </Tooltip>
           <Switch
             size='small'
             data-testid={`switch-enabled-${assistant.id}`}
@@ -159,7 +164,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
             type='text'
             size='small'
             icon={<SettingOne size={16} />}
-            className='!rounded-10px'
+            className='!rounded-6px'
             data-testid={`btn-edit-${assistant.id}`}
             onClick={() => {
               onEdit(assistant);
@@ -174,12 +179,12 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
     if (sectionAssistants.length === 0) return null;
 
     return (
-      <div className='space-y-12px'>
-        <div className='flex items-center gap-8px text-13px font-medium text-t-secondary px-4px'>
+      <div className='space-y-6px'>
+        <div className='flex items-center gap-6px px-2px text-12px font-medium text-t-secondary'>
           {title}
           <span className='text-t-tertiary'>({sectionAssistants.length})</span>
         </div>
-        <div className='space-y-12px'>{sectionAssistants.map(renderAssistantCard)}</div>
+        <div>{sectionAssistants.map(renderAssistantCard)}</div>
       </div>
     );
   };
@@ -187,20 +192,20 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
   const isSearchVisible = searchExpanded || search_query.length > 0;
 
   return (
-    <div className='py-2'>
-      <div className={`bg-fill-2 rounded-24px ${isMobile ? 'p-16px' : 'p-20px'}`}>
-        <div className='flex flex-col gap-14px mb-20px'>
+    <div className='min-w-0 py-2px'>
+      <div className='min-w-0'>
+        <div className='mb-16px flex flex-col gap-12px'>
           <div className={`flex gap-12px ${isMobile ? 'flex-col' : 'items-start justify-between'}`}>
             <div className='min-w-0'>
-              <h2 className='m-0 text-28px font-700 leading-[1.1] text-t-primary'>
+              <h2 className='m-0 text-16px font-600 leading-24px text-t-primary'>
                 {t('settings.assistants', { defaultValue: 'Assistants' })}
               </h2>
             </div>
             <div className={`${isMobile ? 'w-full' : 'flex-shrink-0'}`}>
               <Button
-                type='primary'
+                type='secondary'
                 size='small'
-                className={`!rounded-[100px] ${isMobile ? '!w-full !h-36px' : '!px-16px !h-32px'}`}
+                className={isMobile ? '!h-34px !w-full' : '!h-32px !px-12px'}
                 icon={<Plus size={14} fill='currentColor' />}
                 onClick={onCreate}
                 data-testid='btn-create-assistant'
@@ -224,7 +229,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
                 type={isSearchVisible ? 'secondary' : 'text'}
                 size='small'
                 data-testid='btn-search-toggle'
-                className='!rounded-10px !h-34px !w-34px !p-0 flex items-center justify-center !text-t-secondary hover:!bg-fill-1 hover:!text-t-primary'
+                className='!h-34px !w-34px !rounded-6px !p-0 flex items-center justify-center !text-t-secondary hover:!bg-fill-1 hover:!text-t-primary'
                 icon={
                   isSearchVisible ? (
                     <CloseSmall size={16} fill='currentColor' />
@@ -250,7 +255,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
               value={search_query}
               onChange={setSearchQuery}
               data-testid='input-search-assistant'
-              className='!bg-[var(--color-bg-2)]'
+              className='!bg-transparent'
               placeholder={t('settings.searchAssistants', {
                 defaultValue: 'Search assistants by name or description',
               })}
@@ -270,7 +275,7 @@ const AssistantListPanel: React.FC<AssistantListPanelProps> = ({
         </div>
 
         {filteredAssistants.length > 0 ? (
-          <div className='space-y-16px'>
+          <div className='space-y-14px'>
             {renderSection(t('settings.assistantSectionEnabled', { defaultValue: 'Enabled' }), enabledAssistants)}
             {renderSection(t('settings.assistantSectionDisabled', { defaultValue: 'Disabled' }), disabledAssistants)}
           </div>

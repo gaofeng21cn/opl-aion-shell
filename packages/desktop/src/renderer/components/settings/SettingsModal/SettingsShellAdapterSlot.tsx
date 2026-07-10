@@ -7,6 +7,7 @@
 import React from 'react';
 import type { SettingsShellRenderSlot } from '@/renderer/pages/settings/registry/settingsRegistry';
 import AppearanceModalContent from './contents/AppearanceModalContent';
+import AboutModalContent from './contents/AboutModalContent';
 import SystemModalContent from './contents/SystemModalContent';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
@@ -38,6 +39,7 @@ const settingsSlotRenderers: Record<string, SettingsSlotRenderer> = {
   AccessSettingsContent: () => <AccessSettingsContent />,
   ResourcesSettingsContent: () => <ResourcesSettingsContent />,
   AppearanceModalContent: () => <AppearanceModalContent />,
+  AboutModalContent: () => <AboutModalContent />,
   SystemModalContent: () => <SystemModalContent />,
   StorageSettings: () => <StorageSettings withWrapper={false} />,
 };

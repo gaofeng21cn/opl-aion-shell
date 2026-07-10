@@ -23,6 +23,14 @@ const openDetails = (details: HTMLDetailsElement | null) => {
   fireEvent(details, new Event('toggle'));
 };
 
+const deferred = <Value,>() => {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+};
+
 vi.mock('@/common', () => ({
   ipcBridge: {
     localDataLifecycle: {
@@ -57,6 +65,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.description': 'Review and safely remove local data.',
     'settings.storagePage.actions.archive': 'Create archive',
     'settings.storagePage.actions.restoreProof': 'Verify archive',
+    'settings.storagePage.actions.previewAll': 'Preview cleanup',
     'settings.storagePage.actions.dryRunRuntime': 'Review runtime cleanup',
     'settings.storagePage.actions.dryRunLogs': 'Review log cleanup',
     'settings.storagePage.actions.dryRunUpdater': 'Review installer cache cleanup',
@@ -224,12 +233,18 @@ const updaterPlan = {
 };
 
 describe('StorageSettingsContent', () => {
+  const scrollIntoView = vi.fn();
+
   afterEach(() => {
     cleanup();
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true,
+    });
     bridgeMocks.getInventory.mockResolvedValue(inventory);
     bridgeMocks.archiveConversations.mockResolvedValue(receipt);
     bridgeMocks.restoreConversationProof.mockResolvedValue(receipt);
@@ -280,6 +295,22 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('/tmp/logs');
   });
 
+  it('hides the page cleanup action when only protected conversation data remains', async () => {
+    bridgeMocks.getInventory.mockResolvedValue({
+      ...inventory,
+      total_bytes: 20,
+      sections: inventory.sections.map((section) =>
+        section.id === 'user_data_artifacts' ? section : { ...section, bytes: 0, roots: [] }
+      ),
+    });
+
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    expect(screen.queryByTestId('settings-storage-primary-action')).not.toBeInTheDocument();
+    expect(screen.getByTestId('storage-refresh')).toBeInTheDocument();
+  });
+
   it('shows work data safety context as read-only App projection data', async () => {
     render(<StorageSettingsContent />);
 
@@ -325,16 +356,12 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-conversation-delete')).not.toBeDisabled();
 
-    fireEvent.click(screen.getByText('Review runtime cleanup'));
+    fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
     await waitFor(() => expect(bridgeMocks.planRuntimePrune).toHaveBeenCalledTimes(1));
+    expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled();
-
-    fireEvent.click(screen.getByText('Review log cleanup'));
-    await waitFor(() => expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-logs-execute')).not.toBeDisabled();
-
-    fireEvent.click(screen.getByText('Review installer cache cleanup'));
-    await waitFor(() => expect(bridgeMocks.planUpdaterCacheCleanup).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-updater-execute')).not.toBeDisabled();
   });
 
@@ -342,11 +369,13 @@ describe('StorageSettingsContent', () => {
     render(<StorageSettingsContent />);
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByText('Review runtime cleanup'));
+    fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
     await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
     fireEvent.click(screen.getByTestId('storage-runtime-execute'));
     expect(bridgeMocks.executeRuntimePrune).not.toHaveBeenCalled();
     expect(screen.getByTestId('storage-action-confirmation')).toHaveTextContent('Confirm Changes');
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center', behavior: 'smooth' }));
+    expect(screen.getByTestId('storage-action-confirmation')).toHaveFocus();
     fireEvent.click(screen.getByTestId('storage-action-confirm'));
     await waitFor(() =>
       expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledWith({
@@ -417,5 +446,40 @@ describe('StorageSettingsContent', () => {
     await waitFor(() =>
       expect(bridgeMocks.restoreConversationProof).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path })
     );
+  });
+
+  it('keeps every storage action single-flight through mutation and inventory refresh', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByTestId('settings-storage-primary-action'));
+    await waitFor(() => expect(screen.getByTestId('storage-runtime-execute')).not.toBeDisabled());
+
+    const mutation = deferred<typeof receipt>();
+    const inventoryRefresh = deferred<typeof inventory>();
+    bridgeMocks.executeRuntimePrune.mockReturnValueOnce(mutation.promise);
+    bridgeMocks.getInventory.mockReturnValueOnce(inventoryRefresh.promise);
+
+    fireEvent.click(screen.getByTestId('storage-runtime-execute'));
+    const confirm = screen.getByTestId('storage-action-confirm');
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+
+    expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Review log cleanup' })).toBeDisabled();
+    expect(screen.getByTestId('storage-refresh')).toBeDisabled();
+
+    mutation.resolve(receipt);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByTestId('settings-storage-primary-action')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Review log cleanup' }));
+    fireEvent.click(screen.getByTestId('storage-refresh'));
+    expect(bridgeMocks.planLogRotation).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(2);
+
+    inventoryRefresh.resolve(inventory);
+    await waitFor(() => expect(screen.getByTestId('settings-storage-primary-action')).not.toBeDisabled());
+    expect(bridgeMocks.executeRuntimePrune).toHaveBeenCalledTimes(1);
   });
 });

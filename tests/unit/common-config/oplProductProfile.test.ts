@@ -189,26 +189,30 @@ describe('OPL generated product profile', () => {
       'storage',
       'appearance',
     ]);
-    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about', 'update', 'theme', 'local-services']);
+    expect(getOplGuiSettingsSecondaryPageIds()).toEqual(['advanced', 'about']);
     expect(getOplGuiLegacySettingsRouteRedirects()).toEqual({
       overview: 'general',
       runtime: 'environment',
       system: 'advanced',
       model: 'environment',
       agent: 'capabilities',
-      assistants: 'capabilities',
+      assistants: 'capabilities?tab=assistants#custom-assistants',
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
       webui: 'resources',
       pet: 'appearance',
-      about: 'advanced',
     });
     const controlPlane = getOplGuiSettingsControlPlane();
-    expect(controlPlane.source_contract_ref).toBe('contracts/app-settings-control-plane.json');
+    expect(controlPlane.source_contract_ref).toBe('contracts/app-gui-product-contract.json#settings_navigation');
     expect(controlPlane.default_route).toBe('/settings/general');
     expect(controlPlane.ordinary_routes.map((route) => route.id)).toEqual(getOplGuiSettingsVisibleTabs());
     expect(controlPlane.secondary_pages.map((page) => page.id)).toEqual(getOplGuiSettingsSecondaryPageIds());
+    expect(controlPlane.compatibility_redirects).toMatchObject({
+      update: { target_route_id: 'environment', anchor: 'updates' },
+      theme: { target_route_id: 'appearance', anchor: 'themes' },
+      'local-services': { target_route_id: 'environment', anchor: 'services' },
+    });
     expect(controlPlane.extension_anchor_remap['skills-hub']).toBe('capabilities');
     expect(controlPlane.ordinary_routes.find((route) => route.id === 'workspace')).toMatchObject({
       path: '/settings/workspace',
@@ -229,7 +233,7 @@ describe('OPL generated product profile', () => {
     });
     expect(controlPlane.slot_registry.settings_environment.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.settings_resources.component_key).toBe('ResourcesSettingsContent');
-    expect(controlPlane.slot_registry.about.component_key).toBe('SystemModalContent');
+    expect(controlPlane.slot_registry.about.component_key).toBe('AboutModalContent');
     expect(controlPlane.slot_registry.update.component_key).toBe('RuntimeSettings');
     expect(controlPlane.slot_registry.workspace.component_key).toBe('WorkspaceSettings');
     expect(controlPlane.slot_registry.local_services.component_key).toBe('LocalServicesSettings');
@@ -436,10 +440,14 @@ describe('OPL generated product profile', () => {
     expect(
       profiles.every((profile) => profile.skill_menu_policy === 'assistant_scoped_required_checked_optional_visible')
     ).toBe(true);
-    const packagedSkillIds = new Set(OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids);
+    const availableSkillIds = new Set([
+      ...OPL_PRODUCT_PROFILE.companion_payloads.default_packaged_codex_skill_ids,
+      ...OPL_PRODUCT_PROFILE.companion_payloads.packaged_not_default_visible_codex_skill_ids,
+      ...OPL_PRODUCT_PROFILE.companion_payloads.official_codex_runtime_capabilities.preferred_capability_ids,
+    ]);
     expect(
       profiles.every((profile) =>
-        [...profile.required_skills, ...profile.optional_skills].every((skill) => packagedSkillIds.has(skill))
+        [...profile.required_skills, ...profile.optional_skills].every((skill) => availableSkillIds.has(skill))
       )
     ).toBe(true);
     expect(profiles.every((profile) => !('hidden_home_skill_names' in profile))).toBe(true);
@@ -613,49 +621,13 @@ describe('OPL generated product profile', () => {
 
     skills.push('caller-local-skill');
 
-    expect(getOplDefaultCodexSkills()).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'superpowers',
-      'cron',
-      'officecli',
-      'officecli-docx',
-      'officecli-pptx',
-      'officecli-xlsx',
-      'officecli-academic-paper',
-      'officecli-data-dashboard',
-      'officecli-financial-model',
-      'officecli-pitch-deck',
-      'pdf',
-      'mineru-document-extractor',
-      'ui-ux-pro-max',
-    ]);
+    expect(getOplDefaultCodexSkills()).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
   });
 
   it('keeps display priority aligned with default skills without retired morph-ppt wiring', () => {
     const skillPriority = getOplSkillPriority();
 
-    expect(skillPriority).toEqual([
-      'med-autoscience',
-      'med-autogrant',
-      'redcube-ai',
-      'opl-bookforge',
-      'superpowers',
-      'cron',
-      'officecli',
-      'officecli-docx',
-      'officecli-pptx',
-      'officecli-xlsx',
-      'officecli-academic-paper',
-      'officecli-data-dashboard',
-      'officecli-financial-model',
-      'officecli-pitch-deck',
-      'pdf',
-      'mineru-document-extractor',
-      'ui-ux-pro-max',
-    ]);
+    expect(skillPriority).toEqual(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge']);
     expect(skillPriority).toEqual(expect.arrayContaining(getOplDefaultCodexSkills()));
     expect(skillPriority).not.toContain('morph-ppt');
   });

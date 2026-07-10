@@ -242,20 +242,6 @@ const PersonalPreferenceSettings: React.FC = () => {
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
     {
-      key: 'saveUploadToWorkspace',
-      label: t('settings.saveUploadToWorkspace'),
-      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
-    },
-    {
-      key: 'autoPreviewOfficeFiles',
-      label: t('settings.autoPreviewOfficeFiles'),
-      description: t('settings.autoPreviewOfficeFilesDesc'),
-      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
-    },
-  ];
-
-  const advancedPreferenceItems: PreferenceItem[] = [
-    {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
       description: t('settings.promptTimeoutDesc'),
@@ -268,22 +254,6 @@ const PersonalPreferenceSettings: React.FC = () => {
           step={30}
           style={{ width: 120 }}
           suffix='s'
-        />
-      ),
-    },
-    {
-      key: 'agentIdleTimeout',
-      label: t('settings.agentIdleTimeout'),
-      description: t('settings.agentIdleTimeoutDesc'),
-      component: (
-        <InputNumber
-          value={agentIdleTimeout}
-          onChange={handleAgentIdleTimeoutChange}
-          onBlur={handleAgentIdleTimeoutBlur}
-          max={60}
-          step={5}
-          style={{ width: 120 }}
-          suffix='min'
         />
       ),
     },
@@ -304,57 +274,90 @@ const PersonalPreferenceSettings: React.FC = () => {
           },
         ]
       : []),
+    {
+      key: 'saveUploadToWorkspace',
+      label: t('settings.saveUploadToWorkspace'),
+      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
+    },
+    {
+      key: 'autoPreviewOfficeFiles',
+      label: t('settings.autoPreviewOfficeFiles'),
+      description: t('settings.autoPreviewOfficeFilesDesc'),
+      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
+    },
+  ];
+
+  const technicalPreferenceItems: PreferenceItem[] = [
+    {
+      key: 'agentIdleTimeout',
+      label: t('settings.agentIdleTimeout'),
+      description: t('settings.agentIdleTimeoutDesc'),
+      component: (
+        <InputNumber
+          value={agentIdleTimeout}
+          onChange={handleAgentIdleTimeoutChange}
+          onBlur={handleAgentIdleTimeoutBlur}
+          max={60}
+          step={5}
+          style={{ width: 120 }}
+          suffix='min'
+        />
+      ),
+    },
   ];
 
   return (
     <>
       {modalContextHolder}
 
-      <section className='opl-settings-section' id='app-behavior' data-testid='appearance-behavior-section'>
-        <div className='opl-settings-section__header'>
-          <div className='text-14px font-medium text-t-primary leading-22px'>
-            {t('settings.appBehaviorPreferencesTitle')}
+      <div data-testid='settings-preferences-primary'>
+        <section className='opl-settings-section' id='behavior' data-testid='appearance-behavior-section'>
+          <span id='app-behavior' aria-hidden='true' />
+          <span id='tray' aria-hidden='true' />
+          <span id='hardware' aria-hidden='true' />
+          <div className='opl-settings-section__header'>
+            <div className='text-14px font-medium text-t-primary leading-22px'>
+              {t('settings.appBehaviorPreferencesTitle')}
+            </div>
+            <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appBehaviorPreferencesDesc')}</div>
           </div>
-          <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appBehaviorPreferencesDesc')}</div>
-        </div>
-        <div className='opl-settings-list'>
-          {behaviorPreferenceItems.map((item) => (
-            <div key={item.key} data-testid={item.testId}>
-              <PreferenceRow label={item.label} description={item.description}>
+          <div className='opl-settings-list'>
+            {behaviorPreferenceItems.map((item) => (
+              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
                 {item.component}
               </PreferenceRow>
-            </div>
-          ))}
-          <PreferenceRow label={t('settings.notification')}>
-            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
-          </PreferenceRow>
-          <PreferenceRow label={t('settings.cronNotificationEnabled')}>
-            <Switch
-              checked={cronNotificationEnabled}
-              disabled={!notificationEnabled}
-              onChange={handleCronNotificationEnabledChange}
-            />
-          </PreferenceRow>
-        </div>
-      </section>
+            ))}
+            <PreferenceRow label={t('settings.notification')}>
+              <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+            </PreferenceRow>
+            <PreferenceRow label={t('settings.cronNotificationEnabled')}>
+              <Switch
+                checked={cronNotificationEnabled}
+                disabled={!notificationEnabled}
+                onChange={handleCronNotificationEnabledChange}
+              />
+            </PreferenceRow>
+          </div>
+        </section>
+      </div>
 
-      <section className='opl-settings-section'>
-        <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
-          <summary className='cursor-pointer text-14px font-medium text-t-primary'>
-            {t('settings.advancedSettings')}
-          </summary>
-          <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
-          <div className='opl-settings-list mt-10px'>
-            {advancedPreferenceItems.map((item) => (
-              <div key={item.key} data-testid={item.testId}>
-                <PreferenceRow label={item.label} description={item.description}>
+      <div>
+        <div data-testid='settings-preferences-technical-details'>
+          <details className='opl-settings-details' id='advanced-preferences' data-testid='advanced-preferences'>
+            <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+              {t('settings.advancedSettings')}
+            </summary>
+            <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
+            <div className='opl-settings-list mt-10px'>
+              {technicalPreferenceItems.map((item) => (
+                <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
                   {item.component}
                 </PreferenceRow>
-              </div>
-            ))}
-          </div>
-        </details>
-      </section>
+              ))}
+            </div>
+          </details>
+        </div>
+      </div>
     </>
   );
 };

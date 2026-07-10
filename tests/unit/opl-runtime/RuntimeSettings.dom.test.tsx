@@ -50,12 +50,13 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'common.cancel': 'Cancel',
         'settings.updateConfirm': 'Confirm Changes',
-        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle': 'Confirm OPL maintenance',
-        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange': 'Will run safe maintenance.',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmTitle': 'Confirm recommended repair',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillChange': 'Will run the recommended repair.',
         'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmWillNotChange':
           'Will not overwrite local work or delete user data.',
-        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery': 'Receipts remain visible.',
-        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run maintenance',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmRecovery':
+          'The next recommendation remains visible.',
+        'settings.oplEnvironmentPage.maintenanceHub.makeUsable.confirmAction': 'Run recommended repair',
         'settings.oplEnvironmentPage.updates.components.unknown': 'OPL component',
         'settings.oplEnvironmentPage.updates.actions.previewChanges': 'Preview changes',
         'settings.runtimePage.taskRuns.artifactContext.ledgerRecord': 'Ledger record',
@@ -699,8 +700,9 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
+    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
+    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
@@ -708,13 +710,13 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.runtimeEnvironment.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
     expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.capabilitySurfaceSync.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
     );
     expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
@@ -727,7 +729,7 @@ describe('RuntimeSettings app state bridge usage', () => {
       'opl-maintenance-hub-capabilitySurfaceSync',
       'opl-maintenance-hub-localServicesRepair',
     ].forEach((testId) => {
-      expect(within(screen.getByTestId(testId)).getAllByRole('button')).toHaveLength(1);
+      expect(within(screen.getByTestId(testId)).queryAllByRole('button')).toHaveLength(0);
     });
     expect(screen.getByTestId('opl-managed-updates')).toHaveTextContent(
       'settings.oplEnvironmentPage.updates.nextStep settings.oplEnvironmentPage.updates.nextActions.repair'
@@ -787,19 +789,6 @@ describe('RuntimeSettings app state bridge usage', () => {
     fireEvent.click(screen.getByTestId('opl-managed-update-refresh'));
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(2));
 
-    fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync').querySelector('button') as HTMLButtonElement
-    );
-    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
-
-    fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-localServicesRepair').querySelector('button') as HTMLButtonElement
-    );
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
-    );
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
-
     fireEvent.click(screen.getByTestId('opl-managed-update-apply-capability_packages'));
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-managed-update-confirmation')).toHaveTextContent('Confirm Changes');
@@ -849,20 +838,18 @@ describe('RuntimeSettings app state bridge usage', () => {
     );
   });
 
-  it('runs the Maintenance hub make-usable action through App repair, check, and safe component actions', async () => {
+  it('runs only the recommended App repair and refreshes state without batch update mutations', async () => {
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-runtimeEnvironment').querySelector('button') as HTMLButtonElement
-    );
+    fireEvent.click(screen.getByTestId('settings-maintenance-recommended-action'));
 
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
     expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
-      'Confirm OPL maintenance'
+      'Confirm recommended repair'
     );
     expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toHaveTextContent(
       'Will not overwrite local work or delete user data.'
@@ -874,13 +861,8 @@ describe('RuntimeSettings app state bridge usage', () => {
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'repair', dryRun: false })
     );
     expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
-    await waitFor(() => expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1));
-    await waitFor(() =>
-      expect(bridgeMocks.repairUpdateInvoke).toHaveBeenCalledWith({
-        componentId: 'capability_packages',
-        receiptId: 'receipt://capability_packages/failed-sync',
-      })
-    );
+    expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.repairUpdateInvoke).not.toHaveBeenCalled();
     expect(bridgeMocks.applyUpdateComponentInvoke).not.toHaveBeenCalledWith({
       componentId: 'runtime_substrate',
     });
@@ -894,14 +876,32 @@ describe('RuntimeSettings app state bridge usage', () => {
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledTimes(2));
   });
 
-  it('routes recommended doctor and repair actions through the App action contract', async () => {
+  it('routes a local-service recommendation through the App doctor action contract', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValueOnce({
+      ...managedUpdateStatusResult,
+      parsed: {
+        managed_update: {
+          ...managedUpdateStatusResult.parsed.managed_update,
+          components: managedUpdateStatusResult.parsed.managed_update.components.map((component) => ({
+            ...component,
+            state: 'current',
+            safe_to_apply: false,
+            repair_allowed: false,
+            needs_restart: false,
+            needs_reload: false,
+            conditions: [],
+          })),
+        },
+      },
+    });
     render(<RuntimeSettings />);
 
     await waitFor(() => expect(bridgeMocks.getUpdateStatusInvoke).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(
-      screen.getByTestId('opl-maintenance-hub-localServicesRepair').querySelector('button') as HTMLButtonElement
+    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
     );
+    fireEvent.click(screen.getByTestId('settings-maintenance-recommended-action'));
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
     );
@@ -1017,9 +1017,10 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(checkButton).toBeTruthy();
     expect(planButton).toBeTruthy();
 
+    await waitFor(() => expect(refreshButton).not.toBeDisabled());
     fireEvent.click(checkButton!);
 
-    await waitFor(() => expect(checkButton?.className).toContain('arco-btn-loading'));
+    await waitFor(() => expect(screen.getByTestId('opl-managed-update-check').className).toContain('arco-btn-loading'));
     expect(refreshButton.className).not.toContain('arco-btn-loading');
     expect(planButton?.className).not.toContain('arco-btn-loading');
 
@@ -1027,7 +1028,9 @@ describe('RuntimeSettings app state bridge usage', () => {
       resolveCheck(managedUpdateStatusResult);
     });
 
-    await waitFor(() => expect(checkButton?.className).not.toContain('arco-btn-loading'));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-managed-update-check').className).not.toContain('arco-btn-loading')
+    );
   });
 
   it('projects background managed update refresh-only skip reason and reload guidance', async () => {

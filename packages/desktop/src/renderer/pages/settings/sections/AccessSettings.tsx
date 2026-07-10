@@ -6,14 +6,14 @@
 
 import React, { useState } from 'react';
 import { Button, Input, Message, Modal, Typography } from '@arco-design/web-react';
-import { Open, Repair, UpdateRotation } from '@icon-park/react';
+import { Open, UpdateRotation } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { useTranslation } from 'react-i18next';
 import { buildAccessProjection } from '../accessProjection';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { ResourcesSettingsContent } from './ResourcesSettings';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
@@ -30,7 +30,6 @@ function splitAccessDetail(detail: string): string[] {
 
 export const AccessSettingsContent: React.FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [codexApiKey, setCodexApiKey] = useState('');
   const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
@@ -39,7 +38,7 @@ export const AccessSettingsContent: React.FC = () => {
   const { cards } = buildAccessProjection(appStateQuery.appState, t);
   const modelAccessCard = cards.find((card) => card.key === 'account');
   const codexCard = cards.find((card) => card.key === 'model');
-  const hasAccessIssue = cards.some((card) => card.tone === 'orange');
+  const modelAccessNeedsAttention = modelAccessCard?.tone === 'orange';
   const modelAccessStatus =
     modelAccessCard?.statusLabel ??
     t(`settings.oplEnvironmentPage.status.${modelAccessCard?.status ?? 'unknown'}`, {
@@ -49,6 +48,7 @@ export const AccessSettingsContent: React.FC = () => {
     ? splitAccessDetail(modelAccessCard.detail).find((line) => line !== modelAccessStatus)
     : null;
   const codexDetailLines = codexCard ? splitAccessDetail(codexCard.detail) : [];
+  const selectedModel = codexDetailLines.at(-1) ?? t('settings.accessPage.cards.model.fallback');
 
   const handleConfigureCodex = async () => {
     const trimmed = codexApiKey.trim();
@@ -72,30 +72,22 @@ export const AccessSettingsContent: React.FC = () => {
   };
 
   return (
-    <div className='opl-settings-page'>
+    <div className='opl-settings-page' data-testid='settings-page-access'>
       <header className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4}>{t('settings.accessPage.title')}</Typography.Title>
           <Typography.Text>{t('settings.accessPage.description')}</Typography.Text>
         </div>
-        <div className='opl-settings-page-header__actions'>
-          {hasAccessIssue && (
-            <Button icon={<Repair theme='outline' />} onClick={() => navigate('/settings/environment#health')}>
-              {t('settings.accessPage.actions.fix')}
-            </Button>
-          )}
-          <Button
-            type={hasAccessIssue ? 'secondary' : 'text'}
-            icon={<UpdateRotation theme='outline' />}
-            loading={appStateQuery.refreshing}
-            onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
-          >
-            {t('settings.accessPage.actions.recheck')}
-          </Button>
-        </div>
       </header>
 
-      <section className='opl-settings-section' id='model-access'>
+      <section
+        className={`opl-settings-section ${modelAccessNeedsAttention ? 'opl-settings-section--attention' : ''}`}
+        id='provider-source'
+        data-testid='settings-access-primary'
+      >
+        <span id='model-access' aria-hidden='true' />
+        <span id='opl-gateway' aria-hidden='true' />
+        {modelAccessNeedsAttention && <span data-testid='settings-access-exception' aria-hidden='true' />}
         <div className='opl-settings-section__header'>
           <div>
             <Typography.Text className='block font-600 text-t-primary'>
@@ -107,7 +99,7 @@ export const AccessSettingsContent: React.FC = () => {
           </div>
         </div>
         <div className='opl-settings-list'>
-          <div className='opl-settings-row' id='opl-gateway'>
+          <div className='opl-settings-row'>
             <div className='opl-settings-row__main'>
               <Typography.Text className='font-500 text-t-primary'>
                 {t('settings.accessPage.cards.account.title')}
@@ -115,11 +107,33 @@ export const AccessSettingsContent: React.FC = () => {
               <Typography.Text className='text-12px text-t-secondary'>
                 {modelAccessSource ?? modelAccessStatus}
               </Typography.Text>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <span
+                className={`opl-settings-status ${modelAccessCard?.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+              >
+                {modelAccessStatus}
+              </span>
+            </div>
+          </div>
+
+          <div className='opl-settings-row' id='model'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-500 text-t-primary'>{t('settings.model')}</Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary'>{selectedModel}</Typography.Text>
+            </div>
+          </div>
+
+          <div className='opl-settings-row' id='authentication'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-500 text-t-primary'>
+                {t('settings.accessPage.modelAccount.keyTitle')}
+              </Typography.Text>
               {gatewayFormVisible && (
                 <div className='mt-8px flex max-w-560px flex-col gap-8px md:flex-row'>
                   <Input.Password
                     data-testid='opl-settings-codex-api-key-input'
-                    aria-label='opl-settings-codex-api-key-input'
+                    aria-label={t('settings.accessPage.modelAccount.keyTitle')}
                     value={codexApiKey}
                     placeholder={t('settings.accessPage.modelAccount.apiKeyPlaceholder')}
                     autoComplete='off'
@@ -129,7 +143,7 @@ export const AccessSettingsContent: React.FC = () => {
                   />
                   <Button
                     data-testid='opl-settings-configure-codex-button'
-                    aria-label='opl-settings-configure-codex-button'
+                    aria-label={t('settings.accessPage.modelAccount.configureButton')}
                     type='primary'
                     loading={configureLoading}
                     onClick={() => void handleConfigureCodex()}
@@ -140,49 +154,24 @@ export const AccessSettingsContent: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className='opl-settings-row__meta'>
-              <span
-                className={`opl-settings-status ${modelAccessCard?.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-              >
-                {modelAccessStatus}
-              </span>
-              {!gatewayFormVisible && (
-                <Button
-                  data-testid='opl-settings-show-gateway-config-button'
-                  onClick={() => setGatewayFormVisible(true)}
-                >
-                  {t('settings.accessPage.modelAccount.showConfigButton')}
-                </Button>
-              )}
-            </div>
-          </div>
-
-          <div className='opl-settings-row' id='codex-cli'>
-            <div className='opl-settings-row__main'>
-              <Typography.Text className='font-500 text-t-primary'>
-                {codexCard?.title ?? t('settings.accessPage.cards.codexCli.title')}
-              </Typography.Text>
-              {codexDetailLines.map((line) => (
-                <Typography.Text key={line} className='text-12px text-t-secondary'>
-                  {line}
-                </Typography.Text>
-              ))}
-            </div>
-            <div className='opl-settings-row__meta'>
-              <span
-                className={`opl-settings-status ${codexCard?.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-              >
-                {codexCard?.statusLabel ??
-                  t(`settings.oplEnvironmentPage.status.${codexCard?.status ?? 'unknown'}`, {
-                    status: codexCard?.status ?? 'unknown',
-                  })}
-              </span>
-            </div>
+            {!gatewayFormVisible && (
+              <div className='opl-settings-row__meta'>
+                <span data-testid='settings-access-primary-action'>
+                  <Button
+                    type={modelAccessNeedsAttention ? 'primary' : 'secondary'}
+                    data-testid='opl-settings-show-gateway-config-button'
+                    onClick={() => setGatewayFormVisible(true)}
+                  >
+                    {t('settings.accessPage.modelAccount.showConfigButton')}
+                  </Button>
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      <section className='opl-settings-section' id='browser-access'>
+      <section className='opl-settings-section' id='browser-access' data-testid='settings-access-browser-access'>
         <span id='web-remote' aria-hidden='true' />
         <div className='opl-settings-section__header'>
           <div>
@@ -220,27 +209,36 @@ export const AccessSettingsContent: React.FC = () => {
               </Button>
             </div>
           </div>
-          <div className='opl-settings-row'>
+        </div>
+      </section>
+
+      <details className='opl-settings-details' data-testid='settings-access-technical-details'>
+        <summary>{t('common.technical_details')}</summary>
+        <div className='mt-12px opl-settings-list'>
+          <div className='opl-settings-row' id='codex-cli'>
             <div className='opl-settings-row__main'>
               <Typography.Text className='font-500 text-t-primary'>
-                {t('settings.accessPage.remote.dockerTitle')}
+                {codexCard?.title ?? t('settings.accessPage.cards.codexCli.title')}
               </Typography.Text>
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.accessPage.remote.dockerDescription')}
-              </Typography.Text>
+              {codexDetailLines.map((line) => (
+                <Typography.Text key={line} className='text-12px text-t-secondary'>
+                  {line}
+                </Typography.Text>
+              ))}
             </div>
             <div className='opl-settings-row__meta'>
               <Button
-                icon={<Open theme='outline' />}
-                data-testid='opl-settings-open-resources-connections'
-                onClick={() => void navigate('/settings/resources')}
+                type='text'
+                icon={<UpdateRotation theme='outline' />}
+                loading={appStateQuery.refreshing}
+                onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
               >
-                {t('settings.accessPage.remote.openResources')}
+                {t('settings.accessPage.actions.recheck')}
               </Button>
             </div>
           </div>
         </div>
-      </section>
+      </details>
 
       <Modal
         visible={remoteSettingsVisible}

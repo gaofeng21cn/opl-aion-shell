@@ -10,7 +10,6 @@ import { Input, Tooltip } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import {
-  GROUP_HEADER_BEFORE,
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
   getSettingsSearchEntries,
@@ -24,7 +23,8 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   tooltipEnabled = false,
 }) => {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const { pathname } = useLocation();
   const isDesktop = isElectronDesktop();
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,7 +32,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
   const extensionTabs = useExtensionSettingsTabs();
   const { resolveExtTabName } = useExtI18n();
 
-  const { menus, groupHeaderAt, searchMatches } = useMemo(() => {
+  const { menus, searchMatches } = useMemo(() => {
     const builtins = getBuiltinSettingsNavItems(isDesktop, t);
     const result = buildSettingsNavItems({
       builtinItems: builtins,
@@ -43,7 +43,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
     const query = normalizeSearchText(searchQuery);
     const builtinIds = new Set(builtins.map((item) => item.id));
     const itemMatches = query
-      ? getSettingsSearchEntries(t)
+      ? getSettingsSearchEntries(t, language)
           .filter((item) => item.searchText.includes(query))
           .map((item) => {
             const page = result.find((candidate) => candidate.id === item.pageId);
@@ -67,20 +67,6 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       : [];
     const searchResult = [...itemMatches, ...extensionMatches];
 
-    // Compute group header render positions.
-    //
-    // A header must appear before the first *visible* item of its group, which may
-    // be an extension tab anchored with placement='before' to the group's first
-    // builtin — not the builtin itself. Otherwise such an extension would render
-    // above the header and visually belong to the previous group.
-    const headerAt = new Map<number, string>();
-    for (const [builtinId, headerKey] of Object.entries(GROUP_HEADER_BEFORE)) {
-      if (!headerKey) continue;
-      const builtinIdx = searchResult.findIndex((item) => item.id === builtinId);
-      if (builtinIdx < 0) continue;
-      headerAt.set(builtinIdx, headerKey);
-    }
-
     return {
       menus: query
         ? searchResult
@@ -90,10 +76,19 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
             pageLabel: item.label,
             itemLabel: item.label,
           })),
-      groupHeaderAt: headerAt,
       searchMatches: query ? searchResult.length : result.length,
     };
-  }, [t, isDesktop, extensionTabs, resolveExtTabName, searchQuery]);
+  }, [t, language, isDesktop, extensionTabs, resolveExtTabName, searchQuery]);
+
+  const selectMenuItem = React.useCallback(
+    (path: string) => {
+      setSearchQuery('');
+      Promise.resolve(navigate(`/settings/${path}`, { replace: true })).catch((error) => {
+        console.error('Navigation failed:', error);
+      });
+    },
+    [navigate]
+  );
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   return (
@@ -110,7 +105,12 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
             allowClear
             prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
             placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
-            data-testid='settings-sider-search-input'
+            data-testid='settings-search-input'
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || !searchQuery.trim() || menus.length === 0) return;
+              event.preventDefault();
+              selectMenuItem(menus[0].path);
+            }}
           />
         </div>
       )}
@@ -122,24 +122,17 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
           {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
         </div>
       )}
-      {menus.map((item, index) => {
+      {menus.map((item) => {
         const isSelected = pathname.includes(item.path);
-        const groupHeaderKey = groupHeaderAt.get(index);
-        const groupHeader =
-          groupHeaderKey && !collapsed ? (
-            <div className='settings-sider__group-header px-12px mt-8px h-28px flex items-center text-14px font-[500] text-t-tertiary select-none'>
-              {t(groupHeaderKey)}
-            </div>
-          ) : null;
         return (
           <React.Fragment key={item.id}>
-            {groupHeader}
             <Tooltip {...siderTooltipProps} content={item.label} position='right'>
-              <div
+              <button
+                type='button'
                 data-settings-id={item.id}
                 data-settings-path={item.path}
                 className={classNames(
-                  'settings-sider__item rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
+                  'settings-sider__item w-full border-0 bg-transparent text-left font-inherit rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
                   item.isSearchResult ? 'min-h-44px py-6px' : 'h-34px',
                   collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
                   {
@@ -147,11 +140,8 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                     '!bg-fill-3': isSelected,
                   }
                 )}
-                onClick={() => {
-                  Promise.resolve(navigate(`/settings/${item.path}`, { replace: true })).catch((error) => {
-                    console.error('Navigation failed:', error);
-                  });
-                }}
+                onClick={() => selectMenuItem(item.path)}
+                data-testid={item.isSearchResult ? 'settings-search-result' : undefined}
               >
                 {/* Leading icon — 22px slot to align with main sider rows */}
                 <span className='size-22px flex items-center justify-center shrink-0 line-height-0'>
@@ -186,7 +176,7 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                     )}
                   </div>
                 </FlexFullContainer>
-              </div>
+              </button>
             </Tooltip>
           </React.Fragment>
         );

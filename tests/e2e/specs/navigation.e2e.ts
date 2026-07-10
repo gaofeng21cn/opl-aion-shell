@@ -38,6 +38,14 @@ type SettingsVisualStateTarget = {
   anchors: SettingsVisualAnchor[];
 };
 
+type SettingsCompatibilityTarget = {
+  id: string;
+  source: SettingsTab;
+  target: SettingsTab;
+  section: string;
+  anchors: SettingsVisualAnchor[];
+};
+
 type ManifestAnchorEvidence = {
   id: string;
   selector: string;
@@ -115,6 +123,25 @@ const coverageGapsFor = (
     }));
 };
 
+const openCompatibilityTarget = async (page: import('@playwright/test').Page, target: SettingsCompatibilityTarget) => {
+  await page.evaluate((source) => window.location.assign(`#/settings/${source}`), target.source);
+  await page.waitForFunction(
+    ({ route, section }) =>
+      window.location.hash.includes(`/settings/${route}`) &&
+      new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === section,
+    { route: target.target, section: target.section },
+    { timeout: 10_000 }
+  );
+  await expectSettingsAnchorLanding(page, target.section);
+};
+
+const expectSettingsAnchorLanding = async (page: import('@playwright/test').Page, section: string) => {
+  const target = page.locator(`#${section}`);
+  await expect(target).toBeVisible();
+  await expect(target).toBeInViewport();
+  await expect.poll(() => target.evaluate((element) => document.activeElement === element)).toBe(true);
+};
+
 async function requireGuidInput(page: import('@playwright/test').Page) {
   const input = page.locator(GUID_INPUT).first();
   if (!(await input.isVisible().catch(() => false))) {
@@ -164,17 +191,35 @@ test.describe('Settings Pages', () => {
       tab: 'general',
       name: 'Overview Settings',
       level: 'top-level',
-      anchors: [...commonSettingsAnchors, anchor('overview_status', '[data-testid="settings-overview-status"]')],
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('overview_page', '[data-testid="settings-page-overview"]'),
+        anchor('overview_primary', '[data-testid="settings-overview-primary"]'),
+        anchor('overview_technical_details', '[data-testid="settings-overview-technical-details"]'),
+      ],
     },
     {
       tab: 'access',
-      name: 'Setup & Access Settings',
+      name: 'Access Settings',
       level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('codex_api_key_input', '[data-testid="opl-settings-codex-api-key-input"]'),
-        anchor('codex_configure_button', '[data-testid="opl-settings-configure-codex-button"]'),
-        anchor('web_remote_anchor', '#web-remote'),
+        anchor('access_page', '[data-testid="settings-page-access"]'),
+        anchor('access_primary', '[data-testid="settings-access-primary"]'),
+        anchor('access_browser', '[data-testid="settings-access-browser-access"]'),
+        anchor('access_technical_details', '[data-testid="settings-access-technical-details"]'),
+      ],
+    },
+    {
+      tab: 'workspace',
+      name: 'Workspace Settings',
+      level: 'top-level',
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('workspace_page', '[data-testid="settings-page-workspace"]'),
+        anchor('workspace_primary', '[data-testid="settings-workspace-primary"]'),
+        anchor('workspace_primary_action', '[data-testid="settings-workspace-primary-action"]'),
+        anchor('workspace_technical_details', '[data-testid="settings-workspace-technical-details"]'),
       ],
     },
     {
@@ -183,22 +228,32 @@ test.describe('Settings Pages', () => {
       level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('capability_external_tools', '[data-testid="capability-entry-external-tools"]'),
-        anchor('capability_custom_assistants', '[data-testid="capability-entry-custom-assistants"]'),
+        anchor('capabilities_page', '[data-testid="settings-page-capabilities"]'),
+        anchor('capabilities_primary', '[data-testid="settings-capabilities-primary"]'),
+        anchor('capabilities_primary_action', '[data-testid="settings-capabilities-primary-action"]'),
+        anchor('capabilities_technical_details', '[data-testid="settings-capabilities-technical-details"]'),
+      ],
+    },
+    {
+      tab: 'resources',
+      name: 'Resources & Connections Settings',
+      level: 'top-level',
+      anchors: [
+        ...commonSettingsAnchors,
+        anchor('resources_page', '[data-testid="settings-page-resources"]'),
+        anchor('resources_primary', '[data-testid="settings-resources-primary"]'),
+        anchor('resources_technical_details', '[data-testid="settings-resources-technical-details"]'),
       ],
     },
     {
       tab: 'environment',
-      name: 'Maintenance & Updates Settings',
+      name: 'Maintenance Settings',
       level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('runtime_health_summary', '[data-testid="opl-runtime-health-summary"]'),
-        anchor('maintenance_hub', '[data-testid="opl-maintenance-hub"]'),
-        anchor('module_maintenance', '[data-testid="opl-module-maintenance"]'),
-        anchor('managed_updates', '[data-testid="opl-managed-updates"]'),
-        anchor('managed_update_background_status', '[data-testid="opl-managed-update-background-status"]', false),
-        anchor('managed_update_post_action_notice', '[data-testid="opl-managed-update-post-action-notice"]', false),
+        anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
+        anchor('maintenance_primary', '[data-testid="settings-maintenance-primary"]'),
+        anchor('maintenance_technical_details', '[data-testid="settings-maintenance-technical-details"]'),
       ],
     },
     {
@@ -207,50 +262,77 @@ test.describe('Settings Pages', () => {
       level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('storage_settings_page', '[data-testid="storage-settings-page"]'),
-        anchor('storage_conversations', '[data-testid="storage-conversations"]'),
-        anchor('storage_runtime', '[data-testid="storage-runtime"]'),
-        anchor('storage_logs', '[data-testid="storage-logs"]'),
-        anchor('storage_updater_cache', '[data-testid="storage-updater-cache"]'),
+        anchor('storage_page', '[data-testid="settings-page-storage"]'),
+        anchor('storage_primary', '[data-testid="settings-storage-primary"]'),
+        anchor('storage_primary_action', '[data-testid="settings-storage-primary-action"]'),
+        anchor('storage_technical_details', '[data-testid="settings-storage-technical-details"]'),
       ],
     },
     {
       tab: 'appearance',
       name: 'Preferences Settings',
       level: 'top-level',
-      anchors: [...commonSettingsAnchors],
-    },
-    {
-      tab: 'advanced',
-      name: 'Advanced Settings',
-      level: 'top-level',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('developer_profile_status', '[data-testid="opl-developer-profile-status"]'),
+        anchor('preferences_page', '[data-testid="settings-page-preferences"]'),
+        anchor('preferences_primary', '[data-testid="settings-preferences-primary"]'),
+        anchor('preferences_technical_details', '[data-testid="settings-preferences-technical-details"]'),
       ],
     },
   ];
   const secondaryTabs: SettingsVisualTarget[] = [
     {
-      tab: 'workspace',
-      name: 'Workspace Settings',
+      tab: 'advanced',
+      name: 'Advanced Settings',
       level: 'secondary',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('workspace_root', '[data-testid="opl-workspace-settings-root"]'),
-        anchor('workspace_modules_root', '[data-testid="opl-workspace-settings-modules-root"]'),
-        anchor('workspace_logs', '[data-testid="opl-workspace-settings-logs"]'),
-        anchor('workspace_modules', '[data-testid="opl-workspace-settings-modules"]'),
+        anchor('advanced_page', '[data-testid="settings-page-advanced"]'),
+        anchor('advanced_primary', '[data-testid="settings-advanced-primary"]'),
+        anchor('advanced_technical_details', '[data-testid="settings-advanced-technical-details"]'),
       ],
     },
     {
-      tab: 'local-services',
-      name: 'Local Services Settings',
+      tab: 'about',
+      name: 'About Settings',
       level: 'secondary',
       anchors: [
         ...commonSettingsAnchors,
-        anchor('local_services_cards', '[data-testid="opl-local-services-cards"]'),
-        anchor('local_services_module_health', '[data-testid="opl-local-services-module-health"]'),
+        anchor('about_page', '[data-testid="settings-page-about"]'),
+        anchor('about_primary', '[data-testid="settings-about-primary"]'),
+        anchor('about_technical_details', '[data-testid="settings-about-technical-details"]'),
+      ],
+    },
+  ];
+  const compatibilityTargets: SettingsCompatibilityTarget[] = [
+    {
+      id: 'update_to_maintenance',
+      source: 'update',
+      target: 'environment',
+      section: 'updates',
+      anchors: [
+        anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
+        anchor('updates_section', '#updates'),
+      ],
+    },
+    {
+      id: 'theme_to_preferences',
+      source: 'theme',
+      target: 'appearance',
+      section: 'themes',
+      anchors: [
+        anchor('preferences_page', '[data-testid="settings-page-preferences"]'),
+        anchor('themes_section', '#themes'),
+      ],
+    },
+    {
+      id: 'local_services_to_maintenance',
+      source: 'local-services',
+      target: 'environment',
+      section: 'services',
+      anchors: [
+        anchor('maintenance_page', '[data-testid="settings-page-maintenance"]'),
+        anchor('services_section', '#services'),
       ],
     },
   ];
@@ -263,17 +345,15 @@ test.describe('Settings Pages', () => {
       action: async (page) => {
         await page.evaluate(() => window.location.assign('#/settings/general'));
         await page.waitForFunction(() => window.location.hash === '#/settings/general', { timeout: 10_000 });
-        await expect(page.locator('[data-testid="settings-route-search"]').first()).toBeVisible();
-        const input = page.locator('[data-testid="settings-route-search"] input').first();
+        const input = page.locator('[data-testid="settings-search-input"] input').first();
+        await expect(input).toBeVisible();
         await input.fill('');
         await input.fill('zz-no-route-match-zz');
-        await expect(
-          page.locator('[data-testid="settings-route-search"] [data-testid="settings-search-empty"]').first()
-        ).toBeVisible();
+        await expect(page.locator('[data-testid="settings-search-empty"]').first()).toBeVisible();
       },
       anchors: [
-        anchor('settings_search_input', '[data-testid="settings-route-search"] [data-testid="settings-search-input"]'),
-        anchor('settings_search_empty', '[data-testid="settings-route-search"] [data-testid="settings-search-empty"]'),
+        anchor('settings_search_input', '[data-testid="settings-search-input"]'),
+        anchor('settings_search_empty', '[data-testid="settings-search-empty"]'),
       ],
     },
     {
@@ -323,6 +403,35 @@ test.describe('Settings Pages', () => {
       await expectUrlContains(page, tab);
       await expectVisualAnchors(page, anchors);
     }
+    for (const target of compatibilityTargets) {
+      await openCompatibilityTarget(page, target);
+      await expectVisualAnchors(page, target.anchors);
+    }
+  });
+
+  test('settings search is unique and supports bilingual Enter navigation', async ({ page }) => {
+    const searches = [
+      { viewport: SETTINGS_VISUAL_VIEWPORTS[0], query: 'package maintenance' },
+      { viewport: SETTINGS_VISUAL_VIEWPORTS[1], query: '能力包维护' },
+    ];
+
+    for (const { viewport, query } of searches) {
+      await page.setViewportSize(viewport.size);
+      await goToSettings(page, 'general');
+      const search = page.locator('[data-testid="settings-search-input"]');
+      await expect(search).toHaveCount(1);
+      const input = search.locator('input');
+      await input.fill(query);
+      await expect(page.locator('[data-testid="settings-search-result"]').first()).toBeVisible();
+      await input.press('Enter');
+      await page.waitForFunction(
+        () =>
+          window.location.hash.includes('/settings/environment') &&
+          new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('section') === 'packages',
+        { timeout: 10_000 }
+      );
+      await expectSettingsAnchorLanding(page, 'packages');
+    }
   });
 
   test('screenshot: settings control center visual QA', async ({ page }) => {
@@ -331,7 +440,7 @@ test.describe('Settings Pages', () => {
     const entries: Array<{
       command: string;
       commit: string;
-      level: SettingsVisualTarget['level'] | 'interaction-state';
+      level: SettingsVisualTarget['level'] | 'compatibility' | 'interaction-state';
       state: string;
       viewport: { name: string; width: number; height: number };
       route: string;
@@ -341,7 +450,7 @@ test.describe('Settings Pages', () => {
       coverage_gaps: ManifestCoverageGap[];
     }> = [];
     const command =
-      'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1 E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/specs/navigation.e2e.ts --grep "settings control center visual QA"';
+      'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1 AIONUI_E2E_PRODUCT_PROFILE=1 E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/specs/navigation.e2e.ts --grep "settings control center visual QA"';
 
     for (const viewport of SETTINGS_VISUAL_VIEWPORTS) {
       await page.setViewportSize(viewport.size);
@@ -390,6 +499,28 @@ test.describe('Settings Pages', () => {
           coverage_gaps: coverageGapsFor(target.anchors, anchorEvidence),
         });
       }
+      for (const target of compatibilityTargets) {
+        await openCompatibilityTarget(page, target);
+        await expectVisualAnchors(page, target.anchors);
+        const anchorEvidence = await collectAnchorEvidence(page, target.anchors);
+        const screenshotName = `settings/control-center/${viewport.name}/compatibility-${target.id}`;
+        const screenshotPath = await takeScreenshot(page, screenshotName, { fullPage: true });
+        entries.push({
+          command,
+          commit,
+          level: 'compatibility',
+          state: 'compatibility_redirect_landing',
+          viewport: {
+            name: viewport.name,
+            ...viewport.size,
+          },
+          route: `/settings/${target.source} -> /settings/${target.target}?section=${target.section}`,
+          screenshot_path: screenshotPath,
+          status_anchors: anchorEvidence.filter((item) => item.visible).map((item) => item.id),
+          anchors: anchorEvidence,
+          coverage_gaps: coverageGapsFor(target.anchors, anchorEvidence),
+        });
+      }
     }
     fs.writeFileSync(
       SETTINGS_VISUAL_MANIFEST,
@@ -398,12 +529,16 @@ test.describe('Settings Pages', () => {
           schema: 'opl_settings_control_center_visual_manifest.v1',
           generated_at: new Date().toISOString(),
           source_of_truth: [
-            '/Users/gaofeng/.codex/attachments/adac8faa-8bd0-4237-a2b4-8d44a0d419a5/pasted-text.txt',
+            'contracts/app-settings-control-plane.json#experience_contract',
+            'docs/product/gui/settings-control-center.md',
             'tests/e2e/specs/navigation.e2e.ts',
           ],
           coverage_summary: {
             top_level_routes: tabs.map((target) => `/settings/${target.tab}`),
             secondary_routes: secondaryTabs.map((target) => `/settings/${target.tab}`),
+            compatibility_routes: compatibilityTargets.map(
+              (target) => `/settings/${target.source} -> /settings/${target.target}?section=${target.section}`
+            ),
             interaction_states: stateTargets.map((target) => target.state),
             coverage_gaps: [],
             viewports: SETTINGS_VISUAL_VIEWPORTS.map((viewport) => viewport.name),
@@ -413,6 +548,7 @@ test.describe('Settings Pages', () => {
             'This manifest proves screenshot-level route, viewport, and anchor coverage only.',
             'It is not a release, installed-app currentness, or runtime readiness receipt.',
             'AIONUI_E2E_ALLOW_BACKEND_FAILURE=1 keeps visual QA focused on Settings UI when bundled AionCore is absent.',
+            'AIONUI_E2E_PRODUCT_PROFILE=1 hides example extension tabs so screenshots represent the shipped product IA.',
           ],
           entries,
         },

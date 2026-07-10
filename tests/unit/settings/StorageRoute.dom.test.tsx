@@ -16,10 +16,6 @@ vi.mock('@/renderer/pages/settings/sections/WorkspaceSettings', () => ({
   default: () => <div data-testid='workspace-route-page'>Workspace route rendered</div>,
 }));
 
-vi.mock('@/renderer/pages/settings/sections/LocalServicesSettings', () => ({
-  default: () => <div data-testid='local-services-route-page'>Local Services route rendered</div>,
-}));
-
 vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
   default: () => <div data-testid='environment-route-page'>Maintenance route rendered</div>,
 }));
@@ -49,13 +45,14 @@ describe('settings storage route', () => {
     expect(await screen.findByTestId('workspace-route-page')).toBeInTheDocument();
   });
 
-  it('redirects the legacy Local Services route to Maintenance', async () => {
+  it('redirects the legacy Local Services route to its Maintenance owner page', async () => {
     window.location.hash = '#/settings/local-services';
 
     render(<Router layout={<Outlet />} />);
 
     expect(await screen.findByTestId('environment-route-page')).toBeInTheDocument();
     expect(screen.queryByTestId('local-services-route-page')).not.toBeInTheDocument();
+    expect(window.location.hash).toContain('/settings/environment');
   });
 
   it('renders focused first-run outside the ordinary product layout', async () => {

@@ -82,22 +82,32 @@ const parseSettingsRouteTarget = (
 const routePathFor = (routeId: string): string => {
   const routeTarget = parseSettingsRouteTarget(routeId);
   const route = ordinaryRoutesById.get(routeTarget.routeId);
-  const query = new URLSearchParams(routeTarget.queryParams).toString();
+  const queryParams = new URLSearchParams(routeTarget.queryParams);
+  if (routeTarget.anchor) {
+    queryParams.set(settingsControlPlane.experience_contract.global_search.anchor_query_param, routeTarget.anchor);
+  }
+  const query = queryParams.toString();
   const suffix = query ? `?${query}` : '';
-  const anchorSuffix = routeTarget.anchor ? `#${routeTarget.anchor}` : '';
-  if (route) return `${pathToSettingsRoute(route.path)}${suffix}${anchorSuffix}`;
+  if (route) return `${pathToSettingsRoute(route.path)}${suffix}`;
   const page = secondaryPagesById.get(routeTarget.routeId);
-  if (page) return `${pathToSettingsRoute(page.path)}${suffix}${anchorSuffix}`;
+  if (page) return `${pathToSettingsRoute(page.path)}${suffix}`;
   return SETTINGS_DEFAULT_ROUTE;
 };
 
 export function getOplGuiLegacySettingsRouteRedirects(): Record<string, string> {
-  return Object.fromEntries(
+  const compatibilityRedirects = Object.fromEntries(
+    Object.entries(settingsControlPlane.compatibility_redirects).map(([sourceId, redirect]) => [
+      sourceId,
+      routePathFor(`${redirect.target_route_id}#${redirect.anchor}`),
+    ])
+  );
+  const legacyRedirects = Object.fromEntries(
     Object.entries(settingsControlPlane?.legacy_route_redirects ?? {}).map(([legacyId, targetId]) => [
       legacyId,
       routePathFor(targetId),
     ])
   );
+  return { ...compatibilityRedirects, ...legacyRedirects };
 }
 
 export const LEGACY_SETTINGS_ROUTE_REDIRECTS = getOplGuiLegacySettingsRouteRedirects();
@@ -106,17 +116,6 @@ export const LEGACY_SETTINGS_ANCHOR_REMAP: Record<string, string> = settingsCont
   ? { ...settingsControlPlane.extension_anchor_remap }
   : {};
 export const LEGACY_ANCHOR_REMAP = LEGACY_SETTINGS_ANCHOR_REMAP;
-
-export const GROUP_HEADER_BEFORE: Record<BuiltinSettingsTabId, string | undefined> = {
-  general: undefined,
-  access: undefined,
-  workspace: undefined,
-  capabilities: undefined,
-  resources: undefined,
-  environment: undefined,
-  storage: undefined,
-  appearance: undefined,
-};
 
 const controlPlaneLabelKeys = Object.fromEntries(ordinaryRoutes.map((route) => [route.id, route.label_key]));
 
@@ -130,499 +129,20 @@ export const OPL_SETTINGS_TAB_DEFAULT_LABELS: Record<string, string> = {
   ...controlPlaneDefaultLabels,
 };
 
-export const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = {
-  general: ['overview', 'status', 'attention', 'workspace', '概览', '状态', '待处理', '工作目录'],
-  access: [
-    'access',
-    'model',
-    'account',
-    'api key',
-    'gateway',
-    'codex',
-    'browser',
-    'remote',
-    '访问',
-    '模型',
-    '密钥',
-    '浏览器',
-    '远程',
-  ],
-  resources: [
-    'resources',
-    'connections',
-    'server webui',
-    'workspace',
-    'cloud',
-    'external',
-    '资源',
-    '连接',
-    '服务器',
-    '工作区',
-    '云端',
-    '外部连接',
-  ],
-  workspace: [
-    'workspace',
-    'work directory',
-    'project folder',
-    'logs',
-    'modules root',
-    'paths',
-    'permission',
-    '工作目录',
-    '项目',
-    '日志',
-    '模块',
-    '路径',
-    '权限',
-  ],
-  capabilities: [
-    'capabilities',
-    'agents',
-    'skills',
-    'tools',
-    'voice',
-    'mas',
-    'mag',
-    'rca',
-    'oma',
-    'book forge',
-    '能力',
-    '智能体',
-    '技能',
-    '工具',
-    '语音',
-    '首页显示',
-  ],
-  environment: [
-    'maintenance',
-    'updates',
-    'runtime',
-    'packages',
-    'repair',
-    'rollback',
-    'health',
-    'background services',
-    '维护',
-    '更新',
-    '本机环境',
-    '能力包',
-    '修复',
-    '回滚',
-    '健康',
-    '后台服务',
-  ],
-  storage: [
-    'data',
-    'storage',
-    'cleanup',
-    'archive',
-    'restore',
-    'logs',
-    'cache',
-    '数据',
-    '存储',
-    '清理',
-    '归档',
-    '恢复',
-    '日志',
-    '缓存',
-  ],
-  appearance: [
-    'preferences',
-    'appearance',
-    'theme',
-    'language',
-    'startup',
-    'font',
-    'timeout',
-    'hardware acceleration',
-    '偏好',
-    '外观',
-    '主题',
-    '语言',
-    '开机启动',
-    '字体',
-    '超时',
-    '硬件加速',
-  ],
-  advanced: ['advanced', 'developer', 'diagnostics', 'paths', 'flow', '高级', '开发者', '诊断', '路径'],
-  about: ['about', 'version', 'release channel', 'updates', 'feedback', '关于', '版本', '发布通道', '更新', '反馈'],
-};
+const settingsExperience = settingsControlPlane.experience_contract;
+const settingsPageExperienceById = new Map(
+  Object.values(settingsExperience.page_contracts).map((page) => [page.product_page_id, page])
+);
+const settingsSearchIndexEntries = settingsExperience.search_index.entries;
 
-type SettingsSearchEntryDefinition = {
-  id: string;
-  pageId: string;
-  anchor: string;
-  labelKey: string;
-  defaultLabelEn: string;
-  defaultLabelZh: string;
-  terms: string[];
-};
-
-const SETTINGS_SEARCH_ENTRY_DEFINITIONS: SettingsSearchEntryDefinition[] = [
-  {
-    id: 'overview-status',
-    pageId: 'general',
-    anchor: 'status',
-    labelKey: 'settings.searchEntries.overview.status',
-    defaultLabelEn: 'Overall status',
-    defaultLabelZh: '总体状态',
-    terms: ['ready', 'usable', '可用', '健康'],
-  },
-  {
-    id: 'overview-attention',
-    pageId: 'general',
-    anchor: 'attention',
-    labelKey: 'settings.searchEntries.overview.attention',
-    defaultLabelEn: 'Needs attention',
-    defaultLabelZh: '待处理事项',
-    terms: ['issue', 'problem', 'next action', '问题', '异常', '下一步'],
-  },
-  {
-    id: 'overview-workspace',
-    pageId: 'general',
-    anchor: 'workspace',
-    labelKey: 'settings.searchEntries.overview.workspace',
-    defaultLabelEn: 'Work directory summary',
-    defaultLabelZh: '工作目录摘要',
-    terms: ['folder', 'path', '目录', '路径'],
-  },
-  {
-    id: 'overview-shortcuts',
-    pageId: 'general',
-    anchor: 'shortcuts',
-    labelKey: 'settings.searchEntries.overview.shortcuts',
-    defaultLabelEn: 'Common destinations',
-    defaultLabelZh: '常用入口',
-    terms: ['shortcut', 'quick', '快捷', '入口'],
-  },
-  {
-    id: 'access-model',
-    pageId: 'access',
-    anchor: 'model-access',
-    labelKey: 'settings.searchEntries.access.modelAccess',
-    defaultLabelEn: 'Model access',
-    defaultLabelZh: '模型访问',
-    terms: ['provider', 'login', 'openai', 'gateway', '供应方', '登录'],
-  },
-  {
-    id: 'access-codex',
-    pageId: 'access',
-    anchor: 'codex-cli',
-    labelKey: 'settings.searchEntries.access.codexCli',
-    defaultLabelEn: 'Codex CLI',
-    defaultLabelZh: 'Codex CLI',
-    terms: ['version', 'default model', '版本', '默认模型'],
-  },
-  {
-    id: 'access-gateway',
-    pageId: 'access',
-    anchor: 'opl-gateway',
-    labelKey: 'settings.searchEntries.access.gateway',
-    defaultLabelEn: 'OPL Gateway access key',
-    defaultLabelZh: 'OPL Gateway 访问密钥',
-    terms: ['api key', 'replace key', '密钥', '更换密钥'],
-  },
-  {
-    id: 'access-browser',
-    pageId: 'access',
-    anchor: 'browser-access',
-    labelKey: 'settings.searchEntries.access.browser',
-    defaultLabelEn: 'Browser access',
-    defaultLabelZh: '本机浏览器访问',
-    terms: ['port', 'account', 'password', 'webui', 'remote', '端口', '账号', '密码', '远程'],
-  },
-  {
-    id: 'workspace-root',
-    pageId: 'workspace',
-    anchor: 'work-directory',
-    labelKey: 'settings.searchEntries.workspace.root',
-    defaultLabelEn: 'Work directory',
-    defaultLabelZh: '工作目录',
-    terms: ['project folder', 'artifact', '项目目录', '任务产物'],
-  },
-  {
-    id: 'workspace-permission',
-    pageId: 'workspace',
-    anchor: 'permissions',
-    labelKey: 'settings.searchEntries.workspace.permissions',
-    defaultLabelEn: 'File permissions',
-    defaultLabelZh: '文件权限',
-    terms: ['write access', 'executor', '写入', '执行权限'],
-  },
-  {
-    id: 'workspace-technical',
-    pageId: 'workspace',
-    anchor: 'technical-paths',
-    labelKey: 'settings.searchEntries.workspace.technical',
-    defaultLabelEn: 'Technical paths',
-    defaultLabelZh: '技术路径',
-    terms: ['logs', 'modules root', 'support', '日志', '模块目录', '支持'],
-  },
-  {
-    id: 'capabilities-directory',
-    pageId: 'capabilities',
-    anchor: 'capability-directory',
-    labelKey: 'settings.searchEntries.capabilities.directory',
-    defaultLabelEn: 'Capability availability',
-    defaultLabelZh: '能力可用状态',
-    terms: ['mas', 'mag', 'rca', 'oma', 'book forge', '可在对话中使用'],
-  },
-  {
-    id: 'capabilities-home',
-    pageId: 'capabilities',
-    anchor: 'home-shortcuts',
-    labelKey: 'settings.searchEntries.capabilities.home',
-    defaultLabelEn: 'Home shortcuts',
-    defaultLabelZh: '首页显示',
-    terms: ['show on home', 'order', '首页快捷方式', '排序'],
-  },
-  {
-    id: 'capabilities-tools',
-    pageId: 'capabilities',
-    anchor: 'external-tools',
-    labelKey: 'settings.searchEntries.capabilities.tools',
-    defaultLabelEn: 'External tools and voice',
-    defaultLabelZh: '外部工具与语音',
-    terms: ['mcp', 'voice input', '连接工具', '语音输入'],
-  },
-  {
-    id: 'capabilities-assistants',
-    pageId: 'capabilities',
-    anchor: 'custom-assistants',
-    labelKey: 'settings.searchEntries.capabilities.assistants',
-    defaultLabelEn: 'Custom assistants',
-    defaultLabelZh: '自定义助手',
-    terms: ['assistant', 'create assistant', '助手', '创建助手'],
-  },
-  {
-    id: 'resources-webui',
-    pageId: 'resources',
-    anchor: 'server-webui',
-    labelKey: 'settings.searchEntries.resources.webui',
-    defaultLabelEn: 'Server WebUI',
-    defaultLabelZh: '服务器 WebUI',
-    terms: ['docker', 'browser server', '部署', '服务器访问'],
-  },
-  {
-    id: 'resources-workspace',
-    pageId: 'resources',
-    anchor: 'opl-workspace',
-    labelKey: 'settings.searchEntries.resources.workspace',
-    defaultLabelEn: 'Workspace',
-    defaultLabelZh: '工作区',
-    terms: ['hosted workspace', '托管工作区'],
-  },
-  {
-    id: 'resources-connections',
-    pageId: 'resources',
-    anchor: 'external-connections',
-    labelKey: 'settings.searchEntries.resources.connections',
-    defaultLabelEn: 'External connections',
-    defaultLabelZh: '外部连接',
-    terms: ['ssh', 'hpc', 'cloud', 'fabric', 'console', '外部资源', '云端'],
-  },
-  {
-    id: 'maintenance-health',
-    pageId: 'environment',
-    anchor: 'health',
-    labelKey: 'settings.searchEntries.maintenance.health',
-    defaultLabelEn: 'Health summary',
-    defaultLabelZh: '健康摘要',
-    terms: ['status', 'attention', '状态', '待处理'],
-  },
-  {
-    id: 'maintenance-updates',
-    pageId: 'environment',
-    anchor: 'updates',
-    labelKey: 'settings.searchEntries.maintenance.updates',
-    defaultLabelEn: 'App updates',
-    defaultLabelZh: 'App 更新',
-    terms: ['check for updates', 'release', '检查更新', '版本'],
-  },
-  {
-    id: 'maintenance-runtime',
-    pageId: 'environment',
-    anchor: 'runtime-environment',
-    labelKey: 'settings.searchEntries.maintenance.runtime',
-    defaultLabelEn: 'Local environment',
-    defaultLabelZh: '本机环境',
-    terms: ['runtime substrate', 'repair', '运行环境', '修复'],
-  },
-  {
-    id: 'maintenance-packages',
-    pageId: 'environment',
-    anchor: 'capability-packages',
-    labelKey: 'settings.searchEntries.maintenance.packages',
-    defaultLabelEn: 'Capability packages',
-    defaultLabelZh: '能力包',
-    terms: ['sync', 'module update', '同步', '模块更新'],
-  },
-  {
-    id: 'maintenance-services',
-    pageId: 'environment',
-    anchor: 'background-services',
-    labelKey: 'settings.searchEntries.maintenance.services',
-    defaultLabelEn: 'Background services',
-    defaultLabelZh: '后台服务',
-    terms: ['temporal', 'doctor', '后台任务', '检查服务'],
-  },
-  {
-    id: 'maintenance-advanced',
-    pageId: 'environment',
-    anchor: 'advanced-maintenance',
-    labelKey: 'settings.searchEntries.maintenance.advanced',
-    defaultLabelEn: 'Advanced maintenance',
-    defaultLabelZh: '高级维护',
-    terms: ['rollback', 'receipts', 'diagnostics', '回滚', '操作记录', '诊断'],
-  },
-  {
-    id: 'storage-installer',
-    pageId: 'storage',
-    anchor: 'installer-cache',
-    labelKey: 'settings.searchEntries.storage.installer',
-    defaultLabelEn: 'Installer cache',
-    defaultLabelZh: '安装缓存',
-    terms: ['updater cache', '安装包', '更新缓存'],
-  },
-  {
-    id: 'storage-conversations',
-    pageId: 'storage',
-    anchor: 'conversation-archives',
-    labelKey: 'settings.searchEntries.storage.conversations',
-    defaultLabelEn: 'Conversation archives',
-    defaultLabelZh: '对话归档',
-    terms: ['archive', 'restore', 'backup', '归档', '恢复', '备份'],
-  },
-  {
-    id: 'storage-runtime',
-    pageId: 'storage',
-    anchor: 'runtime-cache',
-    labelKey: 'settings.searchEntries.storage.runtime',
-    defaultLabelEn: 'Runtime cache',
-    defaultLabelZh: '运行缓存',
-    terms: ['cleanup preview', '清理预览'],
-  },
-  {
-    id: 'storage-logs',
-    pageId: 'storage',
-    anchor: 'logs',
-    labelKey: 'settings.searchEntries.storage.logs',
-    defaultLabelEn: 'Logs',
-    defaultLabelZh: '日志',
-    terms: ['rotation', 'log cleanup', '轮转', '清理日志'],
-  },
-  {
-    id: 'preferences-behavior',
-    pageId: 'appearance',
-    anchor: 'app-behavior',
-    labelKey: 'settings.searchEntries.preferences.behavior',
-    defaultLabelEn: 'App behavior',
-    defaultLabelZh: 'App 行为',
-    terms: ['startup', 'close window', '开机启动', '关闭窗口', '菜单栏'],
-  },
-  {
-    id: 'preferences-display',
-    pageId: 'appearance',
-    anchor: 'display',
-    labelKey: 'settings.searchEntries.preferences.display',
-    defaultLabelEn: 'Language and display',
-    defaultLabelZh: '语言与显示',
-    terms: ['language', 'font', 'scale', '语言', '字体', '缩放'],
-  },
-  {
-    id: 'preferences-theme',
-    pageId: 'appearance',
-    anchor: 'themes',
-    labelKey: 'settings.searchEntries.preferences.theme',
-    defaultLabelEn: 'Themes',
-    defaultLabelZh: '主题',
-    terms: ['appearance', 'color', '外观', '颜色'],
-  },
-  {
-    id: 'preferences-advanced',
-    pageId: 'appearance',
-    anchor: 'advanced-preferences',
-    labelKey: 'settings.searchEntries.preferences.advanced',
-    defaultLabelEn: 'Advanced preferences',
-    defaultLabelZh: '高级偏好',
-    terms: ['model timeout', 'background assistant', 'hardware acceleration', '模型响应超时', '后台助手', '硬件加速'],
-  },
-  {
-    id: 'advanced-paths',
-    pageId: 'advanced',
-    anchor: 'resolved-paths',
-    labelKey: 'settings.searchEntries.advanced.paths',
-    defaultLabelEn: 'Resolved paths',
-    defaultLabelZh: '解析路径',
-    terms: ['work directory', 'logs', '工作目录', '日志'],
-  },
-  {
-    id: 'advanced-profile',
-    pageId: 'advanced',
-    anchor: 'developer-profile',
-    labelKey: 'settings.searchEntries.advanced.profile',
-    defaultLabelEn: 'Developer profile',
-    defaultLabelZh: '开发者配置',
-    terms: ['capabilities', 'source profile', '能力', '来源配置'],
-  },
-  {
-    id: 'advanced-flow',
-    pageId: 'advanced',
-    anchor: 'opl-flow',
-    labelKey: 'settings.searchEntries.advanced.flow',
-    defaultLabelEn: 'OPL Flow context',
-    defaultLabelZh: 'OPL Flow 上下文',
-    terms: ['workflow profile', 'intelligence enhancement', '工作流配置', '智能增强'],
-  },
-  {
-    id: 'advanced-developer-tools',
-    pageId: 'advanced',
-    anchor: 'developer-tools',
-    labelKey: 'settings.searchEntries.advanced.developerTools',
-    defaultLabelEn: 'Developer tools',
-    defaultLabelZh: '开发工具',
-    terms: ['diagnostics', 'devtools', 'cdp', '诊断', '开发工具'],
-  },
-  {
-    id: 'about-version',
-    pageId: 'about',
-    anchor: 'version',
-    labelKey: 'settings.searchEntries.about.version',
-    defaultLabelEn: 'Version and channel',
-    defaultLabelZh: '版本与通道',
-    terms: ['app version', 'stable', 'nightly', 'App版本', '稳定版'],
-  },
-  {
-    id: 'about-updates',
-    pageId: 'about',
-    anchor: 'update-status',
-    labelKey: 'settings.searchEntries.about.updates',
-    defaultLabelEn: 'Update status',
-    defaultLabelZh: '更新状态',
-    terms: ['check update', 'latest version', '检查更新', '最新版本'],
-  },
-  {
-    id: 'about-feedback',
-    pageId: 'about',
-    anchor: 'feedback',
-    labelKey: 'settings.searchEntries.about.feedback',
-    defaultLabelEn: 'Feedback and support',
-    defaultLabelZh: '反馈与支持',
-    terms: ['issue', 'help', 'bug', '问题', '帮助', '反馈'],
-  },
-  {
-    id: 'about-technical',
-    pageId: 'about',
-    anchor: 'technical-details',
-    labelKey: 'settings.searchEntries.about.technical',
-    defaultLabelEn: 'Technical details',
-    defaultLabelZh: '技术详情',
-    terms: ['shell version', 'framework revision', '界面版本', '框架版本'],
-  },
-];
-
+export const OPL_SETTINGS_SEARCH_TERMS: Record<string, string[]> = Object.fromEntries(
+  Object.values(settingsExperience.page_contracts).map((page) => [
+    page.route_id,
+    settingsSearchIndexEntries
+      .filter((entry) => entry.page_id === page.product_page_id)
+      .flatMap((entry) => [entry.label_en, entry.label_zh, ...entry.keywords_en, ...entry.keywords_zh]),
+  ])
+);
 export type SettingsSearchEntry = {
   id: string;
   pageId: string;
@@ -634,33 +154,41 @@ export type SettingsSearchEntry = {
   searchText: string;
 };
 
-export function getSettingsSearchEntries(t: TranslateFn): SettingsSearchEntry[] {
-  return SETTINGS_SEARCH_ENTRY_DEFINITIONS.flatMap((entry) => {
-    if (!ordinaryRoutesById.has(entry.pageId) && !secondaryPagesById.has(entry.pageId)) return [];
-    const pageLabel = getSettingsTabLabel(entry.pageId, t);
-    const itemLabel = t(entry.labelKey, { defaultValue: entry.defaultLabelEn });
-    const route = routePathFor(entry.pageId).replace(/^\/settings\/?/, '');
-    const routeMetadata = ordinaryRoutesById.get(entry.pageId) ?? secondaryPagesById.get(entry.pageId);
+export function getSettingsSearchEntries(_t: TranslateFn, language = 'en'): SettingsSearchEntry[] {
+  const useChinese = language.toLowerCase().startsWith('zh');
+  return settingsSearchIndexEntries.flatMap((entry) => {
+    const pageExperience = settingsPageExperienceById.get(entry.page_id);
+    if (!pageExperience) return [];
+    const routeId = pageExperience.route_id;
+    if (!ordinaryRoutesById.has(routeId) && !secondaryPagesById.has(routeId)) return [];
+    const pageLabel = useChinese ? pageExperience.label_zh : pageExperience.label_en;
+    const itemLabel = useChinese ? entry.label_zh : entry.label_en;
+    const route = routePathFor(`${routeId}#${entry.anchor}`).replace(/^\/settings\/?/, '');
+    const routeMetadata = ordinaryRoutesById.get(routeId) ?? secondaryPagesById.get(routeId);
     const routeLabels = routeMetadata as Partial<OplSettingsControlPlaneRoute>;
     return [
       {
         id: entry.id,
-        pageId: entry.pageId,
+        pageId: routeId,
         pageLabel,
         itemLabel,
         resultLabel: `${pageLabel} > ${itemLabel}`,
-        path: `${route}#${entry.anchor}`,
+        path: route,
         anchor: entry.anchor,
         searchText: normalizeSearchText(
           [
-            entry.pageId,
+            entry.page_id,
+            routeId,
             pageLabel,
             routeLabels.default_label_en,
             routeLabels.default_label_zh,
-            entry.defaultLabelEn,
-            entry.defaultLabelZh,
+            pageExperience.label_en,
+            pageExperience.label_zh,
+            entry.label_en,
+            entry.label_zh,
             itemLabel,
-            ...entry.terms,
+            ...entry.keywords_en,
+            ...entry.keywords_zh,
           ].join(' ')
         ),
       },
@@ -757,9 +285,9 @@ export function normalizeOplSettingsTab(tabId: string): string {
   return LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId;
 }
 
-export type SettingsCapabilityDetailTab = 'skills' | 'tools';
+export type SettingsCapabilityDetailTab = 'skills' | 'tools' | 'assistants';
 
-const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools']);
+const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['skills', 'tools', 'assistants']);
 
 const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
   return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;
@@ -768,10 +296,15 @@ const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabi
 export type SettingsRenderTarget = {
   routeId: string;
   capabilitiesTab: SettingsCapabilityDetailTab;
+  anchor?: string;
 };
 
 export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget {
-  const routeTarget = parseSettingsRouteTarget(settingsControlPlane?.legacy_route_redirects?.[tabId] ?? tabId);
+  const compatibilityRedirect = settingsControlPlane.compatibility_redirects[tabId];
+  const redirectTarget = compatibilityRedirect
+    ? `${compatibilityRedirect.target_route_id}#${compatibilityRedirect.anchor}`
+    : (settingsControlPlane.legacy_route_redirects[tabId] ?? tabId);
+  const routeTarget = parseSettingsRouteTarget(redirectTarget);
   const routeId = routeSlotIds.has(routeTarget.routeId)
     ? routeTarget.routeId
     : normalizeOplSettingsTab(routeTarget.routeId);
@@ -783,7 +316,20 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
   return {
     routeId,
     capabilitiesTab: tabFromRoute ?? tabFromLegacySlot ?? 'skills',
+    ...(routeTarget.anchor ? { anchor: routeTarget.anchor } : {}),
   };
+}
+
+export function focusSettingsAnchor(anchor: string): boolean {
+  const anchorElement = document.getElementById(anchor);
+  if (!anchorElement) return false;
+  const focusTarget = anchorElement.hasAttribute('aria-hidden')
+    ? (anchorElement.closest<HTMLElement>('.opl-settings-section') ?? anchorElement)
+    : anchorElement;
+  focusTarget.scrollIntoView({ block: 'start' });
+  if (focusTarget.tabIndex < 0) focusTarget.tabIndex = -1;
+  focusTarget.focus({ preventScroll: true });
+  return true;
 }
 
 export function capabilityDetailTabFor(tabId: string): SettingsCapabilityDetailTab {
@@ -991,6 +537,7 @@ type SettingsRouteComponentKey =
   | 'RuntimeSettings'
   | 'StorageSettings'
   | 'AppearanceModalContent'
+  | 'AboutModalContent'
   | 'SystemModalContent';
 
 const SHELL_SLOT_REGISTRY: OplSettingsControlPlane['slot_registry'] = {};
@@ -1005,6 +552,7 @@ const ROUTE_COMPONENT_KEYS = new Set<string>([
   'RuntimeSettings',
   'StorageSettings',
   'AppearanceModalContent',
+  'AboutModalContent',
   'SystemModalContent',
 ]);
 

@@ -12,6 +12,7 @@ import SettingsHost from './SettingsHost';
 import { SettingsViewModeProvider } from './settingsViewContext';
 
 const MOBILE_BREAKPOINT = 768;
+const MODAL_BORDER_RADIUS = '8px';
 
 const MODAL_WIDTH = {
   mobile: 560,
@@ -71,6 +72,8 @@ export const SubModal: React.FC<SubModalProps> = ({ visible, onCancel, title, ch
       footer={null}
       className='settings-sub-modal'
       size='medium'
+      style={{ borderRadius: MODAL_BORDER_RADIUS }}
+      contentStyle={{ borderRadius: MODAL_BORDER_RADIUS }}
       title={title}
     >
       <AionScrollArea className='h-full px-20px pb-16px text-14px text-t-primary'>{children}</AionScrollArea>
@@ -118,9 +121,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ visible, onCancel, defaul
             ? `min(calc(100vw - 32px), ${MODAL_WIDTH.mobile}px)`
             : `clamp(var(--app-min-width, 360px), 100vw, ${MODAL_WIDTH.desktop}px)`,
           maxHeight: isMobile ? MODAL_HEIGHT.mobile : undefined,
-          borderRadius: '16px',
+          borderRadius: MODAL_BORDER_RADIUS,
         }}
-        contentStyle={{ padding: isMobile ? '16px' : '24px 24px 32px' }}
+        contentStyle={{
+          padding: isMobile ? '16px' : '24px 24px 32px',
+          borderRadius: MODAL_BORDER_RADIUS,
+        }}
         title={t('settings.title')}
       >
         <SettingsHost

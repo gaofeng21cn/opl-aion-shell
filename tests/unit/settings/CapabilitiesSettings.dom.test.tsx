@@ -1,9 +1,10 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CapabilitiesSettingsContent, type CapabilitiesTab } from '@/renderer/pages/settings/CapabilitiesSettings';
 import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
+import { LayoutContext } from '@/renderer/hooks/context/LayoutContext';
 
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
@@ -44,6 +45,10 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/ToolsModalContent
 
 vi.mock('@/renderer/pages/settings/AssistantSettings', () => ({
   default: () => <div data-testid='assistants-detail'>Assistants detail</div>,
+}));
+
+vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
+  default: () => null,
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -205,94 +210,100 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   }),
 }));
 
-vi.mock('@/common/config/oplProductProfile', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/common/config/oplProductProfile')>();
+vi.mock('@/common/config/oplProductProfile', () => {
+  const homeAgentShortcuts = [
+    {
+      shortcut_id: 'research',
+      package_id: 'med-autoscience',
+      primary_label: 'Research',
+      user_configurable: true,
+      default_visible: true,
+    },
+    {
+      shortcut_id: 'grant',
+      package_id: 'med-autogrant',
+      primary_label: 'Grant Writing',
+      user_configurable: true,
+      default_visible: true,
+    },
+    {
+      shortcut_id: 'ppt',
+      package_id: 'redcube-ai',
+      primary_label: 'Presentations',
+      user_configurable: true,
+      default_visible: true,
+    },
+    {
+      shortcut_id: 'book',
+      package_id: 'opl-bookforge',
+      primary_label: 'Writing books',
+      user_configurable: true,
+      default_visible: true,
+    },
+    {
+      shortcut_id: 'oma',
+      package_id: 'opl-meta-agent',
+      primary_label: 'Meta agent',
+      user_configurable: true,
+      default_visible: false,
+    },
+  ];
+  const professionalAgentPackages = [
+    {
+      package_id: 'med-autoscience',
+      display_name: 'Med Auto Science',
+      short_name: 'MAS',
+      codex_visible_entry: 'mas',
+      default_home_visible: true,
+      required_skill_ids: ['mas'],
+      optional_skill_ids: [],
+    },
+    {
+      package_id: 'med-autogrant',
+      display_name: 'Med Auto Grant',
+      short_name: 'MAG',
+      codex_visible_entry: 'mag',
+      default_home_visible: true,
+      required_skill_ids: ['mag'],
+      optional_skill_ids: [],
+    },
+    {
+      package_id: 'redcube-ai',
+      display_name: 'RedCube AI',
+      short_name: 'RCA',
+      codex_visible_entry: 'rca',
+      default_home_visible: true,
+      required_skill_ids: ['rca'],
+      optional_skill_ids: [],
+    },
+    {
+      package_id: 'opl-bookforge',
+      display_name: 'OPL Book Forge',
+      short_name: 'OBF',
+      codex_visible_entry: 'opl-bookforge',
+      default_home_visible: true,
+      required_skill_ids: ['opl-bookforge'],
+      optional_skill_ids: [],
+    },
+    {
+      package_id: 'opl-meta-agent',
+      display_name: 'OPL Meta Agent',
+      short_name: 'OMA',
+      codex_visible_entry: 'opl-meta-agent',
+      default_home_visible: false,
+      required_skill_ids: ['opl-meta-agent'],
+      optional_skill_ids: [],
+    },
+  ];
   return {
-    ...actual,
-    getOplHomeAgentShortcuts: () => [
-      {
-        shortcut_id: 'research',
-        package_id: 'med-autoscience',
-        primary_label: 'Research',
-        user_configurable: true,
-        default_visible: true,
-      },
-      {
-        shortcut_id: 'grant',
-        package_id: 'med-autogrant',
-        primary_label: 'Grant Writing',
-        user_configurable: true,
-        default_visible: true,
-      },
-      {
-        shortcut_id: 'ppt',
-        package_id: 'redcube-ai',
-        primary_label: 'Presentations',
-        user_configurable: true,
-        default_visible: true,
-      },
-      {
-        shortcut_id: 'book',
-        package_id: 'opl-bookforge',
-        primary_label: 'Writing books',
-        user_configurable: true,
-        default_visible: true,
-      },
-      {
-        shortcut_id: 'oma',
-        package_id: 'opl-meta-agent',
-        primary_label: 'Meta agent',
-        user_configurable: true,
-        default_visible: false,
-      },
-    ],
-    getOplProfessionalAgentPackages: () => [
-      {
-        package_id: 'med-autoscience',
-        display_name: 'Med Auto Science',
-        short_name: 'MAS',
-        codex_visible_entry: 'mas',
-        default_home_visible: true,
-        required_skill_ids: ['mas'],
-        optional_skill_ids: [],
-      },
-      {
-        package_id: 'med-autogrant',
-        display_name: 'Med Auto Grant',
-        short_name: 'MAG',
-        codex_visible_entry: 'mag',
-        default_home_visible: true,
-        required_skill_ids: ['mag'],
-        optional_skill_ids: [],
-      },
-      {
-        package_id: 'redcube-ai',
-        display_name: 'RedCube AI',
-        short_name: 'RCA',
-        codex_visible_entry: 'rca',
-        default_home_visible: true,
-        required_skill_ids: ['rca'],
-        optional_skill_ids: [],
-      },
-      {
-        package_id: 'opl-bookforge',
-        display_name: 'OPL Book Forge',
-        short_name: 'OBF',
-        codex_visible_entry: 'opl-bookforge',
-        default_home_visible: true,
-        required_skill_ids: ['opl-bookforge'],
-        optional_skill_ids: [],
-      },
-      {
-        package_id: 'opl-meta-agent',
-        display_name: 'OPL Meta Agent',
-        short_name: 'OMA',
-        codex_visible_entry: 'opl-meta-agent',
-        default_home_visible: false,
-        required_skill_ids: ['opl-meta-agent'],
-        optional_skill_ids: [],
-      },
-    ],
+    canonicalizeOplProfessionalAgentId: (id: string) => id,
+    getOplAssistantSkillProfile: () => null,
+    getOplDefaultExecutorAgentKey: () => 'codex',
+    getOplDefaultHomeAssistants: () => [],
+    getOplHomeAgentShortcuts: () => homeAgentShortcuts,
+    getOplProfessionalAgentPackage: (id: string) =>
+      professionalAgentPackages.find((agentPackage) => agentPackage.package_id === id),
+    getOplProfessionalAgentPackages: () => professionalAgentPackages,
   };
 });
 
@@ -311,6 +322,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.repair': 'Needs repair',
         'settings.capabilitiesPage.status.missing': 'Missing',
         'settings.advancedSettings': 'Advanced Settings',
+        'common.close': 'Close',
+        'common.technical_details': 'Technical Details',
         'settings.localServicesPage.actions.openMaintenance': 'Open Maintenance',
         'settings.capabilitiesPage.detailsHeader': 'Capability details',
         'settings.capabilitiesPage.codexVisibilitySummary': `Codex visibility: ${options?.value ?? ''}`,
@@ -453,7 +466,14 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const renderCapabilities = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+const renderCapabilities = (ui: React.ReactElement, isMobile = false) =>
+  render(
+    <MemoryRouter>
+      <LayoutContext.Provider value={{ isMobile, siderCollapsed: false, setSiderCollapsed: vi.fn() }}>
+        {ui}
+      </LayoutContext.Provider>
+    </MemoryRouter>
+  );
 
 describe('CapabilitiesSettingsContent', () => {
   beforeEach(() => {
@@ -486,25 +506,20 @@ describe('CapabilitiesSettingsContent', () => {
 
     expect(screen.getByText('Agents & Capabilities')).toBeInTheDocument();
     expect(screen.getByText('Capability directory')).toBeInTheDocument();
-    expect(screen.getByTestId('capabilities-settings-page')).toHaveClass('opl-settings-page');
+    expect(screen.getByTestId('settings-page-capabilities')).toHaveClass('opl-settings-page');
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
     expect(screen.getAllByText('Available in conversations')).toHaveLength(5);
     expect(screen.getAllByText('Show on Home')).toHaveLength(5);
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('agent-package-add-capability'));
+    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
     expect(screen.getByTestId('agent-package-advanced-add')).toBeInTheDocument();
     expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     expect(screen.getAllByText('Med Auto Science').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('MAS').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Med Auto Grant').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('MAG').length).toBeGreaterThan(0);
     expect(screen.getAllByText('RedCube AI').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('RCA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('OPL Book Forge').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('OBF').length).toBeGreaterThan(0);
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
-    expect(screen.getAllByText('OMA').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Local developer source').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Update available').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Needs repair').length).toBeGreaterThan(0);
@@ -647,6 +662,56 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
   });
 
+  it('keeps raw package identifiers out of the directory and restores focus after closing the desktop panel', async () => {
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    const catalog = screen.getByTestId('agent-package-catalog');
+    expect(within(catalog).getByText('OPL Book Forge')).toBeInTheDocument();
+    for (const packageId of ['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge', 'opl-meta-agent']) {
+      expect(within(catalog).queryByText(packageId)).not.toBeInTheDocument();
+    }
+    for (const token of ['MAS', 'MAG', 'RCA', 'OBF', 'OMA']) {
+      expect(within(catalog).queryByText(token)).not.toBeInTheDocument();
+    }
+
+    const row = screen.getByTestId('capability-purpose-obf');
+    const trigger = screen.getByTestId('capability-open-details-obf');
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const panel = await screen.findByTestId('capability-details-obf');
+    expect(panel.tagName).toBe('ASIDE');
+    expect(panel).not.toHaveAttribute('role', 'dialog');
+    expect(panel).toHaveAccessibleName('Capability details OPL Book Forge');
+    expect(panel).not.toHaveTextContent('opl-bookforge');
+    expect(panel).not.toHaveTextContent('OBF');
+    expect(row).toHaveAttribute('data-selected', 'true');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByTestId('capability-details-obf')).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(row).toHaveAttribute('data-selected', 'false');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('uses an accessible Drawer for capability details on mobile', async () => {
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />, true);
+
+    const trigger = screen.getByTestId('capability-open-details-obf');
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const drawer = await screen.findByRole('dialog', { name: 'Capability details OPL Book Forge' });
+    expect(drawer.tagName).toBe('ASIDE');
+    expect(drawer).toHaveAttribute('aria-modal', 'true');
+    expect(drawer.closest('.arco-drawer')).not.toBeNull();
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it('persists Home shortcut visibility/order and routes registry/install through App actions', async () => {
     renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
 
@@ -694,7 +759,7 @@ describe('CapabilitiesSettingsContent', () => {
       })
     );
 
-    fireEvent.click(screen.getByTestId('agent-package-add-capability'));
+    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
     fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
       target: { value: 'https://example.test/agent.json' },
     });
@@ -768,6 +833,77 @@ describe('CapabilitiesSettingsContent', () => {
         payloadRefsOnlyJson: { package_id: 'med-autogrant' },
       })
     );
+  });
+
+  it('serializes package state writes until the active action finishes', async () => {
+    let confirmOnOk: (() => unknown) | undefined;
+    bridgeMocks.modalConfirm.mockImplementationOnce((config) => {
+      confirmOnOk = config.onOk;
+    });
+    let resolveUpdate!: (result: { ok: true; command: string }) => void;
+    const updateResult = new Promise<{ ok: true; command: string }>((resolve) => {
+      resolveUpdate = resolve;
+    });
+    bridgeMocks.executeActionInvoke.mockReturnValueOnce(updateResult);
+
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='skills' onTabChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));
+    fireEvent.change(screen.getByTestId('agent-package-manifest-url'), {
+      target: { value: 'https://example.test/agent.json' },
+    });
+    fireEvent.click(screen.getByTestId('capability-open-details-mag'));
+    fireEvent.click(screen.getByTestId('agent-package-uninstall-mag'));
+    expect(confirmOnOk).toBeTypeOf('function');
+
+    fireEvent.click(screen.getByTestId('agent-package-update-mag'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenLastCalledWith({
+      actionId: 'agent_package_update',
+      dryRun: false,
+      payloadRefsOnlyJson: {
+        package_id: 'med-autogrant',
+        manifest_url: 'https://example.test/mag.json',
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agent-package-repair-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-enabled-toggle-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-hidden-toggle-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-uninstall-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-home-toggle-details-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-home-down-details-mag')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-refresh-registry')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
+    });
+    expect(screen.getByTestId('capability-open-details-mas')).not.toBeDisabled();
+    expect(screen.getByTestId('capability-advanced-toggle-mag')).not.toBeDisabled();
+
+    await act(async () => {
+      await confirmOnOk?.();
+    });
+    fireEvent.click(screen.getByTestId('agent-package-repair-mag'));
+    expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('agent-package-repair-mag')).toBeDisabled();
+
+    await act(async () => {
+      resolveUpdate({
+        ok: true,
+        command: 'opl app action execute --action agent_package_update --json',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('agent-package-repair-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-enabled-toggle-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-hidden-toggle-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-uninstall-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-home-toggle-details-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-home-down-details-mag')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-refresh-registry')).not.toBeDisabled();
+      expect(screen.getByTestId('agent-package-install-manifest')).not.toBeDisabled();
+    });
   });
 
   it('uses persisted shortcut preferences when building Home agents', () => {

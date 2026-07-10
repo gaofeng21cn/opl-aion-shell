@@ -11,6 +11,8 @@ type AccessSettingsTestMocks = {
   codexDefaultModel: string | null;
   codexModel: string | null;
   codexDefaultProfileModel: string | null;
+  codexStatus: string;
+  modelAccessReady: boolean;
 };
 
 const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
@@ -20,6 +22,8 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   codexDefaultModel: 'gpt-5.5',
   codexModel: null,
   codexDefaultProfileModel: 'gpt-5.4',
+  codexStatus: 'ready',
+  modelAccessReady: true,
 }));
 
 if (typeof globalThis.document === 'undefined') {
@@ -63,6 +67,10 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
 }));
 
+vi.mock('@/renderer/pages/settings/components/SettingsPageWrapper', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent', () => ({
   default: () => <div>Native remote settings</div>,
 }));
@@ -78,7 +86,7 @@ vi.mock('@arco-design/web-react', () => {
     children,
     loading: _loading,
     icon: _icon,
-    type: _type,
+    type: buttonType,
     htmlType,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -87,7 +95,7 @@ vi.mock('@arco-design/web-react', () => {
     type?: string;
     htmlType?: 'button' | 'submit' | 'reset';
   }) => (
-    <button {...props} type={htmlType ?? 'button'}>
+    <button {...props} type={htmlType ?? 'button'} data-button-type={buttonType}>
       {children}
     </button>
   );
@@ -188,7 +196,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
       appState: {
         core: {
           codex: {
-            status: 'ready',
+            status: accessSettingsMocks.codexStatus,
             default_model: accessSettingsMocks.codexDefaultModel,
             model: accessSettingsMocks.codexModel,
             default_profile: {
@@ -196,7 +204,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
             },
             version: '0.125.0',
             binary_path: '/usr/local/bin/codex',
-            model_access_ready: true,
+            model_access_ready: accessSettingsMocks.modelAccessReady,
             model_access_source: 'opl_gateway',
             opl_gateway_configured: true,
             config: {
@@ -429,6 +437,8 @@ describe('AccessSettingsContent', () => {
     mocks.codexDefaultModel = 'gpt-5.5';
     mocks.codexModel = null;
     mocks.codexDefaultProfileModel = 'gpt-5.4';
+    mocks.codexStatus = 'ready';
+    mocks.modelAccessReady = true;
     mocks.configureCodexInvoke.mockResolvedValue({
       surface: 'configure_codex',
       command: 'opl system configure-codex --api-key-stdin --json',
@@ -472,19 +482,16 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Model & Account shows account/API key status');
     expect(document.body.textContent).not.toContain('Fix issue');
     expect(view.getByText('Browser access to this computer')).toBeTruthy();
-    expect(view.getByTestId('opl-settings-open-resources-connections')).toBeTruthy();
+    expect(view.getByTestId('settings-access-browser-access')).toBeTruthy();
     expect(view.getByText('Connection details')).toBeTruthy();
     expect(view.getByText('Port: 25808')).toBeTruthy();
     expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
+    expect(view.queryByTestId('opl-settings-open-resources-connections')).toBeNull();
     expect(document.body.textContent).not.toContain('Docker WebUI actions are not available yet.');
     expect(document.body.textContent).not.toContain('Install Docker WebUI');
-    expect(document.body.textContent).toContain('OPL Workspace');
-    expect(document.body.textContent).toContain('Other resource entry points');
-    expect(document.body.textContent).toContain(
-      'Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.'
-    );
+    expect(document.body.textContent).not.toContain('Other resource entry points');
     expect(document.body.textContent).not.toContain('Status: action_available');
     expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
     expect(document.body.textContent).not.toContain('Recovery: available');
@@ -502,10 +509,7 @@ describe('AccessSettingsContent', () => {
     expect(document.body.textContent).not.toContain('Access Keys');
     expect(document.body.textContent).not.toContain('Local Background Service');
     expect(document.body.textContent).not.toContain('settings.oplEnvironmentPage.status.full-access');
-
-    expect(view.getByText('Codex CLI').compareDocumentPosition(view.getByText('Connection details'))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+    expect(view.getByTestId('settings-access-technical-details')).not.toHaveAttribute('open');
   });
 
   it('shows a clear Codex CLI model fallback when the default model was not read', () => {
@@ -517,6 +521,22 @@ describe('AccessSettingsContent', () => {
     render(<AccessSettingsContent />);
 
     expect(document.body.textContent).toContain('Default model: No default model was found in Codex config');
+  });
+
+  it('does not promote OPL Gateway configuration when only Codex CLI needs attention', () => {
+    const mocks = getMocks();
+    mocks.codexStatus = 'attention_required';
+    mocks.modelAccessReady = true;
+
+    const view = render(<AccessSettingsContent />);
+
+    expect(view.getByText('OPL Gateway is connected.')).toBeTruthy();
+    expect(view.getByTestId('settings-access-primary')).not.toHaveClass('opl-settings-section--attention');
+    expect(view.queryByTestId('settings-access-exception')).toBeNull();
+    expect(view.getByTestId('opl-settings-show-gateway-config-button')).toHaveAttribute(
+      'data-button-type',
+      'secondary'
+    );
   });
 
   it('saves a trimmed OPL Gateway access key through the OPL bridge, clears the input, and refreshes fast App state', async () => {

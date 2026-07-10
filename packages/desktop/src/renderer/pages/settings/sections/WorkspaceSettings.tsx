@@ -10,7 +10,6 @@ import { FolderOpen } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
-import { getOplSettingsControlPlaneActionContract } from '@/common/config/oplProductProfile';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
@@ -30,10 +29,9 @@ type WorkspaceSettingsProps = {
   withWrapper?: boolean;
 };
 
-const SETTINGS_ACTION_CONTRACT = getOplSettingsControlPlaneActionContract();
 const WORKSPACE_PERMISSION_ATTENTION_MODES = new Set(['read-only', 'plan']);
-const UNAVAILABLE_WORKSPACE_HEALTH = new Set(['blocking', 'missing', 'unavailable']);
 const AVAILABLE_WORKSPACE_HEALTH = new Set(['available', 'healthy', 'ok', 'ready']);
+const UNKNOWN_WORKSPACE_HEALTH = new Set(['not_reported', 'unknown']);
 
 function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefined): boolean {
   return Boolean(result && result.ok !== false && (result.parsed || result.stdout));
@@ -42,7 +40,7 @@ function bridgeResultSucceeded(result: IOplRuntimeCommandResult | null | undefin
 const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = true }) => {
   const { t } = useTranslation();
   const [message, messageContextHolder] = Message.useMessage();
-  const [workspaceAction, setWorkspaceAction] = React.useState<'choose' | 'repair' | null>(null);
+  const [workspaceAction, setWorkspaceAction] = React.useState<'choose' | null>(null);
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const paths = oplRecord(appState.paths);
@@ -63,6 +61,8 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const workspaceRootHealth = oplString(workspaceRootRecord.health_status) ?? oplString(workspaceRootRecord.status);
   const workspaceExistsFlag =
     workspaceRootRecord.exists === true ? true : workspaceRootRecord.exists === false ? false : null;
+  const workspaceWritableFlag =
+    workspaceRootRecord.writable === true ? true : workspaceRootRecord.writable === false ? false : null;
 
   const modules = useMemo(
     () => moduleRecords(modulesPayload.items ?? modulesPayload.modules).map(normalizeModule),
@@ -75,6 +75,12 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   };
 
   const readyModules = modules.filter((module) => isReadyStatus(moduleStatus(module))).length;
+  const workspaceHealthState =
+    !workspaceRootHealth || UNKNOWN_WORKSPACE_HEALTH.has(workspaceRootHealth)
+      ? 'unknown'
+      : AVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth)
+        ? 'ready'
+        : 'needsAction';
   const workspaceExistsState =
     !workspaceRoot || workspaceExistsFlag === false || workspaceRootHealth === 'missing'
       ? 'needsAction'
@@ -82,22 +88,33 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
         ? 'ready'
         : 'unknown';
   const workspaceAccessState =
-    !workspaceRoot || Boolean(workspaceRootHealth && UNAVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth))
+    !workspaceRoot || workspaceWritableFlag === false || workspaceHealthState === 'needsAction'
       ? 'needsAction'
-      : workspaceExistsFlag === true ||
-          Boolean(workspaceRootHealth && AVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth))
+      : workspaceWritableFlag === true || workspaceHealthState === 'ready'
         ? 'ready'
         : 'unknown';
-  const workspaceReady =
-    Boolean(workspaceRoot) && workspaceExistsState !== 'needsAction' && workspaceAccessState !== 'needsAction';
   const permissionState = !workspaceRoot
     ? 'unknown'
-    : permissionMode === 'unknown'
-      ? 'unknown'
-      : WORKSPACE_PERMISSION_ATTENTION_MODES.has(permissionMode)
-        ? 'needsAction'
+    : workspaceAccessState === 'needsAction' || WORKSPACE_PERMISSION_ATTENTION_MODES.has(permissionMode)
+      ? 'needsAction'
+      : workspaceAccessState !== 'ready' || permissionMode === 'unknown'
+        ? 'unknown'
         : 'ready';
-  const permissionLabel = t(`agentMode.${permissionMode}`, { defaultValue: permissionMode });
+  const workspaceReady =
+    workspaceExistsState === 'ready' && workspaceAccessState === 'ready' && permissionState === 'ready';
+  const workspaceNeedsAction =
+    workspaceExistsState === 'needsAction' ||
+    workspaceAccessState === 'needsAction' ||
+    permissionState === 'needsAction';
+  const workspaceSummary = workspaceReady
+    ? [
+        t('settings.workspacePage.root.current', { path: workspaceRoot }),
+        t('settings.workspacePage.permission.title'),
+        t('settings.workspacePage.permission.ready'),
+      ].join(' · ')
+    : workspaceRoot
+      ? t('settings.workspacePage.root.current', { path: workspaceRoot })
+      : t('settings.workspacePage.root.missing');
 
   const chooseWorkspaceRoot = useCallback(async () => {
     setWorkspaceAction('choose');
@@ -126,26 +143,6 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
     }
   }, [appStateQuery.load, familyWorkspaceRoot, message, t, workspaceRoot]);
 
-  const repairWorkspacePermissions = useCallback(async () => {
-    setWorkspaceAction('repair');
-    try {
-      const result = await ipcBridge.oplRuntime.executeAction.invoke({
-        actionId: SETTINGS_ACTION_CONTRACT.recommended_action_ids.repair,
-        dryRun: false,
-      });
-      if (!bridgeResultSucceeded(result)) {
-        message.error(result?.error?.message || t('settings.oplEnvironmentPage.messages.commandFailed'));
-        return;
-      }
-      await appStateQuery.load('fast', { showRefreshing: true });
-      message.success(t('settings.oplEnvironmentPage.messages.repairComplete'));
-    } catch {
-      message.error(t('settings.oplEnvironmentPage.messages.commandFailed'));
-    } finally {
-      setWorkspaceAction(null);
-    }
-  }, [appStateQuery.load, message, t]);
-
   const openMaintenance = () => {
     window.location.hash = '#/settings/environment';
   };
@@ -153,7 +150,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
   const content = (
     <>
       {messageContextHolder}
-      <div className='opl-settings-page'>
+      <div className='opl-settings-page' data-testid='settings-page-workspace'>
         <header className='opl-settings-page-header'>
           <div className='opl-settings-page-header__copy'>
             <Typography.Title heading={4}>{t('settings.workspacePage.title')}</Typography.Title>
@@ -161,96 +158,86 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
           </div>
         </header>
 
-        <section className='opl-settings-section' id='work-directory' data-testid='opl-workspace-settings-root'>
-          <div className='opl-settings-section__header'>
-            <div className='flex min-w-0 items-start gap-10px'>
-              <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-                <FolderOpen theme='outline' />
-              </span>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.workspacePage.root.title')}
-                </Typography.Text>
-                <Typography.Text className='block break-all text-12px text-t-secondary'>
-                  {workspaceRoot
-                    ? t('settings.workspacePage.root.current', { path: workspaceRoot })
-                    : t('settings.workspacePage.root.missing')}
-                </Typography.Text>
-              </div>
-            </div>
-            <span
-              className={`opl-settings-status ${workspaceReady ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-            >
-              {workspaceReady
-                ? t('settings.workspacePage.status.ready')
-                : t('settings.workspacePage.status.needsAction')}
-            </span>
-          </div>
-          <div className='opl-settings-list'>
-            <div className='opl-settings-row' id='permissions'>
-              <div className='opl-settings-row__main'>
-                <Typography.Text className='font-500 text-t-primary'>
-                  {t('settings.workspacePage.permission.title')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary'>
-                  {t('settings.workspacePage.permission.detail', { mode: permissionLabel })}
-                </Typography.Text>
+        <div data-testid='settings-workspace-primary'>
+          <section
+            className={`opl-settings-section ${workspaceNeedsAction ? 'opl-settings-section--attention' : ''}`}
+            id='current-workspace'
+            data-testid='opl-workspace-settings-root'
+          >
+            <span id='work-directory' aria-hidden='true' />
+            <div className='opl-settings-section__header'>
+              <div className='flex min-w-0 items-start gap-10px'>
+                <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
+                  <FolderOpen theme='outline' />
+                </span>
+                <div className='min-w-0'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.workspacePage.root.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block break-all text-12px text-t-secondary'>
+                    {workspaceSummary}
+                  </Typography.Text>
+                </div>
               </div>
               <div className='opl-settings-row__meta'>
                 <span
                   className={`opl-settings-status ${
-                    permissionState === 'ready'
+                    workspaceReady
                       ? 'opl-settings-status--ready'
-                      : permissionState === 'needsAction'
+                      : workspaceNeedsAction
                         ? 'opl-settings-status--attention'
                         : ''
                   }`}
                 >
-                  {t(`settings.workspacePage.permission.${permissionState}`)}
-                </span>
-                {permissionState === 'needsAction' && (
-                  <Button loading={workspaceAction === 'repair'} onClick={repairWorkspacePermissions}>
-                    {t('settings.workspacePage.actions.repairPermissions')}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className='opl-settings-row'>
-              <div className='opl-settings-row__main'>
-                <Typography.Text className='font-500 text-t-primary'>
-                  {t('settings.workspacePage.actions.title')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary'>
                   {workspaceReady
-                    ? t('settings.workspacePage.actions.readyDescription')
-                    : t('settings.workspacePage.actions.attentionDescription')}
-                </Typography.Text>
-              </div>
-              <div className='opl-settings-row__meta'>
+                    ? t('settings.workspacePage.status.ready')
+                    : workspaceNeedsAction
+                      ? t('settings.workspacePage.status.needsAction')
+                      : t('settings.oplEnvironmentPage.status.unknown')}
+                </span>
                 <Button disabled={!workspaceRoot} onClick={() => openFolder(workspaceRoot)}>
                   {t('settings.workspacePage.actions.openWorkspace')}
                 </Button>
                 <Button
-                  type={!workspaceRoot ? 'primary' : 'secondary'}
+                  type='primary'
                   loading={workspaceAction === 'choose'}
                   onClick={chooseWorkspaceRoot}
+                  data-testid='settings-workspace-primary-action'
                 >
                   {t('settings.workspacePage.actions.changeWorkspace')}
                 </Button>
-                {(permissionState === 'needsAction' || (permissionState === 'unknown' && workspaceRoot)) && (
-                  <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
-                )}
               </div>
             </div>
-          </div>
-        </section>
+            {permissionState !== 'ready' && workspaceRoot && (
+              <div className='opl-settings-list'>
+                <div className='opl-settings-row' id='permissions' data-testid='settings-workspace-exception'>
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='font-500 text-t-primary'>
+                      {t(`settings.workspacePage.permission.${permissionState}`)}
+                    </Typography.Text>
+                    <Typography.Text className='text-12px text-t-secondary'>
+                      {t('settings.workspacePage.actions.attentionDescription')}
+                    </Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <Button onClick={openMaintenance}>{t('settings.workspacePage.actions.openMaintenance')}</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
 
-        <details className='opl-settings-details' id='technical-paths'>
+        <details
+          className='opl-settings-details'
+          id='technical-paths'
+          data-testid='settings-workspace-technical-details'
+        >
           <summary>{t('settings.workspacePage.technical.title')}</summary>
           <Typography.Text className='block pb-10px text-12px text-t-secondary'>
             {t('settings.workspacePage.technical.description')}
           </Typography.Text>
-          <div className='opl-settings-section bg-transparent'>
+          <div className='opl-settings-technical-group'>
             <div className='opl-settings-list'>
               <div className='opl-settings-row' data-testid='opl-workspace-settings-modules-root'>
                 <div className='opl-settings-row__main'>
@@ -324,7 +311,7 @@ const WorkspaceSettings: React.FC<WorkspaceSettingsProps> = ({ withWrapper = tru
                       </Tooltip>
                     ) : null}
                   </div>
-                  <Tag color={isReadyStatus(status) ? 'green' : 'orange'}>{formatStatus(status, t)}</Tag>
+                  <Tag color={isReadyStatus(status) ? 'gray' : 'orange'}>{formatStatus(status, t)}</Tag>
                 </div>
               );
             })}

@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -20,7 +20,7 @@ import {
   resolveLegacySettingsRoute,
 } from '../sections/settingsNav';
 import { iconColors } from '@/renderer/styles/colors';
-import { normalizeSearchText } from '../registry/settingsRegistry';
+import { focusSettingsAnchor, normalizeSearchText } from '../registry/settingsRegistry';
 import './settings.css';
 
 interface SettingsPageWrapperProps {
@@ -33,10 +33,12 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const navigate = useNavigate();
-  const { pathname, hash } = useLocation();
-  const { t } = useTranslation();
+  const { pathname, search } = useLocation();
+  const { t, i18n } = useTranslation();
+  const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const isDesktop = isElectronDesktop();
   const [searchQuery, setSearchQuery] = useState('');
+  const activeMobileNavItemRef = useRef<HTMLButtonElement | null>(null);
 
   const extensionTabs = useExtensionSettingsTabs();
 
@@ -55,7 +57,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const searchResults = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
     if (!query) return [];
-    const itemMatches = getSettingsSearchEntries(t).filter((item) => item.searchText.includes(query));
+    const itemMatches = getSettingsSearchEntries(t, language).filter((item) => item.searchText.includes(query));
     const builtinIds = new Set<string>(BUILTIN_TAB_IDS);
     const extensionMatches = menuItems
       .filter((item) => !builtinIds.has(item.id) && item.searchText.includes(query))
@@ -70,19 +72,32 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         searchText: item.searchText,
       }));
     return [...itemMatches, ...extensionMatches];
-  }, [menuItems, searchQuery, t]);
+  }, [language, menuItems, searchQuery, t]);
 
   useEffect(() => {
-    const anchor = hash.replace(/^#/, '');
+    const anchor = new URLSearchParams(search).get('section') ?? '';
     if (!anchor) return;
     const frame = requestAnimationFrame(() => {
-      document.getElementById(anchor)?.scrollIntoView({ block: 'start' });
+      focusSettingsAnchor(anchor);
     });
     return () => cancelAnimationFrame(frame);
-  }, [hash, pathname]);
+  }, [pathname, search]);
+
+  useEffect(() => {
+    if (!isMobile) return;
+    activeMobileNavItemRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [isMobile, menuItems, pathname]);
+
+  const selectSearchResult = React.useCallback(
+    (path: string) => {
+      setSearchQuery('');
+      void navigate(`/settings/${path}`, { replace: true });
+    },
+    [navigate]
+  );
 
   const routeSearch = (
-    <div className='settings-mobile-top-search flex flex-col gap-8px mb-16px' data-testid='settings-route-search'>
+    <div className='settings-mobile-top-search flex flex-col gap-8px mb-16px'>
       <Input
         value={searchQuery}
         onChange={setSearchQuery}
@@ -90,6 +105,11 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         data-testid='settings-search-input'
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || searchResults.length === 0) return;
+          event.preventDefault();
+          selectSearchResult(searchResults[0].path);
+        }}
       />
       {searchQuery.trim().length > 0 && searchResults.length === 0 && (
         <div className='px-10px py-9px rd-8px text-13px text-t-secondary bg-fill-1' data-testid='settings-search-empty'>
@@ -103,9 +123,8 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
               key={item.id}
               htmlType='button'
               className='settings-search-result'
-              onClick={() => {
-                void navigate(`/settings/${item.path}`, { replace: true });
-              }}
+              data-testid='settings-search-result'
+              onClick={() => selectSearchResult(item.path)}
             >
               <span className='settings-search-result__page'>{item.pageLabel}</span>
               {item.pageLabel !== item.itemLabel && (
@@ -146,7 +165,9 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                   return (
                     <Button
                       key={item.path}
+                      ref={active ? activeMobileNavItemRef : undefined}
                       htmlType='button'
+                      aria-current={active ? 'page' : undefined}
                       className={classNames('settings-mobile-top-nav__item', {
                         'settings-mobile-top-nav__item--active': active,
                       })}

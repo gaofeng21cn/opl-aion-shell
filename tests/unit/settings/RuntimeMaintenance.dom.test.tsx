@@ -1,8 +1,16 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 const bridgeMocks = vi.hoisted(() => ({
   executeActionInvoke: vi.fn(),
@@ -93,6 +101,26 @@ const updateStatus = {
   },
 };
 
+const actionableUpdateStatus = {
+  managed_update: {
+    ...updateStatus.managed_update,
+    components: updateStatus.managed_update.components.map((component) => {
+      if (component.component_id === 'runtime_substrate') {
+        return { ...component, state: 'update_available', safe_to_apply: true };
+      }
+      if (component.component_id === 'capability_packages') {
+        return {
+          ...component,
+          state: 'failed_with_repair',
+          repair_allowed: true,
+          repair_receipt_ref: 'receipt://capability-packages/repair',
+        };
+      }
+      return component;
+    }),
+  },
+};
+
 const maintenanceSnapshot: ManagedUpdateMaintenanceSnapshot = {
   running: false,
   operation: null,
@@ -123,28 +151,32 @@ vi.mock('@/common', () => ({
   },
 }));
 
-vi.mock('@/common/config/oplProductProfile', async () => {
-  const actual = await vi.importActual<typeof import('@/common/config/oplProductProfile')>(
-    '@/common/config/oplProductProfile'
-  );
-  return {
-    ...actual,
-    getOplCodexSessionContext: () => 'codex session context',
-    getOplDefaultHomeAssistants: () => [
-      { id: 'mas', display_name: 'MAS' },
-      { id: 'mag', display_name: 'MAG' },
-      { id: 'rca', display_name: 'RCA' },
-      { id: 'obf', display_name: 'OPL Book Forge' },
-      { id: 'oma', display_name: 'OMA' },
-    ],
-    getOplSettingsControlPlaneActionContract: () => ({
-      recommended_action_ids: {
-        doctor: 'doctor',
-        repair: 'repair',
-      },
-    }),
-  };
-});
+vi.mock('@/common/config/oplProductProfile', () => ({
+  canonicalizeOplProfessionalAgentId: (id: string) =>
+    (
+      ({
+        mas: 'med-autoscience',
+        mag: 'med-autogrant',
+        rca: 'redcube-ai',
+        obf: 'opl-bookforge',
+        oma: 'opl-meta-agent',
+      }) as Record<string, string>
+    )[id] ?? id,
+  getOplCodexSessionContext: () => 'codex session context',
+  getOplDefaultHomeAssistants: () => [
+    { id: 'mas', display_name: 'MAS' },
+    { id: 'mag', display_name: 'MAG' },
+    { id: 'rca', display_name: 'RCA' },
+    { id: 'obf', display_name: 'OPL Book Forge' },
+    { id: 'oma', display_name: 'OMA' },
+  ],
+  getOplSettingsControlPlaneActionContract: () => ({
+    recommended_action_ids: {
+      doctor: 'doctor',
+      repair: 'repair',
+    },
+  }),
+}));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', async () => {
   const actual = await vi.importActual<typeof import('@/renderer/hooks/system/useOplAppState')>(
@@ -190,6 +222,10 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.executeManagedUpdateRead.mockReset();
     bridgeMocks.executeManagedUpdateMutation.mockReset();
     bridgeMocks.loadAppState.mockReset();
+    maintenanceSnapshot.result = {
+      stdout: '{}',
+      parsed: updateStatus,
+    };
     bridgeMocks.executeActionInvoke.mockResolvedValue({ ok: true, parsed: {} });
     bridgeMocks.executeManagedUpdateRead.mockResolvedValue({
       ok: true,
@@ -199,7 +235,7 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: appState });
   });
 
-  it('keeps healthy rows quiet, shows state-relevant actions, and moves technical detail out of view', () => {
+  it('keeps healthy rows quiet and moves technical actions out of the primary maintenance list', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
@@ -208,10 +244,10 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
     );
     expect(screen.queryByTestId('opl-maintenance-hub-storageCleanup')).not.toBeInTheDocument();
@@ -219,7 +255,65 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toBeInTheDocument();
+    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
+    expect(screen.getByTestId('settings-maintenance-recommended-action')).toHaveTextContent(
+      'settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'
+    );
     expect(screen.getByTestId('opl-maintenance-advanced-details')).toBeInTheDocument();
+  });
+
+  it('shows exactly one primary recommendation when maintenance needs attention', () => {
+    maintenanceSnapshot.result = {
+      stdout: '{}',
+      parsed: actionableUpdateStatus,
+    };
+
+    render(<RuntimeSettings />);
+
+    expect(screen.getAllByTestId('settings-maintenance-recommended-action')).toHaveLength(1);
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toContainElement(
+      screen.getByTestId('settings-maintenance-recommended-action')
+    );
+  });
+
+  it('serializes maintenance mutations before React state commits and restores actions after completion', async () => {
+    maintenanceSnapshot.result = {
+      stdout: '{}',
+      parsed: actionableUpdateStatus,
+    };
+    const mutation = deferred<{ ok: boolean; stdout: string; parsed: typeof actionableUpdateStatus }>();
+    bridgeMocks.executeManagedUpdateMutation.mockReturnValue(mutation.promise);
+
+    render(<RuntimeSettings />);
+
+    fireEvent.click(screen.getByTestId('opl-managed-update-apply-runtime_substrate'));
+    const confirmButton = screen
+      .getByTestId('opl-managed-update-confirmation')
+      .querySelector('.arco-btn-primary') as HTMLButtonElement;
+    const repairButton = screen.getByTestId('opl-managed-update-repair-capability_packages');
+
+    act(() => {
+      confirmButton.click();
+      confirmButton.click();
+      repairButton.click();
+    });
+
+    expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('opl-managed-update-confirmation')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-managed-update-refresh')).toBeDisabled();
+    expect(repairButton).toBeDisabled();
+    expect(screen.getByTestId('settings-maintenance-recommended-action')).toBeDisabled();
+
+    await act(async () => {
+      mutation.resolve({ ok: true, stdout: '{}', parsed: actionableUpdateStatus });
+      await mutation.promise;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('opl-managed-update-refresh')).not.toBeDisabled();
+      expect(screen.getByTestId('opl-managed-update-repair-capability_packages')).not.toBeDisabled();
+      expect(screen.getByTestId('settings-maintenance-recommended-action')).not.toBeDisabled();
+    });
+    expect(bridgeMocks.executeManagedUpdateMutation).toHaveBeenCalledTimes(1);
   });
 });

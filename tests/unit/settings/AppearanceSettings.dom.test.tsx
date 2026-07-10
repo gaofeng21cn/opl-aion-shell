@@ -52,7 +52,11 @@ vi.mock('@/renderer/components/settings/LanguageSwitcher', () => ({
 }));
 
 vi.mock('@/renderer/components/base/AionScrollArea', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  default: ({ children, disableOverflow }: { children: React.ReactNode; disableOverflow?: boolean }) => (
+    <div data-testid='appearance-scroll-area' data-disable-overflow={String(Boolean(disableOverflow))}>
+      {children}
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/settings/AppearanceSettings/CssThemeSettings', () => ({
@@ -116,7 +120,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AppearanceModalContent', () => {
-  it('keeps daily controls visible and low-frequency preferences collapsed with the theme gallery', async () => {
+  it('keeps ordinary preferences and themes visible while collapsing only low-level assistant cleanup', async () => {
     bridgeMocks.getStartOnBootStatus.mockResolvedValue({
       success: true,
       data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
@@ -130,17 +134,21 @@ describe('AppearanceModalContent', () => {
     render(<AppearanceModalContent />);
 
     expect(screen.getByText('Preferences')).toBeInTheDocument();
+    expect(screen.getByTestId('appearance-scroll-area')).toHaveAttribute('data-disable-overflow', 'false');
     expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('App behavior');
     expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent(
       'Keep running after closing the window'
     );
-    expect(screen.getByTestId('appearance-behavior-section')).not.toHaveTextContent('Model response timeout');
+    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Model response timeout');
+    await waitFor(() =>
+      expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Hardware acceleration')
+    );
 
     const advancedPreferences = screen.getByTestId('advanced-preferences');
     expect(advancedPreferences).not.toHaveAttribute('open');
-    expect(advancedPreferences).toHaveTextContent('Model response timeout');
     expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
-    await waitFor(() => expect(advancedPreferences).toHaveTextContent('Hardware acceleration'));
+    expect(advancedPreferences).not.toHaveTextContent('Model response timeout');
+    expect(advancedPreferences).not.toHaveTextContent('Hardware acceleration');
 
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Language selector');
@@ -150,9 +158,7 @@ describe('AppearanceModalContent', () => {
     expect(screen.getByText('Scale')).toBeInTheDocument();
 
     expect(screen.getByTestId('preferences-theme-section')).toHaveTextContent('Theme appearance');
-    const themeDetails = screen.getByText('Advanced themes').closest('details');
-    expect(themeDetails).toBeTruthy();
-    expect(themeDetails).not.toHaveAttribute('open');
+    expect(screen.queryByText('Advanced themes')).not.toBeInTheDocument();
     expect(screen.getByTestId('css-theme-settings')).toHaveTextContent('Theme card list');
   });
 });

@@ -687,6 +687,8 @@
   "includePrereleaseUpdates": "Include prerelease/dev builds",
   "includeNightlyUpdates": "Include nightly/dev builds",
   "aboutVersionBadge": "App v{{version}} · {{channel}}",
+  "aboutAppVersion": "App version",
+  "aboutReleaseChannel": "Update channel",
   "aboutUpdateChecking": "Checking for updates…",
   "aboutUpdateAvailable": "Version {{version}} is available",
   "aboutUpdateCurrent": "You're up to date",
@@ -1364,6 +1366,7 @@
     "description": "Confirm whether this computer is usable, what needs attention, and where to go next.",
     "overall": {
       "title": "This computer",
+      "attentionCount": "{{count}} item(s) need attention",
       "readyDescription": "The work directory and primary local capabilities are available.",
       "attentionDescription": "Some settings still need attention; only usage-blocking items are listed below."
     },
@@ -1669,6 +1672,7 @@
     },
     "actions": {
       "refresh": "Refresh",
+      "previewAll": "Preview cleanup",
       "archive": "Create archive",
       "restoreProof": "Verify archive",
       "deleteWithReceipt": "Remove local files",
@@ -1719,6 +1723,11 @@
         "required": "Review the cleanup first.",
         "summary": "{{count}} item(s), {{bytes}}, will be removed."
       }
+    },
+    "history": {
+      "title": "Recent cleanup",
+      "latest": "Last action: {{time}}",
+      "empty": "No cleanup has been run yet."
     },
     "messages": {
       "actionComplete": "Storage action completed",
@@ -1781,6 +1790,7 @@
     "modelAccount": {
       "title": "Model access",
       "description": "Model access is connected; open configuration only when you need to replace the access key.",
+      "keyTitle": "OPL Gateway access key",
       "showConfigButton": "Configure OPL Gateway",
       "apiKeyPlaceholder": "Paste OPL Gateway access key",
       "apiKeyRequired": "Enter an OPL Gateway access key.",
@@ -1797,7 +1807,7 @@
       "remoteAccess": "Remote access",
       "nativeTitle": "Connection details",
       "nativePort": "Port: 25808",
-      "nativeAccount": "Account: admin, editable in remote access settings.",
+      "nativeAccount": "Account: view or edit it in remote access settings.",
       "nativePassword": "Password: view, copy, or reset it in remote access settings.",
       "openNativeSettings": "Open remote access settings",
       "openResources": "View Resources & Connections",
@@ -1902,6 +1912,9 @@
       "checkFailed": "Workbench status check failed.",
       "actionExecuteSuccess": "The operation completed.",
       "actionExecuteFailed": "The operation failed.",
+      "receiptAvailable": "An action receipt was recorded.",
+      "structuredResultAvailable": "A structured action result was received.",
+      "resultSummaryUnavailable": "The action did not return a result summary.",
       "confirmTitle": "Confirm operation",
       "confirmDescription": "The precheck is complete. Continue to run “{{action}}”.",
       "confirmBoundary": "Workspace files and conversation data will not be changed.",
@@ -2221,13 +2234,13 @@
       },
       "makeUsable": {
         "label": "Check and repair",
-        "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
-        "complete": "OPL usability check finished. Follow any restart or reload guidance shown below.",
-        "confirmTitle": "Confirm OPL maintenance",
-        "confirmWillChange": "Will run the existing repair prep and managed update checks, then apply only safe repair or sync actions that do not require restart.",
+        "help": "Runs the currently recommended safe OPL repair, then checks status again.",
+        "complete": "The recommended repair finished and status was checked again.",
+        "confirmTitle": "Confirm recommended repair",
+        "confirmWillChange": "Will run the currently recommended safe OPL repair, then check status again.",
         "confirmWillNotChange": "Will not overwrite local developer checkouts, write domain truth, delete user data, or silently apply restart-required updates.",
-        "confirmRecovery": "Receipts, rollback references, and reload guidance will stay visible after the action.",
-        "confirmAction": "Run maintenance"
+        "confirmRecovery": "If more work is needed, this page will show the next recommendation.",
+        "confirmAction": "Run recommended repair"
       },
       "status": {
         "available": "Available"

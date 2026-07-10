@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { Typography } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import ScaleControl from '@/renderer/components/settings/ScaleControl';
 import FontSizeStepper from '@/renderer/components/settings/FontSizeStepper';
@@ -13,8 +14,8 @@ import CssThemeSettings from '@renderer/pages/settings/AppearanceSettings/CssThe
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
 import { FONT_SIZE_KEYS, FONT_SIZE_SPECS, FONT_SIZE_STEP, type FontSizeKey } from '@/common/config/fontSizes';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
-import { useSettingsViewMode } from '../settingsViewContext';
 import PersonalPreferenceSettings from './SystemModalContent/PersonalPreferenceSettings';
+import { useSettingsViewMode } from '../settingsViewContext';
 
 /** Map each configurable font-size region to its row label i18n key. */
 const FONT_SIZE_LABEL_KEY: Record<FontSizeKey, string> = {
@@ -50,23 +51,18 @@ const PreferenceRow: React.FC<{
  */
 const AppearanceModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const { fontSizes, setFontSize } = useThemeContext();
+  const isPageMode = useSettingsViewMode() === 'page';
 
   return (
-    <div className='opl-settings-page flex flex-col h-full w-full'>
+    <div className='opl-settings-page flex flex-col h-full w-full' data-testid='settings-page-preferences'>
       {/* 内容区域 / Content Area */}
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='space-y-14px'>
           <div className='opl-settings-page-header'>
             <div className='opl-settings-page-header__copy'>
-              <div className='text-16px font-semibold text-t-primary leading-24px'>
-                {t('settings.personalPreferencesTitle')}
-              </div>
-              <div className='text-13px text-t-secondary mt-4px leading-20px'>
-                {t('settings.personalPreferencesDesc')}
-              </div>
+              <Typography.Title heading={4}>{t('settings.personalPreferencesTitle')}</Typography.Title>
+              <Typography.Text>{t('settings.personalPreferencesDesc')}</Typography.Text>
             </div>
           </div>
 
@@ -107,16 +103,10 @@ const AppearanceModalContent: React.FC = () => {
           <section className='opl-settings-section' id='themes' data-testid='preferences-theme-section'>
             <div className='opl-settings-section__header'>
               <div className='text-14px font-medium text-t-primary leading-22px'>{t('settings.theme')}</div>
-              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.advancedThemeListDesc')}</div>
             </div>
-            <details className='opl-settings-details mt-12px'>
-              <summary className='cursor-pointer text-14px text-t-primary leading-22px'>
-                {t('settings.advancedThemeListTitle')}
-              </summary>
-              <div className='mt-12px'>
-                <CssThemeSettings />
-              </div>
-            </details>
+            <div className='pb-2px'>
+              <CssThemeSettings />
+            </div>
           </section>
         </div>
       </AionScrollArea>

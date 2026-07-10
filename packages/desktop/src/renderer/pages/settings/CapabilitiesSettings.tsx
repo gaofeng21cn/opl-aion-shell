@@ -4,16 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Button, Input, Message, Modal, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
-import { Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
-import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Button, Drawer, Input, Message, Modal, Space, Switch, Tag, Tabs, Typography } from '@arco-design/web-react';
+import { Close, Experiment, FilePpt, FileWord, Refresh, Robot } from '@icon-park/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SkillsHubSettings from './SkillsHubSettings';
 import AssistantSettings from './AssistantSettings';
 import ToolsModalContent from '@/renderer/components/settings/SettingsModal/contents/ToolsModalContent';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import { ipcBridge } from '@/common';
+import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import {
   getOplHomeShortcutPreferences,
@@ -33,7 +34,6 @@ import {
   type CapabilityPurposeViewModel,
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
-  formatCapabilityDisplayToken,
 } from './capabilitiesProjection';
 
 export type CapabilitiesTab = 'skills' | 'tools' | 'assistants';
@@ -433,11 +433,16 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
 }) => {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
+  const isMobile = Boolean(useLayoutContext()?.isMobile);
   const appStateQuery = useOplAppState('fast');
   const [manifestUrl, setManifestUrl] = useState('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const packageActionTokenRef = useRef<symbol | null>(null);
+  const capabilityDetailsPanelRef = useRef<HTMLElement | null>(null);
+  const capabilityDetailsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [selectedCapabilityKey, setSelectedCapabilityKey] = useState<string | null>(null);
   const [advancedAddOpen, setAdvancedAddOpen] = useState(false);
+  const [managementOpen, setManagementOpen] = useState(false);
   const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
   const [supportingSurfaceOpen, setSupportingSurfaceOpen] = useState(supportingSurfaceDefaultOpen);
   const [shortcutPreferences, setShortcutPreferences] = useState(getOplHomeShortcutPreferences);
@@ -496,6 +501,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const selectedHasPrimaryAction = Boolean(
     selectedCapability && ['update', 'sync', 'repair', 'missing'].includes(selectedCapability.availabilityStatus)
   );
+  const packageActionBusy = busyAction !== null;
 
   useEffect(() => {
     const appStatePreferences = getOplHomeShortcutPreferencesFromAppState(appStateQuery.appState);
@@ -507,6 +513,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   }, [selectedCapability?.key]);
 
   const executePackageAction = async (actionId: string, payloadRefsOnlyJson?: Record<string, unknown>) => {
+    if (packageActionTokenRef.current) return;
+    const actionToken = Symbol(actionId);
+    packageActionTokenRef.current = actionToken;
     setBusyAction(actionId);
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
@@ -522,7 +531,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     } catch (error) {
       Message.error(error instanceof Error ? error.message : String(error));
     } finally {
-      setBusyAction(null);
+      if (packageActionTokenRef.current === actionToken) {
+        packageActionTokenRef.current = null;
+        setBusyAction(null);
+      }
     }
   };
 
@@ -544,7 +556,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   };
 
   const confirmUninstallPackage = (item: CapabilityPurposeViewModel) => {
-    if (!item.packageId) return;
+    if (!item.packageId || packageActionTokenRef.current) return;
     Modal.confirm({
       title: t('settings.capabilitiesPage.packageManager.uninstallConfirmTitle'),
       content: t('settings.capabilitiesPage.packageManager.uninstallConfirmContent'),
@@ -575,14 +587,14 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   };
 
   const updateShortcutHidden = (shortcutId: string, hidden: boolean) => {
-    if (!shortcutId) return;
+    if (!shortcutId || packageActionTokenRef.current) return;
     const nextPreferences = setOplHomeShortcutHidden(shortcutId, hidden);
     setShortcutPreferences(nextPreferences);
     void executeShortcutPreferenceAction(shortcutId, nextPreferences);
   };
 
   const moveShortcut = (shortcutId: string, direction: -1 | 1) => {
-    if (!shortcutId) return;
+    if (!shortcutId || packageActionTokenRef.current) return;
     const nextPreferences = moveOplHomeShortcut(shortcutId, direction);
     setShortcutPreferences(nextPreferences);
     void executeShortcutPreferenceAction(shortcutId, nextPreferences);
@@ -601,9 +613,37 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     if (actionId === 'agent_package_update') return !item.manifestUrl && !item.registryUrl;
     return !item.packageLockRef;
   };
+  const hasCapabilityIssue = purposeCapabilities.some((item) => item.availabilityStatus !== 'ready');
+
+  const openAddCapability = () => {
+    setManagementOpen(true);
+    setAdvancedAddOpen(true);
+    requestAnimationFrame(() => {
+      document.getElementById('capability-management')?.scrollIntoView({ block: 'start' });
+    });
+  };
+
+  const restoreCapabilityDetailsTriggerFocus = () => {
+    requestAnimationFrame(() => capabilityDetailsTriggerRef.current?.focus());
+  };
+
+  const closeCapabilityDetails = () => setSelectedCapabilityKey(null);
+
+  const toggleCapabilityDetails = (itemKey: string, trigger: HTMLButtonElement) => {
+    capabilityDetailsTriggerRef.current = trigger;
+    if (selectedCapabilityKey === itemKey) {
+      closeCapabilityDetails();
+      return;
+    }
+    setSelectedCapabilityKey(itemKey);
+    if (!isMobile) {
+      requestAnimationFrame(() => capabilityDetailsPanelRef.current?.focus());
+    }
+  };
 
   return (
-    <div className='opl-settings-page flex flex-col gap-16px' data-testid='capabilities-settings-page'>
+    <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-capabilities'>
+      <span data-testid='capabilities-settings-page' aria-hidden='true' />
       <header className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4} className='mb-6px'>
@@ -611,476 +651,548 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
+        <div className='opl-settings-page-header__actions'>
+          <Button type='primary' onClick={openAddCapability} data-testid='settings-capabilities-primary-action'>
+            {t('settings.capabilitiesPage.packageManager.addCapability')}
+          </Button>
+        </div>
       </header>
 
-      <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
-        <span id='source' aria-hidden='true' />
-        <span id='home-visibility' aria-hidden='true' />
-        <div className='opl-settings-section__header'>
-          <div>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.capabilitiesPage.packageManager.title')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.capabilitiesPage.packageManager.description')}
-            </Typography.Text>
-          </div>
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.capabilitiesPage.packageManager.packageCount', {
-              count: purposeCapabilities.length,
-              total: purposeCapabilities.length,
-            })}
-          </Typography.Text>
-        </div>
-
-        <div className='opl-settings-list'>
-          {purposeCapabilities.map((item) => {
-            const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
-            const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
-            const sourceLabel =
-              capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
-            return (
-              <div className='opl-settings-row' data-testid={`capability-purpose-${item.key}`} key={item.key}>
-                <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
-                  <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
-                    {capabilityIcon(item)}
-                  </span>
-                  <div className='min-w-0'>
-                    <div className='flex flex-wrap items-baseline gap-x-8px gap-y-2px'>
-                      <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
-                      <Typography.Text className='text-12px text-t-tertiary'>
-                        {formatCapabilityDisplayToken(item.packageId ?? item.key)}
-                      </Typography.Text>
-                    </div>
-                    <Typography.Text className='block break-words text-13px text-t-secondary'>
-                      {item.description}
-                    </Typography.Text>
-                  </div>
-                </div>
-                <div className='opl-settings-row__meta grid min-w-0 grid-cols-1 gap-10px sm:grid-cols-2 xl:grid-cols-[auto_minmax(120px,1fr)_minmax(140px,1fr)_auto_auto] xl:items-center'>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-11px text-t-tertiary'>
-                      {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
-                    </Typography.Text>
-                    <Tag color={capabilityStatusColor(item.availabilityStatus)}>
-                      {capabilityStatusLabel(item.availabilityStatus, t)}
-                    </Tag>
-                  </div>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-11px text-t-tertiary'>
-                      {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
-                    </Typography.Text>
-                    <Typography.Text className='block break-words text-12px text-t-secondary'>
-                      {sourceLabel}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-11px text-t-tertiary'>
-                      {t('settings.capabilitiesPage.visibility.conversation', {
-                        defaultValue: 'Available in conversations',
-                      })}
-                    </Typography.Text>
-                    <Typography.Text className='block break-words text-12px text-t-secondary'>
-                      {capabilityConversationAvailabilityLabel(item, t)}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-11px text-t-tertiary'>
-                      {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
-                    </Typography.Text>
-                    {shortcut ? (
-                      <Switch
-                        size='small'
-                        checked={shortcutVisible}
-                        onChange={(checked) => updateShortcutHidden(shortcut.shortcut_id, !checked)}
-                        data-testid={`agent-package-home-toggle-details-${item.key}`}
-                      />
-                    ) : (
-                      <Typography.Text className='text-12px text-t-secondary'>
-                        {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
-                      </Typography.Text>
-                    )}
-                  </div>
-                  <Button
-                    size='small'
-                    onClick={() => setSelectedCapabilityKey((current) => (current === item.key ? null : item.key))}
-                    data-testid={`capability-open-details-${item.key}`}
-                  >
-                    {t('settings.capabilitiesPage.actions.openDetails')}
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-          {purposeCapabilities.length === 0 && (
-            <div className='opl-settings-empty' data-testid='agent-package-empty'>
-              <Typography.Text className='text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.empty')}
+      <div data-testid='settings-capabilities-primary'>
+        <section className='opl-settings-section' id='availability' data-testid='agent-package-catalog'>
+          {hasCapabilityIssue && <span data-testid='settings-capabilities-exception' aria-hidden='true' />}
+          <span id='source' aria-hidden='true' />
+          <span id='home-visibility' aria-hidden='true' />
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.capabilitiesPage.packageManager.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.capabilitiesPage.packageManager.description')}
               </Typography.Text>
             </div>
-          )}
-        </div>
+            <Typography.Text className='text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.packageManager.packageCount', {
+                count: purposeCapabilities.length,
+                total: purposeCapabilities.length,
+              })}
+            </Typography.Text>
+          </div>
 
-        {selectedCapability && (
-          <div className='opl-settings-details' data-testid={`capability-details-${selectedCapability.key}`}>
-            <div className='flex flex-col gap-12px'>
-              <div className='flex flex-wrap items-start justify-between gap-10px'>
-                <div className='min-w-0'>
-                  <Typography.Text className='block break-words font-600 text-t-primary'>
-                    {selectedCapability.title}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {formatCapabilityDisplayToken(selectedCapability.packageId ?? selectedCapability.key)}
+          <div className='opl-settings-list'>
+            {purposeCapabilities.map((item) => {
+              const shortcut = item.packageId ? shortcutByPackageId.get(item.packageId) : null;
+              const shortcutVisible = shortcut ? isOplHomeShortcutVisible(shortcut, shortcutPreferences) : false;
+              const sourceLabel =
+                capabilitySourceLabel(item, t) ?? t('settings.capabilitiesPage.detailValues.notReported');
+              return (
+                <div
+                  className={`opl-settings-row ${selectedCapabilityKey === item.key ? 'bg-fill-1' : ''}`}
+                  data-testid={`capability-purpose-${item.key}`}
+                  data-selected={selectedCapabilityKey === item.key ? 'true' : 'false'}
+                  aria-current={selectedCapabilityKey === item.key ? 'true' : undefined}
+                  key={item.key}
+                >
+                  <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
+                    <span className='flex h-28px w-28px shrink-0 items-center justify-center rd-6px bg-fill-2 text-t-secondary'>
+                      {capabilityIcon(item)}
+                    </span>
+                    <div className='min-w-0'>
+                      <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
+                      <Typography.Text className='block break-words text-13px text-t-secondary'>
+                        {item.description}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                  <div className='opl-settings-row__meta opl-settings-capability-meta min-w-0 gap-10px'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
+                        {t('settings.capabilitiesPage.packageManager.tableHeaders.status')}
+                      </Typography.Text>
+                      <Tag color={capabilityStatusColor(item.availabilityStatus)}>
+                        {capabilityStatusLabel(item.availabilityStatus, t)}
+                      </Tag>
+                    </div>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
+                        {t('settings.capabilitiesPage.packageManager.tableHeaders.source')}
+                      </Typography.Text>
+                      <Typography.Text className='block break-words text-12px text-t-secondary'>
+                        {sourceLabel}
+                      </Typography.Text>
+                    </div>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
+                        {t('settings.capabilitiesPage.visibility.conversation', {
+                          defaultValue: 'Available in conversations',
+                        })}
+                      </Typography.Text>
+                      <Typography.Text className='block break-words text-12px text-t-secondary'>
+                        {capabilityConversationAvailabilityLabel(item, t)}
+                      </Typography.Text>
+                    </div>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-11px text-t-tertiary'>
+                        {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}
+                      </Typography.Text>
+                      {shortcut ? (
+                        <Switch
+                          size='small'
+                          checked={shortcutVisible}
+                          disabled={packageActionBusy}
+                          onChange={(checked) => updateShortcutHidden(shortcut.shortcut_id, !checked)}
+                          data-testid={`agent-package-home-toggle-details-${item.key}`}
+                        />
+                      ) : (
+                        <Typography.Text className='text-12px text-t-secondary'>
+                          {t('settings.capabilitiesPage.packageManager.noHomeShortcut')}
+                        </Typography.Text>
+                      )}
+                    </div>
+                    <Button
+                      size='small'
+                      type={selectedCapabilityKey === item.key ? 'secondary' : 'default'}
+                      aria-expanded={selectedCapabilityKey === item.key}
+                      aria-controls={`capability-details-${item.key}`}
+                      onClick={(event) => toggleCapabilityDetails(item.key, event.currentTarget as HTMLButtonElement)}
+                      data-testid={`capability-open-details-${item.key}`}
+                    >
+                      {t('settings.capabilitiesPage.actions.openDetails')}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {purposeCapabilities.length === 0 && (
+              <div className='opl-settings-empty' data-testid='agent-package-empty'>
+                <Typography.Text className='text-t-secondary'>
+                  {t('settings.capabilitiesPage.packageManager.empty')}
+                </Typography.Text>
+              </div>
+            )}
+          </div>
+
+          <Drawer
+            title={null}
+            footer={null}
+            visible={Boolean(selectedCapability)}
+            placement='right'
+            width={isMobile ? 'calc(100vw - 16px)' : 440}
+            zIndex={1300}
+            mask={isMobile}
+            maskClosable={isMobile}
+            closable={false}
+            escToExit
+            focusLock={isMobile}
+            autoFocus={false}
+            unmountOnExit
+            getPopupContainer={() => document.body}
+            onCancel={closeCapabilityDetails}
+            afterOpen={() => capabilityDetailsPanelRef.current?.focus()}
+            afterClose={restoreCapabilityDetailsTriggerFocus}
+            bodyStyle={{ background: 'var(--color-bg-1)' }}
+          >
+            {selectedCapability && (
+              <aside
+                ref={capabilityDetailsPanelRef}
+                id={`capability-details-${selectedCapability.key}`}
+                role={isMobile ? 'dialog' : undefined}
+                aria-modal={isMobile ? 'true' : undefined}
+                aria-labelledby='capability-details-heading capability-details-name'
+                tabIndex={-1}
+                className='flex flex-col gap-12px outline-none'
+                data-testid={`capability-details-${selectedCapability.key}`}
+              >
+                <div className='flex items-start justify-between gap-10px'>
+                  <div className='min-w-0'>
+                    <Typography.Text
+                      id='capability-details-heading'
+                      className='block text-12px font-500 text-t-secondary'
+                    >
+                      {t('settings.capabilitiesPage.detailsHeader')}
+                    </Typography.Text>
+                    <Typography.Text id='capability-details-name' className='block break-words font-600 text-t-primary'>
+                      {selectedCapability.title}
+                    </Typography.Text>
+                  </div>
+                  <div className='flex shrink-0 items-center gap-8px'>
+                    <Tag color={capabilityStatusColor(selectedCapability.availabilityStatus)}>
+                      {capabilityStatusLabel(selectedCapability.availabilityStatus, t)}
+                    </Tag>
+                    <Button
+                      type='text'
+                      size='mini'
+                      icon={<Close theme='outline' />}
+                      aria-label={t('common.close', { defaultValue: 'Close' })}
+                      title={t('common.close', { defaultValue: 'Close' })}
+                      onClick={closeCapabilityDetails}
+                      data-testid='capability-details-close'
+                    />
+                  </div>
+                </div>
+
+                <div className='flex flex-wrap items-start justify-between gap-10px'>
+                  <Typography.Text className='break-words text-t-secondary'>
+                    {selectedCapability.description}
                   </Typography.Text>
                 </div>
-                <Tag color={capabilityStatusColor(selectedCapability.availabilityStatus)}>
-                  {capabilityStatusLabel(selectedCapability.availabilityStatus, t)}
-                </Tag>
-              </div>
 
-              <div className='grid grid-cols-1 gap-4px text-12px'>
-                <Typography.Text className='break-words text-t-secondary'>
-                  {selectedCapability.description}
-                </Typography.Text>
-                <Typography.Text className='break-words text-t-secondary'>
-                  {t('settings.capabilitiesPage.visibility.conversation', {
-                    defaultValue: 'Available in conversations',
-                  })}
-                  : {capabilityConversationAvailabilityLabel(selectedCapability, t)}
-                </Typography.Text>
-                <Typography.Text className='break-words text-t-secondary'>
-                  {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}:{' '}
-                  {selectedHomeLabel}
-                </Typography.Text>
-              </div>
+                <div className='grid grid-cols-1 gap-4px text-12px'>
+                  <Typography.Text className='break-words text-t-secondary'>
+                    {t('settings.capabilitiesPage.visibility.conversation', {
+                      defaultValue: 'Available in conversations',
+                    })}
+                    : {capabilityConversationAvailabilityLabel(selectedCapability, t)}
+                  </Typography.Text>
+                  <Typography.Text className='break-words text-t-secondary'>
+                    {t('settings.capabilitiesPage.visibility.home', { defaultValue: 'Show on Home' })}:{' '}
+                    {selectedHomeLabel}
+                  </Typography.Text>
+                </div>
 
-              {selectedHasPrimaryAction && (
+                {selectedHasPrimaryAction && (
+                  <Button
+                    type='secondary'
+                    onClick={() => runCapabilityPrimaryAction(selectedCapability)}
+                    data-testid={`capability-primary-action-${selectedCapability.key}`}
+                  >
+                    {capabilityActionLabel(selectedCapability, t)}
+                  </Button>
+                )}
+
+                {selectedShortcut && (
+                  <Space wrap size={6}>
+                    <Button
+                      size='mini'
+                      disabled={packageActionBusy || selectedShortcutIndex <= 0}
+                      onClick={() => moveShortcut(selectedShortcutId, -1)}
+                      data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.moveUp')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      disabled={
+                        packageActionBusy ||
+                        selectedShortcutIndex < 0 ||
+                        selectedShortcutIndex >= orderedShortcuts.length - 1
+                      }
+                      onClick={() => moveShortcut(selectedShortcutId, 1)}
+                      data-testid={`agent-package-home-down-details-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.moveDown')}
+                    </Button>
+                  </Space>
+                )}
+
+                {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
+
+                <details data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
+                  <summary className='cursor-pointer text-12px text-t-secondary'>
+                    {t('settings.capabilitiesPage.packageManager.moreActions')}
+                  </summary>
+                  <Space wrap size={6} className='mt-8px'>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_update'}
+                      disabled={
+                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_update')
+                      }
+                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
+                      data-testid={`agent-package-update-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.update')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_repair'}
+                      disabled={
+                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_repair')
+                      }
+                      onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
+                      data-testid={`agent-package-repair-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.repair')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_preferences_set'}
+                      disabled={packageActionBusy || !selectedCapability.packageId}
+                      onClick={() =>
+                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                          exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
+                        })
+                      }
+                      data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
+                    >
+                      {selectedCapability.enabled === false
+                        ? t('settings.capabilitiesPage.packageManager.actions.enable')
+                        : t('settings.capabilitiesPage.packageManager.actions.disable')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      loading={busyAction === 'agent_package_preferences_set'}
+                      disabled={packageActionBusy || !selectedCapability.packageId}
+                      onClick={() =>
+                        void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
+                          exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
+                        })
+                      }
+                      data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
+                    >
+                      {selectedCapability.hidden === true
+                        ? t('settings.capabilitiesPage.packageManager.actions.unhide')
+                        : t('settings.capabilitiesPage.packageManager.actions.hide')}
+                    </Button>
+                    <Button
+                      size='mini'
+                      status='danger'
+                      loading={busyAction === 'agent_package_uninstall'}
+                      disabled={
+                        packageActionBusy || packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')
+                      }
+                      onClick={() => confirmUninstallPackage(selectedCapability)}
+                      data-testid={`agent-package-uninstall-${selectedCapability.key}`}
+                    >
+                      {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
+                    </Button>
+                  </Space>
+                </details>
+
                 <Button
-                  type='primary'
-                  onClick={() => runCapabilityPrimaryAction(selectedCapability)}
-                  data-testid={`capability-primary-action-${selectedCapability.key}`}
+                  size='small'
+                  onClick={() => setAdvancedDetailsOpen((open) => !open)}
+                  data-testid={`capability-advanced-toggle-${selectedCapability.key}`}
                 >
-                  {capabilityActionLabel(selectedCapability, t)}
+                  {t('common.technical_details', { defaultValue: 'Technical Details' })}
                 </Button>
-              )}
 
-              {selectedShortcut && (
-                <Space wrap size={6}>
-                  <Button
-                    size='mini'
-                    disabled={selectedShortcutIndex <= 0}
-                    onClick={() => moveShortcut(selectedShortcutId, -1)}
-                    data-testid={`agent-package-home-up-details-${selectedCapability.key}`}
+                {advancedDetailsOpen && (
+                  <div
+                    className='grid grid-cols-1 gap-10px'
+                    data-testid={`capability-advanced-${selectedCapability.key}`}
                   >
-                    {t('settings.capabilitiesPage.packageManager.moveUp')}
-                  </Button>
-                  <Button
-                    size='mini'
-                    disabled={selectedShortcutIndex < 0 || selectedShortcutIndex >= orderedShortcuts.length - 1}
-                    onClick={() => moveShortcut(selectedShortcutId, 1)}
-                    data-testid={`agent-package-home-down-details-${selectedCapability.key}`}
-                  >
-                    {t('settings.capabilitiesPage.packageManager.moveDown')}
-                  </Button>
-                </Space>
-              )}
-
-              {capabilityCandidateReportRows(selectedCapability.workflowCandidateRefs, selectedCapability.key, t)}
-
-              <details data-testid={`agent-package-lifecycle-actions-${selectedCapability.key}`}>
-                <summary className='cursor-pointer text-12px text-t-secondary'>
-                  {t('settings.capabilitiesPage.packageManager.moreActions')}
-                </summary>
-                <Space wrap size={6} className='mt-8px'>
-                  <Button
-                    size='mini'
-                    loading={busyAction === 'agent_package_update'}
-                    disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_update')}
-                    onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_update')}
-                    data-testid={`agent-package-update-${selectedCapability.key}`}
-                  >
-                    {t('settings.capabilitiesPage.packageManager.actions.update')}
-                  </Button>
-                  <Button
-                    size='mini'
-                    loading={busyAction === 'agent_package_repair'}
-                    disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_repair')}
-                    onClick={() => void executeLifecycleAction(selectedCapability, 'agent_package_repair')}
-                    data-testid={`agent-package-repair-${selectedCapability.key}`}
-                  >
-                    {t('settings.capabilitiesPage.packageManager.actions.repair')}
-                  </Button>
-                  <Button
-                    size='mini'
-                    loading={busyAction === 'agent_package_preferences_set'}
-                    disabled={!selectedCapability.packageId}
-                    onClick={() =>
-                      void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                        exposure_action: selectedCapability.enabled === false ? 'enable' : 'disable',
-                      })
-                    }
-                    data-testid={`agent-package-enabled-toggle-${selectedCapability.key}`}
-                  >
-                    {selectedCapability.enabled === false
-                      ? t('settings.capabilitiesPage.packageManager.actions.enable')
-                      : t('settings.capabilitiesPage.packageManager.actions.disable')}
-                  </Button>
-                  <Button
-                    size='mini'
-                    loading={busyAction === 'agent_package_preferences_set'}
-                    disabled={!selectedCapability.packageId}
-                    onClick={() =>
-                      void executeLifecycleAction(selectedCapability, 'agent_package_preferences_set', {
-                        exposure_action: selectedCapability.hidden === true ? 'unhide' : 'hide',
-                      })
-                    }
-                    data-testid={`agent-package-hidden-toggle-${selectedCapability.key}`}
-                  >
-                    {selectedCapability.hidden === true
-                      ? t('settings.capabilitiesPage.packageManager.actions.unhide')
-                      : t('settings.capabilitiesPage.packageManager.actions.hide')}
-                  </Button>
-                  <Button
-                    size='mini'
-                    status='danger'
-                    loading={busyAction === 'agent_package_uninstall'}
-                    disabled={packageLifecycleDisabled(selectedCapability, 'agent_package_uninstall')}
-                    onClick={() => confirmUninstallPackage(selectedCapability)}
-                    data-testid={`agent-package-uninstall-${selectedCapability.key}`}
-                  >
-                    {t('settings.capabilitiesPage.packageManager.actions.uninstall')}
-                  </Button>
-                </Space>
-              </details>
-
-              <Button
-                size='small'
-                onClick={() => setAdvancedDetailsOpen((open) => !open)}
-                data-testid={`capability-advanced-toggle-${selectedCapability.key}`}
-              >
-                {t('settings.advancedSettings')}
-              </Button>
-
-              {advancedDetailsOpen && (
-                <div
-                  className='grid grid-cols-1 gap-10px'
-                  data-testid={`capability-advanced-${selectedCapability.key}`}
-                >
-                  {selectedUserDetailRows.length > 0 && (
+                    {selectedUserDetailRows.length > 0 && (
+                      <div className='grid grid-cols-1 gap-6px text-12px'>
+                        {selectedUserDetailRows.map((row) => (
+                          <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
+                            <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
+                            <Typography.Text className='break-words text-t-primary'>{row.value}</Typography.Text>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {selectedHasSupportingContext && (
+                      <div
+                        className='grid grid-cols-1 gap-10px'
+                        data-testid={`capability-support-context-${selectedCapability.key}`}
+                      >
+                        {selectedCapability.connectorReadinessRefs.length > 0 && (
+                          <div className='min-w-0'>
+                            <Typography.Text className='mb-4px block text-t-secondary'>
+                              {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
+                            </Typography.Text>
+                            {capabilityRefGroups(
+                              selectedCapability.connectorReadinessGroups,
+                              selectedCapability.key,
+                              t
+                            )}
+                            {capabilityRefRows(
+                              selectedUngroupedConnectorRefs,
+                              selectedCapability.key,
+                              t,
+                              `capability-connector-refs-${selectedCapability.key}`
+                            )}
+                          </div>
+                        )}
+                        {selectedCapability.workflowRefs.length > 0 && (
+                          <div className='min-w-0'>
+                            <Typography.Text className='mb-4px block text-t-secondary'>
+                              {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
+                            </Typography.Text>
+                            {capabilityRefRows(
+                              selectedCapability.workflowRefs,
+                              selectedCapability.key,
+                              t,
+                              `capability-workflow-refs-${selectedCapability.key}`
+                            )}
+                          </div>
+                        )}
+                        {selectedCapability.resourceContextRefs.length > 0 && (
+                          <div className='min-w-0'>
+                            <Typography.Text className='mb-4px block text-t-secondary'>
+                              {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
+                            </Typography.Text>
+                            {capabilityRefGroups(
+                              selectedCapability.resourceContextGroups,
+                              selectedCapability.key,
+                              t,
+                              'settings.capabilitiesPage.resourceContextGroups'
+                            )}
+                            {capabilityRefRows(
+                              selectedUngroupedResourceRefs,
+                              selectedCapability.key,
+                              t,
+                              `capability-resource-context-refs-${selectedCapability.key}`
+                            )}
+                          </div>
+                        )}
+                        {selectedCapability.exportBundleAction && (
+                          <div className='min-w-0'>
+                            <Typography.Text className='mb-4px block text-t-secondary'>
+                              {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
+                            </Typography.Text>
+                            {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className='grid grid-cols-1 gap-6px text-12px'>
-                      {selectedUserDetailRows.map((row) => (
+                      {selectedDiagnosticRows.map((row) => (
                         <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
                           <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
                           <Typography.Text className='break-words text-t-primary'>{row.value}</Typography.Text>
                         </div>
                       ))}
                     </div>
-                  )}
-                  {selectedHasSupportingContext && (
-                    <div
-                      className='grid grid-cols-1 gap-10px'
-                      data-testid={`capability-support-context-${selectedCapability.key}`}
-                    >
-                      {selectedCapability.connectorReadinessRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='mb-4px block text-t-secondary'>
-                            {t('settings.capabilitiesPage.detailLabels.connectorReadinessRefs')}
-                          </Typography.Text>
-                          {capabilityRefGroups(selectedCapability.connectorReadinessGroups, selectedCapability.key, t)}
-                          {capabilityRefRows(
-                            selectedUngroupedConnectorRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-connector-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.workflowRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='mb-4px block text-t-secondary'>
-                            {t('settings.capabilitiesPage.detailLabels.workflowRefs')}
-                          </Typography.Text>
-                          {capabilityRefRows(
-                            selectedCapability.workflowRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-workflow-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.resourceContextRefs.length > 0 && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='mb-4px block text-t-secondary'>
-                            {t('settings.capabilitiesPage.detailLabels.resourceContextRefs')}
-                          </Typography.Text>
-                          {capabilityRefGroups(
-                            selectedCapability.resourceContextGroups,
-                            selectedCapability.key,
-                            t,
-                            'settings.capabilitiesPage.resourceContextGroups'
-                          )}
-                          {capabilityRefRows(
-                            selectedUngroupedResourceRefs,
-                            selectedCapability.key,
-                            t,
-                            `capability-resource-context-refs-${selectedCapability.key}`
-                          )}
-                        </div>
-                      )}
-                      {selectedCapability.exportBundleAction && (
-                        <div className='min-w-0'>
-                          <Typography.Text className='mb-4px block text-t-secondary'>
-                            {t('settings.capabilitiesPage.detailLabels.exportBundleAction')}
-                          </Typography.Text>
-                          {capabilityExportBundleAction(selectedCapability.exportBundleAction, t)}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className='grid grid-cols-1 gap-6px text-12px'>
-                    {selectedDiagnosticRows.map((row) => (
-                      <div key={`${selectedCapability.key}-${row.key}`} className='min-w-0'>
-                        <Typography.Text className='text-t-secondary'>{row.label}: </Typography.Text>
-                        <Typography.Text className='break-words text-t-primary'>{row.value}</Typography.Text>
-                      </div>
-                    ))}
                   </div>
+                )}
+              </aside>
+            )}
+          </Drawer>
+
+          <details
+            className='opl-settings-details'
+            id='capability-management'
+            open={managementOpen}
+            onToggle={(event) => setManagementOpen(event.currentTarget.open)}
+            data-testid='settings-capabilities-technical-details'
+          >
+            <span data-testid='capability-management-entry' aria-hidden='true' />
+            <summary className='cursor-pointer text-12px font-500 text-t-secondary'>
+              {t('settings.capabilitiesPage.packageManager.management', { defaultValue: 'Manage capabilities' })}
+            </summary>
+            <div className='mt-10px flex flex-col gap-10px'>
+              <Space wrap size={8}>
+                <Button
+                  size='small'
+                  icon={<Refresh theme='outline' />}
+                  loading={busyAction === 'refresh_registry'}
+                  disabled={packageActionBusy}
+                  onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
+                  data-testid='agent-package-refresh-registry'
+                >
+                  {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
+                </Button>
+                <span data-testid='agent-package-add-capability' aria-hidden='true' />
+              </Space>
+              {advancedAddOpen && (
+                <div
+                  className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_auto]'
+                  data-testid='agent-package-advanced-add'
+                >
+                  <div className='md:col-span-2'>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.packageManager.advancedAddTitle')}
+                    </Typography.Text>
+                    <Typography.Text className='block text-12px text-t-secondary'>
+                      {t('settings.capabilitiesPage.packageManager.advancedAddDescription')}
+                    </Typography.Text>
+                  </div>
+                  <Input
+                    size='small'
+                    value={manifestUrl}
+                    onChange={setManifestUrl}
+                    placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
+                    data-testid='agent-package-manifest-url'
+                  />
+                  <Button
+                    size='small'
+                    loading={busyAction === 'install_from_manifest_url'}
+                    disabled={packageActionBusy || !manifestUrl.trim()}
+                    onClick={() =>
+                      executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
+                    }
+                    data-testid='agent-package-install-manifest'
+                  >
+                    {t('settings.capabilitiesPage.packageManager.installFromManifest')}
+                  </Button>
                 </div>
               )}
             </div>
+          </details>
+        </section>
+      </div>
+
+      <details
+        className='opl-settings-details'
+        id='custom-assistants'
+        open={supportingSurfaceOpen}
+        onToggle={(event) => setSupportingSurfaceOpen(event.currentTarget.open)}
+        data-testid='capability-supporting-surfaces'
+      >
+        <summary className='cursor-pointer'>
+          <Typography.Text className='font-600 text-t-primary'>
+            {t('settings.capabilitiesPage.supporting.compactTitle', {
+              defaultValue: 'Skills, tools, and assistants',
+            })}
+          </Typography.Text>
+        </summary>
+        {supportingSurfaceOpen && (
+          <div className='mt-10px'>
+            <Typography.Text className='block text-12px text-t-secondary'>
+              {t('settings.capabilitiesPage.supporting.description')}
+            </Typography.Text>
+            <Tabs
+              activeTab={activeTab}
+              onChange={(key) => {
+                if (isCapabilitiesTab(key)) onTabChange(key);
+              }}
+              type='line'
+              className='mt-12px flex min-h-0 flex-1 flex-col [&>.arco-tabs-content]:pt-0'
+            >
+              <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
+                <SkillsHubSettings withWrapper={false} />
+              </Tabs.TabPane>
+              <Tabs.TabPane
+                key='tools'
+                title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
+              >
+                <ToolsModalContent />
+              </Tabs.TabPane>
+              <Tabs.TabPane
+                key='assistants'
+                title={t('settings.capabilitiesTab.assistants', { defaultValue: 'Custom assistants' })}
+              >
+                <AssistantSettings withWrapper={false} />
+              </Tabs.TabPane>
+            </Tabs>
           </div>
         )}
-
-        <details className='opl-settings-details' data-testid='capability-management-entry'>
-          <summary className='cursor-pointer text-12px font-500 text-t-secondary'>
-            {t('settings.capabilitiesPage.packageManager.management', { defaultValue: 'Manage capabilities' })}
-          </summary>
-          <div className='mt-10px flex flex-col gap-10px'>
-            <Space wrap size={8}>
-              <Button
-                size='small'
-                icon={<Refresh theme='outline' />}
-                loading={busyAction === 'refresh_registry'}
-                onClick={() => executePackageAction('refresh_registry', { registry_url: DEFAULT_AGENT_REGISTRY_URL })}
-                data-testid='agent-package-refresh-registry'
-              >
-                {t('settings.capabilitiesPage.packageManager.refreshRegistry')}
-              </Button>
-              <Button
-                size='small'
-                onClick={() => setAdvancedAddOpen((open) => !open)}
-                data-testid='agent-package-add-capability'
-              >
-                {t('settings.capabilitiesPage.packageManager.addCapability')}
-              </Button>
-            </Space>
-            {advancedAddOpen && (
-              <div
-                className='grid grid-cols-1 gap-8px rd-8px bg-fill-1 p-10px md:grid-cols-[minmax(0,1fr)_auto]'
-                data-testid='agent-package-advanced-add'
-              >
-                <div className='md:col-span-2'>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.capabilitiesPage.packageManager.advancedAddTitle')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t('settings.capabilitiesPage.packageManager.advancedAddDescription')}
-                  </Typography.Text>
-                </div>
-                <Input
-                  size='small'
-                  value={manifestUrl}
-                  onChange={setManifestUrl}
-                  placeholder={t('settings.capabilitiesPage.packageManager.manifestUrlPlaceholder')}
-                  data-testid='agent-package-manifest-url'
-                />
-                <Button
-                  size='small'
-                  loading={busyAction === 'install_from_manifest_url'}
-                  disabled={!manifestUrl.trim()}
-                  onClick={() =>
-                    executePackageAction('install_from_manifest_url', { manifest_url: manifestUrl.trim() })
-                  }
-                  data-testid='agent-package-install-manifest'
-                >
-                  {t('settings.capabilitiesPage.packageManager.installFromManifest')}
-                </Button>
-              </div>
-            )}
-          </div>
-        </details>
-      </section>
-
-      <section className='opl-settings-section' id='custom-assistants'>
-        <details
-          className='opl-settings-details'
-          open={supportingSurfaceOpen}
-          onToggle={(event) => setSupportingSurfaceOpen(event.currentTarget.open)}
-          data-testid='capability-supporting-surfaces'
-        >
-          <summary className='cursor-pointer'>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.capabilitiesPage.supporting.compactTitle', {
-                defaultValue: 'Skills, tools, and assistants',
-              })}
-            </Typography.Text>
-          </summary>
-          {supportingSurfaceOpen && (
-            <div className='mt-10px'>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.supporting.description')}
-              </Typography.Text>
-              <Tabs
-                activeTab={activeTab}
-                onChange={(key) => {
-                  if (isCapabilitiesTab(key)) onTabChange(key);
-                }}
-                type='line'
-                className='mt-12px flex min-h-0 flex-1 flex-col [&>.arco-tabs-content]:pt-0'
-              >
-                <Tabs.TabPane key='skills' title={t('settings.capabilitiesTab.skills', { defaultValue: 'Skills' })}>
-                  <SkillsHubSettings withWrapper={false} />
-                </Tabs.TabPane>
-                <Tabs.TabPane
-                  key='tools'
-                  title={t('settings.capabilitiesTab.tools', { defaultValue: 'External tools & voice' })}
-                >
-                  <ToolsModalContent />
-                </Tabs.TabPane>
-                <Tabs.TabPane
-                  key='assistants'
-                  title={t('settings.capabilitiesTab.assistants', { defaultValue: 'Custom assistants' })}
-                >
-                  <AssistantSettings withWrapper={false} />
-                </Tabs.TabPane>
-              </Tabs>
-            </div>
-          )}
-        </details>
-      </section>
+      </details>
     </div>
   );
 };
 
 const CapabilitiesSettings: React.FC = () => {
-  const { hash } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<CapabilitiesTab>(() => {
     const tabParam = searchParams.get('tab');
-    if (hash === '#custom-assistants') return 'assistants';
+    if (searchParams.get('section') === 'custom-assistants') return 'assistants';
     return isCapabilitiesTab(tabParam) ? tabParam : 'skills';
   });
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (hash === '#custom-assistants' && activeTab !== 'assistants') {
+    if (searchParams.get('section') === 'custom-assistants' && activeTab !== 'assistants') {
       setActiveTab('assistants');
       return;
     }
     if (isCapabilitiesTab(tabParam) && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
-  }, [searchParams, activeTab, hash]);
+  }, [searchParams, activeTab]);
 
   const handleTabChange = (key: CapabilitiesTab) => {
     setActiveTab(key);
@@ -1094,7 +1206,9 @@ const CapabilitiesSettings: React.FC = () => {
       <CapabilitiesSettingsContent
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        supportingSurfaceDefaultOpen={isCapabilitiesTab(searchParams.get('tab')) || hash === '#custom-assistants'}
+        supportingSurfaceDefaultOpen={
+          isCapabilitiesTab(searchParams.get('tab')) || searchParams.get('section') === 'custom-assistants'
+        }
       />
     </SettingsPageWrapper>
   );

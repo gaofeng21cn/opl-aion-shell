@@ -34,6 +34,8 @@ vi.mock('react-i18next', () => ({
         'settings.releasePage': 'Release page',
         'settings.feedback': 'Feedback',
         'settings.checkForUpdates': 'Check for updates',
+        'settings.aboutAppVersion': 'App version',
+        'settings.aboutReleaseChannel': 'Release channel',
         'settings.aboutUpdateChecking': 'Checking for updates',
         'settings.aboutUpdateCurrent': 'You are up to date',
         'settings.aboutUpdateUnknown': 'Update status unavailable',
@@ -113,7 +115,13 @@ describe('AboutModalContent OPL release metadata', () => {
   it('keeps the main page focused on app version, update state, and three distinct actions', async () => {
     renderWithFreshSWR();
 
-    expect(await screen.findByText('App 26.5.27 · Stable')).toBeInTheDocument();
+    expect(await screen.findByText('App version')).toBeInTheDocument();
+    expect(screen.getByText('26.5.27')).toBeInTheDocument();
+    expect(screen.getByText('Release channel')).toBeInTheDocument();
+    expect(screen.getByText('Stable')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-page-about')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-about-primary')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-about-technical-details')).toBeInTheDocument();
     expect(await screen.findByText('You are up to date')).toBeInTheDocument();
     expect(screen.getByTestId('about-check-updates')).toBeInTheDocument();
     expect(screen.getByTestId('about-link-help')).toHaveTextContent('Help documentation');
@@ -135,7 +143,7 @@ describe('AboutModalContent OPL release metadata', () => {
 
     expect(await screen.findByText('Framework revision abc123def456')).toBeInTheDocument();
     expect(screen.queryByText('Framework revision 0.1.0')).not.toBeInTheDocument();
-    expect(screen.getByText('Release repository gaofeng21cn/one-person-lab-app')).toBeInTheDocument();
+    expect(screen.getByText('Release page: gaofeng21cn/one-person-lab-app')).toBeInTheDocument();
   });
 
   it('does not fall back to the legacy framework version when revision is missing', async () => {

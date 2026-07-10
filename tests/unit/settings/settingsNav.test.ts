@@ -101,41 +101,42 @@ const { controlPlane } = vi.hoisted(() => ({
         slot_id: 'about',
         visibility: 'secondary_or_deep_link',
       },
-      {
-        id: 'update',
-        path: '/settings/update',
-        ia_group: 'maintenance',
-        slot_id: 'update',
-        visibility: 'secondary_or_deep_link',
-      },
-      {
-        id: 'theme',
-        path: '/settings/theme',
-        ia_group: 'preferences',
-        slot_id: 'settings_theme',
-        visibility: 'secondary_or_deep_link',
-      },
-      {
-        id: 'local-services',
-        path: '/settings/local-services',
-        ia_group: 'maintenance',
-        slot_id: 'local_services',
-        visibility: 'secondary_or_deep_link',
-      },
     ],
+    compatibility_redirects: {
+      update: {
+        target_route_id: 'environment',
+        anchor: 'updates',
+      },
+      theme: {
+        target_route_id: 'appearance',
+        anchor: 'themes',
+      },
+      'local-services': {
+        target_route_id: 'environment',
+        anchor: 'services',
+      },
+    },
+    experience_contract: {
+      global_search: {
+        anchor_query_param: 'section',
+      },
+      page_contracts: {},
+      search_index: {
+        entries: [],
+      },
+    },
     legacy_route_redirects: {
       overview: 'general',
       runtime: 'environment',
       system: 'advanced',
       model: 'environment',
       agent: 'capabilities',
-      assistants: 'capabilities',
+      assistants: 'capabilities?tab=assistants#custom-assistants',
       'skills-hub': 'capabilities?tab=skills',
       tools: 'capabilities?tab=tools',
       display: 'appearance',
       webui: 'resources',
       pet: 'appearance',
-      about: 'advanced',
     },
     extension_anchor_remap: {
       overview: 'general',
@@ -202,7 +203,7 @@ vi.mock('@/common/config/oplProductProfile', () => ({
     'storage',
     'appearance',
   ],
-  getOplGuiSettingsSecondaryPageIds: () => ['advanced', 'about', 'update', 'theme', 'local-services'],
+  getOplGuiSettingsSecondaryPageIds: () => ['advanced', 'about'],
 }));
 
 const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key;
@@ -234,18 +235,20 @@ describe('settingsNav App-owned tabs', () => {
 
   it('redirects legacy settings routes to App-owned settings pages', () => {
     expect(LEGACY_SETTINGS_ROUTE_REDIRECTS).toEqual({
+      update: '/settings/environment?section=updates',
+      theme: '/settings/appearance?section=themes',
+      'local-services': '/settings/environment?section=services',
       overview: '/settings/general',
       runtime: '/settings/environment',
       system: '/settings/advanced',
       model: '/settings/environment',
       agent: '/settings/capabilities',
-      assistants: '/settings/capabilities',
+      assistants: '/settings/capabilities?tab=assistants&section=custom-assistants',
       'skills-hub': '/settings/capabilities?tab=skills',
       tools: '/settings/capabilities?tab=tools',
       display: '/settings/appearance',
       webui: '/settings/resources',
       pet: '/settings/appearance',
-      about: '/settings/advanced',
     });
   });
 
@@ -261,9 +264,6 @@ describe('settingsNav App-owned tabs', () => {
       'appearance',
       'advanced',
       'about',
-      'update',
-      'theme',
-      'local-services',
     ]);
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('runtime');
     expect(getSettingsRenderSlots().map((slot) => slot.routeId)).not.toContain('tools');
@@ -295,12 +295,20 @@ describe('settingsNav App-owned tabs', () => {
       subrouteQueryParam: 'tab',
       legacySubroutes: { 'skills-hub': 'skills', tools: 'tools' },
     });
-    expect(getSettingsRenderSlot('theme')).toMatchObject({
+    expect(getSettingsRenderSlot('appearance')).toMatchObject({
       id: 'settings_theme',
-      routeId: 'theme',
+      routeId: 'appearance',
       componentKey: 'AppearanceModalContent',
       wrapperPolicy: 'host_provides_wrapper',
     });
+    expect(getSettingsRenderSlot('theme')).toBeNull();
+    expect(resolveSettingsRenderTarget('theme')).toEqual({
+      routeId: 'appearance',
+      capabilitiesTab: 'skills',
+      anchor: 'themes',
+    });
+    expect(resolveSettingsRenderTarget('update').anchor).toBe('updates');
+    expect(resolveSettingsRenderTarget('local-services').anchor).toBe('services');
     expect(getSettingsRenderSlot('workspace')).toMatchObject({
       id: 'workspace',
       routeId: 'workspace',
@@ -323,6 +331,11 @@ describe('settingsNav App-owned tabs', () => {
     expect(resolveSettingsRenderTarget('tools')).toEqual({
       routeId: 'capabilities',
       capabilitiesTab: 'tools',
+    });
+    expect(resolveSettingsRenderTarget('assistants')).toEqual({
+      routeId: 'capabilities',
+      capabilitiesTab: 'assistants',
+      anchor: 'custom-assistants',
     });
     expect(capabilityDetailTabFor('tools')).toBe('tools');
     expect(capabilityDetailTabFor('capabilities')).toBe('skills');

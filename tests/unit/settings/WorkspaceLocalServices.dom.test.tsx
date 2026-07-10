@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import WorkspaceSettings from '@/renderer/pages/settings/sections/WorkspaceSettings';
 import LocalServicesSettings from '@/renderer/pages/settings/sections/LocalServicesSettings';
@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   showOpen: vi.fn().mockResolvedValue(['/Users/example/New Workspace']),
   executeAction: vi.fn().mockResolvedValue({ ok: true, parsed: { ok: true } }),
+  workspaceExists: true as boolean | null,
+  workspaceWritable: true as boolean | null,
+  workspaceHealthStatus: 'ready' as string | null,
+  executorPermissionMode: 'full-access',
 }));
 
 vi.mock('@/common', () => ({
@@ -43,7 +47,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
     appState: {
       core: {
         codex: { status: 'ready', version: '0.125.0', permission_mode: 'full-access' },
-        executor: { permission_mode: 'full-access' },
+        executor: { permission_mode: mocks.executorPermissionMode },
       },
       provider: {
         temporal: {
@@ -55,8 +59,9 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
         workspace_root_path: '/Users/example/OPL Workspace',
         workspace_root: {
           selected_path: '/Users/example/OPL Workspace',
-          exists: true,
-          health_status: 'ready',
+          exists: mocks.workspaceExists,
+          writable: mocks.workspaceWritable,
+          health_status: mocks.workspaceHealthStatus,
         },
         logs_dir: '/Users/example/Library/Logs/One Person Lab',
         family_workspace_root: {
@@ -105,7 +110,6 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.permission.ready': 'Permission ready',
         'settings.workspacePage.permission.needsAction': 'Permission needs attention',
         'settings.workspacePage.permission.unknown': 'Not reported',
-        'settings.workspacePage.permission.detail': `Permission: ${options?.mode}`,
         'settings.workspacePage.output.title': 'Folder exists',
         'settings.workspacePage.nextStep.title': 'Recommended next step',
         'settings.workspacePage.nextStep.ready': 'Ready to work.',
@@ -136,7 +140,6 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.actions.readyDescription': 'Open or change the current directory.',
         'settings.workspacePage.actions.attentionDescription': 'Choose a writable directory.',
         'settings.workspacePage.actions.recheck': 'Recheck',
-        'settings.workspacePage.actions.repairPermissions': 'Repair permissions',
         'settings.workspacePage.actions.openMaintenance': 'Open Maintenance',
         'settings.localServicesPage.title': 'Local Services',
         'settings.localServicesPage.description': 'Check local service health.',
@@ -160,11 +163,11 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.healthSummary.values.none': 'None',
         'settings.oplEnvironmentPage.healthSummary.values.count': `${options?.count} item(s)`,
         'settings.oplEnvironmentPage.status.ready': 'Ready',
+        'settings.oplEnvironmentPage.status.unknown': 'Unknown',
         'settings.oplEnvironmentPage.status.attention_required': 'Needs attention',
         'settings.oplEnvironmentPage.status.dirty': 'dirty',
         'settings.oplEnvironmentPage.moduleVersion.pathSources.familyWorkspaceRoot': `From ${options?.root}`,
         'settings.oplEnvironmentPage.moduleVersion.pathSources.siblingWorkspace': 'Sibling workspace',
-        'agentMode.full-access': 'Full Access',
       };
       return labels[key] ?? options?.defaultValue ?? key;
     },
@@ -172,19 +175,31 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('WorkspaceSettings and LocalServicesSettings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.workspaceExists = true;
+    mocks.workspaceWritable = true;
+    mocks.workspaceHealthStatus = 'ready';
+    mocks.executorPermissionMode = 'full-access';
+  });
+
   it('renders workspace paths as a normal Settings page and opens the workspace folder', () => {
     render(<WorkspaceSettings withWrapper={false} />);
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getAllByText('Work root: /Users/example/OPL Workspace').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
-    expect(screen.getByText('Directory actions')).toBeInTheDocument();
-    expect(screen.getByText('Open or change the current directory.')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-page-workspace')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-primary')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-primary-action')).toHaveTextContent('Change workspace');
+    expect(screen.queryByTestId('settings-workspace-exception')).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Work root: /Users/example/OPL Workspace · Writes are allowed · Permission ready')
+    ).toBeInTheDocument();
     expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Permission: Full Access').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Permission: Full Access')).not.toBeInTheDocument();
     expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
     expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-workspace-technical-details')).not.toHaveAttribute('open');
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();
@@ -201,6 +216,43 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
       folder_path: '/Users/example/Library/Logs/One Person Lab',
       tool: 'explorer',
     });
+  });
+
+  it('routes a non-writable work root to Maintenance without running global repair', () => {
+    mocks.workspaceWritable = false;
+    mocks.workspaceHealthStatus = 'attention_needed';
+    mocks.executorPermissionMode = 'full_auto';
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('opl-workspace-settings-root')).toHaveClass('opl-settings-section--attention');
+    expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
+    expect(screen.getByText('Needs setup')).toBeInTheDocument();
+    expect(screen.getByText('Permission needs attention')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Open Maintenance'));
+
+    expect(window.location.hash).toBe('#/settings/environment');
+    expect(mocks.executeAction).not.toHaveBeenCalled();
+    expect(screen.queryByText('Repair permissions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();
+  });
+
+  it('keeps unreported workspace access neutral instead of reporting ready or repairable', () => {
+    mocks.workspaceExists = null;
+    mocks.workspaceWritable = null;
+    mocks.workspaceHealthStatus = null;
+    mocks.executorPermissionMode = 'full_auto';
+
+    render(<WorkspaceSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('opl-workspace-settings-root')).not.toHaveClass('opl-settings-section--attention');
+    expect(screen.getByTestId('settings-workspace-exception')).toBeInTheDocument();
+    expect(screen.getByText('Unknown')).toBeInTheDocument();
+    expect(screen.getByText('Not reported')).toBeInTheDocument();
+    expect(screen.getByText('Open Maintenance')).toBeInTheDocument();
+    expect(screen.queryByText('Permission: full_auto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Permission ready')).not.toBeInTheDocument();
+    expect(screen.queryByText('Repair permissions')).not.toBeInTheDocument();
   });
 
   it('renders local service health separately from Maintenance actions', () => {

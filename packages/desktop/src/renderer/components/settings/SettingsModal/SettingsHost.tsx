@@ -15,11 +15,12 @@ import {
   getSettingsRenderSlot,
   normalizeSearchText,
   resolveSettingsRenderTarget,
+  focusSettingsAnchor,
   type SettingsModalMenuItem,
 } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
 import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSettingsTabs';
-import { Input, Tabs } from '@arco-design/web-react';
+import { Button, Input, Tabs } from '@arco-design/web-react';
 import { Search } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -69,10 +70,14 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   mobileContentHeight,
   desktopContentHeight,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const [activeTab, setActiveTab] = useState<SettingTab>(() => resolveSettingsRenderTarget(defaultTab).routeId);
   const [capabilitiesTab, setCapabilitiesTab] = useState<CapabilitiesTab>(
     () => resolveSettingsRenderTarget(defaultTab).capabilitiesTab
+  );
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(
+    () => resolveSettingsRenderTarget(defaultTab).anchor ?? null
   );
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
   const extensionTabs = useExtensionSettingsTabs();
@@ -94,7 +99,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     const query = normalizeSearchText(menuSearchQuery);
     if (!query) return menuItems;
     const builtinKeys = new Set<string>(BUILTIN_TAB_IDS);
-    const entryMatches = getSettingsSearchEntries(t)
+    const entryMatches = getSettingsSearchEntries(t, language)
       .filter((item) => item.searchText.includes(query))
       .map(
         (item): SettingsMenuItem => ({
@@ -113,13 +118,22 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
       .filter((item) => !builtinKeys.has(item.key) && item.searchText.includes(query))
       .map((item) => ({ ...item, isSearchResult: true }));
     return [...entryMatches, ...extensionMatches];
-  }, [menuItems, menuSearchQuery, t]);
+  }, [language, menuItems, menuSearchQuery, t]);
 
   useEffect(() => {
     const target = resolveSettingsRenderTarget(defaultTab);
     setActiveTab(target.routeId);
     setCapabilitiesTab(target.capabilitiesTab);
+    setPendingAnchor(target.anchor ?? null);
   }, [defaultTab]);
+
+  useEffect(() => {
+    if (!visible || !pendingAnchor) return;
+    const frame = requestAnimationFrame(() => {
+      if (focusSettingsAnchor(pendingAnchor)) setPendingAnchor(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeTab, capabilitiesTab, pendingAnchor, visible]);
 
   const [mountedExtTabs, setMountedExtTabs] = useState<Set<string>>(new Set());
 
@@ -144,16 +158,14 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     const target = resolveSettingsRenderTarget(tab);
     setActiveTab(target.routeId);
     setCapabilitiesTab(target.capabilitiesTab);
+    setPendingAnchor(target.anchor ?? null);
   }, []);
 
   const handleMenuItemSelect = useCallback(
     (item: SettingsMenuItem) => {
       handleTabChange(item.key);
       setMenuSearchQuery('');
-      if (!item.anchor) return;
-      requestAnimationFrame(() => {
-        document.getElementById(item.anchor ?? '')?.scrollIntoView({ block: 'start' });
-      });
+      if (item.anchor) setPendingAnchor(item.anchor);
     },
     [handleTabChange]
   );
@@ -181,21 +193,27 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         className='mb-12px'
         data-testid='settings-search-input'
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' || !menuSearchQuery.trim() || filteredMenuItems.length === 0) return;
+          event.preventDefault();
+          handleMenuItemSelect(filteredMenuItems[0]);
+        }}
       />
       {menuSearchQuery.trim() ? (
         <div className='settings-search-results' data-testid='settings-search-results'>
           {filteredMenuItems.map((item) => (
-            <button
+            <Button
               key={item.id}
-              type='button'
+              htmlType='button'
               className='settings-search-result'
+              data-testid='settings-search-result'
               onClick={() => handleMenuItemSelect(item)}
             >
               <span className='settings-search-result__page'>{item.pageLabel}</span>
               {item.pageLabel !== item.itemLabel && (
                 <span className='settings-search-result__item'>{item.itemLabel}</span>
               )}
-            </button>
+            </Button>
           ))}
         </div>
       ) : (
@@ -229,19 +247,26 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
           prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
           placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
           data-testid='settings-search-input'
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || !menuSearchQuery.trim() || filteredMenuItems.length === 0) return;
+            event.preventDefault();
+            handleMenuItemSelect(filteredMenuItems[0]);
+          }}
         />
         <div className='flex flex-col gap-2px'>
           {filteredMenuItems.map((item) => (
-            <div
+            <button
+              type='button'
               key={item.id}
               className={classNames(
-                'flex items-center px-14px py-10px rd-8px cursor-pointer transition-all duration-150 select-none',
+                'flex w-full items-center border-0 bg-transparent px-14px py-10px text-left font-inherit rd-8px cursor-pointer transition-all duration-150 select-none',
                 {
                   'bg-aou-2 text-t-primary': activeTab === item.key,
                   'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
                 }
               )}
               onClick={() => handleMenuItemSelect(item)}
+              data-testid={item.isSearchResult ? 'settings-search-result' : undefined}
             >
               <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
               {item.isSearchResult ? (
@@ -252,7 +277,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
               ) : (
                 <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
               )}
-            </div>
+            </button>
           ))}
         </div>
         {filteredMenuItems.length === 0 && (

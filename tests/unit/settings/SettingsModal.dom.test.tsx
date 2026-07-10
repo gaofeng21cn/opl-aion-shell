@@ -1,12 +1,26 @@
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import SettingsModal from '@/renderer/components/settings/SettingsModal';
+import { MemoryRouter } from 'react-router-dom';
+import SettingsModal, { SubModal } from '@/renderer/components/settings/SettingsModal';
+import SettingsPageWrapper from '@/renderer/pages/settings/components/SettingsPageWrapper';
 
 vi.mock('@/renderer/components/base/AionModal', () => ({
-  default: ({ children, visible, title }: { children: React.ReactNode; visible: boolean; title?: string }) =>
+  default: ({
+    children,
+    visible,
+    title,
+    style,
+    contentStyle,
+  }: {
+    children: React.ReactNode;
+    visible: boolean;
+    title?: string;
+    style?: React.CSSProperties;
+    contentStyle?: React.CSSProperties;
+  }) =>
     visible ? (
-      <div data-testid='settings-modal'>
+      <div data-testid='settings-modal' data-content-border-radius={String(contentStyle?.borderRadius)} style={style}>
         <h1>{title}</h1>
         {children}
       </div>
@@ -18,7 +32,11 @@ vi.mock('@/renderer/components/base/AionScrollArea', () => ({
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent', () => ({
-  default: () => <div data-testid='system-content'>System</div>,
+  default: () => (
+    <div data-testid='system-content'>
+      System <section id='working-directories'>Working directories target</section>
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/settings/sections/OverviewSettings', () => ({
@@ -29,7 +47,11 @@ vi.mock('@/renderer/pages/settings/sections/OverviewSettings', () => ({
 
 vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
-    <div data-testid='runtime-content'>Runtime content {withWrapper === false ? 'embedded' : 'wrapped'}</div>
+    <div data-testid='runtime-content'>
+      Runtime content {withWrapper === false ? 'embedded' : 'wrapped'}
+      <section id='updates'>Updates target</section>
+      <section id='services'>Services target</section>
+    </div>
   ),
 }));
 
@@ -78,7 +100,11 @@ vi.mock('@/renderer/pages/settings/sections/ResourcesSettings', () => ({
 }));
 
 vi.mock('@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent', () => ({
-  default: () => <div data-testid='appearance-content'>Appearance</div>,
+  default: () => (
+    <div data-testid='appearance-content'>
+      Appearance <section id='themes'>Themes target</section>
+    </div>
+  ),
 }));
 
 vi.mock('@/renderer/pages/settings/SkillsHubSettings', () => ({
@@ -89,6 +115,7 @@ vi.mock('@/renderer/pages/settings/CapabilitiesSettings', () => ({
   CapabilitiesSettingsContent: ({ activeTab }: { activeTab: 'skills' | 'tools' }) => (
     <div data-testid='capabilities-content'>
       Agents & Capabilities embedded MAS MAG RCA OMA Skills Tools active:{activeTab}
+      <section id='custom-assistants'>Custom assistants target</section>
     </div>
   ),
   default: ({ withWrapper }: { withWrapper?: boolean }) => (
@@ -106,7 +133,12 @@ vi.mock('@/renderer/hooks/system/useExtI18n', () => ({
   useExtI18n: () => ({ resolveExtTabName: (tab: { id: string }) => tab.id }),
 }));
 
+vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
+  useLayoutContext: () => ({ isMobile: true }),
+}));
+
 vi.mock('@/renderer/utils/platform', () => ({
+  isElectronDesktop: () => true,
   resolveExtensionAssetUrl: () => '',
 }));
 
@@ -139,6 +171,16 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('SettingsModal OPL App navigation', () => {
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      value: scrollIntoView,
+      configurable: true,
+    });
+  });
+
   afterEach(() => {
     cleanup();
   });
@@ -193,13 +235,51 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.queryByText('WebUI')).not.toBeInTheDocument();
   });
 
+  it('keeps the active narrow-screen Settings entry in view and keyboard discoverable', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/appearance']}>
+        <SettingsPageWrapper>
+          <div>Preferences content</div>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+
+    const activeEntry = screen.getByRole('button', { name: 'Preferences' });
+    expect(activeEntry).toHaveAttribute('aria-current', 'page');
+    activeEntry.focus();
+    expect(activeEntry).toHaveFocus();
+    await waitFor(() =>
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        block: 'nearest',
+        inline: 'center',
+      })
+    );
+  });
+
+  it('caps Settings modal surfaces at an 8px radius', () => {
+    const { unmount } = render(<SettingsModal visible onCancel={() => {}} />);
+
+    expect(screen.getByTestId('settings-modal')).toHaveStyle({ borderRadius: '8px' });
+    expect(screen.getByTestId('settings-modal')).toHaveAttribute('data-content-border-radius', '8px');
+
+    unmount();
+    render(
+      <SubModal visible onCancel={() => {}} title='Nested settings'>
+        Nested content
+      </SubModal>
+    );
+
+    expect(screen.getByTestId('settings-modal')).toHaveStyle({ borderRadius: '8px' });
+    expect(screen.getByTestId('settings-modal')).toHaveAttribute('data-content-border-radius', '8px');
+  });
+
   it('filters Settings navigation by user task keywords', () => {
     render(<SettingsModal visible onCancel={() => {}} />);
 
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'rollback' } });
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'package maintenance' } });
 
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Advanced maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Package maintenance')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
   });
@@ -211,15 +291,39 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'diagnostics' } });
+    fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working directories' } });
 
     expect(screen.getByText('Advanced')).toBeInTheDocument();
-    expect(screen.getByText('Developer tools')).toBeInTheDocument();
+    expect(screen.getByText('Working directories')).toBeInTheDocument();
     expect(screen.queryByText('Access')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Developer tools'));
+    fireEvent.click(screen.getByText('Working directories'));
 
     expect(screen.getByTestId('system-content')).toBeInTheDocument();
+  });
+
+  it('uses Enter to open and focus the first matching Settings item', async () => {
+    render(<SettingsModal visible onCancel={() => {}} />);
+
+    const input = screen.getByTestId('settings-search-input');
+    fireEvent.change(input, { target: { value: 'working directories' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    await waitFor(() => expect(screen.getByTestId('system-content')).toBeInTheDocument());
+    await waitFor(() => expect(document.getElementById('working-directories')).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+  });
+
+  it('focuses compatibility and assistants anchors after modal redirects', async () => {
+    const { rerender } = render(<SettingsModal visible onCancel={() => {}} defaultTab='theme' />);
+
+    await waitFor(() => expect(document.getElementById('themes')).toHaveFocus());
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
+    await waitFor(() => expect(document.getElementById('services')).toHaveFocus());
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
+    await waitFor(() => expect(document.getElementById('custom-assistants')).toHaveFocus());
   });
 
   it('shows an empty state when no Settings route matches search', () => {
@@ -269,7 +373,7 @@ describe('SettingsModal OPL App navigation', () => {
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='local-services' />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('local-services-content')).toBeInTheDocument();
+      expect(screen.getByTestId('runtime-content')).toBeInTheDocument();
     });
 
     rerender(<SettingsModal visible onCancel={() => {}} defaultTab='resources' />);
@@ -298,6 +402,10 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Skills');
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('Tools');
     expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:tools');
+
+    rerender(<SettingsModal visible onCancel={() => {}} defaultTab='assistants' />);
+
+    expect(screen.getByTestId('capabilities-content')).toHaveTextContent('active:assistants');
   });
 
   it('redirects legacy webui, display, and pet tab requests to Resources and Appearance', async () => {

@@ -6,13 +6,11 @@
 
 import React from 'react';
 import { Button, Typography } from '@arco-design/web-react';
-import { FolderOpen, Lightning, Right, Toolkit } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { ipcBridge } from '@/common';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
-import { isReadyStatus, moduleRecords, moduleSource, moduleStatus } from './runtimeStateView';
+import { isReadyStatus, moduleRecords, moduleSource, moduleStatus, oplPathString } from './runtimeStateView';
 
 const DEVELOPER_SOURCE_MODES = new Set([
   'developer_checkout',
@@ -22,6 +20,9 @@ const DEVELOPER_SOURCE_MODES = new Set([
   'sibling_workspace',
   'source_checkout',
 ]);
+const WORKSPACE_PERMISSION_ATTENTION_MODES = new Set(['read-only', 'plan']);
+const AVAILABLE_WORKSPACE_HEALTH = new Set(['available', 'healthy', 'ok', 'ready']);
+const UNKNOWN_WORKSPACE_HEALTH = new Set(['not_reported', 'unknown']);
 
 type OverviewSettingsProps = {
   withWrapper?: boolean;
@@ -36,15 +37,27 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const codex = oplRecord(core.codex);
   const executor = oplRecord(core.executor);
   const paths = oplRecord(appState.paths);
+  const workspaceRootRecord = oplRecord(paths.workspace_root);
   const modules = oplRecord(appState.modules);
   const modulesSummary = oplRecord(modules.summary);
   const moduleItems = moduleRecords(modules.items ?? modules.modules);
   const workspaceRoot =
     oplString(paths.workspace_root_path) ??
-    oplString(paths.workspace_root) ??
-    oplString(oplRecord(paths.family_workspace_root).path) ??
-    oplString(paths.family_workspace_root);
+    oplPathString(paths.workspace_root) ??
+    oplPathString(paths.family_workspace_root);
   const permissionMode = oplString(executor.permission_mode) ?? oplString(codex.permission_mode) ?? 'unknown';
+  const workspaceRootHealth = oplString(workspaceRootRecord.health_status) ?? oplString(workspaceRootRecord.status);
+  const workspaceHealthNeedsAction = Boolean(
+    workspaceRootHealth &&
+    !UNKNOWN_WORKSPACE_HEALTH.has(workspaceRootHealth) &&
+    !AVAILABLE_WORKSPACE_HEALTH.has(workspaceRootHealth)
+  );
+  const workspaceNeedsAction =
+    !workspaceRoot ||
+    workspaceRootRecord.exists === false ||
+    workspaceRootRecord.writable === false ||
+    workspaceHealthNeedsAction ||
+    WORKSPACE_PERMISSION_ATTENTION_MODES.has(permissionMode);
   const totalModules = Number(modulesSummary.default_modules_count ?? modulesSummary.total ?? 0);
   const readyModules = Number(modulesSummary.healthy_default_modules_count ?? modulesSummary.ready ?? 0);
   const modulesSourceMode = oplString(oplRecord(modules.source).mode) ?? oplString(modules.source);
@@ -61,39 +74,30 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
   const modulesNeedAction =
     actionableModuleIssue ||
     (moduleItems.length === 0 && totalModules > 0 && readyModules < totalModules && !developerSourceActive);
-  const overviewNeedsAction = !workspaceRoot || modulesNeedAction;
+  const attentionCount = Number(workspaceNeedsAction) + Number(modulesNeedAction);
+  const overviewNeedsAction = attentionCount > 0;
 
-  const openWorkspace = () => {
-    if (!workspaceRoot) return;
-    void ipcBridge.shell.openFolderWith.invoke({ folder_path: workspaceRoot, tool: 'explorer' });
-  };
-
-  const quickEntries = [
-    {
-      key: 'model-access',
-      title: t('settings.overviewPage.quickEntries.modelAccount.title'),
-      description: t('settings.overviewPage.quickEntries.modelAccount.description'),
-      route: '/settings/access',
-      icon: <Right theme='outline' />,
-    },
-    {
-      key: 'capabilities',
-      title: t('settings.overviewPage.quickEntries.capabilities.title'),
-      description: t('settings.overviewPage.quickEntries.capabilities.description'),
-      route: '/settings/capabilities',
-      icon: <Lightning theme='outline' />,
-    },
-    {
-      key: 'maintenance',
-      title: t('settings.overviewPage.quickEntries.maintenance.title'),
-      description: t('settings.overviewPage.quickEntries.maintenance.description'),
-      route: '/settings/environment',
-      icon: <Toolkit theme='outline' />,
-    },
-  ];
+  const nextAction = workspaceNeedsAction
+    ? {
+        title: t('settings.overviewPage.attention.workspaceTitle'),
+        description: t('settings.overviewPage.workspace.notConfigured'),
+        label: t('settings.overviewPage.workspace.changeOrVerify'),
+        route: '/settings/workspace',
+      }
+    : modulesNeedAction
+      ? {
+          title: t('settings.overviewPage.attention.capabilitiesTitle'),
+          description: t('settings.oplEnvironmentPage.modulesReadyCount', {
+            ready: readyModules,
+            total: totalModules,
+          }),
+          label: t('settings.overviewPage.actions.openRuntimeSettings'),
+          route: '/settings/environment?section=packages',
+        }
+      : null;
 
   const content = (
-    <div className='opl-settings-page'>
+    <div className='opl-settings-page' data-testid='settings-page-overview'>
       <header className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4}>{t('settings.overviewPage.title')}</Typography.Title>
@@ -101,7 +105,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
         </div>
       </header>
 
-      <section className='opl-settings-section' id='status'>
+      <section className='opl-settings-section' id='status' data-testid='settings-overview-primary'>
         <div className='opl-settings-row'>
           <div className='opl-settings-row__main'>
             <Typography.Text className='font-600 text-t-primary'>
@@ -119,15 +123,24 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
               data-testid='settings-overview-status'
             >
               {overviewNeedsAction
-                ? t('settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention')
+                ? t('settings.overviewPage.overall.attentionCount', {
+                    count: attentionCount,
+                    defaultValue: t('settings.oplEnvironmentPage.healthSummary.values.count', {
+                      count: attentionCount,
+                    }),
+                  })
                 : t('settings.oplEnvironmentPage.healthSummary.values.canUse')}
             </span>
           </div>
         </div>
       </section>
 
-      {overviewNeedsAction && (
-        <section className='opl-settings-section' id='attention'>
+      {nextAction && (
+        <section
+          className='opl-settings-section opl-settings-section--attention'
+          id='next-action'
+          data-testid='settings-overview-exception'
+        >
           <div className='opl-settings-section__header'>
             <div>
               <Typography.Text className='block font-600 text-t-primary'>
@@ -138,122 +151,40 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
               </Typography.Text>
             </div>
           </div>
-          <div className='opl-settings-list'>
-            {!workspaceRoot && (
-              <div className='opl-settings-row'>
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='font-500 text-t-primary'>
-                    {t('settings.overviewPage.attention.workspaceTitle')}
-                  </Typography.Text>
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.overviewPage.workspace.notConfigured')}
-                  </Typography.Text>
-                </div>
-                <div className='opl-settings-row__meta'>
-                  <Button type='primary' onClick={() => navigate('/settings/workspace')}>
-                    {t('settings.overviewPage.workspace.changeOrVerify')}
-                  </Button>
-                </div>
-              </div>
-            )}
-            {modulesNeedAction && (
-              <div className='opl-settings-row'>
-                <div className='opl-settings-row__main'>
-                  <Typography.Text className='font-500 text-t-primary'>
-                    {t('settings.overviewPage.attention.capabilitiesTitle')}
-                  </Typography.Text>
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules })}
-                  </Typography.Text>
-                </div>
-                <div className='opl-settings-row__meta'>
-                  <Button onClick={() => navigate('/settings/environment#capability-packages')}>
-                    {t('settings.overviewPage.actions.openRuntimeSettings')}
-                  </Button>
-                </div>
-              </div>
-            )}
+          <div className='opl-settings-row'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-500 text-t-primary'>{nextAction.title}</Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary'>{nextAction.description}</Typography.Text>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <Button
+                type='primary'
+                onClick={() => navigate(nextAction.route)}
+                data-testid='settings-overview-primary-action'
+              >
+                {nextAction.label}
+              </Button>
+            </div>
           </div>
         </section>
       )}
 
-      <section className='opl-settings-section' id='workspace'>
-        <div className='opl-settings-section__header'>
-          <div className='flex min-w-0 items-start gap-10px'>
-            <span className='mt-1px flex size-24px shrink-0 items-center justify-center text-t-secondary'>
-              <FolderOpen theme='outline' />
-            </span>
-            <div className='min-w-0'>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.overviewPage.workspace.title')}
-              </Typography.Text>
-              <Typography.Text className='block break-all text-12px text-t-secondary'>
-                {workspaceRoot
-                  ? t('settings.overviewPage.workspace.currentPath', { path: workspaceRoot })
-                  : t('settings.overviewPage.workspace.notConfigured')}
-              </Typography.Text>
-            </div>
-          </div>
-          <span
-            className={`opl-settings-status ${workspaceRoot ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
-          >
+      <details className='opl-settings-details' data-testid='settings-overview-technical-details'>
+        <summary>{t('common.technical_details')}</summary>
+        <div className='mt-12px space-y-6px text-12px text-t-secondary'>
+          <div className='break-all'>
             {workspaceRoot
-              ? t('settings.overviewPage.workspace.status.ready')
-              : t('settings.overviewPage.workspace.status.needsAction')}
-          </span>
-        </div>
-        <div className='opl-settings-list'>
-          <div className='opl-settings-row'>
-            <div className='opl-settings-row__main'>
-              <Typography.Text className='font-500 text-t-primary'>
-                {t('settings.overviewPage.workspace.permissionLabel')}
-              </Typography.Text>
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.overviewPage.workspace.permissionStatus', {
-                  mode: t(`agentMode.${permissionMode}`, { defaultValue: permissionMode }),
-                })}
-              </Typography.Text>
-            </div>
-            <div className='opl-settings-row__meta'>
-              <Button disabled={!workspaceRoot} onClick={openWorkspace}>
-                {t('settings.overviewPage.workspace.open')}
-              </Button>
-              <Button onClick={() => navigate('/settings/workspace#permissions')}>
-                {t('settings.overviewPage.workspace.changeOrVerify')}
-              </Button>
-            </div>
+              ? t('settings.overviewPage.workspace.currentPath', { path: workspaceRoot })
+              : t('settings.overviewPage.workspace.notConfigured')}
           </div>
-        </div>
-      </section>
-
-      <section className='opl-settings-section' id='shortcuts'>
-        <div className='opl-settings-section__header'>
           <div>
-            <Typography.Text className='block font-600 text-t-primary'>
-              {t('settings.overviewPage.shortcuts.title')}
-            </Typography.Text>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.overviewPage.shortcuts.description')}
-            </Typography.Text>
+            {t('settings.overviewPage.workspace.permissionStatus', {
+              mode: t(`agentMode.${permissionMode}`, { defaultValue: permissionMode }),
+            })}
           </div>
+          <div>{t('settings.oplEnvironmentPage.modulesReadyCount', { ready: readyModules, total: totalModules })}</div>
         </div>
-        <div className='opl-settings-list'>
-          {quickEntries.map((entry) => (
-            <button
-              key={entry.key}
-              type='button'
-              className='opl-settings-row w-full border-0 bg-transparent text-left cursor-pointer hover:bg-fill-1'
-              onClick={() => navigate(entry.route)}
-            >
-              <span className='opl-settings-row__main'>
-                <Typography.Text className='font-500 text-t-primary'>{entry.title}</Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary'>{entry.description}</Typography.Text>
-              </span>
-              <span className='opl-settings-row__meta text-t-tertiary'>{entry.icon}</span>
-            </button>
-          ))}
-        </div>
-      </section>
+      </details>
     </div>
   );
 

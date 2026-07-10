@@ -28,6 +28,7 @@ import {
 
 type AsyncAction =
   | 'inventory'
+  | 'cleanup-preview'
   | 'archive'
   | 'restore'
   | 'delete-conversations'
@@ -107,7 +108,11 @@ const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions
   const hasTechnicalDetails = Boolean(item.section || technicalDetails);
 
   return (
-    <div id={SECTION_ANCHORS[item.id]} data-testid={`storage-inventory-${item.id}`}>
+    <div
+      className='opl-settings-inventory-item'
+      id={SECTION_ANCHORS[item.id]}
+      data-testid={`storage-inventory-${item.id}`}
+    >
       <div className='opl-settings-row'>
         <div className='opl-settings-row__main min-w-0'>
           <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
@@ -179,6 +184,8 @@ export const StorageSettingsContent: React.FC = () => {
   const [pendingDangerAction, setPendingDangerAction] = React.useState<PendingDangerAction>(null);
   const [researchDetailsOpen, setResearchDetailsOpen] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const activeActionRef = React.useRef<AsyncAction | null>(null);
+  const dangerConfirmationRef = React.useRef<HTMLDivElement>(null);
   const viewModel = React.useMemo(
     () =>
       buildStorageSettingsViewModel({
@@ -192,37 +199,57 @@ export const StorageSettingsContent: React.FC = () => {
     [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
   const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
+  const cleanupCandidatesAvailable = viewModel.sections.some(
+    (section) => section.id !== 'user_data_artifacts' && section.bytes > 0
+  );
+  const interactionLocked = loading !== null || pendingDangerAction !== null;
+
+  const refreshInventory = React.useCallback(async () => {
+    const result = await ipcBridge.localDataLifecycle.getInventory.invoke();
+    setInventory(result);
+  }, []);
 
   const runAction = React.useCallback(
-    async <Result,>(action: AsyncAction, task: () => Promise<Result>, onSuccess: (result: Result) => void) => {
+    async <Result,>(
+      action: AsyncAction,
+      task: () => Promise<Result>,
+      onSuccess: (result: Result) => void | Promise<void>
+    ) => {
+      if (activeActionRef.current) return;
+      activeActionRef.current = action;
       setLoading(action);
       setError(null);
       try {
         const result = await task();
-        onSuccess(result);
+        await onSuccess(result);
       } catch (actionError) {
         const message = actionError instanceof Error ? actionError.message : String(actionError);
         setError(message);
       } finally {
+        activeActionRef.current = null;
         setLoading(null);
       }
     },
-    [t]
+    []
   );
 
   const loadInventory = React.useCallback(() => {
     void runAction(
       'inventory',
-      () => ipcBridge.localDataLifecycle.getInventory.invoke(),
-      (result) => {
-        setInventory(result);
-      }
+      () => refreshInventory(),
+      () => {}
     );
-  }, [runAction]);
+  }, [refreshInventory, runAction]);
 
   React.useEffect(() => {
     loadInventory();
   }, [loadInventory]);
+
+  React.useEffect(() => {
+    if (!pendingDangerAction) return;
+    dangerConfirmationRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    dangerConfirmationRef.current?.focus({ preventScroll: true });
+  }, [pendingDangerAction]);
 
   const archiveConversations = () => {
     void runAction(
@@ -258,9 +285,9 @@ export const StorageSettingsContent: React.FC = () => {
           receiptPath: id,
           confirmation: `delete:${viewModel.conversationProof.conversationId ?? ''}`,
         }),
-      (receipt) => {
+      async (receipt) => {
         setLastReceipt(receipt);
-        loadInventory();
+        await refreshInventory();
       }
     );
   };
@@ -281,10 +308,10 @@ export const StorageSettingsContent: React.FC = () => {
       'runtime-execute',
       () =>
         ipcBridge.localDataLifecycle.executeRuntimePrune.invoke({ plan: runtimePlan, planHash: runtimePlan.plan_hash }),
-      (receipt) => {
+      async (receipt) => {
         setLastReceipt(receipt);
         setRuntimePlan(null);
-        loadInventory();
+        await refreshInventory();
       }
     );
   };
@@ -304,10 +331,10 @@ export const StorageSettingsContent: React.FC = () => {
     void runAction(
       'logs-execute',
       () => ipcBridge.localDataLifecycle.executeLogRotation.invoke({ plan: logsPlan, planHash: logsPlan.plan_hash }),
-      (receipt) => {
+      async (receipt) => {
         setLastReceipt(receipt);
         setLogsPlan(null);
-        loadInventory();
+        await refreshInventory();
       }
     );
   };
@@ -322,6 +349,23 @@ export const StorageSettingsContent: React.FC = () => {
     );
   };
 
+  const previewCleanup = () => {
+    void runAction(
+      'cleanup-preview',
+      () =>
+        Promise.all([
+          ipcBridge.localDataLifecycle.planRuntimePrune.invoke(),
+          ipcBridge.localDataLifecycle.planLogRotation.invoke(),
+          ipcBridge.localDataLifecycle.planUpdaterCacheCleanup.invoke(),
+        ]),
+      ([nextRuntimePlan, nextLogsPlan, nextUpdaterPlan]) => {
+        setRuntimePlan(nextRuntimePlan);
+        setLogsPlan(nextLogsPlan);
+        setUpdaterPlan(nextUpdaterPlan);
+      }
+    );
+  };
+
   const executeUpdaterCleanup = () => {
     if (!updaterPlan) return;
     void runAction(
@@ -331,15 +375,16 @@ export const StorageSettingsContent: React.FC = () => {
           plan: updaterPlan,
           planHash: updaterPlan.plan_hash,
         }),
-      (receipt) => {
+      async (receipt) => {
         setLastReceipt(receipt);
         setUpdaterPlan(null);
-        loadInventory();
+        await refreshInventory();
       }
     );
   };
 
   const requestDangerAction = (action: Exclude<PendingDangerAction, null>) => {
+    if (activeActionRef.current || pendingDangerAction) return;
     setPendingDangerAction(action);
   };
 
@@ -434,6 +479,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               icon={<FolderSearch />}
+              disabled={interactionLocked}
               loading={loading === 'archive'}
               onClick={archiveConversations}
             >
@@ -444,6 +490,7 @@ export const StorageSettingsContent: React.FC = () => {
             <Button
               htmlType='button'
               icon={<CheckOne />}
+              disabled={interactionLocked}
               loading={loading === 'restore'}
               onClick={restoreConversationProof}
               data-testid='storage-conversation-restore'
@@ -455,7 +502,7 @@ export const StorageSettingsContent: React.FC = () => {
             htmlType='button'
             status='danger'
             icon={<Delete />}
-            disabled={!viewModel.canDeleteConversationArtifacts}
+            disabled={interactionLocked || !viewModel.canDeleteConversationArtifacts}
             loading={loading === 'delete-conversations'}
             onClick={() => requestDangerAction('delete-conversations')}
             data-testid='storage-conversation-delete'
@@ -481,6 +528,7 @@ export const StorageSettingsContent: React.FC = () => {
           <Button
             htmlType='button'
             icon={<FolderSearch />}
+            disabled={interactionLocked}
             loading={loading === 'runtime-plan'}
             onClick={dryRunRuntimePrune}
           >
@@ -490,7 +538,7 @@ export const StorageSettingsContent: React.FC = () => {
             htmlType='button'
             status='danger'
             icon={<Repair />}
-            disabled={!viewModel.runtimePlan.canExecute}
+            disabled={interactionLocked || !viewModel.runtimePlan.canExecute}
             loading={loading === 'runtime-execute'}
             onClick={() => requestDangerAction('runtime-execute')}
             data-testid='storage-runtime-execute'
@@ -512,6 +560,7 @@ export const StorageSettingsContent: React.FC = () => {
           <Button
             htmlType='button'
             icon={<FolderSearch />}
+            disabled={interactionLocked}
             loading={loading === 'logs-plan'}
             onClick={dryRunLogRotation}
           >
@@ -521,7 +570,7 @@ export const StorageSettingsContent: React.FC = () => {
             htmlType='button'
             status='danger'
             icon={<UpdateRotation />}
-            disabled={!viewModel.logsPlan.canExecute}
+            disabled={interactionLocked || !viewModel.logsPlan.canExecute}
             loading={loading === 'logs-execute'}
             onClick={() => requestDangerAction('logs-execute')}
             data-testid='storage-logs-execute'
@@ -555,6 +604,7 @@ export const StorageSettingsContent: React.FC = () => {
           <Button
             htmlType='button'
             icon={<FolderSearch />}
+            disabled={interactionLocked}
             loading={loading === 'updater-plan'}
             onClick={dryRunUpdaterCleanup}
           >
@@ -563,7 +613,7 @@ export const StorageSettingsContent: React.FC = () => {
           <Button
             htmlType='button'
             icon={<Repair />}
-            disabled={!viewModel.updaterPlan.canExecute}
+            disabled={interactionLocked || !viewModel.updaterPlan.canExecute}
             loading={loading === 'updater-execute'}
             onClick={() => requestDangerAction('updater-execute')}
             data-testid='storage-updater-execute'
@@ -582,7 +632,8 @@ export const StorageSettingsContent: React.FC = () => {
   };
 
   return (
-    <div className='opl-settings-page flex flex-col gap-16px' data-testid='storage-settings-page'>
+    <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-storage'>
+      <span data-testid='storage-settings-page' aria-hidden='true' />
       <div className='opl-settings-page-header'>
         <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4} className='mb-6px'>
@@ -591,11 +642,25 @@ export const StorageSettingsContent: React.FC = () => {
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
         </div>
         <div className='opl-settings-page-header__actions'>
+          {cleanupCandidatesAvailable && (
+            <Button
+              htmlType='button'
+              type='primary'
+              icon={<FolderSearch />}
+              disabled={interactionLocked}
+              loading={loading === 'cleanup-preview'}
+              onClick={previewCleanup}
+              data-testid='settings-storage-primary-action'
+            >
+              {t('settings.storagePage.actions.previewAll')}
+            </Button>
+          )}
           <Tooltip content={t('settings.storagePage.actions.refresh')}>
             <Button
               htmlType='button'
               icon={<Refresh />}
               aria-label={t('settings.storagePage.actions.refresh')}
+              disabled={interactionLocked}
               loading={loading === 'inventory'}
               onClick={loadInventory}
               data-testid='storage-refresh'
@@ -604,85 +669,112 @@ export const StorageSettingsContent: React.FC = () => {
         </div>
       </div>
 
-      {error && <Alert type='error' content={error} />}
+      {error && <Alert type='error' content={error} data-testid='settings-storage-exception' />}
 
       {pendingDangerAction && (
-        <Alert
-          type='warning'
-          title={t('settings.updateConfirm')}
+        <div
+          ref={dangerConfirmationRef}
+          tabIndex={-1}
+          className='outline-none'
           data-testid='storage-action-confirmation'
-          content={
-            <div className='flex flex-col gap-8px'>
-              <span className='break-words'>{dangerActionSummary()}</span>
-              <Space wrap size='small'>
-                <Button htmlType='button' size='small' onClick={cancelDangerAction}>
-                  {t('common.cancel')}
-                </Button>
-                <Button
-                  htmlType='button'
-                  size='small'
-                  type='primary'
-                  status='danger'
-                  loading={loading === pendingDangerAction}
-                  onClick={confirmDangerAction}
-                  data-testid='storage-action-confirm'
-                >
-                  {dangerActionLabel()}
-                </Button>
-              </Space>
-            </div>
-          }
-        />
+        >
+          <Alert
+            type='warning'
+            title={t('settings.updateConfirm')}
+            content={
+              <div className='flex flex-col gap-8px'>
+                <span className='break-words'>{dangerActionSummary()}</span>
+                <Space wrap size='small'>
+                  <Button htmlType='button' size='small' disabled={loading !== null} onClick={cancelDangerAction}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    htmlType='button'
+                    size='small'
+                    type='primary'
+                    status='danger'
+                    disabled={loading !== null}
+                    loading={loading === pendingDangerAction}
+                    onClick={confirmDangerAction}
+                    data-testid='storage-action-confirm'
+                  >
+                    {dangerActionLabel()}
+                  </Button>
+                </Space>
+              </div>
+            }
+          />
+        </div>
       )}
 
       {lastReceipt && <Alert type='success' content={t('settings.storagePage.messages.actionComplete')} />}
 
-      <section className='opl-settings-section' data-testid='storage-category-list'>
-        <div className='opl-settings-section__header flex items-center justify-between gap-12px'>
-          <Typography.Text className='font-600 text-t-primary'>
-            {t('settings.storagePage.overview.categories')}
-          </Typography.Text>
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
-          </Typography.Text>
-        </div>
-        <div className='opl-settings-list'>
-          {viewModel.sections.map((item) => (
-            <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
-          ))}
-        </div>
+      <div data-testid='settings-storage-primary'>
+        <section className='opl-settings-section' id='storage-categories' data-testid='storage-category-list'>
+          <span id='cleanup-preview' aria-hidden='true' />
+          <div className='opl-settings-section__header flex items-center justify-between gap-12px'>
+            <Typography.Text className='font-600 text-t-primary'>
+              {t('settings.storagePage.overview.categories')}
+            </Typography.Text>
+            <Typography.Text className='text-12px text-t-secondary'>
+              {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
+            </Typography.Text>
+          </div>
+          <div className='opl-settings-list'>
+            {viewModel.sections.map((item) => (
+              <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+            ))}
+          </div>
 
-        <div data-testid='storage-research-lifecycle'>
-          <details
-            className='opl-settings-details mt-12px'
-            onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
-            data-testid='storage-research-lifecycle-details'
-          >
-            <summary className='cursor-pointer text-13px text-t-secondary'>
-              {t('settings.storagePage.researchLifecycle.technicalDetails')}
-            </summary>
-            {researchDetailsOpen && (
-              <div className='mt-10px flex flex-col gap-12px'>
-                <div>
-                  <Typography.Text className='font-600 text-t-primary'>
-                    {t('settings.storagePage.researchLifecycle.title')}
-                  </Typography.Text>
-                  <div className='text-12px text-t-secondary mt-4px'>
-                    {t('settings.storagePage.researchLifecycle.detail')}
+          <div data-testid='storage-research-lifecycle'>
+            <div data-testid='settings-storage-technical-details'>
+              <details
+                className='opl-settings-details mt-12px'
+                onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
+                data-testid='storage-research-lifecycle-details'
+              >
+                <summary className='cursor-pointer text-13px text-t-secondary'>
+                  {t('settings.storagePage.researchLifecycle.technicalDetails')}
+                </summary>
+                {researchDetailsOpen && (
+                  <div className='mt-10px flex flex-col gap-12px'>
+                    <div>
+                      <Typography.Text className='font-600 text-t-primary'>
+                        {t('settings.storagePage.researchLifecycle.title')}
+                      </Typography.Text>
+                      <div className='text-12px text-t-secondary mt-4px'>
+                        {t('settings.storagePage.researchLifecycle.detail')}
+                      </div>
+                    </div>
+                    <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
+                      {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
+                      {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
+                      {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
+                      {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
+                      {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
+                      {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
+                    </div>
                   </div>
-                </div>
-                <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
-                  {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.largeBodyRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.smallFilePressureRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.runtimeCompactRefs.map(renderLifecycleRef)}
-                  {viewModel.researchWorkspaceLifecycle.completedProjectCloseoutRefs.map(renderLifecycleRef)}
-                  {renderLifecycleRef(viewModel.researchWorkspaceLifecycle.forbiddenGenericCleanupBoundary)}
-                </div>
-              </div>
-            )}
-          </details>
+                )}
+              </details>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className='opl-settings-section' id='cleanup-history'>
+        <div className='opl-settings-row'>
+          <div className='opl-settings-row__main'>
+            <Typography.Text className='font-600 text-t-primary'>
+              {t('settings.storagePage.history.title')}
+            </Typography.Text>
+            <Typography.Text className='break-all text-12px text-t-secondary'>
+              {lastReceipt
+                ? t('settings.storagePage.history.latest', { time: lastReceipt.created_at })
+                : t('settings.storagePage.history.empty')}
+            </Typography.Text>
+          </div>
         </div>
       </section>
     </div>

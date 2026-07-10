@@ -123,10 +123,12 @@ function devBackendPathEnv(projectRoot: string, baseEnv: NodeJS.ProcessEnv): Nod
 async function launchApp(): Promise<ElectronApplication> {
   const projectRoot = path.resolve(__dirname, '../..');
   const usePackaged = shouldUsePackagedMode();
+  const defaultExtensionsPath =
+    process.env.AIONUI_E2E_PRODUCT_PROFILE === '1' ? e2eStateSandboxDir : path.join(projectRoot, 'examples');
 
   const commonEnv = {
     ...process.env,
-    AIONUI_EXTENSIONS_PATH: process.env.AIONUI_EXTENSIONS_PATH || path.join(projectRoot, 'examples'),
+    AIONUI_EXTENSIONS_PATH: process.env.AIONUI_EXTENSIONS_PATH || defaultExtensionsPath,
     AIONUI_EXTENSION_STATES_FILE: process.env.AIONUI_EXTENSION_STATES_FILE || e2eStateFile,
     AIONUI_DISABLE_AUTO_UPDATE: '1',
     AIONUI_DISABLE_DEVTOOLS: '1',

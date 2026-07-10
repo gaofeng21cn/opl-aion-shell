@@ -42,11 +42,11 @@ describe('FeedbackButton mount points — source-level wiring', () => {
     expect(src).not.toMatch(/<FeedbackButton/);
   });
 
-  it('SystemModalContent wires module=system-settings', () => {
+  it('read-only SystemModalContent does not expose an error feedback action', () => {
     const src = read(
       'packages/desktop/src/renderer/components/settings/SettingsModal/contents/SystemModalContent/index.tsx'
     );
-    expect(src).toMatch(/<FeedbackButton\s+module=['"]system-settings['"]/);
+    expect(src).not.toMatch(/<FeedbackButton/);
   });
 
   it('McpServerHeader wires module=mcp-tools', () => {
@@ -58,8 +58,8 @@ describe('FeedbackButton mount points — source-level wiring', () => {
     const modulesSrc = read(
       'packages/desktop/src/renderer/components/settings/SettingsModal/contents/feedbackModules.ts'
     );
-    const referencedTags = ['conversation-session', 'agent-detection', 'system-settings', 'mcp-tools'];
-    for (const tag of referencedTags) {
+    const supportedTags = ['conversation-session', 'agent-detection', 'system-settings', 'mcp-tools'];
+    for (const tag of supportedTags) {
       expect(modulesSrc).toContain(`tag: '${tag}'`);
     }
   });

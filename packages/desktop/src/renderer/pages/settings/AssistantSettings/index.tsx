@@ -20,7 +20,6 @@
 import { Message } from '@arco-design/web-react';
 import coworkSvg from '@/renderer/assets/icons/cowork.svg';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import { useSettingsViewMode } from '@/renderer/components/settings/SettingsModal/settingsViewContext';
 import { useDetectedAgents, useAssistantEditor, useAssistantList } from '@/renderer/hooks/assistant';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import { resolveAvatarImageSrc } from './assistantUtils';
@@ -44,8 +43,6 @@ const OPEN_ASSISTANT_EDITOR_INTENT_KEY = 'guid.openAssistantEditorIntent';
 
 const AssistantSettings: React.FC<AssistantSettingsProps> = ({ withWrapper = true }) => {
   const [message, messageContext] = Message.useMessage({ maxCount: 10 });
-  const viewMode = useSettingsViewMode();
-  const isPageMode = viewMode === 'page';
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigationState = (location.state as AssistantNavigationState | null) ?? null;
@@ -124,7 +121,7 @@ const AssistantSettings: React.FC<AssistantSettingsProps> = ({ withWrapper = tru
   const content = (
     <div className='flex h-full w-full flex-col'>
       {messageContext}
-      <AionScrollArea className='min-h-0 flex-1 pb-16px scrollbar-hide' disableOverflow={isPageMode}>
+      <AionScrollArea className='min-h-0 flex-1 pb-16px scrollbar-hide' disableOverflow>
         <AssistantListPanel
           assistants={assistants}
           localeKey={localeKey}

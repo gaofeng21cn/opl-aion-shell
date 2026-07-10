@@ -1,19 +1,17 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  openFolder: vi.fn(),
-}));
-
-vi.mock('@/common', () => ({
-  ipcBridge: {
-    shell: {
-      openFolderWith: { invoke: mocks.openFolder },
-    },
-  },
+  workspaceRoot: '/Users/example/OPL Workspace' as string | null,
+  workspaceExists: true as boolean | null,
+  workspaceWritable: true as boolean | null,
+  workspaceHealthStatus: 'ready' as string | null,
+  permissionMode: 'full-access',
+  moduleSourceMode: 'sibling_workspace',
+  moduleStatus: 'dirty',
 }));
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -24,19 +22,25 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({
     appState: {
       core: {
-        codex: { permission_mode: 'full-access' },
-        executor: { permission_mode: 'full-access' },
+        codex: { permission_mode: mocks.permissionMode },
+        executor: { permission_mode: mocks.permissionMode },
       },
       paths: {
-        workspace_root_path: '/Users/example/OPL Workspace',
+        workspace_root_path: mocks.workspaceRoot,
+        workspace_root: {
+          selected_path: mocks.workspaceRoot,
+          exists: mocks.workspaceExists,
+          writable: mocks.workspaceWritable,
+          health_status: mocks.workspaceHealthStatus,
+        },
       },
       modules: {
         summary: {
           default_modules_count: 4,
           healthy_default_modules_count: 3,
         },
-        source: { mode: 'sibling_workspace' },
-        items: [{ module_id: 'medautoscience', status: 'dirty', git: { dirty: true } }],
+        source: { mode: mocks.moduleSourceMode },
+        items: [{ module_id: 'medautoscience', status: mocks.moduleStatus, git: { dirty: true } }],
       },
     },
   }),
@@ -48,7 +52,7 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: Record<string, string>) => {
+    t: (key: string, options?: Record<string, string | number>) => {
       const labels: Record<string, string> = {
         'settings.overviewPage.title': 'Overview',
         'settings.overviewPage.description':
@@ -108,6 +112,7 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.developerSource.nextStep': 'Handle the checkout, then refresh.',
         'settings.oplEnvironmentPage.healthSummary.values.canUse': 'Ready',
         'settings.oplEnvironmentPage.healthSummary.values.canUseWithAttention': 'Usable with attention',
+        'settings.oplEnvironmentPage.healthSummary.values.count': `${options?.count} item(s)`,
         'settings.oplEnvironmentPage.modulesReadyCount': `${options?.ready} / ${options?.total} ready`,
         'agentMode.full-access': 'Full Access',
       };
@@ -117,45 +122,50 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('OverviewSettings', () => {
-  it('exposes App Control Center task entries without adding legacy top-level settings concepts', () => {
-    render(<OverviewSettings withWrapper={false} />);
-
-    expect(screen.getByText('Workspace')).toBeInTheDocument();
-    expect(screen.getByText(/Current path: \/Users\/example\/OPL Workspace/)).toBeInTheDocument();
-    expect(screen.getByText('Model Access')).toBeInTheDocument();
-    expect(screen.getByText('Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
-    expect(screen.queryByTestId('settings-overview-developer-source-alert')).not.toBeInTheDocument();
-    expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
-    expect(screen.queryByText('Resources & Connections')).not.toBeInTheDocument();
-    expect(screen.queryByText('Web / Remote Access')).not.toBeInTheDocument();
-    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
-    expect(screen.queryByText('Preferences')).not.toBeInTheDocument();
-    expect(screen.queryByText('About')).not.toBeInTheDocument();
-    expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.workspaceRoot = '/Users/example/OPL Workspace';
+    mocks.workspaceExists = true;
+    mocks.workspaceWritable = true;
+    mocks.workspaceHealthStatus = 'ready';
+    mocks.permissionMode = 'full-access';
+    mocks.moduleSourceMode = 'sibling_workspace';
+    mocks.moduleStatus = 'dirty';
   });
 
-  it('routes task entries to existing Settings route ids and section anchors', () => {
+  it('shows one quiet status summary without duplicating Settings navigation', () => {
+    mocks.workspaceRoot = '/Users/example/OPL Workspace';
     render(<OverviewSettings withWrapper={false} />);
 
+    expect(screen.getByTestId('settings-page-overview')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-primary')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-technical-details')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
+    expect(screen.queryByTestId('settings-overview-primary-action')).not.toBeInTheDocument();
+    expect(screen.queryByText('Common settings')).not.toBeInTheDocument();
+  });
+
+  it('shows only the highest-priority next action when the workspace is missing', () => {
+    mocks.workspaceRoot = null;
+    mocks.workspaceExists = false;
+    mocks.workspaceWritable = false;
+    mocks.workspaceHealthStatus = 'missing';
+    mocks.moduleSourceMode = 'managed';
+    render(<OverviewSettings withWrapper={false} />);
+
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('2 item(s)');
     fireEvent.click(screen.getByText('Change or Verify'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace#permissions');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
+    expect(screen.getByTestId('settings-overview-exception')).toBeInTheDocument();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
 
-    const accessEntry = screen.getByText('Model Access').closest('button');
-    expect(accessEntry).not.toBeNull();
-    fireEvent.click(accessEntry as HTMLElement);
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
+  it('counts a capability-pack issue and routes its next action to Maintenance', () => {
+    mocks.moduleSourceMode = 'managed';
+    render(<OverviewSettings withWrapper={false} />);
 
-    const maintenanceEntry = screen.getByText('Maintenance').closest('button');
-    expect(maintenanceEntry).not.toBeNull();
-    fireEvent.click(maintenanceEntry as HTMLElement);
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
-
-    fireEvent.click(screen.getByText('Open Workspace'));
-    expect(mocks.openFolder).toHaveBeenCalledWith({
-      folder_path: '/Users/example/OPL Workspace',
-      tool: 'explorer',
-    });
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('1 item(s)');
+    fireEvent.click(screen.getByText('Open Maintenance'));
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment?section=packages');
   });
 });
