@@ -508,8 +508,17 @@ describe('CapabilitiesSettingsContent', () => {
     expect(screen.getByText('Capability directory')).toBeInTheDocument();
     expect(screen.getByTestId('settings-page-capabilities')).toHaveClass('opl-settings-page');
     expect(screen.getByText('Showing 5 / 5')).toBeInTheDocument();
-    expect(screen.getAllByText('Available in conversations')).toHaveLength(5);
-    expect(screen.getAllByText('Show on Home')).toHaveLength(5);
+    const columnHeaders = screen.getByTestId('capability-column-headers');
+    expect(columnHeaders).toHaveClass('hidden', 'md:grid');
+    for (const label of ['Status', 'Source', 'Available in conversations', 'Show on Home']) {
+      expect(within(columnHeaders).getByText(label)).toBeInTheDocument();
+    }
+    for (const key of ['mas', 'mag', 'rca', 'obf', 'oma']) {
+      const row = screen.getByTestId(`capability-purpose-${key}`);
+      for (const label of ['Status', 'Source', 'Available in conversations', 'Show on Home']) {
+        expect(within(row).getByText(label)).toHaveClass('opl-settings-capability-field-label', 'md:hidden');
+      }
+    }
     expect(screen.getByTestId('agent-package-refresh-registry')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-package-install-manifest')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-capabilities-primary-action'));

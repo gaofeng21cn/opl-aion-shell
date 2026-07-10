@@ -199,6 +199,9 @@ export const StorageSettingsContent: React.FC = () => {
     [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
   const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
+  const reportedSections = viewModel.sections.filter((section) => section.section !== null);
+  const safeSectionCount = reportedSections.filter((section) => section.silentDeleteAllowed).length;
+  const proofRequiredSectionCount = reportedSections.length - safeSectionCount;
   const cleanupCandidatesAvailable = viewModel.sections.some(
     (section) => section.id !== 'user_data_artifacts' && section.bytes > 0
   );
@@ -666,6 +669,31 @@ export const StorageSettingsContent: React.FC = () => {
               data-testid='storage-refresh'
             />
           </Tooltip>
+        </div>
+      </div>
+
+      <div className='opl-settings-storage-summary grid grid-cols-3 gap-12px' data-testid='storage-overview'>
+        <div className='min-w-0' data-testid='storage-overview-total'>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.storagePage.overview.total')}
+          </Typography.Text>
+          <Typography.Text className='block text-16px font-600 text-t-primary'>
+            {formatStorageBytes(totalBytes)}
+          </Typography.Text>
+        </div>
+        <div className='min-w-0' data-testid='storage-overview-safe'>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.storagePage.overview.safe')}
+          </Typography.Text>
+          <Typography.Text className='block text-16px font-600 text-t-primary'>{safeSectionCount}</Typography.Text>
+        </div>
+        <div className='min-w-0' data-testid='storage-overview-needs-proof'>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.storagePage.overview.needsProof')}
+          </Typography.Text>
+          <Typography.Text className='block text-16px font-600 text-t-primary'>
+            {proofRequiredSectionCount}
+          </Typography.Text>
         </div>
       </div>
 
