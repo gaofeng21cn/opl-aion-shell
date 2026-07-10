@@ -230,7 +230,15 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
             return false;
           if (!(element.textContent?.trim().length ?? 0)) return false;
           if (['hidden', 'clip', 'auto', 'scroll'].includes(style.overflowX)) return false;
-          return element.scrollWidth > element.clientWidth + 1 || rect.left < -1 || rect.right > window.innerWidth + 1;
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const textRect = range.getBoundingClientRect();
+          return (
+            textRect.left < rect.left - 1 ||
+            textRect.right > rect.right + 1 ||
+            rect.left < -1 ||
+            rect.right > window.innerWidth + 1
+          );
         })
         .slice(0, 8)
         .map((element) => ({
