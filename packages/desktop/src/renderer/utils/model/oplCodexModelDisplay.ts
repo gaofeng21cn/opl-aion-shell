@@ -9,6 +9,7 @@ import {
   getOplDefaultCodexReasoningEffort,
   type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
+import { selectDefaultCodexModelId } from '@/common/types/codex/codexModels';
 
 export type OplModelDisplayLocale = 'zh-CN' | 'en-US';
 
@@ -24,14 +25,6 @@ export type OplCodexModelDisplay = {
   description: string;
   modelLabel: string;
   reasoningLabel: string;
-};
-
-const FALLBACK_REASONING_LABELS: Record<string, { zh: string; en: string }> = {
-  low: { zh: '推理低', en: 'Low reasoning' },
-  medium: { zh: '推理中', en: 'Medium reasoning' },
-  high: { zh: '推理高', en: 'High reasoning' },
-  xhigh: { zh: '推理超高', en: 'Extra high reasoning' },
-  ultra: { zh: '推理极高', en: 'Ultra reasoning' },
 };
 
 function resolveLocaleKey(localeKey: OplModelDisplayLocale): OplModelDisplayLocale {
@@ -74,10 +67,6 @@ export function formatOplCodexReasoningLabel(
   if (configuredLabel) {
     return resolveLocaleKey(localeKey) === 'en-US' ? configuredLabel.en : configuredLabel.zh;
   }
-  const fallbackLabel = FALLBACK_REASONING_LABELS[effectiveReasoning];
-  if (fallbackLabel) {
-    return resolveLocaleKey(localeKey) === 'en-US' ? fallbackLabel.en : fallbackLabel.zh;
-  }
   return resolveLocaleKey(localeKey) === 'en-US' ? `${effectiveReasoning} reasoning` : `推理${effectiveReasoning}`;
 }
 
@@ -105,17 +94,17 @@ export function formatOplCodexModelDisplay(input: OplCodexModelDisplayInput): Op
 }
 
 export function buildOplCodexAutoModelOption(input: {
-  currentModelId: string;
-  currentModelLabel?: string | null;
-  reasoningEffort?: OplCodexReasoningEffort | null;
+  availableModels: Array<{ id: string; label?: string | null }>;
   localeKey: OplModelDisplayLocale;
 }): OplCodexModelDisplay {
   const localeKey = resolveLocaleKey(input.localeKey);
   const options = getOplCodexModelDisplayOptions();
+  const resolvedModelId = selectDefaultCodexModelId(input.availableModels);
+  const resolvedModel = input.availableModels.find((model) => model.id === resolvedModelId);
   const modelDisplay = formatOplCodexModelDisplay({
-    id: input.currentModelId,
-    label: input.currentModelLabel,
-    reasoningEffort: input.reasoningEffort ?? options.auto_option.resolved_reasoning_effort,
+    id: resolvedModelId,
+    label: resolvedModel?.label,
+    reasoningEffort: options.auto_option.resolved_reasoning_effort,
     localeKey,
   });
   const label = localeKey === 'en-US' ? options.auto_option.label_en : options.auto_option.label_zh;

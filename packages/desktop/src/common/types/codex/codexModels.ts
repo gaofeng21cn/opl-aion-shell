@@ -79,7 +79,7 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
     seen.add(id);
     options.push({
       id,
-      label: model.label?.trim() || id,
+      label: CODEX_MODEL_DISPLAY_LABELS.get(id) ?? model.label?.trim() ?? id,
       preference,
     });
   }
@@ -92,16 +92,27 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
     }));
 }
 
+export function normalizeCodexModelInfo(modelInfo: AcpModelInfo): AcpModelInfo {
+  const availableModels = normalizeCodexModelOptions(modelInfo.available_models);
+  const currentModel = availableModels.find((model) => model.id === modelInfo.current_model_id);
+  return {
+    current_model_id: currentModel?.id ?? null,
+    current_model_label: currentModel?.label ?? null,
+    available_models: availableModels,
+  };
+}
+
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
-  const availableModels = normalizeCodexModelOptions(handshakeModels?.available_models);
   const visibleModels =
-    availableModels.length > 0
-      ? availableModels
-      : DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }));
-  const currentModelId = selectDefaultCodexModelId(visibleModels);
+    handshakeModels == null
+      ? DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }))
+      : normalizeCodexModelInfo(handshakeModels).available_models;
+  const currentModelId = visibleModels.length > 0 ? selectDefaultCodexModelId(visibleModels) : null;
   const currentModelLabel =
-    visibleModels.find((model) => model.id === currentModelId)?.label ||
-    (currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId);
+    currentModelId == null
+      ? null
+      : visibleModels.find((model) => model.id === currentModelId)?.label ||
+        (currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId);
   return {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,

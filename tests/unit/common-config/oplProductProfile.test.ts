@@ -129,7 +129,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
       display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
-      button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort',
+      button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
       raw_model_id_visible_in_ordinary_ui: false,
       reasoning_effort_visible_for_every_option: false,
       reasoning_effort_menu_visible: true,
@@ -541,7 +541,22 @@ describe('OPL generated product profile', () => {
           { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
         ],
       })
-    ).toEqual(buildCodexDefaultModelInfo());
+    ).toEqual({
+      current_model_id: null,
+      current_model_label: null,
+      available_models: [],
+    });
+    expect(
+      buildCodexDefaultModelInfo({
+        current_model_id: null,
+        current_model_label: null,
+        available_models: [],
+      })
+    ).toEqual({
+      current_model_id: null,
+      current_model_label: null,
+      available_models: [],
+    });
     expect(
       buildCodexDefaultModelInfo({
         current_model_id: 'gpt-6',
@@ -559,15 +574,15 @@ describe('OPL generated product profile', () => {
       })
     ).toEqual({
       current_model_id: 'gpt-5.6-sol',
-      current_model_label: 'GPT-5.6-Sol',
+      current_model_label: '5.6 Sol',
       available_models: [
-        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
-        { id: 'gpt-5.5', label: 'GPT-5.5' },
-        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
-        { id: 'gpt-5.6-luna', label: 'GPT-5.6-Luna' },
-        { id: 'gpt-5.4', label: 'GPT-5.4' },
-        { id: 'gpt-5.4-mini', label: 'GPT-5.4-Mini' },
-        { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3-Codex-Spark' },
+        { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+        { id: 'gpt-5.5', label: '5.5' },
+        { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+        { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.4', label: '5.4' },
+        { id: 'gpt-5.4-mini', label: '5.4 Mini' },
+        { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
       ],
     });
     expect(buildCodexDefaultModelInfo()).toEqual({

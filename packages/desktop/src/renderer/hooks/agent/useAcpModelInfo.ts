@@ -8,7 +8,11 @@ import { ipcBridge } from '@/common';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { isOplCodexCliFixedExecutor, shouldShowOplCodexModelList } from '@/common/config/oplProductProfile';
-import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
+import {
+  buildCodexDefaultModelInfo,
+  normalizeCodexModelInfo,
+  selectDefaultCodexModelId,
+} from '@/common/types/codex/codexModels';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents, type AgentMetadata } from '@/renderer/utils/model/agentTypes';
@@ -56,8 +60,9 @@ function normalizeAcpModelInfo(value: unknown): AcpModelInfo | null {
     typeof record.current_model_label === 'string' && record.current_model_label.trim()
       ? record.current_model_label.trim()
       : currentModelId;
+  const hasExplicitAvailableModels = Array.isArray(record.available_models);
   const availableModels = normalizeAcpModelOptions(record.available_models);
-  if (!currentModelId && !currentModelLabel && availableModels.length === 0) return null;
+  if (!currentModelId && !currentModelLabel && !hasExplicitAvailableModels) return null;
   return {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,
@@ -124,6 +129,8 @@ export interface UseAcpModelInfoResult {
   canSwitch: boolean;
   /** Switch the active model and persist via IPC */
   selectModel: (model_id: string) => void;
+  /** Restore App automatic model selection and clear any fixed-model preference. */
+  selectAutoModel: () => void;
   /** Runtime reasoning/thought-level config exposed by ACP, when available. */
   thoughtLevel: AcpDerivedOption | null;
   setStatus: AcpConfigSetStatus;
@@ -172,6 +179,7 @@ export const useAcpModelInfo = ({
   const hasUserChangedModel = useRef(false);
   const prevConversationIdRef = useRef(conversation_id);
   const modelInfoRef = useRef<AcpModelInfo | null>(null);
+  const reportedCodexCurrentModelIdRef = useRef<string | null>(null);
   const handshakeModelInfoRef = useRef<AcpModelInfo | null>(null);
   const scheduledReloadTimersRef = useRef<number[]>([]);
   const modelInfoKey = useMemo(() => getAcpModelInfoKey(conversation_id), [conversation_id]);
@@ -188,11 +196,16 @@ export const useAcpModelInfo = ({
 
   const updateModelInfo = useCallback(
     (nextModelInfo: AcpModelInfo) => {
+      if (backend === 'codex') {
+        reportedCodexCurrentModelIdRef.current = nextModelInfo.current_model_id?.trim() || null;
+      }
+      const normalizedNextModelInfo = backend === 'codex' ? normalizeCodexModelInfo(nextModelInfo) : nextModelInfo;
+      modelInfoRef.current = normalizedNextModelInfo;
       void mutateModelInfo((prev) => {
-        return isSameModelInfo(prev, nextModelInfo) ? prev : nextModelInfo;
+        return isSameModelInfo(prev, normalizedNextModelInfo) ? prev : normalizedNextModelInfo;
       }, false);
     },
-    [mutateModelInfo]
+    [backend, mutateModelInfo]
   );
 
   const { data: agentsData } = useSWR<AgentMetadata[]>(enabled ? DETECTED_AGENTS_SWR_KEY : null, fetchDetectedAgents);
@@ -256,7 +269,7 @@ export const useAcpModelInfo = ({
       const { model_info: info, missing_active_session: missingActiveSession } =
         await fetchAcpModelInfoResult(modelInfoKey);
 
-      if (info?.available_models?.length) {
+      if (info && (backend === 'codex' || info.available_models.length > 0)) {
         // Backend's `current_model_id` is the source of truth for an active
         // session. Only fall back to `initialModelId` when the backend has
         // no current model yet (genuine pre-handshake case); never
@@ -345,6 +358,7 @@ export const useAcpModelInfo = ({
       // Resetting on conversation change is intentional; the in-flight
       // model selection belongs to the previous conversation, not this one.
       hasUserChangedModel.current = false;
+      reportedCodexCurrentModelIdRef.current = null;
       prevConversationIdRef.current = conversation_id;
     }
     void reloadModelInfo({ preserveInitialModel: true }).catch(() => {});
@@ -353,7 +367,7 @@ export const useAcpModelInfo = ({
   useEffect(() => {
     if (!enabled) return;
     if (!backend || !handshakeModelInfo) return;
-    if (model_info && model_info.available_models.length > 0) return;
+    if (model_info) return;
     if (isModelInfoLoading) return;
     if (hasUserChangedModel.current) return;
     loadFallbackModelInfo({ preserveInitialModel: true });
@@ -420,21 +434,25 @@ export const useAcpModelInfo = ({
       } else if (message.type === 'codex_model_info' && message.data) {
         const data = message.data as { model: string };
         if (data.model) {
-          updateModelInfo(
-            buildCodexDefaultModelInfo({
-              current_model_id: data.model,
-              current_model_label: data.model,
-              available_models: [{ id: data.model, label: data.model }],
-            })
-          );
+          const current = modelInfoRef.current;
+          const selected = current?.available_models.find((model) => model.id === data.model);
+          if (current && selected) {
+            updateModelInfo({
+              ...current,
+              current_model_id: selected.id,
+              current_model_label: selected.label,
+            });
+          } else {
+            scheduleModelInfoReload('codex_model_info', [250]);
+          }
         }
       }
     };
     return ipcBridge.acpConversation.responseStream.on(handler);
   }, [conversation_id, enabled, initialModelId, scheduleModelInfoReload, updateModelInfo]);
 
-  const selectModel = useCallback(
-    (model_id: string) => {
+  const requestModelSelection = useCallback(
+    (model_id: string, persistFixedPreference: boolean) => {
       if (!enabled) return;
       hasUserChangedModel.current = true;
       const previousModelInfo = model_info;
@@ -487,6 +505,9 @@ export const useAcpModelInfo = ({
           refreshed,
         });
         if (!refreshed) {
+          if (backend === 'codex') {
+            reportedCodexCurrentModelIdRef.current = model_id;
+          }
           void mutateModelInfo((prev) => {
             const normalizedPrev = normalizeAcpModelInfo(prev);
             if (!normalizedPrev) return null;
@@ -507,18 +528,19 @@ export const useAcpModelInfo = ({
         }
 
         const confirmedModelId =
-          confirmedModelInfo?.current_model_id || modelInfoRef.current?.current_model_id || model_id;
+          (confirmedModelInfo || refreshed ? modelInfoRef.current?.current_model_id : model_id) || model_id;
         onSelectModelSuccess?.(confirmedModelId);
 
         // Persist only after the active ACP session accepts the model switch.
         if (backend) {
-          void savePreferredModelId(backend, confirmedModelId);
+          void savePreferredModelId(backend, persistFixedPreference ? confirmedModelId : null);
         }
         logAcpModelInfo('select_model_preference_save_queued', {
           conversation_id,
           backend,
           requested_model_id: model_id,
           confirmed_model_id: confirmedModelId,
+          preference_mode: persistFixedPreference ? 'fixed' : 'auto',
         });
       })().catch((error) => {
         console.error('[useAcpModelInfo] Failed to finalize model selection:', error);
@@ -538,6 +560,8 @@ export const useAcpModelInfo = ({
     ]
   );
 
+  const selectModel = useCallback((model_id: string) => requestModelSelection(model_id, true), [requestModelSelection]);
+
   const canSwitch = Boolean(
     enabled &&
     model_info &&
@@ -545,5 +569,17 @@ export const useAcpModelInfo = ({
     !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
   );
 
-  return { model_info, canSwitch, selectModel, thoughtLevel, setStatus, setConfigOption };
+  const selectAutoModel = useCallback(() => {
+    if (!enabled || backend !== 'codex' || !model_info) return;
+    const defaultModelId =
+      model_info.available_models.length > 0 ? selectDefaultCodexModelId(model_info.available_models) : null;
+    const reportedCurrentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
+    if (!defaultModelId || defaultModelId === reportedCurrentModelId) {
+      void savePreferredModelId(backend, null);
+      return;
+    }
+    requestModelSelection(defaultModelId, false);
+  }, [backend, enabled, model_info, requestModelSelection]);
+
+  return { model_info, canSwitch, selectModel, selectAutoModel, thoughtLevel, setStatus, setConfigOption };
 };

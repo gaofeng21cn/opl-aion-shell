@@ -11,7 +11,6 @@ import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupCo
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { iconColors } from '@/renderer/styles/colors';
 import {
-  getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
   getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
@@ -85,14 +84,15 @@ const AcpModelSelector: React.FC<{
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
-  const { model_info, canSwitch, selectModel, thoughtLevel, setStatus, setConfigOption } = useAcpModelInfo({
-    conversation_id,
-    backend,
-    initialModelId,
-    prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
-    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
-    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
-  });
+  const { model_info, canSwitch, selectModel, selectAutoModel, thoughtLevel, setStatus, setConfigOption } =
+    useAcpModelInfo({
+      conversation_id,
+      backend,
+      initialModelId,
+      prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
+      onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
+      onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
+    });
   const hideCodexModelList = backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const showCodexAutoOption =
@@ -101,10 +101,6 @@ const AcpModelSelector: React.FC<{
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
   const currentCodexReasoningEffort =
     (thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort;
-  const codexAutoLabel =
-    localeKey === 'en-US'
-      ? getOplCodexModelDisplayOptions().auto_option.label_en
-      : getOplCodexModelDisplayOptions().auto_option.label_zh;
   const intelligenceEnhancementTitle = t(
     OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
     {
@@ -145,15 +141,10 @@ const AcpModelSelector: React.FC<{
       : null;
   const selectedModelLabel =
     useOplCodexModelDisplay && oplCurrentModelDisplay
-      ? showCodexAutoOption
-        ? `${codexAutoLabel} · ${formatOplCodexCompactModelLabel(oplCurrentModelDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
-            currentCodexReasoningEffort,
-            localeKey
-          )}`
-        : `${formatOplCodexCompactModelLabel(oplCurrentModelDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
-            currentCodexReasoningEffort,
-            localeKey
-          )}`
+      ? `${formatOplCodexCompactModelLabel(oplCurrentModelDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
+          currentCodexReasoningEffort,
+          localeKey
+        )}`
       : hideCodexModelList && rawDisplayLabel
         ? t('conversation.welcome.autoModel', { model: rawDisplayLabel })
         : rawDisplayLabel;
@@ -165,11 +156,9 @@ const AcpModelSelector: React.FC<{
   });
   const tooltipContent = display_label;
   const autoModelDisplay =
-    showCodexAutoOption && selectedModelValue
+    showCodexAutoOption && model_info?.available_models.length
       ? buildOplCodexAutoModelOption({
-          currentModelId: selectedModelValue,
-          currentModelLabel: rawDisplayLabel,
-          reasoningEffort: currentCodexReasoningEffort,
+          availableModels: model_info.available_models,
           localeKey,
         })
       : null;
@@ -185,14 +174,8 @@ const AcpModelSelector: React.FC<{
   );
   const handleAutoSelect = useCallback(() => {
     if (!model_info || isSettingReasoning) return;
-    const resolvedModelId = getOplCodexModelDisplayOptions().auto_option.resolved_model;
-    const defaultModelId =
-      model_info.available_models.find((model) => model.id === resolvedModelId)?.id ??
-      model_info.available_models[0]?.id;
     const tasks: Array<Promise<unknown>> = [];
-    if (defaultModelId && defaultModelId !== model_info.current_model_id) {
-      selectModel(defaultModelId);
-    }
+    selectAutoModel();
     if (thoughtLevel && thoughtLevel.currentValue !== defaultCodexReasoningEffort) {
       tasks.push(setConfigOption(thoughtLevel.id, defaultCodexReasoningEffort));
     }
@@ -201,7 +184,7 @@ const AcpModelSelector: React.FC<{
         .then(() => Message.success(t('agent.model.switchSuccess')))
         .catch((error) => Message.error(t(configErrorMessageKey(error))));
     }
-  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectModel, setConfigOption, thoughtLevel, t]);
+  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectAutoModel, setConfigOption, thoughtLevel, t]);
   const handleIntelligenceEnhancementSelect = useCallback(
     async (enabled: boolean) => {
       const mode = OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE;

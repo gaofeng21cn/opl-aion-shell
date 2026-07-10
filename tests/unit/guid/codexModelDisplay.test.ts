@@ -35,16 +35,17 @@ describe('oplCodexModelDisplay', () => {
     expect(display.label).not.toContain('gpt-5.3-codex');
   });
 
-  it('marks the auto option as recommended and explains the current resolved model', () => {
+  it('explains the model and reasoning that Auto will resolve after selection', () => {
     const option = buildOplCodexAutoModelOption({
-      currentModelId: 'gpt-5.6-sol',
-      currentModelLabel: 'GPT-5.6-Sol',
-      reasoningEffort: 'ultra',
+      availableModels: [
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+      ],
       localeKey: 'zh-CN',
     });
 
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe('当前 5.6 Sol · 推理极高 · 跟随最新最强');
+    expect(option.description).toBe('当前 5.5 · 推理极高 · 跟随最新最强');
   });
 
   it('uses localized reasoning labels', () => {

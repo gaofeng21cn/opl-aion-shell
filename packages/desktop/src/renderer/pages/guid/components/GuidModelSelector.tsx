@@ -91,8 +91,6 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
   const effectiveReasoningEffort = selectedReasoningEffort ?? defaultCodexReasoningEffort;
   const codexDisplayOptions = getOplCodexModelDisplayOptions();
-  const codexAutoLabel =
-    localeKey === 'en-US' ? codexDisplayOptions.auto_option.label_en : codexDisplayOptions.auto_option.label_zh;
   const intelligenceEnhancementTitle = t(
     OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
     {
@@ -190,9 +188,10 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
           reasoningEffort: effectiveReasoningEffort,
           localeKey,
         });
-        return `${codexAutoLabel} · ${formatOplCodexCompactModelLabel(
-          currentDisplay.modelLabel
-        )} ${formatOplCodexReasoningMenuLabel(effectiveReasoningEffort, localeKey)}`;
+        return `${formatOplCodexCompactModelLabel(currentDisplay.modelLabel)} ${formatOplCodexReasoningMenuLabel(
+          effectiveReasoningEffort,
+          localeKey
+        )}`;
       }
       return t('conversation.welcome.autoModel', {
         model: currentAcpCachedModelInfo.current_model_label || currentAcpCachedModelInfo.current_model_id,
@@ -337,9 +336,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   if (currentAcpCachedModelInfo && currentAcpCachedModelInfo.available_models?.length > 0) {
     if (currentAcpCachedModelInfo.available_models.length > 0) {
       const autoModelDisplay = buildOplCodexAutoModelOption({
-        currentModelId: currentAcpCachedModelInfo.current_model_id,
-        currentModelLabel: currentAcpCachedModelInfo.current_model_label,
-        reasoningEffort: effectiveReasoningEffort,
+        availableModels: currentAcpCachedModelInfo.available_models,
         localeKey,
       });
       const effectiveModelId = selectedAcpModel ?? currentAcpCachedModelInfo.current_model_id;

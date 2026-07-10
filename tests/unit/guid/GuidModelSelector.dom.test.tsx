@@ -120,7 +120,8 @@ describe('GuidModelSelector Codex display', () => {
     );
 
     const selector = screen.getByTestId('guid-model-selector');
-    expect(selector).toHaveTextContent('自动（推荐） · 5.6 Sol 极高');
+    expect(selector).toHaveTextContent('5.6 Sol 极高');
+    expect(selector).not.toHaveTextContent('自动（推荐）');
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(selector);

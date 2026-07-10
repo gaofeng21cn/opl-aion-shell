@@ -19,6 +19,7 @@ const {
   setConfigOptionInvokeMock,
   conversationUpdateInvokeMock,
   writeRendererLogInvokeMock,
+  configServiceGetMock,
   configServiceSetMock,
   fetchDetectedAgentsMock,
   responseStreamHandlerRef,
@@ -29,6 +30,7 @@ const {
   setConfigOptionInvokeMock: vi.fn(),
   conversationUpdateInvokeMock: vi.fn(),
   writeRendererLogInvokeMock: vi.fn(),
+  configServiceGetMock: vi.fn(),
   configServiceSetMock: vi.fn(),
   fetchDetectedAgentsMock: vi.fn(),
   responseStreamHandlerRef: {
@@ -61,7 +63,7 @@ vi.mock('@/common', () => ({
 
 vi.mock('@/common/config/configService', () => ({
   configService: {
-    get: vi.fn().mockReturnValue({}),
+    get: configServiceGetMock,
     set: configServiceSetMock,
   },
 }));
@@ -136,12 +138,14 @@ describe('useAcpModelInfo', () => {
     setConfigOptionInvokeMock.mockReset();
     conversationUpdateInvokeMock.mockReset();
     writeRendererLogInvokeMock.mockReset();
+    configServiceGetMock.mockReset();
     configServiceSetMock.mockReset();
     setModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo() });
     getConfigOptionsInvokeMock.mockResolvedValue({ config_options: [] });
     setConfigOptionInvokeMock.mockResolvedValue({ confirmation: 'observed', config_options: [] });
     conversationUpdateInvokeMock.mockResolvedValue(true);
     writeRendererLogInvokeMock.mockResolvedValue(undefined);
+    configServiceGetMock.mockReturnValue({});
     configServiceSetMock.mockResolvedValue(undefined);
     fetchDetectedAgentsMock.mockResolvedValue([]);
   });
@@ -521,6 +525,417 @@ describe('useAcpModelInfo', () => {
         { id: 'gpt-5.4-mini', label: '5.4 Mini' },
         { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
       ],
+    });
+  });
+
+  it('does not invent App fallback models when ACP explicitly reports an empty model list', async () => {
+    fetchDetectedAgentsMock.mockResolvedValue([
+      {
+        agent_type: 'acp',
+        backend: 'codex',
+        handshake: {
+          available_models: {
+            current_model_id: null,
+            current_model_label: null,
+            available_models: [],
+          },
+        },
+      },
+    ]);
+    getModelInvokeMock.mockRejectedValue({
+      name: 'BackendHttpError',
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'no active session',
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'new-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(fetchDetectedAgentsMock).toHaveBeenCalled();
+      expect(getModelInvokeMock).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+
+    expect(result.current.model_info).toBeNull();
+    expect(result.current.canSwitch).toBe(false);
+  });
+
+  it('keeps an explicitly empty active Codex model list instead of restoring fallback models', async () => {
+    fetchDetectedAgentsMock.mockResolvedValue([
+      {
+        agent_type: 'acp',
+        backend: 'codex',
+        handshake: {},
+      },
+    ]);
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: null,
+        current_model_label: null,
+        available_models: [],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(getModelInvokeMock).toHaveBeenCalled();
+      expect(fetchDetectedAgentsMock).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+
+    expect(result.current.model_info).toEqual({
+      current_model_id: null,
+      current_model_label: null,
+      available_models: [],
+    });
+    expect(result.current.canSwitch).toBe(false);
+  });
+
+  it('filters and orders active Codex model info while preserving the current allowlisted model', async () => {
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.4',
+        current_model_label: 'GPT-5.4 from ACP',
+        available_models: [
+          { id: 'gpt-6', label: 'GPT-6' },
+          { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+          { id: 'gpt-5.4', label: 'GPT-5.4' },
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          { id: 'gpt-5.5', label: 'GPT-5.5' },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info).toEqual({
+        current_model_id: 'gpt-5.4',
+        current_model_label: '5.4',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          { id: 'gpt-5.5', label: '5.5' },
+          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.4', label: '5.4' },
+        ],
+      });
+    });
+  });
+
+  it('keeps an unsupported active Codex current model until Auto confirms an allowlisted switch', async () => {
+    const legacyInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-codex',
+      current_model_label: 'GPT-5.6 Codex',
+      available_models: [
+        { id: 'gpt-5.6-codex', label: 'GPT-5.6 Codex' },
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+      ],
+    };
+    const confirmedInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
+      available_models: legacyInfo.available_models,
+    };
+    getModelInvokeMock
+      .mockResolvedValueOnce({ model_info: legacyInfo })
+      .mockResolvedValue({ model_info: confirmedInfo });
+    setModelInvokeMock.mockResolvedValue({ model_info: confirmedInfo });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'legacy-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info).toEqual({
+        current_model_id: null,
+        current_model_label: null,
+        available_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          { id: 'gpt-5.5', label: '5.5' },
+        ],
+      });
+    });
+
+    act(() => result.current.selectAutoModel());
+
+    await waitFor(() => {
+      expect(setModelInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'legacy-codex-conversation',
+        model_id: 'gpt-5.6-sol',
+      });
+    });
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
+    });
+  });
+
+  it('filters and orders Codex acp_model_info stream receipts', async () => {
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          { id: 'gpt-5.5', label: 'GPT-5.5' },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(responseStreamHandlerRef.current).toBeTypeOf('function');
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+    });
+
+    act(() => {
+      responseStreamHandlerRef.current?.({
+        type: 'acp_model_info',
+        conversation_id: 'active-codex-conversation',
+        data: {
+          current_model_id: 'gpt-5.4',
+          current_model_label: 'GPT-5.4 from ACP',
+          available_models: [
+            { id: 'gpt-6', label: 'GPT-6' },
+            { id: 'gpt-5.4', label: 'GPT-5.4' },
+            { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+            { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { id: 'gpt-5.5', label: 'GPT-5.5' },
+          ],
+        },
+      } as unknown as IResponseMessage);
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info).toEqual({
+        current_model_id: 'gpt-5.4',
+        current_model_label: '5.4',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          { id: 'gpt-5.5', label: '5.5' },
+          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.4', label: '5.4' },
+        ],
+      });
+    });
+  });
+
+  it('keeps the available Codex list when a legacy codex_model_info stream updates the current model', async () => {
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          { id: 'gpt-5.5', label: 'GPT-5.5' },
+          { id: 'gpt-5.4', label: 'GPT-5.4' },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(responseStreamHandlerRef.current).toBeTypeOf('function');
+      expect(result.current.model_info?.available_models).toHaveLength(3);
+    });
+
+    act(() => {
+      responseStreamHandlerRef.current?.({
+        type: 'codex_model_info',
+        conversation_id: 'active-codex-conversation',
+        data: { model: 'gpt-5.5' },
+      } as unknown as IResponseMessage);
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info).toEqual({
+        current_model_id: 'gpt-5.5',
+        current_model_label: '5.5',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          { id: 'gpt-5.5', label: '5.5' },
+          { id: 'gpt-5.4', label: '5.4' },
+        ],
+      });
+    });
+  });
+
+  it('filters and orders Codex setModel receipts', async () => {
+    const initialInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-5.4', label: 'GPT-5.4' },
+      ],
+    };
+    const confirmedInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.4',
+      current_model_label: 'GPT-5.4 from setModel',
+      available_models: [
+        { id: 'gpt-6', label: 'GPT-6' },
+        { id: 'gpt-5.4', label: 'GPT-5.4' },
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+      ],
+    };
+    getModelInvokeMock.mockResolvedValueOnce({ model_info: initialInfo }).mockResolvedValue({ model_info: null });
+    setModelInvokeMock.mockResolvedValue({ model_info: confirmedInfo });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+    });
+
+    act(() => result.current.selectModel('gpt-5.4'));
+
+    await waitFor(() => {
+      expect(result.current.model_info).toEqual({
+        current_model_id: 'gpt-5.4',
+        current_model_label: '5.4',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
+          { id: 'gpt-5.5', label: '5.5' },
+          { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.4', label: '5.4' },
+        ],
+      });
+    });
+  });
+
+  it('clears the Codex model preference when Auto already resolves to the active model', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-sol' } });
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          { id: 'gpt-5.5', label: 'GPT-5.5' },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+    });
+
+    const selectAutoModel = (result.current as typeof result.current & { selectAutoModel?: () => void })
+      .selectAutoModel;
+    expect(selectAutoModel).toBeTypeOf('function');
+    act(() => selectAutoModel?.());
+
+    await waitFor(() => {
+      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+  });
+
+  it('selects the first available App model for Auto and clears the fixed preference after confirmation', async () => {
+    const terraInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-terra',
+      current_model_label: 'GPT-5.6-Terra',
+      available_models: [
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+        { id: 'gpt-5.5', label: 'GPT-5.5' },
+      ],
+    };
+    const autoInfo: AcpModelInfo = {
+      ...terraInfo,
+      current_model_id: 'gpt-5.5',
+      current_model_label: 'GPT-5.5',
+    };
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-terra' } });
+    getModelInvokeMock.mockResolvedValueOnce({ model_info: terraInfo }).mockResolvedValue({ model_info: autoInfo });
+    setModelInvokeMock.mockResolvedValue({ model_info: autoInfo });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-terra');
+    });
+
+    act(() => result.current.selectAutoModel());
+
+    await waitFor(() => {
+      expect(setModelInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'active-codex-conversation',
+        model_id: 'gpt-5.5',
+      });
+    });
+    await waitFor(() => {
+      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
+    });
+  });
+
+  it('saves the requested Codex model when setModel succeeds without a receipt and reload has no model info', async () => {
+    const initialInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
+      ],
+    };
+    getModelInvokeMock.mockResolvedValueOnce({ model_info: initialInfo }).mockResolvedValue({ model_info: null });
+    setModelInvokeMock.mockResolvedValue({ model_info: null });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'active-codex-conversation',
+      backend: 'codex',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+    });
+
+    act(() => result.current.selectModel('gpt-5.6-terra'));
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-terra');
+    });
+    await waitFor(() => {
+      expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', {
+        codex: { preferredModelId: 'gpt-5.6-terra' },
+      });
     });
   });
 

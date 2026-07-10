@@ -215,7 +215,7 @@ export type OplCodexModelDisplayModel = {
 
 export type OplCodexModelDisplayOptions = {
   display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus';
-  button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort';
+  button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix';
   raw_model_id_visible_in_ordinary_ui: false;
   reasoning_effort_visible_for_every_option: false;
   reasoning_effort_menu_visible: true;
@@ -641,7 +641,7 @@ function readCodexModelDisplayOptions(
   }
   if (
     value.display_policy !== 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus' ||
-    value.button_label_policy !== 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort' ||
+    value.button_label_policy !== 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix' ||
     value.raw_model_id_visible_in_ordinary_ui !== false ||
     value.reasoning_effort_visible_for_every_option !== false ||
     value.reasoning_effort_menu_visible !== true ||
@@ -763,7 +763,7 @@ function readCodexModelDisplayOptions(
 
   return {
     display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
-    button_label_policy: 'auto_or_fixed_model_compact_label_with_selected_reasoning_effort',
+    button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
     raw_model_id_visible_in_ordinary_ui: false,
     reasoning_effort_visible_for_every_option: false,
     reasoning_effort_menu_visible: true,

@@ -9,6 +9,7 @@ let intelligencePreference: boolean | undefined;
 
 const acpModelInfoMocks = vi.hoisted(() => ({
   selectModel: vi.fn(),
+  selectAutoModel: vi.fn(),
   setConfigOption: vi.fn(),
   executeAction: vi.fn(),
   configSet: vi.fn(),
@@ -194,6 +195,7 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
     },
     canSwitch: true,
     selectModel: acpModelInfoMocks.selectModel,
+    selectAutoModel: acpModelInfoMocks.selectAutoModel,
     thoughtLevel: {
       id: 'reasoning_effort',
       category: 'thought_level',
@@ -309,7 +311,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(screen.getByTestId('sendbox')).toBeInTheDocument();
     expect(screen.queryByTestId('agent-mode-selector')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-conversation-model-status')).toHaveTextContent('Model: 5.6 Sol');
+    expect(screen.queryByTestId('opl-conversation-model-status')).not.toBeInTheDocument();
   });
 
   it('keeps the permission mode selector for non-Codex ACP conversations', () => {
@@ -378,7 +380,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     fireEvent.click(screen.getByTestId('mobile-plus-button'));
     fireEvent.click(screen.getByTestId('mobile-action-sheet-auto'));
 
-    expect(acpModelInfoMocks.selectModel).toHaveBeenCalledWith('gpt-5.6-sol');
+    expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
+    expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
     await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'ultra'));
   });
 

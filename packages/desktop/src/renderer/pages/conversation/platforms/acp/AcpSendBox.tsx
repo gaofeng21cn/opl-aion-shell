@@ -10,7 +10,6 @@ import {
   getOplDefaultCodexReasoningEffort,
   getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
-  getOplModelStatusDisplayText,
   shouldShowOplConversationPermissionModeSelector,
   shouldShowOplCodexModelAutoOption,
   type OplCodexReasoningEffort,
@@ -159,9 +158,7 @@ const AcpSendBox: React.FC<{
   } = messageState;
   const { t, i18n } = useTranslation();
   const teamPermission = useTeamPermission();
-  const showOplCodexModelStatus = backend === 'codex' && isOplCodexCliFixedExecutor();
-  const useOplCodexModelDisplay = showOplCodexModelStatus;
-  const oplCodexModelStatusText = getOplModelStatusDisplayText(resolveLocaleKey(i18n.language));
+  const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const modelDisplayLocale = resolveLocaleKey(i18n.language) as OplModelDisplayLocale;
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
   const showModeSelector =
@@ -195,6 +192,7 @@ const AcpSendBox: React.FC<{
     model_info,
     canSwitch: canSwitchModel,
     selectModel,
+    selectAutoModel,
     thoughtLevel,
     setStatus,
     setConfigOption,
@@ -298,12 +296,8 @@ const AcpSendBox: React.FC<{
 
   const handleSheetAutoSelect = useCallback(() => {
     if (!model_info || isSettingReasoning) return;
-    const defaultModelId =
-      getOplCodexModelDisplayOptions().auto_option.resolved_model || model_info.available_models[0]?.id;
     const tasks: Array<Promise<unknown>> = [];
-    if (defaultModelId && defaultModelId !== model_info.current_model_id) {
-      selectModel(defaultModelId);
-    }
+    selectAutoModel();
     if (thoughtLevel && defaultCodexReasoningEffort && thoughtLevel.currentValue !== defaultCodexReasoningEffort) {
       tasks.push(setConfigOption(thoughtLevel.id, defaultCodexReasoningEffort));
     }
@@ -312,7 +306,7 @@ const AcpSendBox: React.FC<{
         .then(() => Message.success(t('agent.model.switchSuccess')))
         .catch((error) => Message.error(t(configErrorMessageKey(error))));
     }
-  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectModel, setConfigOption, thoughtLevel, t]);
+  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectAutoModel, setConfigOption, thoughtLevel, t]);
 
   const handleSheetIntelligenceEnhancementSelect = useCallback(
     async (key: string) => {
@@ -594,11 +588,9 @@ Please check your local CLI tool authentication status`,
       : [];
 
     const autoModelOption =
-      useOplCodexModelDisplay && model_info?.current_model_id
+      useOplCodexModelDisplay && model_info?.available_models.length
         ? buildOplCodexAutoModelOption({
-            currentModelId: model_info.current_model_id,
-            currentModelLabel: model_info.current_model_label,
-            reasoningEffort: currentCodexReasoningEffort,
+            availableModels: model_info.available_models,
             localeKey: modelDisplayLocale,
           })
         : null;
@@ -629,9 +621,15 @@ Please check your local CLI tool authentication status`,
         }))
       : [];
 
+    const currentModel = model_info?.available_models.find((model) => model.id === model_info.current_model_id);
     const currentModelLabel =
-      useOplCodexModelDisplay && autoModelOption
-        ? autoModelOption.modelLabel
+      useOplCodexModelDisplay && currentModel
+        ? formatOplCodexModelDisplay({
+            id: currentModel.id,
+            label: currentModel.label,
+            reasoningEffort: currentCodexReasoningEffort,
+            localeKey: modelDisplayLocale,
+          }).modelLabel
         : model_info?.current_model_label || model_info?.current_model_id || t('conversation.welcome.useCliModel');
     const currentReasoningLabel =
       currentCodexReasoningEffort === null || currentCodexReasoningEffort === undefined
@@ -927,16 +925,6 @@ Please check your local CLI tool authentication status`,
         }
         prefix={
           <>
-            {showOplCodexModelStatus && (
-              <div className='flex flex-wrap items-center gap-8px mb-8px'>
-                <span
-                  className='inline-flex items-center min-h-22px px-8px rd-full bg-fill-1 text-12px lh-18px text-t-tertiary whitespace-nowrap'
-                  data-testid='opl-conversation-model-status'
-                >
-                  {oplCodexModelStatusText}
-                </span>
-              </div>
-            )}
             {uploadFile.length > 0 && (
               <HorizontalFileList>
                 {uploadFile.map((path) => (
