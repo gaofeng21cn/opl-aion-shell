@@ -388,8 +388,37 @@ describe('FirstRun readiness page', () => {
       'settings.firstRun.checking.nextStepPending'
     );
 
-    resolveInitialize?.(initializeResult);
+    await act(async () => {
+      resolveInitialize?.(initializeResult);
+    });
     await waitFor(() => expect(screen.queryByTestId('opl-first-run-initialize-pending')).not.toBeInTheDocument());
+  });
+
+  it('lets users enter OPL while readiness is unresolved without mutating setup state', async () => {
+    bridgeMocks.getInitializeInvoke.mockReturnValueOnce(
+      new Promise<typeof initializeResult>((resolve) => {
+        resolveInitialize = resolve;
+      })
+    );
+
+    render(<FirstRun />);
+
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    const enterApp = screen.getByTestId('opl-first-run-enter-app');
+    expect(enterApp).toBeEnabled();
+
+    fireEvent.click(enterApp);
+
+    expect(navigateMock).toHaveBeenCalledWith('/guid');
+    expect(bridgeMocks.configureCodexInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.runInstallPrepInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.runStartupMaintenanceInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.runReconcileModulesInvoke).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveInitialize?.(initializeResult);
+    });
   });
 
   it('loads initialize state and lets users enter /guid only after Core is ready', async () => {
@@ -830,6 +859,12 @@ describe('FirstRun readiness page', () => {
   });
 
   it('runs startup maintenance without blocking the ready entry', async () => {
+    bridgeMocks.runStartupMaintenanceInvoke.mockReturnValueOnce(
+      new Promise<typeof startupMaintenanceResult>((resolve) => {
+        resolveMaintenance = resolve;
+      })
+    );
+
     render(<FirstRun />);
 
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
@@ -837,6 +872,11 @@ describe('FirstRun readiness page', () => {
     fireEvent.click(screen.getByTestId('opl-first-run-open-environment-button'));
 
     await waitFor(() => expect(bridgeMocks.runStartupMaintenanceInvoke).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId('opl-first-run-ready-entry')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-ready-entry').closest('button')).toBeEnabled();
+
+    await act(async () => {
+      resolveMaintenance?.(startupMaintenanceResult);
+    });
+    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
   });
 });

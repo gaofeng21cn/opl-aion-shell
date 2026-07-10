@@ -527,14 +527,28 @@ const FirstRun: React.FC = () => {
           <span>{PRODUCT_DISPLAY_NAME}</span>
         </div>
         <div className={styles.firstRunBrandActions} data-testid='opl-first-run-window-actions'>
+          {!readyToLaunch && (
+            <Button
+              type='text'
+              size='small'
+              icon={<Right />}
+              className={styles.firstRunEnterButton}
+              onClick={() => navigate('/guid')}
+              data-testid='opl-first-run-enter-app'
+            >
+              {t('settings.firstRun.enterGuid')}
+            </Button>
+          )}
           <Button
             type='text'
             size='small'
             icon={<Help />}
             className={styles.firstRunHelpButton}
             onClick={openTechnicalDetails}
+            aria-label={t('settings.firstRun.help')}
+            title={t('settings.firstRun.help')}
           >
-            {t('settings.firstRun.help')}
+            <span className={styles.firstRunHelpLabel}>{t('settings.firstRun.help')}</span>
           </Button>
           {showWindowControls && (
             <div className={styles.firstRunWindowControls} data-testid='opl-first-run-window-controls'>
@@ -758,7 +772,6 @@ const FirstRun: React.FC = () => {
                           icon={<Right />}
                           type='primary'
                           size='large'
-                          disabled={requestInFlight}
                           onClick={() => navigate('/guid', { state: POST_INSTALL_SELF_CHECK_STATE })}
                         >
                           <span data-testid='opl-first-run-ready-entry'>{t('settings.firstRun.enterGuid')}</span>

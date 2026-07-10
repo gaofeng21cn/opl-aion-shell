@@ -441,12 +441,15 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("entryKind: 'assistant_home'");
   });
 
-  it('accepts the App-owned assistant home as a usable entry after ready navigation', () => {
+  it('accepts the App-owned assistant home after ready or deferred FirstRun navigation', () => {
     const expression = __test.guidEntryNavigationExpression();
 
     expect(expression).toContain('[aria-label="opl-first-run-ready-entry"]');
+    expect(expression).toContain('[data-testid="opl-first-run-enter-app"]');
     expect(expression).toContain('readyButton.click()');
+    expect(expression).toContain('deferredButton.click()');
     expect(expression).toContain("navigatedBy: 'ready_entry'");
+    expect(expression).toContain("navigatedBy: 'deferred_entry'");
     expect(expression).toContain("navigatedBy: 'usable_assistant_home'");
     expect(expression).toContain('["med-autoscience","med-autogrant","redcube-ai"]');
     expect(expression).toContain('preset-pill-${assistantId}');
@@ -463,6 +466,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="opl-first-run-beginner-summary"]');
     expect(expression).toContain('[data-testid="opl-first-run-primary-action"]');
     expect(expression).toContain('[data-testid="opl-first-run-technical-details-toggle"]');
+    expect(expression).toContain('[data-testid="opl-first-run-enter-app"]');
+    expect(expression).toContain('deferredEntryVisible');
     expect(expression).toContain('technicalDetailsCollapsed');
     expect(expression).toContain('settings\\.firstRun\\.stage');
     expect(expression).toContain('full_readiness');

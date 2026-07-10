@@ -251,7 +251,7 @@ type OplPostInstallAiSelfCheckEntry = {
   trigger: string;
   target_route: '/guid';
   route_state: 'postInstallSelfCheck';
-  prompt_policy: 'localized Codex CLI read-only diagnosis prompt describing target OPL working mode';
+  prompt_policy: 'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path';
   target_state_checks: string[];
   mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation';
   release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt';
@@ -433,7 +433,8 @@ type AppProductProfile = {
     readiness_layers: string[];
     ready_to_launch_gate: {
       id: 'ready_to_launch';
-      ui_order: 'before_guid';
+      ui_order: 'before_first_conversation_not_before_guid';
+      guid_navigation_blocking: false;
       required_core_items: string[];
       must_not_require: string[];
     };
@@ -451,12 +452,14 @@ type AppProductProfile = {
     beginner_presentation: {
       audience: 'beginner_non_technical_users';
       presentation_mode: 'simplified_first_run';
-      primary_user_goal: 'reach_guid_with_codex_ready';
+      primary_user_goal: 'enter_guid_now_or_complete_guided_setup_first';
       primary_steps: string[];
       primary_progress_signal: string;
       advanced_progress_disclosure: 'collapsed_or_secondary';
       background_maintenance_presentation: 'collapsed_technical_non_blocking';
       technical_detail_policy: 'hidden_until_expanded_or_error';
+      completion_navigation_policy: 'manual_guid_entry_available_before_or_after_ready_no_automatic_route';
+      defer_navigation_policy: 'explicit_enter_guid_available_before_ready_without_mutating_readiness';
       post_install_ai_self_check_entry: OplPostInstallAiSelfCheckEntry;
     };
   };
@@ -580,7 +583,7 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
     trigger: typeof entry.trigger === 'string' ? entry.trigger : '',
     target_route: '/guid',
     route_state: 'postInstallSelfCheck',
-    prompt_policy: 'localized Codex CLI read-only diagnosis prompt describing target OPL working mode',
+    prompt_policy: 'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path',
     target_state_checks: targetStateChecks,
     mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation',
     release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt',
@@ -1582,9 +1585,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     readinessLayers.length !== 1 ||
     readinessLayers[0] !== 'core' ||
     readyToLaunchGate.id !== 'ready_to_launch' ||
-    readyToLaunchGate.ui_order !== 'before_guid'
+    readyToLaunchGate.ui_order !== 'before_first_conversation_not_before_guid' ||
+    readyToLaunchGate.guid_navigation_blocking !== false
   ) {
-    throw new Error('Invalid OPL product profile: first-run launch gate must be Core ready_to_launch before /guid');
+    throw new Error('Invalid OPL product profile: ready_to_launch must gate first conversation without blocking /guid');
   }
   if (runtimeProvider.full_readiness_provider !== 'temporal' || runtimeProvider.ready_to_launch_blocking !== false) {
     throw new Error('Invalid OPL product profile: Temporal runtime provider must be non-blocking for ready_to_launch');
@@ -1605,10 +1609,14 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     !beginnerPresentation ||
     beginnerPresentation.audience !== 'beginner_non_technical_users' ||
     beginnerPresentation.presentation_mode !== 'simplified_first_run' ||
-    beginnerPresentation.primary_user_goal !== 'reach_guid_with_codex_ready' ||
+    beginnerPresentation.primary_user_goal !== 'enter_guid_now_or_complete_guided_setup_first' ||
     beginnerPresentation.advanced_progress_disclosure !== 'collapsed_or_secondary' ||
     beginnerPresentation.background_maintenance_presentation !== 'collapsed_technical_non_blocking' ||
-    beginnerPresentation.technical_detail_policy !== 'hidden_until_expanded_or_error'
+    beginnerPresentation.technical_detail_policy !== 'hidden_until_expanded_or_error' ||
+    beginnerPresentation.completion_navigation_policy !==
+      'manual_guid_entry_available_before_or_after_ready_no_automatic_route' ||
+    beginnerPresentation.defer_navigation_policy !==
+      'explicit_enter_guid_available_before_ready_without_mutating_readiness'
   ) {
     throw new Error('Invalid OPL product profile: first-run beginner presentation policy is invalid');
   }
@@ -1912,7 +1920,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       readiness_layers: ['core'],
       ready_to_launch_gate: {
         id: 'ready_to_launch',
-        ui_order: 'before_guid',
+        ui_order: 'before_first_conversation_not_before_guid',
+        guid_navigation_blocking: false,
         required_core_items: readyToLaunchCoreItems,
         must_not_require: readyToLaunchExcludedItems,
       },
@@ -1930,7 +1939,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       beginner_presentation: {
         audience: 'beginner_non_technical_users',
         presentation_mode: 'simplified_first_run',
-        primary_user_goal: 'reach_guid_with_codex_ready',
+        primary_user_goal: 'enter_guid_now_or_complete_guided_setup_first',
         primary_steps: beginnerPresentationPrimarySteps,
         primary_progress_signal:
           typeof beginnerPresentation.primary_progress_signal === 'string'
@@ -1939,6 +1948,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         advanced_progress_disclosure: 'collapsed_or_secondary',
         background_maintenance_presentation: 'collapsed_technical_non_blocking',
         technical_detail_policy: 'hidden_until_expanded_or_error',
+        completion_navigation_policy: 'manual_guid_entry_available_before_or_after_ready_no_automatic_route',
+        defer_navigation_policy: 'explicit_enter_guid_available_before_ready_without_mutating_readiness',
         post_install_ai_self_check_entry: postInstallAiSelfCheckEntry,
       },
     },

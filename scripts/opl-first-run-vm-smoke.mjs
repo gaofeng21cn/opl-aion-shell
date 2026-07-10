@@ -19,6 +19,7 @@ const DEFAULT_LABELS = {
   retryButton: 'opl-first-run-retry-button',
   environmentButton: 'opl-first-run-open-environment-button',
   modulesButton: 'opl-first-run-open-modules-button',
+  deferredEntry: 'opl-first-run-enter-app',
   readyEntry: 'opl-first-run-ready-entry',
   guidEntry: 'opl-guid-entry',
   settingsEnvironment: 'opl-settings-environment',
@@ -2013,6 +2014,7 @@ function firstRunAccessibilityExpectedLabels() {
     DEFAULT_LABELS.blockersList,
     DEFAULT_LABELS.codexApiKeyInput,
     DEFAULT_LABELS.codexConfigureButton,
+    DEFAULT_LABELS.deferredEntry,
     DEFAULT_LABELS.readyEntry,
     DEFAULT_LABELS.beginnerSummary,
     DEFAULT_LABELS.primaryAction,
@@ -2929,6 +2931,19 @@ function guidEntryNavigationExpression() {
     const firstRunWindow = document.querySelector('[data-testid="opl-first-run-window"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     if (window.location.hash.startsWith('#/guid') && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !firstRunWindow && !appLoaderVisible) {
+      if (window.__oplFirstRunSmokeNavigationKind === 'deferred_entry') {
+        return {
+          hash: window.location.hash,
+          entryKind: 'guid',
+          labels: ['opl-guid-entry'],
+          guidEntryVisible: true,
+          guidInputVisible: true,
+          guidSendButtonVisible: true,
+          hasGuidInput: true,
+          hasGuidSendButton: true,
+          navigatedBy: 'deferred_entry',
+        };
+      }
       return {
         hash: window.location.hash,
         entryKind: 'guid',
@@ -2958,15 +2973,21 @@ function guidEntryNavigationExpression() {
         navigatedBy: 'usable_assistant_home',
       };
     }
+    const deferredAnchor = document.querySelector('[data-testid="opl-first-run-enter-app"]');
+    const deferredButton = deferredAnchor?.closest('button') || deferredAnchor;
     const readyAnchor = document.querySelector('[aria-label="opl-first-run-ready-entry"], [data-testid="opl-first-run-ready-entry"]');
     const readyButton = readyAnchor?.closest('button') || readyAnchor;
-    const disabled =
-      !readyButton ||
-      readyButton.disabled === true ||
-      readyButton.getAttribute('disabled') !== null ||
-      readyButton.getAttribute('aria-disabled') === 'true' ||
-      readyButton.className.includes('disabled');
-    if (readyButton && firstRunWindow && !appLoaderVisible && !disabled) {
+    const disabled = (button) =>
+      !button ||
+      button.disabled === true ||
+      button.getAttribute('disabled') !== null ||
+      button.getAttribute('aria-disabled') === 'true' ||
+      button.className.includes('disabled');
+    if (deferredButton && firstRunWindow && !appLoaderVisible && !disabled(deferredButton)) {
+      window.__oplFirstRunSmokeNavigationKind = 'deferred_entry';
+      deferredButton.click();
+    } else if (readyButton && firstRunWindow && !appLoaderVisible && !disabled(readyButton)) {
+      window.__oplFirstRunSmokeNavigationKind = 'ready_entry';
       readyButton.click();
     }
     return false;
@@ -3214,6 +3235,7 @@ function firstRunBeginnerUxExpression() {
     const summaryNode = document.querySelector('[data-testid="opl-first-run-beginner-summary"]');
     const actionNode = document.querySelector('[data-testid="opl-first-run-primary-action"]');
     const detailsNode = document.querySelector('[data-testid="opl-first-run-technical-details-toggle"]');
+    const deferredEntryNode = document.querySelector('[data-testid="opl-first-run-enter-app"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     if (window.location.hash.startsWith('#/guid') && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !windowNode && !appLoaderVisible) {
       return {
@@ -3280,6 +3302,7 @@ function firstRunBeginnerUxExpression() {
           beginnerPrimaryVisible: true,
           summaryText: summaryNode.textContent.trim(),
           primaryTextLength: primaryText.length,
+          deferredEntryVisible: visible(deferredEntryNode),
           technicalDetailsCollapsed: true,
         }
       : false;
@@ -3427,6 +3450,7 @@ function rendererBootstrapDiagnosticsExpression() {
       'opl-startup-preflight',
       'opl-first-run-window',
       'opl-first-run-progress',
+      'opl-first-run-enter-app',
       'opl-first-run-ready-entry',
       'opl-guid-entry',
       'app',

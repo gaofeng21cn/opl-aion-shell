@@ -9,7 +9,7 @@
  * 设计原则：
  * - 只负责检查和路由决策
  * - 不承担配置向导职责
- * - 未确认 ready 时只允许进入 FirstRun
+ * - 未确认 ready 时默认进入 FirstRun，但允许用户显式进入 OPL
  */
 
 import React, { useEffect, useState } from 'react';
@@ -31,7 +31,7 @@ const StartupGate: React.FC = () => {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   const skipStartupCheck = () => {
-    navigate('/first-run', { replace: true });
+    navigate('/guid', { replace: true });
   };
 
   useEffect(() => {

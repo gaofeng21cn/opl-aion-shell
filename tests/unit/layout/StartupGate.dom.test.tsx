@@ -141,14 +141,14 @@ describe('StartupGate', () => {
     expect(screen.queryByText('70%')).not.toBeInTheDocument();
   });
 
-  it('lets users skip the fast startup read only by entering focused first-run setup', () => {
+  it('lets users skip the fast startup read and enter OPL without changing readiness', () => {
     bridgeMocks.getAppStateInvoke.mockReturnValue(new Promise(() => {}));
 
     render(<StartupGate />);
 
     fireEvent.click(screen.getByText('common.startupPreflight.skipCheck'));
 
-    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/first-run', { replace: true });
+    expect(bridgeMocks.navigate).toHaveBeenCalledWith('/guid', { replace: true });
   });
 
   it('routes ready non-first-run installs directly to guid', async () => {
