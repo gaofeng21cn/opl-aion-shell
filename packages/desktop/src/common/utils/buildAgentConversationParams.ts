@@ -25,6 +25,7 @@ export type BuildAgentConversationInput = {
   agent_id?: string;
   agent_name?: string;
   preset_assistant_id?: string;
+  backend_assistant_id?: string;
   workspace: string;
   model: TProviderWithModel;
   cli_path?: string;
@@ -55,6 +56,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     agent_id,
     agent_name,
     preset_assistant_id,
+    backend_assistant_id,
     workspace,
     model,
     cli_path,
@@ -127,6 +129,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     type,
     model,
     name,
+    assistant: backend_assistant_id ? { id: backend_assistant_id, locale: resolveLocaleKey(language) } : undefined,
     extra,
   };
 }

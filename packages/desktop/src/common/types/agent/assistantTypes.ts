@@ -60,7 +60,6 @@ export interface CreateAssistantRequest {
   name: string;
   description?: string;
   avatar?: string;
-  preset_agent_type?: string;
   agent_id?: string;
   enabled_skills?: string[];
   custom_skill_names?: string[];

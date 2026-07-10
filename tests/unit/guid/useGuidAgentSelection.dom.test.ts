@@ -89,6 +89,7 @@ vi.mock('@/renderer/pages/guid/hooks/useAgentAvailability', () => ({
 describe('useGuidAgentSelection Codex model preference', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    catalogAssistants[0].agent_id = 'codex-managed';
     configGetMock.mockImplementation((key: string) => {
       if (key === 'acp.config') {
         return { codex: { preferredModelId: 'gpt-5.6-codex' } };
@@ -134,6 +135,22 @@ describe('useGuidAgentSelection Codex model preference', () => {
       expect.arrayContaining(['med-autoscience', 'med-autogrant', 'redcube-ai', 'opl-bookforge'])
     );
     expect(result.current.availableAgents?.some((agent) => agent.name === 'Managed Codex')).toBe(false);
+    expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(
+      expect.arrayContaining(['gpt-5.5', 'gpt-5.6-sol'])
+    );
+  });
+
+  it('falls back to the unique backend row when a stored management id is stale', () => {
+    catalogAssistants[0].agent_id = 'stale-codex-id';
+
+    const { result } = renderHook(() =>
+      useGuidAgentSelection({
+        modelList: [],
+        isGoogleAuth: false,
+        localeKey: 'zh-CN',
+      })
+    );
+
     expect(result.current.currentAcpCachedModelInfo?.available_models.map((model) => model.id)).toEqual(
       expect.arrayContaining(['gpt-5.5', 'gpt-5.6-sol'])
     );

@@ -88,8 +88,11 @@ function resolveDefaultMode(backend: string | undefined, agent: ManagedAgent | u
   if (backend === 'codex') return CODEX_MODE_NATIVE_FULL_ACCESS;
 
   const runtimeModes = buildAgentRuntimeModeState(agent);
-  if (runtimeModes.currentMode) return runtimeModes.currentMode;
-  if (runtimeModes.options[0]?.value) return runtimeModes.options[0].value;
+  if (runtimeModes.state === 'ready') {
+    if (runtimeModes.currentMode) return runtimeModes.currentMode;
+    if (runtimeModes.options[0]?.value) return runtimeModes.options[0].value;
+  }
+  if (runtimeModes.state === 'empty') return '';
 
   const staticModes = getAgentModes(backend);
   if (staticModes.length > 0) return staticModes[0].value;
@@ -102,14 +105,19 @@ function findManagedRuntimeAgent(
   input: { agentId?: string; backend?: string }
 ): ManagedAgent | undefined {
   if (input.agentId) {
-    return agents.find((agent) => agent.id === input.agentId);
+    const exact = agents.find((agent) => agent.id === input.agentId);
+    if (exact) return exact;
   }
   if (!input.backend) return undefined;
   const matches = agents.filter((agent) => (agent.backend ?? agent.agent_type) === input.backend);
   return matches.length === 1 ? matches[0] : undefined;
 }
 
-function assistantToAvailableAgent(assistant: Assistant, isPreset: boolean): AvailableAgent | null {
+function assistantToAvailableAgent(
+  assistant: Assistant,
+  isPreset: boolean,
+  backendAssistantId?: string
+): AvailableAgent | null {
   const runtimeKey = assistantRuntimeKey(assistant);
   if (!runtimeKey) return null;
   const agentType = assistant.agent?.type || (runtimeKey === 'aionrs' ? 'aionrs' : 'acp');
@@ -121,6 +129,7 @@ function assistantToAvailableAgent(assistant: Assistant, isPreset: boolean): Ava
     name: assistant.name,
     custom_agent_id: isPreset ? assistant.id : undefined,
     assistant_id: assistant.id,
+    backend_assistant_id: backendAssistantId,
     managed_agent_id: assistant.agent_id,
     is_preset: isPreset,
     avatar: assistant.avatar,
@@ -205,6 +214,13 @@ export const useGuidAgentSelection = ({
     );
     return [...nonOplAssistants, ...oplAssistants];
   }, [catalogAssistants, oplAssistants]);
+  const backendAssistantIdByCanonicalId = useMemo(
+    () =>
+      new Map(
+        catalogAssistants.map((assistant) => [canonicalizeOplProfessionalAgentId(assistant.id), assistant.id] as const)
+      ),
+    [catalogAssistants]
+  );
   const availableAgents = useMemo<AvailableAgent[]>(() => {
     const defaultBackend = getOplDefaultExecutorAgentKey();
     const defaultAssistant = businessAssistants.find(
@@ -215,16 +231,24 @@ export const useGuidAgentSelection = ({
     );
     const entries: AvailableAgent[] = [];
     if (defaultAssistant) {
-      const defaultEntry = assistantToAvailableAgent(defaultAssistant, false);
+      const defaultEntry = assistantToAvailableAgent(
+        defaultAssistant,
+        false,
+        backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(defaultAssistant.id))
+      );
       if (defaultEntry) entries.push(defaultEntry);
     }
     for (const assistant of businessAssistants) {
       if (assistant === defaultAssistant || assistant.enabled === false) continue;
-      const entry = assistantToAvailableAgent(assistant, true);
+      const entry = assistantToAvailableAgent(
+        assistant,
+        true,
+        backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(assistant.id))
+      );
       if (entry) entries.push(entry);
     }
     return entries;
-  }, [businessAssistants]);
+  }, [backendAssistantIdByCanonicalId, businessAssistants]);
 
   const {
     resolvePresetRulesAndSkills,
@@ -265,6 +289,9 @@ export const useGuidAgentSelection = ({
           id: assistant.id,
           custom_agent_id: assistant.id,
           assistant_id: assistant.id,
+          backend_assistant_id: backendAssistantIdByCanonicalId.get(
+            canonicalizeOplProfessionalAgentId(assistant.id)
+          ),
           managed_agent_id: assistant.agent_id,
           is_preset: true,
           context: '',
@@ -304,7 +331,7 @@ export const useGuidAgentSelection = ({
   })();
   const selectedAgentInfo = useMemo(() => {
     return findAgentByKey(selectedAgentKey);
-  }, [selectedAgentKey, availableAgents, businessAssistants]);
+  }, [selectedAgentKey, availableAgents, backendAssistantIdByCanonicalId, businessAssistants]);
   const is_presetAgent = Boolean(selectedAgentInfo?.is_preset);
   const selectedBusinessAssistant = useMemo(() => {
     const assistantId = selectedAgentInfo?.assistant_id || selectedAgentInfo?.custom_agent_id;

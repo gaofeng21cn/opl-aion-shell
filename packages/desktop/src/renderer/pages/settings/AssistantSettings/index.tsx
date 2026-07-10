@@ -77,6 +77,7 @@ const AssistantSettings: React.FC = () => {
     setActiveAssistantId,
     loadAssistants,
     refreshAgentDetection,
+    availableBackends,
     message,
   });
 

@@ -20,9 +20,19 @@ export type UseManagedAgentsResult = {
 
 export type ManagedAgentBackendOption = {
   id: string;
+  runtimeKey: string;
   name: string;
   isExtension?: boolean;
 };
+
+export function isRunnableManagedAgent(agent: ManagedAgent): boolean {
+  return (
+    agent.enabled &&
+    agent.installed &&
+    agent.status !== 'missing' &&
+    agent.status !== 'offline'
+  );
+}
 
 export async function refreshManagedAgentCatalogAndAssistants(): Promise<ManagedAgent[] | undefined> {
   const [agents] = await Promise.all([
@@ -56,16 +66,10 @@ export const useManagedAgentBackends = () => {
   const availableBackends = useMemo<ManagedAgentBackendOption[]>(
     () =>
       agents
-        .filter(
-          (agent) =>
-            agent.agent_type !== 'remote' &&
-            agent.enabled &&
-            agent.installed &&
-            agent.status !== 'missing' &&
-            agent.status !== 'offline'
-        )
+        .filter((agent) => agent.agent_type !== 'remote' && isRunnableManagedAgent(agent))
         .map((agent) => ({
-          id: agent.backend || agent.agent_type,
+          id: agent.id,
+          runtimeKey: agent.backend || agent.agent_type,
           name: agent.name,
           isExtension: agent.agent_source === 'extension',
         })),

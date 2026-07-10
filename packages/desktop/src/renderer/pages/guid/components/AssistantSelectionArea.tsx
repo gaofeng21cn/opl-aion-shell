@@ -89,6 +89,7 @@ const AssistantSelectionArea: React.FC<AssistantSelectionAreaProps> = ({
     setActiveAssistantId,
     loadAssistants,
     refreshAgentDetection,
+    availableBackends,
     message: agentMessage,
   });
 

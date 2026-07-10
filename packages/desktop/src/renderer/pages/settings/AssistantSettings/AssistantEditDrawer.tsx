@@ -138,6 +138,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   const showSkills = isCreating || (activeAssistant !== null && activeAssistant.source !== 'extension');
 
   const agentOptions = availableBackends;
+  const selectedAgentOption = agentOptions.find((option) => option.id === editAgent);
 
   const customSkillItems = availableSkills.filter((skill) => skill.source === 'custom');
   const builtinSkillItems = availableSkills.filter((skill) => skill.source === 'builtin');
@@ -180,7 +181,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
       : '220px';
   const renderAgentOption = (option: ManagedAgentBackendOption) => {
     const logo = resolveAgentLogo({
-      backend: option.id,
+      backend: option.runtimeKey,
       isExtension: option.isExtension,
     });
     return (
@@ -395,7 +396,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
               {t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}:
             </span>
             <Tag size='small' color='arcoblue'>
-              {editAgent}
+              {selectedAgentOption?.name || selectedAgentOption?.runtimeKey || editAgent}
             </Tag>
             <span className='text-12px text-t-secondary ml-6px'>
               {t('settings.assistantSkills', { defaultValue: 'Skills' })}:

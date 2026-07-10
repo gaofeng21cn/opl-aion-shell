@@ -20,6 +20,7 @@ vi.mock('@/renderer/utils/model/agentTypes', () => ({
 import {
   getManagedAgents,
   refreshManagedAgentCatalogAndAssistants,
+  useManagedAgentBackends,
   useManagedAgents,
 } from '@/renderer/hooks/agent/useManagedAgents';
 
@@ -68,5 +69,31 @@ describe('useManagedAgents', () => {
 
     await expect(getManagedAgents()).resolves.toEqual(agents);
     expect(mutateMock).toHaveBeenCalledWith('agents.managed', agents, { revalidate: false });
+  });
+
+  it('keeps the management id as the assistant editor option value', () => {
+    useSWRMock.mockReturnValue({
+      data: [
+        {
+          id: '8e1acf31',
+          name: 'Codex',
+          agent_type: 'acp',
+          backend: 'codex',
+          agent_source: 'builtin',
+          enabled: true,
+          installed: true,
+          status: 'online',
+        },
+      ],
+      error: undefined,
+      isLoading: false,
+      isValidating: false,
+    });
+
+    const { result } = renderHook(() => useManagedAgentBackends());
+
+    expect(result.current.availableBackends).toEqual([
+      { id: '8e1acf31', runtimeKey: 'codex', name: 'Codex', isExtension: false },
+    ]);
   });
 });

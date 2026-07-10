@@ -112,6 +112,21 @@ describe('OPL home assistants', () => {
     ]);
   });
 
+  it('binds synthetic OPL entries to the generated default assistant runtime id', () => {
+    const resolved = resolveOplHomeAssistants([
+      assistant({
+        id: 'generated-codex',
+        source: 'generated',
+        name: 'Codex',
+        agent_id: '8e1acf31',
+        agent: { type: 'acp', source: 'builtin', acp_backend: 'codex' },
+      }),
+    ]);
+
+    expect(resolved.every((item) => item.agent_id === '8e1acf31')).toBe(true);
+    expect(resolved.some((item) => item.agent_id === 'codex')).toBe(false);
+  });
+
   it('builds an assistant-scoped skill menu with locked required skills from App-approved skills', () => {
     const magProfile = getOplAssistantSkillProfile('mag');
     const menuItems = buildAssistantScopedSkillMenuItems(

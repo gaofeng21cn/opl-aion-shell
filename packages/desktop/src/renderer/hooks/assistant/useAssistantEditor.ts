@@ -1,13 +1,20 @@
 import { ipcBridge } from '@/common';
 import type { Message } from '@arco-design/web-react';
-import type { Assistant, CreateAssistantRequest, UpdateAssistantRequest } from '@/common/types/agent/assistantTypes';
+import {
+  assistantRuntimeKey,
+  type Assistant,
+  type CreateAssistantRequest,
+  type UpdateAssistantRequest,
+} from '@/common/types/agent/assistantTypes';
+import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
+import type { ManagedAgentBackendOption } from '@/renderer/hooks/agent/useManagedAgents';
 import type {
   AssistantListItem,
   BuiltinAutoSkill,
   PendingSkill,
   SkillInfo,
 } from '@/renderer/pages/settings/AssistantSettings/types';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 type UseAssistantEditorParams = {
@@ -17,10 +24,30 @@ type UseAssistantEditorParams = {
   setActiveAssistantId: (id: string | null) => void;
   loadAssistants: () => Promise<void>;
   refreshAgentDetection: () => Promise<void>;
+  availableBackends: ManagedAgentBackendOption[];
   message: ReturnType<typeof Message.useMessage>[0];
 };
 
 const isBuiltinAssistant = (assistant: Assistant | null | undefined): boolean => assistant?.source === 'builtin';
+
+function resolveAssistantAgentId(
+  assistant: Assistant | null | undefined,
+  availableBackends: ManagedAgentBackendOption[]
+): string {
+  if (assistant?.agent_id && availableBackends.some((option) => option.id === assistant.agent_id)) {
+    return assistant.agent_id;
+  }
+  const runtimeKey = assistantRuntimeKey(assistant);
+  const runtimeMatches = availableBackends.filter((option) => option.runtimeKey === runtimeKey);
+  if (runtimeMatches.length === 1) return runtimeMatches[0].id;
+  return assistant?.agent_id || '';
+}
+
+function resolveDefaultAgentId(availableBackends: ManagedAgentBackendOption[]): string {
+  const defaultRuntimeKey = getOplDefaultExecutorAgentKey();
+  const matches = availableBackends.filter((option) => option.runtimeKey === defaultRuntimeKey);
+  return (matches.length === 1 ? matches[0] : availableBackends[0])?.id || '';
+}
 
 /**
  * Manages all assistant editing state and handlers:
@@ -33,6 +60,7 @@ export const useAssistantEditor = ({
   setActiveAssistantId,
   loadAssistants,
   refreshAgentDetection,
+  availableBackends,
   message,
 }: UseAssistantEditorParams) => {
   const { t } = useTranslation();
@@ -43,8 +71,8 @@ export const useAssistantEditor = ({
   const [editDescription, setEditDescription] = useState('');
   const [editContext, setEditContext] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
-  // editAgent holds a backend ID (e.g. "claude", "goose") or an extension adapter ID (e.g. "ext-buddy")
-  const [editAgent, setEditAgent] = useState<string>('claude');
+  // The assistant API stores the stable management-row identity, not a backend label.
+  const [editAgent, setEditAgent] = useState<string>(() => resolveDefaultAgentId(availableBackends));
   const [editSkills, setEditSkills] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -61,6 +89,14 @@ export const useAssistantEditor = ({
   // Builtin auto-injected skills state
   const [builtinAutoSkills, setBuiltinAutoSkills] = useState<BuiltinAutoSkill[]>([]);
   const [disabledBuiltinSkills, setDisabledBuiltinSkills] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!editVisible || availableBackends.some((option) => option.id === editAgent)) return;
+    const resolved = isCreating
+      ? resolveDefaultAgentId(availableBackends)
+      : resolveAssistantAgentId(activeAssistant, availableBackends);
+    if (resolved) setEditAgent(resolved);
+  }, [activeAssistant, availableBackends, editAgent, editVisible, isCreating]);
 
   // Load assistant rule content from file
   const loadAssistantContext = useCallback(
@@ -96,7 +132,7 @@ export const useAssistantEditor = ({
     setEditName(assistant.name || '');
     setEditDescription(assistant.description || '');
     setEditAvatar(assistant.avatar || '');
-    setEditAgent(assistant.preset_agent_type || 'claude');
+    setEditAgent(resolveAssistantAgentId(assistant, availableBackends));
     setPendingSkills([]);
     setDeletePendingSkillName(null);
     setDeleteCustomSkillName(null);
@@ -156,7 +192,7 @@ export const useAssistantEditor = ({
     setEditDescription('');
     setEditContext('');
     setEditAvatar('\u{1F916}');
-    setEditAgent('claude');
+    setEditAgent(resolveDefaultAgentId(availableBackends));
     setEditSkills('');
     setSelectedSkills([]);
     setCustomSkills([]);
@@ -186,7 +222,7 @@ export const useAssistantEditor = ({
     setEditName(`${assistant.name_i18n?.[localeKey] || assistant.name} (Copy)`);
     setEditDescription(assistant.description_i18n?.[localeKey] || assistant.description || '');
     setEditAvatar(assistant.avatar || '\u{1F916}');
-    setEditAgent(assistant.preset_agent_type || 'claude');
+    setEditAgent(resolveAssistantAgentId(assistant, availableBackends));
     setPromptViewMode('edit');
     setEditVisible(true);
 
@@ -266,7 +302,7 @@ export const useAssistantEditor = ({
           name: editName,
           description: editDescription || undefined,
           avatar: editAvatar || undefined,
-          preset_agent_type: editAgent,
+          agent_id: editAgent || undefined,
           enabled_skills: selectedSkills,
           custom_skill_names: finalCustomSkills,
           disabled_builtin_skills: disabledBuiltinSkills.length > 0 ? disabledBuiltinSkills : undefined,
@@ -289,17 +325,16 @@ export const useAssistantEditor = ({
         // Update existing assistant via backend
         if (!activeAssistant) return;
 
-        // Built-in assistants are immutable at their source; the only editable
-        // field is `preset_agent_type`, which the backend stores on the
-        // override row. Sending other fields would 403 the whole request.
+        // Built-in assistants are immutable at their source; only `agent_id`
+        // can be changed here without making the backend reject the request.
         const updateRequest: UpdateAssistantRequest = isBuiltinAssistant(activeAssistant)
-          ? { id: activeAssistant.id, preset_agent_type: editAgent }
+          ? { id: activeAssistant.id, agent_id: editAgent || undefined }
           : {
               id: activeAssistant.id,
               name: editName,
               description: editDescription || undefined,
               avatar: editAvatar || undefined,
-              preset_agent_type: editAgent,
+              agent_id: editAgent || undefined,
               enabled_skills: selectedSkills,
               custom_skill_names: finalCustomSkills,
               disabled_builtin_skills: disabledBuiltinSkills.length > 0 ? disabledBuiltinSkills : undefined,

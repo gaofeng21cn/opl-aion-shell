@@ -1,4 +1,5 @@
 import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { assistantRuntimeKey } from '@/common/types/agent/assistantTypes';
 import {
   canonicalizeOplProfessionalAgentId,
   getOplAssistantSkillProfile,
@@ -65,7 +66,11 @@ function getOplHomePackageProfiles(): OplHomePackageProfile[] {
 
 const normalizeAssistantId = (id: string): string => canonicalizeOplProfessionalAgentId(id);
 
-const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: number): Assistant => {
+const buildAssistantFromProfile = (
+  profile: OplHomePackageProfile,
+  sortOrder: number,
+  defaultRuntimeAgentId?: string
+): Assistant => {
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);
   const skillProfile = getOplAssistantSkillProfile(profile.id);
   return {
@@ -79,7 +84,7 @@ const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: nu
     enabled: true,
     sort_order: sortOrder,
     preset_agent_type: DEFAULT_PRESET_AGENT_TYPE,
-    agent_id: DEFAULT_PRESET_AGENT_TYPE,
+    agent_id: defaultRuntimeAgentId,
     agent: { type: 'acp', source: 'builtin', acp_backend: DEFAULT_PRESET_AGENT_TYPE },
     agent_status: 'unchecked',
     enabled_skills: skillProfile?.required_skills ?? [],
@@ -98,7 +103,8 @@ const buildAssistantFromProfile = (profile: OplHomePackageProfile, sortOrder: nu
 const mergeAssistantWithProfile = (
   existing: Assistant,
   profile: OplHomePackageProfile,
-  sortOrder: number
+  sortOrder: number,
+  defaultRuntimeAgentId?: string
 ): Assistant => {
   const presentation = resolveOplHomePurposePresentation(profile.id, profile.short_name, profile.avatar);
   const skillProfile = getOplAssistantSkillProfile(profile.id);
@@ -113,6 +119,7 @@ const mergeAssistantWithProfile = (
   merged.description_i18n = { ...profile.description_i18n };
   merged.avatar = presentation.avatar;
   merged.preset_agent_type = DEFAULT_PRESET_AGENT_TYPE;
+  merged.agent_id = existing.agent_id || defaultRuntimeAgentId;
   merged.prompts = [];
   merged.prompts_i18n = Object.fromEntries(
     Object.entries(profile.prompts_i18n).map(([locale, values]) => [locale, [...values]])
@@ -130,13 +137,27 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[]): Assist
   for (const assistant of backendAssistants) {
     backendById.set(normalizeAssistantId(assistant.id), assistant);
   }
+  const defaultRuntimeAgentIds = Array.from(
+    new Set(
+      backendAssistants
+        .filter(
+          (assistant) =>
+            assistant.enabled !== false &&
+            assistant.source === 'generated' &&
+            assistantRuntimeKey(assistant) === DEFAULT_PRESET_AGENT_TYPE &&
+            Boolean(assistant.agent_id)
+        )
+        .map((assistant) => assistant.agent_id as string)
+    )
+  );
+  const defaultRuntimeAgentId = defaultRuntimeAgentIds.length === 1 ? defaultRuntimeAgentIds[0] : undefined;
 
   return getOplHomePackageProfiles().map((profile, index) => {
     const existing = backendById.get(profile.id);
     if (!existing) {
-      return buildAssistantFromProfile(profile, index + 1);
+      return buildAssistantFromProfile(profile, index + 1, defaultRuntimeAgentId);
     }
 
-    return mergeAssistantWithProfile(existing, profile, index + 1);
+    return mergeAssistantWithProfile(existing, profile, index + 1, defaultRuntimeAgentId);
   });
 }

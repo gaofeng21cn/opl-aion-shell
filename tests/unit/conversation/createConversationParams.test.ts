@@ -76,4 +76,20 @@ describe('createConversationParams Codex model preference', () => {
 
     expect(params.extra.current_model_id).toBe('gpt-5.5');
   });
+
+  it('keeps assistant and management identities separate for generated candidates', async () => {
+    const params = await buildCliAgentParams(
+      {
+        ...codexAgent,
+        id: 'assistant-codex',
+        assistant_id: 'assistant-codex',
+        managed_agent_id: 'runtime-codex',
+      } as AgentMetadata,
+      '/tmp/opl-workspace',
+      'en-US'
+    );
+
+    expect(params.assistant).toEqual({ id: 'assistant-codex', locale: 'en-US' });
+    expect(params.extra.agent_id).toBe('runtime-codex');
+  });
 });

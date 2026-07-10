@@ -116,9 +116,22 @@ function normalizeModeOption(value: unknown): AgentModeOption | null {
   };
 }
 
-function buildModeStateFromPayload(value: unknown): { currentMode?: string; options: AgentModeOption[] } {
+export type RuntimeCatalogState = 'unknown' | 'empty' | 'ready';
+
+export type AgentRuntimeModeState = {
+  state: RuntimeCatalogState;
+  currentMode?: string;
+  options: AgentModeOption[];
+};
+
+export type AgentRuntimeCommandState = {
+  state: RuntimeCatalogState;
+  commands: SlashCommandItem[];
+};
+
+function buildModeStateFromPayload(value: unknown): Omit<AgentRuntimeModeState, 'state'> | null {
   const payload = parseJsonPayload(value);
-  if (!isRecord(payload) || !Array.isArray(payload.available_modes)) return { options: [] };
+  if (!isRecord(payload) || !Array.isArray(payload.available_modes)) return null;
   return {
     currentMode:
       typeof payload.current_mode_id === 'string'
@@ -130,12 +143,12 @@ function buildModeStateFromPayload(value: unknown): { currentMode?: string; opti
   };
 }
 
-function buildModeStateFromConfigOptions(configOptions: AcpSessionConfigOption[]): {
-  currentMode?: string;
-  options: AgentModeOption[];
-} {
+function buildModeStateFromConfigOptions(
+  configOptions: AcpSessionConfigOption[]
+): Omit<AgentRuntimeModeState, 'state'> | null {
   const option = configOptions.find((item) => item.category === 'mode' && item.type === 'select');
-  if (!option?.options?.length) return { options: [] };
+  if (!option) return null;
+  if (!option.options?.length) return { options: [] };
   return {
     currentMode: getConfigOptionCurrentValue(option),
     options: option.options.map((item) => {
@@ -149,23 +162,35 @@ function buildModeStateFromConfigOptions(configOptions: AcpSessionConfigOption[]
   };
 }
 
-export function buildAgentRuntimeModeState(agent: AgentRuntimeCatalog | null | undefined): {
-  currentMode?: string;
-  options: AgentModeOption[];
-} {
-  if (!agent) return { options: [] };
-  const fromConfig = buildModeStateFromConfigOptions(normalizeConfigOptions(readRuntimeField(agent, 'config_options')));
-  if (fromConfig.options.length > 0) return fromConfig;
-  return buildModeStateFromPayload(readRuntimeField(agent, 'available_modes'));
+export function buildAgentRuntimeModeState(agent: AgentRuntimeCatalog | null | undefined): AgentRuntimeModeState {
+  if (!agent) return { state: 'unknown', options: [] };
+
+  const configValue = readRuntimeField(agent, 'config_options');
+  if (configValue !== undefined) {
+    const fromConfig = buildModeStateFromConfigOptions(normalizeConfigOptions(configValue));
+    if (fromConfig) {
+      return { state: fromConfig.options.length > 0 ? 'ready' : 'empty', ...fromConfig };
+    }
+  }
+
+  const modeValue = readRuntimeField(agent, 'available_modes');
+  if (modeValue === undefined) return { state: 'unknown', options: [] };
+  const fromPayload = buildModeStateFromPayload(modeValue);
+  if (!fromPayload) return { state: 'unknown', options: [] };
+  return { state: fromPayload.options.length > 0 ? 'ready' : 'empty', ...fromPayload };
 }
 
-export function buildAgentRuntimeSlashCommands(agent: AgentRuntimeCatalog | null | undefined): SlashCommandItem[] {
-  if (!agent) return [];
-  const payload = parseJsonPayload(readRuntimeField(agent, 'available_commands'));
+export function buildAgentRuntimeSlashCommands(agent: AgentRuntimeCatalog | null | undefined): AgentRuntimeCommandState {
+  if (!agent) return { state: 'unknown', commands: [] };
+  const commandValue = readRuntimeField(agent, 'available_commands');
+  if (commandValue === undefined) return { state: 'unknown', commands: [] };
+  const payload = parseJsonPayload(commandValue);
   const commands = Array.isArray(payload)
     ? payload
     : isRecord(payload) && Array.isArray(payload.available_commands)
       ? payload.available_commands
-      : [];
-  return mapAcpCommandsToSlashCommands(commands as Parameters<typeof mapAcpCommandsToSlashCommands>[0]);
+      : null;
+  if (!commands) return { state: 'unknown', commands: [] };
+  const mapped = mapAcpCommandsToSlashCommands(commands as Parameters<typeof mapAcpCommandsToSlashCommands>[0]);
+  return { state: mapped.length > 0 ? 'ready' : 'empty', commands: mapped };
 }
