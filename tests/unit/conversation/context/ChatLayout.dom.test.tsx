@@ -4,13 +4,15 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const layout = vi.hoisted(() => ({ isMobile: false }));
-const preview = vi.hoisted(() => ({ isOpen: false }));
+const viewport = vi.hoisted(() => ({ width: 1200 }));
+const preview = vi.hoisted(() => ({ isOpen: false, openRequestId: 0 }));
 
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => layout,
 }));
 
 vi.mock('@/renderer/pages/conversation/Preview', () => ({
+  PreviewPanel: () => <div data-testid='preview-panel'>Preview body</div>,
   usePreviewContext: () => preview,
 }));
 
@@ -23,7 +25,7 @@ vi.mock('@/renderer/hooks/ui/useResizableSplit', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/hooks/useContainerWidth', () => ({
-  useContainerWidth: () => ({ containerRef: { current: null }, containerWidth: 1200 }),
+  useContainerWidth: () => ({ containerRef: { current: null }, containerWidth: viewport.width }),
 }));
 
 vi.mock('@/renderer/pages/conversation/hooks/useConversationAgents', () => ({
@@ -58,8 +60,10 @@ vi.mock('@/renderer/pages/conversation/components/ChatLayout/WorkspacePanelHeade
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout/MobileWorkspaceOverlay', () => ({
-  default: ({ rightSiderCollapsed }: { rightSiderCollapsed: boolean }) => (
-    <div data-testid='mobile-side-panel' data-collapsed={String(rightSiderCollapsed)} />
+  default: ({ rightSiderCollapsed, sider }: { rightSiderCollapsed: boolean; sider: React.ReactNode }) => (
+    <div data-testid='mobile-side-panel' data-collapsed={String(rightSiderCollapsed)}>
+      {sider}
+    </div>
   ),
 }));
 
@@ -85,7 +89,9 @@ const previewTransitionView = () => (
 describe('ChatLayout conversation context surfaces', () => {
   beforeEach(() => {
     layout.isMobile = false;
+    viewport.width = 1200;
     preview.isOpen = false;
+    preview.openRequestId = 0;
     localStorage.clear();
     document.getElementById('app-titlebar-actions-slot')?.remove();
   });
@@ -138,18 +144,74 @@ describe('ChatLayout conversation context surfaces', () => {
     expect(slot.contains(screen.getByTestId('mobile-environment'))).toBe(true);
   });
 
-  it('ignores initial persisted preview state but opens tools on a later preview transition', () => {
+  it('uses an overlay on narrow desktop instead of compressing the conversation', () => {
+    viewport.width = 900;
+
+    render(
+      <ChatLayout title='Conversation' conversation_id='conversation-1' sider={<div>Side content</div>}>
+        <div>Timeline</div>
+      </ChatLayout>
+    );
+
+    expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'true');
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+
+    expect(screen.getByTestId('mobile-side-panel')).toHaveAttribute('data-collapsed', 'false');
+  });
+
+  it('keeps side-panel content mounted while the desktop panel closes and reopens', () => {
+    let mounts = 0;
+    let unmounts = 0;
+    const StatefulSidePanel = () => {
+      React.useEffect(() => {
+        mounts += 1;
+        return () => {
+          unmounts += 1;
+        };
+      }, []);
+      return <div>Stateful side panel</div>;
+    };
+
+    render(
+      <ChatLayout title='Conversation' conversation_id='conversation-1' sider={<StatefulSidePanel />}>
+        <div>Timeline</div>
+      </ChatLayout>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close tools' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open tools' }));
+
+    expect(mounts).toBe(1);
+    expect(unmounts).toBe(0);
+  });
+
+  it('ignores initial preview state but reopens tools for every later preview request', () => {
     preview.isOpen = true;
     const { rerender } = render(previewTransitionView());
 
     expect(screen.queryByRole('complementary')).toBeNull();
 
-    preview.isOpen = false;
-    rerender(previewTransitionView());
-    expect(screen.queryByRole('complementary')).toBeNull();
-
-    preview.isOpen = true;
+    preview.openRequestId = 1;
     rerender(previewTransitionView());
     expect(screen.getByRole('complementary')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close tools' }));
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    preview.openRequestId = 2;
+    rerender(previewTransitionView());
+    expect(screen.getByRole('complementary')).toBeTruthy();
+  });
+
+  it('renders preview content as an independent canvas surface', () => {
+    preview.isOpen = true;
+
+    render(previewTransitionView());
+
+    expect(screen.getByTestId('preview-panel')).toBeTruthy();
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ const preview = vi.hoisted(() => ({
   isOpen: false,
   openPreview: vi.fn(),
 }));
+const workspaceLifecycle = vi.hoisted(() => ({ mounts: 0, unmounts: 0 }));
 
 vi.mock('@/renderer/utils/platform', () => ({ isElectronDesktop: () => true }));
 
@@ -18,7 +19,15 @@ vi.mock('@/renderer/pages/conversation/Preview', () => ({
 }));
 
 vi.mock('@/renderer/pages/conversation/Workspace', () => ({
-  default: ({ activeTab }: { activeTab?: string }) => <div data-testid='workspace' data-active-tab={activeTab} />,
+  default: ({ activeTab }: { activeTab?: string }) => {
+    React.useEffect(() => {
+      workspaceLifecycle.mounts += 1;
+      return () => {
+        workspaceLifecycle.unmounts += 1;
+      };
+    }, []);
+    return <div data-testid='workspace' data-active-tab={activeTab} />;
+  },
 }));
 
 vi.mock('@/renderer/pages/conversation/runtime/CurrentTaskAwareness', () => ({
@@ -67,6 +76,8 @@ describe('ChatSlider tool hierarchy', () => {
     preview.activeTab = null;
     preview.isOpen = false;
     preview.openPreview.mockReset();
+    workspaceLifecycle.mounts = 0;
+    workspaceLifecycle.unmounts = 0;
   });
 
   it('keeps four primary tools and hides secondary context by default', () => {
@@ -92,6 +103,17 @@ describe('ChatSlider tool hierarchy', () => {
     expect(screen.getByTestId('workspace')).toHaveAttribute('data-active-tab', 'files');
   });
 
+  it('keeps the workspace mounted while switching through browser and terminal tools', () => {
+    render(<ChatSlider conversation={conversation} />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Browser' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Terminal' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Review' }));
+
+    expect(workspaceLifecycle.mounts).toBe(1);
+    expect(workspaceLifecycle.unmounts).toBe(0);
+  });
+
   it('opens validated web addresses through the existing preview context', () => {
     render(<ChatSlider conversation={conversation} />);
 
@@ -105,5 +127,23 @@ describe('ChatSlider tool hierarchy', () => {
       { title: 'https://example.com/' },
       { replace: true }
     );
+  });
+
+  it('shows artifact, provenance, and receipt refs without rendering preview body', () => {
+    preview.isOpen = true;
+    preview.activeTab = { content_type: 'markdown' };
+    const currentTask = {
+      artifact_or_blocker: { ref: 'artifact://draft', body: 'artifact body' },
+      latest_receipt_ref: 'receipt://latest',
+      provenance_bundle_refs: ['bundle://provenance'],
+    } as never;
+
+    render(<ChatSlider conversation={conversation} currentTask={currentTask} />);
+
+    expect(screen.getByText('artifact://draft')).toBeTruthy();
+    expect(screen.getByText('receipt://latest')).toBeTruthy();
+    expect(screen.getByText('bundle://provenance')).toBeTruthy();
+    expect(screen.queryByText('artifact body')).toBeNull();
+    expect(screen.queryByTestId('preview-panel')).toBeNull();
   });
 });

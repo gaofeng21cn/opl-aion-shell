@@ -61,13 +61,25 @@ describe('PreviewContext', () => {
 
   it('opens preview and creates tab', () => {
     const { result } = renderHook(() => usePreviewContext(), { wrapper });
+    expect(result.current.openRequestId).toBe(0);
     act(() => {
       result.current.openPreview('# Hello', 'markdown', { title: 'test.md' });
     });
     expect(result.current.isOpen).toBe(true);
+    expect(result.current.openRequestId).toBe(1);
     expect(result.current.tabs).toHaveLength(1);
     expect(result.current.tabs[0].content).toBe('# Hello');
     expect(result.current.tabs[0].content_type).toBe('markdown');
+  });
+
+  it('increments the open request for an already-active preview', () => {
+    const { result } = renderHook(() => usePreviewContext(), { wrapper });
+    act(() => {
+      result.current.openPreview('# Hello', 'markdown', { title: 'test.md' });
+      result.current.openPreview('# Hello', 'markdown', { title: 'test.md' });
+    });
+    expect(result.current.tabs).toHaveLength(1);
+    expect(result.current.openRequestId).toBe(2);
   });
 
   it('closes preview and clears all tabs', () => {

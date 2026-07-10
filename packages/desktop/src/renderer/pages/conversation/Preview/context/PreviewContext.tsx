@@ -53,6 +53,8 @@ export interface OpenPreviewOptions {
 export interface PreviewContextValue {
   // 预览面板状态 / Preview panel state
   isOpen: boolean;
+  /** Increments for every open request, including reopening the active preview. */
+  openRequestId: number;
   tabs: PreviewTab[]; // 所有打开的 tabs
   activeTabId: string | null; // 当前激活的 tab ID
 
@@ -168,6 +170,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // 从 localStorage 恢复初始状态 / Restore initial state from localStorage
   const persistedState = loadPersistedState();
   const [isOpen, setIsOpen] = useState(persistedState.isOpen);
+  const [openRequestId, setOpenRequestId] = useState(0);
   const [tabs, setTabs] = useState<PreviewTab[]>(persistedState.tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(persistedState.activeTabId);
   // Mirror activeTabId in a ref so setTabs updaters can read the latest value
@@ -362,6 +365,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setActiveTabId(nextActiveTabId);
       }
       setIsOpen(true);
+      setOpenRequestId((value) => value + 1);
     },
     [extractFileName, findPreviewTabInList]
   );
@@ -707,6 +711,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const previewContextValue = useMemo(() => {
     return {
       isOpen,
+      openRequestId,
       tabs,
       activeTabId,
       activeTab,
@@ -727,6 +732,7 @@ export const PreviewProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [
     isOpen,
+    openRequestId,
     tabs,
     activeTabId,
     activeTab,

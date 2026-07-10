@@ -15,13 +15,22 @@ import {
 } from '@icon-park/react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PreviewPanel, usePreviewContext } from '../Preview';
+import { usePreviewContext } from '../Preview';
 import ChatWorkspace from '../Workspace';
 import CurrentTaskAwareness from '../runtime/CurrentTaskAwareness';
 import WorkspaceOpenButton from './ChatLayout/WorkspaceOpenButton';
 
 type PrimaryTool = 'review' | 'terminal' | 'browser' | 'files';
 type SecondaryTool = 'artifacts' | 'runtime' | 'actions' | 'memory';
+
+const collectRefValues = (value: unknown, allowDirect = true): string[] => {
+  if (typeof value === 'string') return allowDirect && value.trim() ? [value.trim()] : [];
+  if (Array.isArray(value)) return value.flatMap((entry) => collectRefValues(entry, allowDirect));
+  if (!value || typeof value !== 'object') return [];
+  return Object.entries(value as Record<string, unknown>)
+    .filter(([key]) => /(?:^|_)(?:ref|refs|receipt|receipts|provenance|lineage)(?:_|$)/i.test(key))
+    .flatMap(([, nested]) => collectRefValues(nested));
+};
 
 const normalizeBrowserUrl = (value: string): string | null => {
   const input = value.trim();
@@ -54,6 +63,7 @@ const ChatSlider: React.FC<{
   const [browserUrl, setBrowserUrl] = useState('');
   const [browserUrlInvalid, setBrowserUrlInvalid] = useState(false);
   const { activeTab, isOpen: isPreviewOpen, openPreview } = usePreviewContext();
+  const task = currentTask ?? conversation?.runtime?.current_task;
 
   useEffect(() => {
     if (!hasWorkspace && activeTool !== 'browser') setActiveTool('browser');
@@ -71,11 +81,41 @@ const ChatSlider: React.FC<{
   }, [activeTab, isPreviewOpen]);
 
   const memoryRefs = useMemo(() => {
-    const task = currentTask as unknown as Record<string, unknown> | null | undefined;
-    if (!task) return [];
-    const values = [task.memory_ref, ...(Array.isArray(task.memory_refs) ? task.memory_refs : [])];
+    const taskRecord = task as unknown as Record<string, unknown> | null | undefined;
+    if (!taskRecord) return [];
+    const values = [taskRecord.memory_ref, ...(Array.isArray(taskRecord.memory_refs) ? taskRecord.memory_refs : [])];
     return values.filter((value): value is string => typeof value === 'string' && Boolean(value.trim()));
-  }, [currentTask]);
+  }, [task]);
+
+  const artifactRefs = useMemo(() => {
+    const taskRecord = task as unknown as Record<string, unknown> | null | undefined;
+    if (!taskRecord) return [];
+    const directFields = [
+      'artifact_or_blocker_ref',
+      'latest_artifact_ref',
+      'review_receipt_ref',
+      'latest_receipt_ref',
+      'action_receipt_ref',
+      'resource_receipt_ref',
+      'provenance_bundle_refs',
+      'provenance_refs',
+      'lineage_refs',
+      'content_hash_refs',
+    ];
+    const nestedFields = [
+      'artifact_or_blocker',
+      'review_receipt',
+      'action_receipt',
+      'artifact_native_drilldown',
+      'provenance_drawer',
+    ];
+    return Array.from(
+      new Set([
+        ...directFields.flatMap((field) => collectRefValues(taskRecord[field])),
+        ...nestedFields.flatMap((field) => collectRefValues(taskRecord[field], false)),
+      ])
+    );
+  }, [task]);
 
   const selectPrimaryTool = (key: string) => {
     setActiveTool(key as PrimaryTool);
@@ -101,62 +141,68 @@ const ChatSlider: React.FC<{
         workspace={workspace}
         isTemporaryWorkspace={isTemporaryWorkspace}
         eventPrefix={conversation.type === 'codex' ? 'codex' : conversation.type === 'aionrs' ? 'aionrs' : 'acp'}
-        currentTask={currentTask}
+        currentTask={task}
         activeTab={activeTool === 'files' ? 'files' : 'changes'}
         showCurrentTask={false}
         showTabBar={false}
       />
     ) : null;
 
-  const primaryContent = (() => {
-    if (activeTool === 'review' || activeTool === 'files') return workspaceNode;
-    if (activeTool === 'terminal') {
-      return workspace && hasTerminal && isElectronDesktop() ? (
-        <div className='conversation-side-panel__centered-action'>
-          <WorkspaceOpenButton workspacePath={workspace} isTemporary={isTemporaryWorkspace} tool='terminal' showLabel />
-        </div>
-      ) : (
-        <Empty description={t('conversation.sidePanel.unavailable')} />
-      );
-    }
-    return (
-      <div className='conversation-side-panel__browser'>
-        <div className='conversation-side-panel__browser-bar'>
-          <Input
-            value={browserUrl}
-            status={browserUrlInvalid ? 'error' : undefined}
-            aria-label={t('conversation.sidePanel.browserAddress')}
-            placeholder={t('conversation.sidePanel.browserAddress')}
-            onChange={(value) => {
-              setBrowserUrl(value);
-              setBrowserUrlInvalid(false);
-            }}
-            onPressEnter={openBrowser}
-          />
-          <Button
-            type='primary'
-            icon={<Link size={14} />}
-            aria-label={t('conversation.sidePanel.openBrowser')}
-            onClick={openBrowser}
-          />
-        </div>
-        <div className='conversation-side-panel__content'>
-          {isPreviewOpen && activeTab?.content_type === 'url' ? (
-            <PreviewPanel />
-          ) : (
-            <Empty description={t('conversation.sidePanel.browserEmpty')} />
-          )}
-        </div>
+  const terminalContent =
+    workspace && hasTerminal && isElectronDesktop() ? (
+      <div className='conversation-side-panel__centered-action'>
+        <WorkspaceOpenButton workspacePath={workspace} isTemporary={isTemporaryWorkspace} tool='terminal' showLabel />
       </div>
+    ) : (
+      <Empty description={t('conversation.sidePanel.unavailable')} />
     );
-  })();
+  const browserContent = (
+    <div className='conversation-side-panel__browser'>
+      <div className='conversation-side-panel__browser-bar'>
+        <Input
+          value={browserUrl}
+          status={browserUrlInvalid ? 'error' : undefined}
+          aria-label={t('conversation.sidePanel.browserAddress')}
+          placeholder={t('conversation.sidePanel.browserAddress')}
+          onChange={(value) => {
+            setBrowserUrl(value);
+            setBrowserUrlInvalid(false);
+          }}
+          onPressEnter={openBrowser}
+        />
+        <Button
+          type='primary'
+          icon={<Link size={14} />}
+          aria-label={t('conversation.sidePanel.openBrowser')}
+          onClick={openBrowser}
+        />
+      </div>
+      <div className='conversation-side-panel__content'>
+        {isPreviewOpen && activeTab?.content_type === 'url' ? (
+          <ul className='conversation-side-panel__refs'>
+            <li>{activeTab.metadata?.title ?? activeTab.content}</li>
+          </ul>
+        ) : (
+          <Empty description={t('conversation.sidePanel.browserEmpty')} />
+        )}
+      </div>
+    </div>
+  );
 
   const secondaryContent = (() => {
     if (secondaryTool === 'artifacts') {
-      return isPreviewOpen ? <PreviewPanel /> : <Empty description={t('conversation.sidePanel.artifactsEmpty')} />;
+      return artifactRefs.length ? (
+        <ul className='conversation-side-panel__refs'>
+          {artifactRefs.map((ref) => (
+            <li key={ref}>{ref}</li>
+          ))}
+        </ul>
+      ) : (
+        <Empty description={t('conversation.sidePanel.artifactsEmpty')} />
+      );
     }
     if (secondaryTool === 'runtime') {
-      return <CurrentTaskAwareness task={currentTask} />;
+      return <CurrentTaskAwareness task={task} />;
     }
     if (secondaryTool === 'actions') {
       return actionsSlot ? (
@@ -220,7 +266,31 @@ const ChatSlider: React.FC<{
         />
       </Tabs>
 
-      <div className='conversation-side-panel__primary'>{primaryContent}</div>
+      <div className='conversation-side-panel__primary'>
+        {workspaceNode && (
+          <div
+            className='conversation-side-panel__content'
+            hidden={activeTool !== 'review' && activeTool !== 'files'}
+            aria-hidden={activeTool !== 'review' && activeTool !== 'files'}
+          >
+            {workspaceNode}
+          </div>
+        )}
+        <div
+          className='conversation-side-panel__content'
+          hidden={activeTool !== 'terminal'}
+          aria-hidden={activeTool !== 'terminal'}
+        >
+          {terminalContent}
+        </div>
+        <div
+          className='conversation-side-panel__content'
+          hidden={activeTool !== 'browser'}
+          aria-hidden={activeTool !== 'browser'}
+        >
+          {browserContent}
+        </div>
+      </div>
 
       <div className='conversation-side-panel__secondary'>
         <Button

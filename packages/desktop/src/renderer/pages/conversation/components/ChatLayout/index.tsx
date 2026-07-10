@@ -6,9 +6,10 @@ import { useResizableSplit } from '@/renderer/hooks/ui/useResizableSplit';
 import ChatTitleEditor from '@/renderer/pages/conversation/components/ChatTitleEditor';
 import { useContainerWidth } from '@/renderer/pages/conversation/hooks/useContainerWidth';
 import { useConversationAgents } from '@/renderer/pages/conversation/hooks/useConversationAgents';
+import { useLayoutConstraints } from '@/renderer/pages/conversation/hooks/useLayoutConstraints';
 import { useTitleRename } from '@/renderer/pages/conversation/hooks/useTitleRename';
 import { useWorkspaceCollapse } from '@/renderer/pages/conversation/hooks/useWorkspaceCollapse';
-import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
+import { PreviewPanel, usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import {
   DEFAULT_WORKSPACE_PANEL_PX,
   MAX_WORKSPACE_PANEL_PX,
@@ -25,6 +26,8 @@ import { useTranslation } from 'react-i18next';
 import MobileWorkspaceOverlay from './MobileWorkspaceOverlay';
 import WorkspacePanelHeader from './WorkspacePanelHeader';
 import './chat-layout.css';
+
+const COMPACT_INSPECTOR_MAX_PX = 1100;
 
 const ChatLayout: React.FC<{
   children: React.ReactNode;
@@ -50,30 +53,22 @@ const ChatLayout: React.FC<{
   const { backend, presetAssistant, agent_name, workspaceEnabled = true, workspacePreferenceKey } = props;
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
-  const isDesktop = !isMobile;
-  const { isOpen: isPreviewOpen } = usePreviewContext();
+  const { containerRef, containerWidth } = useContainerWidth();
+  const usesInspectorOverlay = isMobile || (containerWidth > 0 && containerWidth <= COMPACT_INSPECTOR_MAX_PX);
+  const isDesktop = !usesInspectorOverlay;
+  const { isOpen: isPreviewOpen, openRequestId: previewOpenRequestId } = usePreviewContext();
   const { rightSiderCollapsed, setRightSiderCollapsed } = useWorkspaceCollapse({
     workspaceEnabled,
-    isMobile,
+    isMobile: usesInspectorOverlay,
     conversation_id,
     preferenceKey: workspacePreferenceKey ?? conversation_id,
   });
-  const previousPreviewOpenRef = useRef(isPreviewOpen);
-  const previewStateInitializedRef = useRef(false);
+  const initialPreviewOpenRequestRef = useRef(previewOpenRequestId);
   useEffect(() => {
-    if (!previewStateInitializedRef.current) {
-      previewStateInitializedRef.current = true;
-      previousPreviewOpenRef.current = isPreviewOpen;
-      return;
-    }
-
-    const wasOpen = previousPreviewOpenRef.current;
-    previousPreviewOpenRef.current = isPreviewOpen;
-    if (!wasOpen && isPreviewOpen && workspaceEnabled) {
+    if (previewOpenRequestId !== initialPreviewOpenRequestRef.current && isPreviewOpen && workspaceEnabled) {
       setRightSiderCollapsed(false);
     }
-  }, [isPreviewOpen, setRightSiderCollapsed, workspaceEnabled]);
-  const { containerRef, containerWidth } = useContainerWidth();
+  }, [isPreviewOpen, previewOpenRequestId, setRightSiderCollapsed, workspaceEnabled]);
   const { editingTitle, setEditingTitle, titleDraft, setTitleDraft, renameLoading, canRenameTitle, submitTitleRename } =
     useTitleRename({
       title: props.title,
@@ -86,24 +81,61 @@ const ChatLayout: React.FC<{
     : undefined;
   const capitalizedBackend = backend ? backend.charAt(0).toUpperCase() + backend.slice(1) : backend;
   const displayName = presetAssistant?.name || agent_name || backendAgentName || capitalizedBackend;
-  const { splitRatio: workspaceWidthPxPref, createDragHandle: createWorkspaceDragHandle } = useResizableSplit({
+  const {
+    splitRatio: workspaceWidthPxPref,
+    setSplitRatio: setWorkspaceWidthPxPref,
+    createDragHandle: createWorkspaceDragHandle,
+  } = useResizableSplit({
     unit: 'px',
     defaultWidth: DEFAULT_WORKSPACE_PANEL_PX,
     minWidth: MIN_WORKSPACE_PANEL_PX,
     maxWidth: MAX_WORKSPACE_PANEL_PX,
     storageKey: 'chat-workspace-width-px',
   });
-  const { workspaceWidthPx, titleAreaMaxWidth, mobileWorkspaceHandleRight } = calcLayoutMetrics({
+  const { dynamicChatMinRatio, dynamicChatMaxRatio } = calcLayoutMetrics({
     containerWidth,
     workspaceWidthPx: workspaceWidthPxPref,
-    chatSplitRatio: 100,
+    chatSplitRatio: 60,
     workspaceEnabled,
     isDesktop,
-    isPreviewOpen: false,
+    isPreviewOpen,
     rightSiderCollapsed,
-    isMobile,
+    isMobile: usesInspectorOverlay,
   });
-
+  const {
+    splitRatio: chatSplitRatio,
+    setSplitRatio: setChatSplitRatio,
+    createDragHandle: createPreviewDragHandle,
+  } = useResizableSplit({
+    defaultWidth: 60,
+    minWidth: dynamicChatMinRatio,
+    maxWidth: dynamicChatMaxRatio,
+    storageKey: 'chat-preview-split-ratio',
+  });
+  const { chatFlex, workspaceWidthPx, titleAreaMaxWidth, mobileWorkspaceHandleRight } = calcLayoutMetrics({
+    containerWidth,
+    workspaceWidthPx: workspaceWidthPxPref,
+    chatSplitRatio,
+    workspaceEnabled,
+    isDesktop,
+    isPreviewOpen,
+    rightSiderCollapsed,
+    isMobile: usesInspectorOverlay,
+  });
+  useLayoutConstraints({
+    containerWidth,
+    workspaceEnabled,
+    isDesktop,
+    isPreviewOpen,
+    rightSiderCollapsed,
+    setRightSiderCollapsed,
+    workspaceWidthPx: workspaceWidthPxPref,
+    setWorkspaceWidthPx: setWorkspaceWidthPxPref,
+    chatSplitRatio,
+    setChatSplitRatio,
+    dynamicChatMinRatio,
+    dynamicChatMaxRatio,
+  });
   const [mobileActionsSlot, setMobileActionsSlot] = useState<HTMLElement | null>(null);
   useEffect(() => {
     if (!isMobile) {
@@ -202,21 +234,57 @@ const ChatLayout: React.FC<{
             {props.tabsSlot}
           </div>
           {props.currentTaskSlot && <div className='shrink-0 !bg-1'>{props.currentTaskSlot}</div>}
-          <div
-            className='flex flex-1 min-h-0 relative'
-            onClick={() => {
-              if (isMobile && !rightSiderCollapsed) setRightSiderCollapsed(true);
-            }}
-          >
-            <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>
-              {props.children}
-            </ArcoLayout.Content>
+          <div className='flex flex-1 min-h-0 relative'>
+            <div
+              className='flex flex-col relative min-w-0'
+              hidden={isPreviewOpen && usesInspectorOverlay}
+              style={{
+                flexGrow: isPreviewOpen && isDesktop ? 0 : 1,
+                flexShrink: 0,
+                flexBasis: isPreviewOpen && isDesktop ? `${chatFlex}%` : 0,
+              }}
+            >
+              <ArcoLayout.Content className='flex flex-col flex-1 bg-1 overflow-hidden'>
+                {props.children}
+              </ArcoLayout.Content>
+            </div>
+            {isPreviewOpen && (
+              <div
+                className={`preview-panel flex flex-col relative overflow-visible rounded-[15px] ${
+                  isDesktop ? 'mb-[12px] mr-[12px] ml-[8px]' : 'm-[8px]'
+                }`}
+                style={{
+                  flexGrow: 1,
+                  flexShrink: 1,
+                  flexBasis: 0,
+                  border: '1px solid var(--bg-3)',
+                  minWidth: isDesktop ? '260px' : 0,
+                  width: usesInspectorOverlay ? 'calc(100% - 16px)' : undefined,
+                  boxSizing: 'border-box',
+                }}
+                data-testid='conversation-preview-surface'
+              >
+                {isDesktop &&
+                  createPreviewDragHandle({
+                    className: 'absolute top-0 bottom-0 z-30',
+                    style: { width: '20px', left: '-20px' },
+                    linePlacement: 'end',
+                    lineClassName: 'opacity-30 group-hover:opacity-100 group-active:opacity-100',
+                    lineStyle: { width: '2px' },
+                  })}
+                <div className='h-full w-full overflow-hidden rounded-[15px]'>
+                  <PreviewPanel />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {workspaceEnabled && isDesktop && !rightSiderCollapsed && (
+        {workspaceEnabled && isDesktop && (
           <aside
             className='chat-layout-right-sider layout-sider'
+            hidden={rightSiderCollapsed}
+            aria-hidden={rightSiderCollapsed}
             style={{
               flex: `0 0 ${Math.round(workspaceWidthPx)}px`,
               width: `${Math.round(workspaceWidthPx)}px`,
@@ -243,7 +311,7 @@ const ChatLayout: React.FC<{
           </aside>
         )}
 
-        {workspaceEnabled && isMobile && (
+        {workspaceEnabled && usesInspectorOverlay && (
           <MobileWorkspaceOverlay
             rightSiderCollapsed={rightSiderCollapsed}
             setRightSiderCollapsed={setRightSiderCollapsed}
