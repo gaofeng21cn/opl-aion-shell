@@ -583,7 +583,8 @@ function validatePostInstallAiSelfCheckEntry(entry: unknown, context: string): O
     trigger: typeof entry.trigger === 'string' ? entry.trigger : '',
     target_route: '/guid',
     route_state: 'postInstallSelfCheck',
-    prompt_policy: 'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path',
+    prompt_policy:
+      'localized Codex CLI post-install self-check prompt describing target OPL working mode and repair path',
     target_state_checks: targetStateChecks,
     mutation_policy: 'diagnose_first_no_file_mutation_without_user_confirmation',
     release_gate_policy: 'user_visible_entry_complements_non_blocking_codex_ai_self_check_receipt',
