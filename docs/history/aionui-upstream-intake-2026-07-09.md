@@ -10,6 +10,7 @@ Machine boundary: Human-readable intake record. Use GitHub release refs, upstrea
 - Upstream remote: `https://github.com/iOfficeAI/AionUi.git`.
 - Intake range: `v2.1.27...v2.1.31`.
 - Canonical upstream release: `v2.1.31`, published `2026-07-08T13:08:39Z`, URL `https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.31`.
+- Fresh `2026-07-10` readback still reports `v2.1.31` as the latest release, with upstream `main` and the release tag both at `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
 - Fresh upstream refs observed in this lane:
   - `refs/heads/main` = `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
   - `refs/tags/v2.1.31` = `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
@@ -52,17 +53,17 @@ Main-session absorption completed for the accepted implementation lanes on `opl-
 
 Main-session accepted only scoped capability adaptations:
 
-| Topic                                       | Main commit                                        | Decision                 | Evidence                                                                                                                                                                                    |
-| ------------------------------------------- | -------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Low-risk stability and diagnostics          | `7c02fd4e5`                                        | accepted                 | OpenAI SDK `apiKey`, throttle cleanup, markdown alt text, dated logs, feedback/log diagnostics, startup directory prep, corrupt DB recovery classification, web-host backend directory prep |
-| Runtime / cron / ACP request dedupe         | `f24d3fa5b`                                        | accepted/adapted         | ACP config/model option request dedupe, cron run title formatting, scheduled task history batch delete/refetch; no Team default or runtime-truth expansion                                  |
-| `/guid` slash commands and assistant polish | `ea4b5a107`                                        | accepted with OPL filter | `/guid` slash menu uses OPL-allowed skills and builtin `/open`; no Official Assistants, Team default, or shell-local purpose authority                                                      |
-| Settings / i18n refinements                 | `bb35cff74`                                        | accepted/adapted         | Settings tab navigate context, image-model config link, WeCom callback i18n, known i18n key fixes, language UI generated from existing Chinese/English config only                          |
-| Contract, Cron, VM, and startup remediation | `2ac1bc4c2`, `637bfa844`, `0b9c8b122`              | accepted/adapted         | Capability projection type safety, retryable partial Cron deletion, recursive VM evidence collection, and fail-closed backend startup directory handling                                    |
-| Feedback privacy and delivery               | `5f786a6db`                                        | accepted/adapted         | Diagnostics remain off by default, explicit opt-in is required, selected logs are redacted, and success requires renderer/main-process transport flush                                      |
-| AionCore build and recovery                 | `5d554c0ae`, `a5811dd39`, `598997cf3`, `81c8b37fd` | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                       |
-| Upstream non-zh/en locale payload           | none                                               | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only                                                                              |
-| Docs/boundary record                        | `3ea74dc47` plus this follow-up update             | accepted                 | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof                                                                                     |
+| Topic                                       | Main commit                                                     | Decision                 | Evidence                                                                                                                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Low-risk stability and diagnostics          | `7c02fd4e5`                                                     | accepted                 | OpenAI SDK `apiKey`, throttle cleanup, markdown alt text, dated logs, feedback/log diagnostics, startup directory prep, corrupt DB recovery classification, web-host backend directory prep |
+| Runtime / cron / ACP request dedupe         | `f24d3fa5b`                                                     | accepted/adapted         | ACP config/model option request dedupe, cron run title formatting, scheduled task history batch delete/refetch; no Team default or runtime-truth expansion                                  |
+| `/guid` slash commands and assistant polish | `ea4b5a107`                                                     | accepted with OPL filter | `/guid` slash menu uses OPL-allowed skills and builtin `/open`; no Official Assistants, Team default, or shell-local purpose authority                                                      |
+| Settings / i18n refinements                 | `bb35cff74`                                                     | accepted/adapted         | Settings tab navigate context, image-model config link, WeCom callback i18n, known i18n key fixes, language UI generated from existing Chinese/English config only                          |
+| Contract, Cron, VM, and startup remediation | `2ac1bc4c2`, `637bfa844`, `0b9c8b122`, `827496799`, `84a4c8153` | accepted/adapted         | Capability projection type safety, retryable partial Cron deletion, fail-closed backend startup directories, and failure-evidence collectors that preserve the primary VM smoke error       |
+| Feedback privacy and queue confirmation     | `5f786a6db`, `9059e9923`                                        | accepted/adapted         | Diagnostics remain off by default, explicit opt-in is required, selected logs are redacted, and the UI claims only that feedback entered the sending queue                                  |
+| AionCore build and recovery                 | `5d554c0ae`, `a5811dd39`, `598997cf3`, `81c8b37fd`              | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                       |
+| Upstream non-zh/en locale payload           | none                                                            | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only                                                                              |
+| Docs/boundary record                        | `3ea74dc47` plus this follow-up update                          | accepted                 | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof                                                                                     |
 
 This closeout does not claim latest upstream parity, installer readiness, release readiness, installed App readiness, production runtime readiness, or owner acceptance. Those require separate owner evidence.
 
@@ -72,11 +73,21 @@ The scoped privacy follow-up keeps broader upstream route/core diagnostics redir
 
 - Sentry DSN presence no longer schedules automatic startup log uploads.
 - Feedback diagnostic logs are off by default and are collected only after an explicit checkbox opt-in.
-- Selected logs are redacted before compression for home paths, bearer/API credentials, token/secret values, `sk-*` keys, and sensitive URL query parameters.
-- Feedback delivery checks the main-process DSN boundary and only reports success after the renderer event is created, the renderer queue flushes to IPC, and the main-process Sentry transport flush completes successfully.
+- Selected logs are redacted before compression for home paths, bearer/API credentials, token/secret values, `sk-*` keys, sensitive URL query parameters, URI userinfo, Cookie/Set-Cookie values, `DATABASE_URL`, AWS secret access keys, and private-key blocks.
+- Feedback checks the main-process DSN boundary and reports only that an event was added to the sending queue after the renderer and main queues both flush successfully. It does not claim a server response, submission, delivery, or receipt.
+- A missing event id, either queue flush returning `false`, or either queue flush throwing keeps the modal open and shows the queue failure state.
 - The user-facing privacy and failure copy remains limited to the existing `zh-CN` and `en-US` locale surface.
 
 This follow-up does not absorb broader core diagnostics, route context, settings navigation, App contracts, or release/readiness authority.
+
+## VM Failure Evidence Follow-Up 2026-07-10
+
+The release smoke keeps its original failure as the authoritative error even when diagnostic collection is degraded:
+
+- Log-directory `readdir`, entry `lstat`, file read, and artifact write failures are isolated and recorded as typed collection errors; later siblings continue collecting.
+- Launch diagnostics, bootstrap logs, app logs, four file listings, diagnostic reports, the failure screenshot, and unified logs are isolated in sequence so one collector cannot suppress later evidence.
+- `collection-summary.json` is an evidence artifact only. It is not a runtime state, release verdict, or second consumer contract.
+- Commits `827496799` and `84a4c8153` preserve the original smoke error object after all collection attempts and cover the production collector chain with focused tests.
 
 ## AionCore Managed Resource Follow-Up 2026-07-10
 
@@ -119,10 +130,13 @@ bunx vitest run tests/unit/bootstrap/backendStartupFailure.test.ts tests/unit/pr
 env VITEST_INCLUDE_DOM=1 bunx vitest run tests/unit/renderer/useAcpMessage.dom.test.ts tests/unit/renderer/useAcpModelInfo.dom.test.ts tests/unit/cron/useCronJobs.dom.test.ts tests/unit/cron/TaskDetailPage.dom.test.tsx tests/unit/guid/AssistantSelectionArea.dom.test.tsx tests/unit/guid/GuidInputCard.dom.test.tsx tests/unit/settings/SettingsModal.dom.test.tsx tests/unit/settings/SystemModalContent.dom.test.tsx tests/unit/settings/UpdateModal.dom.test.tsx --project dom --reporter dot
 cd packages/web-host && bunx vitest run src/backend-launcher.test.ts --reporter dot
 bunx vitest run tests/unit/opl-runtime/prepareAioncoreDownload.test.ts --reporter dot
+bunx vitest run tests/unit/opl-runtime/firstRunVmSmoke.test.ts tests/unit/opl-runtime/firstRunVmSmokeScripts.test.ts --reporter dot
+bunx vitest run tests/unit/feedback/feedbackBridge.test.ts --reporter dot
+bun run test:dom -- tests/unit/feedback/FeedbackReportModal.dom.test.tsx --reporter dot
 env AIONUI_AIONCORE_CACHE_DIR="$(mktemp -d /tmp/opl-aioncore-cold.XXXXXX)" node scripts/prepareAioncore.js
 ```
 
-Results across the accepted mainline and the AionCore follow-up lane: i18n generation/check passed with existing warning-only unknown literal keys; non-DOM focused suite passed `10` files / `51` tests; DOM focused suite passed `9` files / `75` tests with existing `act(...)`, localStorage, and `NaN` style warnings; web-host backend launcher suite passed `1` file / `34` tests with the existing `MaxListenersExceededWarning`; AionCore preparation passed `1` file / `18` tests; startup failure classification passed `1` file / `37` tests; and the real cold-cache run completed on attempt `3/3` with artifact verifier `missing: []`.
+Results across the accepted mainline and follow-up lanes: i18n generation/check passed with existing warning-only unknown literal keys; non-DOM focused suite passed `10` files / `51` tests; DOM focused suite passed `9` files / `75` tests with existing `act(...)`, localStorage, and `NaN` style warnings; web-host backend launcher suite passed `1` file / `34` tests with the existing `MaxListenersExceededWarning`; AionCore preparation passed `1` file / `18` tests; startup failure classification passed `1` file / `37` tests; VM evidence resilience passed `2` files / `108` tests; feedback privacy and queue confirmation passed `24` non-DOM tests plus `19` DOM tests; and the real cold-cache run completed on attempt `3/3` with artifact verifier `missing: []`.
 
 ## Stop Condition
 
