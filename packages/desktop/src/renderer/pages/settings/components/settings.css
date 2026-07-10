@@ -5,7 +5,7 @@
 }
 
 .settings-page-content {
-  max-width: 920px;
+  max-width: 1120px;
 }
 
 .settings-page-wrapper .arco-card {
@@ -44,10 +44,14 @@
 
 .settings-sider__item {
   border: 1px solid transparent;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .settings-sider__item:hover {
   border-color: transparent;
+  background: var(--fill-1);
 }
 
 .settings-sider__item:focus-visible {
@@ -56,14 +60,28 @@
   outline-offset: -2px;
 }
 
+.settings-sider__item--selected,
 .settings-sider__item[class*='!bg-fill-3'] {
-  border-color: var(--border-base);
+  border-color: transparent;
+  background: var(--fill-3);
+  color: var(--text-primary);
+}
+
+.settings-sider__item--selected::before {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 2px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--color-primary-6);
+  content: '';
 }
 
 .opl-settings-page {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 28px;
   min-width: 0;
 }
 
@@ -73,12 +91,12 @@
   justify-content: space-between;
   gap: 24px;
   min-width: 0;
-  padding: 0 2px 4px;
+  padding: 0 2px;
 }
 
 .opl-settings-page-header__copy {
   min-width: 0;
-  max-width: 680px;
+  max-width: 720px;
 }
 
 .opl-settings-page-header__copy .arco-typography-title {
@@ -92,7 +110,7 @@
 .opl-settings-page-header__copy > .arco-typography,
 .opl-settings-page-header__copy > p {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
 }
 
@@ -107,16 +125,18 @@
 
 .opl-settings-section {
   min-width: 0;
-  overflow: visible;
-  border: 0;
-  border-top: 1px solid var(--border-base);
-  border-bottom: 1px solid var(--border-base);
-  border-radius: 0;
-  background: transparent;
+  overflow: hidden;
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
 }
 
 .opl-settings-section--attention {
   border-color: var(--color-warning-5);
+}
+
+.opl-settings-section--summary {
+  background: var(--fill-1);
 }
 
 .opl-settings-section__header {
@@ -125,7 +145,7 @@
   justify-content: space-between;
   gap: 16px;
   min-width: 0;
-  padding: 14px 2px 12px;
+  padding: 15px 16px 13px;
 }
 
 .opl-settings-section__header + .opl-settings-list {
@@ -138,11 +158,11 @@
 
 .opl-settings-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(220px, auto);
   align-items: center;
-  gap: 20px;
+  gap: 24px;
   min-width: 0;
-  padding: 14px 2px;
+  padding: 14px 16px;
 }
 
 .opl-settings-row + .opl-settings-row {
@@ -167,7 +187,7 @@
 
 @media (min-width: 1280px) {
   .opl-settings-row__meta.opl-settings-capability-meta {
-    grid-template-columns: auto minmax(120px, 1fr) minmax(140px, 1fr) auto auto;
+    grid-template-columns: 88px minmax(120px, 1fr) minmax(132px, 1fr) 84px 92px;
   }
 }
 
@@ -181,7 +201,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   text-align: right;
 }
@@ -190,8 +210,13 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: var(--fill-1);
+  padding: 3px 9px;
   color: var(--text-secondary);
   font-size: 12px;
+  font-weight: 500;
   line-height: 18px;
   white-space: nowrap;
 }
@@ -206,15 +231,99 @@
 }
 
 .opl-settings-status--ready::before {
-  background: var(--text-tertiary);
+  background: var(--color-success-6);
 }
 
 .opl-settings-status--attention::before {
   background: var(--color-warning-6);
 }
 
+.opl-settings-status--attention {
+  color: var(--color-warning-6);
+}
+
 .opl-settings-status--error::before {
   background: var(--color-danger-6);
+}
+
+.opl-settings-status--error {
+  color: var(--color-danger-6);
+}
+
+.opl-settings-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border-base);
+}
+
+.opl-settings-overview-metric {
+  min-width: 0;
+  padding: 13px 16px 15px;
+}
+
+.opl-settings-overview-metric + .opl-settings-overview-metric {
+  border-left: 1px solid var(--border-base);
+}
+
+.opl-settings-overview-metric__label {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.opl-settings-overview-metric__value {
+  display: block;
+  overflow: hidden;
+  margin-top: 3px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opl-settings-capability-table-header {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(540px, 1.35fr);
+  gap: 24px;
+  border-top: 1px solid var(--border-base);
+  background: var(--fill-1);
+  padding: 8px 16px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.opl-settings-capability-table-header__meta {
+  display: grid;
+  grid-template-columns: 88px minmax(120px, 1fr) minmax(132px, 1fr) 84px 92px;
+  align-items: center;
+  gap: 10px;
+}
+
+.opl-settings-capability-field-label {
+  display: none;
+}
+
+.opl-settings-capability-row--selected {
+  background: var(--fill-1);
+}
+
+.opl-settings-storage-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border-base);
+  background: var(--fill-1);
+}
+
+.opl-settings-storage-summary__item {
+  padding: 11px 16px 13px;
+}
+
+.opl-settings-storage-summary__item + .opl-settings-storage-summary__item {
+  border-left: 1px solid var(--border-base);
 }
 
 .opl-settings-details {
@@ -223,7 +332,13 @@
   border-top: 1px solid var(--border-base);
   border-radius: 0;
   background: transparent;
-  padding: 12px 2px 0;
+  padding: 12px 16px 14px;
+}
+
+.opl-settings-page > .opl-settings-details {
+  border: 1px solid var(--border-base);
+  border-radius: 8px;
+  background: var(--bg-1);
 }
 
 .opl-settings-details > summary {
@@ -428,6 +543,25 @@
 
   .opl-settings-row__meta.opl-settings-capability-meta {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .opl-settings-overview-grid,
+  .opl-settings-storage-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .opl-settings-overview-metric + .opl-settings-overview-metric,
+  .opl-settings-storage-summary__item + .opl-settings-storage-summary__item {
+    border-top: 1px solid var(--border-base);
+    border-left: 0;
+  }
+
+  .opl-settings-capability-table-header {
+    display: none;
+  }
+
+  .opl-settings-capability-field-label {
+    display: block;
   }
 
   .settings-mobile-top-nav {
