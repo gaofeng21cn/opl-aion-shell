@@ -63,3 +63,28 @@ export interface IChannelSession {
   created_at: number;
   lastActivity: number;
 }
+
+/** Read shape keeps legacy fields so stale settings can be diagnosed. */
+export interface IChannelAssistantBindingRead {
+  assistant_id?: string;
+  custom_agent_id?: string;
+  backend?: string;
+  agent_type?: string;
+  name?: string;
+}
+
+/** New Channel writes use Assistant business identity only. */
+export interface IChannelAssistantBindingWrite {
+  assistant_id: string;
+}
+
+export interface IChannelDefaultModelSetting {
+  id: string;
+  use_model: string;
+}
+
+export interface IChannelPlatformSettings {
+  platform: string;
+  assistant: IChannelAssistantBindingRead | null;
+  default_model: IChannelDefaultModelSetting | null;
+}

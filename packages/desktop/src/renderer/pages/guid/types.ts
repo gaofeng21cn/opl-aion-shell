@@ -32,6 +32,12 @@ export type AvailableAgent = {
    * a follow-up PR. Always equals `id` when populated.
    */
   custom_agent_id?: string;
+  /** Assistant catalog identity used to create the conversation. */
+  assistant_id?: string;
+  /** Assistant identity confirmed to exist in the backend catalog. */
+  backend_assistant_id?: string;
+  /** Management catalog identity used only for diagnostics/runtime metadata. */
+  managed_agent_id?: string;
   is_preset?: boolean;
   context?: string;
   avatar?: string;

@@ -17,8 +17,8 @@ import {
   resolveTeamAgentType,
   filterTeamSupportedAgents,
   AgentOptionLabel,
-  cliAgentToOption,
   assistantToOption,
+  cliAgentToOption,
 } from './agentSelectUtils';
 import type { TeamAgentOption } from './agentSelectUtils';
 import { resolveDefaultTeamAgentModel } from './teamCreateModelResolver';
@@ -82,7 +82,6 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
     }
   };
 
-  const cliAgentOptions = useMemo(() => cliAgents.map(cliAgentToOption), [cliAgents]);
   const teamCapableKeys = useMemo(
     () =>
       new Set(
@@ -92,32 +91,31 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
       ),
     [cliAgents]
   );
+  const cliAssistantOptions = useMemo(
+    () => cliAgents.map(cliAgentToOption).filter((agent) => Boolean(agent.assistant_id)),
+    [cliAgents]
+  );
   const presetAssistantOptions = useMemo(
     () => presetAssistants.map((a) => assistantToOption(a, teamCapableKeys)),
     [presetAssistants, teamCapableKeys]
   );
-  const allAgents = filterTeamSupportedAgents([...cliAgentOptions, ...presetAssistantOptions]);
+  const allAgents = filterTeamSupportedAgents([...cliAssistantOptions, ...presetAssistantOptions]);
 
-  const { supportedCliAgents, supportedPresetAssistants } = useMemo(() => {
+  const supportedAssistants = useMemo(() => {
     const supportedKeys = new Set(allAgents.map(agentKey));
-    return {
-      supportedCliAgents: cliAgentOptions.filter((a) => supportedKeys.has(agentKey(a))),
-      supportedPresetAssistants: presetAssistantOptions.filter((a) => supportedKeys.has(agentKey(a))),
-    };
-  }, [allAgents, cliAgentOptions, presetAssistantOptions]);
+    return [...cliAssistantOptions, ...presetAssistantOptions].filter((assistant) =>
+      supportedKeys.has(agentKey(assistant))
+    );
+  }, [allAgents, cliAssistantOptions, presetAssistantOptions]);
 
-  const { filteredCliAgents, filteredPresetAssistants } = useMemo(() => {
+  const filteredAssistants = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) {
-      return { filteredCliAgents: supportedCliAgents, filteredPresetAssistants: supportedPresetAssistants };
-    }
-    return {
-      filteredCliAgents: supportedCliAgents.filter((a) => a.name.toLowerCase().includes(q)),
-      filteredPresetAssistants: supportedPresetAssistants.filter((a) => a.name.toLowerCase().includes(q)),
-    };
-  }, [supportedCliAgents, supportedPresetAssistants, search]);
+    return q
+      ? supportedAssistants.filter((assistant) => assistant.name.toLowerCase().includes(q))
+      : supportedAssistants;
+  }, [search, supportedAssistants]);
 
-  const hasSearchResults = filteredCliAgents.length > 0 || filteredPresetAssistants.length > 0;
+  const hasSearchResults = filteredAssistants.length > 0;
 
   useEffect(() => {
     if (visible) {
@@ -168,7 +166,7 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
         agent_type: dispatchAgentType,
         agent_name: 'Leader',
         conversation_type: dispatchConversationType,
-        custom_agent_id: dispatchAgent?.id,
+        assistant_id: dispatchAgent?.assistant_id,
         model: resolvedModel,
       });
 
@@ -307,7 +305,7 @@ const TeamCreateModal: React.FC<Props> = ({ visible, onClose, onCreated }) => {
                       {t('team.create.noSearchResults', { defaultValue: 'No results found' })}
                     </div>
                   ) : (
-                    [...filteredCliAgents, ...filteredPresetAssistants].map((agent) => {
+                    filteredAssistants.map((agent) => {
                       const key = agentKey(agent);
                       return (
                         <AgentRadioRow

@@ -14,6 +14,7 @@ import {
   fromApiModel,
   fromApiConversation,
   fromApiPaginatedConversations,
+  buildCreateConversationBody,
   type ApiProviderWithModel,
 } from '@/common/adapter/apiModelMapper';
 import type { TProviderWithModel } from '@/common/config/storage';
@@ -114,6 +115,36 @@ describe('apiModelMapper', () => {
         provider_id: 'x',
         model: 'gpt',
       });
+    });
+  });
+
+  describe('buildCreateConversationBody', () => {
+    it('preserves assistant identity and lets the backend derive its runtime type', () => {
+      const body = buildCreateConversationBody({
+        type: 'acp',
+        name: 'Assistant conversation',
+        assistant: { id: 'assistant-codex', locale: 'en-US' },
+        extra: { workspace: '/tmp/project' },
+      });
+
+      expect(body).toMatchObject({
+        type: undefined,
+        assistant: { id: 'assistant-codex', locale: 'en-US' },
+        extra: { workspace: '/tmp/project' },
+      });
+    });
+
+    it('keeps the selected model for assistant-first aionrs conversations', () => {
+      const body = buildCreateConversationBody({
+        model: {
+          id: 'provider-gemini',
+          use_model: 'gemini-2.5-pro',
+        } as TProviderWithModel,
+        assistant: { id: 'assistant-aionrs' },
+        extra: {},
+      });
+
+      expect(body.model).toEqual({ provider_id: 'provider-gemini', model: 'gemini-2.5-pro' });
     });
   });
 

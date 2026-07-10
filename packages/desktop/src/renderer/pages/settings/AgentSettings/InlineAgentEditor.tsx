@@ -5,7 +5,7 @@
  */
 
 import type { CustomAgentAdvancedOverrides } from '@/common/types/platform/acpTypes';
-import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import type { AgentMetadata, ManagedAgent } from '@/renderer/utils/model/agentTypes';
 import { acpConversation } from '@/common/adapter/ipcBridge';
 import { Alert, Avatar, Button, Collapse, Input, Typography } from '@arco-design/web-react';
 import { Plus, Delete, CheckOne, CloseOne } from '@icon-park/react';
@@ -46,7 +46,7 @@ export interface CustomAgentDraft {
 }
 
 interface InlineAgentEditorProps {
-  agent?: AgentMetadata | null;
+  agent?: AgentMetadata | ManagedAgent | null;
   onSave: (agent: CustomAgentDraft) => void;
   onCancel: () => void;
 }
@@ -105,7 +105,7 @@ function agentEnvToRecord(entries: AgentMetadata['env'] | undefined): Record<str
 }
 
 /** Rebuild the editor's `advanced` override bag from an `AgentMetadata` row. */
-function agentToAdvanced(agent: AgentMetadata): CustomAgentAdvancedOverrides {
+function agentToAdvanced(agent: AgentMetadata | ManagedAgent): CustomAgentAdvancedOverrides {
   const advanced: CustomAgentAdvancedOverrides = {};
   if (agent.yolo_id) advanced.yolo_id = agent.yolo_id;
   if (agent.native_skills_dirs && agent.native_skills_dirs.length > 0) {

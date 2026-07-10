@@ -4,31 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ipcBridge } from '@/common';
-import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
+import { canonicalizeOplProfessionalAgentId, getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
 import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/types/codex/codexModes';
 import type { IProvider } from '@/common/config/storage';
 import { configService } from '@/common/config/configService';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
-import type { AcpSessionModes } from '@/common/types/platform/acpTypes';
+import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
 import type { OplCodexReasoningEffort } from '@/common/config/oplProductProfile';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
-import {
-  DETECTED_AGENTS_SWR_KEY,
-  fetchDetectedAgents,
-  type AgentMetadata,
-  type AgentSource,
-} from '@/renderer/utils/model/agentTypes';
+import type { AgentSource, ManagedAgent } from '@/renderer/utils/model/agentTypes';
+import { useManagedAgentRuntimeCatalog } from '@/renderer/hooks/agent/useManagedAgents';
+import { buildAgentRuntimeModeState, buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import useSWR from 'swr';
 import { savePreferredMode, savePreferredModelId, getAgentKey as getAgentKeyUtil } from './agentSelectionUtils';
 import { usePresetAssistantResolver } from './usePresetAssistantResolver';
 import { useAgentAvailability } from './useAgentAvailability';
 import { useCustomAgentsLoader } from './useCustomAgentsLoader';
 import { resolveOplDefaultAgentKey, withOplFoundryAssistantDefaults } from '../oplGuidProfile';
-import { isSupportedNewConversationAgent } from '@/renderer/utils/model/agentTypeSupportPolicy';
 
 export type GuidAgentSelectionResult = {
   selectedAgentKey: string;
@@ -40,8 +33,6 @@ export type GuidAgentSelectionResult = {
   availableAgents: AvailableAgent[] | undefined;
   /** Backend-merged preset catalog: builtin + user + extension. */
   assistants: Assistant[];
-  /** User-defined ACP engine rows (agent_source === 'custom') from the backend. */
-  customAgents: AgentMetadata[];
   selectedMode: string;
   setSelectedMode: React.Dispatch<React.SetStateAction<string>>;
   selectedAcpModel: string | null;
@@ -77,7 +68,6 @@ export type GuidAgentSelectionResult = {
   getEffectiveAgentType: (
     agentInfo: { agent_type: string; backend?: string; custom_agent_id?: string } | undefined
   ) => EffectiveAgentInfo;
-  refreshCustomAgents: () => Promise<void>;
   customAgentAvatarMap: Map<string, string | undefined>;
 };
 
@@ -85,30 +75,66 @@ export type GuidAgentSelectionResult = {
  * Resolve the default session_mode for a given backend.
  *
  * Priority:
- *   1. Handshake `available_modes.current_mode_id` from `/api/agents`
- *   2. First entry of handshake `available_modes`
+ *   1. Managed runtime `available_modes.current_mode_id`
+ *   2. First entry of managed runtime `available_modes`
  *   3. First entry of the static `AGENT_MODES` table
  *   4. Literal `'default'` (legacy fallback — only correct for claude/qwen/gemini/aionrs)
  *
  * This mirrors the runtime fallback inside `AgentModeSelector` so the
  * parent-held `selectedMode` stays in sync with what the UI shows.
  */
-function resolveDefaultMode(backend: string | undefined, agents: AgentMetadata[] | undefined): string {
+function resolveDefaultMode(backend: string | undefined, agent: ManagedAgent | undefined): string {
   if (!backend) return 'default';
   if (backend === 'codex') return CODEX_MODE_NATIVE_FULL_ACCESS;
 
-  const matched = agents?.find((a) => (a.backend ?? a.agent_type) === backend);
-  const handshakeModes = matched?.handshake?.available_modes as AcpSessionModes | undefined;
-  if (handshakeModes) {
-    if (handshakeModes.current_mode_id) return handshakeModes.current_mode_id;
-    const first = handshakeModes.available_modes?.[0]?.id;
-    if (first) return first;
+  const runtimeModes = buildAgentRuntimeModeState(agent);
+  if (runtimeModes.state === 'ready') {
+    if (runtimeModes.currentMode) return runtimeModes.currentMode;
+    if (runtimeModes.options[0]?.value) return runtimeModes.options[0].value;
   }
+  if (runtimeModes.state === 'empty') return '';
 
   const staticModes = getAgentModes(backend);
   if (staticModes.length > 0) return staticModes[0].value;
 
   return 'default';
+}
+
+function findManagedRuntimeAgent(
+  agents: ManagedAgent[],
+  input: { agentId?: string; backend?: string }
+): ManagedAgent | undefined {
+  if (input.agentId) {
+    const exact = agents.find((agent) => agent.id === input.agentId);
+    if (exact) return exact;
+  }
+  if (!input.backend) return undefined;
+  const matches = agents.filter((agent) => (agent.backend ?? agent.agent_type) === input.backend);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+function assistantToAvailableAgent(
+  assistant: Assistant,
+  isPreset: boolean,
+  backendAssistantId?: string
+): AvailableAgent | null {
+  const runtimeKey = assistantRuntimeKey(assistant);
+  if (!runtimeKey) return null;
+  const agentType = assistant.agent?.type || (runtimeKey === 'aionrs' ? 'aionrs' : 'acp');
+  return {
+    id: isPreset ? assistant.id : assistant.agent_id || assistant.id,
+    agent_type: agentType,
+    agent_source: assistant.agent?.source,
+    backend: agentType === 'acp' ? runtimeKey : undefined,
+    name: assistant.name,
+    custom_agent_id: isPreset ? assistant.id : undefined,
+    assistant_id: assistant.id,
+    backend_assistant_id: backendAssistantId,
+    managed_agent_id: assistant.agent_id,
+    is_preset: isPreset,
+    avatar: assistant.avatar,
+    presetAgentType: runtimeKey,
+  };
 }
 
 type UseGuidAgentSelectionOptions = {
@@ -134,7 +160,6 @@ export const useGuidAgentSelection = ({
   locationKey,
 }: UseGuidAgentSelectionOptions): GuidAgentSelectionResult => {
   const [selectedAgentKey, _setSelectedAgentKey] = useState<string>(resolveOplDefaultAgentKey(undefined));
-  const [availableAgents, setAvailableAgents] = useState<AvailableAgent[]>();
   const [selectedMode, _setSelectedMode] = useState<string>(CODEX_MODE_NATIVE_FULL_ACCESS);
   // Track whether mode was loaded from preferences to avoid overwriting during initial load
   const selectedAgentRef = useRef<string | null>(null);
@@ -176,25 +201,54 @@ export const useGuidAgentSelection = ({
     });
   }, []);
 
-  const availableCustomAgentIds = useMemo(() => {
-    const ids = new Set<string>();
-    (availableAgents || []).forEach((agent) => {
-      if (agent.agent_source === 'custom' && agent.id) {
-        ids.add(agent.id);
-      } else if (agent.custom_agent_id) {
-        ids.add(agent.custom_agent_id);
-      }
-    });
-    return ids;
-  }, [availableAgents]);
-
   const getAgentKey = getAgentKeyUtil;
 
   // --- Sub-hooks ---
-  const { assistants, customAgents, customAgentAvatarMap, refreshCustomAgents } = useCustomAgentsLoader({
-    availableCustomAgentIds,
-  });
+  const { assistants, catalogAssistants, customAgentAvatarMap } = useCustomAgentsLoader();
   const oplAssistants = useMemo(() => withOplFoundryAssistantDefaults(assistants), [assistants]);
+  const managedAgentRuntimeCatalog = useManagedAgentRuntimeCatalog();
+  const businessAssistants = useMemo(() => {
+    const oplIds = new Set(oplAssistants.map((assistant) => assistant.id));
+    const nonOplAssistants = catalogAssistants.filter(
+      (assistant) => !oplIds.has(canonicalizeOplProfessionalAgentId(assistant.id))
+    );
+    return [...nonOplAssistants, ...oplAssistants];
+  }, [catalogAssistants, oplAssistants]);
+  const backendAssistantIdByCanonicalId = useMemo(
+    () =>
+      new Map(
+        catalogAssistants.map((assistant) => [canonicalizeOplProfessionalAgentId(assistant.id), assistant.id] as const)
+      ),
+    [catalogAssistants]
+  );
+  const availableAgents = useMemo<AvailableAgent[]>(() => {
+    const defaultBackend = getOplDefaultExecutorAgentKey();
+    const defaultAssistant = businessAssistants.find(
+      (assistant) =>
+        assistant.enabled !== false &&
+        assistant.source === 'generated' &&
+        assistantRuntimeKey(assistant) === defaultBackend
+    );
+    const entries: AvailableAgent[] = [];
+    if (defaultAssistant) {
+      const defaultEntry = assistantToAvailableAgent(
+        defaultAssistant,
+        false,
+        backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(defaultAssistant.id))
+      );
+      if (defaultEntry) entries.push(defaultEntry);
+    }
+    for (const assistant of businessAssistants) {
+      if (assistant === defaultAssistant || assistant.enabled === false) continue;
+      const entry = assistantToAvailableAgent(
+        assistant,
+        true,
+        backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(assistant.id))
+      );
+      if (entry) entries.push(entry);
+    }
+    return entries;
+  }, [backendAssistantIdByCanonicalId, businessAssistants]);
 
   const {
     resolvePresetRulesAndSkills,
@@ -202,7 +256,7 @@ export const useGuidAgentSelection = ({
     resolvePresetAgentType,
     resolveEnabledSkills,
     resolveDisabledBuiltinSkills,
-  } = usePresetAssistantResolver({ assistants: oplAssistants, localeKey });
+  } = usePresetAssistantResolver({ assistants: businessAssistants, localeKey });
 
   const { isMainAgentAvailable, getEffectiveAgentType } = useAgentAvailability({
     modelList,
@@ -225,18 +279,22 @@ export const useGuidAgentSelection = ({
   const findAgentByKey = (key: string): AvailableAgent | undefined => {
     if (key.startsWith('custom:')) {
       const assistantId = key.slice(7);
-      const assistant = oplAssistants.find((a) => a.id === assistantId);
+      const assistant = businessAssistants.find((a) => a.id === assistantId);
       if (assistant) {
+        const runtimeKey = assistantRuntimeKey(assistant) || getOplDefaultExecutorAgentKey();
         return {
-          agent_type: assistant.preset_agent_type || getOplDefaultExecutorAgentKey(),
-          backend: assistant.preset_agent_type || getOplDefaultExecutorAgentKey(),
+          agent_type: assistant.agent?.type || 'acp',
+          backend: runtimeKey,
           name: assistant.name,
           id: assistant.id,
           custom_agent_id: assistant.id,
+          assistant_id: assistant.id,
+          backend_assistant_id: backendAssistantIdByCanonicalId.get(canonicalizeOplProfessionalAgentId(assistant.id)),
+          managed_agent_id: assistant.agent_id,
           is_preset: true,
           context: '',
           avatar: assistant.avatar,
-          presetAgentType: assistant.preset_agent_type,
+          presetAgentType: runtimeKey,
         };
       }
       return undefined;
@@ -271,33 +329,12 @@ export const useGuidAgentSelection = ({
   })();
   const selectedAgentInfo = useMemo(() => {
     return findAgentByKey(selectedAgentKey);
-  }, [selectedAgentKey, availableAgents, oplAssistants]);
+  }, [selectedAgentKey, availableAgents, backendAssistantIdByCanonicalId, businessAssistants]);
   const is_presetAgent = Boolean(selectedAgentInfo?.is_preset);
-
-  // --- SWR: Fetch detected execution engines (shared cache) ---
-  const { data: availableAgentsData } = useSWR<AvailableAgent[]>(DETECTED_AGENTS_SWR_KEY, fetchDetectedAgents);
-
-  useEffect(() => {
-    if (!availableAgentsData) return;
-    // Normalise backend /api/agents rows into AvailableAgent shape.
-    // `id` is the canonical row identifier; `custom_agent_id` is a legacy
-    // alias still read by a few downstream consumers (send hook / mention
-    // tokens / preset resolver). Custom-row `icon` is a user-picked emoji,
-    // exposed as `avatar` so AgentPillBar renders the glyph directly
-    // instead of mistaking it for a logo URL.
-    const normalisedDetected: AvailableAgent[] = availableAgentsData
-      .filter(isSupportedNewConversationAgent)
-      .map((a) => {
-        const asAgent = a as AgentMetadata;
-        const isCustomRow = asAgent.agent_source === 'custom';
-        return Object.assign({}, a, {
-          id: asAgent.id,
-          custom_agent_id: isCustomRow ? asAgent.id : (a as AvailableAgent).custom_agent_id,
-          avatar: isCustomRow ? asAgent.icon : (a as AvailableAgent).avatar,
-        });
-      });
-    setAvailableAgents(normalisedDetected);
-  }, [availableAgentsData]);
+  const selectedBusinessAssistant = useMemo(() => {
+    const assistantId = selectedAgentInfo?.assistant_id || selectedAgentInfo?.custom_agent_id;
+    return assistantId ? businessAssistants.find((assistant) => assistant.id === assistantId) : undefined;
+  }, [businessAssistants, selectedAgentInfo?.assistant_id, selectedAgentInfo?.custom_agent_id]);
 
   // Track whether the resetAssistant flag has been consumed so it only fires once
   // per navigation. Use locationKey (changes on every navigate()) to reset the guard,
@@ -396,20 +433,34 @@ export const useGuidAgentSelection = ({
     }
     return getEffectiveAgentType(selectedAgentInfo);
   }, [is_presetAgent, selectedAgent, selectedAgentInfo, getEffectiveAgentType, isMainAgentAvailable]);
+  const runtimeBackend = is_presetAgent ? currentEffectiveAgentInfo.agent_type : selectedAgent;
+  const selectedManagedRuntimeAgent = useMemo(
+    () =>
+      findManagedRuntimeAgent(managedAgentRuntimeCatalog, {
+        agentId: selectedBusinessAssistant?.agent_id || selectedAgentInfo?.managed_agent_id,
+        backend: runtimeBackend,
+      }),
+    [
+      managedAgentRuntimeCatalog,
+      runtimeBackend,
+      selectedAgentInfo?.managed_agent_id,
+      selectedBusinessAssistant?.agent_id,
+    ]
+  );
+  const selectedRuntimeModelInfo = useMemo(
+    () => buildAgentRuntimeModelInfo(selectedManagedRuntimeAgent),
+    [selectedManagedRuntimeAgent]
+  );
 
   // Reset selected ACP model when agent changes. Null means auto/latest for
   // Codex and handshake default for other ACP agents.
   useEffect(() => {
     // For preset agents, resolve to the actual backend type for config lookup
-    const backend = is_presetAgent ? currentEffectiveAgentInfo.agent_type : selectedAgent;
-
-    const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
-    const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    const backend = runtimeBackend;
     const config = configService.get('acp.config');
     const preferred = (config?.[backend as string] as Record<string, unknown>)?.preferredModelId as string | undefined;
     if (backend === 'codex') {
-      const codexModelInfo = buildCodexDefaultModelInfo(handshakeModels);
+      const codexModelInfo = buildCodexDefaultModelInfo(selectedRuntimeModelInfo);
       if (preferred && codexModelInfo.available_models.some((model) => model.id === preferred)) {
         _setSelectedAcpModel(preferred);
         return;
@@ -424,8 +475,8 @@ export const useGuidAgentSelection = ({
       return;
     }
 
-    _setSelectedAcpModel(handshakeModels?.current_model_id ?? null);
-  }, [selectedAgentKey, availableAgentsData, is_presetAgent, currentEffectiveAgentInfo.agent_type]);
+    _setSelectedAcpModel(selectedRuntimeModelInfo?.current_model_id ?? null);
+  }, [runtimeBackend, selectedAgentKey, selectedRuntimeModelInfo]);
 
   // Read preferred mode or fallback to legacy yoloMode config
   useEffect(() => {
@@ -434,7 +485,7 @@ export const useGuidAgentSelection = ({
     selectedAgentRef.current = configKey;
     // Reset to the backend's actual default (from handshake.available_modes),
     // not the literal 'default' — codex/opencode/cursor don't have that value.
-    const fallbackMode = resolveDefaultMode(configKey, availableAgentsData as unknown as AgentMetadata[] | undefined);
+    const fallbackMode = resolveDefaultMode(configKey, selectedManagedRuntimeAgent);
     _setSelectedMode(fallbackMode);
     if (!configKey) return;
 
@@ -490,33 +541,20 @@ export const useGuidAgentSelection = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedAgent, is_presetAgent, currentEffectiveAgentInfo.agent_type, availableAgentsData]);
+  }, [selectedAgent, is_presetAgent, currentEffectiveAgentInfo.agent_type, selectedManagedRuntimeAgent]);
 
   const currentAcpCachedModelInfo = useMemo(() => {
     // For preset agents, resolve to the actual backend type for model list lookup
-    const backend = is_presetAgent ? currentEffectiveAgentInfo.agent_type : selectedAgent;
-
-    // Source: `handshake.available_models` from `/api/agents`.
-    // The backend persists the last-seen `ModelInfoPayload` (snake_case) on
-    // the agent_metadata row, so this is populated across restarts without
-    // requiring a fresh session.
-    const metadataAgents = availableAgentsData as unknown as AgentMetadata[] | undefined;
-    const matched = metadataAgents?.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
-    if (backend === 'codex') {
-      return buildCodexDefaultModelInfo(handshakeModels);
+    if (runtimeBackend === 'codex') {
+      return buildCodexDefaultModelInfo(selectedRuntimeModelInfo);
     }
 
-    if (
-      handshakeModels &&
-      Array.isArray(handshakeModels.available_models) &&
-      handshakeModels.available_models.length > 0
-    ) {
-      return handshakeModels;
+    if (selectedRuntimeModelInfo?.available_models.length) {
+      return selectedRuntimeModelInfo;
     }
 
     return null;
-  }, [selectedAgentKey, is_presetAgent, currentEffectiveAgentInfo.agent_type, availableAgentsData]);
+  }, [runtimeBackend, selectedRuntimeModelInfo]);
 
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
@@ -532,7 +570,6 @@ export const useGuidAgentSelection = ({
     is_presetAgent,
     availableAgents,
     assistants: oplAssistants,
-    customAgents,
     selectedMode,
     setSelectedMode,
     selectedAcpModel,
@@ -550,7 +587,6 @@ export const useGuidAgentSelection = ({
     resolveDisabledBuiltinSkills,
     isMainAgentAvailable,
     getEffectiveAgentType,
-    refreshCustomAgents,
     customAgentAvatarMap,
   };
 };

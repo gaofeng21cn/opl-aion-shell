@@ -3,7 +3,7 @@
  * Contains name/avatar fields, agent selector, rules editor, and skills section.
  */
 import type { AssistantListItem, BuiltinAutoSkill, SkillInfo } from './types';
-import type { AvailableBackend } from '@/renderer/hooks/assistant';
+import type { ManagedAgentBackendOption } from '@/renderer/hooks/agent/useManagedAgents';
 import EmojiPicker from '@/renderer/components/chat/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
@@ -56,7 +56,7 @@ type AssistantEditDrawerProps = {
   isExtensionAssistant: (assistant: AssistantListItem | null | undefined) => boolean;
 
   // Agent backend options
-  availableBackends: AvailableBackend[];
+  availableBackends: ManagedAgentBackendOption[];
 
   // Handlers
   handleSave: () => void;
@@ -138,6 +138,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   const showSkills = isCreating || (activeAssistant !== null && activeAssistant.source !== 'extension');
 
   const agentOptions = availableBackends;
+  const selectedAgentOption = agentOptions.find((option) => option.id === editAgent);
 
   const customSkillItems = availableSkills.filter((skill) => skill.source === 'custom');
   const builtinSkillItems = availableSkills.filter((skill) => skill.source === 'builtin');
@@ -178,9 +179,9 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
     : isRuleEditable && promptViewMode === 'edit'
       ? '260px'
       : '220px';
-  const renderAgentOption = (option: AvailableBackend) => {
+  const renderAgentOption = (option: ManagedAgentBackendOption) => {
     const logo = resolveAgentLogo({
-      backend: option.id,
+      backend: option.runtimeKey,
       isExtension: option.isExtension,
     });
     return (
@@ -395,7 +396,7 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
               {t('settings.assistantMainAgent', { defaultValue: 'Main Agent' })}:
             </span>
             <Tag size='small' color='arcoblue'>
-              {editAgent}
+              {selectedAgentOption?.name || selectedAgentOption?.runtimeKey || editAgent}
             </Tag>
             <span className='text-12px text-t-secondary ml-6px'>
               {t('settings.assistantSkills', { defaultValue: 'Skills' })}:

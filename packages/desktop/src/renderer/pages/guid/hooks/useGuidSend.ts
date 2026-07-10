@@ -16,6 +16,7 @@ import {
   getOplProfessionalAgentPackage,
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
+import { resolveLocaleKey } from '@/common/utils';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { toSessionMcpServer } from '@/renderer/hooks/mcp/catalog';
 import { emitter } from '@/renderer/utils/emitter';
@@ -352,6 +353,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           type: 'aionrs',
           name: input,
           model: current_model,
+          assistant: selectedAgentInfo?.backend_assistant_id
+            ? { id: selectedAgentInfo.backend_assistant_id, locale: resolveLocaleKey(language) }
+            : undefined,
           extra: {
             default_files: files,
             workspace: finalWorkspace,
@@ -426,6 +430,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         agent_id: acpAgentInfo?.id,
         agent_name: acpAgentInfo?.name,
         preset_assistant_id,
+        backend_assistant_id: acpAgentInfo?.backend_assistant_id,
         workspace: finalWorkspace,
         model: current_model!,
         cli_path: acpAgentInfo?.cli_path,

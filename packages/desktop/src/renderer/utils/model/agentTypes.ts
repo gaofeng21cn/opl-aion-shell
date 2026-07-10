@@ -5,15 +5,33 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { TFunction } from 'i18next';
 
-/** SWR key for agent metadata rows (from `/api/agents`). */
-export const DETECTED_AGENTS_SWR_KEY = 'agents.detected';
+/** SWR key for the Agent settings management catalog. */
+export const MANAGED_AGENTS_SWR_KEY = 'agents.managed';
 
 /** Type of an agent. */
 export type AgentType = 'acp' | 'remote' | 'aionrs' | 'openclaw-gateway' | 'nanobot';
 
 /** Source tier of an agent row, mirroring backend `agent_source` enum. */
 export type AgentSource = 'internal' | 'builtin' | 'extension' | 'custom';
+
+export type AgentManagementStatus = 'online' | 'offline' | 'missing' | 'unchecked';
+export type AgentSnapshotCheckStatus = 'online' | 'offline';
+export type AgentSnapshotCheckKind = 'startup' | 'scheduled' | 'manual' | 'session';
+export type AgentManagementErrorDetails = {
+  code?: string;
+  command?: string;
+  resource?: string;
+  agent_name?: string;
+  backend?: string;
+};
+
+export type AgentModeOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
 
 /** Source-specific bookkeeping (how to probe, how to upgrade). */
 export type AgentSourceInfo = {
@@ -58,7 +76,7 @@ export type AgentHandshake = {
 };
 
 /**
- * Unified agent metadata returned by `/api/agents`.
+ * Base agent metadata persisted by the backend registry.
  *
  * Replaces the old split of `DetectedAgent` / `AvailableAgent` — the
  * backend now stores the same shape in the `agent_metadata` table,
@@ -98,20 +116,81 @@ export type AgentMetadata = {
    *  when the backend has no yolo equivalent. */
   yolo_id?: string;
 
+  last_check_status?: AgentSnapshotCheckStatus;
+  last_check_kind?: AgentSnapshotCheckKind;
+  last_check_error_code?: string;
+  last_check_error_message?: string;
+  last_check_error_details?: AgentManagementErrorDetails;
+  last_check_guidance?: string;
+  last_check_latency_ms?: number;
+  last_check_at?: number;
+  last_success_at?: number;
+  last_failure_at?: number;
+
   handshake?: AgentHandshake;
 };
 
-/** Shared fetcher for DETECTED_AGENTS_SWR_KEY — single source of truth. */
-export async function fetchDetectedAgents(): Promise<AgentMetadata[]> {
-  try {
-    const agents = await ipcBridge.acpConversation.getAvailableAgents.invoke();
-    if (Array.isArray(agents)) {
-      return agents as AgentMetadata[];
-    }
-  } catch {
-    // fallback to empty
+/** Agent Settings diagnostics row returned by `/api/agents/management`. */
+export type ManagedAgent = Omit<AgentMetadata, 'available' | 'handshake'> & {
+  installed: boolean;
+  status: AgentManagementStatus;
+  config_options?: unknown;
+  available_modes?: unknown;
+  available_models?: unknown;
+  available_commands?: unknown;
+  handshake?: AgentHandshake;
+};
+
+export async function fetchManagedAgents(): Promise<ManagedAgent[]> {
+  const agents = await ipcBridge.acpConversation.getManagedAgents.invoke();
+  if (!Array.isArray(agents)) {
+    throw new TypeError('Managed agent catalog must be an array');
   }
-  return [];
+  return agents;
+}
+
+const getAgentManagementErrorDetails = (details: unknown): AgentManagementErrorDetails => {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return {};
+  }
+  return details as AgentManagementErrorDetails;
+};
+
+export function formatManagedAgentDiagnosticMessage(t: TFunction, agent: ManagedAgent): string {
+  const fallback = agent.last_check_error_message || agent.last_check_guidance || '';
+  const details = getAgentManagementErrorDetails(agent.last_check_error_details);
+  const command = details.command || agent.command || agent.backend || agent.name;
+  const resource = details.resource || agent.backend || agent.name;
+
+  switch (agent.last_check_error_code) {
+    case 'command_not_found':
+    case 'bridge_missing':
+    case 'primary_missing':
+    case 'command_missing':
+      return t(`settings.agentManagement.errorCodes.${agent.last_check_error_code}`, {
+        command,
+        defaultValue: fallback,
+      });
+    case 'acp_init_failed':
+    case 'auth_required':
+    case 'health_check_failed':
+    case 'session_send_failed':
+    case 'no_provider':
+    case 'disabled':
+    case 'no_command':
+      return t(`settings.agentManagement.errorCodes.${agent.last_check_error_code}`, {
+        name: agent.name,
+        backend: agent.backend || details.backend || agent.name,
+        defaultValue: fallback,
+      });
+    case 'managed_runtime_unavailable':
+      return t('settings.agentManagement.errorCodes.managed_runtime_unavailable', {
+        resource,
+        defaultValue: fallback,
+      });
+    default:
+      return fallback;
+  }
 }
 
 /**

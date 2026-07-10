@@ -19,6 +19,9 @@ vi.mock('@/common', () => ({
       update: { invoke: vi.fn() },
       list: { invoke: vi.fn(async () => []) },
     },
+    acpConversation: {
+      getManagedAgents: { invoke: vi.fn(async () => []) },
+    },
     fs: {
       writeAssistantRule: { invoke: vi.fn(async () => true) },
       readAssistantRule: { invoke: vi.fn(async () => '') },
@@ -56,6 +59,11 @@ import { BackendHttpError } from '@/common/adapter/httpBridge';
 describe('migrateAssistants', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (ipcBridge.acpConversation.getManagedAgents.invoke as any).mockResolvedValue([
+      { id: 'agent-aionrs', agent_type: 'aionrs', name: 'Aion CLI' },
+      { id: 'agent-claude', agent_type: 'acp', backend: 'claude', name: 'Claude' },
+      { id: 'agent-codex', agent_type: 'acp', backend: 'codex', name: 'Codex' },
+    ]);
   });
 
   describe('legacyAssistantToCreateRequest', () => {
@@ -67,10 +75,11 @@ describe('migrateAssistants', () => {
         presetAgentType: 'claude',
         avatar: '🤖',
       };
-      const result = legacyAssistantToCreateRequest(legacy);
+      const result = legacyAssistantToCreateRequest(legacy, new Map([['claude', 'agent-claude']]));
       expect(result.id).toBe('my-assistant');
       expect(result.name).toBe('MyAssistant');
-      expect(result.preset_agent_type).toBe('claude');
+      expect(result.agent_id).toBe('agent-claude');
+      expect(result).not.toHaveProperty('preset_agent_type');
     });
 
     it('renames colliding preset ids to avoid overwrite', () => {
@@ -108,19 +117,23 @@ describe('migrateAssistants', () => {
       // Treat a legacy 'gemini' value as "no explicit choice" so users who
       // never touched the picker get the current default, not a broken one.
       const result = legacyAssistantToCreateRequest({ id: 'x', presetAgentType: 'gemini' });
-      expect(result.preset_agent_type).toBe('aionrs');
+      expect(result.agent_id).toBeUndefined();
     });
 
     it('defaults to aionrs when presetAgentType missing', () => {
       const result = legacyAssistantToCreateRequest({ id: 'x' });
-      expect(result.preset_agent_type).toBe('aionrs');
+      expect(result.agent_id).toBeUndefined();
     });
 
-    it('preserves non-default preset_agent_type verbatim', () => {
+    it('resolves a non-default legacy backend to the management agent id', () => {
       // Users who actually picked a backend keep their choice across the
       // gemini → aionrs default migration.
-      const result = legacyAssistantToCreateRequest({ id: 'x', presetAgentType: 'codex' });
-      expect(result.preset_agent_type).toBe('codex');
+      const result = legacyAssistantToCreateRequest(
+        { id: 'x', presetAgentType: 'codex' },
+        new Map([['codex', 'agent-codex']])
+      );
+      expect(result.agent_id).toBe('agent-codex');
+      expect(result).not.toHaveProperty('preset_agent_type');
     });
   });
 
@@ -135,6 +148,10 @@ describe('migrateAssistants', () => {
       const store: Record<string, unknown> = { ...seed };
       return {
         get: (key: string) => Promise.resolve(store[key]),
+        set: (key: string, value: unknown) => {
+          store[key] = value;
+          return Promise.resolve();
+        },
         store,
       };
     }
@@ -192,18 +209,22 @@ describe('migrateAssistants', () => {
     });
   });
 
-  describe('migrateAssistantsToBackend builtin preset_agent_type override', () => {
+  describe('migrateAssistantsToBackend builtin agent_id override', () => {
     function makeConfig(seed: Record<string, unknown>) {
       const store: Record<string, unknown> = { ...seed };
       return {
         get: (key: string) => Promise.resolve(store[key]),
+        set: (key: string, value: unknown) => {
+          store[key] = value;
+          return Promise.resolve();
+        },
         store,
       };
     }
 
     /** Minimal Assistant shape for `assistants.list` mock; only the fields the
      *  migration inspects need to be real. */
-    function builtinListStub(rows: Array<{ id: string; preset_agent_type: string }>) {
+    function builtinListStub(rows: Array<{ id: string; agent_id: string }>) {
       return rows.map((r) => ({ ...r, source: 'builtin' }));
     }
 
@@ -215,7 +236,7 @@ describe('migrateAssistants', () => {
       });
 
       (ipcBridge.assistants.list.invoke as any).mockResolvedValue(
-        builtinListStub([{ id: 'word-creator', preset_agent_type: 'aionrs' }])
+        builtinListStub([{ id: 'word-creator', agent_id: 'agent-aionrs' }])
       );
       (ipcBridge.assistants.update.invoke as any).mockResolvedValue({});
 
@@ -225,7 +246,7 @@ describe('migrateAssistants', () => {
       expect(ipcBridge.assistants.update.invoke).toHaveBeenCalledTimes(1);
       expect(ipcBridge.assistants.update.invoke).toHaveBeenCalledWith({
         id: 'word-creator',
-        preset_agent_type: 'codex',
+        agent_id: 'agent-codex',
       });
     });
 
@@ -237,7 +258,7 @@ describe('migrateAssistants', () => {
       });
 
       (ipcBridge.assistants.list.invoke as any).mockResolvedValue(
-        builtinListStub([{ id: 'word-creator', preset_agent_type: 'aionrs' }])
+        builtinListStub([{ id: 'word-creator', agent_id: 'agent-aionrs' }])
       );
 
       const result = await migrateAssistantsToBackend(config as any);
@@ -254,7 +275,7 @@ describe('migrateAssistants', () => {
       });
 
       (ipcBridge.assistants.list.invoke as any).mockResolvedValue(
-        builtinListStub([{ id: 'word-creator', preset_agent_type: 'aionrs' }])
+        builtinListStub([{ id: 'word-creator', agent_id: 'agent-aionrs' }])
       );
 
       const result = await migrateAssistantsToBackend(config as any);
@@ -271,7 +292,7 @@ describe('migrateAssistants', () => {
       });
 
       (ipcBridge.assistants.list.invoke as any).mockResolvedValue(
-        builtinListStub([{ id: 'word-creator', preset_agent_type: 'aionrs' }]) // no pdf-to-ppt
+        builtinListStub([{ id: 'word-creator', agent_id: 'agent-aionrs' }]) // no pdf-to-ppt
       );
 
       const result = await migrateAssistantsToBackend(config as any);
@@ -279,6 +300,30 @@ describe('migrateAssistants', () => {
       expect(result).toBe(true);
       expect(ipcBridge.assistants.update.invoke).not.toHaveBeenCalled();
     });
+  });
+
+  it('repairs agent ids after the v1 migration without re-importing deleted assistants', async () => {
+    const store: Record<string, unknown> = {
+      'migration.assistantsMigrated_v1': true,
+      assistants: [{ id: 'custom-codex', name: 'Custom Codex', presetAgentType: 'codex' }],
+    };
+    const config = {
+      get: (key: string) => Promise.resolve(store[key]),
+      set: (key: string, value: unknown) => {
+        store[key] = value;
+        return Promise.resolve();
+      },
+    };
+    (ipcBridge.assistants.update.invoke as any).mockResolvedValue({});
+
+    await expect(migrateAssistantsToBackend(config as any)).resolves.toBe(true);
+
+    expect(ipcBridge.assistants.import.invoke).not.toHaveBeenCalled();
+    expect(ipcBridge.assistants.update.invoke).toHaveBeenCalledWith({
+      id: 'custom-codex',
+      agent_id: 'agent-codex',
+    });
+    expect(store['migration.assistantAgentIdsMigrated_v2']).toBe(true);
   });
 
   // migrateAssistantsToBackend Phase 1 (import) integration still relies on
@@ -289,6 +334,10 @@ describe('migrateAssistants', () => {
       const store: Record<string, unknown> = { ...seed };
       return {
         get: (key: string) => Promise.resolve(store[key]),
+        set: (key: string, value: unknown) => {
+          store[key] = value;
+          return Promise.resolve();
+        },
         store,
       };
     }
@@ -419,7 +468,9 @@ describe('migrateAssistants', () => {
       const result = await migrateAssistantsToBackend(config as any);
 
       expect(result).toBe(true);
+      expect(config.store.get('migration.assistantImportCompleted_v1')).toBe(true);
       expect(config.store.get('migration.assistantsMigrated_v1')).toBe(true);
+      expect(config.store.get('migration.assistantAgentIdsMigrated_v2')).toBe(true);
       // Legacy field preserved for downgrade safety.
       expect(config.store.has('assistants')).toBe(true);
     });
@@ -428,6 +479,7 @@ describe('migrateAssistants', () => {
       const config = makeConfigWithSet({
         assistants: [{ id: 'custom-1', name: 'Custom 1' }],
         'migration.assistantsMigrated_v1': true,
+        'migration.assistantAgentIdsMigrated_v2': true,
       });
 
       const result = await migrateAssistantsToBackend(config as any);
@@ -463,6 +515,38 @@ describe('migrateAssistants', () => {
       expect(ipcBridge.assistants.import.invoke).not.toHaveBeenCalled();
     });
 
+    it('does not re-import after import succeeds but a later migration phase fails', async () => {
+      const config = makeConfigWithSet({
+        assistants: [
+          { id: 'custom-1', name: 'Custom 1' },
+          { id: 'builtin-morph-ppt-3d', enabled: false, isBuiltin: true },
+        ],
+      });
+      (ipcBridge.assistants.import.invoke as any).mockResolvedValue({ imported: 1, skipped: 0, failed: 0, errors: [] });
+      (ipcBridge.assistants.setState.invoke as any).mockRejectedValueOnce(
+        new BackendHttpError({
+          method: 'PATCH',
+          path: '/api/assistants/morph-ppt-3d/state',
+          status: 500,
+          body: { error: 'later phase failed' },
+        })
+      );
+
+      await expect(migrateAssistantsToBackend(config as any)).resolves.toBe(false);
+      expect(config.store.get('migration.assistantImportCompleted_v1')).toBe(true);
+      expect(config.store.has('migration.assistantsMigrated_v1')).toBe(false);
+
+      vi.clearAllMocks();
+      (ipcBridge.acpConversation.getManagedAgents.invoke as any).mockResolvedValue([
+        { id: 'agent-aionrs', agent_type: 'aionrs', name: 'Aion CLI' },
+      ]);
+      (ipcBridge.assistants.list.invoke as any).mockResolvedValue([]);
+      (ipcBridge.assistants.setState.invoke as any).mockResolvedValue({});
+
+      await expect(migrateAssistantsToBackend(config as any)).resolves.toBe(true);
+      expect(ipcBridge.assistants.import.invoke).not.toHaveBeenCalled();
+    });
+
     it('sets flag on the empty/no-op path so we never re-read legacy data', async () => {
       const config = makeConfigWithSet({});
 
@@ -470,6 +554,17 @@ describe('migrateAssistants', () => {
 
       expect(result).toBe(true);
       expect(config.store.get('migration.assistantsMigrated_v1')).toBe(true);
+    });
+
+    it('fails closed when completion flags cannot be persisted', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const config = {
+        get: () => Promise.resolve(undefined),
+      };
+
+      await expect(migrateAssistantsToBackend(config as any)).resolves.toBe(false);
+      expect(warn).toHaveBeenCalledWith('[AionUi] cannot persist assistants migration flag: config setter unavailable');
+      warn.mockRestore();
     });
 
     it('does not set flag on a partial failure so retry can finish the job', async () => {

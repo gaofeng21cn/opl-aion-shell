@@ -21,6 +21,11 @@ vi.mock('@/common', () => ({
     fs: {
       readAssistantRule: { invoke: vi.fn() },
       readAssistantSkill: { invoke: vi.fn() },
+      listAvailableSkills: { invoke: vi.fn(async () => []) },
+      listBuiltinAutoSkills: { invoke: vi.fn(async () => []) },
+      importSkillWithSymlink: { invoke: vi.fn() },
+      writeAssistantRule: { invoke: vi.fn() },
+      writeAssistantSkill: { invoke: vi.fn() },
     },
   },
 }));
@@ -52,6 +57,10 @@ describe('useAssistantEditor', () => {
     setActiveAssistantId: vi.fn(),
     loadAssistants: vi.fn(),
     refreshAgentDetection: vi.fn(),
+    availableBackends: [
+      { id: 'managed-claude', runtimeKey: 'claude', name: 'Claude' },
+      { id: 'managed-codex', runtimeKey: 'codex', name: 'Codex' },
+    ],
     message: mockMessage,
   };
 
@@ -74,6 +83,7 @@ describe('useAssistantEditor', () => {
       description: 'Test desc',
       avatar: '🤖',
       preset_agent_type: 'claude',
+      agent_id: 'managed-claude',
       sort_order: 1,
       source: 'user',
       enabled: true,
@@ -93,7 +103,7 @@ describe('useAssistantEditor', () => {
     expect(result.current.editName).toBe('TestAssistant');
     expect(result.current.editDescription).toBe('Test desc');
     expect(result.current.editAvatar).toBe('🤖');
-    expect(result.current.editAgent).toBe('claude');
+    expect(result.current.editAgent).toBe('managed-claude');
     expect(result.current.isCreating).toBe(false);
   });
 
@@ -127,6 +137,7 @@ describe('useAssistantEditor', () => {
     act(() => {
       result.current.handleCreate();
       result.current.setEditName('NewAssistant');
+      result.current.setEditAgent('managed-codex');
     });
 
     await act(async () => {
@@ -137,6 +148,12 @@ describe('useAssistantEditor', () => {
     expect(mockMessage.success).toHaveBeenCalled();
     expect(loadAssistantsMock).toHaveBeenCalled();
     expect(setActiveAssistantIdMock).toHaveBeenCalledWith('new-id');
+    expect(ipcBridge.assistants.create.invoke).toHaveBeenCalledWith(
+      expect.objectContaining({ agent_id: 'managed-codex' })
+    );
+    expect(ipcBridge.assistants.create.invoke).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preset_agent_type: expect.anything() })
+    );
     expect(result.current.editVisible).toBe(false);
   });
 
@@ -147,6 +164,7 @@ describe('useAssistantEditor', () => {
       sort_order: 1,
       source: 'user',
       enabled: true,
+      agent_id: 'managed-claude',
     };
 
     (ipcBridge.fs.readAssistantRule.invoke as any).mockResolvedValue('');
@@ -169,6 +187,7 @@ describe('useAssistantEditor', () => {
 
     act(() => {
       result.current.setEditName('UpdatedName');
+      result.current.setEditAgent('managed-codex');
     });
 
     await act(async () => {
@@ -178,6 +197,12 @@ describe('useAssistantEditor', () => {
     await waitFor(() => expect(ipcBridge.assistants.update.invoke).toHaveBeenCalled());
     expect(mockMessage.success).toHaveBeenCalled();
     expect(loadAssistantsMock).toHaveBeenCalled();
+    expect(ipcBridge.assistants.update.invoke).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a1', agent_id: 'managed-codex' })
+    );
+    expect(ipcBridge.assistants.update.invoke).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preset_agent_type: expect.anything() })
+    );
   });
 
   it('logs error when save fails', async () => {

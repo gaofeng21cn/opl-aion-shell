@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
 import { buildCliAgentParams } from '@/renderer/pages/conversation/utils/createConversationParams';
 
-const { configGetMock, getAgentsMock } = vi.hoisted(() => ({
+const { configGetMock, getManagedAgentsMock } = vi.hoisted(() => ({
   configGetMock: vi.fn(),
-  getAgentsMock: vi.fn(),
+  getManagedAgentsMock: vi.fn(),
 }));
 
 vi.mock('@/common/config/configService', () => ({
@@ -13,8 +13,8 @@ vi.mock('@/common/config/configService', () => ({
   },
 }));
 
-vi.mock('@/renderer/hooks/agent/useAgents', () => ({
-  getAgents: getAgentsMock,
+vi.mock('@/renderer/hooks/agent/useManagedAgents', () => ({
+  getManagedAgents: getManagedAgentsMock,
 }));
 
 vi.mock('@/common', () => ({
@@ -41,7 +41,7 @@ describe('createConversationParams Codex model preference', () => {
       }
       return undefined;
     });
-    getAgentsMock.mockResolvedValue([
+    getManagedAgentsMock.mockResolvedValue([
       {
         ...codexAgent,
         handshake: {
@@ -75,5 +75,21 @@ describe('createConversationParams Codex model preference', () => {
     const params = await buildCliAgentParams(codexAgent, '/tmp/opl-workspace');
 
     expect(params.extra.current_model_id).toBe('gpt-5.5');
+  });
+
+  it('keeps assistant and management identities separate for generated candidates', async () => {
+    const params = await buildCliAgentParams(
+      {
+        ...codexAgent,
+        id: 'assistant-codex',
+        assistant_id: 'assistant-codex',
+        managed_agent_id: 'runtime-codex',
+      } as AgentMetadata,
+      '/tmp/opl-workspace',
+      'en-US'
+    );
+
+    expect(params.assistant).toEqual({ id: 'assistant-codex', locale: 'en-US' });
+    expect(params.extra.agent_id).toBe('runtime-codex');
   });
 });

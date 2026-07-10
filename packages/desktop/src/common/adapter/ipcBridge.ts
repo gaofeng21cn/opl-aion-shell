@@ -71,7 +71,12 @@ import type {
 import type { Theme } from '@/common/theme/types';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
 import { TEAM_MODE_ENABLED } from '../config/constants';
-import { fromApiConversation, fromApiPaginatedConversations, toApiModelOptional } from './apiModelMapper';
+import {
+  buildCreateConversationBody,
+  fromApiConversation,
+  fromApiPaginatedConversations,
+  toApiModelOptional,
+} from './apiModelMapper';
 import {
   httpDelete,
   httpGet,
@@ -89,6 +94,9 @@ import type { IAddTeamAgentParams, ICreateTeamParams } from './teamMapper';
 import {
   fromBackendAgent,
   fromBackendTeam,
+  fromBackendTeamAgentRenamedEvent,
+  fromBackendTeamAgentSpawnedEvent,
+  fromBackendTeamAgentStatusEvent,
   fromBackendTeamList,
   fromBackendTeamOptional,
   toBackendAgent,
@@ -158,22 +166,7 @@ export const assistants = {
 
 export const conversation = {
   create: withResponseMap(
-    httpPost<TChatConversation, ICreateConversationParams>('/api/conversations', (p) => {
-      // Top-level `model` is aionrs-only on the backend (spec 2026-05-12).
-      // Other agent types carry model info via `extra`.
-      const isAionrs = p.type === 'aionrs';
-      const body: Record<string, unknown> = {
-        type: p.type,
-        id: p.id,
-        name: p.name,
-        extra: p.extra,
-      };
-      if (isAionrs) {
-        const model = toApiModelOptional(p.model);
-        if (model) body.model = model;
-      }
-      return body;
-    }),
+    httpPost<TChatConversation, ICreateConversationParams>('/api/conversations', buildCreateConversationBody),
     fromApiConversation
   ),
   createWithConversation: withResponseMap(
@@ -1119,8 +1112,7 @@ export const mode = {
 export const acpConversation = {
   sendMessage: conversation.sendMessage,
   responseStream: conversation.responseStream,
-  getAvailableAgents: httpGet<AgentMetadata[], void>('/api/agents'),
-  refreshCustomAgents: httpPost<void, void>('/api/agents/refresh'),
+  getManagedAgents: httpGet<ManagedAgent[], void>('/api/agents/management'),
   testCustomAgent: httpPost<
     { step: 'success' } | { step: 'fail_cli'; error: string } | { step: 'fail_acp'; error: string },
     { command: string; acp_args?: string[]; env?: Record<string, string>; runtime_scope_id?: string }
@@ -1166,11 +1158,12 @@ export const acpConversation = {
   ),
   deleteCustomAgent: httpDelete<{ deleted: boolean }, { id: string }>((p) => `/api/agents/custom/${p.id}`),
   setAgentEnabled: httpPatch<AgentMetadata, { id: string; enabled: boolean }>(
-    (p) => `/api/agents/${p.id}/enabled`,
+    (p) => `/api/agents/${encodeURIComponent(p.id)}/enabled`,
     (p) => ({ enabled: p.enabled })
   ),
-  checkAgentHealth: httpPost<{ available: boolean; latency?: number; error?: string }, { backend: string }>(
-    '/api/agents/health-check'
+  checkManagedAgentHealthById: httpPost<ManagedAgent, { id: string }>(
+    (p) => `/api/agents/${encodeURIComponent(p.id)}/health-check`,
+    () => undefined
   ),
   checkProviderHealth: httpPost<ProviderHealthCheckResponse, ProviderHealthCheckRequest>(
     '/api/agents/provider-health-check'
@@ -1249,7 +1242,7 @@ export const mcpService = {
         }
       >;
     }>,
-    Array<{ agent_type: string; backend?: string; name: string; cli_path?: string }>
+    void
   >('/api/mcp/agent-configs'),
   testMcpConnection: httpPost<
     {
@@ -1611,26 +1604,69 @@ export const webui = {
 // Cron — routed to /api/cron/*
 // ---------------------------------------------------------------------------
 
+type ApiCronSchedule =
+  | { kind: 'at'; at_ms: number; description?: string }
+  | { kind: 'every'; every_ms: number; description?: string }
+  | { kind: 'cron'; expr: string; tz?: string; description?: string };
+
+export function toCronWriteSchedule(schedule: ICronSchedule | undefined): ApiCronSchedule | undefined {
+  if (!schedule) return undefined;
+  if (schedule.kind === 'at') {
+    return { kind: 'at', at_ms: schedule.atMs, description: schedule.description };
+  }
+  if (schedule.kind === 'every') {
+    return { kind: 'every', every_ms: schedule.everyMs, description: schedule.description };
+  }
+  return schedule;
+}
+
+function toCronWriteAgentConfig(config: ICronAgentConfigWrite | undefined): Record<string, unknown> | undefined {
+  if (!config) return undefined;
+  return {
+    name: config.name,
+    cli_path: config.cli_path,
+    assistant_id: config.assistant_id,
+    mode: config.mode,
+    model_id: config.model_id,
+    model: config.model,
+    config_options: config.config_options,
+    workspace: config.workspace,
+  };
+}
+
+export function toCronWritePayload(input: ICreateCronJobParams | ICronJobUpdateParams): Record<string, unknown> {
+  const isCreate = 'conversation_id' in input;
+  const updateInput = isCreate ? undefined : input;
+  const target = updateInput?.target;
+  const metadata = updateInput?.metadata;
+  const state = updateInput?.state;
+  const create = isCreate ? input : undefined;
+
+  return {
+    name: input.name,
+    description: input.description,
+    enabled: updateInput?.enabled,
+    schedule: toCronWriteSchedule(input.schedule),
+    message: create ? (create.message ?? create.prompt) : target?.payload?.text,
+    conversation_id: create?.conversation_id,
+    conversation_title: create?.conversation_title ?? metadata?.conversation_title,
+    created_by: create?.created_by,
+    execution_mode: create?.execution_mode ?? target?.execution_mode,
+    agent_config: toCronWriteAgentConfig(create?.agent_config ?? metadata?.agent_config),
+    max_retries: state?.max_retries,
+  };
+}
+
 export const cron = {
   listJobs: httpGet<ICronJob[], void>('/api/cron/jobs'),
   listJobsByConversation: httpGet<ICronJob[], { conversation_id: string }>(
     (p) => `/api/cron/jobs?conversation_id=${encodeURIComponent(p.conversation_id)}`
   ),
   getJob: httpGet<ICronJob | null, { job_id: string }>((p) => `/api/cron/jobs/${p.job_id}`),
-  addJob: httpPost<ICronJob, ICreateCronJobParams>('/api/cron/jobs'),
-  updateJob: httpPut<ICronJob, { job_id: string; updates: Partial<ICronJob> }>(
+  addJob: httpPost<ICronJob, ICreateCronJobParams>('/api/cron/jobs', toCronWritePayload),
+  updateJob: httpPut<ICronJob, { job_id: string; updates: ICronJobUpdateParams }>(
     (p) => `/api/cron/jobs/${p.job_id}`,
-    (p) => ({
-      name: p.updates.name,
-      description: p.updates.description,
-      enabled: p.updates.enabled,
-      schedule: p.updates.schedule,
-      message: p.updates.target?.payload.text,
-      execution_mode: p.updates.target?.execution_mode,
-      agent_config: p.updates.metadata?.agent_config,
-      conversation_title: p.updates.metadata?.conversation_title,
-      max_retries: p.updates.state?.max_retries,
-    })
+    (p) => toCronWritePayload(p.updates)
   ),
   removeJob: httpDelete<void, { job_id: string }>((p) => `/api/cron/jobs/${p.job_id}`),
   runNow: httpPost<{ conversation_id: string }, { job_id: string }>((p) => `/api/cron/jobs/${p.job_id}/run`),
@@ -1690,18 +1726,33 @@ export interface ICronJob {
   };
 }
 
-export interface ICronAgentConfig {
-  backend: string;
+export interface ICronAgentConfigRead {
+  backend?: string;
   name: string;
   cli_path?: string;
   is_preset?: boolean;
+  assistant_id?: string;
   custom_agent_id?: string;
   preset_agent_type?: string;
   mode?: string;
   model_id?: string;
+  model?: { provider_id: string; model: string; use_model?: string };
   config_options?: Record<string, string>;
   workspace?: string;
 }
+
+export interface ICronAgentConfigWrite {
+  name: string;
+  cli_path?: string;
+  assistant_id?: string;
+  mode?: string;
+  model_id?: string;
+  model?: { provider_id: string; model: string; use_model?: string };
+  config_options?: Record<string, string>;
+  workspace?: string;
+}
+
+export type ICronAgentConfig = ICronAgentConfigRead;
 
 export interface ICreateCronJobParams {
   name: string;
@@ -1711,10 +1762,27 @@ export interface ICreateCronJobParams {
   message?: string;
   conversation_id: string;
   conversation_title?: string;
-  agent_type: string;
   created_by: 'user' | 'agent';
   execution_mode?: 'existing' | 'new_conversation';
-  agent_config?: ICronAgentConfig;
+  agent_config?: ICronAgentConfigWrite;
+}
+
+export interface ICronJobUpdateParams {
+  name?: string;
+  description?: string;
+  enabled?: boolean;
+  schedule?: ICronSchedule;
+  target?: {
+    payload?: { kind: 'message'; text: string };
+    execution_mode?: 'existing' | 'new_conversation';
+  };
+  metadata?: {
+    conversation_title?: string;
+    agent_config?: ICronAgentConfigWrite;
+  };
+  state?: {
+    max_retries?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1746,10 +1814,22 @@ export interface IConfirmMessageParams {
 }
 
 export interface ICreateConversationParams {
-  type: 'acp' | 'aionrs';
+  type?: 'acp' | 'aionrs';
   id?: string;
   name?: string;
-  model: TProviderWithModel;
+  model?: TProviderWithModel;
+  assistant?: {
+    id: string;
+    locale?: string;
+    conversation_overrides?: {
+      model?: string;
+      permission?: string;
+      thought_level?: string;
+      skill_ids?: string[];
+      disabled_builtin_skill_ids?: string[];
+      mcp_ids?: string[];
+    };
+  };
   extra: {
     workspace?: string;
     custom_workspace?: boolean;
@@ -2056,7 +2136,9 @@ export const extensions = {
 // ---------------------------------------------------------------------------
 
 import type {
+  IChannelAssistantBindingWrite,
   IChannelPairingRequest,
+  IChannelPlatformSettings,
   IChannelPluginStatus,
   IChannelSession,
   IChannelUser,
@@ -2140,6 +2222,13 @@ export const channel = {
   getActiveSessions: withResponseMap(httpGet<RawSession[], void>('/api/channel/sessions'), (raw) =>
     raw.map(toChannelSession)
   ),
+  getPlatformSettings: httpGet<IChannelPlatformSettings, { platform: string }>(
+    (p) => `/api/channel/settings/${encodeURIComponent(p.platform)}`
+  ),
+  setAssistantSetting: httpPut<void, { platform: string; assistant: IChannelAssistantBindingWrite }>(
+    (p) => `/api/channel/settings/${encodeURIComponent(p.platform)}/assistant`,
+    (p) => p.assistant
+  ),
   syncChannelSettings: httpPost<void, { platform: string }>('/api/channel/settings/sync'),
   pairingRequested: wsMappedEmitter<IChannelPairingRequest>('channel.pairing-requested', (raw) =>
     toPairing(raw as RawPairing)
@@ -2162,7 +2251,7 @@ export const channel = {
 // ---------------------------------------------------------------------------
 
 import type { HubExtensionStatus, IHubAgentItem } from '@/common/types/agent/hub';
-import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
+import type { AgentMetadata, ManagedAgent } from '@/renderer/utils/model/agentTypes';
 
 export const hub = {
   getExtensionList: httpGet<IHubAgentItem[], void>('/api/hub/extensions'),
@@ -2232,11 +2321,14 @@ export const team = {
       (p) => ({ session_mode: p.session_mode })
     )
   ),
-  agentStatusChanged: wsEmitter<ITeamAgentStatusEvent>('team.agent.status'),
-  agentSpawned: wsEmitter<ITeamAgentSpawnedEvent>('team.agent.spawned'),
-  agentRemoved: wsEmitter<ITeamAgentRemovedEvent>('team.agent.removed'),
-  agentRenamed: wsEmitter<ITeamAgentRenamedEvent>('team.agent.renamed'),
-  listChanged: wsEmitter<ITeamListChangedEvent>('team.list-changed'),
+  agentStatusChanged: wsMappedEmitter<ITeamAgentStatusEvent>(
+    'team.agentStatusChanged',
+    fromBackendTeamAgentStatusEvent
+  ),
+  agentSpawned: wsMappedEmitter<ITeamAgentSpawnedEvent>('team.agentSpawned', fromBackendTeamAgentSpawnedEvent),
+  agentRemoved: wsEmitter<ITeamAgentRemovedEvent>('team.agentRemoved'),
+  agentRenamed: wsMappedEmitter<ITeamAgentRenamedEvent>('team.agentRenamed', fromBackendTeamAgentRenamedEvent),
+  listChanged: wsEmitter<ITeamListChangedEvent>('team.listChanged'),
   created: wsEmitter<ITeamCreatedEvent>('team.created'),
-  teammateMessage: wsEmitter<ITeamTeammateMessageEvent>('team.teammate.message'),
+  teammateMessage: wsEmitter<ITeamTeammateMessageEvent>('team.teammateMessage'),
 };

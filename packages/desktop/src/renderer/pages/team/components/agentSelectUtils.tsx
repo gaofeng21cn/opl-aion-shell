@@ -2,8 +2,8 @@ import React from 'react';
 import { Robot } from '@icon-park/react';
 import { getAgentLogo } from '@renderer/utils/model/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@renderer/pages/guid/constants';
-import type { AgentMetadata } from '@renderer/utils/model/agentTypes';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
+import type { ManagedAgent } from '@renderer/utils/model/agentTypes';
+import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
 import { resolveBackendAssetUrl } from '@renderer/utils/platform';
 import {
   isDeprecatedRuntimeAgentType,
@@ -17,6 +17,7 @@ import {
  */
 export type TeamAgentOption = {
   id: string;
+  assistant_id?: string;
   name: string;
   /** Execution backend (claude, gemini, qwen, …). For assistants this is
    *  `preset_agent_type`; for CLI agents it's `backend`. */
@@ -30,9 +31,11 @@ export type TeamAgentOption = {
   team_capable?: boolean;
 };
 
-export function cliAgentToOption(agent: AgentMetadata): TeamAgentOption {
+export function cliAgentToOption(agent: ManagedAgent): TeamAgentOption {
+  const assistantId = (agent as ManagedAgent & { assistant_id?: string }).assistant_id?.trim();
   return {
-    id: agent.id,
+    id: assistantId || agent.id,
+    assistant_id: assistantId || undefined,
     name: agent.name,
     backend: agent.backend || agent.agent_type,
     agent_type: agent.agent_type,
@@ -42,12 +45,14 @@ export function cliAgentToOption(agent: AgentMetadata): TeamAgentOption {
 }
 
 export function assistantToOption(assistant: Assistant, teamCapableKeys?: Set<string>): TeamAgentOption {
+  const backend = assistantRuntimeKey(assistant);
   return {
     id: assistant.id,
+    assistant_id: assistant.id,
     name: assistant.name,
-    backend: assistant.preset_agent_type,
+    backend,
     icon: assistant.avatar,
-    team_capable: teamCapableKeys ? teamCapableKeys.has(assistant.preset_agent_type) : undefined,
+    team_capable: assistant.team_selectable ?? (teamCapableKeys ? teamCapableKeys.has(backend) : undefined),
   };
 }
 

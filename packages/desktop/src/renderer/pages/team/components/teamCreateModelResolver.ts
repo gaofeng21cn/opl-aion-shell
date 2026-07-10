@@ -5,8 +5,8 @@
  */
 
 import { configService } from '@/common/config/configService';
-import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
-import { getAgents } from '@/renderer/hooks/agent/useAgents';
+import { getManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
+import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 
 /**
  * Resolve the `model` value a team agent should send to `POST /api/teams`.
@@ -43,11 +43,11 @@ export async function resolveDefaultTeamAgentModel(params: {
 }
 
 async function resolveAcpDefaultModel(agent_type: string): Promise<string> {
-  // 1. Try handshake data from /api/agents
+  // 1. Try persisted managed-agent runtime metadata.
   try {
-    const agents = await getAgents();
+    const agents = await getManagedAgents();
     const matched = agents.find((a) => (a.backend ?? a.agent_type) === agent_type);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    const handshakeModels = buildAgentRuntimeModelInfo(matched);
     if (handshakeModels?.current_model_id) {
       return handshakeModels.current_model_id;
     }

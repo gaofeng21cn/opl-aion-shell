@@ -65,8 +65,10 @@ export const getAgentKey = (agent: {
   agent_source?: AgentSource;
   backend?: string;
   id?: string;
+  custom_agent_id?: string;
   is_preset?: boolean;
 }): string => {
+  if (agent.is_preset && agent.custom_agent_id) return `custom:${agent.custom_agent_id}`;
   const rowScoped = agent.agent_type === 'remote' || agent.agent_source === 'custom';
   if (rowScoped && agent.id) return agent.id;
   return agent.backend || agent.agent_type;

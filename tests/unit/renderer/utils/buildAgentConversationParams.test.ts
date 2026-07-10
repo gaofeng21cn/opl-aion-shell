@@ -63,4 +63,29 @@ describe('buildAgentConversationParams agent type policy', () => {
       expect(params.extra.remote_agent_id).toBeUndefined();
     }
   });
+
+  it('sends top-level assistant identity only for a backend-known assistant', () => {
+    const backendAssistant = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Known assistant',
+      workspace: '/tmp/aionui-known-assistant',
+      model,
+      is_preset: true,
+      preset_agent_type: 'codex',
+      preset_assistant_id: 'opl-purpose-id',
+      backend_assistant_id: 'assistant-from-api',
+    });
+    const syntheticAssistant = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Synthetic assistant',
+      workspace: '/tmp/aionui-synthetic-assistant',
+      model,
+      is_preset: true,
+      preset_agent_type: 'codex',
+      preset_assistant_id: 'opl-purpose-id',
+    });
+
+    expect(backendAssistant.assistant).toEqual({ id: 'assistant-from-api', locale: 'zh-CN' });
+    expect(syntheticAssistant.assistant).toBeUndefined();
+  });
 });

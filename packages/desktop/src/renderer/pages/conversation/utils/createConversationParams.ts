@@ -8,7 +8,7 @@ import { configService } from '@/common/config/configService';
 import { ipcBridge } from '@/common';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
 import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/types/codex/codexModes';
 import { resolveLocaleKey } from '@/common/utils';
@@ -18,8 +18,8 @@ import {
   getConversationTypeForBackend,
 } from '@/common/utils/buildAgentConversationParams';
 import type { AgentMetadata } from '@/renderer/utils/model/agentTypes';
-import { getAgents } from '@/renderer/hooks/agent/useAgents';
-import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
+import { getManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
+import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { hasSpecificModelCapability } from '@/renderer/utils/model/modelCapabilities';
 
@@ -72,9 +72,9 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   const preferredModelId = backendConfig?.preferredModelId;
 
   if (backend === 'codex') {
-    const agents = await getAgents();
+    const agents = await getManagedAgents();
     const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
-    const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+    const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
     const modelInfo = buildCodexDefaultModelInfo(handshakeModels);
     const normalizedPreferredModelId = preferredModelId?.trim();
     if (
@@ -91,9 +91,9 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   }
 
   // Fallback: last-seen model info persisted on the backend's agent_metadata row.
-  const agents = await getAgents();
+  const agents = await getManagedAgents();
   const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
-  const handshakeModels = matched?.handshake?.available_models as AcpModelInfo | undefined;
+  const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
   const handshakeModelId = handshakeModels?.current_model_id;
   if (typeof handshakeModelId === 'string' && handshakeModelId.trim().length > 0) {
     return handshakeModelId;
@@ -174,7 +174,12 @@ export async function getDefaultAionrsModel(): Promise<TProviderWithModel> {
  * Build ICreateConversationParams for a CLI agent.
  * The backend will automatically fill in derived fields (gateway.cli_path, runtimeValidation, etc.).
  */
-export async function buildCliAgentParams(agent: AgentMetadata, workspace: string): Promise<ICreateConversationParams> {
+export async function buildCliAgentParams(
+  agent: AgentMetadata,
+  workspace: string,
+  language = 'zh-CN'
+): Promise<ICreateConversationParams> {
+  const conversationAgent = agent as AgentMetadata & { managed_agent_id?: string; assistant_id?: string };
   const agentKey = agent.backend || agent.agent_type;
   const type = getConversationTypeForBackend(agentKey);
   const preferredMode = await resolvePreferredMode(agentKey);
@@ -191,12 +196,14 @@ export async function buildCliAgentParams(agent: AgentMetadata, workspace: strin
   return buildAgentConversationParams({
     backend: agentKey,
     name: agent.name,
-    agent_id: agent.id,
+    agent_id: conversationAgent.managed_agent_id || agent.id,
+    backend_assistant_id: conversationAgent.assistant_id,
     agent_name: agent.name,
     workspace,
     model,
     session_mode: preferredMode,
     current_model_id: preferredAcpModelId,
+    language,
   });
 }
 
@@ -210,7 +217,7 @@ export async function buildPresetAssistantParams(
   workspace: string,
   language: string
 ): Promise<ICreateConversationParams> {
-  const preset_agent_type = assistant.preset_agent_type || 'claude';
+  const preset_agent_type = assistantRuntimeKey(assistant) || 'claude';
   const custom_agent_id = assistant.id;
 
   // [BUG-2] Map raw i18n.language to standard locale key
@@ -236,6 +243,7 @@ export async function buildPresetAssistantParams(
     agent_name: assistant.name,
     workspace,
     custom_agent_id,
+    backend_assistant_id: assistant.id,
     is_preset: true,
     preset_agent_type,
     preset_resources: {

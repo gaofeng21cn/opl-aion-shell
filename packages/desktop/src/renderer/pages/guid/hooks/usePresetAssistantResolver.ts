@@ -6,13 +6,13 @@
 
 import { ipcBridge } from '@/common';
 import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
-import type { Assistant } from '@/common/types/agent/assistantTypes';
+import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
 import { useCallback } from 'react';
 
 type UsePresetAssistantResolverOptions = {
   /**
    * Backend-merged preset catalog (`GET /api/assistants`). The resolver looks
-   * up `presetAgentType`, `enabledSkills`, and `disabledBuiltinSkills` on
+   * up runtime identity, enabled skills, and disabled builtin skills on
    * the chosen assistant record — all of which live on the `Assistant` type,
    * not on any ACP engine-config row.
    */
@@ -97,7 +97,7 @@ export const usePresetAssistantResolver = ({
       if (!agentInfo) return getOplDefaultExecutorAgentKey();
       if (!agentInfo.custom_agent_id) return agentInfo.backend || agentInfo.agent_type;
       const assistant = assistants.find((a) => a.id === agentInfo.custom_agent_id);
-      return assistant?.preset_agent_type || getOplDefaultExecutorAgentKey();
+      return assistantRuntimeKey(assistant) || getOplDefaultExecutorAgentKey();
     },
     [assistants]
   );
