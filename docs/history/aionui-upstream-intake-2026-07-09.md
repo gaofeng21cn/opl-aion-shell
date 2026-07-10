@@ -10,12 +10,12 @@ Machine boundary: Human-readable intake record. Use GitHub release refs, upstrea
 - Upstream remote: `https://github.com/iOfficeAI/AionUi.git`.
 - Intake range: `v2.1.27...v2.1.31`.
 - Canonical upstream release: `v2.1.31`, published `2026-07-08T13:08:39Z`, URL `https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.31`.
-- Fresh `2026-07-10` readback still reports `v2.1.31` as the latest stable release at `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`. Upstream `main` has since advanced by one unreleased send-draft commit; it is not part of this stable intake.
+- Fresh `2026-07-10` readback still reports `v2.1.31` as the latest stable release at `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`. Upstream `main` has since advanced by six unreleased commits; none are part of this stable intake.
 - Fresh upstream refs observed in this lane:
-  - `refs/heads/main` = `1619d36af20e3c8df2df595a86eb36a315f0887a`.
+  - `refs/heads/main` = `8f16ee708928c36424ada81b8fc79bd94266fd00`.
   - `refs/tags/v2.1.31` = `e49cd94935f4e461f002a1260a47c1b7b2ce81ca`.
   - `refs/tags/v2.1.27` = `70fcbfd7729b7d2b86af37ae301aefc15df17e84`.
-- The only observed commit after the stable tag is `1619d36af feat(conversation): rework message queue into a send draft box (#3547)`. It remains a future intake candidate until an upstream release and a separate behavior review admit it.
+- The unreleased range adds a send-draft queue, a two-level model selector, draft-mode help, a WIP manual Team experience, and a mobile Home action sheet, plus Russian localization. The behavior review below keeps that range outside the stable intake.
 - GitHub release list showed `v2.1.31` as the latest release at intake time. `v2.1.29` has a tag but no standalone GitHub release; `v2.1.30` explicitly rolls up `v2.1.29` and `v2.1.30`.
 - GitHub compare `v2.1.27...v2.1.31` reported `58` commits ahead, `0` behind. The largest changed prefix was `packages/desktop/src` with `233` files, plus installer resources, docs/PRDs, i18n payloads, bootstrap tests, assistant tests, and Web host files.
 - Local OPL shell package version remains OPL-owned metadata and is not an upstream-currentness claim.
@@ -62,7 +62,7 @@ Main-session accepted only scoped capability adaptations:
 | Settings / i18n refinements                 | `bb35cff74`                                                     | accepted/adapted         | Settings tab navigate context, image-model config link, WeCom callback i18n, known i18n key fixes, language UI generated from existing Chinese/English config only                             |
 | Contract, Cron, VM, and startup remediation | `2ac1bc4c2`, `637bfa844`, `0b9c8b122`, `827496799`, `84a4c8153` | accepted/adapted         | Capability projection type safety, retryable partial Cron deletion, fail-closed backend startup directories, and failure-evidence collectors that preserve the primary VM smoke error          |
 | Feedback privacy and queue confirmation     | `5f786a6db`, `9059e9923`                                        | accepted/adapted         | Diagnostics remain off by default, explicit opt-in is required, selected logs are redacted, and the UI claims only that feedback entered the sending queue                                     |
-| AionCore build and recovery                 | `5d554c0ae`, `a5811dd39`, `598997cf3`, `81c8b37fd`              | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                          |
+| AionCore build and recovery                 | `5d554c0ae`, `286468fc3`, `b07da1e96`, `81c8b37fd`              | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                          |
 | Managed-agent and strict DTO compatibility  | `c633257d6`, `0c1cc4ce8`, `6875ada9f`                           | accepted/adapted         | Business assistants use `/api/assistants`; diagnostics use `/api/agents/management`; Assistant identity is preserved across Conversation, Channel, Cron, Team, migration, and Team WS adapters |
 | Upstream non-zh/en locale payload           | none                                                            | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only                                                                                 |
 | Docs/boundary record                        | `3ea74dc47` plus this follow-up update                          | accepted                 | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof                                                                                        |
@@ -97,8 +97,8 @@ The AionCore compatibility lane remains an OPL shell adapter change; it does not
 
 - Packaging and restored-cache paths both require AionCore `v0.1.44` and `--recover-corrupted-database` before a bundle is accepted.
 - AionCore `v0.1.44` creates a fresh per-tool npm cache below each ACP staging directory and removes that staging directory after the attempt. A cold npm fetch can therefore finish without the required optional platform package, after which AionCore correctly rejects the incomplete artifact.
-- Commit `a5811dd39` retries the whole `prepare-managed-resources` command up to three times. Each retry gets a clean bundle output while retaining `.prepare-data`, so the managed Node runtime is reused. Persistent failure removes both the partial bundle and `.prepare-data` and returns the last cause.
-- Commit `598997cf3` applies the stable `>=0.1.44` recovery gate to both release and Actions artifacts, rejects prerelease versions to match the runtime gate, keeps the real binary version in `manifest.version`, and retains the Actions run ID only as source provenance. Web smoke reads `compatibility.reportedVersion` through a JSON parser.
+- Commit `286468fc3` retries the whole `prepare-managed-resources` command up to three times. Each retry gets a clean bundle output while retaining `.prepare-data`, so the managed Node runtime is reused. Persistent failure removes both the partial bundle and `.prepare-data` and returns the last cause.
+- Commit `b07da1e96` applies the stable `>=0.1.44` recovery gate to both release and Actions artifacts, rejects prerelease versions to match the runtime gate, keeps the real binary version in `manifest.version`, and retains the Actions run ID only as source provenance. Web smoke reads `compatibility.reportedVersion` through a JSON parser.
 - AionCore `v0.1.44` reports corruption found while opening SQLite as `BOOTSTRAP_DATA_INIT_FAILED stage=database.open`; it reserves `database.recoverable_corruption` for corruption found during migrations. Commit `81c8b37fd` accepts the open-stage boundary only when the captured AionCore error contains one of its strict corruption markers, so lock contention and unrelated open failures remain generic startup failures.
 - Operators can override the bounded retry count and delay with `AIONUI_AIONCORE_MANAGED_RESOURCE_ATTEMPTS` and `AIONUI_AIONCORE_MANAGED_RESOURCE_RETRY_DELAY_MS`.
 
@@ -124,7 +124,22 @@ The runtime catalog also preserves the difference between missing model metadata
 
 The App repo now owns a source gate for this API split. Shell unit/DOM tests cover the bridge routes, managed catalog fetch/cache, Guid candidate/runtime association, Agent Settings health checks, model/mode/command metadata, conversation creation, and explicit-empty model behavior. The locale boundary remains `zh-CN` and `en-US`; no additional upstream locale payload was admitted.
 
-This follow-up repairs stable `v2.1.31` compatibility only. Upstream `main` commit `1619d36af` is newer than the stable tag and changes send-draft behavior, so it remains outside this lane pending its own behavior assessment.
+This follow-up repairs stable `v2.1.31` compatibility only. The unreleased `v2.1.31..8f16ee708` range remains outside this lane and is classified below.
+
+## Post-v2.1.31 Unreleased Behavior Watch 2026-07-10
+
+This read-only review is not a second intake. It records why upstream `main` must not be merged or cherry-picked as a bundle:
+
+| Upstream commit | Capability change | OPL disposition |
+| --- | --- | --- |
+| `1619d36af` | Reworks the message queue into persisted automatic/manual send drafts with edit, delete, reorder, and send-now actions. | `adopt_later`: useful, but only after stop/send ordering, queue limits, failure recovery, and the OPL Conversation runtime gate are defined. |
+| `3268482e6` | Updates Russian desktop/mobile localization. | `reject`: OPL maintains only `zh-CN` and `en-US` product copy. |
+| `756d544c6` | Adds searchable two-level model/reasoning menus and removes the model health dot. | `adopt_later` for search/layout only; do not replace OPL model, reasoning, intelligence-enhancement, or health policy. |
+| `9397d771c` | Folds send-draft help into the automatic/manual mode toggle. | `watch_only`: no independent capability; reassess with the final draft-box behavior. |
+| `826eba76c` | Adds a WIP manual Team member-management and warmup experience across Team, Conversation, Settings, and Cron surfaces. | `reject` for the ordinary App: Team remains fail-closed, and the change conflicts with the managed Assistant/runtime identity contract. |
+| `8f16ee708` | Moves mobile Home model, reasoning, permission, file, Skills, and MCP controls into a `+` action sheet. | `adopt_later` for the generic mobile action-sheet pattern only; do not import raw provider/model reconstruction that bypasses OPL Home and model policy. |
+
+Future intake must start from the next stable release and repeat behavior classification. It must not treat these unreleased commits as implied follow-up work for the `v2.1.31` adaptation.
 
 ## Strict Assistant DTO and Team Event Follow-Up 2026-07-10
 
