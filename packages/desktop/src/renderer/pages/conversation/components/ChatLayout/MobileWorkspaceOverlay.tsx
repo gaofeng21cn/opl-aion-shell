@@ -75,9 +75,13 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
 
     const focusable = () =>
       Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-        (element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true'
+        (element) => !element.closest('[hidden], [aria-hidden="true"], [inert]')
       );
-    (focusable()[0] ?? panel).focus({ preventScroll: true });
+    const focusWithinPanel = (target: HTMLElement) => {
+      target.focus({ preventScroll: true });
+      if (!panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
+    };
+    focusWithinPanel(focusable()[0] ?? panel);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -89,17 +93,17 @@ const MobileWorkspaceOverlay: React.FC<MobileWorkspaceOverlayProps> = ({
       const targets = focusable();
       if (!targets.length) {
         event.preventDefault();
-        panel.focus({ preventScroll: true });
+        focusWithinPanel(panel);
         return;
       }
       const first = targets[0];
       const last = targets[targets.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        focusWithinPanel(last);
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        focusWithinPanel(first);
       }
     };
     document.addEventListener('keydown', handleKeyDown);

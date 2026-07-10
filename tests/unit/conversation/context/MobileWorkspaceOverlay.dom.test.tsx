@@ -16,6 +16,7 @@ vi.mock('react-i18next', () => ({
 describe('MobileWorkspaceOverlay accessibility', () => {
   afterEach(() => {
     document.querySelector('[data-testid="background"]')?.remove();
+    document.querySelector('[data-testid="outside"]')?.remove();
     document.querySelector('[data-testid="rail"]')?.remove();
   });
 
@@ -71,5 +72,76 @@ describe('MobileWorkspaceOverlay accessibility', () => {
     expect(rail).not.toHaveAttribute('aria-hidden');
     expect(screen.getByRole('button', { name: 'Rail action' })).toBeTruthy();
     expect(document.activeElement).toBe(opener);
+  });
+
+  it.each([
+    [
+      'hidden',
+      <div hidden>
+        <button type='button'>Hidden tool</button>
+      </div>,
+    ],
+    [
+      'aria-hidden',
+      <div aria-hidden='true'>
+        <button type='button'>Hidden tool</button>
+      </div>,
+    ],
+    [
+      'inert',
+      <div inert>
+        <button type='button'>Hidden tool</button>
+      </div>,
+    ],
+  ])('skips controls in keep-alive tool subtrees with a %s ancestor', (_attribute, hiddenTool) => {
+    render(
+      <MobileWorkspaceOverlay
+        rightSiderCollapsed={false}
+        setRightSiderCollapsed={vi.fn()}
+        workspaceWidthPx={380}
+        mobileWorkspaceHandleRight={366}
+        sider={
+          <>
+            <button type='button'>Visible tool</button>
+            {hiddenTool}
+          </>
+        }
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Tools' });
+    const visibleTool = within(dialog).getByRole('button', { name: 'Visible tool' });
+    for (const button of dialog.querySelectorAll('button')) {
+      if (button.textContent !== 'Visible tool' && button.textContent !== 'Hidden tool') button.disabled = true;
+    }
+    visibleTool.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+
+    expect(document.activeElement).toBe(visibleTool);
+  });
+
+  it('falls back to the dialog when a focus target moves focus outside it', () => {
+    const outside = document.createElement('button');
+    outside.dataset.testid = 'outside';
+    document.body.appendChild(outside);
+    render(
+      <MobileWorkspaceOverlay
+        rightSiderCollapsed={false}
+        setRightSiderCollapsed={vi.fn()}
+        workspaceWidthPx={380}
+        mobileWorkspaceHandleRight={366}
+        sider={<button type='button'>Inside tool</button>}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Tools' });
+    const buttons = within(dialog).getAllByRole('button');
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    last.focus = () => outside.focus();
+    first.focus();
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+
+    expect(document.activeElement).toBe(dialog);
   });
 });
