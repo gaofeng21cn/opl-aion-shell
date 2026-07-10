@@ -359,7 +359,6 @@ const Layout: React.FC<{
                 'layout-sider--dragging': isSiderDragging,
               })}
               style={siderStyle}
-              data-testid='app-navigation-rail-surface'
             >
               <ArcoLayout.Header
                 className={classNames(
@@ -420,7 +419,6 @@ const Layout: React.FC<{
 
             <ArcoLayout.Content
               className={'bg-1 layout-content flex flex-col min-h-0'}
-              data-testid='app-main-content'
               onClick={() => {
                 if (isMobile && !collapsed) setCollapsed(true);
               }}

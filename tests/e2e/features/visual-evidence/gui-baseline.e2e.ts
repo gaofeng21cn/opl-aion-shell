@@ -20,6 +20,8 @@ const RUN_COMMAND =
   'AIONUI_E2E_PRODUCT_PROFILE=1 E2E_DEV=1 E2E_SCREENSHOTS=1 bun run test:e2e -- tests/e2e/features/visual-evidence/gui-baseline.e2e.ts';
 const STREAM_FIXTURE_KEY = 'aionui:e2e-message-stream-conversation-id';
 const WORKSPACE_PATH = path.join(os.tmpdir(), 'aionui-gui-baseline-workspace');
+const NAVIGATION_RAIL_SELECTOR = '.layout-sider:has([data-testid="app-navigation-rail"])';
+const MAIN_CONTENT_SELECTOR = '.app-shell > .arco-layout > .layout-content';
 
 type CreatedConversation = { id: string };
 type ClientSettings = Record<string, unknown>;
@@ -261,7 +263,7 @@ async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): 
 }
 
 async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
-  const rail = page.locator('[data-testid="app-navigation-rail-surface"]');
+  const rail = page.locator(NAVIGATION_RAIL_SELECTOR);
   const collapsed = await rail.evaluate((element) => element.classList.contains('collapsed'));
   if (collapsed === expanded) {
     await page.locator('[data-testid="app-navigation-rail-toggle"]').click();
@@ -303,12 +305,7 @@ async function captureTarget(
 
 function buildTargets(conversationId: string): VisualTarget[] {
   const railMainChecks = async (page: Page) => [
-    await disjointCheck(
-      page,
-      'navigation_rail_does_not_cover_main',
-      '[data-testid="app-navigation-rail-surface"]',
-      '[data-testid="app-main-content"]'
-    ),
+    await disjointCheck(page, 'navigation_rail_does_not_cover_main', NAVIGATION_RAIL_SELECTOR, MAIN_CONTENT_SELECTOR),
   ];
   const conversationChecks = async (page: Page) => [
     ...(await railMainChecks(page)),
@@ -332,7 +329,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_starters', '[data-testid="opl-home-starters"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
-        anchor('desktop_rail_expanded', '[data-testid="app-navigation-rail-surface"]:not(.collapsed)'),
+        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
       coverageGaps: [{ id: 'mobile_home_states', reason: 'covered by separate mobile route-state entries' }],
       setup: async (page) => {
@@ -343,7 +340,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       },
       layoutChecks: async (page) => [
         ...(await railMainChecks(page)),
-        await textOverflowCheck(page, 'home_text_does_not_overflow', '[data-testid="app-main-content"]'),
+        await textOverflowCheck(page, 'home_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
       ],
     },
     {
@@ -355,7 +352,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
-        anchor('mobile_rail_closed', '[data-testid="app-navigation-rail-surface"].collapsed', 'attached'),
+        anchor('mobile_rail_closed', `${NAVIGATION_RAIL_SELECTOR}.collapsed`, 'attached'),
       ],
       coverageGaps: [{ id: 'narrow_drawer_open', reason: 'covered by a separate mobile route-state entry' }],
       setup: async (page) => {
@@ -365,8 +362,8 @@ function buildTargets(conversationId: string): VisualTarget[] {
         return { route_kind: 'home', rail: 'closed' };
       },
       layoutChecks: async (page) => [
-        await viewportCheck(page, 'mobile_home_main_within_viewport', '[data-testid="app-main-content"]'),
-        await textOverflowCheck(page, 'mobile_home_text_does_not_overflow', '[data-testid="app-main-content"]'),
+        await viewportCheck(page, 'mobile_home_main_within_viewport', MAIN_CONTENT_SELECTOR),
+        await textOverflowCheck(page, 'mobile_home_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
       ],
     },
     {
@@ -377,7 +374,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       locale: 'en-US',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
-        anchor('narrow_drawer', '[data-testid="app-navigation-rail-surface"]:not(.collapsed)'),
+        anchor('narrow_drawer', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
         anchor('narrow_drawer_backdrop', '[data-testid="app-navigation-rail-backdrop"]'),
       ],
       coverageGaps: [{ id: 'mobile_home_unobscured', reason: 'covered by the separate rail-closed entry' }],
@@ -388,17 +385,13 @@ function buildTargets(conversationId: string): VisualTarget[] {
         return { route_kind: 'home', rail: 'narrow_drawer_open' };
       },
       layoutChecks: async (page) => [
-        await viewportCheck(page, 'narrow_drawer_within_viewport', '[data-testid="app-navigation-rail-surface"]'),
+        await viewportCheck(page, 'narrow_drawer_within_viewport', NAVIGATION_RAIL_SELECTOR),
         await viewportCheck(
           page,
           'narrow_drawer_backdrop_within_viewport',
           '[data-testid="app-navigation-rail-backdrop"]'
         ),
-        await textOverflowCheck(
-          page,
-          'narrow_drawer_text_does_not_overflow',
-          '[data-testid="app-navigation-rail-surface"]'
-        ),
+        await textOverflowCheck(page, 'narrow_drawer_text_does_not_overflow', NAVIGATION_RAIL_SELECTOR),
       ],
     },
     {
