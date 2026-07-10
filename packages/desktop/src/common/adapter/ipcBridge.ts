@@ -438,6 +438,15 @@ export interface IRendererLogEntry {
   data?: unknown;
 }
 
+export type IDesktopNavigationCommand = 'back' | 'forward' | 'previous-task' | 'next-task';
+
+export type IDesktopNavigationState = {
+  canBack: boolean;
+  canForward: boolean;
+  canPreviousTask: boolean;
+  canNextTask: boolean;
+};
+
 // ---------------------------------------------------------------------------
 // Application — stays IPC (Electron-native)
 // ---------------------------------------------------------------------------
@@ -477,6 +486,10 @@ export const application = {
     'app.set-gpu-override'
   ),
   writeRendererLog: bridge.buildProvider<void, IRendererLogEntry>('app.write-renderer-log'),
+  setDesktopNavigationState: bridge.buildProvider<void, IDesktopNavigationState>('app.set-desktop-navigation-state'),
+  desktopNavigationCommand: bridge.buildEmitter<{ command: IDesktopNavigationCommand }>(
+    'app.desktop-navigation-command'
+  ),
   logStream: bridge.buildEmitter<{ level: 'log' | 'warn' | 'error'; tag: string; message: string; data?: unknown }>(
     'app.log-stream'
   ),

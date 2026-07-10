@@ -453,7 +453,7 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
   initMainAdapterWithWindow(mainWindow);
   bindMainWindowReferences(mainWindow);
 
-  setupApplicationMenu();
+  setupApplicationMenu({ createWindow });
 
   setupZoomForWindow(mainWindow);
   registerWindowMaximizeListeners(mainWindow);
@@ -792,6 +792,14 @@ const handleAppReady = async (): Promise<void> => {
       }
     });
   } else {
+    // Initialize main-process i18n before creating native desktop menus.
+    try {
+      const savedLanguage = await ProcessConfig.get('language');
+      await setInitialLanguage(savedLanguage);
+    } catch (error) {
+      console.error('[index] Failed to initialize i18n language:', error);
+    }
+
     await initializeTrayForDesktopMode({
       isE2ETestMode,
       readCloseToTray: readCloseToTraySetting,
@@ -825,19 +833,9 @@ const handleAppReady = async (): Promise<void> => {
       })();
     }, 3000);
 
-    // 读取语言设置并初始化主进程 i18n，然后刷新托盘菜单
-    // Read language setting and initialize main process i18n, then refresh tray menu
-    try {
-      const savedLanguage = await ProcessConfig.get('language');
-      await setInitialLanguage(savedLanguage);
-      // After language is set, refresh tray menu if it exists
-      await refreshTrayMenu();
-    } catch (error) {
-      console.error('[index] Failed to initialize i18n language:', error);
-    }
-
-    // 监听语言变更，刷新托盘菜单文案 / Listen for language changes to refresh tray menu labels
+    // Refresh native menus after the main-process language changes.
     onLanguageChanged(() => {
+      setupApplicationMenu({ createWindow });
       void refreshTrayMenu();
     });
 

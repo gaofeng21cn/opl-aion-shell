@@ -2,6 +2,7 @@ import { AgentLogoIcon } from '@/renderer/components/agent/AgentBadge';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import type { PresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
+import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { useResizableSplit } from '@/renderer/hooks/ui/useResizableSplit';
 import ChatTitleEditor from '@/renderer/pages/conversation/components/ChatTitleEditor';
 import { useContainerWidth } from '@/renderer/pages/conversation/hooks/useContainerWidth';
@@ -52,6 +53,7 @@ const ChatLayout: React.FC<{
   const { conversation_id, workspacePath, isTemporaryWorkspace } = props;
   const { backend, presetAssistant, agent_name, workspaceEnabled = true, workspacePreferenceKey } = props;
   const layout = useLayoutContext();
+  const navigationHistory = useNavigationHistory();
   const isMobile = Boolean(layout?.isMobile);
   const { containerRef, containerWidth } = useContainerWidth();
   const usesInspectorOverlay = isMobile || (containerWidth > 0 && containerWidth <= COMPACT_INSPECTOR_MAX_PX);
@@ -180,7 +182,8 @@ const ChatLayout: React.FC<{
           size='mini'
           icon={<Left size={14} />}
           aria-label={t('conversation.navigation.back')}
-          onClick={() => window.history.back()}
+          disabled={!navigationHistory?.canBack}
+          onClick={() => navigationHistory?.back()}
         />
       </Tooltip>
       <Tooltip content={t('conversation.navigation.forward')} mini>
@@ -189,7 +192,8 @@ const ChatLayout: React.FC<{
           size='mini'
           icon={<Right size={14} />}
           aria-label={t('conversation.navigation.forward')}
-          onClick={() => window.history.forward()}
+          disabled={!navigationHistory?.canForward}
+          onClick={() => navigationHistory?.forward()}
         />
       </Tooltip>
       {props.headerLeading ??
