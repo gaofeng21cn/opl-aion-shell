@@ -16,12 +16,12 @@ const PreferenceRow: React.FC<{
   description?: string;
   testId?: string;
 }> = ({ label, children, description, testId }) => (
-  <div className='flex items-center justify-between gap-24px py-12px' data-testid={testId}>
-    <div className='flex-1'>
+  <div className='opl-settings-row flex items-center justify-between gap-24px' data-testid={testId}>
+    <div className='opl-settings-row__main flex-1'>
       <div className='text-14px text-2'>{label}</div>
       {description && <div className='text-12px text-t-tertiary mt-4px'>{description}</div>}
     </div>
-    <div className='flex-shrink-0'>{children}</div>
+    <div className='opl-settings-row__meta flex-shrink-0'>{children}</div>
   </div>
 );
 

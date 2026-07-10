@@ -4,24 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Divider, Typography } from '@arco-design/web-react';
-import { Github, Right } from '@icon-park/react';
-import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import classNames from 'classnames';
-import { useSettingsViewMode } from '../settingsViewContext';
 import { ipcBridge } from '@/common';
-import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
-import FeedbackReportModal from './FeedbackReportModal';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
+import { Button, Typography } from '@arco-design/web-react';
+import { Refresh, Right } from '@icon-park/react';
+import classNames from 'classnames';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSettingsViewMode } from '../settingsViewContext';
+import FeedbackReportModal from './FeedbackReportModal';
 
 type LinkItem =
-  | { title: string; url: string; icon: React.ReactNode; onClick?: never }
-  | { title: string; onClick: () => void; icon: React.ReactNode; url?: never };
+  | { id: string; title: string; url: string; onClick?: never }
+  | { id: string; title: string; onClick: () => void; url?: never };
+
+type UpdateStatus = 'checking' | 'current' | 'available' | 'unknown';
 
 const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
 const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
-const OPL_APP_LATEST_RELEASE_URL = `${OPL_APP_REPO_URL}/releases/latest`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
 const includeNightlyUpdates = false;
 
@@ -31,7 +32,6 @@ type AppVersions = {
   frameworkRevision: string;
   releaseRepo: string;
   releaseChannel: string;
-  latestStableVersion: string;
 };
 
 function localAppVersion(): string {
@@ -78,13 +78,13 @@ const AboutModalContent: React.FC = () => {
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
   const isElectron = isElectronDesktop();
-
+  const currentAppVersion = localAppVersion();
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [latestStableVersion, setLatestStableVersion] = useState('');
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>(isElectron ? 'checking' : 'unknown');
+  const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const appStateQuery = useOplAppState('fast');
-
   const release = oplRecord(appStateQuery.appState.release);
-  const currentAppVersion = localAppVersion();
   const appVersions: AppVersions = {
     appVersion: currentAppVersion,
     guiVersion: __SHELL_VERSION__,
@@ -96,29 +96,38 @@ const AboutModalContent: React.FC = () => {
       oplString(release.opl_framework_date) ??
       oplString(release.framework_date) ??
       '-',
-    releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? '',
+    releaseRepo: oplString(release.repo) ?? oplString(release.release_repo) ?? OPL_APP_REPO_URL,
     releaseChannel: oplString(release.channel) ?? oplString(release.release_channel) ?? 'stable',
-    latestStableVersion,
   };
 
-  useEffect(() => {
-    if (!isElectron) return;
-    let cancelled = false;
+  const checkForUpdates = useCallback(async () => {
+    if (!isElectron) {
+      setUpdateStatus('unknown');
+      return;
+    }
+    setUpdateStatus('checking');
     const channel = includeNightlyUpdates ? 'nightly' : 'stable';
-    void ipcBridge.update.check
-      .invoke({ channel })
-      .then((result) => {
-        if (cancelled) return;
-        const candidate = result?.success ? result.data?.latest?.version : '';
-        setLatestStableVersion(isNewerVersion(candidate, currentAppVersion) ? candidate || '' : '');
-      })
-      .catch(() => {
-        if (!cancelled) setLatestStableVersion('');
-      });
-    return () => {
-      cancelled = true;
-    };
+    try {
+      const result = await ipcBridge.update.check.invoke({ channel });
+      if (!result?.success) {
+        setLatestStableVersion('');
+        setUpdateStatus('unknown');
+        return;
+      }
+      const candidate = result.data?.latest?.version || '';
+      const updateAvailable =
+        Boolean(candidate) && (result.data?.updateAvailable === true || isNewerVersion(candidate, currentAppVersion));
+      setLatestStableVersion(updateAvailable ? candidate : '');
+      setUpdateStatus(updateAvailable ? 'available' : 'current');
+    } catch {
+      setLatestStableVersion('');
+      setUpdateStatus('unknown');
+    }
   }, [currentAppVersion, isElectron]);
+
+  useEffect(() => {
+    void checkForUpdates();
+  }, [checkForUpdates]);
 
   const openLink = async (url: string) => {
     try {
@@ -128,116 +137,135 @@ const AboutModalContent: React.FC = () => {
     }
   };
 
+  const updateStatusLabel =
+    updateStatus === 'checking'
+      ? t('settings.aboutUpdateChecking')
+      : updateStatus === 'available'
+        ? t('settings.aboutUpdateAvailable', { version: latestStableVersion })
+        : updateStatus === 'current'
+          ? t('settings.aboutUpdateCurrent')
+          : t('settings.aboutUpdateUnknown');
+
   const linkItems: LinkItem[] = [
     {
+      id: 'help',
       title: t('settings.helpDocumentation'),
       url: OPL_FRAMEWORK_URL,
-      icon: <Right theme='outline' size='16' />,
     },
     {
-      title: t('settings.updateLog'),
+      id: 'releases',
+      title: t('settings.releasePage'),
       url: OPL_APP_RELEASES_URL,
-      icon: <Right theme='outline' size='16' />,
     },
     {
+      id: 'feedback',
       title: t('settings.feedback'),
-      url: `${OPL_APP_REPO_URL}/issues`,
-      icon: <Right theme='outline' size='16' />,
-    },
-    {
-      title: t('settings.bugReport'),
       onClick: () => setShowFeedbackModal(true),
-      icon: <Right theme='outline' size='16' />,
-    },
-    {
-      title: t('settings.contactMe'),
-      url: `${OPL_APP_REPO_URL}/issues/new`,
-      icon: <Right theme='outline' size='16' />,
-    },
-    {
-      title: t('settings.officialWebsite'),
-      url: OPL_APP_LATEST_RELEASE_URL,
-      icon: <Right theme='outline' size='16' />,
     },
   ];
 
   return (
-    <div className='flex flex-col h-full w-full'>
-      {/* Content Area */}
+    <div className='opl-settings-page flex h-full w-full flex-col'>
       <div
         className={classNames(
           'flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-24px',
           isPageMode && 'px-0 overflow-visible'
         )}
       >
-        <div className='flex flex-col max-w-500px mx-auto'>
-          {/* App Info Section */}
-          <div className='flex flex-col items-center pb-24px'>
-            <Typography.Title heading={3} className='text-24px font-bold text-t-primary mb-8px'>
-              {t('settings.appName')}
-            </Typography.Title>
-            <Typography.Text className='text-14px text-t-secondary mb-12px text-center'>
-              {t('settings.appDescription')}
-            </Typography.Text>
-            <div className='flex items-center justify-center gap-8px mb-16px'>
-              <span className='px-10px py-4px rd-6px text-13px bg-fill-2 text-t-primary font-500'>
-                {t('settings.aboutVersionBadge', {
-                  version: appVersions.appVersion,
-                  channel: formatReleaseChannel(appVersions.releaseChannel, t),
-                })}
-              </span>
-              <div
-                className='text-t-primary cursor-pointer hover:text-t-secondary transition-colors p-4px'
-                onClick={() =>
-                  openLink(OPL_APP_REPO_URL).catch((error) => console.error('Failed to open link:', error))
-                }
-              >
-                <Github theme='outline' size='20' />
+        <div className='space-y-14px'>
+          <div className='opl-settings-page-header'>
+            <div className='opl-settings-page-header__copy'>
+              <Typography.Title heading={4} className='mb-4px'>
+                {t('settings.appName')}
+              </Typography.Title>
+              <Typography.Text className='text-13px text-t-secondary'>{t('settings.appDescription')}</Typography.Text>
+            </div>
+          </div>
+
+          <section className='opl-settings-section' data-testid='about-version-section'>
+            <div className='opl-settings-list'>
+              <div className='opl-settings-row flex items-center justify-between gap-16px'>
+                <div className='opl-settings-row__main text-14px text-t-primary'>
+                  {t('settings.aboutVersionBadge', {
+                    version: appVersions.appVersion,
+                    channel: formatReleaseChannel(appVersions.releaseChannel, t),
+                  })}
+                </div>
+              </div>
+              <div className='opl-settings-row flex items-center justify-between gap-16px'>
+                <div className='opl-settings-row__main min-w-0'>
+                  <div className='text-14px text-t-primary'>{t('settings.checkForUpdates')}</div>
+                  <div className='mt-4px text-12px text-t-secondary' data-testid='about-update-status'>
+                    {updateStatusLabel}
+                  </div>
+                </div>
+                {isElectron && (
+                  <div className='opl-settings-row__meta'>
+                    <Button
+                      type='primary'
+                      icon={<Refresh />}
+                      loading={updateStatus === 'checking'}
+                      onClick={() => void checkForUpdates()}
+                      data-testid='about-check-updates'
+                    >
+                      {t('settings.checkForUpdates')}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
-            <div className='flex flex-col items-center gap-4px mb-16px text-12px text-t-secondary'>
-              <Typography.Text>{t('settings.aboutShellVersion', { version: appVersions.guiVersion })}</Typography.Text>
-              <Typography.Text>
-                {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
-              </Typography.Text>
-              {appVersions.latestStableVersion && (
-                <Typography.Text>
-                  {t('settings.aboutLatestStableVersion', { version: appVersions.latestStableVersion })}
-                </Typography.Text>
+          </section>
+
+          <section className='opl-settings-section'>
+            <div className='opl-settings-list'>
+              {linkItems.map((item) => (
+                <Button
+                  key={item.id}
+                  type='text'
+                  long
+                  className='opl-settings-row !h-auto !justify-between !px-0'
+                  onClick={() => {
+                    if ('url' in item) {
+                      void openLink(item.url);
+                    } else {
+                      item.onClick();
+                    }
+                  }}
+                  data-testid={`about-link-${item.id}`}
+                >
+                  <span className='opl-settings-row__main text-14px text-t-primary'>{item.title}</span>
+                  <span className='opl-settings-row__meta'>
+                    <Right theme='outline' size='16' />
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </section>
+
+          <section className='opl-settings-section'>
+            <details
+              className='opl-settings-details'
+              onToggle={(event) => setTechnicalDetailsOpen(event.currentTarget.open)}
+              data-testid='about-technical-details'
+            >
+              <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+                {t('common.technical_details')}
+              </summary>
+              {technicalDetailsOpen && (
+                <div className='mt-10px space-y-6px text-12px text-t-secondary'>
+                  <Typography.Text className='block'>
+                    {t('settings.aboutShellVersion', { version: appVersions.guiVersion })}
+                  </Typography.Text>
+                  <Typography.Text className='block'>
+                    {t('settings.aboutFrameworkRevision', { revision: appVersions.frameworkRevision })}
+                  </Typography.Text>
+                  <Typography.Text className='block break-words'>
+                    {t('settings.aboutReleaseRepo', { repo: appVersions.releaseRepo })}
+                  </Typography.Text>
+                </div>
               )}
-            </div>
-
-            {isElectron && (
-              <Typography.Text className='text-12px text-t-secondary text-center'>
-                {t('settings.aboutMaintenanceMoved')}
-              </Typography.Text>
-            )}
-          </div>
-
-          {/* Divider */}
-          <Divider className='my-16px' />
-
-          {/* Links Section */}
-          <div className='flex flex-col gap-4px pt-8px'>
-            {linkItems.map((item, index) => (
-              <div
-                key={index}
-                className='flex items-center justify-between px-16px py-12px rd-8px hover:bg-fill-2 transition-all cursor-pointer group'
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if ('url' in item) {
-                    openLink(item.url).catch((error) => console.error('Failed to open link:', error));
-                  } else {
-                    item.onClick();
-                  }
-                }}
-              >
-                <Typography.Text className='text-14px text-t-primary'>{item.title}</Typography.Text>
-                <div className='text-t-secondary group-hover:text-t-primary transition-colors'>{item.icon}</div>
-              </div>
-            ))}
-          </div>
+            </details>
+          </section>
         </div>
       </div>
       <FeedbackReportModal visible={showFeedbackModal} onCancel={() => setShowFeedbackModal(false)} />

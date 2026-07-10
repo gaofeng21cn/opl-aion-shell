@@ -55,14 +55,15 @@ const translate = (key: string, values?: Record<string, string | number>) => {
   const labels: Record<string, string> = {
     'settings.storagePage.title': 'Storage',
     'settings.storagePage.description': 'Review local data.',
-    'settings.storagePage.actions.archive': 'Archive conversations',
+    'settings.storagePage.actions.archive': 'Create recoverable backup',
+    'settings.storagePage.actions.restoreProof': 'Restore backup',
     'settings.storagePage.actions.dryRunRuntime': 'Preview runtime cleanup',
     'settings.storagePage.actions.dryRunLogs': 'Preview log cleanup',
     'settings.storagePage.actions.dryRunUpdater': 'Preview installer cache cleanup',
     'settings.storagePage.actions.executeRuntime': 'Clean using preview',
     'settings.storagePage.actions.executeLogs': 'Clean logs using preview',
     'settings.storagePage.actions.executeUpdater': 'Clean installer cache',
-    'settings.storagePage.actions.deleteWithReceipt': 'Delete with receipt',
+    'settings.storagePage.actions.deleteWithReceipt': 'Delete after backup confirmation',
     'settings.storagePage.sections.updater.title': 'Updater cache',
     'settings.storagePage.sections.updater.description': 'Installer package cache only.',
     'settings.storagePage.sections.conversations.title': 'Conversation artifacts',
@@ -73,7 +74,7 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.sections.logs.title': 'Logs',
     'settings.storagePage.sections.logs.description': 'Log cleanup is separate from conversation artifacts.',
     'settings.storagePage.inventory.bytes': `Bytes: ${values?.bytes ?? ''}`,
-    'settings.storagePage.inventory.cleanupMode': `Cleanup proof: ${values?.mode ?? ''}`,
+    'settings.storagePage.inventory.cleanupMode': `Condition: ${values?.mode ?? ''}`,
     'settings.storagePage.inventory.rootCount': `Roots: ${values?.count ?? ''}`,
     'settings.storagePage.inventory.details': 'Storage details',
     'settings.storagePage.inventory.rootDetail': `${values?.exists ?? ''} ${values?.bytes ?? ''}`,
@@ -110,7 +111,8 @@ const translate = (key: string, values?: Record<string, string | number>) => {
     'settings.storagePage.researchLifecycle.states.blocked': 'Forbidden',
     'settings.storagePage.conversations.title': 'Conversation archive and restore proof',
     'settings.storagePage.conversations.detail': 'Delete is disabled until proof is available.',
-    'settings.storagePage.conversations.receiptRequired': 'Archive conversations first.',
+    'settings.storagePage.conversations.receiptRequired': 'Create a recoverable backup first.',
+    'settings.storagePage.conversations.proofReceipt': `Operation record: ${values?.receipt ?? ''}`,
     'settings.storagePage.runtime.title': 'Runtime cleanup',
     'settings.storagePage.runtime.detail': 'Preview the exact runtime paths first.',
     'settings.storagePage.plans.runtime.required': 'Preview required before runtime cleanup can run.',
@@ -239,25 +241,32 @@ describe('StorageSettingsContent', () => {
     bridgeMocks.executeUpdaterCacheCleanup.mockResolvedValue(receipt);
   });
 
-  it('loads inventory and keeps technical storage paths in details', async () => {
+  it('renders one actionable category list and keeps technical storage paths in details', async () => {
     render(<StorageSettingsContent />);
 
     expect(await screen.findByTestId('storage-settings-page')).toBeInTheDocument();
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
-    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Total stored data');
-    expect(screen.getByTestId('storage-overview')).toHaveTextContent('100 B');
-    expect(screen.getByTestId('storage-overview')).toHaveTextContent('Data categories');
-    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('1. Preview');
-    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('2. Confirm');
-    expect(screen.getByTestId('storage-cleanup-flow')).toHaveTextContent('3. Execute');
+    const categoryList = screen.getByTestId('storage-category-list');
+    expect(categoryList).toHaveTextContent('Total stored data');
+    expect(categoryList).toHaveTextContent('100 B');
+    expect(categoryList).toHaveTextContent('Data categories');
+    expect(screen.queryByTestId('storage-overview')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('storage-cleanup-flow')).not.toBeInTheDocument();
+    expect(
+      categoryList.querySelectorAll('[data-testid^="storage-inventory-"]:not([data-testid*="details"])')
+    ).toHaveLength(4);
     expect(screen.getByTestId('storage-inventory-updater_cache')).not.toHaveTextContent('/tmp/updater-cache');
     expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Safe without extra proof');
     expect(screen.getByTestId('storage-inventory-user_data_artifacts')).not.toHaveTextContent('/tmp/conversations');
-    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Needs proof first');
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Needs archive proof');
     expect(screen.getByTestId('storage-inventory-runtime_substrate')).not.toHaveTextContent('/tmp/runtime');
     expect(screen.getByTestId('storage-inventory-logs')).not.toHaveTextContent('/tmp/logs');
-    expect(screen.getByText('Logs are not conversation artifacts.')).toBeInTheDocument();
+    expect(screen.getByText('Log cleanup is separate from conversation artifacts.')).toBeInTheDocument();
+    expect(screen.getByTestId('storage-inventory-user_data_artifacts')).toHaveTextContent('Create recoverable backup');
+    expect(screen.getByTestId('storage-inventory-runtime_substrate')).toHaveTextContent('Preview runtime cleanup');
+    expect(screen.getByTestId('storage-inventory-logs')).toHaveTextContent('Preview log cleanup');
+    expect(screen.getByTestId('storage-inventory-updater_cache')).toHaveTextContent('Preview installer cache cleanup');
     expect(document.body.textContent).not.toMatch(/silent delete|sqlite:\/\/|DELETE FROM/i);
 
     for (const id of ['updater_cache', 'user_data_artifacts', 'runtime_substrate', 'logs']) {
@@ -276,12 +285,15 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     const lifecycle = screen.getByTestId('storage-research-lifecycle');
-    expect(lifecycle).toHaveTextContent('Work data safety');
-    expect(lifecycle).toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
+    expect(lifecycle).toHaveTextContent('Advanced storage references');
+    expect(lifecycle).not.toHaveTextContent('Work data safety');
+    expect(lifecycle).not.toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
     expect(lifecycle).not.toHaveTextContent('Lifecycle planes');
 
     openDetails(screen.getByTestId('storage-research-lifecycle-details') as HTMLDetailsElement);
 
+    expect(lifecycle).toHaveTextContent('Work data safety');
+    expect(lifecycle).toHaveTextContent('Read-only cleanup boundaries and source references for workspace data.');
     expect(lifecycle).toHaveTextContent('Work data stages');
     expect(lifecycle).toHaveTextContent('app_state.storage.research_workspace_lifecycle.planes');
     expect(lifecycle).toHaveTextContent('Large file references');
@@ -308,7 +320,7 @@ describe('StorageSettingsContent', () => {
     expect(screen.getByTestId('storage-logs-execute')).toBeDisabled();
     expect(screen.getByTestId('storage-updater-execute')).toBeDisabled();
 
-    fireEvent.click(screen.getByText('Archive conversations'));
+    fireEvent.click(screen.getByText('Create recoverable backup'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('storage-conversation-delete')).not.toBeDisabled();
 
@@ -375,7 +387,7 @@ describe('StorageSettingsContent', () => {
     await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
 
     expect(screen.getByTestId('storage-conversation-delete')).toBeDisabled();
-    fireEvent.click(screen.getByText('Archive conversations'));
+    fireEvent.click(screen.getByText('Create recoverable backup'));
     await waitFor(() => expect(bridgeMocks.archiveConversations).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId('storage-conversation-delete'));
@@ -387,6 +399,19 @@ describe('StorageSettingsContent', () => {
         receiptPath: receipt.receipt_path,
         confirmation: `delete:${receipt.conversation_id}`,
       })
+    );
+  });
+
+  it('keeps the restore action bound to the recoverable backup record', async () => {
+    render(<StorageSettingsContent />);
+    await waitFor(() => expect(bridgeMocks.getInventory).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByText('Create recoverable backup'));
+    await waitFor(() => expect(screen.getByTestId('storage-conversation-restore')).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId('storage-conversation-restore'));
+
+    await waitFor(() =>
+      expect(bridgeMocks.restoreConversationProof).toHaveBeenCalledWith({ receiptPath: receipt.receipt_path })
     );
   });
 });

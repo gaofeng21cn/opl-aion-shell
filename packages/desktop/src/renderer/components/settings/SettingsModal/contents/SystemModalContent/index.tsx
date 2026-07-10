@@ -5,19 +5,16 @@
  */
 
 import { ipcBridge } from '@/common';
-import { getOplDeveloperProfileSettings, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
+import { getOplDeveloperProfileSettings, getOplFlowContextPolicy } from '@/common/config/oplProductProfile';
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
-import FeedbackButton from '@/renderer/components/base/FeedbackButton';
 import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
-import { iconColors } from '@/renderer/styles/colors';
-import { Alert, Button, Form, Message, Modal, Switch, Tooltip } from '@arco-design/web-react';
+import { Button, Message, Switch, Tag, Tooltip } from '@arco-design/web-react';
 import { FolderSearch } from '@icon-park/react';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsViewMode } from '../../settingsViewContext';
 import DevSettings from './DevSettings';
-import DirInputItem from './DirInputItem';
 import PreferenceRow from './PreferenceRow';
 
 function oplPathString(value: unknown): string | null {
@@ -30,7 +27,42 @@ type DeveloperCapabilityDisplay = {
   level: string;
 };
 
+type DeveloperCapabilityState = 'available' | 'attention' | 'unavailable';
+
+type ReadOnlyPathRowProps = {
+  label: string;
+  path: string;
+  onOpen: () => void;
+};
+
+const ReadOnlyPathRow: React.FC<ReadOnlyPathRowProps> = ({ label, path, onOpen }) => {
+  const { t } = useTranslation();
+  const displayPath = path || t('settings.dirNotConfigured');
+  const openLabel = `${t('common.open')} ${label}`;
+
+  return (
+    <div className='opl-settings-row flex flex-col gap-8px md:flex-row md:items-center md:justify-between'>
+      <div className='opl-settings-row__main text-14px text-t-primary'>{label}</div>
+      <div className='opl-settings-row__meta flex min-w-0 items-center gap-8px md:max-w-520px'>
+        <Tooltip content={displayPath} position='top'>
+          <span className='min-w-0 flex-1 truncate text-12px text-t-secondary'>{displayPath}</span>
+        </Tooltip>
+        <Tooltip content={openLabel}>
+          <Button
+            type='text'
+            aria-label={openLabel}
+            icon={<FolderSearch theme='outline' size='18' />}
+            disabled={!path}
+            onClick={onOpen}
+          />
+        </Tooltip>
+      </div>
+    </div>
+  );
+};
+
 const OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE = getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement;
+
 const readOplFlowIntelligenceEnhancementPreference = (): boolean => {
   if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return false;
   return configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key) ?? true;
@@ -57,6 +89,12 @@ function readDeveloperCapabilityDisplay(value: unknown, id: string): DeveloperCa
   return status === 'unknown' && level === 'unknown' ? null : { id, status, level };
 }
 
+function developerCapabilityState(status: string): DeveloperCapabilityState {
+  if (status === 'ready') return 'available';
+  if (status === 'attention') return 'attention';
+  return 'unavailable';
+}
+
 function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
   const parsed = oplRecord(value);
   const execution = oplRecord(parsed.app_action_execution);
@@ -67,29 +105,19 @@ function readIntelligenceEnhancementEnabled(value: unknown): boolean | null {
   return typeof enabled === 'boolean' ? enabled : null;
 }
 
-/**
- * System settings content component
- *
- * Provides system-level configuration options including language, directory config,
- * and developer tools (dev mode only).
- */
 const SystemModalContent: React.FC = () => {
   const { t } = useTranslation();
-  const [form] = Form.useForm();
-  const [modal, modalContextHolder] = Modal.useModal();
-  const [message, messageContextHolder] = Message.useMessage();
-  const [error, setError] = useState<string | null>(null);
   const viewMode = useSettingsViewMode();
   const isPageMode = viewMode === 'page';
-  const initializingRef = useRef(true);
   const appStateQuery = useOplAppState('fast');
   const appState = appStateQuery.appState;
   const appPaths = oplRecord(appState.paths);
-  const appWorkspaceRoot =
+  const workspacePath =
     oplString(appPaths.workspace_root_path) ??
     oplPathString(appPaths.workspace_root) ??
-    oplPathString(appPaths.family_workspace_root);
-  const appLogsDir = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir);
+    oplPathString(appPaths.family_workspace_root) ??
+    '';
+  const logsPath = oplString(appPaths.logs_dir) ?? oplString(appPaths.logs_root) ?? oplString(appPaths.log_dir) ?? '';
   const developerProfileSettings = getOplDeveloperProfileSettings();
   const appDeveloperProfile = oplRecord(appState.developer_profile);
   const appDeveloperCapabilities = oplRecord(appDeveloperProfile.capabilities);
@@ -99,35 +127,35 @@ const SystemModalContent: React.FC = () => {
     oplString(appDeveloperProfile.status) ??
     'unavailable';
   const developerProfileDisplayState = normalizeDeveloperProfileState(developerProfileState);
-  const developerProfileDescription = t(developerProfileSettings.description_key);
   const developerProfileCapabilities = developerProfileSettings.capability_axes
     .map((axis) => readDeveloperCapabilityDisplay(appDeveloperCapabilities[axis], axis))
     .filter((entry): entry is DeveloperCapabilityDisplay => Boolean(entry));
 
+  const [developerDetailsOpen, setDeveloperDetailsOpen] = useState(false);
+  const [oplFlowDetailsOpen, setOplFlowDetailsOpen] = useState(false);
+  const [developerSettingsOpen, setDeveloperSettingsOpen] = useState(false);
   const [oplFlowIntelligenceEnhancementMode, setOplFlowIntelligenceEnhancementMode] = useState(
     readOplFlowIntelligenceEnhancementPreference
   );
   const [oplFlowIntelligenceEnhancementApplying, setOplFlowIntelligenceEnhancementApplying] = useState(false);
 
   useEffect(() => {
-    if (OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) {
-      const storedPreference = configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key);
-      setOplFlowIntelligenceEnhancementMode(readOplFlowIntelligenceEnhancementPreference());
-      ipcBridge.oplRuntime.executeAction
-        .invoke({
-          actionId: OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.status_action_id,
-          dryRun: false,
-        })
-        .then((result) => {
-          if (result.ok === false) return;
-          const enabled = readIntelligenceEnhancementEnabled(result.parsed);
-          if (enabled === null) return;
-          if (storedPreference === false) return;
-          setOplFlowIntelligenceEnhancementMode(enabled);
-          configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
-        })
-        .catch(() => {});
-    }
+    if (!OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE) return;
+    const storedPreference = configService.get(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key);
+    setOplFlowIntelligenceEnhancementMode(readOplFlowIntelligenceEnhancementPreference());
+    ipcBridge.oplRuntime.executeAction
+      .invoke({
+        actionId: OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.status_action_id,
+        dryRun: false,
+      })
+      .then((result) => {
+        if (result.ok === false) return;
+        const enabled = readIntelligenceEnhancementEnabled(result.parsed);
+        if (enabled === null || storedPreference === false) return;
+        setOplFlowIntelligenceEnhancementMode(enabled);
+        configService.setLocal(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.settings_key, enabled);
+      })
+      .catch(() => {});
   }, []);
 
   const handleOplFlowIntelligenceEnhancementModeChange = useCallback(
@@ -144,7 +172,7 @@ const SystemModalContent: React.FC = () => {
           dryRun: false,
         });
         if (result.ok === false) {
-          throw new Error(result.error?.message || 'OPL Flow intelligence enhancement action failed');
+          throw new Error(result.error?.message || t('common.error'));
         }
         const enabled = readIntelligenceEnhancementEnabled(result.parsed) ?? checked;
         setOplFlowIntelligenceEnhancementMode(enabled);
@@ -158,194 +186,165 @@ const SystemModalContent: React.FC = () => {
         setOplFlowIntelligenceEnhancementApplying(false);
       }
     },
-    [appStateQuery.load, oplFlowIntelligenceEnhancementMode]
+    [appStateQuery.load, oplFlowIntelligenceEnhancementMode, t]
   );
+
+  const handleOpenPath = useCallback((path: string) => {
+    if (!path) return;
+    void ipcBridge.shell.openFolderWith.invoke({ folder_path: path, tool: 'explorer' }).catch((caughtError) => {
+      console.error('[SystemModalContent] Failed to open directory:', caughtError);
+    });
+  }, []);
 
   const oplFlowContext = oplRecord(appState.opl_flow_context);
   const oplFlowContextDisplay =
     oplString(oplFlowContext.flow_id) ?? oplString(oplFlowContext.contract_ref) ?? t('settings.unavailable');
   const oplFlowContextSource = oplString(oplFlowContext.source);
-  const systemInfo = {
-    cacheDir: oplString(appPaths.cache_root) ?? '',
-    workDir: appWorkspaceRoot ?? '',
-    logDir: appLogsDir ?? '',
-  };
-
-  const handleOpenLogDir = useCallback(() => {
-    if (!systemInfo.logDir) return;
-    void ipcBridge.shell.openFolderWith
-      .invoke({ folder_path: systemInfo.logDir, tool: 'explorer' })
-      .catch((caughtError) => {
-        console.error('[SystemModalContent] Failed to open log directory:', caughtError);
-      });
-  }, [systemInfo.logDir]);
-
-  // Initialize form data
-  useEffect(() => {
-    if (systemInfo.workDir) {
-      initializingRef.current = true;
-      form.setFieldsValue({ workDir: systemInfo.workDir, logDir: systemInfo.logDir });
-      requestAnimationFrame(() => {
-        initializingRef.current = false;
-      });
-    }
-  }, [systemInfo.workDir, form]);
-
-  const saveDirConfigValidate = (_values: { workDir: string; logDir: string }): Promise<unknown> => {
-    return new Promise((resolve, reject) => {
-      modal.confirm({
-        title: t('settings.updateConfirm'),
-        content: t('settings.workspaceRootChangeConfirm'),
-        onOk: resolve,
-        onCancel: reject,
-      });
-    });
-  };
-
-  const savingRef = useRef(false);
-
-  const handleValuesChange = useCallback(
-    async (_changedValue: unknown, allValues: Record<string, string>) => {
-      if (initializingRef.current || savingRef.current) return;
-      const { workDir } = allValues;
-      const needsRestart = workDir !== systemInfo.workDir;
-      if (!needsRestart) return;
-
-      savingRef.current = true;
-      setError(null);
-      try {
-        await saveDirConfigValidate({ workDir, logDir: systemInfo.logDir });
-        await ipcBridge.oplRuntime.executeAction.invoke({
-          actionId: 'workspace_root_set',
-          dryRun: false,
-          payloadRefsOnlyJson: { path: workDir },
-        });
-        await appStateQuery.load('fast', { showRefreshing: true });
-        message.success(t('settings.oplEnvironmentPage.messages.workspaceRootSaved'));
-      } catch (caughtError: unknown) {
-        form.setFieldsValue({ workDir: systemInfo.workDir, logDir: systemInfo.logDir });
-        if (caughtError) {
-          setError(caughtError instanceof Error ? caughtError.message : String(caughtError));
-        }
-      } finally {
-        savingRef.current = false;
-      }
-    },
-    [appStateQuery.load, form, message, saveDirConfigValidate, systemInfo.workDir, t]
-  );
 
   return (
-    <div className='flex flex-col h-full w-full'>
-      {modalContextHolder}
-      {messageContextHolder}
-
+    <div className='opl-settings-page flex h-full w-full flex-col'>
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
-        <div className='space-y-16px'>
-          <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <div>
-              <div className='text-14px font-medium text-t-primary leading-22px'>
-                {t('settings.advancedPathsTitle')}
+        <div className='space-y-14px'>
+          <div className='opl-settings-page-header'>
+            <div className='opl-settings-page-header__copy'>
+              <div className='text-16px font-semibold text-t-primary leading-24px'>
+                {t('settings.advancedSettings')}
               </div>
-              <div className='text-12px text-t-tertiary mt-4px'>{t('settings.advancedPathsDesc')}</div>
+              <div className='mt-4px text-13px text-t-secondary leading-20px'>{t('settings.advancedPathsDesc')}</div>
             </div>
-            <Form form={form} layout='vertical' className='!mt-32px space-y-16px' onValuesChange={handleValuesChange}>
-              <DirInputItem label={t('settings.workDir')} field='workDir' />
-              {/* Log directory (read-only, click to open in file manager) */}
-              <div>
-                <Form.Item label={t('settings.logDir')}>
-                  <div className='aion-dir-input h-[32px] flex items-center rounded-8px border border-solid border-transparent pl-14px bg-[var(--fill-0)] '>
-                    <Tooltip content={systemInfo.logDir || ''} position='top'>
-                      <div className='flex-1 min-w-0 text-13px text-t-primary truncate'>{systemInfo.logDir || ''}</div>
-                    </Tooltip>
-                    <Button
-                      type='text'
-                      style={{
-                        borderLeft: '1px solid var(--color-border-2)',
-                        borderRadius: '0 8px 8px 0',
-                      }}
-                      icon={<FolderSearch theme='outline' size='18' fill={iconColors.primary} />}
-                      onClick={(e: Event) => {
-                        e.stopPropagation();
-                        handleOpenLogDir();
-                      }}
-                    />
-                  </div>
-                </Form.Item>
-              </div>
-              {error && (
-                <Alert
-                  className='mt-16px'
-                  type='error'
-                  content={
-                    <span>
-                      {typeof error === 'string' ? error : JSON.stringify(error)}
-                      <FeedbackButton module='system-settings' className='ml-6px' />
-                    </span>
-                  }
-                />
-              )}
-            </Form>
           </div>
 
-          <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
-            <PreferenceRow
-              label={t(developerProfileSettings.label_key)}
-              description={developerProfileDescription}
-              testId='opl-developer-profile-row'
+          <section className='opl-settings-section'>
+            <div className='opl-settings-section__header'>
+              <div className='text-14px font-medium text-t-primary'>{t('settings.advancedPathsTitle')}</div>
+            </div>
+            <div className='opl-settings-list'>
+              <ReadOnlyPathRow
+                label={t('settings.workDir')}
+                path={workspacePath}
+                onOpen={() => handleOpenPath(workspacePath)}
+              />
+              <ReadOnlyPathRow label={t('settings.logDir')} path={logsPath} onOpen={() => handleOpenPath(logsPath)} />
+            </div>
+          </section>
+
+          <section className='opl-settings-section'>
+            <div
+              className='opl-settings-section__header flex items-start justify-between gap-16px'
+              data-testid='opl-developer-profile-row'
             >
-              <div className='text-12px text-t-secondary text-right max-w-420px space-y-6px'>
+              <div>
+                <div className='text-14px font-medium text-t-primary'>{t(developerProfileSettings.label_key)}</div>
+                <div className='mt-4px text-12px text-t-tertiary'>{t(developerProfileSettings.description_key)}</div>
+              </div>
+              <div className='opl-settings-row__meta'>
                 <span
-                  className='inline-flex px-10px py-4px rd-6px text-13px bg-fill-1 text-t-primary font-500'
+                  className='inline-flex rd-6px bg-fill-1 px-10px py-4px text-13px font-500 text-t-primary'
                   data-testid='opl-developer-profile-status'
                 >
                   {developerProfileDisplayState === 'unavailable'
                     ? t('settings.unavailable')
                     : t(`settings.oplDeveloperProfileStates.${developerProfileDisplayState}`, {
-                        defaultValue: developerProfileDisplayState,
+                        defaultValue: t('settings.unavailable'),
                       })}
                 </span>
-                {developerProfileCapabilities.length > 0 && (
-                  <div className='flex flex-wrap justify-end gap-6px'>
-                    {developerProfileCapabilities.map((capability) => (
-                      <span
-                        key={capability.id}
-                        className='px-8px py-3px rd-6px bg-fill-1 text-11px text-t-secondary'
-                        data-testid={`opl-developer-capability-${capability.id}`}
-                      >
-                        {capability.id}: {capability.level}
-                      </span>
-                    ))}
+              </div>
+            </div>
+            <div className='opl-settings-list'>
+              {developerProfileCapabilities.map((capability) => {
+                const state = developerCapabilityState(capability.status);
+                return (
+                  <div
+                    key={capability.id}
+                    className='opl-settings-row flex items-center justify-between gap-16px'
+                    data-testid={`opl-developer-capability-${capability.id}`}
+                  >
+                    <div className='opl-settings-row__main text-14px text-t-primary'>
+                      {t(`settings.oplDeveloperCapabilities.${capability.id}`)}
+                    </div>
+                    <div className='opl-settings-row__meta'>
+                      <Tag color={state === 'attention' ? 'orange' : state === 'unavailable' ? 'red' : 'gray'}>
+                        {t(`settings.oplDeveloperCapabilityStates.${state}`)}
+                      </Tag>
+                    </div>
                   </div>
-                )}
-              </div>
-            </PreferenceRow>
-            <PreferenceRow
-              label={t('settings.oplFlowContext')}
-              description={t('settings.oplFlowContextDesc')}
-              testId='opl-flow-context-row'
+                );
+              })}
+            </div>
+            <details
+              className='opl-settings-details mt-12px'
+              onToggle={(event) => setDeveloperDetailsOpen(event.currentTarget.open)}
+              data-testid='opl-developer-profile-details'
             >
-              <div className='text-12px text-t-secondary text-right max-w-320px truncate'>
-                <div className='text-t-primary font-500 truncate'>{oplFlowContextDisplay}</div>
-                {oplFlowContextSource && <div className='truncate'>{oplFlowContextSource}</div>}
-              </div>
-            </PreferenceRow>
-            {OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE && (
-              <PreferenceRow
-                label={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.label_key)}
-                description={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.description_key)}
-                testId='opl-flow-intelligence-enhancement-mode-row'
-              >
-                <Switch
-                  checked={oplFlowIntelligenceEnhancementMode}
-                  onChange={handleOplFlowIntelligenceEnhancementModeChange}
-                  loading={oplFlowIntelligenceEnhancementApplying}
-                />
-              </PreferenceRow>
-            )}
-          </div>
+              <summary className='cursor-pointer text-13px text-t-secondary'>{t('common.technical_details')}</summary>
+              {developerDetailsOpen && (
+                <div className='mt-8px space-y-6px text-12px text-t-secondary'>
+                  <div className='break-words'>{developerProfileState}</div>
+                  {developerProfileCapabilities.map((capability) => (
+                    <div key={capability.id} className='break-words'>
+                      {capability.id}: {capability.level} ({capability.status})
+                    </div>
+                  ))}
+                </div>
+              )}
+            </details>
+          </section>
 
-          {/* Developer settings: DevTools + CDP (only visible in dev mode) */}
-          <DevSettings />
+          <section className='opl-settings-section'>
+            <details
+              className='opl-settings-details'
+              onToggle={(event) => setOplFlowDetailsOpen(event.currentTarget.open)}
+              data-testid='opl-flow-details'
+            >
+              <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+                {t('settings.oplFlowContext')}
+              </summary>
+              {oplFlowDetailsOpen && (
+                <div className='opl-settings-list mt-10px'>
+                  {OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE && (
+                    <PreferenceRow
+                      label={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.label_key)}
+                      description={t(OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE.description_key)}
+                      testId='opl-flow-intelligence-enhancement-mode-row'
+                    >
+                      <Switch
+                        checked={oplFlowIntelligenceEnhancementMode}
+                        onChange={handleOplFlowIntelligenceEnhancementModeChange}
+                        loading={oplFlowIntelligenceEnhancementApplying}
+                      />
+                    </PreferenceRow>
+                  )}
+                  <PreferenceRow
+                    label={t('settings.oplFlowContext')}
+                    description={t('settings.oplFlowContextDesc')}
+                    testId='opl-flow-context-row'
+                  >
+                    <div className='max-w-320px text-right text-12px text-t-secondary'>
+                      <div className='truncate font-500 text-t-primary'>{oplFlowContextDisplay}</div>
+                      {oplFlowContextSource && <div className='truncate'>{oplFlowContextSource}</div>}
+                    </div>
+                  </PreferenceRow>
+                </div>
+              )}
+            </details>
+          </section>
+
+          <section className='opl-settings-section'>
+            <details
+              className='opl-settings-details'
+              onToggle={(event) => setDeveloperSettingsOpen(event.currentTarget.open)}
+              data-testid='developer-settings-details'
+            >
+              <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+                {t('settings.devTools')}
+              </summary>
+              {developerSettingsOpen && (
+                <div className='mt-10px'>
+                  <DevSettings />
+                </div>
+              )}
+            </details>
+          </section>
         </div>
       </AionScrollArea>
     </div>

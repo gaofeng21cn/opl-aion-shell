@@ -1,14 +1,58 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import AppearanceModalContent from '@/renderer/components/settings/SettingsModal/contents/AppearanceModalContent';
+
+const bridgeMocks = vi.hoisted(() => ({
+  getStartOnBootStatus: vi.fn(),
+  getGpuStatus: vi.fn(),
+  getCloseToTray: vi.fn(),
+}));
+
+vi.mock('@/common', () => ({
+  ipcBridge: {
+    application: {
+      getStartOnBootStatus: { invoke: bridgeMocks.getStartOnBootStatus },
+      getGpuStatus: { invoke: bridgeMocks.getGpuStatus },
+      setStartOnBoot: { invoke: vi.fn() },
+      setGpuOverride: { invoke: vi.fn() },
+      restart: { invoke: vi.fn() },
+    },
+    systemSettings: {
+      getCloseToTray: { invoke: bridgeMocks.getCloseToTray },
+      setCloseToTray: { invoke: vi.fn() },
+    },
+  },
+}));
+
+vi.mock('@/common/config/configService', () => ({
+  configService: {
+    get: vi.fn((key: string) => {
+      const defaults: Record<string, unknown> = {
+        'system.closeToTray': true,
+        'system.notificationEnabled': true,
+        'system.cronNotificationEnabled': false,
+        'system.autoPreviewOfficeFiles': true,
+        'acp.promptTimeout': 300,
+        'acp.agentIdleTimeout': 5,
+      };
+      return defaults[key];
+    }),
+    set: vi.fn(() => Promise.resolve()),
+    setLocal: vi.fn(),
+  },
+}));
+
+vi.mock('@/renderer/utils/platform', () => ({
+  isElectronDesktop: () => true,
+}));
+
+vi.mock('@/renderer/components/settings/LanguageSwitcher', () => ({
+  default: () => <div data-testid='language-switcher'>Language selector</div>,
+}));
 
 vi.mock('@/renderer/components/base/AionScrollArea', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
-
-vi.mock('@/renderer/components/settings/SettingsModal/contents/SystemModalContent/PersonalPreferenceSettings', () => ({
-  default: () => <div data-testid='personal-preference-settings'>Application behavior controls</div>,
 }));
 
 vi.mock('@/renderer/pages/settings/AppearanceSettings/CssThemeSettings', () => ({
@@ -36,6 +80,25 @@ vi.mock('react-i18next', () => ({
       ({
         'settings.personalPreferencesTitle': 'Preferences',
         'settings.personalPreferencesDesc': 'Set interface behavior, display fonts, and theme appearance.',
+        'settings.appBehaviorPreferencesTitle': 'Interface behavior',
+        'settings.appBehaviorPreferencesDesc': 'Daily application behavior.',
+        'settings.language': 'Language',
+        'settings.startOnBoot': 'Start on boot',
+        'settings.startOnBootDesc': 'Launch after sign-in.',
+        'settings.startOnBootUnsupported': 'Unavailable.',
+        'settings.closeToTray': 'Keep running after closing the window',
+        'settings.saveUploadToWorkspace': 'Save uploads to project folder',
+        'settings.autoPreviewOfficeFiles': 'Preview Office files',
+        'settings.autoPreviewOfficeFilesDesc': 'Open new Office files automatically.',
+        'settings.notification': 'Notifications',
+        'settings.cronNotificationEnabled': 'Background task completion',
+        'settings.advancedSettings': 'Advanced preferences',
+        'settings.timeoutPreferencesDesc': 'Less common performance and background assistant settings.',
+        'settings.promptTimeout': 'Model response timeout',
+        'settings.agentIdleTimeout': 'Release an idle background assistant after',
+        'settings.agentIdleTimeoutDesc': 'Stops an unused background assistant to free memory.',
+        'settings.hardwareAcceleration': 'Hardware acceleration',
+        'settings.hardwareAccelerationDesc': 'Use the GPU to render the interface.',
         'settings.appearancePreferencesTitle': 'Display and fonts',
         'settings.appearancePreferencesDesc': 'Set chat, Markdown, code text size, and interface scale.',
         'settings.theme': 'Theme appearance',
@@ -51,11 +114,32 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('AppearanceModalContent', () => {
-  it('keeps behavior controls separate and leaves the theme gallery collapsed by default', () => {
+  it('keeps daily controls visible and low-frequency preferences collapsed with the theme gallery', async () => {
+    bridgeMocks.getStartOnBootStatus.mockResolvedValue({
+      success: true,
+      data: { supported: true, enabled: false, isPackaged: true, platform: 'darwin' },
+    });
+    bridgeMocks.getGpuStatus.mockResolvedValue({
+      success: true,
+      data: { userOverride: 'auto', autoDisabled: false, crashCount: 0, lastCrashAt: null },
+    });
+    bridgeMocks.getCloseToTray.mockResolvedValue(true);
+
     render(<AppearanceModalContent />);
 
     expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByTestId('personal-preference-settings')).toHaveTextContent('Application behavior controls');
+    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent('Interface behavior');
+    expect(screen.getByTestId('appearance-behavior-section')).toHaveTextContent(
+      'Keep running after closing the window'
+    );
+    expect(screen.getByTestId('appearance-behavior-section')).not.toHaveTextContent('Model response timeout');
+
+    const advancedPreferences = screen.getByTestId('advanced-preferences');
+    expect(advancedPreferences).not.toHaveAttribute('open');
+    expect(advancedPreferences).toHaveTextContent('Model response timeout');
+    expect(advancedPreferences).toHaveTextContent('Release an idle background assistant after');
+    await waitFor(() => expect(advancedPreferences).toHaveTextContent('Hardware acceleration'));
+
     expect(screen.getByTestId('preferences-display-section')).toHaveTextContent('Display and fonts');
     expect(screen.getByText('Chat font size')).toBeInTheDocument();
     expect(screen.getByText('Markdown font size')).toBeInTheDocument();

@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Alert, Button, Card, Space, Tag, Typography } from '@arco-design/web-react';
+import { Alert, Button, Space, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { CheckOne, Delete, FolderSearch, Refresh, Repair, UpdateRotation } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { ipcBridge } from '@/common';
@@ -86,73 +86,75 @@ const lifecycleTagColor = (state: ResearchWorkspaceLifecycleRef['state']) => {
   return 'green';
 };
 
-const StorageInventoryCard: React.FC<{ item: StorageInventorySectionViewModel }> = ({ item }) => {
+type StorageInventoryRowProps = {
+  item: StorageInventorySectionViewModel;
+  actions: React.ReactNode;
+  status?: React.ReactNode;
+  technicalDetails?: React.ReactNode;
+};
+
+const StorageInventoryRow: React.FC<StorageInventoryRowProps> = ({ item, actions, status, technicalDetails }) => {
   const { t } = useTranslation();
   const [detailsOpen, setDetailsOpen] = React.useState(false);
   const meta = SECTION_META[item.id];
+  const hasTechnicalDetails = Boolean(item.section || technicalDetails);
 
   return (
-    <Card bordered className='rd-8px' data-testid={`storage-inventory-${item.id}`}>
-      <div className='flex flex-col gap-10px min-w-0'>
-        <div className='flex items-start justify-between gap-12px'>
-          <div className='min-w-0'>
-            <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
+    <div data-testid={`storage-inventory-${item.id}`}>
+      <div className='opl-settings-row'>
+        <div className='opl-settings-row__main min-w-0'>
+          <Typography.Text className='font-600 text-t-primary'>{t(meta.titleKey)}</Typography.Text>
+          <div className='text-12px text-t-secondary mt-4px'>{t(meta.descriptionKey)}</div>
+          <div className='mt-8px flex flex-wrap gap-x-16px gap-y-4px text-12px'>
+            <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
           </div>
-          <Tag color={item.silentDeleteAllowed ? 'green' : 'orange'}>
-            {item.silentDeleteAllowed
-              ? t('settings.storagePage.inventory.silentDeleteAllowed')
-              : t('settings.storagePage.inventory.silentDeleteBlocked')}
-          </Tag>
+          {status && <div className='mt-8px text-12px text-t-secondary'>{status}</div>}
+          {!item.section && (
+            <Typography.Text className='mt-8px block text-12px text-t-secondary'>
+              {t('settings.storagePage.inventory.notLoaded')}
+            </Typography.Text>
+          )}
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-8px text-12px'>
-          <span>{t('settings.storagePage.inventory.bytes', { bytes: formatStorageBytes(item.bytes) })}</span>
-          <span>
-            {t('settings.storagePage.inventory.cleanupMode', {
-              mode: t(cleanupModeLabelKey(item.cleanupMode)),
-            })}
-          </span>
-          <span>{t('settings.storagePage.inventory.rootCount', { count: item.rootCount })}</span>
+        <div className='opl-settings-row__meta flex shrink-0 flex-col items-end gap-8px'>
+          <Tag color={item.silentDeleteAllowed ? 'gray' : 'orange'}>{t(cleanupModeLabelKey(item.cleanupMode))}</Tag>
+          <div className='flex flex-wrap items-center justify-end gap-8px'>{actions}</div>
         </div>
-        {item.section ? (
-          <details
-            className='mt-2px'
-            onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
-            data-testid={`storage-inventory-details-${item.id}`}
-          >
-            <summary className='cursor-pointer text-12px text-t-secondary'>
-              {t('settings.storagePage.inventory.details')}
-            </summary>
-            {detailsOpen && (
-              <div className='mt-6px flex flex-col gap-6px'>
-                {item.section.roots.map((root) => (
-                  <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
-                    <span>{root.path}</span>
-                    <span className='text-t-secondary'>
-                      {t('settings.storagePage.inventory.rootDetail', {
-                        exists: root.exists
-                          ? t('settings.storagePage.inventory.exists')
-                          : t('settings.storagePage.inventory.missing'),
-                        bytes: formatStorageBytes(root.bytes),
-                      })}
-                    </span>
-                  </div>
-                ))}
-                {item.section.roots.length === 0 && (
-                  <Typography.Text className='text-12px text-t-secondary'>
-                    {t('settings.storagePage.inventory.noRoots')}
-                  </Typography.Text>
-                )}
-              </div>
-            )}
-          </details>
-        ) : (
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.storagePage.inventory.notLoaded')}
-          </Typography.Text>
-        )}
       </div>
-    </Card>
+      {hasTechnicalDetails && (
+        <details
+          className='opl-settings-details mt-8px'
+          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
+          data-testid={`storage-inventory-details-${item.id}`}
+        >
+          <summary className='cursor-pointer text-12px text-t-secondary'>
+            {t('settings.storagePage.inventory.details')}
+          </summary>
+          {detailsOpen && (
+            <div className='mt-6px flex flex-col gap-6px'>
+              {item.section?.roots.map((root) => (
+                <div key={root.path} className='flex flex-col gap-2px text-12px break-words'>
+                  <span>{root.path}</span>
+                  <span className='text-t-secondary'>
+                    {t('settings.storagePage.inventory.rootDetail', {
+                      exists: root.exists
+                        ? t('settings.storagePage.inventory.exists')
+                        : t('settings.storagePage.inventory.missing'),
+                      bytes: formatStorageBytes(root.bytes),
+                    })}
+                  </span>
+                </div>
+              ))}
+              {item.section?.roots.length === 0 && (
+                <Typography.Text className='text-12px text-t-secondary'>
+                  {t('settings.storagePage.inventory.noRoots')}
+                </Typography.Text>
+              )}
+              {technicalDetails}
+            </div>
+          )}
+        </details>
+      )}
+    </div>
   );
 };
 
@@ -183,9 +185,6 @@ export const StorageSettingsContent: React.FC = () => {
     [conversationProofReceipt, inventory, lastReceipt, logsPlan, runtimePlan, updaterPlan]
   );
   const totalBytes = viewModel.sections.reduce((sum, section) => sum + section.bytes, 0);
-  const safeSectionCount = viewModel.sections.filter((section) => section.silentDeleteAllowed).length;
-  const proofRequiredSectionCount = viewModel.sections.length - safeSectionCount;
-  const previewReady = Boolean(runtimePlan || logsPlan || updaterPlan || conversationProofReceipt);
 
   const runAction = React.useCallback(
     async <Result,>(action: AsyncAction, task: () => Promise<Result>, onSuccess: (result: Result) => void) => {
@@ -396,28 +395,13 @@ export const StorageSettingsContent: React.FC = () => {
     return '';
   };
 
-  const renderInventorySection = (item: StorageInventorySectionViewModel) => {
-    return <StorageInventoryCard key={item.id} item={item} />;
-  };
-
-  const renderPlanSummary = (
-    kind: StoragePlanKind,
-    plan: StoragePlan | null,
-    candidateCount: number,
-    removeBytes: number
-  ) => (
-    <Alert
-      type={plan ? 'info' : 'warning'}
-      content={
-        plan
-          ? t(`settings.storagePage.plans.${kind}.summary`, {
-              count: candidateCount,
-              bytes: formatStorageBytes(removeBytes),
-            })
-          : t(`settings.storagePage.plans.${kind}.required`)
-      }
-    />
-  );
+  const renderPlanSummary = (kind: StoragePlanKind, plan: StoragePlan | null, candidateCount: number, bytes: number) =>
+    plan
+      ? t(`settings.storagePage.plans.${kind}.summary`, {
+          count: candidateCount,
+          bytes: formatStorageBytes(bytes),
+        })
+      : null;
 
   const renderLifecycleRef = (item: ResearchWorkspaceLifecycleRef) => (
     <div key={item.id} className='flex flex-col gap-4px min-w-0'>
@@ -432,152 +416,253 @@ export const StorageSettingsContent: React.FC = () => {
     </div>
   );
 
+  const categoryPresentation: Record<
+    StorageInventorySectionViewModel['id'],
+    { actions: React.ReactNode; status?: React.ReactNode; technicalDetails?: React.ReactNode }
+  > = {
+    user_data_artifacts: {
+      actions: (
+        <>
+          <Button
+            htmlType='button'
+            icon={<FolderSearch />}
+            loading={loading === 'archive'}
+            onClick={archiveConversations}
+          >
+            {t('settings.storagePage.actions.archive')}
+          </Button>
+          <Button
+            htmlType='button'
+            icon={<CheckOne />}
+            disabled={!viewModel.conversationProof.receiptPath}
+            loading={loading === 'restore'}
+            onClick={restoreConversationProof}
+            data-testid='storage-conversation-restore'
+          >
+            {t('settings.storagePage.actions.restoreProof')}
+          </Button>
+          <Button
+            htmlType='button'
+            status='danger'
+            icon={<Delete />}
+            disabled={!viewModel.canDeleteConversationArtifacts}
+            loading={loading === 'delete-conversations'}
+            onClick={() => requestDangerAction('delete-conversations')}
+            data-testid='storage-conversation-delete'
+          >
+            {t('settings.storagePage.actions.deleteWithReceipt')}
+          </Button>
+        </>
+      ),
+      status: viewModel.conversationProof.receiptPath
+        ? t('settings.storagePage.conversations.proofReceipt', {
+            receipt: viewModel.conversationProof.receiptPath,
+          })
+        : t('settings.storagePage.conversations.receiptRequired'),
+    },
+    runtime_substrate: {
+      actions: (
+        <>
+          <Button
+            htmlType='button'
+            icon={<FolderSearch />}
+            loading={loading === 'runtime-plan'}
+            onClick={dryRunRuntimePrune}
+          >
+            {t('settings.storagePage.actions.dryRunRuntime')}
+          </Button>
+          <Button
+            htmlType='button'
+            status='danger'
+            icon={<Repair />}
+            disabled={!viewModel.runtimePlan.canExecute}
+            loading={loading === 'runtime-execute'}
+            onClick={() => requestDangerAction('runtime-execute')}
+            data-testid='storage-runtime-execute'
+          >
+            {t('settings.storagePage.actions.executeRuntime')}
+          </Button>
+        </>
+      ),
+      status: renderPlanSummary(
+        'runtime',
+        viewModel.runtimePlan.plan,
+        viewModel.runtimePlan.candidateCount,
+        viewModel.runtimePlan.removeBytes
+      ),
+    },
+    logs: {
+      actions: (
+        <>
+          <Button
+            htmlType='button'
+            icon={<FolderSearch />}
+            loading={loading === 'logs-plan'}
+            onClick={dryRunLogRotation}
+          >
+            {t('settings.storagePage.actions.dryRunLogs')}
+          </Button>
+          <Button
+            htmlType='button'
+            status='danger'
+            icon={<UpdateRotation />}
+            disabled={!viewModel.logsPlan.canExecute}
+            loading={loading === 'logs-execute'}
+            onClick={() => requestDangerAction('logs-execute')}
+            data-testid='storage-logs-execute'
+          >
+            {t('settings.storagePage.actions.executeLogs')}
+          </Button>
+        </>
+      ),
+      status: renderPlanSummary(
+        'logs',
+        viewModel.logsPlan.plan,
+        viewModel.logsPlan.candidateCount,
+        viewModel.logsPlan.removeBytes
+      ),
+      technicalDetails:
+        logsPlan && logsPlan.remove_candidates.length > 0
+          ? logsPlan.remove_candidates.slice(0, 5).map((candidate) => (
+              <Typography.Text key={candidate.path} className='text-12px break-words'>
+                {t('settings.storagePage.logs.candidate', {
+                  path: candidate.path,
+                  reason: t(`settings.storagePage.logs.reasons.${candidate.reason}`),
+                  bytes: formatStorageBytes(candidate.bytes),
+                })}
+              </Typography.Text>
+            ))
+          : undefined,
+    },
+    updater_cache: {
+      actions: (
+        <>
+          <Button
+            htmlType='button'
+            icon={<FolderSearch />}
+            loading={loading === 'updater-plan'}
+            onClick={dryRunUpdaterCleanup}
+          >
+            {t('settings.storagePage.actions.dryRunUpdater')}
+          </Button>
+          <Button
+            htmlType='button'
+            icon={<Repair />}
+            disabled={!viewModel.updaterPlan.canExecute}
+            loading={loading === 'updater-execute'}
+            onClick={() => requestDangerAction('updater-execute')}
+            data-testid='storage-updater-execute'
+          >
+            {t('settings.storagePage.actions.executeUpdater')}
+          </Button>
+        </>
+      ),
+      status: renderPlanSummary(
+        'updater',
+        viewModel.updaterPlan.plan,
+        viewModel.updaterPlan.candidateCount,
+        viewModel.updaterPlan.removeBytes
+      ),
+    },
+  };
+
   return (
-    <div className='flex flex-col gap-16px' data-testid='storage-settings-page'>
-      <div className='flex items-start justify-between gap-12px'>
-        <div>
+    <div className='opl-settings-page flex flex-col gap-16px' data-testid='storage-settings-page'>
+      <div className='opl-settings-page-header'>
+        <div className='opl-settings-page-header__copy'>
           <Typography.Title heading={4} className='mb-6px'>
             {t('settings.storagePage.title')}
           </Typography.Title>
           <Typography.Text className='text-t-secondary'>{t('settings.storagePage.description')}</Typography.Text>
         </div>
-        <Button
-          htmlType='button'
-          icon={<Refresh />}
-          loading={loading === 'inventory'}
-          onClick={loadInventory}
-          data-testid='storage-refresh'
-        >
-          {t('settings.storagePage.actions.refresh')}
-        </Button>
+        <div className='opl-settings-page-header__actions'>
+          <Tooltip content={t('settings.storagePage.actions.refresh')}>
+            <Button
+              htmlType='button'
+              icon={<Refresh />}
+              aria-label={t('settings.storagePage.actions.refresh')}
+              loading={loading === 'inventory'}
+              onClick={loadInventory}
+              data-testid='storage-refresh'
+            />
+          </Tooltip>
+        </div>
       </div>
 
       {error && <Alert type='error' content={error} />}
 
-      <Card bordered className='rd-8px' data-testid='storage-overview'>
-        <div className='grid grid-cols-2 gap-12px md:grid-cols-4'>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.storagePage.overview.total')}
-            </Typography.Text>
-            <Typography.Text className='block text-20px font-600 text-t-primary'>
-              {formatStorageBytes(totalBytes)}
-            </Typography.Text>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.storagePage.overview.categories')}
-            </Typography.Text>
-            <Typography.Text className='block text-20px font-600 text-t-primary'>
-              {viewModel.sections.length}
-            </Typography.Text>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.storagePage.overview.safe')}
-            </Typography.Text>
-            <Typography.Text className='block text-20px font-600 text-t-primary'>{safeSectionCount}</Typography.Text>
-          </div>
-          <div className='min-w-0'>
-            <Typography.Text className='block text-12px text-t-secondary'>
-              {t('settings.storagePage.overview.needsProof')}
-            </Typography.Text>
-            <Typography.Text className='block text-20px font-600 text-t-primary'>
-              {proofRequiredSectionCount}
-            </Typography.Text>
-          </div>
+      {pendingDangerAction && (
+        <Alert
+          type='warning'
+          title={t('settings.updateConfirm')}
+          data-testid='storage-action-confirmation'
+          content={
+            <div className='flex flex-col gap-8px'>
+              <span className='break-words'>{dangerActionSummary()}</span>
+              <Space wrap size='small'>
+                <Button htmlType='button' size='small' onClick={cancelDangerAction}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  htmlType='button'
+                  size='small'
+                  type='primary'
+                  status='danger'
+                  loading={loading === pendingDangerAction}
+                  onClick={confirmDangerAction}
+                  data-testid='storage-action-confirm'
+                >
+                  {dangerActionLabel()}
+                </Button>
+              </Space>
+            </div>
+          }
+        />
+      )}
+
+      {lastReceipt && (
+        <Alert
+          type='success'
+          content={t('settings.storagePage.conversations.proofReceipt', {
+            receipt: viewModel.lastReceipt.receiptPath ?? '',
+          })}
+        />
+      )}
+
+      <section className='opl-settings-section' data-testid='storage-category-list'>
+        <div className='opl-settings-section__header flex items-center justify-between gap-12px'>
+          <Typography.Text className='font-600 text-t-primary'>
+            {t('settings.storagePage.overview.categories')}
+          </Typography.Text>
+          <Typography.Text className='text-12px text-t-secondary'>
+            {t('settings.storagePage.overview.total')}: {formatStorageBytes(totalBytes)}
+          </Typography.Text>
         </div>
-      </Card>
-
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-14px'>{viewModel.sections.map(renderInventorySection)}</div>
-
-      <Card bordered className='rd-8px' data-testid='storage-cleanup-flow'>
-        <div className='flex flex-col gap-12px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.cleanupFlow.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.cleanupFlow.detail')}</div>
-          </div>
-          <div className='grid grid-cols-1 gap-8px md:grid-cols-3'>
-            <div className='rd-8px bg-fill-1 p-10px'>
-              <Tag color={previewReady ? 'green' : 'gray'}>{t('settings.storagePage.cleanupFlow.step1')}</Tag>
-              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
-                {t('settings.storagePage.cleanupFlow.preview')}
-              </Typography.Text>
-            </div>
-            <div className='rd-8px bg-fill-1 p-10px'>
-              <Tag color={pendingDangerAction ? 'orange' : 'gray'}>{t('settings.storagePage.cleanupFlow.step2')}</Tag>
-              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
-                {t('settings.storagePage.cleanupFlow.confirm')}
-              </Typography.Text>
-            </div>
-            <div className='rd-8px bg-fill-1 p-10px'>
-              <Tag color={lastReceipt ? 'green' : 'gray'}>{t('settings.storagePage.cleanupFlow.step3')}</Tag>
-              <Typography.Text className='mt-8px block text-12px text-t-secondary'>
-                {t('settings.storagePage.cleanupFlow.execute')}
-              </Typography.Text>
-            </div>
-          </div>
-          {pendingDangerAction && (
-            <Alert
-              type='warning'
-              title={t('settings.updateConfirm')}
-              data-testid='storage-action-confirmation'
-              content={
-                <div className='flex flex-col gap-8px'>
-                  <span className='break-words'>{dangerActionSummary()}</span>
-                  <Space wrap size='small'>
-                    <Button htmlType='button' size='small' onClick={cancelDangerAction}>
-                      {t('common.cancel')}
-                    </Button>
-                    <Button
-                      htmlType='button'
-                      size='small'
-                      type='primary'
-                      status='danger'
-                      loading={loading === pendingDangerAction}
-                      onClick={confirmDangerAction}
-                      data-testid='storage-action-confirm'
-                    >
-                      {dangerActionLabel()}
-                    </Button>
-                  </Space>
-                </div>
-              }
-            />
-          )}
-          {lastReceipt && (
-            <Alert
-              type='success'
-              content={t('settings.storagePage.receipt', {
-                operation: lastReceipt.schema,
-                receipt: viewModel.lastReceipt.receiptPath ?? '',
-              })}
-            />
-          )}
+        <div className='opl-settings-list'>
+          {viewModel.sections.map((item) => (
+            <StorageInventoryRow key={item.id} item={item} {...categoryPresentation[item.id]} />
+          ))}
         </div>
-      </Card>
 
-      <Card bordered className='rd-8px' data-testid='storage-research-lifecycle'>
-        <div className='flex flex-col gap-14px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.researchLifecycle.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>
-              {t('settings.storagePage.researchLifecycle.detail')}
-            </div>
-          </div>
+        <div data-testid='storage-research-lifecycle'>
           <details
+            className='opl-settings-details mt-12px'
             onToggle={(event) => setResearchDetailsOpen(event.currentTarget.open)}
             data-testid='storage-research-lifecycle-details'
           >
-            <summary className='cursor-pointer text-12px text-t-secondary'>
+            <summary className='cursor-pointer text-13px text-t-secondary'>
               {t('settings.storagePage.researchLifecycle.technicalDetails')}
             </summary>
             {researchDetailsOpen && (
-              <div className='mt-8px flex flex-col gap-12px'>
+              <div className='mt-10px flex flex-col gap-12px'>
+                <div>
+                  <Typography.Text className='font-600 text-t-primary'>
+                    {t('settings.storagePage.researchLifecycle.title')}
+                  </Typography.Text>
+                  <div className='text-12px text-t-secondary mt-4px'>
+                    {t('settings.storagePage.researchLifecycle.detail')}
+                  </div>
+                </div>
                 <Alert type='info' content={t('settings.storagePage.researchLifecycle.boundary')} />
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-12px'>
                   {viewModel.researchWorkspaceLifecycle.planes.map(renderLifecycleRef)}
@@ -591,182 +676,7 @@ export const StorageSettingsContent: React.FC = () => {
             )}
           </details>
         </div>
-      </Card>
-
-      <Card bordered className='rd-8px' data-testid='storage-conversations'>
-        <div className='flex flex-col gap-12px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.conversations.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.conversations.detail')}</div>
-          </div>
-          <Space wrap>
-            <Button
-              htmlType='button'
-              icon={<FolderSearch />}
-              loading={loading === 'archive'}
-              onClick={archiveConversations}
-            >
-              {t('settings.storagePage.actions.archive')}
-            </Button>
-            <Button
-              htmlType='button'
-              icon={<CheckOne />}
-              disabled={!viewModel.conversationProof.receiptPath}
-              loading={loading === 'restore'}
-              onClick={restoreConversationProof}
-              data-testid='storage-conversation-restore'
-            >
-              {t('settings.storagePage.actions.restoreProof')}
-            </Button>
-            <Button
-              htmlType='button'
-              status='danger'
-              icon={<Delete />}
-              disabled={!viewModel.canDeleteConversationArtifacts}
-              loading={loading === 'delete-conversations'}
-              onClick={() => requestDangerAction('delete-conversations')}
-              data-testid='storage-conversation-delete'
-            >
-              {t('settings.storagePage.actions.deleteWithReceipt')}
-            </Button>
-          </Space>
-          <Typography.Text className='text-12px text-t-secondary break-words'>
-            {viewModel.conversationProof.receiptPath
-              ? t('settings.storagePage.conversations.proofReceipt', {
-                  receipt: viewModel.conversationProof.receiptPath,
-                })
-              : t('settings.storagePage.conversations.receiptRequired')}
-          </Typography.Text>
-        </div>
-      </Card>
-
-      <Card bordered className='rd-8px' data-testid='storage-runtime'>
-        <div className='flex flex-col gap-12px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.runtime.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.runtime.detail')}</div>
-          </div>
-          {renderPlanSummary(
-            'runtime',
-            viewModel.runtimePlan.plan,
-            viewModel.runtimePlan.candidateCount,
-            viewModel.runtimePlan.removeBytes
-          )}
-          <Space wrap>
-            <Button
-              htmlType='button'
-              icon={<FolderSearch />}
-              loading={loading === 'runtime-plan'}
-              onClick={dryRunRuntimePrune}
-            >
-              {t('settings.storagePage.actions.dryRunRuntime')}
-            </Button>
-            <Button
-              htmlType='button'
-              status='danger'
-              icon={<Repair />}
-              disabled={!viewModel.runtimePlan.canExecute}
-              loading={loading === 'runtime-execute'}
-              onClick={() => requestDangerAction('runtime-execute')}
-              data-testid='storage-runtime-execute'
-            >
-              {t('settings.storagePage.actions.executeRuntime')}
-            </Button>
-          </Space>
-        </div>
-      </Card>
-
-      <Card bordered className='rd-8px' data-testid='storage-logs'>
-        <div className='flex flex-col gap-12px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.logs.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.logs.detail')}</div>
-          </div>
-          {renderPlanSummary(
-            'logs',
-            viewModel.logsPlan.plan,
-            viewModel.logsPlan.candidateCount,
-            viewModel.logsPlan.removeBytes
-          )}
-          {logsPlan && logsPlan.remove_candidates.length > 0 && (
-            <div className='flex flex-col gap-6px'>
-              {logsPlan.remove_candidates.slice(0, 5).map((candidate) => (
-                <Typography.Text key={candidate.path} className='text-12px break-words'>
-                  {t('settings.storagePage.logs.candidate', {
-                    path: candidate.path,
-                    reason: t(`settings.storagePage.logs.reasons.${candidate.reason}`),
-                    bytes: formatStorageBytes(candidate.bytes),
-                  })}
-                </Typography.Text>
-              ))}
-            </div>
-          )}
-          <Space wrap>
-            <Button
-              htmlType='button'
-              icon={<FolderSearch />}
-              loading={loading === 'logs-plan'}
-              onClick={dryRunLogRotation}
-            >
-              {t('settings.storagePage.actions.dryRunLogs')}
-            </Button>
-            <Button
-              htmlType='button'
-              status='danger'
-              icon={<UpdateRotation />}
-              disabled={!viewModel.logsPlan.canExecute}
-              loading={loading === 'logs-execute'}
-              onClick={() => requestDangerAction('logs-execute')}
-              data-testid='storage-logs-execute'
-            >
-              {t('settings.storagePage.actions.executeLogs')}
-            </Button>
-          </Space>
-        </div>
-      </Card>
-
-      <Card bordered className='rd-8px' data-testid='storage-updater-cache'>
-        <div className='flex flex-col gap-12px'>
-          <div>
-            <Typography.Text className='font-600 text-t-primary'>
-              {t('settings.storagePage.updater.title')}
-            </Typography.Text>
-            <div className='text-12px text-t-secondary mt-4px'>{t('settings.storagePage.updater.detail')}</div>
-          </div>
-          {renderPlanSummary(
-            'updater',
-            viewModel.updaterPlan.plan,
-            viewModel.updaterPlan.candidateCount,
-            viewModel.updaterPlan.removeBytes
-          )}
-          <Space wrap>
-            <Button
-              htmlType='button'
-              icon={<FolderSearch />}
-              loading={loading === 'updater-plan'}
-              onClick={dryRunUpdaterCleanup}
-            >
-              {t('settings.storagePage.actions.dryRunUpdater')}
-            </Button>
-            <Button
-              htmlType='button'
-              icon={<Repair />}
-              disabled={!viewModel.updaterPlan.canExecute}
-              loading={loading === 'updater-execute'}
-              onClick={() => requestDangerAction('updater-execute')}
-              data-testid='storage-updater-execute'
-            >
-              {t('settings.storagePage.actions.executeUpdater')}
-            </Button>
-          </Space>
-        </div>
-      </Card>
+      </section>
     </div>
   );
 };

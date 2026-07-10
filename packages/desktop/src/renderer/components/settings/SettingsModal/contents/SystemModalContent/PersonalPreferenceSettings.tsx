@@ -10,7 +10,7 @@ import { configService } from '@/common/config/configService';
 import LanguageSwitcher from '@/renderer/components/settings/LanguageSwitcher';
 import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Collapse, InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
+import { InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
@@ -242,23 +242,6 @@ const PersonalPreferenceSettings: React.FC = () => {
       label: t('settings.closeToTray'),
       component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
     },
-    ...(isDesktop && gpuStatus
-      ? [
-          {
-            key: 'hardwareAcceleration',
-            label: t('settings.hardwareAcceleration'),
-            description: gpuStatus.autoDisabled
-              ? t('settings.hardwareAccelerationAutoDisabled')
-              : t('settings.hardwareAccelerationDesc'),
-            component: (
-              <Switch
-                checked={gpuStatus.userOverride !== 'force-off' && !gpuStatus.autoDisabled}
-                onChange={handleHardwareAccelerationChange}
-              />
-            ),
-          },
-        ]
-      : []),
     {
       key: 'saveUploadToWorkspace',
       label: t('settings.saveUploadToWorkspace'),
@@ -272,7 +255,7 @@ const PersonalPreferenceSettings: React.FC = () => {
     },
   ];
 
-  const timeoutPreferenceItems: PreferenceItem[] = [
+  const advancedPreferenceItems: PreferenceItem[] = [
     {
       key: 'promptTimeout',
       label: t('settings.promptTimeout'),
@@ -304,20 +287,37 @@ const PersonalPreferenceSettings: React.FC = () => {
         />
       ),
     },
+    ...(isDesktop && gpuStatus
+      ? [
+          {
+            key: 'hardwareAcceleration',
+            label: t('settings.hardwareAcceleration'),
+            description: gpuStatus.autoDisabled
+              ? t('settings.hardwareAccelerationAutoDisabled')
+              : t('settings.hardwareAccelerationDesc'),
+            component: (
+              <Switch
+                checked={gpuStatus.userOverride !== 'force-off' && !gpuStatus.autoDisabled}
+                onChange={handleHardwareAccelerationChange}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
     <>
       {modalContextHolder}
 
-      <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px space-y-12px'>
-        <div>
+      <section className='opl-settings-section' data-testid='appearance-behavior-section'>
+        <div className='opl-settings-section__header'>
           <div className='text-14px font-medium text-t-primary leading-22px'>
             {t('settings.appBehaviorPreferencesTitle')}
           </div>
           <div className='text-12px text-t-tertiary mt-4px'>{t('settings.appBehaviorPreferencesDesc')}</div>
         </div>
-        <div className='w-full flex flex-col divide-y divide-border-2'>
+        <div className='opl-settings-list'>
           {behaviorPreferenceItems.map((item) => (
             <div key={item.key} data-testid={item.testId}>
               <PreferenceRow label={item.label} description={item.description}>
@@ -325,64 +325,36 @@ const PersonalPreferenceSettings: React.FC = () => {
               </PreferenceRow>
             </div>
           ))}
+          <PreferenceRow label={t('settings.notification')}>
+            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+          </PreferenceRow>
+          <PreferenceRow label={t('settings.cronNotificationEnabled')}>
+            <Switch
+              checked={cronNotificationEnabled}
+              disabled={!notificationEnabled}
+              onChange={handleCronNotificationEnabledChange}
+            />
+          </PreferenceRow>
         </div>
-        <Collapse
-          bordered={false}
-          activeKey={notificationEnabled ? ['notification'] : []}
-          onChange={(_, keys) => {
-            const shouldExpand = (keys as string[]).includes('notification');
-            if (shouldExpand && !notificationEnabled) {
-              handleNotificationEnabledChange(true);
-            } else if (!shouldExpand && notificationEnabled) {
-              handleNotificationEnabledChange(false);
-            }
-          }}
-          className='[&_.arco-collapse-item]:!border-none [&_.arco-collapse-item-header]:!px-0 [&_.arco-collapse-item-header-title]:!flex-1 [&_.arco-collapse-item-content-box]:!px-0 [&_.arco-collapse-item-content-box]:!pb-0'
-        >
-          <Collapse.Item
-            name='notification'
-            showExpandIcon={false}
-            header={
-              <div className='flex flex-1 items-center justify-between w-full'>
-                <span className='text-14px text-2 ml-12px'>{t('settings.notification')}</span>
-                <Switch
-                  checked={notificationEnabled}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={handleNotificationEnabledChange}
-                />
-              </div>
-            }
-          >
-            <div className='pl-12px'>
-              <PreferenceRow label={t('settings.cronNotificationEnabled')}>
-                <Switch
-                  checked={cronNotificationEnabled}
-                  disabled={!notificationEnabled}
-                  onChange={handleCronNotificationEnabledChange}
-                />
-              </PreferenceRow>
-            </div>
-          </Collapse.Item>
-        </Collapse>
-      </div>
+      </section>
 
-      <div className='px-16px md:px-24px lg:px-28px py-14px md:py-16px bg-2 rd-16px space-y-12px'>
-        <div>
-          <div className='text-14px font-medium text-t-primary leading-22px'>
-            {t('settings.timeoutPreferencesTitle')}
+      <section className='opl-settings-section'>
+        <details className='opl-settings-details' data-testid='advanced-preferences'>
+          <summary className='cursor-pointer text-14px font-medium text-t-primary'>
+            {t('settings.advancedSettings')}
+          </summary>
+          <div className='mt-8px text-12px text-t-tertiary'>{t('settings.timeoutPreferencesDesc')}</div>
+          <div className='opl-settings-list mt-10px'>
+            {advancedPreferenceItems.map((item) => (
+              <div key={item.key} data-testid={item.testId}>
+                <PreferenceRow label={item.label} description={item.description}>
+                  {item.component}
+                </PreferenceRow>
+              </div>
+            ))}
           </div>
-          <div className='text-12px text-t-tertiary mt-4px'>{t('settings.timeoutPreferencesDesc')}</div>
-        </div>
-        <div className='w-full flex flex-col divide-y divide-border-2'>
-          {timeoutPreferenceItems.map((item) => (
-            <div key={item.key} data-testid={item.testId}>
-              <PreferenceRow label={item.label} description={item.description}>
-                {item.component}
-              </PreferenceRow>
-            </div>
-          ))}
-        </div>
-      </div>
+        </details>
+      </section>
     </>
   );
 };

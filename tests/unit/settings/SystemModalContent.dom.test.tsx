@@ -8,7 +8,7 @@ import { SWRConfig } from 'swr';
 const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
-  systemInfoInvoke: vi.fn(),
+  openFolderInvoke: vi.fn(),
   getStartOnBootStatusInvoke: vi.fn(),
   getGpuStatusInvoke: vi.fn(),
 }));
@@ -20,7 +20,6 @@ vi.mock('@/common', () => ({
       executeAction: { invoke: bridgeMocks.executeActionInvoke },
     },
     application: {
-      systemInfo: { invoke: bridgeMocks.systemInfoInvoke },
       getStartOnBootStatus: { invoke: bridgeMocks.getStartOnBootStatusInvoke },
       getGpuStatus: { invoke: bridgeMocks.getGpuStatusInvoke },
       getCdpStatus: {
@@ -33,7 +32,7 @@ vi.mock('@/common', () => ({
       setCloseToTray: { invoke: vi.fn() },
     },
     shell: {
-      openFolderWith: { invoke: vi.fn() },
+      openFolderWith: { invoke: bridgeMocks.openFolderInvoke },
     },
   },
 }));
@@ -44,7 +43,17 @@ vi.mock('react-i18next', () => ({
     init: vi.fn(),
   },
   useTranslation: () => ({
-    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key,
+    t: (key: string, options?: { defaultValue?: string }) => {
+      const labels: Record<string, string> = {
+        'common.open': 'Open',
+        'settings.oplDeveloperProfileStates.maintainer': 'Maintainer',
+        'settings.oplDeveloperCapabilities.source_channel': 'Capability source',
+        'settings.oplDeveloperCapabilities.workspace_trust': 'Workspace access',
+        'settings.oplDeveloperCapabilities.github_authority': 'Repository access',
+        'settings.oplDeveloperCapabilityStates.available': 'Available',
+      };
+      return labels[key] ?? options?.defaultValue ?? key;
+    },
   }),
 }));
 
@@ -73,6 +82,13 @@ vi.mock('@/common/config/configService', () => ({
 }));
 
 describe('SystemModalContent OPL App state', () => {
+  const openDetails = (testId: string) => {
+    const details = screen.getByTestId(testId) as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event('toggle'));
+    return details;
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(configService.get).mockImplementation((key: string) => {
@@ -179,11 +195,7 @@ describe('SystemModalContent OPL App state', () => {
         },
       })
     );
-    bridgeMocks.systemInfoInvoke.mockResolvedValue({
-      workDir: '/wrong/shell/workdir',
-      logDir: '/wrong/shell/logs',
-      cacheDir: '/wrong/shell/cache',
-    });
+    bridgeMocks.openFolderInvoke.mockResolvedValue(undefined);
   });
 
   const renderWithFreshSWR = () =>
@@ -193,7 +205,7 @@ describe('SystemModalContent OPL App state', () => {
       </SWRConfig>
     );
 
-  it('renders Developer Profile capabilities and paths from fast OPL app state', async () => {
+  it('shows read-only App paths and human-readable capabilities while technical values stay collapsed', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
@@ -205,31 +217,54 @@ describe('SystemModalContent OPL App state', () => {
     expect(screen.queryByText('settings.notification')).not.toBeInTheDocument();
     expect(screen.queryByText('settings.startOnBoot')).not.toBeInTheDocument();
     expect(screen.queryByText('Developer mode from app state')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('settings.developerProfileDesc');
-    expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('maintainer');
-    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('source_channel');
-    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('managed_package_channel');
-    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('github_authority');
-    expect(screen.getByTestId('opl-developer-profile-row')).toHaveTextContent('direct_write');
-    expect(screen.getByText('opl-flow')).toBeInTheDocument();
+    expect(screen.getByText('settings.developerProfileDesc')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('Maintainer');
+    expect(screen.getByTestId('opl-developer-capability-source_channel')).toHaveTextContent('Capability source');
+    expect(screen.getByTestId('opl-developer-capability-source_channel')).toHaveTextContent('Available');
+    expect(screen.getByTestId('opl-developer-capability-github_authority')).toHaveTextContent('Repository access');
+    expect(document.body).not.toHaveTextContent('managed_package_channel');
+    expect(document.body).not.toHaveTextContent('direct_write');
+    expect(screen.queryByText('opl-flow')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-flow-details')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('developer-settings-details')).not.toHaveAttribute('open');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings.workDir' }));
+    await waitFor(() =>
+      expect(bridgeMocks.openFolderInvoke).toHaveBeenCalledWith({
+        folder_path: '/Users/example/OPL Workspace',
+        tool: 'explorer',
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings.logDir' }));
+    await waitFor(() =>
+      expect(bridgeMocks.openFolderInvoke).toHaveBeenCalledWith({
+        folder_path: '/Users/example/.opl/logs',
+        tool: 'explorer',
+      })
+    );
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: 'workspace_root_set' })
+    );
+
+    openDetails('opl-developer-profile-details');
+    expect(await screen.findByText(/source_channel: managed_package_channel/)).toBeInTheDocument();
+
+    openDetails('opl-flow-details');
+    expect(await screen.findByText('opl-flow')).toBeInTheDocument();
     expect(
       screen.getByText('one-person-lab-app/contracts/app-product-profile.json#codex.opl_flow_context')
     ).toBeInTheDocument();
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.oplFlowContextDesc');
-    expect(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).toHaveTextContent(
-      'settings.oplFlowIntelligenceEnhancementMode'
-    );
-    expect(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).toHaveTextContent(
-      'settings.oplFlowIntelligenceEnhancementModeDesc'
-    );
-    expect(screen.queryByText('/wrong/shell/workdir')).not.toBeInTheDocument();
-    expect(screen.queryByText('/wrong/shell/logs')).not.toBeInTheDocument();
   });
 
   it('persists OPL Flow intelligence enhancement mode from the settings switch', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    openDetails('opl-flow-details');
 
     fireEvent.click(within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch'));
 
@@ -280,6 +315,7 @@ describe('SystemModalContent OPL App state', () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    openDetails('opl-flow-details');
 
     expect(
       within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch')
@@ -323,6 +359,7 @@ describe('SystemModalContent OPL App state', () => {
         dryRun: false,
       })
     );
+    openDetails('opl-flow-details');
 
     expect(
       within(screen.getByTestId('opl-flow-intelligence-enhancement-mode-row')).getByRole('switch')
@@ -356,6 +393,7 @@ describe('SystemModalContent OPL App state', () => {
 
     expect(screen.getByTestId('opl-developer-profile-status')).toHaveTextContent('settings.unavailable');
     expect(screen.getByTestId('opl-developer-profile-row')).not.toHaveTextContent('blocked');
+    openDetails('opl-flow-details');
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.unavailable');
   });
 
@@ -385,6 +423,7 @@ describe('SystemModalContent OPL App state', () => {
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
 
+    openDetails('opl-flow-details');
     expect(screen.getByTestId('opl-flow-context-row')).toHaveTextContent('settings.unavailable');
     expect(screen.getByTestId('opl-flow-context-row')).not.toHaveTextContent('pages.settings_system');
   });

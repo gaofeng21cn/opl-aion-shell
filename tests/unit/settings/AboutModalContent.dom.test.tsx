@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SWRConfig } from 'swr';
 import AboutModalContent from '@/renderer/components/settings/SettingsModal/contents/AboutModalContent';
 
@@ -27,26 +27,27 @@ vi.mock('react-i18next', () => ({
   },
   useTranslation: () => ({
     t: (key: string, options?: Record<string, string>) => {
-      if (key === 'settings.appName') return 'One Person Lab App';
-      if (key === 'settings.appDescription') return 'OPL desktop app';
-      if (key === 'settings.aboutVersionBadge') return `应用版本 ${options?.version}`;
-      if (key === 'settings.aboutShellVersion') return `界面版本 ${options?.version}`;
-      if (key === 'settings.aboutFrameworkRevision') return `OPL 框架 ${options?.revision}`;
-      if (key === 'settings.aboutLatestStableVersion') return `GitHub 最新稳定版 ${options?.version}`;
-      if (key === 'settings.checkForUpdates') return '检查更新';
-      if (key === 'settings.includeNightlyUpdates') return '接收 Nightly 更新';
-      if (key === 'settings.aboutMaintenanceMoved') return '更新与维护已移到维护页';
-      if (key === 'settings.runtimePage.releaseChannels.stable') return 'Stable';
-      if (key === 'settings.oplEnvironmentPage.updates.components.app_binary') return 'Installation carrier';
-      if (key === 'settings.oplEnvironmentPage.updates.components.runtime_toolchain') return 'OPL Runtime Fabric';
-      if (key === 'settings.oplEnvironmentPage.updates.components.agent_package_channel')
-        return 'OPL capability packages';
-      if (key === 'settings.oplEnvironmentPage.updates.components.capability_exposure') return 'Codex Surface';
-      if (key === 'settings.oplEnvironmentPage.status.current') return 'Current';
-      if (key === 'settings.oplEnvironmentPage.status.needs_reload') return 'Needs reload';
-      if (key === 'settings.oplEnvironmentPage.status.update_available') return 'Update available';
-      if (key === 'settings.oplEnvironmentPage.status.unknown') return 'Unknown';
-      return key;
+      const labels: Record<string, string> = {
+        'settings.appName': 'One Person Lab App',
+        'settings.appDescription': 'OPL desktop app',
+        'settings.helpDocumentation': 'Help documentation',
+        'settings.releasePage': 'Release page',
+        'settings.feedback': 'Feedback',
+        'settings.checkForUpdates': 'Check for updates',
+        'settings.aboutUpdateChecking': 'Checking for updates',
+        'settings.aboutUpdateCurrent': 'You are up to date',
+        'settings.aboutUpdateUnknown': 'Update status unavailable',
+        'settings.runtimePage.releaseChannels.stable': 'Stable',
+        'common.technical_details': 'Technical details',
+      };
+      if (key === 'settings.aboutVersionBadge') {
+        return `App ${options?.version} · ${options?.channel}`;
+      }
+      if (key === 'settings.aboutUpdateAvailable') return `Version ${options?.version} available`;
+      if (key === 'settings.aboutShellVersion') return `GUI shell ${options?.version}`;
+      if (key === 'settings.aboutFrameworkRevision') return `Framework revision ${options?.revision}`;
+      if (key === 'settings.aboutReleaseRepo') return `Release repository ${options?.repo}`;
+      return labels[key] ?? key;
     },
   }),
 }));
@@ -55,6 +56,23 @@ vi.mock('@/renderer/utils/platform', () => ({
   isElectronDesktop: () => true,
   openExternalUrl: vi.fn(() => Promise.resolve()),
 }));
+
+const currentUpdateResult = {
+  success: true,
+  data: {
+    currentVersion: '26.5.27',
+    updateAvailable: false,
+    channel: 'stable',
+    latest: {
+      version: '26.5.27',
+      tagName: 'v26.5.27',
+      htmlUrl: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.5.27',
+      prerelease: false,
+      draft: false,
+      assets: [],
+    },
+  },
+};
 
 describe('AboutModalContent OPL release metadata', () => {
   beforeEach(() => {
@@ -69,28 +87,14 @@ describe('AboutModalContent OPL release metadata', () => {
           release: {
             version: '26.4.27',
             channel: 'stable',
+            repo: 'gaofeng21cn/one-person-lab-app',
             opl_framework_version: '0.1.0',
             opl_framework_revision: 'abc123def456',
           },
         },
       },
     });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
-      success: true,
-      data: {
-        currentVersion: '26.5.27',
-        updateAvailable: false,
-        channel: 'stable',
-        latest: {
-          version: '26.5.27',
-          tagName: 'v26.5.27',
-          htmlUrl: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.5.27',
-          prerelease: false,
-          draft: false,
-          assets: [],
-        },
-      },
-    });
+    bridgeMocks.updateCheckInvoke.mockResolvedValue(currentUpdateResult);
   });
 
   const renderWithFreshSWR = () =>
@@ -100,13 +104,38 @@ describe('AboutModalContent OPL release metadata', () => {
       </SWRConfig>
     );
 
-  it('renders framework revision instead of the legacy framework version', async () => {
+  const openTechnicalDetails = () => {
+    const details = screen.getByTestId('about-technical-details') as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event('toggle'));
+  };
+
+  it('keeps the main page focused on app version, update state, and three distinct actions', async () => {
+    renderWithFreshSWR();
+
+    expect(await screen.findByText('App 26.5.27 · Stable')).toBeInTheDocument();
+    expect(await screen.findByText('You are up to date')).toBeInTheDocument();
+    expect(screen.getByTestId('about-check-updates')).toBeInTheDocument();
+    expect(screen.getByTestId('about-link-help')).toHaveTextContent('Help documentation');
+    expect(screen.getByTestId('about-link-releases')).toHaveTextContent('Release page');
+    expect(screen.getByTestId('about-link-feedback')).toHaveTextContent('Feedback');
+    expect(screen.queryByText('settings.officialWebsite')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.bugReport')).not.toBeInTheDocument();
+    expect(screen.queryByText('settings.contactMe')).not.toBeInTheDocument();
+    expect(screen.queryByText('GUI shell')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Framework revision/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('about-technical-details')).not.toHaveAttribute('open');
+  });
+
+  it('shows shell, framework revision, and release repo only after technical details open', async () => {
     renderWithFreshSWR();
 
     await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
+    openTechnicalDetails();
 
-    expect(await screen.findByText('OPL 框架 abc123def456')).toBeInTheDocument();
-    expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
+    expect(await screen.findByText('Framework revision abc123def456')).toBeInTheDocument();
+    expect(screen.queryByText('Framework revision 0.1.0')).not.toBeInTheDocument();
+    expect(screen.getByText('Release repository gaofeng21cn/one-person-lab-app')).toBeInTheDocument();
   });
 
   it('does not fall back to the legacy framework version when revision is missing', async () => {
@@ -126,31 +155,33 @@ describe('AboutModalContent OPL release metadata', () => {
     });
 
     renderWithFreshSWR();
+    openTechnicalDetails();
 
-    await waitFor(() => expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({ profile: 'fast' }));
-
-    expect(await screen.findByText('OPL 框架 -')).toBeInTheDocument();
-    expect(screen.queryByText('OPL 框架 0.1.0')).not.toBeInTheDocument();
+    expect(await screen.findByText('Framework revision -')).toBeInTheDocument();
+    expect(screen.queryByText('Framework revision 0.1.0')).not.toBeInTheDocument();
   });
 
-  it('keeps About focused on version and project links instead of maintenance controls', async () => {
+  it('rechecks on demand and reports an available release from the update service', async () => {
+    bridgeMocks.updateCheckInvoke.mockResolvedValueOnce(currentUpdateResult).mockResolvedValueOnce({
+      ...currentUpdateResult,
+      data: {
+        ...currentUpdateResult.data,
+        updateAvailable: true,
+        latest: { ...currentUpdateResult.data.latest, version: '26.6.27', tagName: 'v26.6.27' },
+      },
+    });
+
     renderWithFreshSWR();
+    expect(await screen.findByText('You are up to date')).toBeInTheDocument();
 
-    expect(await screen.findByText('更新与维护已移到维护页')).toBeInTheDocument();
-    expect(screen.queryByText('检查更新')).not.toBeInTheDocument();
-    expect(screen.queryByText('接收 Nightly 更新')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('about-managed-update-summary')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('about-check-updates'));
+
+    expect(await screen.findByText('Version 26.6.27 available')).toBeInTheDocument();
+    expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.updateCheckInvoke).toHaveBeenLastCalledWith({ channel: 'stable' });
   });
 
-  it('does not label an older release.version as the latest stable version', async () => {
-    renderWithFreshSWR();
-
-    await screen.findByText('应用版本 26.5.27');
-
-    expect(screen.queryByText('GitHub 最新稳定版 26.4.27')).not.toBeInTheDocument();
-  });
-
-  it('does not label release projection versions as GitHub latest stable', async () => {
+  it('does not use a release projection version as the latest available release', async () => {
     bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
       surface: 'app_state_fast',
       command: 'opl app state --profile fast --json',
@@ -158,7 +189,7 @@ describe('AboutModalContent OPL release metadata', () => {
       parsed: {
         app_state: {
           release: {
-            version: '26.6.20',
+            version: '99.0.0',
             channel: 'stable',
             opl_framework_revision: 'abc123def456',
           },
@@ -168,32 +199,16 @@ describe('AboutModalContent OPL release metadata', () => {
 
     renderWithFreshSWR();
 
-    await screen.findByText('OPL 框架 abc123def456');
-
-    expect(screen.queryByText('GitHub 最新稳定版 26.6.20')).not.toBeInTheDocument();
+    expect(await screen.findByText('You are up to date')).toBeInTheDocument();
+    expect(screen.queryByText('Version 99.0.0 available')).not.toBeInTheDocument();
   });
 
-  it('shows latest stable only from the GitHub update check result', async () => {
-    bridgeMocks.updateCheckInvoke.mockResolvedValueOnce({
-      success: true,
-      data: {
-        currentVersion: '26.5.27',
-        updateAvailable: true,
-        channel: 'stable',
-        latest: {
-          version: '26.6.27',
-          tagName: 'v26.6.27',
-          htmlUrl: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.6.27',
-          prerelease: false,
-          draft: false,
-          assets: [],
-        },
-      },
-    });
+  it('shows an unknown update state when the update service fails', async () => {
+    bridgeMocks.updateCheckInvoke.mockRejectedValueOnce(new Error('offline'));
 
     renderWithFreshSWR();
 
-    expect(await screen.findByText('GitHub 最新稳定版 26.6.27')).toBeInTheDocument();
-    expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledWith({ channel: 'stable' });
+    expect(await screen.findByText('Update status unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/^Version .* available$/)).not.toBeInTheDocument();
   });
 });

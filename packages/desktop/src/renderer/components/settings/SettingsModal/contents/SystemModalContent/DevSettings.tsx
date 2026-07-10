@@ -152,23 +152,18 @@ const DevSettings: React.FC = () => {
   }
 
   return (
-    <div className='space-y-12px'>
+    <div className='opl-settings-list'>
       {/* DevTools toggle */}
-      <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px'>
+      <div>
         <PreferenceRow label={t('settings.devTools')}>
-          <Button
-            size='small'
-            type={isDevToolsOpen ? 'primary' : 'secondary'}
-            onClick={handleToggleDevTools}
-            className='shadow-md border-2 hover:shadow-lg transition-all'
-          >
+          <Button size='small' type={isDevToolsOpen ? 'primary' : 'secondary'} onClick={handleToggleDevTools}>
             {isDevToolsOpen ? t('settings.closeDevTools') : t('settings.openDevTools')}
           </Button>
         </PreferenceRow>
       </div>
 
       {/* CDP section */}
-      <div className='px-[12px] md:px-[32px] py-16px bg-2 rd-16px space-y-12px'>
+      <div className='space-y-12px'>
         <div className='text-14px font-medium text-t-primary mb-8px'>{t('settings.cdp.title')}</div>
         <div className='space-y-12px'>
           {/* CDP remote debugging toggle */}
@@ -289,7 +284,7 @@ const DevSettings: React.FC = () => {
           )}
 
           {status && !status.port && !status.configEnabled && (
-            <div className='text-12px text-t-tertiary py-8px'>{t('settings.cdp.disabledHint')}</div>
+            <div className='opl-settings-empty text-12px text-t-tertiary'>{t('settings.cdp.disabledHint')}</div>
           )}
 
           {hasPendingChange && (
