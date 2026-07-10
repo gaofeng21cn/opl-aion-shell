@@ -4467,14 +4467,49 @@ function isPathWithinRoot(root, candidate) {
   return relative === '' || (!path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`));
 }
 
-function copyLogDirectory(sourceRoot, targetRoot, secret) {
+function filesystemCollectionError(operation, source, error) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : null;
+  return {
+    type: 'filesystem_collection_error',
+    operation,
+    source,
+    code,
+    message: error instanceof Error ? error.message : String(error),
+  };
+}
+
+function collectFailureArtifactSafely(writeSmokeEvent, source, operation) {
+  try {
+    return operation();
+  } catch (error) {
+    writeSmokeEventSafely(writeSmokeEvent, 'failure_artifact_collection', 'failed', {
+      ...filesystemCollectionError('collect_artifact', source, error),
+    });
+    return null;
+  }
+}
+
+function copyLogDirectory(sourceRoot, targetRoot, secret, summary) {
   const stack = [sourceRoot];
   while (stack.length > 0) {
     const current = stack.pop();
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+    let entries;
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch (error) {
+      summary.errors.push(filesystemCollectionError('read_directory', current, error));
+      continue;
+    }
+    for (const entry of entries) {
       const source = path.resolve(current, entry.name);
       if (!isPathWithinRoot(sourceRoot, source)) continue;
-      const stats = fs.lstatSync(source);
+      let stats;
+      try {
+        stats = fs.lstatSync(source);
+      } catch (error) {
+        summary.errors.push(filesystemCollectionError('inspect_entry', source, error));
+        continue;
+      }
       if (stats.isSymbolicLink()) continue;
       if (stats.isDirectory()) {
         stack.push(source);
@@ -4482,8 +4517,20 @@ function copyLogDirectory(sourceRoot, targetRoot, secret) {
       }
       if (!stats.isFile()) continue;
       const target = path.join(targetRoot, path.relative(sourceRoot, source));
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      copyTextFileIfExists(source, target, secret);
+      let content;
+      try {
+        content = fs.readFileSync(source, 'utf8');
+      } catch (error) {
+        summary.errors.push(filesystemCollectionError('read_file', source, error));
+        continue;
+      }
+      try {
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        writeTextArtifact(target, content, secret);
+        summary.copied.push({ source, target });
+      } catch (error) {
+        summary.errors.push(filesystemCollectionError('write_file', target, error));
+      }
     }
   }
 }
@@ -4499,16 +4546,35 @@ function collectAppLogArtifacts(options, secret, logRoots) {
   ];
   const seen = new Set();
   const targetDir = path.join(options.artifacts, 'app-logs');
+  const summary = {
+    schema: 'opl_vm_smoke_app_log_artifacts.v1',
+    candidates: roots.map((logDir) => path.resolve(logDir)),
+    copied: [],
+    copied_count: 0,
+    errors: [],
+    error_count: 0,
+  };
   for (const [index, logDir] of roots.entries()) {
     const sourceRoot = path.resolve(logDir);
     if (seen.has(sourceRoot) || !fs.existsSync(sourceRoot)) continue;
-    const stats = fs.lstatSync(sourceRoot);
+    let stats;
+    try {
+      stats = fs.lstatSync(sourceRoot);
+    } catch (error) {
+      summary.errors.push(filesystemCollectionError('inspect_root', sourceRoot, error));
+      continue;
+    }
     if (stats.isSymbolicLink() || !stats.isDirectory()) continue;
     seen.add(sourceRoot);
     const safeRootName = path.basename(sourceRoot).replace(/[^A-Za-z0-9_.-]/g, '_') || 'logs';
     const targetRoot = path.join(targetDir, `${String(index + 1).padStart(2, '0')}-${safeRootName}`);
-    copyLogDirectory(sourceRoot, targetRoot, secret);
+    copyLogDirectory(sourceRoot, targetRoot, secret, summary);
   }
+  summary.copied_count = summary.copied.length;
+  summary.error_count = summary.errors.length;
+  fs.mkdirSync(targetDir, { recursive: true });
+  writeJsonArtifact(path.join(targetDir, 'collection-summary.json'), summary, secret);
+  return summary;
 }
 
 function collectFileListing(root, target) {
@@ -4946,9 +5012,9 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
   };
 }
 
-function collectFailureArtifacts(options, codexApiKey) {
+function collectFailureArtifacts(options, codexApiKey, writeSmokeEvent) {
   fs.mkdirSync(options.artifacts, { recursive: true });
-  collectLaunchDiagnostics(options, codexApiKey);
+  collectFailureArtifactSafely(writeSmokeEvent, 'launch-app', () => collectLaunchDiagnostics(options, codexApiKey));
   try {
     writeJsonArtifact(
       path.join(options.artifacts, 'failure-accessibility-tree.json'),
@@ -4964,9 +5030,13 @@ function collectFailureArtifacts(options, codexApiKey) {
   }
 
   const firstRunLog = defaultFirstRunLogPath();
-  copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey);
-  collectMainBootstrapFatalArtifacts(options, codexApiKey);
-  collectAppLogArtifacts(options, codexApiKey);
+  collectFailureArtifactSafely(writeSmokeEvent, 'first-run.jsonl', () =>
+    copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey)
+  );
+  collectFailureArtifactSafely(writeSmokeEvent, 'main-bootstrap-fatal', () =>
+    collectMainBootstrapFatalArtifacts(options, codexApiKey)
+  );
+  collectFailureArtifactSafely(writeSmokeEvent, 'app-logs', () => collectAppLogArtifacts(options, codexApiKey));
   collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
   collectFileListing(
     path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi'),
@@ -4996,6 +5066,18 @@ function collectFailureArtifacts(options, codexApiKey) {
   if (fs.existsSync(unifiedLogPath)) {
     assertDoesNotContainSecret('unified-log.txt', fs.readFileSync(unifiedLogPath, 'utf8'), codexApiKey);
   }
+}
+
+function collectFailureArtifactsForSmokeError(primaryError, options, codexApiKey, writeSmokeEvent) {
+  const collector = options.__testHooks?.collectFailureArtifacts ?? collectFailureArtifacts;
+  try {
+    collector(options, codexApiKey, writeSmokeEvent);
+  } catch (collectionError) {
+    writeSmokeEventSafely(writeSmokeEvent, 'failure_artifacts', 'failed', {
+      error: collectionError instanceof Error ? collectionError.message : String(collectionError),
+    });
+  }
+  return primaryError;
 }
 
 async function main() {
@@ -5534,8 +5616,7 @@ async function main() {
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    collectFailureArtifacts(options, codexApiKey);
-    throw error;
+    throw collectFailureArtifactsForSmokeError(error, options, codexApiKey, writeSmokeEvent);
   }
 }
 
@@ -5616,6 +5697,8 @@ export const __test =
         collectLaunchLogText,
         collectMainBootstrapFatalArtifacts,
         collectAppLogArtifacts,
+        collectFailureArtifactSafely,
+        collectFailureArtifactsForSmokeError,
         defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,
         captureFullReleaseScreenshotEvidence,

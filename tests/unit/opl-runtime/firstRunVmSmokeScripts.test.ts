@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -1842,6 +1842,178 @@ describe('OPL first-run VM smoke scripts', () => {
       );
       expect(fs.existsSync(path.join(artifacts, 'app-logs', '01-logs', '2026', '07', '10', 'outside.log'))).toBe(false);
     } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the primary smoke failure and continues log evidence after an unreadable root', () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-log-unreadable-root-'));
+    const originalReaddirSync = fs.readdirSync;
+    const blockedRoot = path.join(workspace, 'blocked', 'logs');
+    const healthyRoot = path.join(workspace, 'healthy', 'logs');
+    const artifacts = path.join(workspace, 'artifacts');
+    fs.mkdirSync(blockedRoot, { recursive: true });
+    writeFile(path.join(healthyRoot, 'app.log'), 'healthy root log\n');
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: unknown[]) => {
+      if (path.resolve(String(args[0])) === blockedRoot) {
+        throw Object.assign(new Error(`EACCES: permission denied, scandir '${blockedRoot}'`), { code: 'EACCES' });
+      }
+      return Reflect.apply(originalReaddirSync, fs, args);
+    }) as typeof fs.readdirSync);
+
+    try {
+      const primaryError = new Error('primary smoke failure');
+      const smokeEvents: Array<{ phase: string; status: string; error?: string }> = [];
+      const observedError = vmSmoke.collectFailureArtifactsForSmokeError(
+        primaryError,
+        {
+          artifacts,
+          processName: 'One Person Lab',
+          __testHooks: {
+            collectFailureArtifacts() {
+              vmSmoke.collectAppLogArtifacts({ artifacts, processName: 'One Person Lab' }, 'secret', [
+                blockedRoot,
+                healthyRoot,
+              ]);
+              throw new Error('secondary evidence failure');
+            },
+          },
+        },
+        'secret',
+        (phase: string, status: string, details: { error?: string } = {}) => {
+          smokeEvents.push({ phase, status, ...details });
+        }
+      );
+
+      expect(observedError).toBe(primaryError);
+      expect(smokeEvents).toContainEqual({
+        phase: 'failure_artifacts',
+        status: 'failed',
+        error: 'secondary evidence failure',
+      });
+      expect(fs.readFileSync(path.join(artifacts, 'app-logs', '02-logs', 'app.log'), 'utf8')).toBe(
+        'healthy root log\n'
+      );
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'app-logs', 'collection-summary.json'), 'utf8'))
+      ).toMatchObject({
+        schema: 'opl_vm_smoke_app_log_artifacts.v1',
+        copied_count: 1,
+        error_count: 1,
+        errors: [
+          {
+            type: 'filesystem_collection_error',
+            operation: 'read_directory',
+            source: blockedRoot,
+            code: 'EACCES',
+          },
+        ],
+      });
+    } finally {
+      vi.restoreAllMocks();
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('continues failure evidence stages after a preceding collector error', () => {
+    const smokeEvents: Array<Record<string, unknown>> = [];
+    let laterEvidenceCollected = false;
+    const writeSmokeEvent = (phase: string, status: string, details: Record<string, unknown> = {}) => {
+      smokeEvents.push({ phase, status, ...details });
+    };
+
+    vmSmoke.collectFailureArtifactSafely(writeSmokeEvent, 'first-run.jsonl', () => {
+      throw Object.assign(new Error('EACCES: permission denied, open first-run.jsonl'), { code: 'EACCES' });
+    });
+    vmSmoke.collectFailureArtifactSafely(writeSmokeEvent, 'app-logs', () => {
+      laterEvidenceCollected = true;
+    });
+
+    expect(laterEvidenceCollected).toBe(true);
+    expect(smokeEvents).toContainEqual({
+      phase: 'failure_artifact_collection',
+      status: 'failed',
+      type: 'filesystem_collection_error',
+      operation: 'collect_artifact',
+      source: 'first-run.jsonl',
+      code: 'EACCES',
+      message: 'EACCES: permission denied, open first-run.jsonl',
+    });
+  });
+
+  it('records a vanished directory entry and continues collecting its siblings', () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-log-vanished-entry-'));
+    const originalReaddirSync = fs.readdirSync;
+    const artifacts = path.join(workspace, 'artifacts');
+    const logRoot = path.join(workspace, 'logs');
+    const vanishedDir = path.join(logRoot, 'vanished');
+    writeFile(path.join(vanishedDir, 'app.log'), 'vanishing log\n');
+    writeFile(path.join(logRoot, 'stable.log'), 'stable log\n');
+    let removed = false;
+    vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: unknown[]) => {
+      const entries = Reflect.apply(originalReaddirSync, fs, args);
+      if (!removed && path.resolve(String(args[0])) === logRoot) {
+        removed = true;
+        fs.rmSync(vanishedDir, { recursive: true, force: true });
+      }
+      return entries;
+    }) as typeof fs.readdirSync);
+
+    try {
+      const summary = vmSmoke.collectAppLogArtifacts({ artifacts, processName: 'One Person Lab' }, 'secret', [logRoot]);
+
+      expect(fs.readFileSync(path.join(artifacts, 'app-logs', '01-logs', 'stable.log'), 'utf8')).toBe('stable log\n');
+      expect(summary).toMatchObject({
+        copied_count: 1,
+        error_count: 1,
+        errors: [
+          {
+            type: 'filesystem_collection_error',
+            operation: 'inspect_entry',
+            source: vanishedDir,
+            code: 'ENOENT',
+          },
+        ],
+      });
+    } finally {
+      vi.restoreAllMocks();
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('records an unreadable log file and continues collecting sibling files', () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-app-log-unreadable-file-'));
+    const originalReadFileSync = fs.readFileSync;
+    const artifacts = path.join(workspace, 'artifacts');
+    const logRoot = path.join(workspace, 'logs');
+    const blockedLog = path.join(logRoot, 'blocked.log');
+    writeFile(blockedLog, 'blocked log\n');
+    writeFile(path.join(logRoot, 'stable.log'), 'stable log\n');
+    vi.spyOn(fs, 'readFileSync').mockImplementation(((...args: unknown[]) => {
+      if (path.resolve(String(args[0])) === blockedLog) {
+        throw Object.assign(new Error(`EACCES: permission denied, open '${blockedLog}'`), { code: 'EACCES' });
+      }
+      return Reflect.apply(originalReadFileSync, fs, args);
+    }) as typeof fs.readFileSync);
+
+    try {
+      const summary = vmSmoke.collectAppLogArtifacts({ artifacts, processName: 'One Person Lab' }, 'secret', [logRoot]);
+
+      expect(fs.readFileSync(path.join(artifacts, 'app-logs', '01-logs', 'stable.log'), 'utf8')).toBe('stable log\n');
+      expect(summary).toMatchObject({
+        copied_count: 1,
+        error_count: 1,
+        errors: [
+          {
+            type: 'filesystem_collection_error',
+            operation: 'read_file',
+            source: blockedLog,
+            code: 'EACCES',
+          },
+        ],
+      });
+    } finally {
+      vi.restoreAllMocks();
       fs.rmSync(workspace, { recursive: true, force: true });
     }
   });
