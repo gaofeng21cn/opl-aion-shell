@@ -10,7 +10,7 @@ import { Form, Input, Select, Message, TimePicker, Radio, Button } from '@arco-d
 import ModalWrapper from '@renderer/components/base/ModalWrapper';
 import { Down, Robot } from '@icon-park/react';
 import { ipcBridge } from '@/common';
-import type { ICreateCronJobParams, ICronAgentConfig, ICronJob } from '@/common/adapter/ipcBridge';
+import type { ICreateCronJobParams, ICronJob } from '@/common/adapter/ipcBridge';
 import { useConversationAgents } from '@renderer/pages/conversation/hooks/useConversationAgents';
 import { resolveAgentLogo } from '@renderer/utils/model/agentLogo';
 import { CUSTOM_AVATAR_IMAGE_MAP } from '@/renderer/pages/guid/constants';
@@ -18,14 +18,18 @@ import dayjs from 'dayjs';
 import { getFullAutoMode } from '@renderer/utils/model/agentModes';
 import type { TProviderWithModel } from '@/common/config/storage';
 import { type AcpModelInfo } from '@/common/types/platform/acpTypes';
-import { assistantRuntimeKey } from '@/common/types/agent/assistantTypes';
+import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
+import { resolveLocaleKey } from '@/common/utils';
 import { useModelProviderList } from '@renderer/hooks/agent/useModelProviderList';
 import GuidModelSelector from '@renderer/pages/guid/components/GuidModelSelector';
 import { WorkspaceFolderSelect } from '@renderer/components/workspace';
 import { buildAgentRuntimeModelInfo } from '@renderer/utils/model/agentRuntimeCatalog';
 import { createCronSchedule } from '@renderer/pages/cron/cronUtils';
 import { getConversationCreateErrorMessage } from '@renderer/pages/conversation/utils/conversationCreateError';
-import { resolveSupportedConversationType } from '@renderer/utils/model/agentTypeSupportPolicy';
+import {
+  resolveCronAgentConfig,
+  type CronAssistantIdentity,
+} from '@renderer/pages/cron/ScheduledTasksPage/resolveCronAgentConfig';
 
 const FormItem = Form.Item;
 const TextArea = Input.TextArea;
@@ -39,7 +43,6 @@ interface CreateTaskDialogProps {
   editJob?: ICronJob;
   conversation_id?: string;
   conversation_title?: string;
-  agent_type?: string;
 }
 
 type FrequencyType = 'manual' | 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'custom';
@@ -119,16 +122,20 @@ function getDescriptionInitialValue(job: ICronJob): string {
 /**
  * Infer the agent selection key from an ICronJob's agent_config.
  */
-function getAgentKeyFromJob(job: ICronJob, cliAgents: { backend?: string; agent_type: string }[]): string | undefined {
+function getAgentKeyFromJob(
+  job: ICronJob,
+  assistants: CronAssistantIdentity[],
+  cliAssistantIds: ReadonlySet<string>
+): string | undefined {
   const config = job.metadata.agent_config;
   if (config) {
+    if (config.assistant_id) {
+      return `${cliAssistantIds.has(config.assistant_id) ? 'cli' : 'preset'}:${config.assistant_id}`;
+    }
     if (config.is_preset && config.custom_agent_id) return `preset:${config.custom_agent_id}`;
-    // For ACP agents config.backend is the vendor label (e.g. "claude");
-    // for aionrs it's a provider hash — match against the agent list to decide.
-    const matched = cliAgents.find((a) => (a.backend || a.agent_type) === config.backend);
-    if (matched) return `cli:${config.backend}`;
+    const matched = assistants.find((assistant) => assistantRuntimeKey(assistant) === config.backend);
+    if (matched) return `${cliAssistantIds.has(matched.id) ? 'cli' : 'preset'}:${matched.id}`;
   }
-  if (job.metadata.agent_type) return `cli:${job.metadata.agent_type}`;
   return undefined;
 }
 
@@ -138,12 +145,46 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   editJob,
   conversation_id: _conversation_id,
   conversation_title,
-  agent_type,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const localeKey = resolveLocaleKey(i18n.language);
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const { cliAgents, presetAssistants } = useConversationAgents();
+  const assistantBackedCliAgents = useMemo(
+    () =>
+      cliAgents.flatMap((agent) => {
+        const candidate = agent as typeof agent & Partial<Assistant> & { assistant_id?: string };
+        const assistantId = candidate.assistant_id?.trim();
+        return assistantId ? [{ assistantId, agent: candidate }] : [];
+      }),
+    [cliAgents]
+  );
+  const cronAssistants = useMemo<CronAssistantIdentity[]>(
+    () => [
+      ...assistantBackedCliAgents.map(({ assistantId, agent: candidate }) => {
+        return {
+          id: assistantId,
+          name: candidate.name,
+          name_i18n: candidate.name_i18n ?? {},
+          preset_agent_type: candidate.preset_agent_type,
+          agent:
+            candidate.agent ??
+            ({
+              type: candidate.agent_type,
+              source: candidate.agent_type === 'aionrs' ? 'internal' : 'builtin',
+              acp_backend: candidate.backend,
+            } as Assistant['agent']),
+        };
+      }),
+      ...presetAssistants,
+    ],
+    [assistantBackedCliAgents, presetAssistants]
+  );
+  const cliAssistantIds = useMemo(
+    () => new Set(assistantBackedCliAgents.map(({ assistantId }) => assistantId)),
+    [assistantBackedCliAgents]
+  );
   const { providers, getAvailableModels, formatModelLabel } = useModelProviderList();
   const [frequency, setFrequency] = useState<FrequencyType>('manual');
   const [time, setTime] = useState('09:00');
@@ -179,7 +220,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
             Object.keys(editJob.metadata.agent_config.config_options).length > 0)
         )
       );
-      const agentKey = getAgentKeyFromJob(editJob, cliAgents);
+      const agentKey = getAgentKeyFromJob(editJob, cronAssistants, cliAssistantIds);
       setSelectedAgent(agentKey);
       form.setFieldsValue({
         name: editJob.name,
@@ -204,22 +245,16 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       setWorkspace(undefined);
       setSelectedAgent(undefined);
     }
-  }, [visible, editJob, form]);
+  }, [visible, editJob, form, cronAssistants, cliAssistantIds]);
 
-  // Resolve backend from selectedAgent (handles both CLI and preset agents)
+  // Runtime metadata stays read-only; writes resolve through Assistant identity.
   const resolvedBackend = useMemo(() => {
     if (!selectedAgent) return undefined;
-    const colonIdx = selectedAgent.indexOf(':');
-    const agentKind = selectedAgent.substring(0, colonIdx);
-    const agentId = selectedAgent.substring(colonIdx + 1);
-
-    if (agentKind === 'preset') {
-      const assistant = presetAssistants.find((a) => a.id === agentId);
-      return assistantRuntimeKey(assistant) || undefined;
-    }
-    // CLI agent: agentId is the backend
-    return agentId;
-  }, [selectedAgent, presetAssistants]);
+    const assistantId = selectedAgent.includes(':')
+      ? selectedAgent.slice(selectedAgent.indexOf(':') + 1)
+      : selectedAgent;
+    return assistantRuntimeKey(cronAssistants.find((assistant) => assistant.id === assistantId)) || undefined;
+  }, [cronAssistants, selectedAgent]);
 
   const isGeminiMode = resolvedBackend === 'gemini' || resolvedBackend === 'aionrs';
 
@@ -365,68 +400,18 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
   }, []);
 
   const resolveAgentConfig = (agentValue: string) => {
-    const colonIdx = agentValue.indexOf(':');
-    const agentKind = colonIdx >= 0 ? agentValue.substring(0, colonIdx) : 'cli';
-    const agentId = colonIdx >= 0 ? agentValue.substring(colonIdx + 1) : agentValue;
-
-    let agent_config: ICronAgentConfig | undefined;
-    let resolvedAgentType: ICreateCronJobParams['agent_type'] = resolveSupportedConversationType(agent_type || 'acp');
-
-    if (agentKind === 'cli') {
-      const agent = cliAgents.find((a) => a.backend === agentId || a.agent_type === agentId);
-      const backend = (agent?.backend || agent?.agent_type || agentId) as string;
-
-      if (backend === 'aionrs') {
-        // aionrs stores provider_id in `agent_config.backend` and the model
-        // name in `model_id` — different semantic from ACP, where backend is
-        // a vendor label. The executor looks up the provider row by this id.
-        if (!geminiCurrentModel || !model_id) {
-          throw new Error(t('cron.page.form.aionrsModelRequired'));
-        }
-        resolvedAgentType = 'aionrs' as ICreateCronJobParams['agent_type'];
-        agent_config = {
-          backend: geminiCurrentModel.id as string,
-          name: geminiCurrentModel.name,
-          mode: getFullAutoMode('aionrs'),
-          model_id,
-          workspace,
-        };
-      } else if (agent?.agent_type === 'acp') {
-        const capitalizedBackend = backend.charAt(0).toUpperCase() + backend.slice(1);
-        resolvedAgentType = 'acp';
-        agent_config = {
-          // cli_path is no longer sent from the frontend — the backend
-          // resolves it server-side from the `agent_metadata` catalog.
-          backend,
-          name: agent.name || capitalizedBackend,
-          mode: getFullAutoMode(backend),
-          model_id,
-          config_options,
-          workspace,
-        };
-      } else if (agent) {
-        resolvedAgentType = resolveSupportedConversationType(backend);
-      }
-    } else if (agentKind === 'preset') {
-      const assistant = presetAssistants.find((a) => a.id === agentId);
-      if (assistant) {
-        const presetBackend = assistant.preset_agent_type;
-        resolvedAgentType = resolveSupportedConversationType(presetBackend);
-        agent_config = {
-          backend: presetBackend as string,
-          name: assistant.name,
-          is_preset: true,
-          custom_agent_id: assistant.id,
-          preset_agent_type: presetBackend,
-          mode: getFullAutoMode(presetBackend),
-          model_id,
-          config_options,
-          workspace,
-        };
-      }
-    }
-
-    return { agent_config, resolvedAgentType };
+    const assistantId = agentValue.includes(':') ? agentValue.slice(agentValue.indexOf(':') + 1) : agentValue;
+    return resolveCronAgentConfig({
+      assistantId,
+      assistants: cronAssistants,
+      selectedAionrsProvider: geminiCurrentModel,
+      model_id,
+      config_options,
+      workspace,
+      localeKey,
+      getMode: (assistant) => getFullAutoMode(assistantRuntimeKey(assistant)),
+      aionrsModelRequiredMessage: t('cron.page.form.aionrsModelRequired'),
+    });
   };
 
   const handleSubmit = async () => {
@@ -438,7 +423,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
       const scheduleDesc = scheduleInfo.description;
       const schedule = createCronSchedule(scheduleExpr, scheduleDesc);
 
-      const { agent_config, resolvedAgentType } = resolveAgentConfig(values.agent);
+      const agent_config = resolveAgentConfig(values.agent);
 
       if (isEditMode) {
         // Edit mode: update existing job
@@ -454,10 +439,8 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
               execution_mode,
             },
             metadata: {
-              ...editJob!.metadata,
-              agent_type: resolvedAgentType,
+              conversation_title: editJob!.metadata.conversation_title,
               agent_config,
-              updated_at: Date.now(),
             },
           },
         });
@@ -471,7 +454,6 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
           prompt: values.prompt,
           conversation_id: _conversation_id ?? '',
           conversation_title,
-          agent_type: resolvedAgentType,
           created_by: 'user',
           execution_mode,
           agent_config,
@@ -534,7 +516,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 let name = id;
                 let logo: React.ReactNode = <Robot size='16' />;
                 if (type === 'cli') {
-                  const agent = cliAgents.find((a) => (a.backend || a.agent_type) === id);
+                  const agent = assistantBackedCliAgents.find((candidate) => candidate.assistantId === id)?.agent;
                   if (agent) {
                     name = agent.name;
                     const logoSrc = resolveAgentLogo({
@@ -566,9 +548,9 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                 );
               }}
             >
-              {cliAgents.length > 0 && (
+              {assistantBackedCliAgents.length > 0 && (
                 <OptGroup label={t('conversation.dropdown.cliAgents')}>
-                  {cliAgents.map((agent) => {
+                  {assistantBackedCliAgents.map(({ assistantId, agent }) => {
                     const agentKey = agent.backend || agent.agent_type;
                     const logo = resolveAgentLogo({
                       icon: agent.icon,
@@ -576,7 +558,7 @@ const CreateTaskDialog: React.FC<CreateTaskDialogProps> = ({
                     });
                     const disabled = agentKey === 'aionrs' && !hasAionrsProvider;
                     return (
-                      <Option key={`cli:${agentKey}`} value={`cli:${agentKey}`} disabled={disabled}>
+                      <Option key={`cli:${assistantId}`} value={`cli:${assistantId}`} disabled={disabled}>
                         <div
                           className='flex items-center gap-8px'
                           title={disabled ? t('cron.page.form.aionrsNoProvider') : undefined}

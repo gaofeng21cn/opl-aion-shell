@@ -37,6 +37,28 @@ export function toApiModelOptional(m?: TProviderWithModel): ApiProviderWithModel
   return hasCompleteModelIdentity(m) ? toApiModel(m) : undefined;
 }
 
+export type CreateConversationBodyInput = {
+  type?: 'acp' | 'aionrs';
+  name?: string;
+  model?: TProviderWithModel;
+  assistant?: unknown;
+  extra?: unknown;
+};
+
+/** Build the strict body accepted by `POST /api/conversations`. */
+export function buildCreateConversationBody(p: CreateConversationBodyInput): Record<string, unknown> {
+  const hasAssistant = p.assistant !== undefined && p.assistant !== null;
+  const body: Record<string, unknown> = {
+    type: hasAssistant ? undefined : p.type,
+    name: p.name,
+    assistant: p.assistant,
+    extra: p.extra,
+  };
+  const model = p.type === 'acp' ? undefined : toApiModelOptional(p.model);
+  if (model) body.model = model;
+  return body;
+}
+
 // ── Backend → Frontend ──────────────────────────────────────────────────
 
 export function fromApiModel(raw: ApiProviderWithModel): TProviderWithModel {

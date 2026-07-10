@@ -82,4 +82,98 @@ describe('ipcBridge managed agents adapter', () => {
     expect(acpConversation).not.toHaveProperty('refreshCustomAgents');
     expect(acpConversation).not.toHaveProperty('checkAgentHealth');
   });
+
+  it('forwards assistant identity on conversation creation', async () => {
+    const { conversation } = await import('@/common/adapter/ipcBridge');
+
+    await conversation.create.invoke({
+      type: 'acp',
+      name: 'Assistant conversation',
+      model: {} as never,
+      assistant: { id: 'assistant-codex', locale: 'zh-CN' },
+      extra: { workspace: '/tmp/project' },
+    });
+
+    expect(httpBridgeMocks.calls.at(-1)).toEqual({
+      method: 'POST',
+      path: '/api/conversations',
+      body: {
+        type: undefined,
+        name: 'Assistant conversation',
+        assistant: { id: 'assistant-codex', locale: 'zh-CN' },
+        extra: { workspace: '/tmp/project' },
+      },
+    });
+  });
+
+  it('uses dedicated Channel assistant settings endpoints with canonical identity only', async () => {
+    const { channel } = await import('@/common/adapter/ipcBridge');
+
+    await channel.getPlatformSettings.invoke({ platform: 'telegram' });
+    await channel.setAssistantSetting.invoke({
+      platform: 'telegram',
+      assistant: { assistant_id: 'assistant-codex' },
+    });
+
+    expect(httpBridgeMocks.calls.slice(-2)).toEqual([
+      { method: 'GET', path: '/api/channel/settings/telegram', body: undefined },
+      {
+        method: 'PUT',
+        path: '/api/channel/settings/telegram/assistant',
+        body: { assistant_id: 'assistant-codex' },
+      },
+    ]);
+  });
+
+  it('maps Cron schedules and assistant config to the strict write DTO', async () => {
+    const { cron } = await import('@/common/adapter/ipcBridge');
+
+    await cron.addJob.invoke({
+      name: 'One shot',
+      schedule: { kind: 'at', atMs: 1234, description: 'once' },
+      prompt: 'run',
+      conversation_id: 'conversation-1',
+      created_by: 'user',
+      agent_config: {
+        name: 'Codex',
+        assistant_id: 'assistant-codex',
+        mode: 'full-access',
+      },
+    });
+    await cron.updateJob.invoke({
+      job_id: 'cron-1',
+      updates: {
+        schedule: { kind: 'every', everyMs: 60000, description: 'minute' },
+        metadata: {
+          agent_config: {
+            name: 'Codex',
+            assistant_id: 'assistant-codex',
+          },
+        },
+      },
+    });
+
+    expect(httpBridgeMocks.calls.slice(-2)).toEqual([
+      {
+        method: 'POST',
+        path: '/api/cron/jobs',
+        body: expect.objectContaining({
+          schedule: { kind: 'at', at_ms: 1234, description: 'once' },
+          agent_config: {
+            name: 'Codex',
+            assistant_id: 'assistant-codex',
+            mode: 'full-access',
+          },
+        }),
+      },
+      {
+        method: 'PUT',
+        path: '/api/cron/jobs/cron-1',
+        body: expect.objectContaining({
+          schedule: { kind: 'every', every_ms: 60000, description: 'minute' },
+          agent_config: { name: 'Codex', assistant_id: 'assistant-codex' },
+        }),
+      },
+    ]);
+  });
 });

@@ -5,13 +5,12 @@
  */
 
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/common/types/channel/channel';
-import { assistants, channel } from '@/common/adapter/ipcBridge';
+import { channel } from '@/common/adapter/ipcBridge';
 import { getBaseUrl } from '@/common/adapter/httpBridge';
 import { configService } from '@/common/config/configService';
 import GoogleModelSelector from '@/renderer/pages/conversation/platforms/gemini/GoogleModelSelector';
 import type { GoogleModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGoogleModelSelection';
-import { normalizeSupportedAgentSelection } from '@/renderer/utils/model/agentTypeSupportPolicy';
-import { buildChannelAgentOptions } from './assistantOptions';
+import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
 import { Button, Dropdown, Empty, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
 import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -73,16 +72,11 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
   const [pendingPairings, setPendingPairings] = useState<IChannelPairingRequest[]>([]);
   const [authorizedUsers, setAuthorizedUsers] = useState<IChannelUser[]>([]);
 
-  // Agent selection
-  const [availableAgents, setAvailableAgents] = useState<
-    Array<{ agent_type: string; backend?: string; name: string; id?: string }>
-  >([]);
-  const [selectedAgent, setSelectedAgent] = useState<{
-    agent_type: string;
-    backend?: string;
-    name?: string;
-    id?: string;
-  }>({ agent_type: 'aionrs' });
+  const {
+    availableAgents,
+    selectedAgent,
+    persistSelectedAgent: saveSelectedAgent,
+  } = useChannelAssistantSelection('weixin');
 
   // Close EventSource on unmount to prevent connection leaks.
   useEffect(() => {
@@ -197,57 +191,9 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
     Message.success(t('common.copySuccess', 'Copied'));
   };
 
-  // Load agents + saved selection
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [assistantsResp, saved] = await Promise.all([
-          assistants.list.invoke(),
-          configService.get('assistant.weixin.agent'),
-        ]);
-        if (Array.isArray(assistantsResp)) {
-          setAvailableAgents(buildChannelAgentOptions(assistantsResp));
-        }
-        if (saved && typeof saved === 'object') {
-          const s = saved as Record<string, unknown>;
-          const backend = typeof s.backend === 'string' ? s.backend : undefined;
-
-          const normalized = normalizeSupportedAgentSelection(
-            typeof s.agent_type === 'string' ? s.agent_type : undefined,
-            backend
-          );
-          if (normalized) {
-            setSelectedAgent({
-              ...normalized,
-              // Legacy rows persist `custom_agent_id`; new rows write `id`.
-              id: (s.id as string | undefined) ?? (s.custom_agent_id as string | undefined),
-              name: s.name as string | undefined,
-            });
-          }
-        }
-      } catch (error) {
-        console.error('[WeixinConfig] Failed to load agents:', error);
-      }
-    };
-    void load();
-  }, []);
-
-  const persistSelectedAgent = async (agent: { agent_type: string; backend?: string; id?: string; name?: string }) => {
-    // Write both `id` (new unified AgentMetadata field) and
-    // `custom_agent_id` (legacy channel-plugin field) so older reads
-    // keep working until every consumer migrates off the legacy name.
-    const payload = {
-      agent_type: agent.agent_type,
-      backend: agent.backend,
-      id: agent.id,
-      custom_agent_id: agent.id,
-      name: agent.name,
-    };
+  const persistSelectedAgent = async (agent: ChannelAgentOption) => {
     try {
-      await configService.set('assistant.weixin.agent', payload);
-      await channel.syncChannelSettings
-        .invoke({ platform: 'weixin' })
-        .catch((err) => console.warn('[WeixinConfig] syncChannelSettings failed:', err));
+      await saveSelectedAgent(agent);
       Message.success(t('settings.assistant.agentSwitched', 'Agent switched successfully'));
     } catch (error) {
       console.error('[WeixinConfig] Failed to save agent:', error);
@@ -321,13 +267,8 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
     handleLoginWebUI();
   };
 
-  const showModelSelector = selectedAgent.agent_type === 'aionrs';
-  const agentOptions: Array<{
-    agent_type: string;
-    backend?: string;
-    name: string;
-    id?: string;
-  }> = availableAgents.length > 0 ? availableAgents : [{ agent_type: 'aionrs', name: 'Aion CLI' }];
+  const showModelSelector = selectedAgent?.agent_type === 'aionrs';
+  const agentOptions = availableAgents;
 
   const handleDisconnect = async () => {
     try {
@@ -417,33 +358,18 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
           trigger='click'
           position='br'
           droplist={
-            <Menu
-              selectedKeys={[
-                selectedAgent.id
-                  ? `${selectedAgent.agent_type}|${selectedAgent.id}`
-                  : selectedAgent.backend || selectedAgent.agent_type,
-              ]}
-            >
+            <Menu selectedKeys={selectedAgent ? [selectedAgent.assistant_id] : []}>
               {agentOptions.map((a) => {
-                const key = a.id ? `${a.agent_type}|${a.id}` : a.backend || a.agent_type;
+                const key = a.assistant_id;
                 return (
                   <Menu.Item
                     key={key}
                     onClick={() => {
-                      const currentKey = selectedAgent.id
-                        ? `${selectedAgent.agent_type}|${selectedAgent.id}`
-                        : selectedAgent.backend || selectedAgent.agent_type;
+                      const currentKey = selectedAgent?.assistant_id;
                       if (key === currentKey) return;
-                      const next = {
-                        agent_type: a.agent_type,
-                        backend: a.backend,
-                        id: a.id,
-                        name: a.name,
-                      };
-                      setSelectedAgent(next);
-                      void persistSelectedAgent(next);
+                      void persistSelectedAgent(a);
 
-                      if (next.agent_type === 'aionrs') {
+                      if (a.agent_type === 'aionrs') {
                         const savedModel = configService.get('assistant.weixin.defaultModel');
                         const providers = modelSelection.providers;
                         const savedProviderExists = savedModel?.id && providers.some((p) => p.id === savedModel.id);
@@ -464,17 +390,7 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
           }
         >
           <Button type='secondary' className='min-w-160px flex items-center justify-between gap-8px'>
-            <span className='truncate'>
-              {selectedAgent.name ||
-                availableAgents.find(
-                  (a) =>
-                    (a.id ? `${a.agent_type}|${a.id}` : a.backend || a.agent_type) ===
-                    (selectedAgent.id
-                      ? `${selectedAgent.agent_type}|${selectedAgent.id}`
-                      : selectedAgent.backend || selectedAgent.agent_type)
-                )?.name ||
-                selectedAgent.agent_type}
-            </span>
+            <span className='truncate'>{selectedAgent?.name || t('settings.weixin.agent', 'Agent')}</span>
             <Down theme='outline' size={14} />
           </Button>
         </Dropdown>

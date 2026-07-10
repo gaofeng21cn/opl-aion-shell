@@ -29,6 +29,16 @@ describe('team agent type policy', () => {
 
     expect(filterTeamSupportedAgents(options).map((option) => option.backend)).toEqual(['claude', 'aionrs']);
   });
+
+  it('keeps Assistant business identity separate from the runtime id', () => {
+    const option = cliAgentToOption({
+      ...agent('acp', 'codex'),
+      id: 'runtime-codex',
+      assistant_id: 'assistant-codex',
+    } as AgentMetadata & { assistant_id: string });
+
+    expect(option).toMatchObject({ id: 'assistant-codex', assistant_id: 'assistant-codex', backend: 'codex' });
+  });
 });
 
 function agent(agent_type: string, backend?: string): AgentMetadata {
