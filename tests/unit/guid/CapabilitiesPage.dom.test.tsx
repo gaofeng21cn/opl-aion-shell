@@ -17,25 +17,29 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@/renderer/pages/guid/utils/oplHomeAssistants', () => ({
-  resolveOplHomeAssistants: () => [
-    {
-      id: 'mas',
-      name: 'Research',
-      name_i18n: { 'en-US': 'Research' },
-      description: 'Move research forward',
-      description_i18n: { 'en-US': 'Move research forward' },
-      avatar: 'MAS',
-    },
-    {
-      id: 'mag',
-      name: 'Grant',
-      name_i18n: { 'en-US': 'Grant' },
-      description: 'Build grant applications',
-      description_i18n: { 'en-US': 'Build grant applications' },
-      avatar: 'MAG',
-    },
-  ],
+vi.mock('@/renderer/pages/guid/hooks/useCustomAgentsLoader', () => ({
+  useCustomAgentsLoader: () => ({
+    assistants: [
+      {
+        id: 'mas',
+        name: 'Research',
+        name_i18n: { 'en-US': 'Research' },
+        description: 'Move research forward',
+        description_i18n: { 'en-US': 'Move research forward' },
+        avatar: 'MAS',
+      },
+      {
+        id: 'mag',
+        name: 'Grant',
+        name_i18n: { 'en-US': 'Grant' },
+        description: 'Build grant applications',
+        description_i18n: { 'en-US': 'Build grant applications' },
+        avatar: 'MAG',
+      },
+    ],
+    catalogAssistants: [],
+    customAgentAvatarMap: new Map(),
+  }),
 }));
 
 describe('CapabilitiesPage', () => {

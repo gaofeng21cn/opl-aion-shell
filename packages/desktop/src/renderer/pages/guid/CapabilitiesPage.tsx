@@ -7,17 +7,16 @@
 import { Button } from '@arco-design/web-react';
 import { ArrowLeft, Right } from '@icon-park/react';
 import React from 'react';
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { resolveLocaleKey } from '@/common/utils';
-import { resolveOplHomeAssistants } from './utils/oplHomeAssistants';
+import { useCustomAgentsLoader } from './hooks/useCustomAgentsLoader';
 
 const CapabilitiesPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const localeKey = resolveLocaleKey(i18n.language);
-  const capabilities = useMemo(() => resolveOplHomeAssistants([]), []);
+  const { assistants: capabilities } = useCustomAgentsLoader();
 
   return (
     <main className='h-full overflow-y-auto bg-1'>

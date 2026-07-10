@@ -294,7 +294,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
           className={'!max-w-max'}
           content={<span className='whitespace-break-spaces'>{getCleanFileNames(files).join('\n')}</span>}
         >
-          <span className='text-t-primary'>File({files.length})</span>
+          <span className='text-t-primary'>{t('conversation.commandQueue.files', { count: files.length })}</span>
         </Tooltip>
       )}
     </span>
