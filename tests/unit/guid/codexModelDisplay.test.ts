@@ -45,7 +45,7 @@ describe('oplCodexModelDisplay', () => {
     });
 
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe('当前 5.6 Terra · 推理最大 · 跟随最新最强');
+    expect(option.description).toBe('当前 5.6 Terra · 推理超高 · 跟随最新最强');
   });
 
   it('uses localized reasoning labels', () => {
@@ -53,8 +53,6 @@ describe('oplCodexModelDisplay', () => {
     expect(formatOplCodexReasoningLabel('high', 'en-US')).toBe('High reasoning');
     expect(formatOplCodexReasoningLabel('xhigh', 'zh-CN')).toBe('推理超高');
     expect(formatOplCodexReasoningLabel('xhigh', 'en-US')).toBe('Extra high reasoning');
-    expect(formatOplCodexReasoningLabel('max', 'zh-CN')).toBe('推理最大');
-    expect(formatOplCodexReasoningLabel('max', 'en-US')).toBe('Max reasoning');
     expect(formatOplCodexReasoningLabel('ultra', 'zh-CN')).toBe('推理极高');
     expect(formatOplCodexReasoningLabel('ultra', 'en-US')).toBe('Ultra reasoning');
   });
@@ -65,8 +63,6 @@ describe('oplCodexModelDisplay', () => {
     expect(formatOplCodexCompactModelLabel('GPT-5.3 Codex')).toBe('5.3 Codex');
     expect(formatOplCodexReasoningMenuLabel('high', 'zh-CN')).toBe('高');
     expect(formatOplCodexReasoningMenuLabel('xhigh', 'en-US')).toBe('Extra high');
-    expect(formatOplCodexReasoningMenuLabel('max', 'zh-CN')).toBe('最大');
-    expect(formatOplCodexReasoningMenuLabel('max', 'en-US')).toBe('Max');
     expect(formatOplCodexReasoningMenuLabel('ultra', 'zh-CN')).toBe('极高');
     expect(formatOplCodexReasoningMenuLabel('ultra', 'en-US')).toBe('Ultra');
   });

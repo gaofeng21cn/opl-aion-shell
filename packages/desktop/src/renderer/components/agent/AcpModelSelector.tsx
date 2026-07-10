@@ -11,6 +11,7 @@ import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupCo
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import { iconColors } from '@/renderer/styles/colors';
 import {
+  getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
   getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
@@ -99,8 +100,12 @@ const AcpModelSelector: React.FC<{
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
   const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
+  const oplReasoningEfforts = getOplCodexModelDisplayOptions().user_reasoning_effort_options;
+  const runtimeReasoningEffort = thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined;
   const currentCodexReasoningEffort =
-    (thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort;
+    runtimeReasoningEffort && oplReasoningEfforts.includes(runtimeReasoningEffort)
+      ? runtimeReasoningEffort
+      : defaultCodexReasoningEffort;
   const intelligenceEnhancementTitle = t(
     OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
     {
@@ -228,11 +233,15 @@ const AcpModelSelector: React.FC<{
   }, [useOplCodexModelDisplay]);
 
   const renderLogo = () => <Brain theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />;
-  const shouldShowReasoningOptions = backend === 'codex' && thoughtLevel && thoughtLevel.options.length > 0;
+  const reasoningOptions =
+    useOplCodexModelDisplay && thoughtLevel
+      ? thoughtLevel.options.filter((option) => oplReasoningEfforts.includes(option.value as OplCodexReasoningEffort))
+      : (thoughtLevel?.options ?? []);
+  const shouldShowReasoningOptions = backend === 'codex' && reasoningOptions.length > 0;
   const reasoningMenuItems =
     shouldShowReasoningOptions && thoughtLevel
-      ? thoughtLevel.options.map((option) => {
-          const selected = option.value === thoughtLevel.currentValue;
+      ? reasoningOptions.map((option) => {
+          const selected = option.value === currentCodexReasoningEffort;
           const label = formatOplCodexReasoningMenuLabel(option.value, localeKey);
           return (
             <Menu.Item

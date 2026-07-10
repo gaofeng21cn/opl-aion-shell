@@ -279,7 +279,13 @@ const AcpSendBox: React.FC<{
   );
 
   const currentCodexReasoningEffort =
-    (thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort;
+    useOplCodexModelDisplay && thoughtLevel?.currentValue
+      ? getOplCodexModelDisplayOptions().user_reasoning_effort_options.includes(
+          thoughtLevel.currentValue as OplCodexReasoningEffort
+        )
+        ? (thoughtLevel.currentValue as OplCodexReasoningEffort)
+        : defaultCodexReasoningEffort
+      : ((thoughtLevel?.currentValue as OplCodexReasoningEffort | null | undefined) ?? defaultCodexReasoningEffort);
   const isSettingReasoning = setStatus.state === 'setting' && setStatus.optionId === thoughtLevel?.id;
   const showCodexAutoOption =
     backend === 'codex' && isOplCodexCliFixedExecutor() && shouldShowOplCodexModelAutoOption();
@@ -613,12 +619,21 @@ Please check your local CLI tool authentication status`,
         })
       : [];
     const reasoningOptions: MobileActionSheetOption[] = thoughtLevel
-      ? thoughtLevel.options.map((option) => ({
-          key: option.value,
-          label: formatOplCodexReasoningMenuLabel(option.value, modelDisplayLocale),
-          description: option.description,
-          active: option.value === thoughtLevel.currentValue,
-        }))
+      ? thoughtLevel.options
+          .filter(
+            (option) =>
+              !useOplCodexModelDisplay ||
+              getOplCodexModelDisplayOptions().user_reasoning_effort_options.includes(
+                option.value as OplCodexReasoningEffort
+              )
+          )
+          .map((option) => ({
+            key: option.value,
+            label: formatOplCodexReasoningMenuLabel(option.value, modelDisplayLocale),
+            description: option.description,
+            active:
+              option.value === (useOplCodexModelDisplay ? currentCodexReasoningEffort : thoughtLevel.currentValue),
+          }))
       : [];
 
     const currentModel = model_info?.available_models.find((model) => model.id === model_info.current_model_id);

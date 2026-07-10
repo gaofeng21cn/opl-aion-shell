@@ -251,19 +251,19 @@ describe('AcpModelSelector Codex model switching', () => {
   it('uses auto latest Codex as the default visible selector on the fixed App path', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最大/ });
+    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 超高/ });
     expect(autoButton).not.toHaveTextContent('自动（推荐）');
 
     await userEvent.click(autoButton);
 
     expect(await screen.findByRole('menuitem', { name: /自动（推荐）/ })).toHaveTextContent(
-      '当前 5.6 Sol · 推理最大 · 跟随最新最强'
+      '当前 5.6 Sol · 推理超高 · 跟随最新最强'
     );
     expect(screen.queryByText('推理')).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: '最小' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '高' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '超高' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: '最大' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: '最大' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: '极高' })).toBeInTheDocument();
     expect(screen.queryByText('模型')).not.toBeInTheDocument();
     expect(screen.getByText('5.6 Sol').closest('.arco-dropdown-menu-pop-header')).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最大/ });
+    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 超高/ });
 
     await userEvent.click(autoButton);
 
@@ -323,7 +323,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /5\.5 高/ }));
     const autoOption = await screen.findByRole('menuitem', { name: /自动（推荐）/ });
-    expect(autoOption).toHaveTextContent('当前 5.6 Terra · 推理最大 · 跟随最新最强');
+    expect(autoOption).toHaveTextContent('当前 5.6 Terra · 推理超高 · 跟随最新最强');
     fireEvent.click(autoOption);
 
     await waitFor(() => {
@@ -334,7 +334,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'max',
+        value: 'xhigh',
       });
       expect(mocks.clientConfigSet).toHaveBeenCalledWith('acp.config', { codex: {} });
     });
@@ -346,7 +346,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 最大/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 超高/ }));
 
     await waitFor(() => {
       expect(mocks.executeAction).toHaveBeenCalledWith({
@@ -360,7 +360,7 @@ describe('AcpModelSelector Codex model switching', () => {
   it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最大/ });
+    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 超高/ });
     expect(screen.queryByTestId('opl-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(autoButton);
@@ -382,7 +382,7 @@ describe('AcpModelSelector Codex model switching', () => {
   it('runs the OPL Flow intelligence enhancement action from the submenu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 最大/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /5\.6 Sol 超高/ }));
     await waitFor(() => {
       expect(mocks.executeAction).toHaveBeenCalledWith({
         actionId: 'intelligence_enhancement_status',
@@ -401,7 +401,7 @@ describe('AcpModelSelector Codex model switching', () => {
     });
   });
 
-  it('restores Codex auto reasoning to max when users click Auto again', async () => {
+  it('restores Codex auto reasoning to xhigh when users click Auto again', async () => {
     mocks.configOptions = [
       {
         id: 'reasoning_effort',
@@ -429,7 +429,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'max',
+        value: 'xhigh',
       });
     });
   });

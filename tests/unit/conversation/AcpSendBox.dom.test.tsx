@@ -347,6 +347,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
       'Intelligence enhancement'
     );
     expect(screen.queryByTestId('mobile-action-sheet-option-model-__auto')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-option-reasoning-max')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra')).toBeInTheDocument();
   });
 
   it('refreshes intelligence enhancement status when opening the mobile action sheet', async () => {
@@ -373,7 +375,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     );
   });
 
-  it('restores Auto as latest strongest model plus max reasoning from the mobile action sheet', async () => {
+  it('restores Auto as latest strongest model plus xhigh reasoning from the mobile action sheet', async () => {
     isMobileLayout = true;
 
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
@@ -383,7 +385,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
     expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
-    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'max'));
+    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'xhigh'));
   });
 
   it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {

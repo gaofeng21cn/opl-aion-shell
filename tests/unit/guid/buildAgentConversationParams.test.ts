@@ -108,7 +108,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     expect(params.extra.preset_context).not.toContain('DO NOT send optional commentary');
   });
 
-  it('sets max Codex reasoning by default while preserving user overrides', () => {
+  it('sets xhigh Codex reasoning by default while preserving user overrides', () => {
     const defaultParams = buildAgentConversationParams({
       backend: 'codex',
       name: 'Default reasoning',
@@ -117,7 +117,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     });
 
     expect(defaultParams.model?.use_model).toBe('gpt-5.6-sol');
-    expect(defaultParams.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
+    expect(defaultParams.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
 
     expect(
       buildAgentConversationParams({

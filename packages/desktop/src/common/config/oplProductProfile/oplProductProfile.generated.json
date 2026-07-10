@@ -27,7 +27,7 @@
     "base_url": "https://gflabtoken.cn/v1",
     "executor": "codex_cli",
     "model": "gpt-5.6-sol",
-    "reasoning_effort": "max",
+    "reasoning_effort": "xhigh",
     "applies_after": "codex_openai_api_key_configured",
     "authority": "app_session_default_only"
   },
@@ -49,7 +49,7 @@
       "codex_model_policy": "codex_cli_latest_strongest_model_selector_visible",
       "codex_model_auto_option_visible": true,
       "codex_default_model": "gpt-5.6-sol",
-      "codex_default_reasoning_effort": "max",
+      "codex_default_reasoning_effort": "xhigh",
       "codex_default_permission_mode": "full-access",
       "permission_mode_selector_visible": false,
       "conversation_backend_selector_visible": false,
@@ -103,7 +103,7 @@
         "reasoning_menu_title_en": "Reasoning",
         "reasoning_effort_override_surface": "model_selector_primary_menu",
         "reasoning_effort_options_source": "acp_codex_config_options_enum",
-        "default_reasoning_effort": "max",
+        "default_reasoning_effort": "xhigh",
         "auto_option_current_resolution_visible": true,
         "model_menu_policy": "current_model_secondary_submenu",
         "intelligence_enhancement_menu_policy": "default_on_secondary_submenu_with_enable_disable_actions",
@@ -112,12 +112,12 @@
           "id": "__auto",
           "label_zh": "自动（推荐）",
           "label_en": "Auto (recommended)",
-          "description_zh": "当前 5.6 Sol · 推理最大 · 跟随最新最强",
-          "description_en": "Current 5.6 Sol · Max reasoning · follows latest strongest",
+          "description_zh": "当前 5.6 Sol · 推理超高 · 跟随最新最强",
+          "description_en": "Current 5.6 Sol · Extra high reasoning · follows latest strongest",
           "resolved_model": "gpt-5.6-sol",
           "resolved_model_label_zh": "5.6 Sol",
           "resolved_model_label_en": "5.6 Sol",
-          "resolved_reasoning_effort": "max",
+          "resolved_reasoning_effort": "xhigh",
           "follows_latest_strongest": true
         },
         "fixed_model_description_zh": "固定此模型",
@@ -139,16 +139,12 @@
             "zh": "推理超高",
             "en": "Extra high reasoning"
           },
-          "max": {
-            "zh": "推理最大",
-            "en": "Max reasoning"
-          },
           "ultra": {
             "zh": "推理极高",
             "en": "Ultra reasoning"
           }
         },
-        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh", "max", "ultra"],
+        "user_reasoning_effort_options": ["low", "medium", "high", "xhigh", "ultra"],
         "visible_models": [
           {
             "id": "gpt-5.6-sol",
@@ -714,7 +710,7 @@
   "codex": {
     "default_model": "gpt-5.6-sol",
     "default_model_description": "System Codex default model when configured",
-    "default_reasoning_effort": "max",
+    "default_reasoning_effort": "xhigh",
     "opl_flow_context": {
       "flow_id": "opl-flow",
       "source": "one-person-lab-app",
