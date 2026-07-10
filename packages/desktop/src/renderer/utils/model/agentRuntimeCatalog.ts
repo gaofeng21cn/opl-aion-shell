@@ -53,9 +53,34 @@ function normalizeModelOption(value: unknown): AcpModelInfo['available_models'][
   if (!isRecord(value)) return null;
   const id = typeof value.id === 'string' ? value.id : typeof value.value === 'string' ? value.value : '';
   if (!id) return null;
+  const supportedReasoningEfforts = Array.isArray(value.supportedReasoningEfforts)
+    ? value.supportedReasoningEfforts.flatMap((option) => {
+        if (typeof option === 'string' && option.trim()) return [{ reasoningEffort: option.trim() }];
+        if (!isRecord(option) || typeof option.reasoningEffort !== 'string' || !option.reasoningEffort.trim())
+          return [];
+        return [
+          {
+            reasoningEffort: option.reasoningEffort.trim(),
+            description: typeof option.description === 'string' ? option.description : undefined,
+          },
+        ];
+      })
+    : undefined;
   return {
     id,
-    label: typeof value.label === 'string' ? value.label : typeof value.name === 'string' ? value.name : id,
+    label:
+      typeof value.label === 'string'
+        ? value.label
+        : typeof value.displayName === 'string'
+          ? value.displayName
+          : typeof value.name === 'string'
+            ? value.name
+            : id,
+    isDefault: typeof value.isDefault === 'boolean' ? value.isDefault : undefined,
+    supportedReasoningEfforts,
+    defaultReasoningEffort: typeof value.defaultReasoningEffort === 'string' ? value.defaultReasoningEffort : undefined,
+    hidden: typeof value.hidden === 'boolean' ? value.hidden : undefined,
+    upgrade: typeof value.upgrade === 'string' ? value.upgrade : value.upgrade === null ? null : undefined,
   };
 }
 

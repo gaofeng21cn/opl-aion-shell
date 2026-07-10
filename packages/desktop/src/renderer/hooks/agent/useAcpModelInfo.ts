@@ -11,14 +11,15 @@ import { isOplCodexCliFixedExecutor, shouldShowOplCodexModelList } from '@/commo
 import {
   buildCodexDefaultModelInfo,
   normalizeCodexModelInfo,
-  selectDefaultCodexModelId,
+  resolveOplCodexAutoSelection,
 } from '@/common/types/codex/codexModels';
-import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
+import type { AcpAvailableModel, AcpModelInfo } from '@/common/types/platform/acpTypes';
+import { configService } from '@/common/config/configService';
 import { savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { type AcpConfigSetStatus, type AcpDerivedOption, useAcpConfigOptions } from './useAcpConfigOptions';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 
 type AcpModelInfoKey = readonly ['acp-model-info', string];
@@ -34,9 +35,33 @@ const summarizeModelInfo = (info: AcpModelInfo | null | undefined) => {
   return {
     current_model_id: info.current_model_id,
     current_model_label: info.current_model_label,
-    available_models: (info.available_models ?? []).map((model) => ({ id: model.id, label: model.label })),
+    available_models: info.available_models,
+    catalog_models: info.catalog_models,
   };
 };
+
+function normalizeReasoningEfforts(value: unknown): AcpAvailableModel['supportedReasoningEfforts'] {
+  if (!Array.isArray(value)) return undefined;
+  const efforts = value.flatMap((entry) => {
+    if (typeof entry === 'string' && entry.trim()) return [{ reasoningEffort: entry.trim() }];
+    if (!entry || typeof entry !== 'object') return [];
+    const record = entry as Record<string, unknown>;
+    const reasoningEffort =
+      typeof record.reasoningEffort === 'string'
+        ? record.reasoningEffort.trim()
+        : typeof record.reasoning_effort === 'string'
+          ? record.reasoning_effort.trim()
+          : '';
+    if (!reasoningEffort) return [];
+    return [
+      {
+        reasoningEffort,
+        description: typeof record.description === 'string' ? record.description : undefined,
+      },
+    ];
+  });
+  return efforts.length ? efforts : undefined;
+}
 
 function normalizeAcpModelOptions(value: unknown): AcpModelInfo['available_models'] {
   if (!Array.isArray(value)) return [];
@@ -46,7 +71,32 @@ function normalizeAcpModelOptions(value: unknown): AcpModelInfo['available_model
     if (typeof record.id !== 'string' || !record.id.trim()) return [];
     const id = record.id.trim();
     const label = typeof record.label === 'string' && record.label.trim() ? record.label.trim() : id;
-    return [{ id, label }];
+    const supportedReasoningEfforts = normalizeReasoningEfforts(
+      record.supportedReasoningEfforts ?? record.supported_reasoning_efforts
+    );
+    const defaultReasoningEffortValue = record.defaultReasoningEffort ?? record.default_reasoning_effort;
+    const upgradeValue = record.upgrade;
+    return [
+      {
+        id,
+        label,
+        ...(typeof record.isDefault === 'boolean'
+          ? { isDefault: record.isDefault }
+          : typeof record.is_default === 'boolean'
+            ? { isDefault: record.is_default }
+            : {}),
+        ...(supportedReasoningEfforts ? { supportedReasoningEfforts } : {}),
+        ...(typeof defaultReasoningEffortValue === 'string'
+          ? { defaultReasoningEffort: defaultReasoningEffortValue.trim() || null }
+          : {}),
+        ...(typeof record.hidden === 'boolean' ? { hidden: record.hidden } : {}),
+        ...(typeof upgradeValue === 'string'
+          ? { upgrade: upgradeValue }
+          : upgradeValue === null
+            ? { upgrade: null }
+            : {}),
+      },
+    ];
   });
 }
 
@@ -63,11 +113,13 @@ function normalizeAcpModelInfo(value: unknown): AcpModelInfo | null {
       : currentModelId;
   const hasExplicitAvailableModels = Array.isArray(record.available_models);
   const availableModels = normalizeAcpModelOptions(record.available_models);
+  const catalogModels = normalizeAcpModelOptions(record.catalog_models);
   if (!currentModelId && !currentModelLabel && !hasExplicitAvailableModels) return null;
   return {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,
     available_models: availableModels,
+    catalog_models: catalogModels.length ? catalogModels : undefined,
   };
 }
 
@@ -109,19 +161,7 @@ const fetchAcpModelInfo = async (key: AcpModelInfoKey): Promise<AcpModelInfo | n
 function isSameModelInfo(a: AcpModelInfo | null | undefined, b: AcpModelInfo | null | undefined): boolean {
   const left = normalizeAcpModelInfo(a);
   const right = normalizeAcpModelInfo(b);
-  if (left === right) return true;
-  if (!left || !right) return false;
-  if (
-    left.current_model_id !== right.current_model_id ||
-    left.current_model_label !== right.current_model_label ||
-    left.available_models.length !== right.available_models.length
-  ) {
-    return false;
-  }
-  return left.available_models.every((model, index) => {
-    const other = right.available_models[index];
-    return other && other.id === model.id && other.label === model.label;
-  });
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export interface UseAcpModelInfoResult {
@@ -131,7 +171,7 @@ export interface UseAcpModelInfoResult {
   /** Switch the active model and persist via IPC */
   selectModel: (model_id: string) => void;
   /** Restore App automatic model selection and clear any fixed-model preference. */
-  selectAutoModel: () => void;
+  selectAutoModel: () => Promise<void>;
   /** Runtime reasoning/thought-level config exposed by ACP, when available. */
   thoughtLevel: AcpDerivedOption | null;
   setStatus: AcpConfigSetStatus;
@@ -182,6 +222,9 @@ export const useAcpModelInfo = ({
   const modelInfoRef = useRef<AcpModelInfo | null>(null);
   const reportedCodexCurrentModelIdRef = useRef<string | null>(null);
   const handshakeModelInfoRef = useRef<AcpModelInfo | null>(null);
+  const attemptedAutoResolutionKeysRef = useRef(new Set<string>());
+  const autoSelectionRunningRef = useRef(false);
+  const [autoSelectionRevision, setAutoSelectionRevision] = useState(0);
   const scheduledReloadTimersRef = useRef<number[]>([]);
   const modelInfoKey = useMemo(() => getAcpModelInfoKey(conversation_id), [conversation_id]);
   const {
@@ -360,6 +403,7 @@ export const useAcpModelInfo = ({
       // model selection belongs to the previous conversation, not this one.
       hasUserChangedModel.current = false;
       reportedCodexCurrentModelIdRef.current = null;
+      attemptedAutoResolutionKeysRef.current.clear();
       prevConversationIdRef.current = conversation_id;
     }
     void reloadModelInfo({ preserveInitialModel: true }).catch(() => {});
@@ -436,7 +480,9 @@ export const useAcpModelInfo = ({
         const data = message.data as { model: string };
         if (data.model) {
           const current = modelInfoRef.current;
-          const selected = current?.available_models.find((model) => model.id === data.model);
+          const selected = [...(current?.available_models ?? []), ...(current?.catalog_models ?? [])].find(
+            (model) => model.id === data.model
+          );
           if (current && selected) {
             updateModelInfo({
               ...current,
@@ -453,9 +499,8 @@ export const useAcpModelInfo = ({
   }, [conversation_id, enabled, initialModelId, scheduleModelInfoReload, updateModelInfo]);
 
   const requestModelSelection = useCallback(
-    (model_id: string, persistFixedPreference: boolean) => {
-      if (!enabled) return;
-      hasUserChangedModel.current = true;
+    async (model_id: string, persistFixedPreference: boolean): Promise<string> => {
+      if (!enabled) throw new Error('model_selection_disabled');
       const previousModelInfo = model_info;
       logAcpModelInfo('select_model_requested', {
         conversation_id,
@@ -464,88 +509,82 @@ export const useAcpModelInfo = ({
         previous_model_info: summarizeModelInfo(previousModelInfo),
       });
 
-      void (async () => {
-        let confirmedModelInfo: AcpModelInfo | null = null;
-        try {
-          await prepareRuntime?.();
-          const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
-          confirmedModelInfo = confirmed.model_info ?? null;
-          if (confirmedModelInfo) {
-            updateModelInfo(confirmedModelInfo);
-          }
-        } catch (error) {
-          hasUserChangedModel.current = false;
-          logAcpModelInfo('select_model_failed', {
+      let confirmedModelInfo: AcpModelInfo | null = null;
+      try {
+        await prepareRuntimeOnce();
+        const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
+        confirmedModelInfo = confirmed.model_info ?? null;
+        if (confirmedModelInfo) {
+          updateModelInfo(confirmedModelInfo);
+        }
+      } catch (error) {
+        logAcpModelInfo('select_model_failed', {
+          conversation_id,
+          backend,
+          requested_model_id: model_id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        console.error('[useAcpModelInfo] Failed to set model:', error);
+        if (previousModelInfo) {
+          updateModelInfo(previousModelInfo);
+        } else {
+          void mutateModelInfo(null, false);
+        }
+        void reloadModelInfo().catch(() => {});
+        throw error;
+      }
+
+      logAcpModelInfo('select_model_confirmed', {
+        conversation_id,
+        backend,
+        requested_model_id: model_id,
+        confirmed_model_info: summarizeModelInfo(confirmedModelInfo),
+      });
+      const refreshed = await reloadModelInfo().catch(() => false);
+      logAcpModelInfo('select_model_refresh_completed', {
+        conversation_id,
+        backend,
+        requested_model_id: model_id,
+        refreshed,
+      });
+      if (!refreshed) {
+        if (backend === 'codex') {
+          reportedCodexCurrentModelIdRef.current = model_id;
+        }
+        void mutateModelInfo((prev) => {
+          const normalizedPrev = normalizeAcpModelInfo(prev);
+          if (!normalizedPrev) return null;
+          const selectedModel = [...normalizedPrev.available_models, ...(normalizedPrev.catalog_models ?? [])].find(
+            (model) => model.id === model_id
+          );
+          logAcpModelInfo('select_model_local_fallback', {
             conversation_id,
             backend,
             requested_model_id: model_id,
-            error: error instanceof Error ? error.message : String(error),
+            previous_model_info: summarizeModelInfo(normalizedPrev),
+            selected_model_label: selectedModel?.label,
           });
-          console.error('[useAcpModelInfo] Failed to set model:', error);
-          if (previousModelInfo) {
-            updateModelInfo(previousModelInfo);
-          } else {
-            void mutateModelInfo(null, false);
-          }
-          onSelectModelFailed?.(model_id, error);
-          void reloadModelInfo().catch(() => {});
-          return;
-        }
+          return {
+            ...normalizedPrev,
+            current_model_id: model_id,
+            current_model_label: selectedModel?.label || model_id,
+          };
+        }, false);
+      }
 
-        logAcpModelInfo('select_model_confirmed', {
-          conversation_id,
-          backend,
-          requested_model_id: model_id,
-          confirmed_model_info: summarizeModelInfo(confirmedModelInfo),
-        });
-        const refreshed = await reloadModelInfo().catch(() => false);
-        logAcpModelInfo('select_model_refresh_completed', {
-          conversation_id,
-          backend,
-          requested_model_id: model_id,
-          refreshed,
-        });
-        if (!refreshed) {
-          if (backend === 'codex') {
-            reportedCodexCurrentModelIdRef.current = model_id;
-          }
-          void mutateModelInfo((prev) => {
-            const normalizedPrev = normalizeAcpModelInfo(prev);
-            if (!normalizedPrev) return null;
-            const selectedModel = normalizedPrev.available_models.find((m) => m.id === model_id);
-            logAcpModelInfo('select_model_local_fallback', {
-              conversation_id,
-              backend,
-              requested_model_id: model_id,
-              previous_model_info: summarizeModelInfo(normalizedPrev),
-              selected_model_label: selectedModel?.label,
-            });
-            return {
-              ...normalizedPrev,
-              current_model_id: model_id,
-              current_model_label: selectedModel?.label || model_id,
-            };
-          }, false);
-        }
-
-        const confirmedModelId =
-          (confirmedModelInfo || refreshed ? modelInfoRef.current?.current_model_id : model_id) || model_id;
-        onSelectModelSuccess?.(confirmedModelId);
-
-        // Persist only after the active ACP session accepts the model switch.
-        if (backend) {
-          void savePreferredModelId(backend, persistFixedPreference ? confirmedModelId : null);
-        }
-        logAcpModelInfo('select_model_preference_save_queued', {
-          conversation_id,
-          backend,
-          requested_model_id: model_id,
-          confirmed_model_id: confirmedModelId,
-          preference_mode: persistFixedPreference ? 'fixed' : 'auto',
-        });
-      })().catch((error) => {
-        console.error('[useAcpModelInfo] Failed to finalize model selection:', error);
+      const confirmedModelId =
+        (confirmedModelInfo || refreshed ? modelInfoRef.current?.current_model_id : model_id) || model_id;
+      if (backend) {
+        await savePreferredModelId(backend, persistFixedPreference ? confirmedModelId : null);
+      }
+      logAcpModelInfo('select_model_preference_saved', {
+        conversation_id,
+        backend,
+        requested_model_id: model_id,
+        confirmed_model_id: confirmedModelId,
+        preference_mode: persistFixedPreference ? 'fixed' : 'auto',
       });
+      return confirmedModelId;
     },
     [
       backend,
@@ -553,15 +592,24 @@ export const useAcpModelInfo = ({
       enabled,
       model_info,
       mutateModelInfo,
-      onSelectModelFailed,
-      onSelectModelSuccess,
-      prepareRuntime,
+      prepareRuntimeOnce,
       reloadModelInfo,
       updateModelInfo,
     ]
   );
 
-  const selectModel = useCallback((model_id: string) => requestModelSelection(model_id, true), [requestModelSelection]);
+  const selectModel = useCallback(
+    (model_id: string) => {
+      hasUserChangedModel.current = true;
+      void requestModelSelection(model_id, true)
+        .then((confirmedModelId) => onSelectModelSuccess?.(confirmedModelId))
+        .catch((error) => {
+          hasUserChangedModel.current = false;
+          onSelectModelFailed?.(model_id, error);
+        });
+    },
+    [onSelectModelFailed, onSelectModelSuccess, requestModelSelection]
+  );
 
   const canSwitch = Boolean(
     enabled &&
@@ -570,17 +618,90 @@ export const useAcpModelInfo = ({
     !(backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList())
   );
 
-  const selectAutoModel = useCallback(() => {
-    if (!enabled || backend !== 'codex' || !model_info) return;
-    const defaultModelId =
-      model_info.available_models.length > 0 ? selectDefaultCodexModelId(model_info.available_models) : null;
-    const reportedCurrentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
-    if (!defaultModelId || defaultModelId === reportedCurrentModelId) {
-      void savePreferredModelId(backend, null);
-      return;
+  const applyAutoSelection = useCallback(
+    async (notify: boolean): Promise<void> => {
+      if (!enabled || backend !== 'codex' || !model_info) return;
+      const selection = resolveOplCodexAutoSelection(model_info);
+      try {
+        const reportedCurrentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
+        if (selection.modelId !== reportedCurrentModelId) {
+          await requestModelSelection(selection.modelId, false);
+        } else {
+          await savePreferredModelId(backend, null);
+        }
+        if (thoughtLevel && selection.reasoningEffort && thoughtLevel.currentValue !== selection.reasoningEffort) {
+          await setConfigOption(thoughtLevel.id, selection.reasoningEffort);
+        }
+        if (notify) onSelectModelSuccess?.(selection.modelId);
+      } catch (error) {
+        if (notify) onSelectModelFailed?.(selection.modelId, error);
+        throw error;
+      }
+    },
+    [
+      backend,
+      enabled,
+      model_info,
+      onSelectModelFailed,
+      onSelectModelSuccess,
+      requestModelSelection,
+      setConfigOption,
+      thoughtLevel,
+    ]
+  );
+
+  const selectAutoModel = useCallback(async () => {
+    hasUserChangedModel.current = false;
+    attemptedAutoResolutionKeysRef.current.clear();
+    autoSelectionRunningRef.current = true;
+    if (backend === 'codex') await savePreferredModelId(backend, null);
+    try {
+      await applyAutoSelection(true);
+    } finally {
+      autoSelectionRunningRef.current = false;
+      setAutoSelectionRevision((revision) => revision + 1);
     }
-    requestModelSelection(defaultModelId, false);
-  }, [backend, enabled, model_info, requestModelSelection]);
+  }, [applyAutoSelection, backend]);
+
+  useEffect(() => {
+    if (
+      !enabled ||
+      backend !== 'codex' ||
+      !model_info ||
+      hasUserChangedModel.current ||
+      autoSelectionRunningRef.current
+    )
+      return;
+    const fixedPreference = configService.get('acp.config')?.codex?.preferredModelId?.trim();
+    if (fixedPreference) return;
+    const selection = resolveOplCodexAutoSelection(model_info);
+    const catalogSignature = JSON.stringify(
+      (model_info.catalog_models ?? model_info.available_models).map((model) => ({
+        id: model.id,
+        isDefault: model.isDefault,
+        supportedReasoningEfforts: model.supportedReasoningEfforts,
+      }))
+    );
+    const currentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
+    const key = `${conversation_id}:${selection.modelId}:${selection.reasoningEffort ?? ''}:${currentModelId ?? ''}:${thoughtLevel?.currentValue ?? 'unavailable'}:${catalogSignature}`;
+    if (attemptedAutoResolutionKeysRef.current.has(key)) return;
+    attemptedAutoResolutionKeysRef.current.add(key);
+    autoSelectionRunningRef.current = true;
+    void applyAutoSelection(false)
+      .catch(() => {})
+      .finally(() => {
+        autoSelectionRunningRef.current = false;
+        setAutoSelectionRevision((revision) => revision + 1);
+      });
+  }, [
+    applyAutoSelection,
+    autoSelectionRevision,
+    backend,
+    conversation_id,
+    enabled,
+    model_info,
+    thoughtLevel?.currentValue,
+  ]);
 
   return { model_info, canSwitch, selectModel, selectAutoModel, thoughtLevel, setStatus, setConfigOption };
 };

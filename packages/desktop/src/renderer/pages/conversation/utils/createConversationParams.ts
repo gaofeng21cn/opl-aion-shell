@@ -79,7 +79,9 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
     const normalizedPreferredModelId = preferredModelId?.trim();
     if (
       normalizedPreferredModelId &&
-      modelInfo.available_models.some((model) => model.id === normalizedPreferredModelId)
+      [...(modelInfo.catalog_models ?? []), ...modelInfo.available_models].some(
+        (model) => model.id === normalizedPreferredModelId
+      )
     ) {
       return normalizedPreferredModelId;
     }

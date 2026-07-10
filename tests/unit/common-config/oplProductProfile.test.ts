@@ -16,6 +16,7 @@ import {
   getOplProfessionalAgentPackages,
   getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
+  getOplCodexAutoModelPolicy,
   getOplDefaultCodexSkills,
   getOplDeferredFirstLaunchBlockers,
   getOplGuiDefaultCssThemeId,
@@ -53,6 +54,7 @@ import {
   DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
   DEFAULT_CODEX_MODELS,
   DEFAULT_CODEX_REASONING_EFFORT,
+  resolveOplCodexAutoSelection,
   selectDefaultCodexModelId,
 } from '@/common/types/codex/codexModels';
 import { migrateThemeConfig } from '@/common/theme/migrateThemeConfig';
@@ -122,17 +124,24 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
       'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus'
     );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.strategy).toBe(
-      'codex_cli_auto_latest_available_frontier'
-    );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.model_list_source).toBe(
-      'codex_cli_handshake_available_models'
-    );
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.frontier_model_preference_order_role).toBe(
-      'exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter'
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.policy_source_ref).toBe(
+      'contracts/app-product-profile.json#codex.auto_model_policy'
     );
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_override_model).toBe(true);
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
+    expect(getOplCodexAutoModelPolicy()).toMatchObject({
+      mode_default: 'auto',
+      model_catalog_source: 'codex_cli_model_list',
+      catalog_default_model_field: 'isDefault',
+      catalog_supported_reasoning_efforts_field: 'supportedReasoningEfforts',
+      unknown_default_model_policy: 'accept_catalog_default_even_when_not_in_frontier_model_preference_order',
+      unknown_model_reasoning_effort_policy: 'highest_supported_reasoning_effort_from_catalog',
+      catalog_unavailable_fallback: { model: 'gpt-5.6-sol', reasoning_effort: 'xhigh' },
+      persistence_policy: {
+        auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog',
+        fixed: 'persist_selected_model_and_reasoning_effort',
+      },
+    });
     expect(getOplCodexModelDisplayOptions()).toMatchObject({
       display_policy: 'friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus',
       button_label_policy: 'resolved_model_compact_label_with_selected_reasoning_effort_no_auto_prefix',
@@ -555,9 +564,9 @@ describe('OPL generated product profile', () => {
           { id: 'gpt-5.1-codex-mini', label: 'gpt-5.1-codex-mini' },
         ],
       })
-    ).toEqual({
-      current_model_id: null,
-      current_model_label: null,
+    ).toMatchObject({
+      current_model_id: 'gpt-5.6',
+      current_model_label: 'gpt-5.6',
       available_models: [],
     });
     expect(
@@ -566,9 +575,9 @@ describe('OPL generated product profile', () => {
         current_model_label: null,
         available_models: [],
       })
-    ).toEqual({
-      current_model_id: null,
-      current_model_label: null,
+    ).toMatchObject({
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [],
     });
     expect(
@@ -587,7 +596,7 @@ describe('OPL generated product profile', () => {
           { id: 'gpt-5.5', label: 'GPT-5.5' },
         ],
       })
-    ).toEqual({
+    ).toMatchObject({
       current_model_id: 'gpt-5.6-sol',
       current_model_label: '5.6 Sol',
       available_models: [
@@ -600,7 +609,7 @@ describe('OPL generated product profile', () => {
         { id: 'gpt-5.2', label: '5.2' },
       ],
     });
-    expect(buildCodexDefaultModelInfo()).toEqual({
+    expect(buildCodexDefaultModelInfo()).toMatchObject({
       current_model_id: 'gpt-5.6-sol',
       current_model_label: '5.6 Sol',
       available_models: [
@@ -613,6 +622,49 @@ describe('OPL generated product profile', () => {
         { id: 'gpt-5.2', label: '5.2' },
       ],
     });
+  });
+
+  it('keeps App reasoning policy for a known Codex catalog default', () => {
+    expect(
+      resolveOplCodexAutoSelection({
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          {
+            id: 'gpt-5.6-sol',
+            label: 'GPT-5.6-Sol',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'ultra' }],
+          },
+        ],
+      })
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+  });
+
+  it('accepts an unknown Codex catalog default at its highest advertised reasoning effort', () => {
+    expect(
+      resolveOplCodexAutoSelection({
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          {
+            id: 'gpt-6',
+            label: 'GPT-6',
+            isDefault: true,
+            supportedReasoningEfforts: [
+              { reasoningEffort: 'medium' },
+              { reasoningEffort: 'high' },
+              { reasoningEffort: 'ultra' },
+            ],
+          },
+        ],
+      })
+    ).toEqual({ modelId: 'gpt-6', reasoningEffort: 'ultra' });
+  });
+
+  it('falls back to the App default when the Codex catalog is unavailable', () => {
+    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
   });
 
   it('exposes default visible skills without allowing caller mutation', () => {

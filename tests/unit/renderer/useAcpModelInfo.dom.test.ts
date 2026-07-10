@@ -513,7 +513,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(result.current.canSwitch).toBe(true);
     });
-    expect(result.current.model_info).toEqual({
+    expect(result.current.model_info).toMatchObject({
       current_model_id: 'gpt-5.6-sol',
       current_model_label: '5.6 Sol',
       available_models: [
@@ -604,6 +604,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('filters and orders active Codex model info while preserving the current allowlisted model', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.4' } });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
         current_model_id: 'gpt-5.4',
@@ -624,7 +625,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info).toEqual({
+      expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
         available_models: [
@@ -637,7 +638,7 @@ describe('useAcpModelInfo', () => {
     });
   });
 
-  it('keeps an unsupported active Codex current model until Auto confirms an allowlisted switch', async () => {
+  it('automatically replaces an unsupported legacy Codex model in Auto mode', async () => {
     const legacyInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.6-codex',
       current_model_label: 'GPT-5.6 Codex',
@@ -663,19 +664,6 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info).toEqual({
-        current_model_id: null,
-        current_model_label: null,
-        available_models: [
-          { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.5', label: '5.5' },
-        ],
-      });
-    });
-
-    act(() => result.current.selectAutoModel());
-
-    await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'legacy-codex-conversation',
         model_id: 'gpt-5.6-sol',
@@ -688,6 +676,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('filters and orders Codex acp_model_info stream receipts', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.4' } });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
         current_model_id: 'gpt-5.6-sol',
@@ -728,7 +717,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info).toEqual({
+      expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
         available_models: [
@@ -742,6 +731,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('keeps the available Codex list when a legacy codex_model_info stream updates the current model', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.5' } });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
         current_model_id: 'gpt-5.6-sol',
@@ -773,7 +763,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info).toEqual({
+      expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.5',
         current_model_label: '5.5',
         available_models: [
@@ -786,6 +776,7 @@ describe('useAcpModelInfo', () => {
   });
 
   it('filters and orders Codex setModel receipts', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-sol' } });
     const initialInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.6-sol',
       current_model_label: 'GPT-5.6-Sol',
@@ -820,7 +811,7 @@ describe('useAcpModelInfo', () => {
     act(() => result.current.selectModel('gpt-5.4'));
 
     await waitFor(() => {
-      expect(result.current.model_info).toEqual({
+      expect(result.current.model_info).toMatchObject({
         current_model_id: 'gpt-5.4',
         current_model_label: '5.4',
         available_models: [
@@ -855,10 +846,12 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
     });
 
-    const selectAutoModel = (result.current as typeof result.current & { selectAutoModel?: () => void })
+    const selectAutoModel = (result.current as typeof result.current & { selectAutoModel?: () => Promise<void> })
       .selectAutoModel;
     expect(selectAutoModel).toBeTypeOf('function');
-    act(() => selectAutoModel?.());
+    await act(async () => {
+      await selectAutoModel?.();
+    });
 
     await waitFor(() => {
       expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
@@ -893,7 +886,9 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info?.current_model_id).toBe('gpt-5.5');
     });
 
-    act(() => result.current.selectAutoModel());
+    await act(async () => {
+      await result.current.selectAutoModel();
+    });
 
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
@@ -904,6 +899,110 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
     });
+  });
+
+  it('automatically follows an unknown Codex catalog default and its highest reasoning effort', async () => {
+    const catalogInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: 'GPT-5.6-Sol',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        {
+          id: 'gpt-6',
+          label: 'GPT-6',
+          isDefault: true,
+          supportedReasoningEfforts: [
+            { reasoningEffort: 'medium' },
+            { reasoningEffort: 'xhigh' },
+            { reasoningEffort: 'ultra' },
+          ],
+          defaultReasoningEffort: 'xhigh',
+          hidden: false,
+          upgrade: null,
+        },
+      ],
+    };
+    const selectedInfo = { ...catalogInfo, current_model_id: 'gpt-6', current_model_label: 'GPT-6' };
+    getModelInvokeMock
+      .mockResolvedValueOnce({ model_info: catalogInfo })
+      .mockResolvedValue({ model_info: selectedInfo });
+    setModelInvokeMock.mockResolvedValue({ model_info: selectedInfo });
+    getConfigOptionsInvokeMock.mockResolvedValue({
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+    setConfigOptionInvokeMock.mockResolvedValue({
+      confirmation: 'observed',
+      config_options: [
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'ultra',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+    });
+
+    renderUseAcpModelInfo({ conversation_id: 'future-codex-conversation', backend: 'codex' });
+
+    await waitFor(() => {
+      expect(setModelInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'future-codex-conversation',
+        model_id: 'gpt-6',
+      });
+    });
+    await waitFor(() => {
+      expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'future-codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'ultra',
+      });
+    });
+  });
+
+  it('keeps a fixed Codex model when a newer catalog default appears', async () => {
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-sol' } });
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-5.6-sol',
+        current_model_label: 'GPT-5.6-Sol',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          {
+            id: 'gpt-6',
+            label: 'GPT-6',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+          },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'fixed-codex-conversation',
+      backend: 'codex',
+      initialModelId: 'gpt-5.6-sol',
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+    expect(configServiceSetMock).not.toHaveBeenCalled();
   });
 
   it('saves the requested Codex model when setModel succeeds without a receipt and reload has no model info', async () => {

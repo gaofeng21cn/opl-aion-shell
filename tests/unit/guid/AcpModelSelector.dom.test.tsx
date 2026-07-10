@@ -188,25 +188,27 @@ describe('AcpModelSelector Codex model switching', () => {
         },
       ],
     });
-    mocks.setConfigOption.mockResolvedValue({
-      confirmation: 'observed',
-      config_options: [
-        {
-          id: 'reasoning_effort',
-          category: 'thought_level',
-          option_type: 'select',
-          current_value: 'high',
-          options: [
-            { value: 'low', label: 'Low' },
-            { value: 'medium', label: 'Medium' },
-            { value: 'high', label: 'High' },
-            { value: 'xhigh', label: 'Extra high' },
-            { value: 'max', label: 'Max' },
-            { value: 'ultra', label: 'Ultra' },
-          ],
-        },
-      ],
-    });
+    mocks.setConfigOption.mockImplementation(({ value }: { value: string }) =>
+      Promise.resolve({
+        confirmation: 'observed',
+        config_options: [
+          {
+            id: 'reasoning_effort',
+            category: 'thought_level',
+            option_type: 'select',
+            current_value: value,
+            options: [
+              { value: 'low', label: 'Low' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'high', label: 'High' },
+              { value: 'xhigh', label: 'Extra high' },
+              { value: 'max', label: 'Max' },
+              { value: 'ultra', label: 'Ultra' },
+            ],
+          },
+        ],
+      })
+    );
     mocks.conversationUpdate.mockResolvedValue(true);
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);

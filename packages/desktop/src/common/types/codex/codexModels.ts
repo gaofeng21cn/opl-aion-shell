@@ -10,14 +10,14 @@
  * and exposes only the App allowlist in its product-defined order.
  */
 import {
-  getOplCodexFrontierModelPreferenceOrder,
+  getOplCodexAutoModelPolicy,
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexModel,
   getOplDefaultCodexModelDisplayLabel,
   getOplDefaultCodexReasoningEffort,
   getOplRetiredCodexModels,
 } from '@/common/config/oplProductProfile';
-import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
+import type { AcpAvailableModel, AcpModelInfo } from '@/common/types/platform/acpTypes';
 
 export const DEFAULT_CODEX_MODEL_ID = getOplDefaultCodexModel();
 export const DEFAULT_CODEX_REASONING_EFFORT = getOplDefaultCodexReasoningEffort();
@@ -25,7 +25,8 @@ export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFF
   ? `${DEFAULT_CODEX_MODEL_ID}/${DEFAULT_CODEX_REASONING_EFFORT}`
   : DEFAULT_CODEX_MODEL_ID;
 export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
-const CODEX_FRONTIER_MODEL_PREFERENCE_ORDER = getOplCodexFrontierModelPreferenceOrder();
+const CODEX_AUTO_MODEL_POLICY = getOplCodexAutoModelPolicy();
+const CODEX_FRONTIER_MODEL_PREFERENCE_ORDER = CODEX_AUTO_MODEL_POLICY.frontier_model_preference_order;
 const CODEX_FRONTIER_MODEL_PREFERENCE_INDEX = new Map(
   CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.map((id, index) => [id, index])
 );
@@ -41,7 +42,17 @@ export const DEFAULT_CODEX_MODELS: Array<{ id: string; label: string; descriptio
     description: 'One Person Lab App Codex frontier model',
   }));
 
-type CodexModelOption = { id: string; label?: string | null };
+type CodexModelOption = AcpAvailableModel | { id: string; label?: string | null };
+
+function normalizeCodexCatalogOptions(availableModels: CodexModelOption[] | undefined | null): AcpAvailableModel[] {
+  const seen = new Set<string>();
+  return (availableModels ?? []).flatMap((model) => {
+    const id = model.id.trim();
+    if (!id || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) return [];
+    seen.add(id);
+    return [{ ...model, id, label: model.label?.trim() || CODEX_MODEL_DISPLAY_LABELS.get(id) || id }];
+  });
+}
 
 export function selectDefaultCodexModelId(
   availableModels: CodexModelOption[] | undefined | null,
@@ -93,29 +104,67 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
 }
 
 export function normalizeCodexModelInfo(modelInfo: AcpModelInfo): AcpModelInfo {
-  const availableModels = normalizeCodexModelOptions(modelInfo.available_models);
-  const currentModel = availableModels.find((model) => model.id === modelInfo.current_model_id);
+  const catalogModels = normalizeCodexCatalogOptions(modelInfo.catalog_models ?? modelInfo.available_models);
+  const availableModels = normalizeCodexModelOptions(catalogModels);
+  const currentModel =
+    availableModels.find((model) => model.id === modelInfo.current_model_id) ??
+    catalogModels.find((model) => model.id === modelInfo.current_model_id);
   return {
     current_model_id: currentModel?.id ?? null,
     current_model_label: currentModel?.label ?? null,
     available_models: availableModels,
+    catalog_models: catalogModels,
   };
 }
 
+export type CodexAutoSelection = {
+  modelId: string;
+  reasoningEffort: string | null;
+};
+
+export function resolveOplCodexAutoSelection(modelInfo?: AcpModelInfo | null): CodexAutoSelection {
+  const catalogModels = normalizeCodexCatalogOptions(modelInfo?.catalog_models ?? modelInfo?.available_models);
+  const catalogDefault = catalogModels.find((model) => model.isDefault);
+  const unknownCatalogDefault =
+    catalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id) ? catalogDefault : null;
+  const knownModel = CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.find((id) => catalogModels.some((model) => model.id === id));
+  const modelId =
+    unknownCatalogDefault?.id ??
+    knownModel ??
+    catalogModels[0]?.id ??
+    CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model;
+  const selectedModel = catalogModels.find((model) => model.id === modelId);
+  const reasoningEffort = unknownCatalogDefault
+    ? unknownCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort?.trim() ||
+      unknownCatalogDefault.defaultReasoningEffort?.trim() ||
+      CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
+    : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
+      selectedModel?.defaultReasoningEffort?.trim() ??
+      CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort);
+  return { modelId, reasoningEffort: reasoningEffort || null };
+}
+
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
+  const normalized = handshakeModels == null ? null : normalizeCodexModelInfo(handshakeModels);
   const visibleModels =
-    handshakeModels == null
-      ? DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }))
-      : normalizeCodexModelInfo(handshakeModels).available_models;
-  const currentModelId = visibleModels.length > 0 ? selectDefaultCodexModelId(visibleModels) : null;
+    normalized?.available_models ?? DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }));
+  const catalogModels = normalized?.catalog_models ?? visibleModels;
+  const currentModelId = resolveOplCodexAutoSelection({
+    current_model_id: null,
+    current_model_label: null,
+    available_models: visibleModels,
+    catalog_models: catalogModels,
+  }).modelId;
   const currentModelLabel =
     currentModelId == null
       ? null
       : visibleModels.find((model) => model.id === currentModelId)?.label ||
+        catalogModels.find((model) => model.id === currentModelId)?.label ||
         (currentModelId === DEFAULT_CODEX_MODEL_ID ? DEFAULT_CODEX_MODEL_DISPLAY_LABEL : currentModelId);
   return {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,
     available_models: visibleModels,
+    catalog_models: catalogModels,
   };
 }

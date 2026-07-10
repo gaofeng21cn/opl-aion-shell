@@ -300,6 +300,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     vi.clearAllMocks();
     isMobileLayout = false;
     intelligencePreference = undefined;
+    acpModelInfoMocks.selectAutoModel.mockResolvedValue(undefined);
     acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
     acpModelInfoMocks.executeAction.mockImplementation(({ actionId }: { actionId: string }) =>
       Promise.resolve(intelligenceStatusResult(actionId === 'intelligence_enhancement_status' ? false : true))
@@ -383,7 +384,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     );
   });
 
-  it('restores Auto as latest strongest model plus xhigh reasoning from the mobile action sheet', async () => {
+  it('delegates latest model and reasoning resolution to the shared Auto action', () => {
     isMobileLayout = true;
 
     render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
@@ -393,7 +394,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
     expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
-    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'xhigh'));
+    expect(acpModelInfoMocks.setConfigOption).not.toHaveBeenCalled();
   });
 
   it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {

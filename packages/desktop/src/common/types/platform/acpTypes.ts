@@ -232,13 +232,30 @@ export interface AcpSessionModes {
 
 // ===== Unified model info for UI =====
 
+export type AcpReasoningEffortOption = {
+  reasoningEffort: string;
+  description?: string | null;
+};
+
+export type AcpAvailableModel = {
+  id: string;
+  label: string;
+  isDefault?: boolean;
+  supportedReasoningEfforts?: AcpReasoningEffortOption[];
+  defaultReasoningEffort?: string | null;
+  hidden?: boolean;
+  upgrade?: string | null;
+};
+
 export interface AcpModelInfo {
   /** Currently active model ID */
   current_model_id: string | null;
   /** Display label for the current model */
   current_model_label: string | null;
   /** Available models for switching */
-  available_models: Array<{ id: string; label: string }>;
+  available_models: AcpAvailableModel[];
+  /** Unfiltered Codex CLI catalog used by automatic model selection. */
+  catalog_models?: AcpAvailableModel[];
 }
 
 // ===== Permission request (session/request_permission) =====

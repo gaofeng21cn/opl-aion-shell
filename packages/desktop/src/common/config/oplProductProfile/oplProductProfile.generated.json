@@ -76,22 +76,11 @@
         ]
       },
       "codex_auto_model_selection": {
-        "strategy": "codex_cli_auto_latest_available_frontier",
-        "model_list_source": "codex_cli_handshake_available_models",
-        "frontier_model_preference_order_role": "exact_visible_model_allowlist_order_and_fallback_with_codex_cli_availability_filter",
+        "policy_source_ref": "contracts/app-product-profile.json#codex.auto_model_policy",
         "user_can_override_model": true,
         "user_can_override_reasoning_effort": true,
         "user_can_restore_auto": true,
-        "selection_persists_into_conversation": true,
-        "frontier_model_preference_order": [
-          "gpt-5.6-sol",
-          "gpt-5.6-terra",
-          "gpt-5.6-luna",
-          "gpt-5.5",
-          "gpt-5.4",
-          "gpt-5.4-mini",
-          "gpt-5.2"
-        ]
+        "selection_persists_into_conversation": true
       },
       "codex_model_display_options": {
         "display_policy": "friendly_model_name_primary_reasoning_primary_model_and_intelligence_secondary_menus",
@@ -711,6 +700,38 @@
     "default_model": "gpt-5.6-sol",
     "default_model_description": "System Codex default model when configured",
     "default_reasoning_effort": "xhigh",
+    "auto_model_policy": {
+      "authority": "one-person-lab-app",
+      "mode_default": "auto",
+      "model_catalog_source": "codex_cli_model_list",
+      "catalog_default_model_field": "isDefault",
+      "catalog_supported_reasoning_efforts_field": "supportedReasoningEfforts",
+      "catalog_reasoning_effort_order_policy": "last_advertised_supported_reasoning_effort_is_highest",
+      "frontier_model_preference_order_role": "known_model_fallback_and_fixed_option_preference_not_allowlist",
+      "frontier_model_preference_order": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.2"
+      ],
+      "known_model_reasoning_effort_overrides": {
+        "gpt-5.6-sol": "xhigh"
+      },
+      "unknown_default_model_policy": "accept_catalog_default_even_when_not_in_frontier_model_preference_order",
+      "unknown_model_reasoning_effort_policy": "highest_supported_reasoning_effort_from_catalog",
+      "catalog_without_default_policy": "first_available_known_model_then_first_catalog_model",
+      "catalog_unavailable_fallback": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh"
+      },
+      "persistence_policy": {
+        "auto": "persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog",
+        "fixed": "persist_selected_model_and_reasoning_effort"
+      }
+    },
     "opl_flow_context": {
       "flow_id": "opl-flow",
       "source": "one-person-lab-app",

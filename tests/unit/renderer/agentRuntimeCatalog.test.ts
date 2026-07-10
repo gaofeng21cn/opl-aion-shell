@@ -54,6 +54,34 @@ describe('managed agent runtime catalog', () => {
     });
   });
 
+  it('preserves Codex model/list metadata needed by Auto selection', () => {
+    expect(
+      buildAgentRuntimeModelInfo({
+        available_models: {
+          current_model_id: 'gpt-6',
+          available_models: [
+            {
+              id: 'gpt-6',
+              label: 'GPT-6',
+              isDefault: true,
+              supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+              defaultReasoningEffort: 'xhigh',
+              hidden: false,
+              upgrade: null,
+            },
+          ],
+        },
+      })?.available_models[0]
+    ).toMatchObject({
+      id: 'gpt-6',
+      isDefault: true,
+      supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+      defaultReasoningEffort: 'xhigh',
+      hidden: false,
+      upgrade: null,
+    });
+  });
+
   it('preserves an explicitly empty managed model catalog', () => {
     expect(
       buildAgentRuntimeModelInfo({

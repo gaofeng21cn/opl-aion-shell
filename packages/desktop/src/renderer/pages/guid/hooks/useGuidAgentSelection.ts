@@ -461,7 +461,12 @@ export const useGuidAgentSelection = ({
     const preferred = (config?.[backend as string] as Record<string, unknown>)?.preferredModelId as string | undefined;
     if (backend === 'codex') {
       const codexModelInfo = buildCodexDefaultModelInfo(selectedRuntimeModelInfo);
-      if (preferred && codexModelInfo.available_models.some((model) => model.id === preferred)) {
+      if (
+        preferred &&
+        [...(codexModelInfo.catalog_models ?? []), ...codexModelInfo.available_models].some(
+          (model) => model.id === preferred
+        )
+      ) {
         _setSelectedAcpModel(preferred);
         return;
       }

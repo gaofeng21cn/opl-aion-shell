@@ -302,17 +302,8 @@ const AcpSendBox: React.FC<{
 
   const handleSheetAutoSelect = useCallback(() => {
     if (!model_info || isSettingReasoning) return;
-    const tasks: Array<Promise<unknown>> = [];
-    selectAutoModel();
-    if (thoughtLevel && defaultCodexReasoningEffort && thoughtLevel.currentValue !== defaultCodexReasoningEffort) {
-      tasks.push(setConfigOption(thoughtLevel.id, defaultCodexReasoningEffort));
-    }
-    if (tasks.length) {
-      void Promise.all(tasks)
-        .then(() => Message.success(t('agent.model.switchSuccess')))
-        .catch((error) => Message.error(t(configErrorMessageKey(error))));
-    }
-  }, [defaultCodexReasoningEffort, isSettingReasoning, model_info, selectAutoModel, setConfigOption, thoughtLevel, t]);
+    void selectAutoModel().catch(() => {});
+  }, [isSettingReasoning, model_info, selectAutoModel]);
 
   const handleSheetIntelligenceEnhancementSelect = useCallback(
     async (key: string) => {
