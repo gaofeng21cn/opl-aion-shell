@@ -749,8 +749,8 @@ function readCodexModelDisplayOptions(
     throw new Error('Invalid OPL product profile: Codex model display options must match frontier preference order');
   }
   const retiredVisibleModelIds = new Set([
+    'gpt-5.3-codex-spark',
     'gpt-5.3-codex',
-    'gpt-5.2',
     'gpt-5.2-codex',
     'gpt-5.1-codex-max',
     'gpt-5.1-codex-mini',

@@ -85,12 +85,12 @@
         "selection_persists_into_conversation": true,
         "frontier_model_preference_order": [
           "gpt-5.6-sol",
-          "gpt-5.5",
           "gpt-5.6-terra",
           "gpt-5.6-luna",
+          "gpt-5.5",
           "gpt-5.4",
           "gpt-5.4-mini",
-          "gpt-5.3-codex-spark"
+          "gpt-5.2"
         ]
       },
       "codex_model_display_options": {
@@ -152,11 +152,6 @@
             "label_en": "5.6 Sol"
           },
           {
-            "id": "gpt-5.5",
-            "label_zh": "5.5",
-            "label_en": "5.5"
-          },
-          {
             "id": "gpt-5.6-terra",
             "label_zh": "5.6 Terra",
             "label_en": "5.6 Terra"
@@ -165,6 +160,11 @@
             "id": "gpt-5.6-luna",
             "label_zh": "5.6 Luna",
             "label_en": "5.6 Luna"
+          },
+          {
+            "id": "gpt-5.5",
+            "label_zh": "5.5",
+            "label_en": "5.5"
           },
           {
             "id": "gpt-5.4",
@@ -177,9 +177,9 @@
             "label_en": "5.4 Mini"
           },
           {
-            "id": "gpt-5.3-codex-spark",
-            "label_zh": "5.3 Codex Spark",
-            "label_en": "5.3 Codex Spark"
+            "id": "gpt-5.2",
+            "label_zh": "5.2",
+            "label_en": "5.2"
           }
         ]
       },
@@ -290,8 +290,8 @@
         }
       ],
       "retired_codex_models_must_not_be_exposed": [
+        "gpt-5.3-codex-spark",
         "gpt-5.3-codex",
-        "gpt-5.2",
         "gpt-5.2-codex",
         "gpt-5.1-codex-max",
         "gpt-5.1-codex-mini"

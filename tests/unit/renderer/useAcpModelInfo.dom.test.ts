@@ -518,12 +518,12 @@ describe('useAcpModelInfo', () => {
       current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.4', label: '5.4' },
         { id: 'gpt-5.4-mini', label: '5.4 Mini' },
-        { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
+        { id: 'gpt-5.2', label: '5.2' },
       ],
     });
   });
@@ -629,8 +629,8 @@ describe('useAcpModelInfo', () => {
         current_model_label: '5.4',
         available_models: [
           { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
         ],
       });
@@ -733,8 +733,8 @@ describe('useAcpModelInfo', () => {
         current_model_label: '5.4',
         available_models: [
           { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
         ],
       });
@@ -825,8 +825,8 @@ describe('useAcpModelInfo', () => {
         current_model_label: '5.4',
         available_models: [
           { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.6-terra', label: '5.6 Terra' },
+          { id: 'gpt-5.5', label: '5.5' },
           { id: 'gpt-5.4', label: '5.4' },
         ],
       });
@@ -867,21 +867,21 @@ describe('useAcpModelInfo', () => {
   });
 
   it('selects the first available App model for Auto and clears the fixed preference after confirmation', async () => {
-    const terraInfo: AcpModelInfo = {
-      current_model_id: 'gpt-5.6-terra',
-      current_model_label: 'GPT-5.6-Terra',
+    const fiveFiveInfo: AcpModelInfo = {
+      current_model_id: 'gpt-5.5',
+      current_model_label: 'GPT-5.5',
       available_models: [
         { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
         { id: 'gpt-5.5', label: 'GPT-5.5' },
       ],
     };
     const autoInfo: AcpModelInfo = {
-      ...terraInfo,
-      current_model_id: 'gpt-5.5',
-      current_model_label: 'GPT-5.5',
+      ...fiveFiveInfo,
+      current_model_id: 'gpt-5.6-terra',
+      current_model_label: 'GPT-5.6-Terra',
     };
-    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.6-terra' } });
-    getModelInvokeMock.mockResolvedValueOnce({ model_info: terraInfo }).mockResolvedValue({ model_info: autoInfo });
+    configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.5' } });
+    getModelInvokeMock.mockResolvedValueOnce({ model_info: fiveFiveInfo }).mockResolvedValue({ model_info: autoInfo });
     setModelInvokeMock.mockResolvedValue({ model_info: autoInfo });
 
     const { result } = renderUseAcpModelInfo({
@@ -890,7 +890,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-terra');
+      expect(result.current.model_info?.current_model_id).toBe('gpt-5.5');
     });
 
     act(() => result.current.selectAutoModel());
@@ -898,7 +898,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'active-codex-conversation',
-        model_id: 'gpt-5.5',
+        model_id: 'gpt-5.6-terra',
       });
     });
     await waitFor(() => {

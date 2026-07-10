@@ -45,7 +45,7 @@ describe('oplCodexModelDisplay', () => {
     });
 
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe('当前 5.5 · 推理极高 · 跟随最新最强');
+    expect(option.description).toBe('当前 5.6 Terra · 推理极高 · 跟随最新最强');
   });
 
   it('uses localized reasoning labels', () => {

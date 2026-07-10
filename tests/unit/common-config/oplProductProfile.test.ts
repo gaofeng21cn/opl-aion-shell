@@ -75,15 +75,21 @@ describe('OPL generated product profile', () => {
     expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('5.6 Sol');
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).toEqual([
       'gpt-5.6-sol',
-      'gpt-5.5',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
+      'gpt-5.5',
       'gpt-5.4',
       'gpt-5.4-mini',
-      'gpt-5.3-codex-spark',
+      'gpt-5.2',
     ]);
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).not.toEqual(
-      expect.arrayContaining(['gpt-5.3-codex', 'gpt-5.2', 'gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-5.1-codex-mini'])
+      expect.arrayContaining([
+        'gpt-5.3-codex-spark',
+        'gpt-5.3-codex',
+        'gpt-5.2-codex',
+        'gpt-5.1-codex-max',
+        'gpt-5.1-codex-mini',
+      ])
     );
   });
 
@@ -147,12 +153,12 @@ describe('OPL generated product profile', () => {
       },
       visible_models: [
         { id: 'gpt-5.6-sol', label_zh: '5.6 Sol' },
-        { id: 'gpt-5.5', label_zh: '5.5' },
         { id: 'gpt-5.6-terra', label_zh: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label_zh: '5.6 Luna' },
+        { id: 'gpt-5.5', label_zh: '5.5' },
         { id: 'gpt-5.4', label_zh: '5.4' },
         { id: 'gpt-5.4-mini', label_zh: '5.4 Mini' },
-        { id: 'gpt-5.3-codex-spark', label_zh: '5.3 Codex Spark' },
+        { id: 'gpt-5.2', label_zh: '5.2' },
       ],
     });
     expect(getOplCodexModelDisplayOptions().user_reasoning_effort_options).toEqual([
@@ -163,8 +169,8 @@ describe('OPL generated product profile', () => {
       'ultra',
     ]);
     expect(getOplRetiredCodexModels()).toEqual([
+      'gpt-5.3-codex-spark',
       'gpt-5.3-codex',
-      'gpt-5.2',
       'gpt-5.2-codex',
       'gpt-5.1-codex-max',
       'gpt-5.1-codex-mini',
@@ -529,7 +535,7 @@ describe('OPL generated product profile', () => {
     );
     expect(selectDefaultCodexModelId([{ id: 'gpt-6' }, { id: 'gpt-5.6-sol' }])).toBe('gpt-5.6-sol');
     expect(selectDefaultCodexModelId([{ id: 'gpt-5.6-luna' }, { id: 'gpt-5.6-terra' }, { id: 'gpt-5.5' }])).toBe(
-      'gpt-5.5'
+      'gpt-5.6-terra'
     );
     expect(selectDefaultCodexModelId()).toBe('gpt-5.6-sol');
     expect(
@@ -563,6 +569,7 @@ describe('OPL generated product profile', () => {
         current_model_label: 'GPT-6',
         available_models: [
           { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3-Codex-Spark' },
+          { id: 'gpt-5.2', label: 'GPT-5.2' },
           { id: 'gpt-5.4-mini', label: 'GPT-5.4-Mini' },
           { id: 'gpt-6', label: 'GPT-6' },
           { id: 'gpt-5.4', label: 'GPT-5.4' },
@@ -577,12 +584,12 @@ describe('OPL generated product profile', () => {
       current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.4', label: '5.4' },
         { id: 'gpt-5.4-mini', label: '5.4 Mini' },
-        { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
+        { id: 'gpt-5.2', label: '5.2' },
       ],
     });
     expect(buildCodexDefaultModelInfo()).toEqual({
@@ -590,12 +597,12 @@ describe('OPL generated product profile', () => {
       current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
-        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
+        { id: 'gpt-5.5', label: '5.5' },
         { id: 'gpt-5.4', label: '5.4' },
         { id: 'gpt-5.4-mini', label: '5.4 Mini' },
-        { id: 'gpt-5.3-codex-spark', label: '5.3 Codex Spark' },
+        { id: 'gpt-5.2', label: '5.2' },
       ],
     });
   });
