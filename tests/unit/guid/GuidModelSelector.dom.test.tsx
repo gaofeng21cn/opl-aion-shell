@@ -96,6 +96,7 @@ describe('GuidModelSelector Codex display', () => {
   it('keeps model and reasoning controls in one menu without repeating reasoning on ordinary Home', async () => {
     const setSelectedAcpModel = vi.fn();
     const setSelectedReasoningEffort = vi.fn();
+    const setCodexModelSelection = vi.fn();
 
     render(
       <GuidModelSelector
@@ -116,6 +117,7 @@ describe('GuidModelSelector Codex display', () => {
         setSelectedAcpModel={setSelectedAcpModel}
         selectedReasoningEffort={null}
         setSelectedReasoningEffort={setSelectedReasoningEffort}
+        setCodexModelSelection={setCodexModelSelection}
       />
     );
 
@@ -152,7 +154,9 @@ describe('GuidModelSelector Codex display', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: '高' }));
 
-    expect(setSelectedReasoningEffort).toHaveBeenCalledWith('high');
+    expect(setCodexModelSelection).toHaveBeenCalledWith('gpt-5.6-sol', 'high');
+    expect(setSelectedAcpModel).not.toHaveBeenCalled();
+    expect(setSelectedReasoningEffort).not.toHaveBeenCalled();
 
     fireEvent.mouseEnter(screen.getByText('智力增强'));
     fireEvent.click(await screen.findByRole('menuitem', { name: '开启' }));
@@ -202,9 +206,44 @@ describe('GuidModelSelector Codex display', () => {
     });
   });
 
+  it('shows the highest advertised reasoning effort for an unknown future Auto model', () => {
+    render(
+      <GuidModelSelector
+        backend='codex'
+        isGeminiMode={false}
+        modelList={[]}
+        current_model={undefined}
+        setCurrentModel={vi.fn()}
+        currentAcpCachedModelInfo={{
+          current_model_id: 'gpt-6',
+          current_model_label: 'GPT-6',
+          available_models: [
+            {
+              id: 'gpt-6',
+              label: 'GPT-6',
+              isDefault: true,
+              supportedReasoningEfforts: [
+                { reasoningEffort: 'high' },
+                { reasoningEffort: 'xhigh' },
+                { reasoningEffort: 'ultra' },
+              ],
+            },
+          ],
+        }}
+        selectedAcpModel={null}
+        setSelectedAcpModel={vi.fn()}
+        selectedReasoningEffort={null}
+        setSelectedReasoningEffort={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('guid-model-selector')).toHaveTextContent('6 极高');
+  });
+
   it('restores default reasoning when users click Auto again', async () => {
     const setSelectedAcpModel = vi.fn();
     const setSelectedReasoningEffort = vi.fn();
+    const setCodexModelSelection = vi.fn();
 
     render(
       <GuidModelSelector
@@ -222,14 +261,42 @@ describe('GuidModelSelector Codex display', () => {
         setSelectedAcpModel={setSelectedAcpModel}
         selectedReasoningEffort='high'
         setSelectedReasoningEffort={setSelectedReasoningEffort}
+        setCodexModelSelection={setCodexModelSelection}
       />
     );
 
     await userEvent.click(screen.getByTestId('guid-model-selector'));
     fireEvent.click(await screen.findByRole('menuitem', { name: /自动（推荐）/ }));
 
-    expect(setSelectedAcpModel).toHaveBeenCalledWith(null);
-    expect(setSelectedReasoningEffort).toHaveBeenCalledWith(null);
+    expect(setCodexModelSelection).toHaveBeenCalledWith(null, null);
+    expect(setSelectedAcpModel).not.toHaveBeenCalled();
+    expect(setSelectedReasoningEffort).not.toHaveBeenCalled();
+  });
+
+  it('shows a stale fixed Codex model as unavailable instead of labeling it as Auto', async () => {
+    render(
+      <GuidModelSelector
+        backend='codex'
+        isGeminiMode={false}
+        modelList={[]}
+        current_model={undefined}
+        setCurrentModel={vi.fn()}
+        currentAcpCachedModelInfo={{
+          current_model_id: 'gpt-5.6-sol',
+          current_model_label: 'GPT-5.6-Sol',
+          available_models: [{ id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' }],
+        }}
+        selectedAcpModel='gpt-5.6-codex'
+        setSelectedAcpModel={vi.fn()}
+        selectedReasoningEffort='high'
+        setSelectedReasoningEffort={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('guid-model-selector')).toHaveTextContent('gpt-5.6-codex');
+    await userEvent.click(screen.getByTestId('guid-model-selector'));
+    expect((await screen.findAllByText('gpt-5.6-codex')).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
   });
 
   it('routes Gemini add-model actions through the App-owned environment settings page', async () => {

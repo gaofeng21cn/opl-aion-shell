@@ -11,9 +11,9 @@ import {
   getOplDefaultCodexReasoningEffort,
   getOplFlowContextPolicy,
   isOplCodexCliFixedExecutor,
-  type OplCodexReasoningEffort,
 } from '@/common/config/oplProductProfile';
 import { configService } from '@/common/config/configService';
+import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
 import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
@@ -61,8 +61,9 @@ type GuidModelSelectorProps = {
   currentAcpCachedModelInfo: AcpModelInfo | null;
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
-  selectedReasoningEffort?: OplCodexReasoningEffort | null;
-  setSelectedReasoningEffort?: React.Dispatch<React.SetStateAction<OplCodexReasoningEffort | null>>;
+  selectedReasoningEffort?: string | null;
+  setSelectedReasoningEffort?: React.Dispatch<React.SetStateAction<string | null>>;
+  setCodexModelSelection?: (modelId: string | null, reasoningEffort: string | null) => void;
   backend?: string;
 };
 
@@ -76,6 +77,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   setSelectedAcpModel,
   selectedReasoningEffort = null,
   setSelectedReasoningEffort,
+  setCodexModelSelection,
   backend,
 }) => {
   const { t, i18n } = useTranslation();
@@ -89,7 +91,15 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const localeKey: OplModelDisplayLocale = i18n.language?.startsWith('en') ? 'en-US' : 'zh-CN';
   const defaultCodexReasoningEffort = getOplDefaultCodexReasoningEffort();
-  const effectiveReasoningEffort = selectedReasoningEffort ?? defaultCodexReasoningEffort;
+  const autoCodexSelection = React.useMemo(
+    () =>
+      useOplCodexModelDisplay && selectedAcpModel === null && currentAcpCachedModelInfo
+        ? resolveOplCodexAutoSelection(currentAcpCachedModelInfo)
+        : null,
+    [currentAcpCachedModelInfo, selectedAcpModel, useOplCodexModelDisplay]
+  );
+  const effectiveReasoningEffort =
+    selectedReasoningEffort ?? autoCodexSelection?.reasoningEffort ?? defaultCodexReasoningEffort;
   const codexDisplayOptions = getOplCodexModelDisplayOptions();
   const intelligenceEnhancementTitle = t(
     OPL_FLOW_INTELLIGENCE_ENHANCEMENT_MODE?.label_key ?? 'settings.oplFlowIntelligenceEnhancementMode',
@@ -112,6 +122,10 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       : t('common.close', { defaultValue: '关闭' });
   const intelligenceEnhancementEnabled = intelligenceEnhancementMode ?? false;
   const restoreCodexAutoSelection = () => {
+    if (useOplCodexModelDisplay && setCodexModelSelection) {
+      setCodexModelSelection(null, null);
+      return;
+    }
     setSelectedAcpModel(null);
     setSelectedReasoningEffort?.(null);
   };
@@ -212,6 +226,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     }
     return (
       selectedModel?.label ||
+      selectedAcpModel ||
       currentAcpCachedModelInfo?.current_model_label ||
       currentAcpCachedModelInfo?.current_model_id ||
       ''
@@ -341,6 +356,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       });
       const effectiveModelId = selectedAcpModel ?? currentAcpCachedModelInfo.current_model_id;
       const effectiveModel = currentAcpCachedModelInfo.available_models.find((model) => model.id === effectiveModelId);
+      const unavailableFixedModelId = selectedAcpModel && !effectiveModel ? selectedAcpModel : null;
       const modelSubmenuTitle =
         useOplCodexModelDisplay && effectiveModelId
           ? formatOplCodexModelDisplay({
@@ -358,7 +374,14 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                 <Menu.Item
                   key={`reasoning:${effort}`}
                   className={selected ? '!bg-2' : ''}
-                  onClick={() => setSelectedReasoningEffort(effort === defaultCodexReasoningEffort ? null : effort)}
+                  onClick={() => {
+                    if (effectiveModelId && setCodexModelSelection) {
+                      setCodexModelSelection(effectiveModelId, effort);
+                      return;
+                    }
+                    if (effectiveModelId && selectedAcpModel === null) setSelectedAcpModel(effectiveModelId);
+                    setSelectedReasoningEffort(effort);
+                  }}
                 >
                   <div className='flex items-center justify-between gap-16px w-full'>
                     <span>{formatOplCodexReasoningMenuLabel(effort, localeKey)}</span>
@@ -403,6 +426,16 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                   )}
                 </div>
               </Menu.Item>
+              {unavailableFixedModelId && (
+                <Menu.Item key={`unavailable:${unavailableFixedModelId}`} disabled>
+                  <div className='flex items-center justify-between gap-16px w-full'>
+                    <span>{unavailableFixedModelId}</span>
+                    <span className='text-12px text-t-secondary'>
+                      {t('conversation.currentTask.unavailable', { defaultValue: 'Unavailable' })}
+                    </span>
+                  </div>
+                </Menu.Item>
+              )}
               {reasoningMenuItems}
               <Menu.SubMenu
                 key='__models'
@@ -431,7 +464,13 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     <Menu.Item
                       key={model.id}
                       className={model.id === selectedAcpModel ? '!bg-2' : ''}
-                      onClick={() => setSelectedAcpModel(model.id)}
+                      onClick={() => {
+                        if (useOplCodexModelDisplay && setCodexModelSelection) {
+                          setCodexModelSelection(model.id, effectiveReasoningEffort);
+                          return;
+                        }
+                        setSelectedAcpModel(model.id);
+                      }}
                     >
                       <div
                         className={

@@ -29,11 +29,43 @@ export async function savePreferredModelId(agentKey: string, model_id: string | 
     const config = configService.get('acp.config');
     const backendConfig = config?.[agentKey as string] || {};
     if (model_id === null) {
-      const { preferredModelId: _preferredModelId, ...rest } = backendConfig;
+      const {
+        preferredModelId: _preferredModelId,
+        preferredReasoningEffort: _preferredReasoningEffort,
+        ...rest
+      } = backendConfig;
       await configService.set('acp.config', { ...config, [agentKey]: rest });
       return;
     }
     await configService.set('acp.config', { ...config, [agentKey]: { ...backendConfig, preferredModelId: model_id } });
+  } catch {
+    /* silent */
+  }
+}
+
+/** Persist one concrete Codex selection, or clear both overrides when returning to Auto. */
+export async function savePreferredCodexSelection(
+  agentKey: string,
+  modelId: string | null,
+  reasoningEffort: string | null
+): Promise<void> {
+  try {
+    const config = configService.get('acp.config');
+    const backendConfig = config?.[agentKey as string] || {};
+    const {
+      preferredModelId: _preferredModelId,
+      preferredReasoningEffort: _preferredReasoningEffort,
+      ...rest
+    } = backendConfig;
+    const selection =
+      modelId === null
+        ? rest
+        : {
+            ...rest,
+            preferredModelId: modelId,
+            ...(reasoningEffort ? { preferredReasoningEffort: reasoningEffort } : {}),
+          };
+    await configService.set('acp.config', { ...config, [agentKey]: selection });
   } catch {
     /* silent */
   }

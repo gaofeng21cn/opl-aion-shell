@@ -89,23 +89,23 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
   label: string;
 }> {
   const seen = new Set<string>();
-  const options: Array<{ id: string; label: string; preference: number }> = [];
+  const options: Array<{ id: string; label: string; preference: number; catalogIndex: number }> = [];
 
-  for (const model of availableModels ?? []) {
+  for (const [catalogIndex, model] of (availableModels ?? []).entries()) {
     const id = model.id.trim();
     if (!id || RETIRED_CODEX_MODEL_IDS.has(id) || seen.has(id)) continue;
-    const preference = CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(id);
-    if (preference === undefined) continue;
+    const preference = CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(id) ?? CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.length;
     seen.add(id);
     options.push({
       id,
       label: CODEX_MODEL_DISPLAY_LABELS.get(id) ?? model.label?.trim() ?? id,
       preference,
+      catalogIndex,
     });
   }
 
   return options
-    .toSorted((left, right) => left.preference - right.preference)
+    .toSorted((left, right) => left.preference - right.preference || left.catalogIndex - right.catalogIndex)
     .map(({ id, label }) => ({
       id,
       label,

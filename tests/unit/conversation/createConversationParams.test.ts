@@ -58,10 +58,10 @@ describe('createConversationParams Codex model preference', () => {
     ]);
   });
 
-  it('ignores a stale Codex preferred model that is outside the App allowlist', async () => {
+  it('preserves a stale fixed Codex model instead of silently switching to Auto', async () => {
     const params = await buildCliAgentParams(codexAgent, '/tmp/opl-workspace');
 
-    expect(params.extra.current_model_id).toBe('gpt-5.6-sol');
+    expect(params.extra.current_model_id).toBe('gpt-5.6-codex');
   });
 
   it('keeps an available allowlisted Codex preferred model', async () => {

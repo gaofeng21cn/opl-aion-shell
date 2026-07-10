@@ -72,6 +72,7 @@ function buildDeps(): GuidSendDeps {
     is_presetAgent: true,
     selectedMode: 'default',
     selectedAcpModel: null,
+    selectedReasoningEffort: null,
     currentAcpCachedModelInfo: {
       current_model_id: 'gpt-5.6-sol',
       current_model_label: 'GPT-5.6-Sol',
@@ -162,5 +163,48 @@ describe('useGuidSend OPL ordinary capability whitelist', () => {
       source: 'opl_app_home',
     });
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
+  });
+
+  it('sends an unknown future Auto model with its highest advertised reasoning effort', async () => {
+    const deps = buildDeps();
+    deps.currentAcpCachedModelInfo = {
+      current_model_id: 'gpt-6',
+      current_model_label: 'GPT-6',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        {
+          id: 'gpt-6',
+          label: 'GPT-6',
+          isDefault: true,
+          supportedReasoningEfforts: [
+            { reasoningEffort: 'high' },
+            { reasoningEffort: 'xhigh' },
+            { reasoningEffort: 'ultra' },
+          ],
+        },
+      ],
+      catalog_models: [
+        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        {
+          id: 'gpt-6',
+          label: 'GPT-6',
+          isDefault: true,
+          supportedReasoningEfforts: [
+            { reasoningEffort: 'high' },
+            { reasoningEffort: 'xhigh' },
+            { reasoningEffort: 'ultra' },
+          ],
+        },
+      ],
+    };
+
+    const { result } = renderHook(() => useGuidSend(deps));
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    const payload = mocks.createConversation.mock.calls[0][0];
+    expect(payload.extra.current_model_id).toBe('gpt-6');
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'ultra' });
   });
 });

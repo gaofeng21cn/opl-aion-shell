@@ -17,6 +17,7 @@ import {
 } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import { resolveLocaleKey } from '@/common/utils';
+import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
 import { toSessionMcpServer } from '@/renderer/hooks/mcp/catalog';
 import { emitter } from '@/renderer/utils/emitter';
@@ -27,7 +28,6 @@ import { type TFunction } from 'i18next';
 import type { NavigateFunction } from 'react-router-dom';
 import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
-import type { OplCodexReasoningEffort } from '@/common/config/oplProductProfile';
 
 type OplAssistantRouteReceipt = {
   route_kind: string;
@@ -65,7 +65,7 @@ export type GuidSendDeps = {
   is_presetAgent: boolean;
   selectedMode: string;
   selectedAcpModel: string | null;
-  selectedReasoningEffort: OplCodexReasoningEffort | null;
+  selectedReasoningEffort: string | null;
   currentAcpCachedModelInfo: AcpModelInfo | null;
   current_model: TProviderWithModel | undefined;
 
@@ -421,6 +421,11 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         console.warn(`${acpBackend} CLI not found, but proceeding to let conversation panel handle it.`);
       }
       const agentBackend = acpBackend || selectedAgent;
+      const codexAutoSelection =
+        agentBackend === 'codex' && selectedAcpModel === null
+          ? resolveOplCodexAutoSelection(currentAcpCachedModelInfo)
+          : null;
+      const codexReasoningEffort = selectedReasoningEffort ?? codexAutoSelection?.reasoningEffort;
       const agentConversationParams = buildAgentConversationParams({
         backend: agentBackend,
         name: input,
@@ -446,8 +451,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             }
           : undefined,
         session_mode: selectedMode,
-        current_model_id: selectedAcpModel || currentAcpCachedModelInfo?.current_model_id || undefined,
-        config_options: selectedReasoningEffort ? { reasoning_effort: selectedReasoningEffort } : undefined,
+        current_model_id:
+          selectedAcpModel || codexAutoSelection?.modelId || currentAcpCachedModelInfo?.current_model_id || undefined,
+        config_options: codexReasoningEffort ? { reasoning_effort: codexReasoningEffort } : undefined,
         language,
         extra: {
           default_files: files,

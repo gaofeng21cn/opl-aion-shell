@@ -1,10 +1,13 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGuidAgentSelection } from '@/renderer/pages/guid/hooks/useGuidAgentSelection';
 
-const { configGetMock, configSetMock, catalogAssistants, managedAgents } = vi.hoisted(() => ({
+const { configGetMock, configSetMock, configStore, catalogAssistants, managedAgents } = vi.hoisted(() => ({
   configGetMock: vi.fn(),
   configSetMock: vi.fn(),
+  configStore: {
+    acp: {} as Record<string, Record<string, unknown>>,
+  },
   catalogAssistants: [
     {
       id: 'generated-codex',
@@ -90,16 +93,26 @@ describe('useGuidAgentSelection Codex model preference', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     catalogAssistants[0].agent_id = 'codex-managed';
+    configStore.acp = {
+      codex: {
+        preferredMode: 'native',
+        preferredModelId: 'gpt-5.6-codex',
+        preferredReasoningEffort: 'high',
+      },
+    };
     configGetMock.mockImplementation((key: string) => {
       if (key === 'acp.config') {
-        return { codex: { preferredModelId: 'gpt-5.6-codex' } };
+        return configStore.acp;
       }
       return undefined;
     });
-    configSetMock.mockResolvedValue(undefined);
+    configSetMock.mockImplementation((key: string, value: Record<string, Record<string, unknown>>) => {
+      if (key === 'acp.config') configStore.acp = value;
+      return Promise.resolve();
+    });
   });
 
-  it('returns to Auto and clears a stale Codex preferred model', async () => {
+  it('preserves a stale fixed Codex model and its reasoning override as unavailable', async () => {
     const { result } = renderHook(() =>
       useGuidAgentSelection({
         modelList: [],
@@ -110,9 +123,51 @@ describe('useGuidAgentSelection Codex model preference', () => {
 
     await waitFor(() => {
       expect(configGetMock).toHaveBeenCalledWith('acp.config');
-      expect(configSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
+      expect(result.current.selectedAcpModel).toBe('gpt-5.6-codex');
+      expect(result.current.selectedReasoningEffort).toBe('high');
     });
-    expect(result.current.selectedAcpModel).toBeNull();
+    expect(configSetMock).not.toHaveBeenCalled();
+  });
+
+  it('persists fixed model and reasoning atomically and clears both when Auto is restored', async () => {
+    configStore.acp = { codex: { preferredMode: 'native' } };
+    const { result } = renderHook(() =>
+      useGuidAgentSelection({
+        modelList: [],
+        isGoogleAuth: false,
+        localeKey: 'zh-CN',
+      })
+    );
+
+    await waitFor(() => expect(result.current.currentAcpCachedModelInfo?.current_model_id).toBe('gpt-5.6-sol'));
+    const setCodexModelSelection = (
+      result.current as typeof result.current & {
+        setCodexModelSelection?: (modelId: string | null, reasoningEffort: 'high' | null) => void;
+      }
+    ).setCodexModelSelection;
+    expect(setCodexModelSelection).toBeTypeOf('function');
+
+    act(() => setCodexModelSelection?.('gpt-5.6-sol', 'high'));
+    await waitFor(() =>
+      expect(configStore.acp).toEqual({
+        codex: {
+          preferredMode: 'native',
+          preferredModelId: 'gpt-5.6-sol',
+          preferredReasoningEffort: 'high',
+        },
+      })
+    );
+    await waitFor(() => {
+      expect(result.current.selectedAcpModel).toBe('gpt-5.6-sol');
+      expect(result.current.selectedReasoningEffort).toBe('high');
+    });
+
+    act(() => setCodexModelSelection?.(null, null));
+    await waitFor(() => expect(configStore.acp).toEqual({ codex: { preferredMode: 'native' } }));
+    await waitFor(() => {
+      expect(result.current.selectedAcpModel).toBeNull();
+      expect(result.current.selectedReasoningEffort).toBeNull();
+    });
   });
 
   it('builds business candidates from assistants while using managed rows only for runtime metadata', () => {

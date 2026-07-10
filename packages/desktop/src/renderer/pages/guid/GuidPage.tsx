@@ -672,6 +672,7 @@ const GuidPage: React.FC = () => {
         setSelectedAcpModel={agentSelection.setSelectedAcpModel}
         selectedReasoningEffort={agentSelection.selectedReasoningEffort}
         setSelectedReasoningEffort={agentSelection.setSelectedReasoningEffort}
+        setCodexModelSelection={agentSelection.setCodexModelSelection}
         backend={effectiveAgentType}
       />
     ) : null;

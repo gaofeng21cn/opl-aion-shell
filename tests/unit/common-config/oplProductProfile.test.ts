@@ -551,7 +551,7 @@ describe('OPL generated product profile', () => {
     expect(getOplFlowContextPolicy().optional_user_modes?.intelligence_enhancement.provider).toBe('codexcont');
   });
 
-  it('filters Codex models to the App allowlist and selects them in profile order', () => {
+  it('uses the App preference order without treating it as a fixed-model allowlist', () => {
     expect(selectDefaultCodexModelId([{ id: 'gpt-5.1-codex-mini' }, { id: 'gpt-5.2-codex' }, { id: 'gpt-5.4' }])).toBe(
       'gpt-5.4'
     );
@@ -575,7 +575,7 @@ describe('OPL generated product profile', () => {
     ).toMatchObject({
       current_model_id: 'gpt-5.6',
       current_model_label: 'gpt-5.6',
-      available_models: [],
+      available_models: [{ id: 'gpt-5.6', label: 'gpt-5.6' }],
     });
     expect(
       buildCodexDefaultModelInfo({
@@ -602,6 +602,7 @@ describe('OPL generated product profile', () => {
           { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
           { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
           { id: 'gpt-5.5', label: 'GPT-5.5' },
+          { id: 'gpt-6-hidden', label: 'GPT-6 Hidden', hidden: true },
         ],
       })
     ).toMatchObject({
@@ -615,6 +616,7 @@ describe('OPL generated product profile', () => {
         { id: 'gpt-5.4', label: '5.4' },
         { id: 'gpt-5.4-mini', label: '5.4 Mini' },
         { id: 'gpt-5.2', label: '5.2' },
+        { id: 'gpt-6', label: 'GPT-6' },
       ],
     });
     expect(buildCodexDefaultModelInfo()).toMatchObject({

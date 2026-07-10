@@ -10,14 +10,18 @@ import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/type
 import type { IProvider } from '@/common/config/storage';
 import { configService } from '@/common/config/configService';
 import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
-import type { OplCodexReasoningEffort } from '@/common/config/oplProductProfile';
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import type { AgentSource, ManagedAgent } from '@/renderer/utils/model/agentTypes';
 import { useManagedAgentRuntimeCatalog } from '@/renderer/hooks/agent/useManagedAgents';
 import { buildAgentRuntimeModeState, buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { savePreferredMode, savePreferredModelId, getAgentKey as getAgentKeyUtil } from './agentSelectionUtils';
+import {
+  savePreferredCodexSelection,
+  savePreferredMode,
+  savePreferredModelId,
+  getAgentKey as getAgentKeyUtil,
+} from './agentSelectionUtils';
 import { usePresetAssistantResolver } from './usePresetAssistantResolver';
 import { useAgentAvailability } from './useAgentAvailability';
 import { useCustomAgentsLoader } from './useCustomAgentsLoader';
@@ -37,8 +41,9 @@ export type GuidAgentSelectionResult = {
   setSelectedMode: React.Dispatch<React.SetStateAction<string>>;
   selectedAcpModel: string | null;
   setSelectedAcpModel: React.Dispatch<React.SetStateAction<string | null>>;
-  selectedReasoningEffort: OplCodexReasoningEffort | null;
-  setSelectedReasoningEffort: React.Dispatch<React.SetStateAction<OplCodexReasoningEffort | null>>;
+  selectedReasoningEffort: string | null;
+  setSelectedReasoningEffort: React.Dispatch<React.SetStateAction<string | null>>;
+  setCodexModelSelection: (modelId: string | null, reasoningEffort: string | null) => void;
   currentAcpCachedModelInfo: AcpModelInfo | null;
   currentEffectiveAgentInfo: EffectiveAgentInfo;
   getAgentKey: (agent: {
@@ -166,7 +171,7 @@ export const useGuidAgentSelection = ({
   // Guard: only run the initial restore once; user selections are never overwritten
   const initialRestoreDoneRef = useRef(false);
   const [selectedAcpModel, _setSelectedAcpModel] = useState<string | null>(null);
-  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<OplCodexReasoningEffort | null>(null);
+  const [selectedReasoningEffort, setSelectedReasoningEffort] = useState<string | null>(null);
 
   // Wrap setSelectedAgentKey to also save to storage
   const setSelectedAgentKey = useCallback((key: string) => {
@@ -458,20 +463,21 @@ export const useGuidAgentSelection = ({
     // For preset agents, resolve to the actual backend type for config lookup
     const backend = runtimeBackend;
     const config = configService.get('acp.config');
-    const preferred = (config?.[backend as string] as Record<string, unknown>)?.preferredModelId as string | undefined;
+    const backendConfig = config?.[backend as string] as Record<string, unknown> | undefined;
+    const preferred = backendConfig?.preferredModelId as string | undefined;
     if (backend === 'codex') {
-      const codexModelInfo = buildCodexDefaultModelInfo(selectedRuntimeModelInfo);
-      if (
-        preferred &&
-        [...(codexModelInfo.catalog_models ?? []), ...codexModelInfo.available_models].some(
-          (model) => model.id === preferred
-        )
-      ) {
+      const preferredReasoningEffort = backendConfig?.preferredReasoningEffort;
+      if (preferred) {
         _setSelectedAcpModel(preferred);
+        setSelectedReasoningEffort(
+          typeof preferredReasoningEffort === 'string' && preferredReasoningEffort.trim()
+            ? preferredReasoningEffort.trim()
+            : null
+        );
         return;
       }
       _setSelectedAcpModel(null);
-      if (preferred) void savePreferredModelId(backend, null);
+      setSelectedReasoningEffort(null);
       return;
     }
 
@@ -481,6 +487,7 @@ export const useGuidAgentSelection = ({
     }
 
     _setSelectedAcpModel(selectedRuntimeModelInfo?.current_model_id ?? null);
+    setSelectedReasoningEffort(null);
   }, [runtimeBackend, selectedAgentKey, selectedRuntimeModelInfo]);
 
   // Read preferred mode or fallback to legacy yoloMode config
@@ -561,6 +568,12 @@ export const useGuidAgentSelection = ({
     return null;
   }, [runtimeBackend, selectedRuntimeModelInfo]);
 
+  const setCodexModelSelection = useCallback((modelId: string | null, reasoningEffort: string | null) => {
+    _setSelectedAcpModel(modelId);
+    setSelectedReasoningEffort(reasoningEffort);
+    void savePreferredCodexSelection('codex', modelId, reasoningEffort);
+  }, []);
+
   // Key of the first non-preset CLI agent (used as fallback when leaving preset mode)
   const defaultAgentKey = useMemo(() => {
     return getDefaultAgentKey(availableAgents);
@@ -581,6 +594,7 @@ export const useGuidAgentSelection = ({
     setSelectedAcpModel,
     selectedReasoningEffort,
     setSelectedReasoningEffort,
+    setCodexModelSelection,
     currentAcpCachedModelInfo,
     currentEffectiveAgentInfo,
     getAgentKey,
