@@ -5013,12 +5013,15 @@ function detectNativeModalLaunchBlocker(options, diagnostics) {
 }
 
 function collectFailureArtifacts(options, codexApiKey, writeSmokeEvent) {
+  const hooks = options.__testHooks ?? {};
   fs.mkdirSync(options.artifacts, { recursive: true });
-  collectFailureArtifactSafely(writeSmokeEvent, 'launch-app', () => collectLaunchDiagnostics(options, codexApiKey));
+  collectFailureArtifactSafely(writeSmokeEvent, 'launch-app', () =>
+    (hooks.collectLaunchDiagnostics ?? collectLaunchDiagnostics)(options, codexApiKey)
+  );
   try {
     writeJsonArtifact(
       path.join(options.artifacts, 'failure-accessibility-tree.json'),
-      queryAccessibility(options.processName),
+      (hooks.queryAccessibility ?? queryAccessibility)(options.processName),
       codexApiKey
     );
   } catch (error) {
@@ -5034,38 +5037,66 @@ function collectFailureArtifacts(options, codexApiKey, writeSmokeEvent) {
     copyTextFileIfExists(firstRunLog, path.join(options.artifacts, 'first-run.jsonl'), codexApiKey)
   );
   collectFailureArtifactSafely(writeSmokeEvent, 'main-bootstrap-fatal', () =>
-    collectMainBootstrapFatalArtifacts(options, codexApiKey)
+    (hooks.collectMainBootstrapFatalArtifacts ?? collectMainBootstrapFatalArtifacts)(options, codexApiKey)
   );
-  collectFailureArtifactSafely(writeSmokeEvent, 'app-logs', () => collectAppLogArtifacts(options, codexApiKey));
-  collectFileListing(defaultAppSupportPath(options.processName), path.join(options.artifacts, 'app-support-files.txt'));
-  collectFileListing(
-    path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi'),
-    path.join(options.artifacts, 'aionui-app-support-files.txt')
+  collectFailureArtifactSafely(writeSmokeEvent, 'app-logs', () =>
+    (hooks.collectAppLogArtifacts ?? collectAppLogArtifacts)(options, codexApiKey)
   );
-  collectFileListing(
-    path.join(userHomeDir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
-    path.join(options.artifacts, 'bundle-id-app-support-files.txt')
+  collectFailureArtifactSafely(writeSmokeEvent, 'app-support-files.txt', () =>
+    (hooks.collectFileListing ?? collectFileListing)(
+      defaultAppSupportPath(options.processName),
+      path.join(options.artifacts, 'app-support-files.txt')
+    )
   );
-  collectFileListing(defaultOplStatePath(), path.join(options.artifacts, 'opl-state-files.txt'));
-  collectDiagnosticReports(options, codexApiKey);
+  collectFailureArtifactSafely(writeSmokeEvent, 'aionui-app-support-files.txt', () =>
+    (hooks.collectFileListing ?? collectFileListing)(
+      path.join(userHomeDir(), 'Library', 'Application Support', 'AionUi'),
+      path.join(options.artifacts, 'aionui-app-support-files.txt')
+    )
+  );
+  collectFailureArtifactSafely(writeSmokeEvent, 'bundle-id-app-support-files.txt', () =>
+    (hooks.collectFileListing ?? collectFileListing)(
+      path.join(userHomeDir(), 'Library', 'Application Support', 'cn.onepersonlab.opl'),
+      path.join(options.artifacts, 'bundle-id-app-support-files.txt')
+    )
+  );
+  collectFailureArtifactSafely(writeSmokeEvent, 'opl-state-files.txt', () =>
+    (hooks.collectFileListing ?? collectFileListing)(
+      defaultOplStatePath(),
+      path.join(options.artifacts, 'opl-state-files.txt')
+    )
+  );
+  collectFailureArtifactSafely(writeSmokeEvent, 'diagnostic-reports', () =>
+    (hooks.collectDiagnosticReports ?? collectDiagnosticReports)(options, codexApiKey)
+  );
 
   for (const [name, args] of [
     ['system-initialize.json', ['system', 'initialize', '--json']],
     ['modules.json', OPL_CONNECT_MODULES_ARGS],
   ]) {
     try {
-      writeTextArtifact(path.join(options.artifacts, name), runOplJson(args, options), codexApiKey);
+      writeTextArtifact(
+        path.join(options.artifacts, name),
+        (hooks.runOplJson ?? runOplJson)(args, options),
+        codexApiKey
+      );
     } catch (error) {
       writeOplJsonCommandErrorArtifacts(path.join(options.artifacts, name), error, codexApiKey);
     }
   }
 
-  captureMacScreenArtifact(path.join(options.artifacts, 'failure-first-launch.png'));
+  collectFailureArtifactSafely(writeSmokeEvent, 'failure-first-launch.png', () =>
+    (hooks.captureMacScreenArtifact ?? captureMacScreenArtifact)(
+      path.join(options.artifacts, 'failure-first-launch.png')
+    )
+  );
   const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
-  captureUnifiedLog(options.processName, unifiedLogPath);
-  if (fs.existsSync(unifiedLogPath)) {
-    assertDoesNotContainSecret('unified-log.txt', fs.readFileSync(unifiedLogPath, 'utf8'), codexApiKey);
-  }
+  collectFailureArtifactSafely(writeSmokeEvent, 'unified-log.txt', () => {
+    (hooks.captureUnifiedLog ?? captureUnifiedLog)(options.processName, unifiedLogPath);
+    if (fs.existsSync(unifiedLogPath)) {
+      assertDoesNotContainSecret('unified-log.txt', fs.readFileSync(unifiedLogPath, 'utf8'), codexApiKey);
+    }
+  });
 }
 
 function collectFailureArtifactsForSmokeError(primaryError, options, codexApiKey, writeSmokeEvent) {
@@ -5698,6 +5729,7 @@ export const __test =
         collectMainBootstrapFatalArtifacts,
         collectAppLogArtifacts,
         collectFailureArtifactSafely,
+        collectFailureArtifacts,
         collectFailureArtifactsForSmokeError,
         defaultMainBootstrapFatalLogCandidates,
         detectNativeModalLaunchBlocker,

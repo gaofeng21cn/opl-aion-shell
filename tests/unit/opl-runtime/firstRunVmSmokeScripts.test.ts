@@ -1757,7 +1757,9 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('likely_alert_text');
     expect(scriptSource).toContain("commandDiagnostic('launchctl', ['print', `gui/${uid}`]");
     expect(scriptSource).toContain("commandDiagnostic('/usr/sbin/scutil', ['show', 'State:/Users/ConsoleUser']");
-    expect(scriptSource).toContain('collectDiagnosticReports(options, codexApiKey)');
+    expect(scriptSource).toContain(
+      '(hooks.collectDiagnosticReports ?? collectDiagnosticReports)(options, codexApiKey)'
+    );
     expect(scriptSource).toContain("path.join(userHomeDir(), 'Library', 'Logs', 'DiagnosticReports')");
     expect(scriptSource).toContain("path.join('/Library', 'Logs', 'DiagnosticReports')");
     expect(scriptSource).toContain("path.join(defaultAppSupportPath(options.processName), 'logs')");
@@ -1915,30 +1917,63 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
-  it('continues failure evidence stages after a preceding collector error', () => {
+  it('continues later failure evidence after diagnostic report collection fails', () => {
+    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-failure-evidence-stages-'));
+    const originalHome = process.env.HOME;
+    const artifacts = path.join(workspace, 'artifacts');
+    const laterEvidence: string[] = [];
     const smokeEvents: Array<Record<string, unknown>> = [];
-    let laterEvidenceCollected = false;
-    const writeSmokeEvent = (phase: string, status: string, details: Record<string, unknown> = {}) => {
-      smokeEvents.push({ phase, status, ...details });
-    };
+    try {
+      process.env.HOME = path.join(workspace, 'home');
+      vmSmoke.collectFailureArtifacts(
+        {
+          artifacts,
+          processName: 'One Person Lab',
+          __testHooks: {
+            collectLaunchDiagnostics: () => null,
+            queryAccessibility: () => ({}),
+            collectMainBootstrapFatalArtifacts: () => null,
+            collectAppLogArtifacts: () => null,
+            collectFileListing: () => null,
+            collectDiagnosticReports() {
+              throw Object.assign(new Error('EACCES: permission denied, scandir DiagnosticReports'), {
+                code: 'EACCES',
+              });
+            },
+            runOplJson: () => '{}',
+            captureMacScreenArtifact(target: string) {
+              laterEvidence.push(path.basename(target));
+            },
+            captureUnifiedLog(_processName: string, target: string) {
+              laterEvidence.push(path.basename(target));
+              writeFile(target, 'unified log\n');
+            },
+          },
+        },
+        'secret',
+        (phase: string, status: string, details: Record<string, unknown> = {}) => {
+          smokeEvents.push({ phase, status, ...details });
+        }
+      );
 
-    vmSmoke.collectFailureArtifactSafely(writeSmokeEvent, 'first-run.jsonl', () => {
-      throw Object.assign(new Error('EACCES: permission denied, open first-run.jsonl'), { code: 'EACCES' });
-    });
-    vmSmoke.collectFailureArtifactSafely(writeSmokeEvent, 'app-logs', () => {
-      laterEvidenceCollected = true;
-    });
-
-    expect(laterEvidenceCollected).toBe(true);
-    expect(smokeEvents).toContainEqual({
-      phase: 'failure_artifact_collection',
-      status: 'failed',
-      type: 'filesystem_collection_error',
-      operation: 'collect_artifact',
-      source: 'first-run.jsonl',
-      code: 'EACCES',
-      message: 'EACCES: permission denied, open first-run.jsonl',
-    });
+      expect(laterEvidence).toEqual(['failure-first-launch.png', 'unified-log.txt']);
+      expect(smokeEvents).toContainEqual({
+        phase: 'failure_artifact_collection',
+        status: 'failed',
+        type: 'filesystem_collection_error',
+        operation: 'collect_artifact',
+        source: 'diagnostic-reports',
+        code: 'EACCES',
+        message: 'EACCES: permission denied, scandir DiagnosticReports',
+      });
+    } finally {
+      if (originalHome === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalHome;
+      }
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   it('records a vanished directory entry and continues collecting its siblings', () => {
