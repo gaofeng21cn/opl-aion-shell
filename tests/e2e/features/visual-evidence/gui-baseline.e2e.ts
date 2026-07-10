@@ -233,12 +233,21 @@ async function textOverflowCheck(page: Page, id: string, rootSelector: string): 
           return element.scrollWidth > element.clientWidth + 1 || rect.left < -1 || rect.right > window.innerWidth + 1;
         })
         .slice(0, 8)
-        .map((element) => element.getAttribute('data-testid') || element.getAttribute('aria-label') || element.tagName);
+        .map((element) => ({
+          label:
+            element.getAttribute('data-testid') ||
+            element.getAttribute('aria-label') ||
+            element.className ||
+            element.tagName,
+          text: element.textContent?.trim().slice(0, 80) || '',
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+        }));
     });
   return {
     id,
     passed: violations.length === 0,
-    details: violations.length === 0 ? 'no_visible_text_overflow' : `violations=${violations.join(',')}`,
+    details: violations.length === 0 ? 'no_visible_text_overflow' : `violations=${JSON.stringify(violations)}`,
   };
 }
 
