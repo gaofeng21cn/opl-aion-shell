@@ -2,6 +2,7 @@ import { Button, Message, Modal, Space, Typography } from '@arco-design/web-reac
 import type { TFunction } from 'i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
 
 const AIONUI_DOWNLOAD_URL = 'https://www.aionui.com/';
 
@@ -9,20 +10,106 @@ export function openDownloadLatest(): void {
   window.open(AIONUI_DOWNLOAD_URL, '_blank', 'noopener,noreferrer');
 }
 
-type InstallationIntegrityDialogKind = 'incomplete_installation' | 'recoverable_database_corruption';
+export type InstallationIntegrityDialogKind =
+  | 'incomplete_installation'
+  | 'recoverable_database_corruption'
+  | 'startup_directory_permission_denied'
+  | 'startup_directory_unavailable'
+  | 'generic_startup_failure';
+
+export type BackendStartupFailureDialogRoute =
+  | { kind: 'incompatible_runtime' }
+  | { kind: 'package_architecture_mismatch' }
+  | { kind: 'installation_integrity'; diagnosticsKind: InstallationIntegrityDialogKind };
+
+export function getBackendStartupFailureDialogRoute(
+  failure: BackendStartupFailureInfo | null | undefined
+): BackendStartupFailureDialogRoute | null {
+  if (!failure) return null;
+
+  const reason = failure.reason;
+  switch (reason) {
+    case 'backend_incompatible_runtime':
+      return { kind: 'incompatible_runtime' };
+    case 'backend_package_architecture_mismatch':
+      return { kind: 'package_architecture_mismatch' };
+    case 'backend_incomplete_installation':
+      return { kind: 'installation_integrity', diagnosticsKind: 'incomplete_installation' };
+    case 'backend_recoverable_database_corruption':
+      return { kind: 'installation_integrity', diagnosticsKind: 'recoverable_database_corruption' };
+    case 'backend_startup_directory_unavailable':
+      return {
+        kind: 'installation_integrity',
+        diagnosticsKind:
+          failure.startupDirectoryIssueKind === 'permission_denied'
+            ? 'startup_directory_permission_denied'
+            : 'startup_directory_unavailable',
+      };
+    case 'backend_startup_failed':
+      return { kind: 'installation_integrity', diagnosticsKind: 'generic_startup_failure' };
+    default: {
+      const unhandledReason: never = reason;
+      void unhandledReason;
+      return { kind: 'installation_integrity', diagnosticsKind: 'generic_startup_failure' };
+    }
+  }
+}
 
 export function getInstallationIntegrityTitle(
   t: TFunction,
   diagnosticsKind: InstallationIntegrityDialogKind = 'incomplete_installation'
 ): string {
-  if (diagnosticsKind === 'recoverable_database_corruption') {
-    return t('common.backendStartup.recoverableDatabaseCorruption.title');
+  switch (diagnosticsKind) {
+    case 'recoverable_database_corruption':
+      return t('common.backendStartup.recoverableDatabaseCorruption.title');
+    case 'startup_directory_permission_denied':
+    case 'startup_directory_unavailable':
+      return t('common.backendStartup.startupDirectory.title');
+    case 'generic_startup_failure':
+      return t('common.backendStartup.genericFailure.title');
+    case 'incomplete_installation':
+      return t('common.backendStartup.incompleteInstallation.title');
   }
-  return t('common.backendStartup.incompleteInstallation.title');
 }
 
 export function getBackendStartupInstallationDescription(t: TFunction): string {
   return t('common.backendStartup.incompleteInstallation.description');
+}
+
+export function getInstallationIntegrityDescription(
+  t: TFunction,
+  diagnosticsKind: InstallationIntegrityDialogKind
+): string {
+  switch (diagnosticsKind) {
+    case 'recoverable_database_corruption':
+      return t('common.backendStartup.recoverableDatabaseCorruption.description');
+    case 'startup_directory_permission_denied':
+      return t('common.backendStartup.startupDirectory.permissionDeniedDescription');
+    case 'startup_directory_unavailable':
+      return t('common.backendStartup.startupDirectory.unavailableDescription');
+    case 'generic_startup_failure':
+      return t('common.backendStartup.genericFailure.description');
+    case 'incomplete_installation':
+      return getBackendStartupInstallationDescription(t);
+  }
+}
+
+export function getInstallationIntegritySecondaryText(
+  t: TFunction,
+  diagnosticsKind: InstallationIntegrityDialogKind
+): string | undefined {
+  switch (diagnosticsKind) {
+    case 'recoverable_database_corruption':
+      return t('common.backendStartup.recoverableDatabaseCorruption.diagnosticsHint');
+    case 'startup_directory_permission_denied':
+      return t('common.backendStartup.startupDirectory.permissionDeniedAction');
+    case 'startup_directory_unavailable':
+      return t('common.backendStartup.startupDirectory.unavailableAction');
+    case 'generic_startup_failure':
+      return t('common.backendStartup.genericFailure.action');
+    case 'incomplete_installation':
+      return undefined;
+  }
 }
 
 export function getRuntimeComponentInstallationDescription(t: TFunction, resource: string): string {
@@ -78,14 +165,14 @@ export function getInstallationIntegrityModalActions(
   };
 }
 
-export const InstallationIntegrityContent: React.FC<{ description: string; diagnosticsHint?: string }> = ({
+export const InstallationIntegrityContent: React.FC<{ description: string; secondaryText?: string }> = ({
   description,
-  diagnosticsHint,
+  secondaryText,
 }) => (
   <div className='text-t-1'>
     <Typography.Paragraph className='mb-0 text-t-secondary'>{description}</Typography.Paragraph>
-    {diagnosticsHint ? (
-      <Typography.Paragraph className='mt-12px mb-0 text-12px text-t-tertiary'>{diagnosticsHint}</Typography.Paragraph>
+    {secondaryText ? (
+      <Typography.Paragraph className='mt-12px mb-0 text-12px text-t-tertiary'>{secondaryText}</Typography.Paragraph>
     ) : null}
   </div>
 );
@@ -99,6 +186,8 @@ const InstallationIntegrityFooter: React.FC<{ diagnosticsKind: InstallationInteg
     diagnosticsKind,
     onRecoverCorruptedDatabase: () => window.electronAPI?.recoverCorruptedDatabase?.(),
   });
+
+  if (!actions.downloadText && !actions.recoverText) return null;
 
   const handleRecoverCorruptedDatabase = async () => {
     if (recovering) return;
@@ -140,14 +229,11 @@ export function showInstallationIntegrityModal(
   description: string,
   diagnosticsKind: InstallationIntegrityDialogKind = 'incomplete_installation'
 ): void {
-  const diagnosticsHint =
-    diagnosticsKind === 'recoverable_database_corruption'
-      ? t('common.backendStartup.recoverableDatabaseCorruption.diagnosticsHint')
-      : undefined;
+  const secondaryText = getInstallationIntegritySecondaryText(t, diagnosticsKind);
 
   modal.error({
     title: getInstallationIntegrityTitle(t, diagnosticsKind),
-    content: <InstallationIntegrityContent description={description} diagnosticsHint={diagnosticsHint} />,
+    content: <InstallationIntegrityContent description={description} secondaryText={secondaryText} />,
     footer: <InstallationIntegrityFooter diagnosticsKind={diagnosticsKind} />,
     closable: false,
     maskClosable: false,

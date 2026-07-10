@@ -1,10 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
 import { classifyBackendStartupFailure } from '@/process/startup/backendStartupFailure';
 import { detectStartupArchitectureMismatch } from '@/process/startup/architectureCompatibility';
+import { recoverCorruptedDatabaseAfterUserConfirmation } from '@/process/startup/recoverCorruptedDatabase';
 import {
+  getBackendStartupFailureDialogRoute,
   getDownloadLatestModalActionProps,
+  getInstallationIntegrityDescription,
   getInstallationIntegrityModalActions,
+  getInstallationIntegritySecondaryText,
+  getInstallationIntegrityTitle,
 } from '@/renderer/components/layout/InstallationIntegrityDialog';
+
+const translateKey = (key: string) => key;
 
 describe('classifyBackendStartupFailure', () => {
   it('classifies missing GLIBC symbols as an incompatible backend runtime', () => {
@@ -39,6 +47,55 @@ describe('classifyBackendStartupFailure', () => {
     });
   });
 
+  it('classifies missing startup directory preparation as a startup directory failure', () => {
+    const error = new Error('aioncore startup directory preparation failed') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'spawn',
+      workDir: 'D:\\ai\\AionUI\\workspace',
+      causeMessage: 'ENOENT: no such file or directory, mkdir D:\\ai\\AionUI\\workspace',
+    };
+
+    expect(classifyBackendStartupFailure(error)).toEqual({
+      reason: 'backend_startup_directory_unavailable',
+      startupDirectoryIssueKind: 'missing_or_unavailable_directory',
+    });
+  });
+
+  it('classifies startup directory permission failures separately from incomplete installs', () => {
+    const error = new Error('aioncore startup directory preparation failed') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'spawn',
+      workDir: 'D:\\ai\\AionUI\\workspace',
+      causeMessage: 'EPERM: operation not permitted, mkdir D:\\ai\\AionUI\\workspace',
+    };
+
+    expect(classifyBackendStartupFailure(error)).toEqual({
+      reason: 'backend_startup_directory_unavailable',
+      startupDirectoryIssueKind: 'permission_denied',
+    });
+  });
+
+  it('does not classify a missing backend executable as a startup directory failure', () => {
+    const error = new Error('aioncore process emitted an error before startup') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'spawn_error',
+      binaryPath: 'D:\\apps\\AionUi\\resources\\bundled-aioncore\\win32-x64\\aioncore.exe',
+      causeMessage: 'spawn D:\\apps\\AionUi\\resources\\bundled-aioncore\\win32-x64\\aioncore.exe ENOENT',
+    };
+
+    expect(classifyBackendStartupFailure(error)).toEqual({
+      reason: 'backend_startup_failed',
+      backendBoundaryCode: undefined,
+      backendBoundaryStage: undefined,
+    });
+  });
+
   it('preserves backend bootstrap code and stage for generic startup failures', () => {
     const error = new Error('aioncore exited before health check passed') as Error & {
       details?: Record<string, unknown>;
@@ -54,6 +111,25 @@ describe('classifyBackendStartupFailure', () => {
       reason: 'backend_startup_failed',
       backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
       backendBoundaryStage: 'database.open',
+    });
+  });
+
+  it('classifies recoverable database corruption before the generic startup bucket', () => {
+    const error = new Error('aioncore exited before health check passed') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'early_exit',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.recoverable_corruption',
+      stderrTail:
+        'BOOTSTRAP_DATA_INIT_FAILED stage=database.recoverable_corruption: failed to initialize application data',
+    };
+
+    expect(classifyBackendStartupFailure(error)).toEqual({
+      reason: 'backend_recoverable_database_corruption',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.recoverable_corruption',
     });
   });
 
@@ -212,9 +288,7 @@ describe('detectStartupArchitectureMismatch', () => {
 
 describe('getDownloadLatestModalActionProps', () => {
   it('hides the cancel action for blocking download-latest dialogs', () => {
-    const t = (key: string) => key;
-
-    expect(getDownloadLatestModalActionProps(t)).toMatchObject({
+    expect(getDownloadLatestModalActionProps(translateKey)).toMatchObject({
       okText: 'common.backendStartup.incompleteInstallation.downloadLatest',
       cancelButtonProps: {
         style: {
@@ -227,11 +301,154 @@ describe('getDownloadLatestModalActionProps', () => {
 
 describe('getInstallationIntegrityModalActions', () => {
   it('uses a rebuild action instead of download for recoverable database corruption', () => {
-    const t = (key: string) => key;
+    const onRecoverCorruptedDatabase = vi.fn();
 
-    expect(getInstallationIntegrityModalActions(t, { diagnosticsKind: 'recoverable_database_corruption' })).toMatchObject({
+    const actions = getInstallationIntegrityModalActions(translateKey, {
+      diagnosticsKind: 'recoverable_database_corruption',
+      onRecoverCorruptedDatabase,
+    });
+
+    expect(actions).toMatchObject({
       downloadText: undefined,
       recoverText: 'common.backendStartup.recoverableDatabaseCorruption.confirmRebuild',
     });
+    actions.onRecoverCorruptedDatabase();
+    expect(onRecoverCorruptedDatabase).toHaveBeenCalledOnce();
+  });
+
+  it.each(['startup_directory_permission_denied', 'startup_directory_unavailable', 'generic_startup_failure'] as const)(
+    'does not offer install or database recovery actions for %s',
+    (diagnosticsKind) => {
+      expect(getInstallationIntegrityModalActions(translateKey, { diagnosticsKind })).toMatchObject({
+        downloadText: undefined,
+        recoverText: undefined,
+      });
+    }
+  );
+});
+
+describe('backend startup failure dialog routing', () => {
+  it.each([
+    [{ reason: 'backend_incompatible_runtime' }, { kind: 'incompatible_runtime' }],
+    [
+      { reason: 'backend_incomplete_installation' },
+      { kind: 'installation_integrity', diagnosticsKind: 'incomplete_installation' },
+    ],
+    [{ reason: 'backend_package_architecture_mismatch' }, { kind: 'package_architecture_mismatch' }],
+    [
+      { reason: 'backend_recoverable_database_corruption' },
+      { kind: 'installation_integrity', diagnosticsKind: 'recoverable_database_corruption' },
+    ],
+    [
+      { reason: 'backend_startup_directory_unavailable', startupDirectoryIssueKind: 'permission_denied' },
+      { kind: 'installation_integrity', diagnosticsKind: 'startup_directory_permission_denied' },
+    ],
+    [
+      {
+        reason: 'backend_startup_directory_unavailable',
+        startupDirectoryIssueKind: 'missing_or_unavailable_directory',
+      },
+      { kind: 'installation_integrity', diagnosticsKind: 'startup_directory_unavailable' },
+    ],
+    [
+      { reason: 'backend_startup_failed' },
+      { kind: 'installation_integrity', diagnosticsKind: 'generic_startup_failure' },
+    ],
+  ] as const)('routes %s to a deterministic blocking surface', (failure, expectedRoute) => {
+    expect(getBackendStartupFailureDialogRoute(failure as BackendStartupFailureInfo)).toEqual(expectedRoute);
+  });
+
+  it('does not render a failure dialog without a backend startup failure', () => {
+    expect(getBackendStartupFailureDialogRoute(null)).toBeNull();
+  });
+
+  it('fails closed for a startup reason introduced by a newer main process', () => {
+    const failure = { reason: 'backend_future_failure' } as unknown as BackendStartupFailureInfo;
+
+    expect(getBackendStartupFailureDialogRoute(failure)).toEqual({
+      kind: 'installation_integrity',
+      diagnosticsKind: 'generic_startup_failure',
+    });
+  });
+
+  it.each([
+    ['startup_directory_permission_denied', 'common.backendStartup.startupDirectory.title'],
+    ['startup_directory_unavailable', 'common.backendStartup.startupDirectory.title'],
+    ['generic_startup_failure', 'common.backendStartup.genericFailure.title'],
+  ] as const)('uses a specific title for %s', (diagnosticsKind, expectedKey) => {
+    expect(getInstallationIntegrityTitle(translateKey, diagnosticsKind)).toBe(expectedKey);
+  });
+
+  it.each([
+    [
+      'startup_directory_permission_denied',
+      'common.backendStartup.startupDirectory.permissionDeniedDescription',
+      'common.backendStartup.startupDirectory.permissionDeniedAction',
+    ],
+    [
+      'startup_directory_unavailable',
+      'common.backendStartup.startupDirectory.unavailableDescription',
+      'common.backendStartup.startupDirectory.unavailableAction',
+    ],
+    [
+      'generic_startup_failure',
+      'common.backendStartup.genericFailure.description',
+      'common.backendStartup.genericFailure.action',
+    ],
+  ] as const)('uses specific description and action copy for %s', (diagnosticsKind, descriptionKey, actionKey) => {
+    expect(getInstallationIntegrityDescription(translateKey, diagnosticsKind)).toBe(descriptionKey);
+    expect(getInstallationIntegritySecondaryText(translateKey, diagnosticsKind)).toBe(actionKey);
+  });
+});
+
+function makeRecoveryDeps(failure: BackendStartupFailureInfo | null) {
+  return {
+    getFailure: vi.fn(() => failure),
+    stopBackend: vi.fn().mockResolvedValue(undefined),
+    startBackendWithRecovery: vi.fn().mockResolvedValue(25808),
+    markReady: vi.fn(),
+    reloadMainWindow: vi.fn(),
+    logInfo: vi.fn(),
+    logWarn: vi.fn(),
+  };
+}
+
+describe('recoverCorruptedDatabaseAfterUserConfirmation', () => {
+  it('rejects recovery outside a recoverable database failure state', async () => {
+    const deps = makeRecoveryDeps({ reason: 'backend_startup_failed' });
+
+    await expect(recoverCorruptedDatabaseAfterUserConfirmation(deps)).rejects.toThrow(
+      'backend_corrupted_database_recovery_not_available'
+    );
+    expect(deps.stopBackend).not.toHaveBeenCalled();
+    expect(deps.startBackendWithRecovery).not.toHaveBeenCalled();
+  });
+
+  it('restarts with recovery and reloads only after a successful rebuild', async () => {
+    const deps = makeRecoveryDeps({
+      reason: 'backend_recoverable_database_corruption',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.recoverable_corruption',
+    });
+
+    await recoverCorruptedDatabaseAfterUserConfirmation(deps);
+
+    expect(deps.stopBackend).toHaveBeenCalledOnce();
+    expect(deps.startBackendWithRecovery).toHaveBeenCalledOnce();
+    expect(deps.markReady).toHaveBeenCalledWith(25808, 'backendManager.recoverCorruptedDatabase');
+    expect(deps.reloadMainWindow).toHaveBeenCalledOnce();
+  });
+
+  it('does not mark ready or reload when the recovery restart fails', async () => {
+    const deps = makeRecoveryDeps({
+      reason: 'backend_recoverable_database_corruption',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.recoverable_corruption',
+    });
+    deps.startBackendWithRecovery.mockRejectedValue(new Error('restart failed'));
+
+    await expect(recoverCorruptedDatabaseAfterUserConfirmation(deps)).rejects.toThrow('restart failed');
+    expect(deps.markReady).not.toHaveBeenCalled();
+    expect(deps.reloadMainWindow).not.toHaveBeenCalled();
   });
 });

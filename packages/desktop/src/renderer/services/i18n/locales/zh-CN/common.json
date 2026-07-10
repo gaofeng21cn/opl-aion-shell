@@ -105,9 +105,21 @@
       "sendDiagnostics": "发送诊断报告",
       "runtimeComponentDescription": "当前安装缺少必要的内置运行组件，{{resource}} 无法启动。请重新安装最新版 AionUi；如果重新安装后仍然出现，请检查系统安全软件或杀毒软件是否隔离了 AionUi 组件。"
     },
+    "startupDirectory": {
+      "title": "本机服务所需目录不可用",
+      "permissionDeniedDescription": "当前用户没有权限访问本机服务配置的工作目录或日志目录，因此本机服务无法启动。",
+      "permissionDeniedAction": "请为当前用户授予对应工作目录和日志目录的读写权限，然后重启 One Person Lab App。",
+      "unavailableDescription": "本机服务配置的工作目录或日志目录不存在或当前不可用，因此本机服务无法启动。",
+      "unavailableAction": "请恢复或创建对应目录，确认目录可写，然后重启 One Person Lab App。"
+    },
+    "genericFailure": {
+      "title": "本机服务无法启动",
+      "description": "本机服务启动失败，One Person Lab App 已停止继续启动。",
+      "action": "请重启 One Person Lab App；如果仍然失败，请先查看应用日志，再决定是否修改配置或重新安装应用。"
+    },
     "recoverableDatabaseCorruption": {
       "title": "本地数据已损坏",
-      "description": "检测到本地数据库损坏，AionUi 无法继续启动。确认后将备份旧数据库，并创建新的本地数据库继续启动。历史本地数据暂时不会显示，旧数据库会保留为备份。",
+      "description": "One Person Lab App 检测到本地数据库损坏，因此本机服务无法继续启动。确认后，One Person Lab App 将备份旧数据库、创建新的本地数据库，并重新启动本机服务。历史本地数据暂时不会显示，旧数据库会保留为备份。",
       "confirmRebuild": "备份旧库并重建新库",
       "diagnosticsHint": "发送诊断报告不会修改本地数据库。",
       "rebuildFailed": "备份旧库并重建新库失败"

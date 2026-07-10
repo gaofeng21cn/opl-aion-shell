@@ -105,9 +105,21 @@
       "sendDiagnostics": "Send diagnostics",
       "runtimeComponentDescription": "This installation is missing required bundled runtime components, so {{resource}} cannot start. Reinstall the latest AionUi package. If it still happens after reinstalling, check whether security or antivirus software quarantined AionUi components."
     },
+    "startupDirectory": {
+      "title": "A local service folder is unavailable",
+      "permissionDeniedDescription": "The local service cannot access its configured work or log folder because the current user does not have permission.",
+      "permissionDeniedAction": "Grant the current user read and write access to the configured work and log folders, then restart One Person Lab App.",
+      "unavailableDescription": "The local service cannot start because its configured work or log folder is missing or unavailable.",
+      "unavailableAction": "Restore or create the configured folder, make sure it is writable, then restart One Person Lab App."
+    },
+    "genericFailure": {
+      "title": "The local service could not start",
+      "description": "One Person Lab App stopped startup because its local service failed to start.",
+      "action": "Restart One Person Lab App. If the failure continues, review the application logs before changing configuration or reinstalling the app."
+    },
     "recoverableDatabaseCorruption": {
       "title": "Local data is corrupted",
-      "description": "AionUi detected that the local database is corrupted and cannot continue startup. After confirmation, AionUi will back up the old database and create a new local database to continue startup. Historical local data will not be shown for now, and the old database will be kept as a backup.",
+      "description": "One Person Lab App detected that its local database is corrupted, so the local service cannot continue startup. After confirmation, One Person Lab App will back up the old database, create a new local database, and restart the local service. Historical local data will not be shown for now, and the old database will be kept as a backup.",
       "confirmRebuild": "Back up old DB and rebuild new DB",
       "diagnosticsHint": "Sending diagnostics will not modify the local database.",
       "rebuildFailed": "Failed to back up old DB and rebuild new DB"

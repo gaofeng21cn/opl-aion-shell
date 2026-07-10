@@ -93,12 +93,14 @@ import HOC from './utils/ui/HOC';
 import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
 import type { IRuntimeStatusEvent, RuntimeFailureKind } from '@/common/adapter/ipcBridge';
 import {
+  getBackendStartupFailureDialogRoute,
   InstallationIntegrityContent,
   InstallationIntegrityModalHost,
-  getBackendStartupInstallationDescription,
   getDownloadLatestModalActionProps,
+  getInstallationIntegrityDescription,
   getRuntimeComponentInstallationDescription,
   showInstallationIntegrityModal,
+  type BackendStartupFailureDialogRoute,
 } from './components/layout/InstallationIntegrityDialog';
 import AppLoader, { type AppLoaderStep } from './components/layout/AppLoader';
 
@@ -300,40 +302,34 @@ const Main = () => {
 
 const App = HOC.Wrapper(Config)(Main);
 
-const BackendStartupFailureDialog: React.FC<{ failure: BackendStartupFailureInfo }> = ({ failure }) => {
+const BackendStartupFailureDialog: React.FC<{
+  failure: BackendStartupFailureInfo;
+  route: BackendStartupFailureDialogRoute;
+}> = ({ failure, route }) => {
   const { t } = useTranslation();
 
-  const isIncompatibleRuntime = failure.reason === 'backend_incompatible_runtime';
-  const isPackageArchitectureMismatch = failure.reason === 'backend_package_architecture_mismatch';
-  const isRecoverableDatabaseCorruption = failure.reason === 'backend_recoverable_database_corruption';
   const title = t('common.backendStartup.incompatibleRuntime.title');
-  const description = isIncompatibleRuntime
-    ? t('common.backendStartup.incompatibleRuntime.description')
-    : isPackageArchitectureMismatch
-      ? t('common.backendStartup.packageArchitectureMismatch.description', {
-          packageArch: failure.packageArch ?? 'x64',
-          deviceArch: failure.deviceArch ?? 'arm64',
-          expectedArch: failure.expectedDownloadArch ?? 'arm64',
-        })
-      : isRecoverableDatabaseCorruption
-        ? t('common.backendStartup.recoverableDatabaseCorruption.description')
-        : getBackendStartupInstallationDescription(t);
+  const description =
+    route.kind === 'incompatible_runtime'
+      ? t('common.backendStartup.incompatibleRuntime.description')
+      : route.kind === 'package_architecture_mismatch'
+        ? t('common.backendStartup.packageArchitectureMismatch.description', {
+            packageArch: failure.packageArch ?? 'x64',
+            deviceArch: failure.deviceArch ?? 'arm64',
+            expectedArch: failure.expectedDownloadArch ?? 'arm64',
+          })
+        : getInstallationIntegrityDescription(t, route.diagnosticsKind);
   const requiredVersions = failure.requiredVersions?.map((version) => `GLIBC_${version}`).join(', ');
 
-  if (!isIncompatibleRuntime && !isPackageArchitectureMismatch) {
+  if (route.kind === 'installation_integrity') {
     return (
       <div className='min-h-screen bg-bg-1'>
-        <InstallationIntegrityModalHost
-          description={description}
-          diagnosticsKind={
-            isRecoverableDatabaseCorruption ? 'recoverable_database_corruption' : 'incomplete_installation'
-          }
-        />
+        <InstallationIntegrityModalHost description={description} diagnosticsKind={route.diagnosticsKind} />
       </div>
     );
   }
 
-  if (isPackageArchitectureMismatch) {
+  if (route.kind === 'package_architecture_mismatch') {
     return (
       <div className='min-h-screen bg-bg-1'>
         <Modal
@@ -369,16 +365,11 @@ void registerPwa();
 
 const root = createRoot(document.getElementById('root')!);
 const backendStartupFailure = window.__backendStartupFailure;
-const shouldShowBackendStartupFailureDialog =
-  backendStartupFailure?.reason === 'backend_incompatible_runtime' ||
-  backendStartupFailure?.reason === 'backend_incomplete_installation' ||
-  backendStartupFailure?.reason === 'backend_package_architecture_mismatch' ||
-  backendStartupFailure?.reason === 'backend_recoverable_database_corruption' ||
-  backendStartupFailure?.reason === 'backend_startup_failed';
-if (backendStartupFailure && shouldShowBackendStartupFailureDialog) {
+const backendStartupFailureDialogRoute = getBackendStartupFailureDialogRoute(backendStartupFailure);
+if (backendStartupFailure && backendStartupFailureDialogRoute) {
   root.render(
     <Config>
-      <BackendStartupFailureDialog failure={backendStartupFailure} />
+      <BackendStartupFailureDialog failure={backendStartupFailure} route={backendStartupFailureDialogRoute} />
     </Config>
   );
 } else {
