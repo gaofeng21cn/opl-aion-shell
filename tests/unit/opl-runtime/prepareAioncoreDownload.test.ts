@@ -55,6 +55,28 @@ describe('prepare-aioncore compatibility gate', () => {
       })
     ).toThrow(/missing required option --recover-corrupted-database/);
   });
+
+  it('rejects an Actions artifact below the minimum recovery version without a release tag', () => {
+    expect(() =>
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', null, {
+        execFileSync(_command: string, args: string[]) {
+          return args[0] === '--version'
+            ? 'aioncore 0.1.43\n'
+            : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
+        },
+      })
+    ).toThrow(/requires AionCore >= 0\.1\.44, reported 0\.1\.43/);
+  });
+
+  it('rejects prerelease Actions artifacts to match the runtime recovery gate', () => {
+    expect(() =>
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', null, {
+        execFileSync() {
+          return 'aioncore 0.1.44-rc.1\n';
+        },
+      })
+    ).toThrow(/unrecognized --version output/);
+  });
 });
 
 describe('prepare-aioncore download retry', () => {

@@ -84,8 +84,10 @@ if ! BACKEND_VERSION_OUTPUT=$("$BACKEND_BINARY" --version 2>&1); then
 fi
 REPORTED_BACKEND_VERSION=${BACKEND_VERSION_OUTPUT#aioncore }
 if [ -f "$BACKEND_DIR/manifest.json" ]; then
-  BACKEND_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$BACKEND_DIR/manifest.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-  EXPECTED_BACKEND_VERSION=${BACKEND_VERSION#v}
+  if ! EXPECTED_BACKEND_VERSION=$(node -e 'const fs = require("node:fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const version = manifest.compatibility?.reportedVersion ?? manifest.version; if (typeof version !== "string" || !version.trim()) process.exit(1); process.stdout.write(version.trim().replace(/^v/, ""));' "$BACKEND_DIR/manifest.json"); then
+    echo "❌ Backend manifest does not contain a valid reported version"
+    exit 1
+  fi
   if [ "$REPORTED_BACKEND_VERSION" != "$EXPECTED_BACKEND_VERSION" ]; then
     echo "❌ Backend version mismatch: expected $EXPECTED_BACKEND_VERSION, reported $REPORTED_BACKEND_VERSION"
     exit 1

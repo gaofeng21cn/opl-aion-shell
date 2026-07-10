@@ -28,6 +28,7 @@ const DEFAULT_MANAGED_RESOURCE_PREPARE_RETRY_DELAY_MS = 5000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS = 600000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
+const MINIMUM_AIONCORE_VERSION = [0, 1, 44];
 const REQUIRED_AIONCORE_OPTIONS = ['--recover-corrupted-database'];
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
@@ -206,6 +207,14 @@ function normalizeAioncoreVersion(version) {
     .replace(/^v/, '');
 }
 
+function compareStableVersions(left, right) {
+  for (let index = 0; index < 3; index += 1) {
+    const delta = left[index] - right[index];
+    if (delta !== 0) return delta;
+  }
+  return 0;
+}
+
 function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
   const execFile = options.execFileSync || execFileSync;
   let versionOutput;
@@ -220,19 +229,23 @@ function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) 
     );
   }
 
-  const versionMatch = /^aioncore\s+(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(versionOutput);
+  const versionMatch = /^aioncore\s+(\d+)\.(\d+)\.(\d+)$/.exec(versionOutput);
   if (!versionMatch) {
     throw new Error(
       `AionCore compatibility check failed: unrecognized --version output: ${versionOutput || '<empty>'}`
     );
   }
 
-  const reportedVersion = versionMatch[1];
+  const reportedVersionParts = versionMatch.slice(1).map(Number);
+  const reportedVersion = reportedVersionParts.join('.');
   const normalizedExpectedVersion = normalizeAioncoreVersion(expectedVersion);
   if (normalizedExpectedVersion && reportedVersion !== normalizedExpectedVersion) {
     throw new Error(
       `AionCore compatibility check failed: expected ${normalizedExpectedVersion}, reported ${reportedVersion}`
     );
+  }
+  if (compareStableVersions(reportedVersionParts, MINIMUM_AIONCORE_VERSION) < 0) {
+    throw new Error(`AionCore recovery requires AionCore >= 0.1.44, reported ${reportedVersion}`);
   }
 
   try {
@@ -939,7 +952,7 @@ function prepareAioncore(options) {
     const manifest = {
       platform,
       arch,
-      version: tag || `actions-run-${actionsRunId}`,
+      version: tag || compatibility.version,
       generatedAt: new Date().toISOString(),
       sourceType,
       source: sourceDetail,
