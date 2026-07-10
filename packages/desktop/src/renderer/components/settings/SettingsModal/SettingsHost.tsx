@@ -9,7 +9,9 @@ import { iconColors } from '@/renderer/styles/colors';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
   buildSettingsModalMenuItems,
-  getSearchableSecondarySettingsModalItems,
+  BUILTIN_TAB_IDS,
+  getSettingsSearchEntries,
+  getSettingsTabIcon,
   getSettingsRenderSlot,
   normalizeSearchText,
   resolveSettingsRenderTarget,
@@ -31,17 +33,25 @@ import type { SettingTab } from './index';
 const SIDEBAR_WIDTH = 200;
 
 type SettingsMenuItem = {
+  id: string;
   key: SettingTab;
   label: string;
   icon: React.ReactNode;
   searchText: string;
+  pageLabel: string;
+  itemLabel: string;
+  anchor?: string;
+  isSearchResult?: boolean;
 };
 
 const toSettingsMenuItem = (item: SettingsModalMenuItem): SettingsMenuItem => ({
+  id: item.id,
   key: item.id,
   label: item.label,
   icon: item.icon,
   searchText: item.searchText,
+  pageLabel: item.label,
+  itemLabel: item.label,
 });
 
 type SettingsHostProps = {
@@ -83,12 +93,26 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   const filteredMenuItems = useMemo(() => {
     const query = normalizeSearchText(menuSearchQuery);
     if (!query) return menuItems;
-    const visibleMatches = menuItems.filter((item) => item.searchText.includes(query));
-    const visibleKeys = new Set(visibleMatches.map((item) => item.key));
-    const secondaryMatches = getSearchableSecondarySettingsModalItems(t)
-      .filter((item) => item.searchText.includes(query) && !visibleKeys.has(item.id))
-      .map(toSettingsMenuItem);
-    return [...visibleMatches, ...secondaryMatches];
+    const builtinKeys = new Set<string>(BUILTIN_TAB_IDS);
+    const entryMatches = getSettingsSearchEntries(t)
+      .filter((item) => item.searchText.includes(query))
+      .map(
+        (item): SettingsMenuItem => ({
+          id: `search:${item.id}`,
+          key: item.pageId,
+          label: item.resultLabel,
+          icon: getSettingsTabIcon(item.pageId, 'modal'),
+          searchText: item.searchText,
+          pageLabel: item.pageLabel,
+          itemLabel: item.itemLabel,
+          anchor: item.anchor,
+          isSearchResult: true,
+        })
+      );
+    const extensionMatches = menuItems
+      .filter((item) => !builtinKeys.has(item.key) && item.searchText.includes(query))
+      .map((item) => ({ ...item, isSearchResult: true }));
+    return [...entryMatches, ...extensionMatches];
   }, [menuItems, menuSearchQuery, t]);
 
   useEffect(() => {
@@ -122,6 +146,18 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     setCapabilitiesTab(target.capabilitiesTab);
   }, []);
 
+  const handleMenuItemSelect = useCallback(
+    (item: SettingsMenuItem) => {
+      handleTabChange(item.key);
+      setMenuSearchQuery('');
+      if (!item.anchor) return;
+      requestAnimationFrame(() => {
+        document.getElementById(item.anchor ?? '')?.scrollIntoView({ block: 'start' });
+      });
+    },
+    [handleTabChange]
+  );
+
   const renderExtensionTabs = () => {
     return Array.from(mountedExtTabs).map((tabKey) => {
       const extTab = extensionTabMap.get(tabKey);
@@ -146,17 +182,35 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
         className='mb-12px'
         data-testid='settings-search-input'
       />
-      <Tabs
-        activeTab={activeTab}
-        onChange={handleTabChange}
-        type='line'
-        size='default'
-        className='settings-mobile-tabs [&_.arco-tabs-nav]:border-b-0'
-      >
-        {filteredMenuItems.map((item) => (
-          <Tabs.TabPane key={item.key} title={item.label} />
-        ))}
-      </Tabs>
+      {menuSearchQuery.trim() ? (
+        <div className='settings-search-results' data-testid='settings-search-results'>
+          {filteredMenuItems.map((item) => (
+            <button
+              key={item.id}
+              type='button'
+              className='settings-search-result'
+              onClick={() => handleMenuItemSelect(item)}
+            >
+              <span className='settings-search-result__page'>{item.pageLabel}</span>
+              {item.pageLabel !== item.itemLabel && (
+                <span className='settings-search-result__item'>{item.itemLabel}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Tabs
+          activeTab={activeTab}
+          onChange={handleTabChange}
+          type='line'
+          size='default'
+          className='settings-mobile-tabs [&_.arco-tabs-nav]:border-b-0'
+        >
+          {filteredMenuItems.map((item) => (
+            <Tabs.TabPane key={item.key} title={item.label} />
+          ))}
+        </Tabs>
+      )}
       {filteredMenuItems.length === 0 && (
         <div className='px-8px py-12px text-13px text-t-secondary' data-testid='settings-search-empty'>
           {t('settings.searchEmpty', { defaultValue: 'No matching settings' })}
@@ -179,7 +233,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
         <div className='flex flex-col gap-2px'>
           {filteredMenuItems.map((item) => (
             <div
-              key={item.key}
+              key={item.id}
               className={classNames(
                 'flex items-center px-14px py-10px rd-8px cursor-pointer transition-all duration-150 select-none',
                 {
@@ -187,10 +241,17 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
                   'text-t-secondary hover:bg-fill-1': activeTab !== item.key,
                 }
               )}
-              onClick={() => handleTabChange(item.key)}
+              onClick={() => handleMenuItemSelect(item)}
             >
               <span className='mr-12px text-16px line-height-[10px]'>{item.icon}</span>
-              <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
+              {item.isSearchResult ? (
+                <span className='flex min-w-0 flex-1 flex-col leading-18px'>
+                  <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
+                  <span className='truncate text-14px font-500 text-t-primary'>{item.itemLabel}</span>
+                </span>
+              ) : (
+                <span className='text-14px font-500 flex-1 lh-22px'>{item.label}</span>
+              )}
             </div>
           ))}
         </div>

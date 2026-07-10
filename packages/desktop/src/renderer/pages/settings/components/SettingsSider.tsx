@@ -13,7 +13,8 @@ import {
   GROUP_HEADER_BEFORE,
   buildSettingsNavItems,
   getBuiltinSettingsNavItems,
-  getSearchableSecondarySettingsModalItems,
+  getSettingsSearchEntries,
+  getSettingsTabIcon,
 } from '../sections/settingsNav';
 import { iconColors } from '@/renderer/styles/colors';
 import { normalizeSearchText } from '../registry/settingsRegistry';
@@ -40,14 +41,31 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       extensionIconClassName: 'w-full h-full object-contain',
     });
     const query = normalizeSearchText(searchQuery);
-    const visibleMatches = query ? result.filter((item) => item.searchText.includes(query)) : result;
-    const visibleIds = new Set(visibleMatches.map((item) => item.id));
-    const secondaryMatches = query
-      ? getSearchableSecondarySettingsModalItems(t)
-          .filter((item) => item.searchText.includes(query) && !visibleIds.has(item.id))
-          .map((item) => ({ ...item, path: item.id, isImageIcon: false }))
+    const builtinIds = new Set(builtins.map((item) => item.id));
+    const itemMatches = query
+      ? getSettingsSearchEntries(t)
+          .filter((item) => item.searchText.includes(query))
+          .map((item) => {
+            const page = result.find((candidate) => candidate.id === item.pageId);
+            return {
+              id: `search:${item.id}`,
+              label: item.resultLabel,
+              pageLabel: item.pageLabel,
+              itemLabel: item.itemLabel,
+              icon: page?.icon ?? getSettingsTabIcon(item.pageId, isDesktop ? 'siderDesktop' : 'siderMobile'),
+              isImageIcon: page?.isImageIcon ?? false,
+              path: item.path,
+              searchText: item.searchText,
+              isSearchResult: true,
+            };
+          })
       : [];
-    const searchResult = [...visibleMatches, ...secondaryMatches];
+    const extensionMatches = query
+      ? result
+          .filter((item) => !builtinIds.has(item.id) && item.searchText.includes(query))
+          .map((item) => ({ ...item, isSearchResult: true, pageLabel: item.label, itemLabel: '' }))
+      : [];
+    const searchResult = [...itemMatches, ...extensionMatches];
 
     // Compute group header render positions.
     //
@@ -63,7 +81,18 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
       headerAt.set(builtinIdx, headerKey);
     }
 
-    return { menus: query ? searchResult : result, groupHeaderAt: headerAt, searchMatches: searchResult.length };
+    return {
+      menus: query
+        ? searchResult
+        : result.map((item) => ({
+            ...item,
+            isSearchResult: false,
+            pageLabel: item.label,
+            itemLabel: item.label,
+          })),
+      groupHeaderAt: headerAt,
+      searchMatches: query ? searchResult.length : result.length,
+    };
   }, [t, isDesktop, extensionTabs, resolveExtTabName, searchQuery]);
 
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
@@ -110,7 +139,8 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                 data-settings-id={item.id}
                 data-settings-path={item.path}
                 className={classNames(
-                  'settings-sider__item h-34px rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
+                  'settings-sider__item rd-8px flex items-center gap-8px group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px transition-colors',
+                  item.isSearchResult ? 'min-h-44px py-6px' : 'h-34px',
                   collapsed ? 'w-full justify-center px-0' : 'justify-start px-10px',
                   {
                     'hover:bg-fill-3': !isSelected,
@@ -145,8 +175,15 @@ const SettingsSider: React.FC<{ collapsed?: boolean; tooltipEnabled?: boolean }>
                   )}
                 </span>
                 <FlexFullContainer className='h-24px collapsed-hidden'>
-                  <div className='settings-sider__item-label text-nowrap overflow-hidden inline-block w-full text-14px font-[500] lh-24px whitespace-nowrap text-t-primary'>
-                    {item.label}
+                  <div className='settings-sider__item-label overflow-hidden w-full text-14px font-[500] text-t-primary'>
+                    {item.isSearchResult ? (
+                      <div className='flex flex-col min-w-0 leading-18px'>
+                        <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
+                        <span className='truncate'>{item.itemLabel || item.label}</span>
+                      </div>
+                    ) : (
+                      <span className='block lh-24px whitespace-nowrap truncate'>{item.label}</span>
+                    )}
                   </div>
                 </FlexFullContainer>
               </div>

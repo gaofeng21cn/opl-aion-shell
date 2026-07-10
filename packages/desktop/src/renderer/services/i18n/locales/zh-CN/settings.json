@@ -1268,19 +1268,96 @@
   "runtime": "运行",
   "general": "通用",
   "access": "访问",
-  "workspace": "工作目录",
+  "workspace": "工作区",
   "localServices": "本机服务",
   "environment": "本机运行环境",
-  "storage": "存储",
+  "storage": "数据与存储",
   "appearance": "外观",
   "advanced": "高级",
   "groupOverview": "概览",
   "groupGeneral": "通用",
   "groupRuntime": "本机运行",
   "groupAdvanced": "高级",
+  "searchEntries": {
+    "overview": {
+      "status": "总体状态",
+      "attention": "待处理事项",
+      "workspace": "工作目录摘要",
+      "shortcuts": "常用入口"
+    },
+    "access": {
+      "modelAccess": "模型访问",
+      "codexCli": "Codex CLI",
+      "gateway": "OPL Gateway 访问密钥",
+      "browser": "本机浏览器访问"
+    },
+    "workspace": {
+      "root": "工作目录",
+      "permissions": "文件权限",
+      "technical": "技术路径"
+    },
+    "capabilities": {
+      "directory": "能力可用状态",
+      "home": "首页显示",
+      "tools": "外部工具与语音",
+      "assistants": "自定义助手"
+    },
+    "resources": {
+      "webui": "服务器 WebUI",
+      "workspace": "工作区",
+      "connections": "外部连接"
+    },
+    "maintenance": {
+      "health": "健康摘要",
+      "updates": "App 更新",
+      "runtime": "本机环境",
+      "packages": "能力包",
+      "services": "后台服务",
+      "advanced": "高级维护"
+    },
+    "storage": {
+      "installer": "安装缓存",
+      "conversations": "对话归档",
+      "runtime": "运行缓存",
+      "logs": "日志"
+    },
+    "preferences": {
+      "behavior": "App 行为",
+      "display": "语言与显示",
+      "theme": "主题",
+      "advanced": "高级偏好"
+    },
+    "advanced": {
+      "paths": "解析路径",
+      "profile": "开发者配置",
+      "flow": "OPL Flow 上下文",
+      "developerTools": "开发工具"
+    },
+    "about": {
+      "version": "版本与通道",
+      "updates": "更新状态",
+      "feedback": "反馈与支持",
+      "technical": "技术详情"
+    }
+  },
   "overviewPage": {
     "title": "概览",
     "description": "确认本机是否可用、需要处理什么，以及常用设置入口。",
+    "overall": {
+      "title": "这台电脑",
+      "readyDescription": "工作目录和主要本机能力已可用。",
+      "attentionDescription": "仍有设置需要处理；下面只列出会影响使用的事项。"
+    },
+    "attention": {
+      "title": "需要处理",
+      "description": "处理完成后，本页会自动恢复为安静的正常状态。",
+      "workspaceTitle": "选择工作目录",
+      "capabilitiesTitle": "检查能力包"
+    },
+    "shortcuts": {
+      "title": "常用设置",
+      "description": "只保留最常用的三个入口。"
+    },
     "codexTitle": "Codex CLI",
     "codexDescription": "首页默认且唯一可见的执行入口。",
     "workspaceTitle": "工作目录",
@@ -1304,6 +1381,7 @@
       "open": "打开",
       "changeOrVerify": "更换或验证",
       "openPermissions": "查看权限状态",
+      "permissionLabel": "文件权限",
       "permissionStatus": "权限：{{mode}}",
       "status": {
         "ready": "工作目录已选择",
@@ -1405,6 +1483,9 @@
       "empty": "当前没有上报模块路径。"
     },
     "actions": {
+      "title": "目录操作",
+      "readyDescription": "打开当前目录，或在项目位置发生变化时更换目录。",
+      "attentionDescription": "先选择可写入的工作目录，再开始本机任务。",
       "openWorkspace": "打开工作目录",
       "openLogs": "打开日志",
       "changeWorkspace": "更换工作目录",
@@ -1626,6 +1707,10 @@
   "accessPage": {
     "title": "访问方式",
     "description": "查看模型访问、Codex CLI 和本机浏览器访问。",
+    "modelAccessSection": {
+      "title": "模型访问与 Codex",
+      "description": "先确认当前访问来源和默认模型；只有需要更换方式时才打开配置。"
+    },
     "cards": {
       "model": {
         "title": "默认模型",
@@ -1638,16 +1723,16 @@
         "model": "默认模型：{{model}}"
       },
       "account": {
-        "title": "OPL Gateway",
+        "title": "模型访问",
         "configured": "账号或 API key 已配置。",
         "oplGatewayConfigured": "OPL Gateway 已接入。",
         "existingCodexConfigured": "已使用现有 Codex 模型访问，跳过 OPL Gateway 首启配置。",
         "missing": "账号或 API key 需要处理。",
         "source": {
-          "oplGateway": "当前使用 OPL Gateway。",
-          "codexLogin": "来自 Codex/OpenAI 登录。",
-          "customProvider": "来自已有 provider 配置。",
-          "envApiKey": "来自环境变量。"
+          "oplGateway": "OPL Gateway",
+          "codexLogin": "Codex / OpenAI 登录",
+          "customProvider": "已有模型服务配置",
+          "envApiKey": "环境变量"
         }
       },
       "modelAccess": {
@@ -1672,9 +1757,9 @@
     },
     "localServiceTechnicalDetail": "技术细节：本机服务地址 {{address}}。模型与账号区域显示账号/API key 状态。",
     "modelAccount": {
-      "title": "OPL Gateway",
+      "title": "模型访问",
       "description": "模型访问已连接；只有需要更换访问密钥时才打开配置。",
-      "showConfigButton": "配置访问密钥",
+      "showConfigButton": "配置 OPL Gateway",
       "apiKeyPlaceholder": "粘贴 OPL Gateway 访问密钥",
       "apiKeyRequired": "请输入 OPL Gateway 访问密钥。",
       "configureButton": "配置 OPL Gateway",
@@ -2031,6 +2116,8 @@
     "localServiceTitle": "回执",
     "modulesReadyCount": "{{ready}} / {{total}} 已就绪",
     "healthSummary": {
+      "title": "当前状态",
+      "description": "正常项保持安静；只有需要处理时才显示操作。",
       "usable": "是否可用",
       "attention": "需要处理",
       "maintenance": "后台维护",
@@ -2060,8 +2147,9 @@
       "openStorage": "查看存储"
     },
     "maintenanceHub": {
-      "title": "维护与更新",
-      "description": "按你可以采取的维护动作处理 App 更新、运行环境、能力包同步和本机后台服务。",
+      "title": "维护项目",
+      "description": "按对象查看 App 更新、本机环境、能力包和后台服务。",
+      "lastChecked": "最近检查：{{value}}",
       "actions": {
         "repairRuntimeEnvironment": "修复运行环境",
         "syncCapabilityPacks": "同步能力包",
@@ -2076,7 +2164,7 @@
         "noAction": "此窗口内尚未运行维护操作。"
       },
       "makeUsable": {
-        "label": "让 OPL 可用",
+        "label": "检查并修复",
         "help": "运行现有修复准备、托管更新检查，并只应用不需要重启且安全的修复或同步动作。",
         "complete": "OPL 可用性检查已完成。请按下方显示的重启或重新加载指引继续。",
         "confirmTitle": "确认 OPL 维护操作",

@@ -720,12 +720,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-maintenance-hub-localServicesRepair')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.localServicesRepair.title'
     );
-    expect(screen.getByTestId('opl-maintenance-recent-results')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.results.title'
-    );
-    expect(screen.getByTestId('opl-maintenance-recent-results')).toHaveTextContent(
-      'settings.oplEnvironmentPage.updates.background.lastRunAt'
-    );
+    expect(screen.queryByTestId('opl-maintenance-recent-results')).not.toBeInTheDocument();
     [
       'opl-maintenance-hub-appUpdates',
       'opl-maintenance-hub-runtimeEnvironment',
@@ -746,8 +741,7 @@ describe('RuntimeSettings app state bridge usage', () => {
     expect(screen.getByTestId('opl-runtime-developer-source-alert')).toHaveTextContent(
       'settings.oplEnvironmentPage.developerSource.dirtyImpact'
     );
-    expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent('settings.workspace');
-    expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent('settings.storage');
+    expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
     expect(screen.queryByText('settings.oplEnvironmentPage.updates.actions.plan')).not.toBeInTheDocument();
     fireEvent.click(screen.getByText('settings.oplEnvironmentPage.updates.advancedActions'));
     expect(screen.getByTestId('opl-managed-update-plan')).toHaveTextContent('Preview changes');

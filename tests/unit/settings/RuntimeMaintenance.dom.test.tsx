@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import RuntimeSettings from '@/renderer/pages/settings/sections/RuntimeSettings';
 import type { ManagedUpdateMaintenanceSnapshot } from '@/renderer/services/managedUpdateMaintenance';
 
@@ -18,17 +18,21 @@ const appState = {
       status: 'ready',
       parsed_version: '0.125.0',
     },
+    executor: {
+      permission_mode: 'full_auto',
+    },
   },
   provider: {
     temporal: { status: 'ready', health_status: 'ready' },
   },
   paths: {
+    workspace_root_path: '/Users/example/workspace',
     family_workspace_root: {
       selected_path: '/Users/example/workspace',
     },
   },
   modules: {
-    summary: { default_modules_count: 2, healthy_default_modules_count: 2 },
+    summary: { default_modules_count: 5, healthy_default_modules_count: 5 },
     source: {
       mode: 'sibling_workspace',
       modules_root: '/Users/example/workspace/modules',
@@ -36,6 +40,9 @@ const appState = {
     items: [
       { module_id: 'mas', display_name: 'MAS', status: 'ready' },
       { module_id: 'mag', display_name: 'MAG', status: 'ready' },
+      { module_id: 'rca', display_name: 'RCA', status: 'ready' },
+      { module_id: 'obf', display_name: 'OPL Book Forge', status: 'ready' },
+      { module_id: 'oma', display_name: 'OMA', status: 'ready' },
     ],
   },
   operator: {
@@ -126,6 +133,9 @@ vi.mock('@/common/config/oplProductProfile', async () => {
     getOplDefaultHomeAssistants: () => [
       { id: 'mas', display_name: 'MAS' },
       { id: 'mag', display_name: 'MAG' },
+      { id: 'rca', display_name: 'RCA' },
+      { id: 'obf', display_name: 'OPL Book Forge' },
+      { id: 'oma', display_name: 'OMA' },
     ],
     getOplSettingsControlPlaneActionContract: () => ({
       recommended_action_ids: {
@@ -189,13 +199,13 @@ describe('RuntimeSettings maintenance structure', () => {
     bridgeMocks.loadAppState.mockResolvedValue({ app_state: appState });
   });
 
-  it('keeps maintenance first screen action-oriented and moves task progress out of view', async () => {
+  it('keeps healthy rows quiet, shows state-relevant actions, and moves technical detail out of view', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('opl-maintenance-hub-appUpdates')).toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.items.appUpdates.title'
     );
-    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).toHaveTextContent(
+    expect(screen.getByTestId('opl-maintenance-hub-runtimeEnvironment')).not.toHaveTextContent(
       'settings.oplEnvironmentPage.maintenanceHub.actions.repairRuntimeEnvironment'
     );
     expect(screen.getByTestId('opl-maintenance-hub-capabilitySurfaceSync')).toHaveTextContent(
@@ -208,27 +218,8 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(screen.queryByTestId('opl-maintenance-hub-repairSuggestions')).not.toBeInTheDocument();
     expect(screen.queryByTestId('runtime-task-run-projection-v2')).not.toBeInTheDocument();
     expect(screen.queryByText('DM002 TaskRun')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-maintenance-link-outs')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.linkOuts.advancedDiagnostics'
-    );
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toHaveTextContent(
-      'settings.oplEnvironmentPage.maintenanceHub.makeUsable.label'
-    );
-
-    fireEvent.click(screen.getByTestId('opl-maintenance-hub-make-usable'));
-    expect(screen.getByTestId('opl-maintenance-hub-make-usable-confirmation')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.maintenanceHub.actions.syncCapabilityPacks'));
-    await waitFor(() => expect(bridgeMocks.executeManagedUpdateRead).toHaveBeenCalledWith('check', expect.anything()));
-
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.maintenanceHub.actions.checkBackgroundServices'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({ actionId: 'doctor', dryRun: false })
-    );
-
-    fireEvent.click(screen.getByText('settings.storage'));
-    expect(window.location.hash).toBe('#/settings/storage');
-    fireEvent.click(screen.getByText('settings.oplEnvironmentPage.maintenanceHub.linkOuts.advancedDiagnostics'));
-    expect(window.location.hash).toBe('#/settings/advanced');
+    expect(screen.queryByTestId('opl-maintenance-link-outs')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-maintenance-hub-make-usable')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-maintenance-advanced-details')).toBeInTheDocument();
   });
 });

@@ -1098,22 +1098,6 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'settings-runtime' } }));
   }, []);
 
-  const openStorageSettings = useCallback(() => {
-    window.location.hash = '#/settings/storage';
-  }, []);
-
-  const openWorkspaceSettings = useCallback(() => {
-    window.location.hash = '#/settings/workspace';
-  }, []);
-
-  const openAboutSettings = useCallback(() => {
-    window.location.hash = '#/settings/about';
-  }, []);
-
-  const openAdvancedSettings = useCallback(() => {
-    window.location.hash = '#/settings/advanced';
-  }, []);
-
   const viewModel = useMemo(
     () =>
       buildRuntimeSettingsViewModel({
@@ -1176,6 +1160,9 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
       isTruthyFlag(git.dirty)
     );
   });
+  const maintenanceNeedsAction =
+    healthSummaryItems.some((item) => item.tone === 'orange') ||
+    maintenanceHubItems.some((item) => item.tone === 'orange');
 
   const openLogDir = useCallback(() => {
     if (!logsRoot) return;
@@ -1187,27 +1174,14 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
   const content = (
     <>
       {contextHolder}
-      <div className='flex flex-col gap-16px'>
-        <div>
-          <Typography.Title heading={4} className='mb-6px'>
-            {t('settings.runtimePage.title')}
-          </Typography.Title>
-          <Typography.Text className='text-t-secondary'>{t('settings.runtimePage.description')}</Typography.Text>
-        </div>
-
-        <RuntimeHealthSummary items={healthSummaryItems} />
-
-        <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
-          <div className='flex flex-col gap-14px'>
-            <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
-              <div className='min-w-0'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.title')}
-                </Typography.Text>
-                <Typography.Text className='block text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.description')}
-                </Typography.Text>
-              </div>
+      <div className='opl-settings-page'>
+        <header className='opl-settings-page-header'>
+          <div className='opl-settings-page-header__copy'>
+            <Typography.Title heading={4}>{t('settings.runtimePage.title')}</Typography.Title>
+            <Typography.Text>{t('settings.runtimePage.description')}</Typography.Text>
+          </div>
+          {maintenanceNeedsAction && (
+            <div className='opl-settings-page-header__actions'>
               <Button
                 type='primary'
                 data-testid='opl-maintenance-hub-make-usable'
@@ -1219,34 +1193,69 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                 {t('settings.oplEnvironmentPage.maintenanceHub.makeUsable.label')}
               </Button>
             </div>
+          )}
+        </header>
 
-            <div className='grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-14px'>
-              <div className='flex flex-col divide-y divide-border-1'>
-                {maintenanceHubItems.map((item) => (
-                  <div
-                    key={`maintenance-hub-${item.key}`}
-                    className='py-12px min-w-0'
-                    data-testid={`opl-maintenance-hub-${item.key}`}
-                  >
-                    <div className='flex flex-col gap-10px md:flex-row md:items-center md:justify-between'>
-                      <div className='min-w-0 flex items-start gap-10px'>
-                        <span className='w-28px h-28px shrink-0 flex items-center justify-center rd-8px bg-fill-2 text-t-secondary'>
-                          {item.icon}
-                        </span>
-                        <div className='min-w-0 flex flex-col gap-5px'>
-                          <div className='flex flex-wrap items-center gap-8px'>
-                            <Typography.Text className='font-600 text-t-primary break-words'>
-                              {item.title}
-                            </Typography.Text>
-                            <Tag color={item.tone}>{item.status}</Tag>
-                          </div>
-                          <Typography.Text className='text-12px text-t-secondary break-words'>
-                            {item.detail}
-                          </Typography.Text>
-                        </div>
-                      </div>
+        <section className='opl-settings-section' id='health'>
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.oplEnvironmentPage.healthSummary.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.oplEnvironmentPage.healthSummary.description')}
+              </Typography.Text>
+            </div>
+          </div>
+          <RuntimeHealthSummary items={healthSummaryItems} />
+        </section>
+
+        <section className='opl-settings-section' data-testid='opl-maintenance-hub'>
+          <div className='opl-settings-section__header'>
+            <div>
+              <Typography.Text className='block font-600 text-t-primary'>
+                {t('settings.oplEnvironmentPage.maintenanceHub.title')}
+              </Typography.Text>
+              <Typography.Text className='block text-12px text-t-secondary'>
+                {t('settings.oplEnvironmentPage.maintenanceHub.description')}
+              </Typography.Text>
+            </div>
+            {managedUpdateMaintenance.lastRunAt && (
+              <Typography.Text className='text-12px text-t-tertiary'>
+                {t('settings.oplEnvironmentPage.maintenanceHub.lastChecked', {
+                  value: managedUpdateMaintenance.lastRunAt,
+                })}
+              </Typography.Text>
+            )}
+          </div>
+          <div className='opl-settings-list'>
+            {maintenanceHubItems.map((item) => {
+              const anchors: Record<string, string> = {
+                appUpdates: 'updates',
+                runtimeEnvironment: 'runtime-environment',
+                capabilitySurfaceSync: 'capability-packages',
+                localServicesRepair: 'background-services',
+              };
+              const showAction = item.key === 'appUpdates' || item.tone === 'orange';
+              return (
+                <div
+                  key={`maintenance-hub-${item.key}`}
+                  className='opl-settings-row'
+                  id={anchors[item.key]}
+                  data-testid={`opl-maintenance-hub-${item.key}`}
+                >
+                  <div className='opl-settings-row__main'>
+                    <Typography.Text className='font-500 text-t-primary'>{item.title}</Typography.Text>
+                    <Typography.Text className='text-12px text-t-secondary'>{item.detail}</Typography.Text>
+                  </div>
+                  <div className='opl-settings-row__meta'>
+                    <span
+                      className={`opl-settings-status ${item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+                    >
+                      {item.status}
+                    </span>
+                    {showAction && (
                       <Button
-                        className='md:shrink-0'
                         title={item.actionHelp}
                         loading={item.actionLoading}
                         disabled={item.actionDisabled}
@@ -1254,105 +1263,13 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
                       >
                         {item.actionLabel}
                       </Button>
-                    </div>
+                    )}
                   </div>
-                ))}
-              </div>
-
-              <div
-                className='rd-8px bg-fill-1 p-12px min-w-0 flex flex-col gap-8px'
-                data-testid='opl-maintenance-recent-results'
-              >
-                <Typography.Text className='font-600 text-t-primary'>
-                  {t('settings.oplEnvironmentPage.maintenanceHub.results.title')}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.updates.background.lastRunAt', {
-                    value: managedUpdateMaintenance.lastRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
-                  })}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.updates.background.nextRunAt', {
-                    value: managedUpdateMaintenance.nextRunAt ?? t('settings.oplEnvironmentPage.status.unknown'),
-                  })}
-                </Typography.Text>
-                <Typography.Text className='text-12px text-t-secondary break-words'>
-                  {t('settings.oplEnvironmentPage.updates.background.lastFailure', {
-                    value:
-                      managedUpdateMaintenance.lastFailure ??
-                      t('settings.oplEnvironmentPage.updates.background.noFailure'),
-                  })}
-                </Typography.Text>
-                {managedUpdateMaintenance.executionStatus !== 'idle' && (
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.updates.executionStatus', {
-                      status: managedUpdateMaintenance.executionStatus,
-                    })}
-                  </Typography.Text>
-                )}
-                {managedUpdateMaintenance.lastAction ? (
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.updates.background.lastAction', {
-                      action: managedUpdateMaintenance.lastAction.kind,
-                      componentId: managedUpdateMaintenance.lastAction.componentId,
-                      status: managedUpdateMaintenance.lastAction.status,
-                    })}
-                  </Typography.Text>
-                ) : (
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.maintenanceHub.results.noAction')}
-                  </Typography.Text>
-                )}
-                {managedUpdateMaintenance.reloadGuidance && (
-                  <Typography.Text className='text-12px text-t-secondary break-words'>
-                    {t('settings.oplEnvironmentPage.updates.background.reloadGuidance', {
-                      guidance: managedUpdateMaintenance.reloadGuidance,
-                    })}
-                  </Typography.Text>
-                )}
-              </div>
-            </div>
+                </div>
+              );
+            })}
           </div>
-        </Card>
-
-        <div
-          className='flex flex-wrap items-center gap-8px text-12px text-t-secondary'
-          data-testid='opl-maintenance-link-outs'
-        >
-          <Typography.Text className='text-12px text-t-secondary'>
-            {t('settings.oplEnvironmentPage.maintenanceHub.linkOuts.label')}
-          </Typography.Text>
-          <Button size='mini' type='text' onClick={openWorkspaceSettings}>
-            {t('settings.workspace')}
-          </Button>
-          <Button size='mini' type='text' onClick={openStorageSettings}>
-            {t('settings.storage')}
-          </Button>
-          <Button size='mini' type='text' onClick={openAboutSettings}>
-            {t('settings.about')}
-          </Button>
-          <Button size='mini' type='text' onClick={openAdvancedSettings}>
-            {t('settings.oplEnvironmentPage.maintenanceHub.linkOuts.advancedDiagnostics')}
-          </Button>
-        </div>
-
-        {(developerSourceActive || dirtyCheckoutActive) && (
-          <Alert
-            type='warning'
-            data-testid='opl-runtime-developer-source-alert'
-            title={t('settings.oplEnvironmentPage.developerSource.title')}
-            content={
-              <div className='flex flex-col gap-4px'>
-                <span className='break-words'>
-                  {dirtyCheckoutActive
-                    ? t('settings.oplEnvironmentPage.developerSource.dirtyImpact')
-                    : t('settings.oplEnvironmentPage.developerSource.impact')}
-                </span>
-                <span className='break-words'>{t('settings.oplEnvironmentPage.developerSource.nextStep')}</span>
-              </div>
-            }
-          />
-        )}
+        </section>
 
         {makeUsableConfirmationOpen && (
           <Alert
@@ -1390,16 +1307,29 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
         )}
 
         <details
-          className='rd-8px border border-solid border-border-1 bg-fill-1 p-12px'
+          className='opl-settings-details'
+          id='advanced-maintenance'
           data-testid='opl-maintenance-advanced-details'
         >
-          <summary className='cursor-pointer font-600 text-t-primary'>
-            {t('settings.oplEnvironmentPage.advancedDetails.title')}
-          </summary>
+          <summary>{t('settings.oplEnvironmentPage.advancedDetails.title')}</summary>
           <Typography.Text className='block text-12px text-t-secondary mt-6px'>
             {t('settings.oplEnvironmentPage.advancedDetails.description')}
           </Typography.Text>
           <div className='mt-14px flex flex-col gap-16px'>
+            {(developerSourceActive || dirtyCheckoutActive) && (
+              <Alert
+                type='info'
+                data-testid='opl-runtime-developer-source-alert'
+                title={t('settings.oplEnvironmentPage.developerSource.title')}
+                content={
+                  <span className='break-words'>
+                    {dirtyCheckoutActive
+                      ? t('settings.oplEnvironmentPage.developerSource.dirtyImpact')
+                      : t('settings.oplEnvironmentPage.developerSource.impact')}
+                  </span>
+                }
+              />
+            )}
             <Typography.Text className='font-600 text-t-primary'>
               {t('settings.oplEnvironmentPage.sections.required')}
             </Typography.Text>
@@ -1437,126 +1367,118 @@ const RuntimeSettings: React.FC<RuntimeSettingsProps> = ({ withWrapper = true })
               t={t}
             />
 
-            <Card bordered className='rd-8px'>
-              <Collapse bordered={false}>
-                <Collapse.Item
-                  header={t('settings.oplEnvironmentPage.diagnostics.title')}
-                  name='environment-diagnostics'
-                >
-                  <div className='flex flex-col gap-16px'>
-                    <div
-                      className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between'
-                      id='workspace'
-                    >
-                      <div className='min-w-0'>
-                        <Typography.Text className='block font-600 text-t-primary'>
-                          {t('settings.workDir')}
-                        </Typography.Text>
-                        <Typography.Text className='block text-12px text-t-secondary break-all'>
-                          {workspaceRoot || t('settings.dirNotConfigured')}
-                        </Typography.Text>
-                      </div>
-                    </div>
-
-                    <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between'>
-                      <div className='min-w-0'>
-                        <Typography.Text className='block font-600 text-t-primary'>
-                          {t('settings.logDir')}
-                        </Typography.Text>
-                        <Tooltip content={logsRoot || ''}>
-                          <Typography.Text className='block text-12px text-t-secondary break-all'>
-                            {logsRoot || t('settings.dirNotConfigured')}
-                          </Typography.Text>
-                        </Tooltip>
-                      </div>
-                      <Button icon={<FolderSearch theme='outline' />} disabled={!logsRoot} onClick={openLogDir}>
-                        {t('common.open', { defaultValue: 'Open' })}
-                      </Button>
-                    </div>
-
-                    <div className='min-w-0' id='modules'>
-                      <Typography.Text className='block font-600 text-t-primary mb-8px'>
-                        {t('settings.oplEnvironmentPage.diagnostics.modulesTitle')}
+            <Collapse bordered={false}>
+              <Collapse.Item header={t('settings.oplEnvironmentPage.diagnostics.title')} name='environment-diagnostics'>
+                <div className='flex flex-col gap-16px'>
+                  <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between' id='workspace'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('settings.workDir')}
                       </Typography.Text>
-                      <Alert type='info' content={t('settings.oplEnvironmentPage.moduleVersion.scopeDescription')} />
-                      {modulesRoot ? (
-                        <Typography.Text className='block text-12px text-t-secondary break-all px-0 pt-12px'>
-                          {t('settings.oplEnvironmentPage.moduleVersion.modulesRoot', { path: modulesRoot })}
+                      <Typography.Text className='block text-12px text-t-secondary break-all'>
+                        {workspaceRoot || t('settings.dirNotConfigured')}
+                      </Typography.Text>
+                    </div>
+                  </div>
+
+                  <div className='flex flex-col gap-12px md:flex-row md:items-center md:justify-between'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('settings.logDir')}
+                      </Typography.Text>
+                      <Tooltip content={logsRoot || ''}>
+                        <Typography.Text className='block text-12px text-t-secondary break-all'>
+                          {logsRoot || t('settings.dirNotConfigured')}
                         </Typography.Text>
-                      ) : null}
-                      <div className='flex flex-col divide-y divide-border-1'>
-                        {modules.map((module, moduleIndex) => {
-                          const status = moduleStatus(module);
-                          const pathValue = modulePath(module);
-                          const id = moduleId(module) || `module-${moduleIndex + 1}`;
-                          return (
-                            <div
-                              key={`runtime-module-${id}`}
-                              className='flex items-center justify-between gap-12px py-12px'
-                            >
-                              <div className='min-w-0'>
-                                <Typography.Text className='block font-600 text-t-primary'>
-                                  {moduleDisplayLabel(module)}
-                                </Typography.Text>
-                                <Typography.Text className='block text-12px text-t-secondary'>
-                                  {moduleVersionDetail(module, t)}
-                                </Typography.Text>
-                                {pathValue ? (
-                                  <Tooltip content={pathValue}>
-                                    <Typography.Text className='block text-12px text-t-secondary break-all'>
-                                      {t('settings.oplEnvironmentPage.moduleVersion.checkoutPath', { path: pathValue })}
-                                    </Typography.Text>
-                                  </Tooltip>
-                                ) : null}
-                                <Typography.Text className='block text-12px text-t-secondary'>
-                                  {t('settings.oplEnvironmentPage.moduleVersion.pathSource', {
-                                    source: modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t),
+                      </Tooltip>
+                    </div>
+                    <Button icon={<FolderSearch theme='outline' />} disabled={!logsRoot} onClick={openLogDir}>
+                      {t('common.open', { defaultValue: 'Open' })}
+                    </Button>
+                  </div>
+
+                  <div className='min-w-0' id='modules'>
+                    <Typography.Text className='block font-600 text-t-primary mb-8px'>
+                      {t('settings.oplEnvironmentPage.diagnostics.modulesTitle')}
+                    </Typography.Text>
+                    <Alert type='info' content={t('settings.oplEnvironmentPage.moduleVersion.scopeDescription')} />
+                    {modulesRoot ? (
+                      <Typography.Text className='block text-12px text-t-secondary break-all px-0 pt-12px'>
+                        {t('settings.oplEnvironmentPage.moduleVersion.modulesRoot', { path: modulesRoot })}
+                      </Typography.Text>
+                    ) : null}
+                    <div className='flex flex-col divide-y divide-border-1'>
+                      {modules.map((module, moduleIndex) => {
+                        const status = moduleStatus(module);
+                        const pathValue = modulePath(module);
+                        const id = moduleId(module) || `module-${moduleIndex + 1}`;
+                        return (
+                          <div
+                            key={`runtime-module-${id}`}
+                            className='flex items-center justify-between gap-12px py-12px'
+                          >
+                            <div className='min-w-0'>
+                              <Typography.Text className='block font-600 text-t-primary'>
+                                {moduleDisplayLabel(module)}
+                              </Typography.Text>
+                              <Typography.Text className='block text-12px text-t-secondary'>
+                                {moduleVersionDetail(module, t)}
+                              </Typography.Text>
+                              {pathValue ? (
+                                <Tooltip content={pathValue}>
+                                  <Typography.Text className='block text-12px text-t-secondary break-all'>
+                                    {t('settings.oplEnvironmentPage.moduleVersion.checkoutPath', { path: pathValue })}
+                                  </Typography.Text>
+                                </Tooltip>
+                              ) : null}
+                              <Typography.Text className='block text-12px text-t-secondary'>
+                                {t('settings.oplEnvironmentPage.moduleVersion.pathSource', {
+                                  source: modulePathSource(module, familyWorkspaceRoot, modulesSourceMode, t),
+                                })}
+                              </Typography.Text>
+                              {oplString(module.repo_url) ? (
+                                <Typography.Text className='block text-12px text-t-secondary break-all'>
+                                  {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', {
+                                    url: oplString(module.repo_url) ?? '',
                                   })}
                                 </Typography.Text>
-                                {oplString(module.repo_url) ? (
-                                  <Typography.Text className='block text-12px text-t-secondary break-all'>
-                                    {t('settings.oplEnvironmentPage.moduleVersion.repoUrl', {
-                                      url: oplString(module.repo_url) ?? '',
-                                    })}
-                                  </Typography.Text>
-                                ) : null}
-                              </div>
-                              <Space wrap size='mini'>
-                                {oplString(module.recommended_action) && (
-                                  <Tag key={`${id}-action`} color='orange'>
-                                    {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
-                                  </Tag>
-                                )}
-                                <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'green' : 'orange'}>
-                                  {formatStatus(status, t)}
-                                </Tag>
-                              </Space>
+                              ) : null}
                             </div>
-                          );
-                        })}
-                      </div>
+                            <Space wrap size='mini'>
+                              {oplString(module.recommended_action) && (
+                                <Tag key={`${id}-action`} color='orange'>
+                                  {formatModuleAction(oplString(module.recommended_action) ?? '', t)}
+                                </Tag>
+                              )}
+                              <Tag key={`${id}-status`} color={isReadyStatus(status) ? 'green' : 'orange'}>
+                                {formatStatus(status, t)}
+                              </Tag>
+                            </Space>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
-                </Collapse.Item>
-                <Collapse.Item header={t('settings.oplEnvironmentPage.codexContext.title')} name='codex-context'>
-                  <div className='flex flex-col gap-8px'>
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.oplEnvironmentPage.codexContext.description')}
-                    </Typography.Text>
-                    <pre className='m-0 p-12px rd-8px bg-fill-2 text-12px text-t-primary whitespace-pre-wrap break-words max-h-280px overflow-auto'>
-                      {codexSessionContext}
-                    </pre>
-                  </div>
-                </Collapse.Item>
-              </Collapse>
-            </Card>
+                </div>
+              </Collapse.Item>
+              <Collapse.Item header={t('settings.oplEnvironmentPage.codexContext.title')} name='codex-context'>
+                <div className='flex flex-col gap-8px'>
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t('settings.oplEnvironmentPage.codexContext.description')}
+                  </Typography.Text>
+                  <pre className='m-0 p-12px rd-8px bg-fill-2 text-12px text-t-primary whitespace-pre-wrap break-words max-h-280px overflow-auto'>
+                    {codexSessionContext}
+                  </pre>
+                </div>
+              </Collapse.Item>
+            </Collapse>
           </div>
         </details>
       </div>
     </>
   );
 
-  return withWrapper ? <SettingsPageWrapper contentClassName='max-w-1080px'>{content}</SettingsPageWrapper> : content;
+  return withWrapper ? <SettingsPageWrapper>{content}</SettingsPageWrapper> : content;
 };
 
 export default RuntimeSettings;

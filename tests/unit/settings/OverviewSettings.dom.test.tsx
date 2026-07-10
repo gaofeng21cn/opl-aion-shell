@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import OverviewSettings from '@/renderer/pages/settings/sections/OverviewSettings';
 
 const mocks = vi.hoisted(() => ({
@@ -53,12 +53,22 @@ vi.mock('react-i18next', () => ({
         'settings.overviewPage.title': 'Overview',
         'settings.overviewPage.description':
           'Confirm whether this computer is usable, what needs attention, and where to go next.',
+        'settings.overviewPage.overall.title': 'This computer',
+        'settings.overviewPage.overall.readyDescription': 'Primary local capabilities are available.',
+        'settings.overviewPage.overall.attentionDescription': 'Some settings need attention.',
+        'settings.overviewPage.attention.title': 'Needs attention',
+        'settings.overviewPage.attention.description': 'Only blocking items are shown.',
+        'settings.overviewPage.attention.workspaceTitle': 'Choose a work directory',
+        'settings.overviewPage.attention.capabilitiesTitle': 'Check capability packages',
+        'settings.overviewPage.shortcuts.title': 'Common settings',
+        'settings.overviewPage.shortcuts.description': 'Three common destinations.',
         'settings.overviewPage.workspace.title': 'Workspace',
         'settings.overviewPage.workspace.currentPath': `Current path: ${options?.path}`,
         'settings.overviewPage.workspace.notConfigured': 'No workspace root has been selected yet.',
         'settings.overviewPage.workspace.open': 'Open Workspace',
         'settings.overviewPage.workspace.changeOrVerify': 'Change or Verify',
         'settings.overviewPage.workspace.openPermissions': 'View Permission Status',
+        'settings.overviewPage.workspace.permissionLabel': 'File permissions',
         'settings.overviewPage.workspace.permissionStatus': `Permission: ${options?.mode}`,
         'settings.overviewPage.workspace.status.ready': 'Workspace selected',
         'settings.overviewPage.workspace.status.needsAction': 'Workspace needs setup',
@@ -113,21 +123,15 @@ describe('OverviewSettings', () => {
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getByText(/Current path: \/Users\/example\/OPL Workspace/)).toBeInTheDocument();
     expect(screen.getByText('Model Access')).toBeInTheDocument();
-    expect(screen.getByText('Local Services')).toBeInTheDocument();
     expect(screen.getByText('Capabilities')).toBeInTheDocument();
-    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
-    expect(screen.getByText('Web / Remote Access')).toBeInTheDocument();
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
-    expect(screen.getByText('Storage')).toBeInTheDocument();
-    expect(screen.getByText('Preferences')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Usable with attention');
-    expect(screen.getByTestId('settings-overview-developer-source-alert')).toHaveTextContent(
-      'Developer source needs manual handling'
-    );
-    expect(screen.getByTestId('settings-overview-developer-source-alert')).toHaveTextContent(
-      'Automatic package updates will skip dirty checkouts.'
-    );
-    expect(screen.getByText('3 / 4 ready')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-overview-status')).toHaveTextContent('Ready');
+    expect(screen.queryByTestId('settings-overview-developer-source-alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Local Services')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resources & Connections')).not.toBeInTheDocument();
+    expect(screen.queryByText('Web / Remote Access')).not.toBeInTheDocument();
+    expect(screen.queryByText('Storage')).not.toBeInTheDocument();
+    expect(screen.queryByText('Preferences')).not.toBeInTheDocument();
     expect(screen.queryByText('About')).not.toBeInTheDocument();
     expect(screen.queryByText('Advanced')).not.toBeInTheDocument();
   });
@@ -136,17 +140,17 @@ describe('OverviewSettings', () => {
     render(<OverviewSettings withWrapper={false} />);
 
     fireEvent.click(screen.getByText('Change or Verify'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace');
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/workspace#permissions');
 
-    const remoteEntry = screen.getByText('Web / Remote Access').closest('.arco-card');
-    expect(remoteEntry).not.toBeNull();
-    fireEvent.click(within(remoteEntry as HTMLElement).getByText('Open'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access#web-remote');
+    const accessEntry = screen.getByText('Model Access').closest('button');
+    expect(accessEntry).not.toBeNull();
+    fireEvent.click(accessEntry as HTMLElement);
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
 
-    const storageEntry = screen.getByText('Storage').closest('.arco-card');
-    expect(storageEntry).not.toBeNull();
-    fireEvent.click(within(storageEntry as HTMLElement).getByText('Open'));
-    expect(mocks.navigate).toHaveBeenCalledWith('/settings/storage');
+    const maintenanceEntry = screen.getByText('Maintenance').closest('button');
+    expect(maintenanceEntry).not.toBeNull();
+    fireEvent.click(maintenanceEntry as HTMLElement);
+    expect(mocks.navigate).toHaveBeenCalledWith('/settings/environment');
 
     fireEvent.click(screen.getByText('Open Workspace'));
     expect(mocks.openFolder).toHaveBeenCalledWith({

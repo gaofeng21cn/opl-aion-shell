@@ -132,6 +132,9 @@ vi.mock('react-i18next', () => ({
         'settings.workspacePage.actions.openWorkspace': 'Open Workspace',
         'settings.workspacePage.actions.openLogs': 'Open logs',
         'settings.workspacePage.actions.changeWorkspace': 'Change workspace',
+        'settings.workspacePage.actions.title': 'Directory actions',
+        'settings.workspacePage.actions.readyDescription': 'Open or change the current directory.',
+        'settings.workspacePage.actions.attentionDescription': 'Choose a writable directory.',
         'settings.workspacePage.actions.recheck': 'Recheck',
         'settings.workspacePage.actions.repairPermissions': 'Repair permissions',
         'settings.workspacePage.actions.openMaintenance': 'Open Maintenance',
@@ -174,13 +177,14 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     expect(screen.getByText('Workspace')).toBeInTheDocument();
     expect(screen.getAllByText('Work root: /Users/example/OPL Workspace').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Folder exists')).toBeInTheDocument();
-    expect(screen.getByText('App can access it')).toBeInTheDocument();
     expect(screen.getByText('Writes are allowed')).toBeInTheDocument();
-    expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('Directory actions')).toBeInTheDocument();
+    expect(screen.getByText('Open or change the current directory.')).toBeInTheDocument();
+    expect(screen.getAllByText('Available').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Permission: Full Access').length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText('Recommended next step')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Ready to work.').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Folder exists')).not.toBeInTheDocument();
+    expect(screen.queryByText('App can access it')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ready to work.')).not.toBeInTheDocument();
     expect(screen.getByText('Technical paths')).toBeInTheDocument();
     expect(screen.getByText('Modules root: /Users/example/workspace/modules')).toBeInTheDocument();
     expect(screen.getByText('Logs: /Users/example/Library/Logs/One Person Lab')).toBeInTheDocument();

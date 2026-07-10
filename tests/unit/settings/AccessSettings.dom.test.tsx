@@ -313,21 +313,24 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.accessPage.title': 'Access',
         'settings.accessPage.description': 'Check model access, Codex CLI, and local browser access.',
+        'settings.accessPage.modelAccessSection.title': 'Model access and Codex',
+        'settings.accessPage.modelAccessSection.description':
+          'Confirm the active access source and default model before changing configuration.',
         'settings.accessPage.cards.codexCli.title': 'Codex CLI',
         'settings.accessPage.cards.codexCli.fallback': 'Codex CLI status is not available yet.',
         'settings.accessPage.cards.codexCli.version': `Installed: ${options?.version}`,
         'settings.accessPage.cards.codexCli.model': `Default model: ${options?.model}`,
         'settings.accessPage.cards.model.fallback': 'No default model was found in Codex config',
-        'settings.accessPage.cards.account.title': 'OPL Gateway',
+        'settings.accessPage.cards.account.title': 'Model access',
         'settings.accessPage.cards.account.configured': 'Account or API key is configured.',
         'settings.accessPage.cards.account.oplGatewayConfigured': 'OPL Gateway is connected.',
         'settings.accessPage.cards.account.existingCodexConfigured':
           'Using existing Codex model access; skipped OPL Gateway first-launch setup.',
         'settings.accessPage.cards.account.missing': 'Account or API key needs attention.',
-        'settings.accessPage.cards.account.source.oplGateway': 'Currently using OPL Gateway.',
-        'settings.accessPage.cards.account.source.codexLogin': 'From Codex/OpenAI login.',
-        'settings.accessPage.cards.account.source.customProvider': 'From an existing provider configuration.',
-        'settings.accessPage.cards.account.source.envApiKey': 'From an environment variable.',
+        'settings.accessPage.cards.account.source.oplGateway': 'OPL Gateway',
+        'settings.accessPage.cards.account.source.codexLogin': 'Codex / OpenAI login',
+        'settings.accessPage.cards.account.source.customProvider': 'Existing model service configuration',
+        'settings.accessPage.cards.account.source.envApiKey': 'Environment variable',
         'settings.accessPage.cards.modelAccess.title': 'Model Access Status',
         'settings.accessPage.cards.modelAccess.detail':
           'Checks whether the local assistant can reach the configured model service.',
@@ -341,10 +344,10 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.cards.permission.title': 'Permission Mode',
         'settings.accessPage.cards.permission.detail': 'Current command and file permissions used by the App executor.',
         'settings.accessPage.localServiceTechnicalDetail': `Technical detail: local service address ${options?.address}. Model & Account shows account/API key status.`,
-        'settings.accessPage.modelAccount.title': 'OPL Gateway',
+        'settings.accessPage.modelAccount.title': 'Model access',
         'settings.accessPage.modelAccount.description':
           'Model access is connected; open configuration only when you need to replace the access key.',
-        'settings.accessPage.modelAccount.showConfigButton': 'Configure access key',
+        'settings.accessPage.modelAccount.showConfigButton': 'Configure OPL Gateway',
         'settings.accessPage.modelAccount.apiKeyPlaceholder': 'Paste OPL Gateway access key',
         'settings.accessPage.modelAccount.apiKeyRequired': 'Enter an OPL Gateway access key.',
         'settings.accessPage.modelAccount.configureButton': 'Configure OPL Gateway',
@@ -409,6 +412,7 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.statusLabels.refs_only': 'Refs only',
         'settings.accessPage.actions.recheck': 'Recheck',
         'settings.accessPage.actions.fix': 'Fix issue',
+        'common.cancel': 'Cancel',
         'settings.oplEnvironmentPage.status.ready': 'ready',
         'agentMode.full-access': 'Full Access',
         'agentMode.full_auto': 'Full Auto',
@@ -449,6 +453,8 @@ describe('AccessSettingsContent', () => {
     const view = render(<AccessSettingsContent />);
 
     expect(view.getByText('Access')).toBeTruthy();
+    expect(view.getByText('Model access and Codex')).toBeTruthy();
+    expect(view.getByText('Model access')).toBeTruthy();
     expect(view.getAllByText('OPL Gateway').length).toBeGreaterThan(0);
     expect(view.getByText('Check model access, Codex CLI, and local browser access.')).toBeTruthy();
     expect(view.getByText('Codex CLI')).toBeTruthy();
@@ -472,14 +478,13 @@ describe('AccessSettingsContent', () => {
     expect(view.getByText('Account: admin, editable in remote access settings.')).toBeTruthy();
     expect(view.getByText('Password: view, copy, or reset it in remote access settings.')).toBeTruthy();
     expect(view.getByTestId('opl-settings-open-native-remote-settings')).toBeTruthy();
-    expect(view.getByText('WebUI')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Docker WebUI actions are not available yet.');
     expect(document.body.textContent).not.toContain('Install Docker WebUI');
     expect(document.body.textContent).toContain('OPL Workspace');
     expect(document.body.textContent).toContain('Other resource entry points');
     expect(document.body.textContent).toContain(
       'Server WebUI, OPL Workspace, cloud, and external environments are managed in Resources & Connections.'
     );
-    expect(view.getByText('Remote access')).toBeTruthy();
     expect(document.body.textContent).not.toContain('Status: action_available');
     expect(document.body.textContent).not.toContain('Runtime proxy: diagnose_with_doctor');
     expect(document.body.textContent).not.toContain('Recovery: available');

@@ -1270,16 +1270,93 @@
   "workspace": "Workspace",
   "localServices": "Local Services",
   "environment": "Local Environment",
-  "storage": "Storage",
+  "storage": "Data & Storage",
   "appearance": "Appearance",
   "advanced": "Advanced",
   "groupOverview": "Overview",
   "groupGeneral": "General",
   "groupRuntime": "Local Runtime",
   "groupAdvanced": "Advanced",
+  "searchEntries": {
+    "overview": {
+      "status": "Overall status",
+      "attention": "Needs attention",
+      "workspace": "Work directory summary",
+      "shortcuts": "Common destinations"
+    },
+    "access": {
+      "modelAccess": "Model access",
+      "codexCli": "Codex CLI",
+      "gateway": "OPL Gateway access key",
+      "browser": "Browser access"
+    },
+    "workspace": {
+      "root": "Work directory",
+      "permissions": "File permissions",
+      "technical": "Technical paths"
+    },
+    "capabilities": {
+      "directory": "Capability availability",
+      "home": "Home shortcuts",
+      "tools": "External tools and voice",
+      "assistants": "Custom assistants"
+    },
+    "resources": {
+      "webui": "Server WebUI",
+      "workspace": "Workspace",
+      "connections": "External connections"
+    },
+    "maintenance": {
+      "health": "Health summary",
+      "updates": "App updates",
+      "runtime": "Local environment",
+      "packages": "Capability packages",
+      "services": "Background services",
+      "advanced": "Advanced maintenance"
+    },
+    "storage": {
+      "installer": "Installer cache",
+      "conversations": "Conversation archives",
+      "runtime": "Runtime cache",
+      "logs": "Logs"
+    },
+    "preferences": {
+      "behavior": "App behavior",
+      "display": "Language and display",
+      "theme": "Themes",
+      "advanced": "Advanced preferences"
+    },
+    "advanced": {
+      "paths": "Resolved paths",
+      "profile": "Developer profile",
+      "flow": "OPL Flow context",
+      "developerTools": "Developer tools"
+    },
+    "about": {
+      "version": "Version and channel",
+      "updates": "Update status",
+      "feedback": "Feedback and support",
+      "technical": "Technical details"
+    }
+  },
   "overviewPage": {
     "title": "Overview",
     "description": "Confirm whether this computer is usable, what needs attention, and where to go next.",
+    "overall": {
+      "title": "This computer",
+      "readyDescription": "The work directory and primary local capabilities are available.",
+      "attentionDescription": "Some settings still need attention; only usage-blocking items are listed below."
+    },
+    "attention": {
+      "title": "Needs attention",
+      "description": "This section disappears when the blocking settings are resolved.",
+      "workspaceTitle": "Choose a work directory",
+      "capabilitiesTitle": "Check capability packages"
+    },
+    "shortcuts": {
+      "title": "Common settings",
+      "description": "Only the three most frequently used destinations are shown."
+    },
     "codexTitle": "Codex CLI",
     "codexDescription": "The default and only visible home agent backend.",
     "workspaceTitle": "Workspace Root",
@@ -1303,6 +1380,7 @@
       "open": "Open",
       "changeOrVerify": "Change or Verify",
       "openPermissions": "View Permission Status",
+      "permissionLabel": "File permissions",
       "permissionStatus": "Permission: {{mode}}",
       "status": {
         "ready": "Workspace selected",
@@ -1404,6 +1482,9 @@
       "empty": "No module paths are currently reported."
     },
     "actions": {
+      "title": "Directory actions",
+      "readyDescription": "Open the current directory or change it when project storage moves.",
+      "attentionDescription": "Choose a writable work directory before starting local tasks.",
       "openWorkspace": "Open Workspace",
       "openLogs": "Open logs",
       "changeWorkspace": "Change workspace",
@@ -1625,6 +1706,10 @@
   "accessPage": {
     "title": "Access",
     "description": "Check model access, Codex CLI, and local browser access.",
+    "modelAccessSection": {
+      "title": "Model access and Codex",
+      "description": "Confirm the active access source and default model first; open configuration only when you need to change them."
+    },
     "cards": {
       "model": {
         "title": "Default Model",
@@ -1637,16 +1722,16 @@
         "model": "Default model: {{model}}"
       },
       "account": {
-        "title": "OPL Gateway",
+        "title": "Model access",
         "configured": "Account or API key is configured.",
         "oplGatewayConfigured": "OPL Gateway is connected.",
         "existingCodexConfigured": "Using existing Codex model access; skipped OPL Gateway first-launch setup.",
         "missing": "Account or API key needs attention.",
         "source": {
-          "oplGateway": "Currently using OPL Gateway.",
-          "codexLogin": "From Codex/OpenAI login.",
-          "customProvider": "From an existing provider configuration.",
-          "envApiKey": "From an environment variable."
+          "oplGateway": "OPL Gateway",
+          "codexLogin": "Codex / OpenAI login",
+          "customProvider": "Existing model service configuration",
+          "envApiKey": "Environment variable"
         }
       },
       "modelAccess": {
@@ -1671,9 +1756,9 @@
     },
     "localServiceTechnicalDetail": "Technical detail: local service address {{address}}. Model & Account shows account/API key status.",
     "modelAccount": {
-      "title": "OPL Gateway",
+      "title": "Model access",
       "description": "Model access is connected; open configuration only when you need to replace the access key.",
-      "showConfigButton": "Configure access key",
+      "showConfigButton": "Configure OPL Gateway",
       "apiKeyPlaceholder": "Paste OPL Gateway access key",
       "apiKeyRequired": "Enter an OPL Gateway access key.",
       "configureButton": "Configure OPL Gateway",
@@ -2030,6 +2115,8 @@
     "localServiceTitle": "Receipts",
     "modulesReadyCount": "{{ready}} / {{total}} ready",
     "healthSummary": {
+      "title": "Current status",
+      "description": "Healthy items stay quiet; actions appear only when something needs attention.",
       "usable": "Can use",
       "attention": "Needs attention",
       "maintenance": "Background maintenance",
@@ -2059,8 +2146,9 @@
       "openStorage": "Review storage"
     },
     "maintenanceHub": {
-      "title": "Maintenance and updates",
-      "description": "Maintain the app by user actions: app updates, runtime environment, capability sync, and local background services.",
+      "title": "Maintenance items",
+      "description": "Review App updates, the local environment, capability packages, and background services by object.",
+      "lastChecked": "Last checked: {{value}}",
       "actions": {
         "repairRuntimeEnvironment": "Repair runtime environment",
         "syncCapabilityPacks": "Sync capability packs",
@@ -2075,7 +2163,7 @@
         "noAction": "No maintenance action has run in this window."
       },
       "makeUsable": {
-        "label": "Make OPL usable",
+        "label": "Check and repair",
         "help": "Runs the existing repair prep, checks managed updates, and applies only safe non-restart repair or sync actions.",
         "complete": "OPL usability check finished. Follow any restart or reload guidance shown below.",
         "confirmTitle": "Confirm OPL maintenance",

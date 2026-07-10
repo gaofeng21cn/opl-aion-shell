@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Button, Card, Tag, Typography } from '@arco-design/web-react';
+import { Button, Tag, Typography } from '@arco-design/web-react';
 
 export type RuntimeSettingsTone = 'green' | 'orange';
 
@@ -57,33 +57,43 @@ export function RuntimeReadinessGrid({
   t: RuntimeSettingsPanelsTranslate;
 }) {
   return (
-    <div className='grid grid-cols-1 md:grid-cols-4 gap-14px' data-testid='opl-runtime-readiness-grid'>
-      {cards.map((card) => (
-        <Card key={`runtime-card-${card.key}`} bordered className='rd-8px'>
-          <div className='flex flex-col gap-8px min-w-0'>
-            <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
-            <Tag color={card.tone}>{card.value}</Tag>
-            <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
-            <Typography.Text className='text-12px text-t-secondary break-words'>
-              {t('settings.oplEnvironmentPage.summary.nextAction', { action: card.nextAction })}
-            </Typography.Text>
+    <div className='opl-settings-section bg-transparent' data-testid='opl-runtime-readiness-grid'>
+      <div className='opl-settings-list'>
+        {cards.map((card) => (
+          <div key={`runtime-card-${card.key}`} className='opl-settings-row'>
+            <div className='opl-settings-row__main'>
+              <Typography.Text className='font-600 text-t-primary'>{card.title}</Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary break-words'>{card.detail}</Typography.Text>
+              <Typography.Text className='text-12px text-t-secondary break-words'>
+                {t('settings.oplEnvironmentPage.summary.nextAction', { action: card.nextAction })}
+              </Typography.Text>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <Tag color={card.tone}>{card.value}</Tag>
+            </div>
           </div>
-        </Card>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 export function RuntimeHealthSummary({ items }: { items: RuntimeHealthSummaryItem[] }) {
   return (
-    <div className='grid grid-cols-1 md:grid-cols-4 gap-12px' data-testid='opl-runtime-health-summary'>
+    <div className='opl-settings-list' data-testid='opl-runtime-health-summary'>
       {items.map((item) => (
-        <Card key={`runtime-health-${item.key}`} bordered className='rd-8px'>
-          <div className='flex flex-col gap-6px min-w-0'>
-            <Typography.Text className='text-12px text-t-secondary'>{item.label}</Typography.Text>
-            <Tag color={item.tone}>{item.value}</Tag>
+        <div key={`runtime-health-${item.key}`} className='opl-settings-row'>
+          <div className='opl-settings-row__main'>
+            <Typography.Text className='font-500 text-t-primary'>{item.label}</Typography.Text>
           </div>
-        </Card>
+          <div className='opl-settings-row__meta'>
+            <span
+              className={`opl-settings-status ${item.tone === 'green' ? 'opl-settings-status--ready' : 'opl-settings-status--attention'}`}
+            >
+              {item.value}
+            </span>
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -99,7 +109,7 @@ export function RuntimeMaintenanceHub({
   t: RuntimeSettingsPanelsTranslate;
 }) {
   return (
-    <Card bordered className='rd-8px' data-testid='opl-maintenance-hub'>
+    <div className='opl-settings-section' data-testid='opl-maintenance-hub'>
       <div className='flex flex-col gap-14px'>
         <div className='flex flex-col gap-12px md:flex-row md:items-start md:justify-between'>
           <div className='min-w-0'>
@@ -159,6 +169,6 @@ export function RuntimeMaintenanceHub({
           ))}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

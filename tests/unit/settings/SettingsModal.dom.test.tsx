@@ -199,6 +199,7 @@ describe('SettingsModal OPL App navigation', () => {
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'rollback' } });
 
     expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Advanced maintenance')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Storage')).not.toBeInTheDocument();
   });
@@ -213,9 +214,10 @@ describe('SettingsModal OPL App navigation', () => {
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'diagnostics' } });
 
     expect(screen.getByText('Advanced')).toBeInTheDocument();
+    expect(screen.getByText('Developer tools')).toBeInTheDocument();
     expect(screen.queryByText('Access')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Advanced'));
+    fireEvent.click(screen.getByText('Developer tools'));
 
     expect(screen.getByTestId('system-content')).toBeInTheDocument();
   });
