@@ -77,19 +77,31 @@ if [ ! -x "$BACKEND_BINARY" ]; then
   echo "❌ Backend binary missing or not executable: $BACKEND_BINARY"
   exit 1
 fi
-# aioncore has no --version flag. Read the pinned version from manifest.json
-# (which prepareAioncore writes at pack time) and use --help to confirm the
-# binary loads successfully on this platform's GLIBC / libstdc++ / etc.
-if [ -f "$BACKEND_DIR/manifest.json" ]; then
-  BACKEND_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$BACKEND_DIR/manifest.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-  echo "✓ Backend version (from manifest): ${BACKEND_VERSION:-unknown}"
-fi
-if ! "$BACKEND_BINARY" --help > /dev/null 2>&1; then
-  echo "❌ Backend binary failed to exec (--help returned non-zero)"
-  "$BACKEND_BINARY" --help 2>&1 | head -5
+if ! BACKEND_VERSION_OUTPUT=$("$BACKEND_BINARY" --version 2>&1); then
+  echo "❌ Backend binary failed to report its version"
+  echo "$BACKEND_VERSION_OUTPUT"
   exit 1
 fi
-echo "✓ Backend binary loads on this platform"
+REPORTED_BACKEND_VERSION=${BACKEND_VERSION_OUTPUT#aioncore }
+if [ -f "$BACKEND_DIR/manifest.json" ]; then
+  BACKEND_VERSION=$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$BACKEND_DIR/manifest.json" | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
+  EXPECTED_BACKEND_VERSION=${BACKEND_VERSION#v}
+  if [ "$REPORTED_BACKEND_VERSION" != "$EXPECTED_BACKEND_VERSION" ]; then
+    echo "❌ Backend version mismatch: expected $EXPECTED_BACKEND_VERSION, reported $REPORTED_BACKEND_VERSION"
+    exit 1
+  fi
+fi
+echo "✓ Backend version: $REPORTED_BACKEND_VERSION"
+if ! BACKEND_HELP=$("$BACKEND_BINARY" --help 2>&1); then
+  echo "❌ Backend binary failed to exec (--help returned non-zero)"
+  echo "$BACKEND_HELP" | head -5
+  exit 1
+fi
+if ! echo "$BACKEND_HELP" | grep -q -- '--recover-corrupted-database'; then
+  echo "❌ Backend binary is missing --recover-corrupted-database"
+  exit 1
+fi
+echo "✓ Backend binary exposes --recover-corrupted-database"
 
 # 6. HTTP-level smoke: start web-cli, curl the root, check for SPA shell
 echo ""

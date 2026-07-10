@@ -19,6 +19,44 @@ afterEach(() => {
   }
 });
 
+describe('prepare-aioncore compatibility gate', () => {
+  it('accepts the pinned version only when the recovery flag is available', () => {
+    const calls: string[][] = [];
+
+    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+      execFileSync(_command: string, args: string[]) {
+        calls.push(args);
+        return args[0] === '--version'
+          ? 'aioncore 0.1.44\n'
+          : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
+      },
+    });
+
+    expect(result.version).toBe('0.1.44');
+    expect(calls).toEqual([['--version'], ['--help']]);
+  });
+
+  it('rejects a binary whose reported version does not match the package pin', () => {
+    expect(() =>
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+        execFileSync() {
+          return 'aioncore 0.1.28\n';
+        },
+      })
+    ).toThrow(/expected 0\.1\.44, reported 0\.1\.28/);
+  });
+
+  it('rejects a binary that does not expose database recovery', () => {
+    expect(() =>
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.44', {
+        execFileSync(_command: string, args: string[]) {
+          return args[0] === '--version' ? 'aioncore 0.1.44\n' : 'Options:\n  -V, --version\n';
+        },
+      })
+    ).toThrow(/missing required option --recover-corrupted-database/);
+  });
+});
+
 describe('prepare-aioncore download retry', () => {
   it('retries transient curl and wget failures, removing partial downloads before retry', () => {
     const dir = makeTempDir();
@@ -128,7 +166,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
       path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore')
     );
 
-    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.28');
+    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.44');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
   });
 
@@ -136,7 +174,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.28', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.44', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
 
     fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
@@ -196,7 +234,12 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.28',
+        version: 'v0.1.44',
+        compatibilityExecFileSync(_command: string, args: string[]) {
+          return args[0] === '--version'
+            ? 'aioncore 0.1.44\n'
+            : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
+        },
       });
 
       expect(result.sourceType).toBe('cache');

@@ -26,6 +26,7 @@ const DEFAULT_DOWNLOAD_RETRY_DELAY_MS = 5000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_TIMEOUT_MS = 600000;
 const DEFAULT_MANAGED_RESOURCE_NPM_FETCH_RETRIES = 5;
 const MAX_DOWNLOAD_RETRY_DELAY_MS = 30000;
+const REQUIRED_AIONCORE_OPTIONS = ['--recover-corrupted-database'];
 const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'include',
   'share',
@@ -155,12 +156,28 @@ function isPreparedRuntimeValid(resourcesRoot, electronPlatformName, targetArch)
   return result.missing.length === 0;
 }
 
-function restorePreparedRuntimeFromCache({ cacheRuntimeDir, targetDir, resourcesRoot, platform, arch }) {
+function restorePreparedRuntimeFromCache({
+  cacheRuntimeDir,
+  targetDir,
+  resourcesRoot,
+  platform,
+  arch,
+  expectedVersion,
+  compatibilityExecFileSync,
+}) {
   if (!fs.existsSync(cacheRuntimeDir)) return false;
   if (!isPreparedRuntimeValid(resourcesRoot, platform, arch)) return false;
 
   removeDirectorySafe(targetDir);
   copyDirectorySafe(cacheRuntimeDir, targetDir);
+  try {
+    assertAioncoreCompatibility(path.join(targetDir, getBinaryName(platform)), expectedVersion, {
+      execFileSync: compatibilityExecFileSync,
+    });
+  } catch (error) {
+    removeDirectorySafe(targetDir);
+    throw error;
+  }
   return true;
 }
 
@@ -179,6 +196,59 @@ function savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir }) {
 
 function getBinaryName(platform) {
   return platform === 'win32' ? 'aioncore.exe' : 'aioncore';
+}
+
+function normalizeAioncoreVersion(version) {
+  return String(version || '')
+    .trim()
+    .replace(/^v/, '');
+}
+
+function assertAioncoreCompatibility(binaryPath, expectedVersion, options = {}) {
+  const execFile = options.execFileSync || execFileSync;
+  let versionOutput;
+  let helpOutput;
+
+  try {
+    versionOutput = String(execFile(binaryPath, ['--version'], { encoding: 'utf-8', timeout: 15000 })).trim();
+  } catch (error) {
+    throw new Error(
+      `AionCore compatibility check failed: --version probe failed for ${binaryPath}: ${error?.message || error}`,
+      { cause: error }
+    );
+  }
+
+  const versionMatch = /^aioncore\s+(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(versionOutput);
+  if (!versionMatch) {
+    throw new Error(
+      `AionCore compatibility check failed: unrecognized --version output: ${versionOutput || '<empty>'}`
+    );
+  }
+
+  const reportedVersion = versionMatch[1];
+  const normalizedExpectedVersion = normalizeAioncoreVersion(expectedVersion);
+  if (normalizedExpectedVersion && reportedVersion !== normalizedExpectedVersion) {
+    throw new Error(
+      `AionCore compatibility check failed: expected ${normalizedExpectedVersion}, reported ${reportedVersion}`
+    );
+  }
+
+  try {
+    helpOutput = String(execFile(binaryPath, ['--help'], { encoding: 'utf-8', timeout: 15000 }));
+  } catch (error) {
+    throw new Error(
+      `AionCore compatibility check failed: --help probe failed for ${binaryPath}: ${error?.message || error}`,
+      { cause: error }
+    );
+  }
+
+  for (const option of REQUIRED_AIONCORE_OPTIONS) {
+    if (!helpOutput.includes(option)) {
+      throw new Error(`AionCore compatibility check failed: missing required option ${option}`);
+    }
+  }
+
+  return { version: reportedVersion, requiredOptions: [...REQUIRED_AIONCORE_OPTIONS] };
 }
 
 function parsePositiveInteger(value, fallback) {
@@ -729,7 +799,7 @@ function downloadAndExtract(platform, arch, tag) {
  * @returns {{ prepared: true; dir: string; sourceType: string }}
  */
 function prepareAioncore(options) {
-  const { projectRoot, platform, arch, version = 'latest' } = options;
+  const { projectRoot, platform, arch, version = 'latest', compatibilityExecFileSync } = options;
   const runtimeKey = `${platform}-${arch}`;
   const actionsRunId = (process.env.AIONUI_BACKEND_RUN_ID || '').trim();
 
@@ -765,6 +835,8 @@ function prepareAioncore(options) {
       resourcesRoot: cachePaths.resourcesRoot,
       platform,
       arch,
+      expectedVersion: tag,
+      compatibilityExecFileSync,
     })
   ) {
     console.log(`  Using cached bundled aioncore: ${path.relative(process.cwd(), cachePaths.runtimeDir)}`);
@@ -811,11 +883,18 @@ function prepareAioncore(options) {
   if (sourcePath) {
     copyFileSafe(sourcePath, targetBinaryPath);
     ensureExecutableMode(targetBinaryPath);
+    let compatibility;
+    try {
+      compatibility = assertAioncoreCompatibility(targetBinaryPath, tag, {
+        execFileSync: compatibilityExecFileSync,
+      });
+    } catch (error) {
+      removeDirectorySafe(targetDir);
+      if (tempDir) removeDirectorySafe(tempDir);
+      throw error;
+    }
     const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir);
 
-    // The release tag is the authoritative version — the aioncore
-    // binary does not expose a --version flag (it has --app-version which
-    // takes a value, not a self-report).
     const manifest = {
       platform,
       arch,
@@ -823,6 +902,10 @@ function prepareAioncore(options) {
       generatedAt: new Date().toISOString(),
       sourceType,
       source: sourceDetail,
+      compatibility: {
+        reportedVersion: compatibility.version,
+        requiredOptions: compatibility.requiredOptions,
+      },
       files: [binaryName, 'managed-resources/'],
     };
 
@@ -846,6 +929,7 @@ module.exports = {
   normalizeInternalSymlinks,
   prepareAioncore,
   __test__: {
+    assertAioncoreCompatibility,
     defaultAioncoreCacheRoot,
     downloadFile,
     getAioncoreCachePaths,

@@ -11,6 +11,7 @@ import type { Socket } from 'node:net';
 
 // ---- Module-level mocks ----
 vi.mock('node:child_process', () => ({
+  execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
 
@@ -27,10 +28,11 @@ vi.mock('./agent-process-registry.js', () => ({
   cleanupRegisteredAgentProcesses: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
+import { assertAioncoreRecoveryCompatibility } from './aioncoreCompatibility.js';
 import { buildSpawnArgs, buildSpawnEnv, findAvailablePort, BackendLifecycleManager } from './backend-launcher.js';
 import type { AppMetadata } from './types.js';
 
@@ -173,6 +175,35 @@ describe('buildSpawnArgs', () => {
   });
 });
 
+describe('assertAioncoreRecoveryCompatibility', () => {
+  it('accepts a recovery-capable AionCore at the minimum supported version', () => {
+    const calls: string[][] = [];
+    const result = assertAioncoreRecoveryCompatibility('/abs/path/aioncore', (_binaryPath, args) => {
+      calls.push([...args]);
+      return args[0] === '--version'
+        ? 'aioncore 0.1.44\n'
+        : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
+    });
+
+    expect(result.version).toBe('0.1.44');
+    expect(calls).toEqual([['--version'], ['--help']]);
+  });
+
+  it('rejects an older AionCore before database recovery', () => {
+    expect(() => assertAioncoreRecoveryCompatibility('/abs/path/aioncore', () => 'aioncore 0.1.28\n')).toThrow(
+      /requires AionCore >= 0\.1\.44, reported 0\.1\.28/
+    );
+  });
+
+  it('rejects a binary that does not advertise the recovery option', () => {
+    expect(() =>
+      assertAioncoreRecoveryCompatibility('/abs/path/aioncore', (_binaryPath, args) =>
+        args[0] === '--version' ? 'aioncore 0.1.44\n' : 'Options:\n  -V, --version\n'
+      )
+    ).toThrow(/missing required option --recover-corrupted-database/);
+  });
+});
+
 describe('buildSpawnEnv', () => {
   it('merges process.env with AIONUI_* dir vars', () => {
     const env = buildSpawnEnv({
@@ -275,6 +306,19 @@ describe('findAvailablePort', () => {
 });
 
 describe('BackendLifecycleManager.start (success path)', () => {
+  it('fails closed before spawn when database recovery uses an old AionCore', async () => {
+    vi.mocked(execFileSync).mockReturnValue('aioncore 0.1.28\n');
+    const mgr = new BackendLifecycleManager(APP_META_PACKAGED, () => '/abs/path/aioncore');
+
+    await expect(
+      mgr.start('/db/path', undefined, undefined, undefined, undefined, { recoverCorruptedDatabase: true })
+    ).rejects.toMatchObject({
+      details: { stage: 'compatibility', binaryPath: '/abs/path/aioncore' },
+    });
+
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it('lets aioncore choose the backend port and waits for the reported listening event', async () => {
     vi.mocked(createServer).mockImplementation(() => {
       throw new Error('launcher must not pre-bind backend ports');

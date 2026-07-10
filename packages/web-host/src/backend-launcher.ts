@@ -12,11 +12,13 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { connect, createServer, type Socket } from 'node:net';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
+import { assertAioncoreRecoveryCompatibility } from './aioncoreCompatibility.js';
 import type { AppMetadata, BackendBinaryResolver } from './types.js';
 
 type BackendStatus = 'stopped' | 'starting' | 'running' | 'error';
 type BackendStartupStage =
   | 'resolve_binary'
+  | 'compatibility'
   | 'find_port'
   | 'spawn'
   | 'spawn_error'
@@ -500,6 +502,27 @@ export class BackendLifecycleManager {
         },
         error
       );
+    }
+    if (launchFlags.recoverCorruptedDatabase === true) {
+      try {
+        assertAioncoreRecoveryCompatibility(binaryPath);
+      } catch (error) {
+        this._status = 'error';
+        throw new BackendStartupError(
+          'aioncore recovery compatibility check failed',
+          {
+            stage: 'compatibility',
+            appVersion,
+            isPackaged: this.appMeta.isPackaged,
+            binaryPath,
+            dataDir: dbPath,
+            logDir,
+            workDir: dirs?.workDir,
+            causeMessage: getErrorMessage(error),
+          },
+          error
+        );
+      }
     }
     this._port = preferredPort ?? 0;
     this._status = 'starting';
