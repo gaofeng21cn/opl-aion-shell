@@ -320,12 +320,14 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
     activeCapabilityLabel,
     fileAccessDisabled,
     workspaceAccessDisabled,
+    fileContextEnabled,
   }: {
     placeholder: string;
     actionRow: React.ReactNode;
     activeCapabilityLabel?: string;
     fileAccessDisabled?: boolean;
     workspaceAccessDisabled?: boolean;
+    fileContextEnabled?: boolean;
   }) => (
     <div data-testid='guid-input-card'>
       <div data-testid='guid-placeholder'>{placeholder}</div>
@@ -333,6 +335,7 @@ vi.mock('@/renderer/pages/guid/components/GuidInputCard', () => ({
       {actionRow}
       {fileAccessDisabled ? <div data-testid='opl-guid-file-access-disabled' /> : null}
       {workspaceAccessDisabled ? <div data-testid='opl-guid-workspace-access-disabled' /> : null}
+      {fileContextEnabled === false ? <div data-testid='opl-guid-projectless-file-context-disabled' /> : null}
     </div>
   ),
 }));
@@ -580,6 +583,7 @@ describe('GuidPage selected purpose assistant surface', () => {
 
     expect(screen.getByTestId('opl-guid-file-access-disabled')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-guid-workspace-access-disabled')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-guid-projectless-file-context-disabled')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('guid-send-btn'));
     expect(mocks.sendMessageHandler).toHaveBeenCalledOnce();
   });

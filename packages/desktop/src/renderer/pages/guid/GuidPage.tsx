@@ -269,15 +269,18 @@ const GuidPage: React.FC = () => {
     [allSkills]
   );
   const guidBuiltinSlashCommands = useMemo<SlashCommandItem[]>(
-    () => [
-      {
-        name: 'open',
-        description: t('conversation.workspace.addFile', { defaultValue: 'Add File' }),
-        kind: 'builtin',
-        source: 'builtin',
-      },
-    ],
-    [t]
+    () =>
+      fileAccessBlocked || !guidInput.dir
+        ? []
+        : [
+            {
+              name: 'open',
+              description: t('conversation.workspace.addFile', { defaultValue: 'Add File' }),
+              kind: 'builtin',
+              source: 'builtin',
+            },
+          ],
+    [fileAccessBlocked, guidInput.dir, t]
   );
   const guidSlashCommands = useMemo(
     () =>
@@ -804,10 +807,14 @@ const GuidPage: React.FC = () => {
             slashCommandMenu={slashCommandMenuNode}
             workspaceDir={guidInput.dir}
             onSelectWorkspace={(dir) => guidInput.setDir(dir)}
-            onClearWorkspace={() => guidInput.setDir('')}
+            onClearWorkspace={() => {
+              guidInput.setDir('');
+              guidInput.setFiles([]);
+            }}
             workspaceAccessDisabled={fileAccessBlocked}
             workspaceAccessDisabledReason={t('common.firstRunRecovery.workspaceAccessUnavailable')}
             activeCapabilityLabel={activeCapabilityLabel}
+            fileContextEnabled={!fileAccessBlocked && Boolean(guidInput.dir)}
           />
 
           {setupNoticeKind ? <GuidSetupNotice kind={setupNoticeKind} onOpenSetup={openFirstRunSetup} /> : null}

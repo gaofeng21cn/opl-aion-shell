@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import GuidInputCard from '@/renderer/pages/guid/components/GuidInputCard';
 
@@ -48,13 +48,20 @@ vi.mock('@/renderer/pages/guid/components/GuidWorkspaceFootnote', () => ({
   ),
 }));
 
-function createCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
+function createCard(
+  options: {
+    slashCommandMenu?: React.ReactNode;
+    fileContextEnabled?: boolean;
+    onPaste?: React.ClipboardEventHandler;
+    dragHandlers?: React.HTMLAttributes<HTMLDivElement>;
+  } = {}
+) {
   return (
     <GuidInputCard
       input=''
       onInputChange={vi.fn()}
       onKeyDown={vi.fn()}
-      onPaste={vi.fn()}
+      onPaste={options.onPaste ?? vi.fn()}
       onFocus={vi.fn()}
       onBlur={vi.fn()}
       placeholder='Describe task'
@@ -63,7 +70,7 @@ function createCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
       activeBorderColor='#111'
       inactiveBorderColor='#ddd'
       activeShadow='none'
-      dragHandlers={{}}
+      dragHandlers={options.dragHandlers ?? {}}
       mentionOpen={false}
       mentionDropdown={null}
       files={[]}
@@ -74,11 +81,12 @@ function createCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
       onSelectWorkspace={vi.fn()}
       onClearWorkspace={vi.fn()}
       activeCapabilityLabel='Research'
+      fileContextEnabled={options.fileContextEnabled}
     />
   );
 }
 
-function renderCard(options: { slashCommandMenu?: React.ReactNode } = {}) {
+function renderCard(options: Parameters<typeof createCard>[0] = {}) {
   return render(createCard(options));
 }
 
@@ -111,5 +119,18 @@ describe('GuidInputCard compact home composer', () => {
     renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
 
     expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
+  });
+
+  it('keeps projectless text input available without accepting file paste or drop', () => {
+    const onPaste = vi.fn();
+    const onDrop = vi.fn();
+    renderCard({ fileContextEnabled: false, onPaste, dragHandlers: { onDrop } });
+
+    fireEvent.paste(screen.getByTestId('guid-input'));
+    fireEvent.drop(screen.getByTestId('guid-input-card-shell'));
+
+    expect(onPaste).not.toHaveBeenCalled();
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(screen.getByTestId('guid-input')).toBeEnabled();
   });
 });

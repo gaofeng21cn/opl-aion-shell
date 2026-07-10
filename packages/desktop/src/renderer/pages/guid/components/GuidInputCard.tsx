@@ -53,6 +53,7 @@ type GuidInputCardProps = {
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
   activeCapabilityLabel?: string;
+  fileContextEnabled?: boolean;
 };
 
 const GuidInputCard: React.FC<GuidInputCardProps> = ({
@@ -81,6 +82,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   workspaceAccessDisabled = false,
   workspaceAccessDisabledReason,
   activeCapabilityLabel,
+  fileContextEnabled = true,
 }) => {
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
@@ -92,7 +94,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
     onKeyDown(e);
   };
 
-  const borderColor = isFileDragging
+  const fileDraggingActive = fileContextEnabled && isFileDragging;
+  const borderColor = fileDraggingActive
     ? 'rgb(var(--primary-3))'
     : isInputActive
       ? activeBorderColor
@@ -100,14 +103,15 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
 
   return (
     <div
-      className={`${styles.guidInputCardWrap} guid-input-card-shell relative rd-24px flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${isFileDragging ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
+      className={`${styles.guidInputCardWrap} guid-input-card-shell relative rd-24px flex flex-col ${mentionOpen || slashCommandMenu ? 'overflow-visible' : 'overflow-hidden'} transition-all duration-200 ${fileDraggingActive ? 'b b-solid border-dashed guid-input-card-shell--dragging' : ''}`}
+      data-testid='guid-input-card-shell'
       style={{
         zIndex: 1,
         transition: 'box-shadow 0.25s ease',
         width: isMobile ? 'calc(100% + 28px)' : undefined,
         marginLeft: isMobile ? -14 : undefined,
         marginRight: isMobile ? -14 : undefined,
-        ...(isFileDragging
+        ...(fileDraggingActive
           ? {
               backgroundColor: 'var(--color-primary-light-1)',
               borderColor: 'rgb(var(--primary-3))',
@@ -115,14 +119,14 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
             }
           : {}),
       }}
-      {...dragHandlers}
+      {...(fileContextEnabled ? dragHandlers : {})}
     >
       <div
         className={`${styles.guidInputInner} relative p-12px flex flex-col bg-dialog-fill-0`}
         style={{
           transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
-          borderColor: isFileDragging ? 'rgb(var(--primary-3))' : borderColor,
-          boxShadow: isInputActive && !isFileDragging ? activeShadow : 'none',
+          borderColor: fileDraggingActive ? 'rgb(var(--primary-3))' : borderColor,
+          boxShadow: isInputActive && !fileDraggingActive ? activeShadow : 'none',
         }}
       >
         <Input.TextArea
@@ -132,7 +136,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           className={`text-14px focus:b-none rounded-xl !bg-transparent !b-none !resize-none !py-0 !pr-0 !pl-7px ${styles.lightPlaceholder}`}
           value={input}
           onChange={onInputChange}
-          onPaste={onPaste}
+          onPaste={fileContextEnabled ? onPaste : undefined}
           onFocus={onFocus}
           onBlur={onBlur}
           {...compositionHandlers}
