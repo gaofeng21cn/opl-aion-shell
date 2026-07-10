@@ -58,7 +58,9 @@ Main-session accepted only scoped capability adaptations:
 | Runtime / cron / ACP request dedupe         | `f24d3fa5b`                            | accepted/adapted         | ACP config/model option request dedupe, cron run title formatting, scheduled task history batch delete/refetch; no Team default or runtime-truth expansion                                  |
 | `/guid` slash commands and assistant polish | `ea4b5a107`                            | accepted with OPL filter | `/guid` slash menu uses OPL-allowed skills and builtin `/open`; no Official Assistants, Team default, or shell-local purpose authority                                                      |
 | Settings / i18n refinements                 | `bb35cff74`                            | accepted/adapted         | Settings tab navigate context, image-model config link, WeCom callback i18n, known i18n key fixes, language UI generated from existing Chinese/English config only                          |
-| Installer lane                              | none                                   | no-op/defer              | Worktree had no diff and no commits beyond `main`; future installer/version/aioncore changes remain L4 and require installer or equivalent release-path evidence                            |
+| Contract, Cron, VM, and startup remediation | `2ac1bc4c2`, `637bfa844`, `0b9c8b122`  | accepted/adapted         | Capability projection type safety, retryable partial Cron deletion, recursive VM evidence collection, and fail-closed backend startup directory handling                                    |
+| Feedback privacy and delivery               | `5f786a6db`                            | accepted/adapted         | Diagnostics remain off by default, explicit opt-in is required, selected logs are redacted, and success requires renderer/main-process transport flush                                      |
+| AionCore build and recovery                 | `5d554c0ae`, `a5811dd39`               | accepted/adapted         | AionCore is pinned to `v0.1.44`, database recovery is required at build and startup, and cold managed-resource preparation retries as a bounded fail-closed operation                       |
 | Upstream non-zh/en locale payload           | none                                   | rejected for this intake | `es-ES` and `fa-IR` were not absorbed because the OPL user surface currently supports Chinese and English only                                                                              |
 | Docs/boundary record                        | `3ea74dc47` plus this follow-up update | accepted                 | Intake record and shell boundary updated; docs are evidence notes, not App-ready or release-ready proof                                                                                     |
 
@@ -75,6 +77,19 @@ The scoped privacy follow-up keeps broader upstream route/core diagnostics redir
 - The user-facing privacy and failure copy remains limited to the existing `zh-CN` and `en-US` locale surface.
 
 This follow-up does not absorb broader core diagnostics, route context, settings navigation, App contracts, or release/readiness authority.
+
+## AionCore Managed Resource Follow-Up 2026-07-10
+
+The AionCore compatibility lane remains an OPL shell adapter change; it does not modify the upstream AionCore source:
+
+- Packaging and restored-cache paths both require AionCore `v0.1.44` and `--recover-corrupted-database` before a bundle is accepted.
+- AionCore `v0.1.44` creates a fresh per-tool npm cache below each ACP staging directory and removes that staging directory after the attempt. A cold npm fetch can therefore finish without the required optional platform package, after which AionCore correctly rejects the incomplete artifact.
+- Commit `a5811dd39` retries the whole `prepare-managed-resources` command up to three times. Each retry gets a clean bundle output while retaining `.prepare-data`, so the managed Node runtime is reused. Persistent failure removes both the partial bundle and `.prepare-data` and returns the last cause.
+- Operators can override the bounded retry count and delay with `AIONUI_AIONCORE_MANAGED_RESOURCE_ATTEMPTS` and `AIONUI_AIONCORE_MANAGED_RESOURCE_RETRY_DELAY_MS`.
+
+A real cold-cache run reproduced two different incomplete optional-package outcomes: attempt 1 missed the Claude platform binary, attempt 2 missed the Codex platform binary, and attempt 3 produced both managed ACP tools successfully. Artifact readback reported AionCore `0.1.44`, SHA-256 `1b14a6199f8bd296d1761ddc52d23c401818dd92e8653802dcce9d276bfb8469`, the required recovery option, and `missing: []` from `verifyBundledAioncoreResources`.
+
+This evidence closes the shell build-preparation defect. App packaging, installation, launch, and release authority still require the App-side validation and installed-artifact evidence recorded outside this shell intake document.
 
 ## Evidence Commands Run For This Draft
 
@@ -99,9 +114,11 @@ git diff --check
 bunx vitest run tests/unit/bootstrap/backendStartupFailure.test.ts tests/unit/providers/OpenAIRotatingClient.test.ts tests/unit/renderer/hooks/useThrottle.dom.test.ts tests/unit/renderer/markdownImageAlt.dom.test.tsx tests/unit/feedback/feedbackBridge.test.ts tests/unit/process/configureConsoleLog.test.ts tests/unit/sentry.test.ts tests/unit/bootstrap/configureConsoleLog.test.ts tests/unit/cron/cronUtils.test.ts tests/unit/chat/guidSlashCommands.test.ts tests/unit/renderer/useSlashCommandController.test.ts tests/unit/settings/settingsNav.test.ts --reporter dot
 env VITEST_INCLUDE_DOM=1 bunx vitest run tests/unit/renderer/useAcpMessage.dom.test.ts tests/unit/renderer/useAcpModelInfo.dom.test.ts tests/unit/cron/useCronJobs.dom.test.ts tests/unit/cron/TaskDetailPage.dom.test.tsx tests/unit/guid/AssistantSelectionArea.dom.test.tsx tests/unit/guid/GuidInputCard.dom.test.tsx tests/unit/settings/SettingsModal.dom.test.tsx tests/unit/settings/SystemModalContent.dom.test.tsx tests/unit/settings/UpdateModal.dom.test.tsx --project dom --reporter dot
 cd packages/web-host && bunx vitest run src/backend-launcher.test.ts --reporter dot
+bunx vitest run tests/unit/opl-runtime/prepareAioncoreDownload.test.ts --reporter dot
+env AIONUI_AIONCORE_CACHE_DIR="$(mktemp -d /tmp/opl-aioncore-cold.XXXXXX)" node scripts/prepareAioncore.js
 ```
 
-Results on `main`: i18n generation/check passed with existing warning-only unknown literal keys; non-DOM focused suite passed `10` files / `51` tests; DOM focused suite passed `9` files / `75` tests with existing `act(...)`, localStorage, and `NaN` style warnings; web-host backend launcher suite passed `1` file / `30` tests with the existing `MaxListenersExceededWarning`.
+Results across the accepted mainline and the AionCore follow-up lane: i18n generation/check passed with existing warning-only unknown literal keys; non-DOM focused suite passed `10` files / `51` tests; DOM focused suite passed `9` files / `75` tests with existing `act(...)`, localStorage, and `NaN` style warnings; web-host backend launcher suite passed `1` file / `30` tests with the existing `MaxListenersExceededWarning`; AionCore preparation passed `1` file / `16` tests and the real cold-cache run completed on attempt `3/3` with artifact verifier `missing: []`.
 
 ## Stop Condition
 
