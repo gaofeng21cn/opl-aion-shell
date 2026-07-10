@@ -457,10 +457,10 @@ type AppProductProfile = {
       codex_default_model: string;
       codex_default_reasoning_effort: OplCodexReasoningEffort | null;
       codex_default_permission_mode: 'full-access';
-      permission_mode_selector_visible: false;
+      permission_mode_selector_visible: true;
       conversation_backend_selector_visible: false;
       conversation_model_selector_visible: boolean;
-      conversation_permission_mode_selector_visible: false;
+      conversation_permission_mode_selector_visible: true;
       codex_home_model_status_label: string;
       codex_home_model_status_label_en: string;
       codex_precise_model_display_policy: 'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus';
@@ -1826,10 +1826,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     guiHome.codex_model_list_visible !== true ||
     guiHome.codex_model_policy !== 'codex_cli_latest_strongest_model_selector_visible' ||
     guiHome.codex_model_auto_option_visible !== true ||
-    guiHome.permission_mode_selector_visible !== false ||
+    guiHome.permission_mode_selector_visible !== true ||
     guiHome.conversation_backend_selector_visible !== false ||
     guiHome.conversation_model_selector_visible !== true ||
-    guiHome.conversation_permission_mode_selector_visible !== false ||
+    guiHome.conversation_permission_mode_selector_visible !== true ||
     guiHome.codex_precise_model_display_policy !==
       'friendly_model_primary_reasoning_primary_model_and_intelligence_secondary_menus'
   ) {
@@ -2044,10 +2044,10 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
         codex_default_model: model,
         codex_default_reasoning_effort: codexReasoningEffort,
         codex_default_permission_mode: 'full-access',
-        permission_mode_selector_visible: false,
+        permission_mode_selector_visible: true,
         conversation_backend_selector_visible: false,
         conversation_model_selector_visible: true,
-        conversation_permission_mode_selector_visible: false,
+        conversation_permission_mode_selector_visible: true,
         codex_home_model_status_label: homeModelStatusLabel,
         codex_home_model_status_label_en: homeModelStatusLabelEn,
         codex_precise_model_display_policy:

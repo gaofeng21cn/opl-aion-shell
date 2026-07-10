@@ -108,10 +108,10 @@ describe('OPL generated product profile', () => {
     expect(getOplCodexDefaultPermissionMode()).toBe('full-access');
     expect(isOplCodexCliFixedExecutor()).toBe(true);
     expect(shouldShowOplHomeExecutorSelector()).toBe(false);
-    expect(shouldShowOplHomePermissionModeSelector()).toBe(false);
+    expect(shouldShowOplHomePermissionModeSelector()).toBe(true);
     expect(shouldShowOplConversationBackendSelector()).toBe(false);
     expect(shouldShowOplConversationModelSelector()).toBe(true);
-    expect(shouldShowOplConversationPermissionModeSelector()).toBe(false);
+    expect(shouldShowOplConversationPermissionModeSelector()).toBe(true);
     expect(shouldShowOplCodexModelSelector()).toBe(true);
     expect(shouldShowOplCodexModelList()).toBe(true);
     expect(shouldShowOplCodexModelAutoOption()).toBe(true);
