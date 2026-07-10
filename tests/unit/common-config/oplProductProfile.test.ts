@@ -66,10 +66,10 @@ describe('OPL generated product profile', () => {
 
   it('exposes the App-generated Codex default model profile', () => {
     expect(getOplDefaultCodexModel()).toBe('gpt-5.6-sol');
-    expect(getOplDefaultCodexReasoningEffort()).toBe('ultra');
+    expect(getOplDefaultCodexReasoningEffort()).toBe('max');
     expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-5.6-sol');
-    expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('ultra');
-    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.6-sol/ultra');
+    expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('max');
+    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.6-sol/max');
     expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('5.6 Sol');
     expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.6-sol');
     expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('5.6 Sol');
@@ -149,7 +149,7 @@ describe('OPL generated product profile', () => {
       intelligence_enhancement_default_enabled: true,
       auto_option: {
         label_zh: '自动（推荐）',
-        description_zh: '当前 5.6 Sol · 推理极高 · 跟随最新最强',
+        description_zh: '当前 5.6 Sol · 推理最大 · 跟随最新最强',
       },
       visible_models: [
         { id: 'gpt-5.6-sol', label_zh: '5.6 Sol' },
@@ -166,6 +166,7 @@ describe('OPL generated product profile', () => {
       'medium',
       'high',
       'xhigh',
+      'max',
       'ultra',
     ]);
     expect(getOplRetiredCodexModels()).toEqual([

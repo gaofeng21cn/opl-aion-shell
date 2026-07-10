@@ -203,6 +203,7 @@ vi.mock('@/renderer/hooks/agent/useAcpModelInfo', () => ({
       options: [
         { value: 'high', label: 'High' },
         { value: 'xhigh', label: 'Extra high' },
+        { value: 'max', label: 'Max' },
         { value: 'ultra', label: 'Ultra' },
       ],
     },
@@ -382,7 +383,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
 
     expect(acpModelInfoMocks.selectAutoModel).toHaveBeenCalledTimes(1);
     expect(acpModelInfoMocks.selectModel).not.toHaveBeenCalled();
-    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'ultra'));
+    await waitFor(() => expect(acpModelInfoMocks.setConfigOption).toHaveBeenCalledWith('reasoning_effort', 'max'));
   });
 
   it('runs the intelligence enhancement enable action and persists config from the mobile action sheet', async () => {

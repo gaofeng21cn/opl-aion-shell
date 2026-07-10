@@ -7,7 +7,7 @@
 import generatedProfile from './oplProductProfile.generated.json';
 import type { IConversationMcpStatus, IMcpServer, ISessionMcpServer } from '@/common/config/storage';
 
-export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'ultra';
+export type OplCodexReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
 export const OPL_CODEX_CSS_THEME_ID = 'codex';
 export const OPL_CLASSIC_CSS_THEME_ID = 'default-theme';
 export const OPL_VISIBLE_CSS_THEME_IDS = [OPL_CODEX_CSS_THEME_ID, OPL_CLASSIC_CSS_THEME_ID] as const;
@@ -476,7 +476,7 @@ type AppProductProfile = {
   };
 };
 
-const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'ultra']);
+const CODEX_REASONING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
 const OPL_DEVELOPER_PROFILE_CAPABILITY_AXES: OplDeveloperProfileCapabilityAxis[] = [
   'source_channel',
   'workspace_trust',
@@ -691,6 +691,7 @@ function readCodexModelDisplayOptions(
 
   const reasoningLabels = isRecord(value.reasoning_labels) ? value.reasoning_labels : null;
   const xhighReasoningLabel = isRecord(reasoningLabels?.xhigh) ? reasoningLabels.xhigh : null;
+  const maxReasoningLabel = isRecord(reasoningLabels?.max) ? reasoningLabels.max : null;
   const ultraReasoningLabel = isRecord(reasoningLabels?.ultra) ? reasoningLabels.ultra : null;
   const highReasoningLabel = isRecord(reasoningLabels?.high) ? reasoningLabels.high : null;
   if (
@@ -698,11 +699,13 @@ function readCodexModelDisplayOptions(
     highReasoningLabel.en !== 'High reasoning' ||
     xhighReasoningLabel?.zh !== '推理超高' ||
     xhighReasoningLabel.en !== 'Extra high reasoning' ||
+    maxReasoningLabel?.zh !== '推理最大' ||
+    maxReasoningLabel.en !== 'Max reasoning' ||
     ultraReasoningLabel?.zh !== '推理极高' ||
     ultraReasoningLabel.en !== 'Ultra reasoning'
   ) {
     throw new Error(
-      'Invalid OPL product profile: Codex model display options must label high, xhigh, and ultra reasoning'
+      'Invalid OPL product profile: Codex model display options must label high, xhigh, max, and ultra reasoning'
     );
   }
   const userReasoningEffortOptions = Array.isArray(value.user_reasoning_effort_options)
@@ -805,6 +808,7 @@ function readCodexModelDisplayOptions(
       ),
       high: { zh: '推理高', en: 'High reasoning' },
       xhigh: { zh: '推理超高', en: 'Extra high reasoning' },
+      max: { zh: '推理最大', en: 'Max reasoning' },
       ultra: { zh: '推理极高', en: 'Ultra reasoning' },
     } as Record<OplCodexReasoningEffort, { zh: string; en: string }>,
     user_reasoning_effort_options: userReasoningEffortOptions,
