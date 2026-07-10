@@ -32,6 +32,9 @@ const GLIBC_VERSION_RE = /GLIBC_(\d+\.\d+)/g;
 const GLIBC_NOT_FOUND_RE = /GLIBC_\d+\.\d+[\s\S]{0,160}not found|not found[\s\S]{0,160}GLIBC_\d+\.\d+/i;
 const PACKAGED_APP_MARKER_ENTRIES = new Set(['app.asar', 'app.asar.unpacked/']);
 const RECOVERABLE_DATABASE_CORRUPTION_BOUNDARY_STAGE = 'database.recoverable_corruption';
+const DATABASE_OPEN_BOUNDARY_STAGE = 'database.open';
+const DATABASE_CORRUPTION_RE =
+  /\bsqlite_(?:corrupt|notadb)\b|database disk image is malformed|file is not a database|malformed database schema/i;
 const STARTUP_DIRECTORY_FAILURE_STAGES = new Set(['spawn']);
 const STARTUP_DIRECTORY_PERMISSION_RE = /\b(?:EACCES|EPERM)\b|permission denied|operation not permitted/i;
 const STARTUP_DIRECTORY_UNAVAILABLE_RE =
@@ -204,10 +207,10 @@ export function classifyBackendStartupFailure(error: unknown): BackendStartupFai
   const backendBoundaryStage =
     typeof details?.backendBoundaryStage === 'string' ? details.backendBoundaryStage : undefined;
 
-  if (
-    backendBoundaryCode === 'BOOTSTRAP_DATA_INIT_FAILED' &&
-    backendBoundaryStage === RECOVERABLE_DATABASE_CORRUPTION_BOUNDARY_STAGE
-  ) {
+  const isRecoverableDatabaseBoundary =
+    backendBoundaryStage === RECOVERABLE_DATABASE_CORRUPTION_BOUNDARY_STAGE ||
+    (backendBoundaryStage === DATABASE_OPEN_BOUNDARY_STAGE && DATABASE_CORRUPTION_RE.test(text));
+  if (backendBoundaryCode === 'BOOTSTRAP_DATA_INIT_FAILED' && isRecoverableDatabaseBoundary) {
     return {
       reason: 'backend_recoverable_database_corruption',
       backendBoundaryCode,

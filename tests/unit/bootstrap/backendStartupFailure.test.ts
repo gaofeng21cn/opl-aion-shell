@@ -133,6 +133,27 @@ describe('classifyBackendStartupFailure', () => {
     });
   });
 
+  it('classifies corruption-like database.open failures reported by AionCore 0.1.44 as recoverable', () => {
+    const error = new Error('aioncore exited before health check passed') as Error & {
+      details?: Record<string, unknown>;
+    };
+    error.details = {
+      stage: 'early_exit',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.open',
+      stderrTail:
+        'BOOTSTRAP_DATA_INIT_FAILED stage=database.open databasePath=/tmp/aionui-backend.db: failed to initialize application data',
+      stdoutTail:
+        'bootstrap boundary failure code="BOOTSTRAP_DATA_INIT_FAILED" stage="database.open" error=Database query failed: error returned from database: (code: 26) file is not a database',
+    };
+
+    expect(classifyBackendStartupFailure(error)).toEqual({
+      reason: 'backend_recoverable_database_corruption',
+      backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
+      backendBoundaryStage: 'database.open',
+    });
+  });
+
   it('classifies packaged app resources missing from installation as incomplete installation', () => {
     const error = new Error('aioncore startup failed while resolving backend binary') as Error & {
       details?: Record<string, unknown>;
