@@ -1043,7 +1043,7 @@
   "firstRun": {
     "title": "Prepare One Person Lab",
     "description": "Confirm the workspace, local assistant, and model access. Everything else prepares in the background.",
-    "setupTitle": "First setup",
+    "setupTitle": "Set up One Person Lab",
     "estimatedTime": "About 2 minutes",
     "help": "Help",
     "stepCounter": "Step {{current}} of {{total}}",
@@ -1120,7 +1120,7 @@
       "backgroundReady": "Background preparation is clear."
     },
     "items": {
-      "workspaceRoot": "Workspace root",
+      "workspaceRoot": "Workspace",
       "codex": "Local assistant",
       "codexConfig": "Model Access",
       "domainModules": "Domain modules",

@@ -2,7 +2,7 @@ import type { FirstRunChecklistItem, FirstRunInitialize } from './types';
 
 type JsonRecord = Record<string, unknown>;
 const CORE_ITEM_IDS = ['workspace_root', 'codex', 'codex_config'] as const;
-const READY_ITEM_STATUSES = new Set(['ready', 'installed', 'detected', 'configured', 'disabled']);
+const CORE_READY_ITEM_STATUSES = new Set(['ready', 'installed', 'detected', 'configured']);
 const REQUIRED_PROGRESS_FIELDS = [
   'ready_required_count',
   'total_required_count',
@@ -54,6 +54,7 @@ function isChecklist(value: unknown): value is FirstRunChecklistItem[] {
       typeof entry.item_id === 'string' &&
       typeof entry.label === 'string' &&
       typeof entry.status === 'string' &&
+      typeof entry.required === 'boolean' &&
       typeof entry.blocking === 'boolean' &&
       ['core_launch', 'full_readiness', 'optional'].includes(String(entry.readiness_layer)) &&
       ['blocking', 'maintenance', 'info'].includes(String(entry.severity)) &&
@@ -78,16 +79,30 @@ function hasInitializeShape(value: JsonRecord): value is JsonRecord & FirstRunIn
   ) {
     return false;
   }
-  const coreItems = CORE_ITEM_IDS.map((itemId) => checklist.find((item) => item.item_id === itemId));
-  if (coreItems.some((item) => !item || item.readiness_layer !== 'core_launch')) return false;
-  if (setupFlow.ready_to_launch) {
-    return (
-      setupFlow.blocking_items.length === 0 &&
-      setupFlow.progress.ready_required_count === setupFlow.progress.total_required_count &&
-      coreItems.every((item) => item && !item.blocking && READY_ITEM_STATUSES.has(item.status))
-    );
+  const coreItems = CORE_ITEM_IDS.map((itemId) => checklist.find((item) => item.item_id === itemId)).filter(
+    (item): item is FirstRunChecklistItem => Boolean(item)
+  );
+  if (
+    coreItems.length !== CORE_ITEM_IDS.length ||
+    coreItems.some((item) => item.readiness_layer !== 'core_launch' || item.required !== true)
+  ) {
+    return false;
   }
-  return true;
+
+  const readyCoreItems = coreItems.filter((item) => !item.blocking && CORE_READY_ITEM_STATUSES.has(item.status));
+  const blockedCoreItems = coreItems.filter((item) => item.blocking && !CORE_READY_ITEM_STATUSES.has(item.status));
+  if (readyCoreItems.length + blockedCoreItems.length !== CORE_ITEM_IDS.length) return false;
+
+  const declaredBlockingItems = new Set(setupFlow.blocking_items);
+  const blockedCoreItemIds = blockedCoreItems.map((item) => item.item_id);
+  return (
+    setupFlow.progress.total_required_count === CORE_ITEM_IDS.length &&
+    setupFlow.progress.ready_required_count === readyCoreItems.length &&
+    setupFlow.blocking_items.length === declaredBlockingItems.size &&
+    declaredBlockingItems.size === blockedCoreItemIds.length &&
+    blockedCoreItemIds.every((itemId) => declaredBlockingItems.has(itemId)) &&
+    setupFlow.ready_to_launch === (readyCoreItems.length === CORE_ITEM_IDS.length)
+  );
 }
 
 export function readInitializePayload(parsed: unknown): FirstRunInitialize | null {

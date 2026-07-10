@@ -290,6 +290,8 @@ const FirstRun: React.FC = () => {
   );
   const [error, setError] = useState<FirstRunError | null>(null);
   const pageRef = useRef<HTMLElement>(null);
+  const taskPanelRef = useRef<HTMLElement>(null);
+  const previousActivePrimaryStepRef = useRef<FirstRunItemId | null>(null);
   const readyEntryRef = useRef<HTMLButtonElement>(null);
   const technicalDetailsRef = useRef<HTMLDivElement>(null);
   const isDesktopRuntime = isElectronDesktop();
@@ -494,10 +496,20 @@ const FirstRun: React.FC = () => {
         ? t('settings.firstRun.beginner.summaryNeedsAction')
         : t('settings.firstRun.beginner.summaryPreparing');
 
+  useEffect(() => {
+    if (!initialize || readyToLaunch) return;
+    const previousActiveStep = previousActivePrimaryStepRef.current;
+    previousActivePrimaryStepRef.current = activePrimaryStepId;
+    if (previousActiveStep && previousActiveStep !== activePrimaryStepId) {
+      taskPanelRef.current?.focus({ preventScroll: true });
+    }
+  }, [activePrimaryStepId, initialize, readyToLaunch]);
+
   const openTechnicalDetails = useCallback(() => {
     setTechnicalDetailsOpen(true);
     window.requestAnimationFrame(() => {
-      technicalDetailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      technicalDetailsRef.current?.scrollIntoView({ behavior, block: 'start' });
     });
   }, []);
 
@@ -593,7 +605,13 @@ const FirstRun: React.FC = () => {
                 </Button>
               </aside>
 
-              <section className={styles.firstRunTaskPanel} data-testid='opl-first-run-task-panel' aria-live='polite'>
+              <section
+                ref={taskPanelRef}
+                className={styles.firstRunTaskPanel}
+                data-testid='opl-first-run-task-panel'
+                aria-live='polite'
+                tabIndex={-1}
+              >
                 <div className={styles.firstRunStepCounter}>
                   {t('settings.firstRun.stepCounter', {
                     current: readyToLaunch ? totalCoreCount : activePrimaryStepIndex,

@@ -628,7 +628,7 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-technical-error')).toHaveTextContent('initialize payload is missing');
   });
 
-  it('rejects partial initialize payloads and legacy readiness that conflicts with setup_flow', async () => {
+  it('fails closed when legacy readiness conflicts with an internally inconsistent setup_flow', async () => {
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -655,9 +655,16 @@ describe('FirstRun readiness page', () => {
 
     render(<FirstRun />);
 
-    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.general')
+    );
     expect(screen.queryByTestId('opl-first-run-ready-entry')).not.toBeInTheDocument();
-    expect(screen.getByTestId('opl-first-run-task-panel')).toHaveTextContent('settings.firstRun.blockedPanel.title');
+    expect(screen.getByTestId('opl-first-run-blockers-list')).toHaveTextContent(
+      'settings.firstRun.checking.itemsPending'
+    );
+    expect(screen.getByTestId('opl-first-run-next-step')).toHaveTextContent(
+      'settings.firstRun.checking.nextStepPending'
+    );
   });
 
   it('routes a workspace blocker to the native directory picker and App action boundary', async () => {
@@ -684,8 +691,11 @@ describe('FirstRun readiness page', () => {
     await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
   });
 
-  it('keeps the active rail step and task action aligned when multiple Core items are blocked', async () => {
-    bridgeMocks.getInitializeInvoke.mockResolvedValue(multiBlockerInitializeResult);
+  it('keeps the active rail step, task action, and focus aligned when Core readiness advances', async () => {
+    bridgeMocks.getInitializeInvoke
+      .mockResolvedValueOnce(multiBlockerInitializeResult)
+      .mockResolvedValueOnce(blockedInitializeResult);
+    bridgeMocks.runInstallPrepInvoke.mockResolvedValue(startupMaintenanceResult);
 
     render(<FirstRun />);
 
@@ -701,6 +711,10 @@ describe('FirstRun readiness page', () => {
       })
     );
     await waitFor(() => expect(bridgeMocks.runInstallPrepInvoke).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId('opl-first-run-step-codex_config')).toHaveAttribute('data-state', 'active')
+    );
+    expect(screen.getByTestId('opl-first-run-task-panel')).toHaveFocus();
   });
 
   it('configures Codex through the narrow bridge when the Codex config blocks Core readiness', async () => {

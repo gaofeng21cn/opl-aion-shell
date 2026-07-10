@@ -20,6 +20,14 @@ vi.mock('@/renderer/pages/settings/sections/LocalServicesSettings', () => ({
   default: () => <div data-testid='local-services-route-page'>Local Services route rendered</div>,
 }));
 
+vi.mock('@/renderer/pages/settings/sections/RuntimeSettings', () => ({
+  default: () => <div data-testid='environment-route-page'>Maintenance route rendered</div>,
+}));
+
+vi.mock('@/renderer/pages/FirstRun', () => ({
+  default: () => <div data-testid='first-run-route-page'>First-run route rendered</div>,
+}));
+
 describe('settings storage route', () => {
   afterEach(() => {
     window.location.hash = '';
@@ -41,11 +49,29 @@ describe('settings storage route', () => {
     expect(await screen.findByTestId('workspace-route-page')).toBeInTheDocument();
   });
 
-  it('renders the Local Services settings page at /settings/local-services', async () => {
+  it('redirects the legacy Local Services route to Maintenance', async () => {
     window.location.hash = '#/settings/local-services';
 
     render(<Router layout={<Outlet />} />);
 
-    expect(await screen.findByTestId('local-services-route-page')).toBeInTheDocument();
+    expect(await screen.findByTestId('environment-route-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('local-services-route-page')).not.toBeInTheDocument();
+  });
+
+  it('renders focused first-run outside the ordinary product layout', async () => {
+    window.location.hash = '#/first-run';
+
+    render(
+      <Router
+        layout={
+          <div data-testid='ordinary-product-layout'>
+            <Outlet />
+          </div>
+        }
+      />
+    );
+
+    expect(await screen.findByTestId('first-run-route-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('ordinary-product-layout')).not.toBeInTheDocument();
   });
 });

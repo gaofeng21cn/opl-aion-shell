@@ -51,6 +51,15 @@ const SETTINGS_COMPONENTS = {
 };
 
 function renderSettingsRoute({ routeId, path, componentKey }: SettingsRouteDefinition): React.ReactElement {
+  if (routeId === 'local-services') {
+    return (
+      <Route
+        key='settings-route-local-services'
+        path='/settings/local-services'
+        element={<Navigate to='/settings/environment' replace />}
+      />
+    );
+  }
   const Component = SETTINGS_COMPONENTS[componentKey];
   return <Route key={`settings-route-${routeId}`} path={`/settings/${path}`} element={withRouteFallback(Component)} />;
 }
@@ -60,7 +69,7 @@ function renderSettingsRedirect([legacyId, targetPath]: [string, string]): React
   return <Route key={`settings-redirect-${legacyId}`} path={path} element={<Navigate to={targetPath} replace />} />;
 }
 
-const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
+const ProtectedRoute: React.FC<React.PropsWithChildren> = ({ children }) => {
   const { status } = useAuth();
 
   if (status === 'checking') {
@@ -71,7 +80,11 @@ const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) =
     return <Navigate to='/login' replace />;
   }
 
-  return React.cloneElement(layout);
+  return children;
+};
+
+const ProtectedLayout: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
+  return <ProtectedRoute>{React.cloneElement(layout)}</ProtectedRoute>;
 };
 
 const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
@@ -84,10 +97,24 @@ const PanelRoute: React.FC<{ layout: React.ReactElement }> = ({ layout }) => {
           path='/login'
           element={status === 'authenticated' ? <Navigate to='/startup-gate' replace /> : withRouteFallback(LoginPage)}
         />
+        <Route
+          index
+          element={
+            <ProtectedRoute>
+              <Navigate to='/startup-gate' replace />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path='/startup-gate'
+          element={
+            <ProtectedRoute>
+              <StartupGate />
+            </ProtectedRoute>
+          }
+        />
+        <Route path='/first-run' element={<ProtectedRoute>{withRouteFallback(FirstRun)}</ProtectedRoute>} />
         <Route element={<ProtectedLayout layout={layout} />}>
-          <Route index element={<Navigate to='/startup-gate' replace />} />
-          <Route path='/startup-gate' element={<StartupGate />} />
-          <Route path='/first-run' element={withRouteFallback(FirstRun)} />
           <Route path='/guid' element={withRouteFallback(Guid)} />
           <Route path='/conversation/:id' element={withRouteFallback(Conversation)} />
           <Route
