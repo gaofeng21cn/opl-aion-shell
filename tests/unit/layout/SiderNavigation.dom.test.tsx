@@ -56,5 +56,16 @@ describe('Sider navigation hierarchy', () => {
       .filter(Boolean);
     expect(labels).toEqual(['New task', 'Archived', 'Capabilities', 'Account', 'Help', 'Settings']);
     expect(screen.getByText('Conversation history')).toBeInTheDocument();
+    for (const testId of [
+      'sider-nav-archived',
+      'sider-nav-capabilities',
+      'sider-footer-account',
+      'sider-footer-help',
+      'sider-footer-settings',
+    ]) {
+      const button = screen.getByTestId(testId);
+      expect(button.querySelector('.arco-btn-icon')).toBeNull();
+      expect(button.querySelectorAll(':scope > span')).toHaveLength(2);
+    }
   });
 });

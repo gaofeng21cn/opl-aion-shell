@@ -83,15 +83,15 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
             <Button
               type='text'
               className={classNames(
-                '!h-34px !w-full !rd-8px !text-t-primary !border-0',
+                '!h-34px !w-full !flex !items-center !gap-8px !rd-8px !text-t-primary !border-0',
                 collapsed ? '!justify-center !px-0' : '!justify-start !px-10px',
                 isMobile && 'sider-footer-btn-mobile',
                 entry.key === 'settings' && isSettings ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3'
               )}
-              icon={<span className='size-22px flex-center shrink-0 text-t-secondary'>{entry.icon}</span>}
               onClick={entry.onClick}
               data-testid={`sider-footer-${entry.key}`}
             >
+              <span className='size-22px flex-center shrink-0 text-t-secondary'>{entry.icon}</span>
               {!collapsed && <span className='text-14px font-[500] leading-24px truncate'>{entry.label}</span>}
             </Button>
           </Tooltip>
