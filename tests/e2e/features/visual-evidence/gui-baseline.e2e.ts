@@ -260,6 +260,16 @@ async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): 
   );
 }
 
+async function setNavigationRailExpanded(page: Page, expanded: boolean): Promise<void> {
+  const rail = page.locator('[data-testid="app-navigation-rail-surface"]');
+  const collapsed = await rail.evaluate((element) => element.classList.contains('collapsed'));
+  if (collapsed === expanded) {
+    await page.locator('[data-testid="app-navigation-rail-toggle"]').click();
+  }
+  if (expanded) await expect(rail).not.toHaveClass(/\bcollapsed\b/);
+  else await expect(rail).toHaveClass(/\bcollapsed\b/);
+}
+
 async function captureTarget(
   page: Page,
   writer: GuiBaselineManifestWriter,
@@ -327,6 +337,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       coverageGaps: [{ id: 'mobile_home_states', reason: 'covered by separate mobile route-state entries' }],
       setup: async (page) => {
         await goToGuid(page);
+        await setNavigationRailExpanded(page, true);
         await expectHomeLocale(page, 'zh-CN');
         return { route_kind: 'home', rail: 'expanded' };
       },
@@ -349,6 +360,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       coverageGaps: [{ id: 'narrow_drawer_open', reason: 'covered by a separate mobile route-state entry' }],
       setup: async (page) => {
         await goToGuid(page);
+        await setNavigationRailExpanded(page, false);
         await expectHomeLocale(page, 'en-US');
         return { route_kind: 'home', rail: 'closed' };
       },
@@ -371,8 +383,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       coverageGaps: [{ id: 'mobile_home_unobscured', reason: 'covered by the separate rail-closed entry' }],
       setup: async (page) => {
         await goToGuid(page);
-        await page.locator('[data-testid="app-navigation-rail-toggle"]').click();
-        await expect(page.locator('[data-testid="app-navigation-rail-surface"]')).not.toHaveClass(/collapsed/);
+        await setNavigationRailExpanded(page, true);
         await expectHomeLocale(page, 'en-US');
         return { route_kind: 'home', rail: 'narrow_drawer_open' };
       },
