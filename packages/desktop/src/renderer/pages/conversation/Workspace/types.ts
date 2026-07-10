@@ -28,6 +28,10 @@ export interface WorkspaceProps {
   eventPrefix?: 'acp' | 'codex' | 'aionrs';
   messageApi?: MessageApi;
   currentTask?: TConversationRuntimeSummary['current_task'] | null;
+  activeTab?: WorkspaceTab;
+  onActiveTabChange?: (tab: WorkspaceTab) => void;
+  showTabBar?: boolean;
+  showCurrentTask?: boolean;
 }
 
 /**

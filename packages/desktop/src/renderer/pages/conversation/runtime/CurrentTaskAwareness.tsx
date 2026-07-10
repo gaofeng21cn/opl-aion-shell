@@ -5,8 +5,10 @@
  */
 
 import type { TConversationRuntimeSummary } from '@/common/config/storage';
+import { Button, Tooltip } from '@arco-design/web-react';
+import { Down, PauseOne, Pushpin, Up } from '@icon-park/react';
 import classNames from 'classnames';
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './current-task-awareness.css';
 
@@ -15,6 +17,9 @@ export type ConversationCurrentTask = NonNullable<TConversationRuntimeSummary['c
 type CurrentTaskAwarenessProps = {
   task?: ConversationCurrentTask | null;
   compact?: boolean;
+  statusLabel?: string;
+  stopDisabled?: boolean;
+  onStop?: () => Promise<unknown> | unknown;
 };
 
 type CurrentTaskV2Card = Record<string, unknown>;
@@ -46,6 +51,10 @@ type ConversationCurrentTaskV2 = ConversationCurrentTask & {
   structured_followup?: unknown;
   request_change?: unknown;
   request_change_card?: unknown;
+  elapsed?: unknown;
+  elapsed_label?: unknown;
+  duration_label?: unknown;
+  timing?: unknown;
 };
 
 const SUMMARY_KEYS = ['summary', 'message', 'reason', 'why_it_matters', 'owner', 'status', 'status_label', 'label'];
@@ -281,8 +290,17 @@ const EvidenceBlock: React.FC<{ title: string; text?: string }> = ({ title, text
   );
 };
 
-const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compact = false }) => {
+const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({
+  task,
+  compact = false,
+  statusLabel,
+  stopDisabled = false,
+  onStop,
+}) => {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(!compact);
+  const [pinned, setPinned] = useState(compact);
+  const [stopping, setStopping] = useState(false);
   if (!hasCurrentTaskAwareness(task)) return null;
 
   const taskV2 = task as ConversationCurrentTaskV2;
@@ -292,8 +310,13 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
   const artifactNativeDrilldown = record(taskV2.artifact_native_drilldown);
   const provenanceDrawer = record(taskV2.provenance_drawer) ?? record(artifactNativeDrilldown?.provenance_drawer);
   const title = trim(task.title) ?? trim(task.task_id) ?? t('conversation.currentTask.defaultTitle');
-  const status = recordText(taskV2.status, ['status_label', 'status', 'state', 'priority_bucket']);
+  const status = statusLabel ?? recordText(taskV2.status, ['status_label', 'status', 'state', 'priority_bucket']);
   const stage = trim(task.stage) ?? recordText(statusRecord, ['active_stage_label', 'active_stage_id']);
+  const elapsed =
+    trim(taskV2.elapsed_label) ??
+    trim(taskV2.duration_label) ??
+    trim(taskV2.elapsed) ??
+    recordText(taskV2.timing, ['elapsed_label', 'duration_label', 'elapsed', 'duration']);
   const progress =
     trim(task.progress) ??
     trim(taskV2.progress_label) ??
@@ -344,28 +367,112 @@ const CurrentTaskAwareness: React.FC<CurrentTaskAwarenessProps> = ({ task, compa
           .join('\n')
       : undefined;
   const followUpText = explicitFollowUp ?? generatedFollowUp;
+  const unavailable = t('conversation.currentTask.unavailable');
+  const handleStop = async () => {
+    if (!onStop || stopDisabled || stopping) return;
+    setStopping(true);
+    try {
+      await onStop();
+    } catch (error) {
+      console.warn('[CurrentTaskAwareness] stop request failed', error);
+    } finally {
+      setStopping(false);
+    }
+  };
 
   return (
     <section
       className={classNames('current-task-awareness', {
         'current-task-awareness--compact': compact,
+        'current-task-awareness--pinned': pinned,
+        'current-task-awareness--expanded': expanded,
       })}
       data-testid={compact ? 'conversation-current-task-inline' : 'conversation-current-task-inspector'}
     >
-      <div className='current-task-awareness__header'>
-        <div className='current-task-awareness__kicker'>{t('conversation.currentTask.kicker')}</div>
-        <div className='current-task-awareness__title'>{title}</div>
+      <div className='current-task-awareness__summary'>
+        <div className='current-task-awareness__header'>
+          <div className='current-task-awareness__kicker'>{t('conversation.currentTask.kicker')}</div>
+          <div className='current-task-awareness__title'>{title}</div>
+        </div>
+        {(!compact || pinned) && (
+          <div className='current-task-awareness__summary-fields'>
+            <span>
+              <b>{t('conversation.currentTask.status')}</b>
+              {status ?? unavailable}
+            </span>
+            <span>
+              <b>{t('conversation.currentTask.elapsed')}</b>
+              {elapsed ?? unavailable}
+            </span>
+            <span>
+              <b>{t('conversation.currentTask.progress')}</b>
+              {progress ?? stage ?? unavailable}
+            </span>
+            <span>
+              <b>{t('conversation.currentTask.nextAction')}</b>
+              {nextStep ?? unavailable}
+            </span>
+          </div>
+        )}
+        {compact && (
+          <div className='current-task-awareness__controls'>
+            <Tooltip content={pinned ? t('conversation.currentTask.unpin') : t('conversation.currentTask.pin')} mini>
+              <Button
+                type='text'
+                size='mini'
+                icon={<Pushpin size={14} />}
+                aria-label={pinned ? t('conversation.currentTask.unpin') : t('conversation.currentTask.pin')}
+                aria-pressed={pinned}
+                onClick={() => {
+                  setPinned((value) => {
+                    if (value) setExpanded(false);
+                    return !value;
+                  });
+                }}
+              />
+            </Tooltip>
+            <Tooltip
+              content={expanded ? t('conversation.currentTask.collapse') : t('conversation.currentTask.expand')}
+              mini
+            >
+              <Button
+                type='text'
+                size='mini'
+                icon={expanded ? <Up size={14} /> : <Down size={14} />}
+                aria-label={expanded ? t('conversation.currentTask.collapse') : t('conversation.currentTask.expand')}
+                aria-expanded={expanded}
+                onClick={() => setExpanded((value) => !value)}
+              />
+            </Tooltip>
+            <Tooltip
+              content={
+                onStop && !stopDisabled
+                  ? t('conversation.currentTask.stop')
+                  : t('conversation.currentTask.stopUnavailable')
+              }
+              mini
+            >
+              <Button
+                type='text'
+                status='danger'
+                size='mini'
+                icon={<PauseOne size={14} />}
+                aria-label={t('conversation.currentTask.stop')}
+                disabled={!onStop || stopDisabled}
+                loading={stopping}
+                onClick={() => void handleStop()}
+              />
+            </Tooltip>
+          </div>
+        )}
       </div>
-      {(status || stage || progress || nextOwner || nextStep) && (
+      {expanded && (stage || nextOwner) && (
         <div className='current-task-awareness__meta'>
-          {status && <span>{status}</span>}
           {stage && <span>{stage}</span>}
-          {progress && <span>{progress}</span>}
           {nextOwner && <span>{t('conversation.currentTask.owner', { owner: nextOwner })}</span>}
-          {nextStep && <span>{nextStep}</span>}
         </div>
       )}
-      {!compact && (
+      {expanded && (
         <div className='current-task-awareness__evidence'>
           <EvidenceSection
             title={t('conversation.currentTask.result')}

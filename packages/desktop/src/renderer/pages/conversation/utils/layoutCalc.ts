@@ -4,9 +4,9 @@ export const MIN_PREVIEW_RATIO = 20;
 export const WORKSPACE_HEADER_HEIGHT = 32;
 export const MIN_CHAT_PANEL_PX = 360;
 export const MIN_PREVIEW_PANEL_PX = 340;
-export const MIN_WORKSPACE_PANEL_PX = 220;
-export const MAX_WORKSPACE_PANEL_PX = 500;
-export const DEFAULT_WORKSPACE_PANEL_PX = 260;
+export const MIN_WORKSPACE_PANEL_PX = 320;
+export const MAX_WORKSPACE_PANEL_PX = 560;
+export const DEFAULT_WORKSPACE_PANEL_PX = 380;
 
 export type LayoutCalcInput = {
   containerWidth: number;

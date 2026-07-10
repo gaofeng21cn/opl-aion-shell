@@ -22,6 +22,7 @@ import { emitter } from '../../../utils/emitter';
 import AcpChat from '../platforms/acp/AcpChat';
 import ChatLayout from './ChatLayout';
 import ChatSlider from './ChatSlider.tsx';
+import ConversationEnvironmentPopover from './ChatLayout/ConversationEnvironmentPopover';
 import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import { saveAionrsDefaultModel } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
@@ -174,7 +175,6 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
     initialModel: conversation.model,
     onSelectModel,
   });
-  const workspaceEnabled = Boolean(conversation.extra?.workspace);
   const { info: presetAssistantInfo } = usePresetAssistantInfo(conversation);
   const aionrsAssistantId = resolveAssistantConfigId(conversation) ?? undefined;
   const layout = useLayoutContext();
@@ -185,19 +185,35 @@ const AionrsConversationPanel: React.FC<{ conversation: AionrsConversation; slid
   const chatLayoutProps = {
     title: conversation.name,
     siderTitle: sliderTitle,
-    sider: <ChatSlider conversation={conversation} currentTask={runtimeView.currentTask} />,
-    headerExtra: (
-      <div className='flex items-center gap-8px'>
-        <CronJobManager
-          conversation_id={conversation.id}
-          cron_job_id={conversation.extra?.cron_job_id as string | undefined}
-          hasCronSkill={hasLoadedSkill(conversation, 'cron')}
-        />
-        {!isMobile && <AionrsModelSelector selection={modelSelection} />}
-      </div>
+    sider: (
+      <ChatSlider
+        conversation={conversation}
+        currentTask={runtimeView.currentTask}
+        actionsSlot={
+          <div className='flex items-center gap-8px'>
+            <CronJobManager
+              conversation_id={conversation.id}
+              cron_job_id={conversation.extra?.cron_job_id as string | undefined}
+              hasCronSkill={hasLoadedSkill(conversation, 'cron')}
+            />
+            {!isMobile && <AionrsModelSelector selection={modelSelection} />}
+          </div>
+        }
+      />
     ),
-    currentTaskSlot: <CurrentTaskAwareness task={runtimeView.currentTask} compact />,
-    workspaceEnabled,
+    environmentSlot: (
+      <ConversationEnvironmentPopover conversation={conversation} currentTask={runtimeView.currentTask} />
+    ),
+    currentTaskSlot: (
+      <CurrentTaskAwareness
+        task={runtimeView.currentTask}
+        compact
+        statusLabel={runtimeView.view.state}
+        stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
+        onStop={runtimeView.stopActiveTurn}
+      />
+    ),
+    workspaceEnabled: true,
     workspacePath: conversation.extra?.workspace,
     isTemporaryWorkspace: (conversation.extra as { is_temporary_workspace?: boolean } | undefined)
       ?.is_temporary_workspace,
@@ -231,7 +247,6 @@ const ChatConversation: React.FC<{
   hideSendBox?: boolean;
 }> = ({ conversation, hideSendBox }) => {
   const { t } = useTranslation();
-  const workspaceEnabled = Boolean(conversation?.extra?.workspace);
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
 
@@ -291,7 +306,7 @@ const ChatConversation: React.FC<{
   const sliderTitle = useMemo(() => {
     return (
       <div className='flex items-center justify-between'>
-        <span className='text-16px font-bold text-t-primary'>{t('conversation.workspace.title')}</span>
+        <span className='text-13px font-medium text-t-primary'>{t('conversation.sidePanel.title')}</span>
       </div>
     );
   }, [t]);
@@ -365,7 +380,7 @@ const ChatConversation: React.FC<{
           agent_name: conversationAgentName,
         };
 
-  const headerExtraNode = (
+  const actionsNode = (
     <div className='flex items-center gap-8px'>
       {conversation && (
         <div className='shrink-0'>
@@ -384,11 +399,19 @@ const ChatConversation: React.FC<{
     <ChatLayout
       title={conversation?.name}
       {...chatLayoutProps}
-      headerExtra={headerExtraNode}
+      environmentSlot={<ConversationEnvironmentPopover conversation={conversation} currentTask={currentTask} />}
       siderTitle={sliderTitle}
-      sider={<ChatSlider conversation={conversation} currentTask={currentTask} />}
-      currentTaskSlot={<CurrentTaskAwareness task={currentTask} compact />}
-      workspaceEnabled={workspaceEnabled}
+      sider={<ChatSlider conversation={conversation} currentTask={currentTask} actionsSlot={actionsNode} />}
+      currentTaskSlot={
+        <CurrentTaskAwareness
+          task={currentTask}
+          compact
+          statusLabel={runtimeView.view.state}
+          stopDisabled={!runtimeView.activeTurnId || !runtimeView.isProcessing}
+          onStop={runtimeView.stopActiveTurn}
+        />
+      }
+      workspaceEnabled={Boolean(conversation)}
       workspacePath={conversation?.extra?.workspace}
       isTemporaryWorkspace={
         (conversation?.extra as { is_temporary_workspace?: boolean } | undefined)?.is_temporary_workspace

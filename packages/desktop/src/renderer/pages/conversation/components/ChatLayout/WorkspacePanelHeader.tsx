@@ -1,7 +1,8 @@
 import { WORKSPACE_HEADER_HEIGHT } from '@/renderer/pages/conversation/utils/layoutCalc';
-import { dispatchWorkspaceToggleEvent } from '@/renderer/utils/workspace/workspaceEvents';
+import { Button } from '@arco-design/web-react';
 import { ExpandLeft, ExpandRight } from '@icon-park/react';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import WorkspaceOpenButton from './WorkspaceOpenButton';
 
 type WorkspaceHeaderProps = {
@@ -28,47 +29,33 @@ const WorkspacePanelHeader: React.FC<WorkspaceHeaderProps> = ({
   togglePlacement = 'right',
   workspacePath,
   isTemporaryWorkspace = false,
-}) => (
-  <div
-    className='workspace-panel-header flex items-center justify-start px-12px py-4px gap-12px border-b border-[var(--bg-3)]'
-    style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}
-  >
-    {showToggle && togglePlacement === 'left' && (
-      <button
-        type='button'
-        className='workspace-header__toggle mr-4px'
-        aria-label='Toggle workspace'
-        onClick={onToggle}
-      >
-        {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
-      </button>
-    )}
-    <div className='flex-1 truncate'>{children}</div>
+}) => {
+  const { t } = useTranslation();
+  const toggle = (
+    <Button
+      type='text'
+      size='mini'
+      className='workspace-header__toggle'
+      icon={collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
+      aria-label={collapsed ? t('conversation.sidePanel.open') : t('conversation.sidePanel.close')}
+      onClick={onToggle}
+    />
+  );
 
-    {/* Open workspace button - shown when workspace path is provided */}
-    {workspacePath && !collapsed && (
-      <WorkspaceOpenButton workspacePath={workspacePath} isTemporary={isTemporaryWorkspace} />
-    )}
+  return (
+    <div
+      className='workspace-panel-header flex items-center justify-start px-8px py-2px gap-8px border-b border-[var(--bg-3)]'
+      style={{ height: WORKSPACE_HEADER_HEIGHT, minHeight: WORKSPACE_HEADER_HEIGHT }}
+    >
+      {showToggle && togglePlacement === 'left' && toggle}
+      <div className='flex-1 truncate'>{children}</div>
 
-    {showToggle && togglePlacement === 'right' && (
-      <button type='button' className='workspace-header__toggle' aria-label='Toggle workspace' onClick={onToggle}>
-        {collapsed ? <ExpandRight size={16} /> : <ExpandLeft size={16} />}
-      </button>
-    )}
-  </div>
-);
-
-// Small floating button shown when the workspace panel is collapsed on desktop
-export const DesktopWorkspaceToggle: React.FC = () => (
-  <button
-    type='button'
-    className='workspace-toggle-floating workspace-header__toggle absolute top-1/2 right-2 z-10'
-    style={{ transform: 'translateY(-50%)' }}
-    onClick={() => dispatchWorkspaceToggleEvent()}
-    aria-label='Expand workspace'
-  >
-    <ExpandLeft size={16} />
-  </button>
-);
+      {workspacePath && !collapsed && (
+        <WorkspaceOpenButton workspacePath={workspacePath} isTemporary={isTemporaryWorkspace} />
+      )}
+      {showToggle && togglePlacement === 'right' && toggle}
+    </div>
+  );
+};
 
 export default WorkspacePanelHeader;

@@ -39,6 +39,7 @@ type UseConversationRuntimeViewReturn = {
   markStopRequested: (turn_id: string) => void;
   markStopAcknowledged: (turn_id: string, runtime: TConversationRuntimeSummary) => void;
   resetLocalGate: (reason: string) => void;
+  stopActiveTurn: () => Promise<boolean>;
 };
 
 const normalizeReason = (reason: string): string => reason.trim().slice(0, 200) || 'unknown';
@@ -168,6 +169,22 @@ export const useConversationRuntimeView = (conversation_id: string): UseConversa
     [conversation_id]
   );
 
+  const stopActiveTurn = useCallback(async (): Promise<boolean> => {
+    const turn_id = view.activeTurnId;
+    if (!turn_id) return false;
+
+    flushRuntimeViewLogs(localStopRequested(conversation_id, turn_id));
+    try {
+      const result = await ipcBridge.conversation.stop.invoke({ conversation_id, turn_id });
+      flushRuntimeViewLogs(localStopAcknowledged(conversation_id, turn_id, result.runtime));
+      return true;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      flushRuntimeViewLogs(resetLocalGate(conversation_id, normalizeReason(reason)));
+      throw error;
+    }
+  }, [conversation_id, view.activeTurnId]);
+
   return {
     view,
     hydrated: view.hydrated,
@@ -181,6 +198,7 @@ export const useConversationRuntimeView = (conversation_id: string): UseConversa
     markStopRequested,
     markStopAcknowledged,
     resetLocalGate: resetLocalRuntimeGate,
+    stopActiveTurn,
   };
 };
 

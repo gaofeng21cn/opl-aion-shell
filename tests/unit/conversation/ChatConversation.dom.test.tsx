@@ -1,8 +1,16 @@
 import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import type { TChatConversation } from '@/common/config/storage';
 import ChatConversation from '@/renderer/pages/conversation/components/ChatConversation';
+
+const runtimeView = vi.hoisted(() => ({
+  view: { state: 'running' },
+  currentTask: { title: 'Current task' },
+  activeTurnId: 'turn-1',
+  isProcessing: true,
+  stopActiveTurn: vi.fn().mockResolvedValue(true),
+}));
 
 vi.mock('@/common', () => ({
   ipcBridge: {
@@ -45,24 +53,43 @@ vi.mock('@/renderer/pages/cron', () => ({
 
 vi.mock('@/renderer/pages/conversation/components/ChatLayout', () => ({
   default: ({
-    headerLeft,
-    headerExtra,
+    environmentSlot,
+    sider,
+    currentTaskSlot,
     children,
   }: {
-    headerLeft?: React.ReactNode;
-    headerExtra?: React.ReactNode;
+    environmentSlot?: React.ReactNode;
+    sider?: React.ReactNode;
+    currentTaskSlot?: React.ReactNode;
     children: React.ReactNode;
   }) => (
     <div>
-      <div data-testid='chat-header-left'>{headerLeft}</div>
-      <div data-testid='chat-header-extra'>{headerExtra}</div>
+      <div data-testid='chat-environment'>{environmentSlot}</div>
+      <div data-testid='chat-current-task'>{currentTaskSlot}</div>
+      <div data-testid='chat-side-panel'>{sider}</div>
       {children}
     </div>
   ),
 }));
 
 vi.mock('@/renderer/pages/conversation/components/ChatSlider.tsx', () => ({
-  default: () => <div data-testid='chat-slider' />,
+  default: ({ actionsSlot }: { actionsSlot?: React.ReactNode }) => <div data-testid='chat-slider'>{actionsSlot}</div>,
+}));
+
+vi.mock('@/renderer/pages/conversation/components/ChatLayout/ConversationEnvironmentPopover', () => ({
+  default: () => <div data-testid='environment-popover' />,
+}));
+
+vi.mock('@/renderer/pages/conversation/runtime/useConversationRuntimeView', () => ({
+  useConversationRuntimeView: () => runtimeView,
+}));
+
+vi.mock('@/renderer/pages/conversation/runtime/CurrentTaskAwareness', () => ({
+  default: ({ onStop, stopDisabled }: { onStop?: () => unknown; stopDisabled?: boolean }) => (
+    <button type='button' disabled={stopDisabled} onClick={() => void onStop?.()}>
+      Stop current task
+    </button>
+  ),
 }));
 
 vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
@@ -133,6 +160,10 @@ const codexConversation = (): TChatConversation =>
   }) as TChatConversation;
 
 describe('ChatConversation Codex model surface', () => {
+  beforeEach(() => {
+    runtimeView.stopActiveTurn.mockClear();
+  });
+
   it('shows the App-owned model selector for Codex ACP conversations', () => {
     render(<ChatConversation conversation={acpConversation('codex')} />);
 
@@ -178,5 +209,13 @@ describe('ChatConversation Codex model surface', () => {
 
     expect(screen.getByTestId('acp-chat')).toHaveAttribute('data-mcp-servers', '[]');
     expect(screen.getByTestId('acp-chat')).toHaveAttribute('data-mcp-statuses', '[]');
+  });
+
+  it('wires the current-task stop control to the active runtime turn', () => {
+    render(<ChatConversation conversation={acpConversation('codex')} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop current task' }));
+
+    expect(runtimeView.stopActiveTurn).toHaveBeenCalledTimes(1);
   });
 });

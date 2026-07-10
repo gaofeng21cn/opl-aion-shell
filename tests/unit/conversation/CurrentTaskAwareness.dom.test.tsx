@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import CurrentTaskAwareness from '@/renderer/pages/conversation/runtime/CurrentTaskAwareness';
@@ -74,6 +74,15 @@ vi.mock('react-i18next', () => ({
         'conversation.currentTask.confirmMonitor': 'Monitor',
         'conversation.currentTask.confirmCollect': 'Collect',
         'conversation.currentTask.jobReceipt': 'Job receipt',
+        'conversation.currentTask.elapsed': 'Elapsed',
+        'conversation.currentTask.nextAction': 'Next action',
+        'conversation.currentTask.unavailable': 'Unavailable',
+        'conversation.currentTask.pin': 'Pin task summary',
+        'conversation.currentTask.unpin': 'Unpin task summary',
+        'conversation.currentTask.expand': 'Show task evidence',
+        'conversation.currentTask.collapse': 'Hide task evidence',
+        'conversation.currentTask.stop': 'Stop task',
+        'conversation.currentTask.stopUnavailable': 'No running turn can be stopped',
       };
       if (key === 'conversation.currentTask.owner') return `Owner: ${options?.owner ?? ''}`;
       return map[key] ?? key;
@@ -82,16 +91,19 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('CurrentTaskAwareness', () => {
-  it('renders inline current-task status from refs-only runtime summary', () => {
+  it('pins, expands, and stops from the compact current-task summary', async () => {
+    const onStop = vi.fn().mockResolvedValue(true);
     render(
       <CurrentTaskAwareness
         compact
+        onStop={onStop}
         task={
           {
             title: 'Manuscript review',
             status: { status_label: 'attention_needed' },
             stage: 'review',
             progress: '2/4',
+            elapsed_label: '12m',
             next_owner: 'reviewer',
             next_step: 'Approve edits',
             artifact_or_blocker_ref: 'artifact://draft',
@@ -104,9 +116,26 @@ describe('CurrentTaskAwareness', () => {
     expect(screen.getByText('Current task')).toBeTruthy();
     expect(screen.getByText('Manuscript review')).toBeTruthy();
     expect(screen.getByText('attention_needed')).toBeTruthy();
-    expect(screen.getByText('review')).toBeTruthy();
     expect(screen.getByText('2/4')).toBeTruthy();
+    expect(screen.getByText('12m')).toBeTruthy();
+    expect(screen.getByText('Approve edits')).toBeTruthy();
+    expect(screen.queryByText('artifact://draft')).toBeNull();
+
+    const pinButton = screen.getByRole('button', { name: 'Unpin task summary' });
+    expect(pinButton).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(pinButton);
+    expect(screen.getByRole('button', { name: 'Pin task summary' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('2/4')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin task summary' }));
+    expect(screen.getByText('2/4')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show task evidence' }));
+    expect(screen.getByText('artifact://draft')).toBeTruthy();
     expect(screen.getByText('Owner: reviewer')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop task' }));
+    await waitFor(() => expect(onStop).toHaveBeenCalledTimes(1));
   });
 
   it('renders inspector evidence refs without artifact body', () => {

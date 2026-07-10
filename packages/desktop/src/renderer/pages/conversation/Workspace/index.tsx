@@ -49,6 +49,10 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
   eventPrefix = 'acp',
   messageApi: externalMessageApi,
   currentTask,
+  activeTab: controlledActiveTab,
+  onActiveTabChange,
+  showTabBar = true,
+  showCurrentTask = true,
 }) => {
   const { t } = useTranslation();
   const layout = useLayoutContext();
@@ -61,7 +65,12 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
   const shouldRenderLocalMessageContext = !externalMessageApi;
 
   // Tab state and file changes
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('files');
+  const [uncontrolledActiveTab, setUncontrolledActiveTab] = useState<WorkspaceTab>('files');
+  const activeTab = controlledActiveTab ?? uncontrolledActiveTab;
+  const setActiveTab = (tab: WorkspaceTab) => {
+    setUncontrolledActiveTab(tab);
+    onActiveTabChange?.(tab);
+  };
   const fileChangesHook = useFileChanges({ workspace });
 
   // Bind workspace uploads to the conversation lifecycle: switching the
@@ -275,17 +284,17 @@ const ChatWorkspace: React.FC<WorkspaceProps> = ({
           handleDeleteConfirm={fileOpsHook.handleDeleteConfirm}
         />
 
-        {/* Tab bar */}
-        <CurrentTaskAwareness task={currentTask} />
+        {showCurrentTask && <CurrentTaskAwareness task={currentTask} />}
 
-        {/* Tab bar */}
-        <WorkspaceTabBar
-          t={t}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          changeCount={fileChangesHook.changeCount}
-          branch={fileChangesHook.snapshotInfo?.branch ?? null}
-        />
+        {showTabBar && (
+          <WorkspaceTabBar
+            t={t}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            changeCount={fileChangesHook.changeCount}
+            branch={fileChangesHook.snapshotInfo?.branch ?? null}
+          />
+        )}
 
         {/* Toolbar: search input + directory name + action buttons */}
         {activeTab === 'files' && (

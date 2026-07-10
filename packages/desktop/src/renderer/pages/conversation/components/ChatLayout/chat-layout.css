@@ -4,46 +4,210 @@
   height: 46px !important;
   min-height: 46px;
   padding: 0 12px !important;
-  background: linear-gradient(180deg, var(--bg-2) 0%, transparent 100%) !important;
+  background: var(--bg-1) !important;
   border-bottom: none;
   box-shadow: none;
 }
 
+.chat-layout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 6px 12px;
+  gap: 12px;
+  overflow: hidden;
+}
+
 .chat-layout-header--glass {
   position: relative;
-  isolation: isolate;
-  contain: paint;
-  background-color: color-mix(in srgb, var(--bg-1) 92%, transparent) !important;
+  background: var(--bg-1) !important;
+  border-bottom: 1px solid var(--bg-3);
+  box-shadow: none;
 }
 
-.chat-layout-header--glass::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -12px;
-  height: 12px;
-  pointer-events: none;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-1) 68%, transparent) 0%, transparent 100%);
+.conversation-header-navigation,
+.conversation-header-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
 }
 
-@supports ((-webkit-backdrop-filter: blur(6px)) or (backdrop-filter: blur(6px))) {
-  .chat-layout-header--glass {
-    -webkit-backdrop-filter: saturate(110%) blur(6px);
-    backdrop-filter: saturate(110%) blur(6px);
-  }
+.conversation-header-navigation .arco-btn,
+.conversation-header-tools .arco-btn {
+  flex: 0 0 auto;
 }
 
-@media (prefers-reduced-motion: reduce), (max-width: 768px) {
-  .chat-layout-header--glass {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-    background-color: var(--bg-1) !important;
-  }
+.chat-layout-right-sider {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--bg-3);
+  background: var(--bg-2);
+}
 
-  .chat-layout-header--glass::after {
-    display: none;
-  }
+.workspace-panel-header {
+  background: var(--bg-2);
+}
+
+.conversation-environment-trigger {
+  max-width: 132px;
+}
+
+.conversation-environment-trigger .arco-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.conversation-environment-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-environment-popover {
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 32px));
+}
+
+.conversation-environment-popover__row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--bg-3);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.conversation-environment-popover__row:last-child {
+  border-bottom: 0;
+}
+
+.conversation-environment-popover__row span {
+  color: var(--text-secondary);
+}
+
+.conversation-environment-popover__row b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.conversation-side-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg-2);
+}
+
+.conversation-side-panel > .arco-tabs {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--bg-3);
+}
+
+.conversation-side-panel > .arco-tabs .arco-tabs-header-nav::before {
+  display: none;
+}
+
+.conversation-side-panel__tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.conversation-side-panel__primary {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.conversation-side-panel__browser,
+.conversation-side-panel__content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.conversation-side-panel__browser-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--bg-3);
+}
+
+.conversation-side-panel__centered-action,
+.conversation-side-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 16px;
+}
+
+.conversation-side-panel__secondary {
+  flex: 0 0 auto;
+  max-height: 52%;
+  overflow: hidden;
+  border-top: 1px solid var(--bg-3);
+  background: var(--bg-2);
+}
+
+.conversation-side-panel__secondary-toggle .arco-btn-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.conversation-side-panel__secondary-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--bg-3);
+  border-bottom: 1px solid var(--bg-3);
+}
+
+.conversation-side-panel__secondary-nav .arco-btn {
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.conversation-side-panel__secondary-content {
+  min-height: 120px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.conversation-side-panel__refs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 16px 12px 28px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  word-break: break-word;
 }
 
 /* Workspace open button dropdown styles */

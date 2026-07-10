@@ -16,6 +16,8 @@ interface ToolOption {
 
 interface WorkspaceOpenButtonProps {
   workspacePath: string;
+  tool?: ToolType;
+  showLabel?: boolean;
   /**
    * Authoritative flag from `conversation.extra.is_temporary_workspace`.
    * The button hides itself for temp workspaces because there is no
@@ -31,7 +33,12 @@ const STORAGE_KEY = 'workspace-open-preference';
  * Supports VS Code, Terminal, and File Explorer
  * Remembers user's preferred tool
  */
-const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({ workspacePath, isTemporary }) => {
+const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({
+  workspacePath,
+  tool: fixedTool,
+  showLabel = false,
+  isTemporary,
+}) => {
   const { t } = useTranslation();
   const [vscodeInstalled, setVscodeInstalled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -39,7 +46,7 @@ const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({ workspacePath
 
   // Check if VS Code is installed and load preferred tool
   useEffect(() => {
-    if (isTemporary) return;
+    if (isTemporary || fixedTool) return;
     const checkTools = async () => {
       try {
         const installed = await ipcBridge.shell.checkToolInstalled.invoke({ tool: 'vscode' });
@@ -57,14 +64,16 @@ const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({ workspacePath
     }
 
     void checkTools();
-  }, [isTemporary]);
+  }, [fixedTool, isTemporary]);
 
   const handleOpenWith = async (tool: ToolType) => {
     try {
       await ipcBridge.shell.openFolderWith.invoke({ folder_path: workspacePath, tool });
       // Save preference
-      localStorage.setItem(STORAGE_KEY, tool);
-      setPreferredTool(tool);
+      if (!fixedTool) {
+        localStorage.setItem(STORAGE_KEY, tool);
+        setPreferredTool(tool);
+      }
     } catch (error) {
       console.error(`[WorkspaceOpenButton] Failed to open folder with ${tool}:`, error);
     }
@@ -94,18 +103,20 @@ const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({ workspacePath
   ];
 
   // Filter only available tools
-  const availableOptions = toolOptions.filter((opt) => opt.available);
+  const availableOptions = toolOptions.filter((option) => option.available && (!fixedTool || option.key === fixedTool));
 
   // Determine current tool: preferred > first available > explorer
   const currentTool: ToolType = useMemo(() => {
     if (isTemporary) {
       return 'explorer';
     }
+    if (fixedTool) return fixedTool;
     if (preferredTool && availableOptions.some((opt) => opt.key === preferredTool)) {
       return preferredTool;
     }
     return availableOptions[0]?.key ?? 'explorer';
-  }, [isTemporary, preferredTool, availableOptions]);
+  }, [availableOptions, fixedTool, isTemporary, preferredTool]);
+  const currentLabel = toolOptions.find((option) => option.key === currentTool)?.label;
 
   // Get current icon based on selected tool
   const currentIcon = useMemo(() => {
@@ -152,25 +163,28 @@ const WorkspaceOpenButton: React.FC<WorkspaceOpenButtonProps> = ({ workspacePath
           onClick={() => handleOpenWith(currentTool)}
         >
           {currentIcon}
+          {showLabel && currentLabel}
         </Button>
       </Tooltip>
 
-      <Dropdown
-        trigger='click'
-        position='br'
-        popupVisible={dropdownOpen}
-        onVisibleChange={setDropdownOpen}
-        droplist={dropdownList}
-      >
-        <Button
-          type='text'
-          size='small'
-          className='workspace-open-button__dropdown-btn pl-2px pr-4px'
-          style={{ marginLeft: '-4px' }}
+      {!fixedTool && (
+        <Dropdown
+          trigger='click'
+          position='br'
+          popupVisible={dropdownOpen}
+          onVisibleChange={setDropdownOpen}
+          droplist={dropdownList}
         >
-          <Down size={12} className={`transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
-        </Button>
-      </Dropdown>
+          <Button
+            type='text'
+            size='small'
+            className='workspace-open-button__dropdown-btn pl-2px pr-4px'
+            style={{ marginLeft: '-4px' }}
+          >
+            <Down size={12} className={`transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`} />
+          </Button>
+        </Dropdown>
+      )}
     </div>
   );
 };
